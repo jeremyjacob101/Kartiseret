@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: YesPlanet
+URL: https://www.planetcinema.co.il/cinemas/beersheva/1074#/buy-tickets-by-cinema?in-cinema=1074&at=2026-02-22&view-mode=list
+Exception: TimeoutException - Message: 
+Call Chain: runners.py:40 > runners.py:18 > BaseCinema.py:28 > YesPlanet.py:104 > ScrapingHelpers.py:19
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/227/YesPlanet-ThreadPoolExecutor-1_4-20260217-181726.png
+CSV: backend/utils/log/logger_artifacts/227/YesPlanet-ThreadPoolExecutor-1_4-20260217-181726-gathering_info.csv

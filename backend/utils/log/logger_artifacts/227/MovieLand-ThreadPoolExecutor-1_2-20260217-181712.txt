@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: MovieLand
+URL: https://movieland.co.il/theater/1292/%D7%A0%D7%AA%D7%A0%D7%99%D7%94
+Exception: TimeoutException - Message: 
+Call Chain: runners.py:40 > runners.py:18 > BaseCinema.py:28 > MovieLand.py:68 > ScrapingHelpers.py:19
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/227/MovieLand-ThreadPoolExecutor-1_2-20260217-181712.png
+CSV: backend/utils/log/logger_artifacts/227/MovieLand-ThreadPoolExecutor-1_2-20260217-181712-gathering_info.csv
