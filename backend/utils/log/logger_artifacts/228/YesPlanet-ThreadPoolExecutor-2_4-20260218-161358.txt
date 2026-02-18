@@ -1,0 +1,11 @@
+- - -
+ERROR
+- - -
+Name: YesPlanet
+URL: https://www.planetcinema.co.il/?lang=en_gb#/
+Exception: WebDriverException - Message: unknown error: net::ERR_NAME_NOT_RESOLVED
+  (Session info: chrome=144.0.7559.133)
+Call Chain: runners.py:40 > runners.py:18 > BaseCinema.py:28 > YesPlanet.py:18
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/228/YesPlanet-ThreadPoolExecutor-2_4-20260218-161358.png
+CSV: 

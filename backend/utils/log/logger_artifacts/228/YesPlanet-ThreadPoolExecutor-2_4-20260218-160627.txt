@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: YesPlanet
+URL: ?
+Exception: InvalidSessionIdException - 13  dyld                                0x000000018ffb5d54 start + 7184
+Call Chain: runners.py:40 > runners.py:18 > BaseCinema.py:28 > YesPlanet.py:110 > ScrapingHelpers.py:48
+Selector: 
+Screenshot: 
+CSV: backend/utils/log/logger_artifacts/228/YesPlanet-ThreadPoolExecutor-2_4-20260218-160627-gathering_info.csv
