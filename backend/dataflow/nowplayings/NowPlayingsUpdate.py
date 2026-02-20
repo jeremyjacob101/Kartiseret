@@ -84,9 +84,9 @@ class NowPlayingsUpdate(BaseDataflow):
                         html = requests.get(f"https://www.imdb.com/title/{imdb_id}/", headers=self.requests_headers, timeout=20, allow_redirects=True).text
                     except:
                         html = ""
-                    m = re.search(r'"ratingValue"\s*:\s*"?([\d.]+)"?', html or "")
-                    new_row["imdbRating"] = m.group(1) if m else self.imdbRating
-                    m = re.search(r'"ratingCount"\s*:\s*"?([\d,]+)"?', html or "")
+                    m = re.search(r'"aggregateRating"\s*:\s*\{[^{}]*?"ratingValue"\s*:\s*"?([\d.]+)"?', html or "", flags=re.S)
+                    new_row["imdbRating"] = float(m.group(1)) if m else self.imdbRating
+                    m = re.search(r'"aggregateRating"\s*:\s*\{[^{}]*?"ratingCount"\s*:\s*"?([\d,]+)"?', html or "", flags=re.S)
                     new_row["imdbVotes"] = int(m.group(1).replace(",", "")) if m else self.imdbVotes
 
             # Rotten Tomatoes
