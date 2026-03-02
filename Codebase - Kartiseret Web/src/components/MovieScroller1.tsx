@@ -4,10 +4,7 @@ import {
   type MovieScrollerProps,
 } from "./MovieScrollerBase";
 
-export function MovieScroller1({
-  className,
-  ...props
-}: MovieScrollerProps) {
+export function MovieScroller1({ className, ...props }: MovieScrollerProps) {
   return (
     <MovieScrollerBase
       {...props}

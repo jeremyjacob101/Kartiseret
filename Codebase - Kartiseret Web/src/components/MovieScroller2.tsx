@@ -33,7 +33,10 @@ function buildCardOffset(
   cardState: MovieScrollerCardState,
   phase: FocusPhase,
 ): CSSProperties | undefined {
-  if (cardState.selectedItemIndex === null || cardState.relativeIndex === null) {
+  if (
+    cardState.selectedItemIndex === null ||
+    cardState.relativeIndex === null
+  ) {
     return undefined;
   }
 
@@ -92,10 +95,7 @@ function buildCardOffset(
   } as CSSProperties;
 }
 
-export function MovieScroller2({
-  className,
-  ...props
-}: MovieScroller2Props) {
+export function MovieScroller2({ className, ...props }: MovieScroller2Props) {
   const [selectedMovie, setSelectedMovie] = useState<SelectedMovieState | null>(
     null,
   );
@@ -183,11 +183,11 @@ export function MovieScroller2({
         width: currentPosterRect.width,
         height: currentPosterRect.height,
       };
-      }
+    }
 
-      setShowGhost(true);
-      setPhase("closing");
-    }, [phase, selectedMovie]);
+    setShowGhost(true);
+    setPhase("closing");
+  }, [phase, selectedMovie]);
 
   useEffect(() => {
     if (!selectedMovie) {
