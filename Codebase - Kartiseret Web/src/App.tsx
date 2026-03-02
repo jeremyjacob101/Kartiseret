@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Settings } from "lucide-react";
 import { MovieScroller } from "./components/MovieScroller";
+import { MovieScroller2 } from "./components/MovieScroller2";
 import "./index.css";
 
 export default function App() {
@@ -22,7 +23,7 @@ export default function App() {
         <section className="scroller-panel" aria-label="Now Playing">
           <div className="section-heading">
             <p className="section-kicker">Showtimes</p>
-            <h1 className="section-title">Now Playing</h1>
+            <h1 className="section-title">Now Playing A</h1>
           </div>
           <div className="scroller-stack">
             <MovieScroller
@@ -31,6 +32,52 @@ export default function App() {
               gap={22}
               maxWidth={1100}
             />
+          </div>
+          <div className="section-heading">
+            <p className="section-kicker">Showtimes</p>
+            <h1 className="section-title">Now Playing B</h1>
+          </div>
+          <MovieScroller2
+            cardWidth={220}
+            cardHeight={330}
+            gap={22}
+            maxWidth={1100}
+          />
+          <div className="section-heading">
+            <p className="section-kicker">placeholder</p>
+            <h1 className="section-title">placeholder</h1>
+          </div>
+          <div className="section-heading">
+            <p className="section-kicker">placeholder</p>
+            <h1 className="section-title">placeholder</h1>
+          </div>
+          <div className="section-heading">
+            <p className="section-kicker">placeholder</p>
+            <h1 className="section-title">placeholder</h1>
+          </div>
+          <div className="section-heading">
+            <p className="section-kicker">placeholder</p>
+            <h1 className="section-title">placeholder</h1>
+          </div>
+          <div className="section-heading">
+            <p className="section-kicker">placeholder</p>
+            <h1 className="section-title">placeholder</h1>
+          </div>
+          <div className="section-heading">
+            <p className="section-kicker">placeholder</p>
+            <h1 className="section-title">placeholder</h1>
+          </div>
+          <div className="section-heading">
+            <p className="section-kicker">placeholder</p>
+            <h1 className="section-title">placeholder</h1>
+          </div>
+          <div className="section-heading">
+            <p className="section-kicker">placeholder</p>
+            <h1 className="section-title">placeholder</h1>
+          </div>
+          <div className="section-heading">
+            <p className="section-kicker">placeholder</p>
+            <h1 className="section-title">placeholder</h1>
           </div>
         </section>
       </main>

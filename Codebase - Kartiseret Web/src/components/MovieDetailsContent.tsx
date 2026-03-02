@@ -1,4 +1,3 @@
-import { Calendar, Clock3 } from "lucide-react";
 import type { Ref } from "react";
 import type { Movie } from "../data/movies";
 import { fakeShowtimes } from "../data/showtimes";
@@ -116,7 +115,7 @@ export function MovieDetailsContent({
             {movie.title}
           </h2>
           <p className="details-subtitle">
-            {movie.year} • {formatRuntime(movie.runtime)} • {defaultCity}
+            {movie.year} • {formatRuntime(movie.runtime)}
           </p>
 
           <div className="details-metrics">
@@ -151,32 +150,6 @@ export function MovieDetailsContent({
                 />
               </span>
               <strong>{movie.rtRating}%</strong>
-            </div>
-            <div
-              className="details-metric"
-              aria-label={`Runtime ${movie.runtime} minutes`}
-            >
-              <span className="details-metric-marker" aria-hidden="true">
-                <Clock3
-                  className="details-metric-icon"
-                  size={16}
-                  strokeWidth={2}
-                />
-              </span>
-              <strong>{movie.runtime} min</strong>
-            </div>
-            <div
-              className="details-metric"
-              aria-label={`Release year ${movie.year}`}
-            >
-              <span className="details-metric-marker" aria-hidden="true">
-                <Calendar
-                  className="details-metric-icon"
-                  size={16}
-                  strokeWidth={2}
-                />
-              </span>
-              <strong>{movie.year}</strong>
             </div>
           </div>
         </div>
