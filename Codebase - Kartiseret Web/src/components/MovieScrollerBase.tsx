@@ -248,7 +248,7 @@ export function MovieScrollerBase({
     viewport.clientWidth > 0 ? clamp(viewport.clientWidth * 0.12, 52, 96) : 96;
   const fadeEndDistance =
     viewport.clientWidth > 0
-      ? Math.max(viewport.clientWidth / 2 - cardWidth * 0.08, cardWidth)
+      ? Math.max(viewport.clientWidth / 2 + cardWidth * 0.5, cardWidth)
       : cardWidth;
   const focusPlateau = Math.max(itemSpan * 0.16, 28);
   const waveRadius = Math.max(itemSpan * 1.8, cardWidth * 1.55);
