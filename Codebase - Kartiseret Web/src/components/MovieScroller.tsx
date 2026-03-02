@@ -23,8 +23,10 @@ type FocusMovieScrollerProps = Omit<MovieScrollerProps, "onSelectMovie">;
 type SelectedMovieState = {
   movie: Movie;
   sourceRect: PosterSourceRect;
+  targetRect: PosterSourceRect;
   itemIndex: number;
   sourceOpacity: number;
+  targetOpacity: number;
 };
 
 type FocusPhase = "idle" | "opening" | "open" | "closing";
@@ -33,6 +35,12 @@ const CARD_MOVE_DURATION_MS = 520;
 const CARD_OPACITY_DURATION_MS = 260;
 const CARD_STAGGER_STEP_MS = 16;
 const CARD_MAX_STAGGER_MS = 110;
+const SCROLLER_CARD_RADIUS_PX = 14;
+const FOCUS_POSTER_RADIUS_PX = 24;
+const FOCUS_POSTER_SHADOW =
+  "0 24px 46px rgba(0, 0, 0, 0.34), 0 0 0 1px rgba(255, 255, 255, 0.08)";
+const SCROLLER_CARD_SHADOW =
+  "0 0 0 rgba(0, 0, 0, 0), 0 0 0 rgba(255, 255, 255, 0)";
 
 const POSTER_MOVE_DURATION_MS = 300;
 const POSTER_GHOST_OPACITY_DURATION_MS = 120;
@@ -40,20 +48,14 @@ const FOCUS_POSTER_FADE_DURATION_MS = 180;
 const FOCUS_POSTER_REVEAL_DELAY_MS = 150;
 const GHOST_FADE_OUT_DELAY_MS = 260;
 const POSTER_HANDOFF_TOTAL_MS = 440;
-const CLOSE_GHOST_FADE_IN_DELAY_MS =
-  POSTER_HANDOFF_TOTAL_MS -
-  (GHOST_FADE_OUT_DELAY_MS + POSTER_GHOST_OPACITY_DURATION_MS);
-const CLOSE_FOCUS_POSTER_HIDE_DELAY_MS =
-  POSTER_HANDOFF_TOTAL_MS -
-  (FOCUS_POSTER_REVEAL_DELAY_MS + FOCUS_POSTER_FADE_DURATION_MS);
-const CLOSE_GHOST_MOVE_DELAY_MS =
-  POSTER_HANDOFF_TOTAL_MS - POSTER_MOVE_DURATION_MS;
-const CLOSE_GHOST_SOURCE_OPACITY_DELAY_MS =
-  POSTER_HANDOFF_TOTAL_MS - POSTER_GHOST_OPACITY_DURATION_MS;
+const POSTER_RETURN_SETTLE_DELAY_MS = POSTER_MOVE_DURATION_MS;
 const FOCUS_STAGE_FADE_DURATION_MS = 260;
+const CLOSE_STAGE_FADE_DELAY_MS =
+  POSTER_HANDOFF_TOTAL_MS - FOCUS_STAGE_FADE_DURATION_MS;
 
 const movieScrollerTimingStyle = {
   "--movie-scroller-stage-fade-duration": `${FOCUS_STAGE_FADE_DURATION_MS}ms`,
+  "--movie-scroller-stage-close-delay": `${CLOSE_STAGE_FADE_DELAY_MS}ms`,
   "--movie-scroller-focus-poster-fade-duration": `${FOCUS_POSTER_FADE_DURATION_MS}ms`,
   "--movie-scroller-ghost-move-duration": `${POSTER_MOVE_DURATION_MS}ms`,
   "--movie-scroller-ghost-opacity-duration": `${POSTER_GHOST_OPACITY_DURATION_MS}ms`,
@@ -79,10 +81,9 @@ function buildCardOffset(
   if (cardState.isSelected) {
     if (phase === "closing") {
       return {
-        opacity: cardState.positionalOpacity,
+        opacity: 0,
         filter: "blur(0px)",
         transition,
-        transitionDelay: `${CLOSE_FOCUS_POSTER_HIDE_DELAY_MS}ms`,
         "--card-translate-x": "0px",
         "--card-translate-y": "0px",
         "--card-rotate": "0deg",
@@ -142,13 +143,15 @@ export function MovieScroller({
   const [phase, setPhase] = useState<FocusPhase>("idle");
   const [isFocusPosterVisible, setIsFocusPosterVisible] = useState(false);
   const [showGhost, setShowGhost] = useState(false);
+  const [isReturnHandoffReady, setIsReturnHandoffReady] = useState(false);
+  const shellRef = useRef<HTMLDivElement | null>(null);
   const posterRef = useRef<HTMLImageElement | null>(null);
   const ghostRef = useRef<HTMLImageElement | null>(null);
   const targetRectRef = useRef<PosterSourceRect | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const posterRevealTimeoutRef = useRef<number | null>(null);
   const crossfadeTimeoutRef = useRef<number | null>(null);
-  const moveTimeoutRef = useRef<number | null>(null);
+  const returnHandoffTimeoutRef = useRef<number | null>(null);
   const completeTimeoutRef = useRef<number | null>(null);
   const ghostCleanupTimeoutRef = useRef<number | null>(null);
   const titleId = useId();
@@ -169,9 +172,9 @@ export function MovieScroller({
       crossfadeTimeoutRef.current = null;
     }
 
-    if (moveTimeoutRef.current !== null) {
-      window.clearTimeout(moveTimeoutRef.current);
-      moveTimeoutRef.current = null;
+    if (returnHandoffTimeoutRef.current !== null) {
+      window.clearTimeout(returnHandoffTimeoutRef.current);
+      returnHandoffTimeoutRef.current = null;
     }
 
     if (completeTimeoutRef.current !== null) {
@@ -197,6 +200,60 @@ export function MovieScroller({
     ghost.style.height = `${rect.height}px`;
   }, []);
 
+  const applyGhostScrollerAppearance = useCallback(() => {
+    const ghost = ghostRef.current;
+    if (!ghost) {
+      return;
+    }
+
+    ghost.style.borderRadius = `${SCROLLER_CARD_RADIUS_PX}px`;
+    ghost.style.boxShadow = SCROLLER_CARD_SHADOW;
+  }, []);
+
+  const applyGhostFocusAppearance = useCallback(() => {
+    const ghost = ghostRef.current;
+    if (!ghost) {
+      return;
+    }
+
+    ghost.style.borderRadius = `${FOCUS_POSTER_RADIUS_PX}px`;
+    ghost.style.boxShadow = FOCUS_POSTER_SHADOW;
+  }, []);
+
+  const getCurrentPositionalOpacity = useCallback(
+    (itemIndex: number, fallback: number) => {
+      const item = shellRef.current?.querySelector<HTMLElement>(
+        `[data-scroller-item-index="${itemIndex}"]`,
+      );
+      const value = item?.dataset.scrollerPositionalOpacity;
+      const parsed = value ? Number(value) : Number.NaN;
+
+      return Number.isFinite(parsed) ? parsed : fallback;
+    },
+    [],
+  );
+
+  const getCurrentDestinationRect = useCallback(
+    (itemIndex: number, fallback: PosterSourceRect) => {
+      const item = shellRef.current?.querySelector<HTMLElement>(
+        `[data-scroller-item-index="${itemIndex}"]`,
+      );
+      const rect = item?.getBoundingClientRect();
+
+      if (!rect) {
+        return fallback;
+      }
+
+      return {
+        top: rect.top,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height,
+      };
+    },
+    [],
+  );
+
   const handleSelectMovie = useCallback(
     (
       movie: Movie,
@@ -209,8 +266,16 @@ export function MovieScroller({
       }
 
       setIsFocusPosterVisible(false);
+      setIsReturnHandoffReady(false);
       setShowGhost(true);
-      setSelectedMovie({ movie, sourceRect, itemIndex, sourceOpacity });
+      setSelectedMovie({
+        movie,
+        sourceRect,
+        targetRect: sourceRect,
+        itemIndex,
+        sourceOpacity,
+        targetOpacity: sourceOpacity,
+      });
       setPhase("opening");
     },
     [phase],
@@ -231,9 +296,27 @@ export function MovieScroller({
       };
     }
 
+    const targetOpacity = getCurrentPositionalOpacity(
+      selectedMovie.itemIndex,
+      selectedMovie.sourceOpacity,
+    );
+    const targetRect = getCurrentDestinationRect(
+      selectedMovie.itemIndex,
+      selectedMovie.sourceRect,
+    );
+
+    setSelectedMovie((current) =>
+      current ? { ...current, targetOpacity, targetRect } : current,
+    );
+    setIsReturnHandoffReady(false);
     setShowGhost(true);
     setPhase("closing");
-  }, [phase, selectedMovie]);
+  }, [
+    getCurrentDestinationRect,
+    getCurrentPositionalOpacity,
+    phase,
+    selectedMovie,
+  ]);
 
   useEffect(() => {
     if (!selectedMovie) {
@@ -241,7 +324,17 @@ export function MovieScroller({
     }
 
     const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const computedPaddingRight =
+      Number.parseFloat(window.getComputedStyle(document.body).paddingRight) ||
+      0;
+    const scrollbarWidth =
+      window.innerWidth - document.documentElement.clientWidth;
+
     document.body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${computedPaddingRight + scrollbarWidth}px`;
+    }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -253,6 +346,7 @@ export function MovieScroller({
 
     return () => {
       document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [handleRequestClose, selectedMovie]);
@@ -278,6 +372,7 @@ export function MovieScroller({
       };
 
       applyRectToGhost(selectedMovie.sourceRect);
+      applyGhostScrollerAppearance();
       if (ghostRef.current) {
         ghostRef.current.style.opacity = `${selectedMovie.sourceOpacity}`;
       }
@@ -287,6 +382,7 @@ export function MovieScroller({
           if (targetRectRef.current) {
             applyRectToGhost(targetRectRef.current);
           }
+          applyGhostFocusAppearance();
           if (ghostRef.current) {
             ghostRef.current.style.opacity = "1";
           }
@@ -334,35 +430,30 @@ export function MovieScroller({
       }
 
       applyRectToGhost(closeFromRect);
+      applyGhostFocusAppearance();
       if (ghostRef.current) {
-        ghostRef.current.style.opacity = "0";
+        ghostRef.current.style.opacity = "1";
       }
 
-      posterRevealTimeoutRef.current = window.setTimeout(() => {
-        if (ghostRef.current) {
-          ghostRef.current.style.opacity = "1";
-        }
-      }, CLOSE_GHOST_FADE_IN_DELAY_MS);
-
-      crossfadeTimeoutRef.current = window.setTimeout(() => {
-        setIsFocusPosterVisible(false);
-      }, CLOSE_FOCUS_POSTER_HIDE_DELAY_MS);
-
-      moveTimeoutRef.current = window.setTimeout(() => {
+      animationFrameRef.current = window.requestAnimationFrame(() => {
         animationFrameRef.current = window.requestAnimationFrame(() => {
-          animationFrameRef.current = window.requestAnimationFrame(() => {
-            applyRectToGhost(selectedMovie.sourceRect);
-          });
+          setIsFocusPosterVisible(false);
+          applyRectToGhost(selectedMovie.targetRect);
+          applyGhostScrollerAppearance();
+          if (ghostRef.current) {
+            ghostRef.current.style.opacity = `${selectedMovie.targetOpacity}`;
+          }
         });
-      }, CLOSE_GHOST_MOVE_DELAY_MS);
+      });
 
-      ghostCleanupTimeoutRef.current = window.setTimeout(() => {
-        if (ghostRef.current) {
-          ghostRef.current.style.opacity = `${selectedMovie.sourceOpacity}`;
-        }
-      }, CLOSE_GHOST_SOURCE_OPACITY_DELAY_MS);
+      returnHandoffTimeoutRef.current = window.setTimeout(() => {
+        setIsReturnHandoffReady(true);
+        setShowGhost(false);
+        returnHandoffTimeoutRef.current = null;
+      }, POSTER_RETURN_SETTLE_DELAY_MS);
 
       completeTimeoutRef.current = window.setTimeout(() => {
+        setIsReturnHandoffReady(false);
         setSelectedMovie(null);
         setPhase("idle");
         setShowGhost(false);
@@ -372,7 +463,14 @@ export function MovieScroller({
     return () => {
       clearScheduledAnimation();
     };
-  }, [applyRectToGhost, clearScheduledAnimation, phase, selectedMovie]);
+  }, [
+    applyGhostFocusAppearance,
+    applyGhostScrollerAppearance,
+    applyRectToGhost,
+    clearScheduledAnimation,
+    phase,
+    selectedMovie,
+  ]);
 
   const getCardClassName = useCallback(
     (cardState: MovieScrollerCardState) => {
@@ -392,8 +490,26 @@ export function MovieScroller({
   );
 
   const getCardStyle = useCallback(
-    (cardState: MovieScrollerCardState) => buildCardOffset(cardState, phase),
-    [phase],
+    (cardState: MovieScrollerCardState) => {
+      const style = buildCardOffset(cardState, phase);
+      if (
+        phase === "closing" &&
+        selectedMovie &&
+        cardState.isSelected &&
+        style
+      ) {
+        return isReturnHandoffReady
+          ? {
+              ...style,
+              opacity: selectedMovie.targetOpacity,
+              transition: "none",
+            }
+          : style;
+      }
+
+      return style;
+    },
+    [isReturnHandoffReady, phase, selectedMovie],
   );
 
   const focusStateClass =
@@ -406,7 +522,11 @@ export function MovieScroller({
           : " is-open";
 
   return (
-    <div className="movie-scroller-shell" style={movieScrollerTimingStyle}>
+    <div
+      ref={shellRef}
+      className="movie-scroller-shell"
+      style={movieScrollerTimingStyle}
+    >
       <MovieScrollerBase
         {...props}
         selectedItemIndex={selectedMovie?.itemIndex ?? null}
@@ -415,7 +535,8 @@ export function MovieScroller({
         onSelectMovie={handleSelectMovie}
         className={[
           "movie-scroller",
-          phase !== "idle" ? "is-focused" : "",
+          phase === "opening" || phase === "open" ? "is-focused" : "",
+          phase === "closing" ? "is-restoring" : "",
           className,
         ]
           .filter(Boolean)
@@ -423,56 +544,58 @@ export function MovieScroller({
       />
 
       {selectedMovie ? (
-        <div
-          className={`movie-scroller-focus-stage${focusStateClass}`}
-          onClick={handleRequestClose}
-          role="presentation"
-        >
-          <section
-            className="movie-scroller-focus-layout"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            onClick={(event) => {
-              event.stopPropagation();
-            }}
+        <>
+          <div
+            className={`movie-scroller-focus-stage${focusStateClass}`}
+            onClick={handleRequestClose}
+            role="presentation"
           >
-            {selectedMovie.movie.backdropSrc ? (
-              <div
-                className={`movie-scroller-focus-backdrop-shell${focusStateClass}`}
-                aria-hidden="true"
+            <section
+              className="movie-scroller-focus-layout"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={titleId}
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+            >
+              {selectedMovie.movie.backdropSrc ? (
+                <div
+                  className={`movie-scroller-focus-backdrop-shell${focusStateClass}`}
+                  aria-hidden="true"
+                >
+                  <img
+                    src={selectedMovie.movie.backdropSrc}
+                    alt=""
+                    className="movie-scroller-focus-backdrop"
+                    decoding="async"
+                    fetchPriority="high"
+                  />
+                </div>
+              ) : null}
+
+              <button
+                type="button"
+                className="movie-scroller-close"
+                aria-label="Close spotlight view"
+                onClick={handleRequestClose}
               >
-                <img
-                  src={selectedMovie.movie.backdropSrc}
-                  alt=""
-                  className="movie-scroller-focus-backdrop"
-                  decoding="async"
-                  fetchPriority="high"
+                <X size={20} strokeWidth={2.1} />
+              </button>
+
+              <div className="movie-scroller-focus-content">
+                <MovieDetailsContent
+                  movie={selectedMovie.movie}
+                  posterRef={posterRef}
+                  titleId={titleId}
+                  posterClassName={`details-poster movie-scroller-focus-poster${
+                    isFocusPosterVisible ? " is-visible" : ""
+                  }`}
+                  eyebrow="Revival spotlight"
                 />
               </div>
-            ) : null}
-
-            <button
-              type="button"
-              className="movie-scroller-close"
-              aria-label="Close spotlight view"
-              onClick={handleRequestClose}
-            >
-              <X size={20} strokeWidth={2.1} />
-            </button>
-
-            <div className="movie-scroller-focus-content">
-              <MovieDetailsContent
-                movie={selectedMovie.movie}
-                posterRef={posterRef}
-                titleId={titleId}
-                posterClassName={`details-poster movie-scroller-focus-poster${
-                  isFocusPosterVisible ? " is-visible" : ""
-                }`}
-                eyebrow="Revival spotlight"
-              />
-            </div>
-          </section>
+            </section>
+          </div>
 
           {showGhost ? (
             <img
@@ -496,7 +619,7 @@ export function MovieScroller({
               }
             />
           ) : null}
-        </div>
+        </>
       ) : null}
     </div>
   );

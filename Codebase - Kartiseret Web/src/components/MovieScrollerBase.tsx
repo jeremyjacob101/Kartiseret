@@ -329,6 +329,8 @@ export function MovieScrollerBase({
           key={i}
           type="button"
           aria-label={`Open details for ${movie.title}`}
+          data-scroller-item-index={i}
+          data-scroller-positional-opacity={opacity.toFixed(6)}
           onClick={handleSelectMovie}
           className={["movie-scroller__card", cardClassName]
             .filter(Boolean)

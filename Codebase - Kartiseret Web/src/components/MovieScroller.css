@@ -25,6 +25,11 @@
   filter: saturate(0.78) brightness(0.86);
 }
 
+.movie-scroller.is-restoring {
+  pointer-events: none;
+  filter: none;
+}
+
 .movie-scroller .movie-scroller__card {
   backface-visibility: hidden;
   will-change: transform, opacity, filter;
@@ -107,7 +112,8 @@
 .movie-scroller-focus-stage.is-closing {
   pointer-events: none;
   animation: movieScrollerStageOut
-    var(--movie-scroller-stage-fade-duration, 260ms) ease both;
+    var(--movie-scroller-stage-fade-duration, 260ms) ease
+    var(--movie-scroller-stage-close-delay, 0ms) both;
 }
 
 .movie-scroller-focus-layout {
@@ -250,6 +256,7 @@
       cubic-bezier(0.16, 0.9, 0.26, 1),
     border-radius var(--movie-scroller-ghost-move-duration, 300ms)
       cubic-bezier(0.16, 0.9, 0.26, 1),
+    box-shadow var(--movie-scroller-ghost-move-duration, 300ms) ease,
     opacity var(--movie-scroller-ghost-opacity-duration, 120ms) ease;
   will-change: top, left, width, height, opacity;
   transform: translateZ(0);
@@ -259,6 +266,22 @@
 .movie-scroller-poster-ghost.is-opening,
 .movie-scroller-poster-ghost.is-closing {
   opacity: 1;
+}
+
+.movie-scroller-poster-ghost.is-closing {
+  transition:
+    top var(--movie-scroller-ghost-move-duration, 300ms)
+      cubic-bezier(0.16, 0.9, 0.26, 1),
+    left var(--movie-scroller-ghost-move-duration, 300ms)
+      cubic-bezier(0.16, 0.9, 0.26, 1),
+    width var(--movie-scroller-ghost-move-duration, 300ms)
+      cubic-bezier(0.16, 0.9, 0.26, 1),
+    height var(--movie-scroller-ghost-move-duration, 300ms)
+      cubic-bezier(0.16, 0.9, 0.26, 1),
+    border-radius var(--movie-scroller-ghost-move-duration, 300ms)
+      cubic-bezier(0.16, 0.9, 0.26, 1),
+    box-shadow var(--movie-scroller-ghost-move-duration, 300ms) ease,
+    opacity var(--movie-scroller-ghost-move-duration, 300ms) linear;
 }
 
 .movie-scroller-focus-stage.is-opening .details-copy {
