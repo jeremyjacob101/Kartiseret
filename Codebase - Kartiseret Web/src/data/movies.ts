@@ -2,6 +2,7 @@ export type Movie = {
   title: string;
   year: number;
   imageSrc: string;
+  backdropSrc?: string;
   imdbRating: number;
   rtRating: number;
   runtime: number;
@@ -12,6 +13,7 @@ export const movies: Movie[] = [
     title: "Citizen Kane",
     year: 1941,
     imageSrc: "/poster1.jpg",
+    backdropSrc: "/posterbackdrop1.jpg",
     imdbRating: 8.6,
     rtRating: 98,
     runtime: 119,
@@ -20,6 +22,7 @@ export const movies: Movie[] = [
     title: "Casablanca",
     year: 1942,
     imageSrc: "/poster2.jpg",
+    backdropSrc: "/posterbackdrop2.jpg",
     imdbRating: 8.5,
     rtRating: 97,
     runtime: 102,
@@ -28,6 +31,7 @@ export const movies: Movie[] = [
     title: "The Godfather",
     year: 1972,
     imageSrc: "/poster3.jpg",
+    backdropSrc: "/posterbackdrop3.jpg",
     imdbRating: 9.1,
     rtRating: 99,
     runtime: 175,
@@ -36,6 +40,7 @@ export const movies: Movie[] = [
     title: "2001: A Space Odyssey",
     year: 1968,
     imageSrc: "/poster4.jpg",
+    backdropSrc: "/posterbackdrop4.jpg",
     imdbRating: 8.3,
     rtRating: 92,
     runtime: 149,
@@ -44,6 +49,7 @@ export const movies: Movie[] = [
     title: "Seven Samurai",
     year: 1954,
     imageSrc: "/poster5.jpg",
+    backdropSrc: "/posterbackdrop5.jpg",
     imdbRating: 8.7,
     rtRating: 96,
     runtime: 207,
@@ -52,6 +58,7 @@ export const movies: Movie[] = [
     title: "Vertigo",
     year: 1958,
     imageSrc: "/poster6.jpg",
+    backdropSrc: "/posterbackdrop6.jpg",
     imdbRating: 8.2,
     rtRating: 94,
     runtime: 128,
@@ -60,6 +67,7 @@ export const movies: Movie[] = [
     title: "Psycho",
     year: 1960,
     imageSrc: "/poster7.jpg",
+    backdropSrc: "/posterbackdrop7.jpg",
     imdbRating: 8.4,
     rtRating: 95,
     runtime: 109,
@@ -68,6 +76,7 @@ export const movies: Movie[] = [
     title: "Lawrence of Arabia",
     year: 1962,
     imageSrc: "/poster8.jpg",
+    backdropSrc: "/posterbackdrop8.jpg",
     imdbRating: 8.3,
     rtRating: 93,
     runtime: 222,
@@ -76,6 +85,7 @@ export const movies: Movie[] = [
     title: "Schindler's List",
     year: 1993,
     imageSrc: "/poster9.jpg",
+    backdropSrc: "/posterbackdrop9.jpg",
     imdbRating: 8.9,
     rtRating: 98,
     runtime: 195,
@@ -84,6 +94,7 @@ export const movies: Movie[] = [
     title: "Pulp Fiction",
     year: 1994,
     imageSrc: "/poster10.jpg",
+    backdropSrc: "/posterbackdrop10.jpg",
     imdbRating: 8.8,
     rtRating: 94,
     runtime: 154,

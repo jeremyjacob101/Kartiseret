@@ -230,14 +230,21 @@ export function MovieScrollerBase({
 
   useEffect(() => {
     for (let i = range.start; i <= range.end; i += 1) {
-      const src = movies[i % movieCount].imageSrc;
-      if (seenPosterSrcRef.current.has(src)) {
-        continue;
+      const movie = movies[i % movieCount];
+      const imageSources = [movie.imageSrc, movie.backdropSrc].filter(
+        Boolean,
+      ) as string[];
+
+      for (const src of imageSources) {
+        if (seenPosterSrcRef.current.has(src)) {
+          continue;
+        }
+
+        seenPosterSrcRef.current.add(src);
+        const image = new Image();
+        image.decoding = "async";
+        image.src = src;
       }
-      seenPosterSrcRef.current.add(src);
-      const image = new Image();
-      image.decoding = "async";
-      image.src = src;
     }
   }, [movieCount, range.start, range.end]);
 

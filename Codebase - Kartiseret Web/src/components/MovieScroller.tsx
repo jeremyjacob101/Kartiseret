@@ -437,6 +437,21 @@ export function MovieScroller({
               event.stopPropagation();
             }}
           >
+            {selectedMovie.movie.backdropSrc ? (
+              <div
+                className={`movie-scroller-focus-backdrop-shell${focusStateClass}`}
+                aria-hidden="true"
+              >
+                <img
+                  src={selectedMovie.movie.backdropSrc}
+                  alt=""
+                  className="movie-scroller-focus-backdrop"
+                  decoding="async"
+                  fetchPriority="high"
+                />
+              </div>
+            ) : null}
+
             <button
               type="button"
               className="movie-scroller-close"

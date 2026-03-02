@@ -192,11 +192,11 @@ export function MovieDetailsContent({
             return (
               <article className="details-day-panel" key={day}>
                 <div className="details-day-header">
-                  <div>
-                    <p className="details-day-kicker">
+                  <div className="details-day-heading">
+                    <h3 className="details-day-title">{defaultCity}</h3>
+                    <p className="details-day-kicker details-day-kicker--inline">
                       {getShowtimeDateLabel(dayIndex)}
                     </p>
-                    <h3 className="details-day-title">{defaultCity}</h3>
                   </div>
                 </div>
 
