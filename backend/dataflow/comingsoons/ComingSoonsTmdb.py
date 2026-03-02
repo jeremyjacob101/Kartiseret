@@ -166,7 +166,7 @@ class ComingSoonsTmdb(BaseDataflow):
             new_row["english_title"] = data["title"].strip() if data.get("title") else new_row.get("english_title")
             new_row["imdb_id"] = external_ids.get("imdb_id") or new_row.get("imdb_id")
             new_row["poster"] = "https://image.tmdb.org/t/p/w500" + data["poster_path"] if data.get("poster_path") else new_row.get("poster")
-            new_row["backdrop"] = "https://image.tmdb.org/t/p/w500" + data["backdrop_path"] if data.get("backdrop_path") else new_row.get("backdrop")
+            new_row["backdrop"] = "https://image.tmdb.org/t/p/w1280" + data["backdrop_path"] if data.get("backdrop_path") else new_row.get("backdrop")
             self.updates.append(new_row)
 
         self.upsertUpdates(self.MOVING_TO_TABLE_NAME)

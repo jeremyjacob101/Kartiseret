@@ -182,7 +182,7 @@ class NowPlayingsTmdb(BaseDataflow):
             res["popularity"] = data["popularity"] if data.get("popularity") is not None else res.get("popularity")
             res["imdb_id"] = external_ids.get("imdb_id") or res.get("imdb_id")
             res["poster"] = "https://image.tmdb.org/t/p/w500" + data["poster_path"] if data.get("poster_path") else res.get("poster")
-            res["backdrop"] = "https://image.tmdb.org/t/p/w500" + data["backdrop_path"] if data.get("backdrop_path") else res.get("backdrop")
+            res["backdrop"] = "https://image.tmdb.org/t/p/w1280" + data["backdrop_path"] if data.get("backdrop_path") else res.get("backdrop")
             res["release_year"] = data["release_date"][:4] if data.get("release_date") else res.get("release_year")
 
         tmdb_id_to_enriched = dict(self.movies_by_tmdb)
