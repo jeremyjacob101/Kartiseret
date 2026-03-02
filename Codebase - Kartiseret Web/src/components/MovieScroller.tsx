@@ -29,6 +29,36 @@ type SelectedMovieState = {
 
 type FocusPhase = "idle" | "opening" | "open" | "closing";
 
+const CARD_MOVE_DURATION_MS = 520;
+const CARD_OPACITY_DURATION_MS = 260;
+const CARD_STAGGER_STEP_MS = 16;
+const CARD_MAX_STAGGER_MS = 110;
+
+const POSTER_MOVE_DURATION_MS = 300;
+const POSTER_GHOST_OPACITY_DURATION_MS = 120;
+const FOCUS_POSTER_FADE_DURATION_MS = 180;
+const FOCUS_POSTER_REVEAL_DELAY_MS = 150;
+const GHOST_FADE_OUT_DELAY_MS = 260;
+const POSTER_HANDOFF_TOTAL_MS = 440;
+const CLOSE_GHOST_FADE_IN_DELAY_MS =
+  POSTER_HANDOFF_TOTAL_MS -
+  (GHOST_FADE_OUT_DELAY_MS + POSTER_GHOST_OPACITY_DURATION_MS);
+const CLOSE_FOCUS_POSTER_HIDE_DELAY_MS =
+  POSTER_HANDOFF_TOTAL_MS -
+  (FOCUS_POSTER_REVEAL_DELAY_MS + FOCUS_POSTER_FADE_DURATION_MS);
+const CLOSE_GHOST_MOVE_DELAY_MS =
+  POSTER_HANDOFF_TOTAL_MS - POSTER_MOVE_DURATION_MS;
+const CLOSE_GHOST_SOURCE_OPACITY_DELAY_MS =
+  POSTER_HANDOFF_TOTAL_MS - POSTER_GHOST_OPACITY_DURATION_MS;
+const FOCUS_STAGE_FADE_DURATION_MS = 260;
+
+const movieScrollerTimingStyle = {
+  "--movie-scroller-stage-fade-duration": `${FOCUS_STAGE_FADE_DURATION_MS}ms`,
+  "--movie-scroller-focus-poster-fade-duration": `${FOCUS_POSTER_FADE_DURATION_MS}ms`,
+  "--movie-scroller-ghost-move-duration": `${POSTER_MOVE_DURATION_MS}ms`,
+  "--movie-scroller-ghost-opacity-duration": `${POSTER_GHOST_OPACITY_DURATION_MS}ms`,
+} as CSSProperties;
+
 function buildCardOffset(
   cardState: MovieScrollerCardState,
   phase: FocusPhase,
@@ -41,8 +71,10 @@ function buildCardOffset(
   }
 
   const transition =
-    "transform 520ms cubic-bezier(0.16, 0.9, 0.24, 1), " +
-    "opacity 260ms ease, filter 520ms ease";
+    `transform ${CARD_MOVE_DURATION_MS}ms cubic-bezier(0.16, 0.9, 0.24, 1), ` +
+    `opacity ${CARD_OPACITY_DURATION_MS}ms ease, ` +
+    `filter ${CARD_MOVE_DURATION_MS}ms ease`;
+  const absOffset = Math.abs(cardState.relativeIndex);
 
   if (cardState.isSelected) {
     if (phase === "closing") {
@@ -50,6 +82,7 @@ function buildCardOffset(
         opacity: cardState.positionalOpacity,
         filter: "blur(0px)",
         transition,
+        transitionDelay: `${CLOSE_FOCUS_POSTER_HIDE_DELAY_MS}ms`,
         "--card-translate-x": "0px",
         "--card-translate-y": "0px",
         "--card-rotate": "0deg",
@@ -64,10 +97,15 @@ function buildCardOffset(
   }
 
   if (phase === "closing") {
+    const reverseDelay = Math.max(
+      0,
+      CARD_MAX_STAGGER_MS - absOffset * CARD_STAGGER_STEP_MS,
+    );
     return {
       opacity: cardState.positionalOpacity,
       filter: "blur(0px)",
       transition,
+      transitionDelay: `${reverseDelay}ms`,
       "--card-translate-x": "0px",
       "--card-translate-y": "0px",
       "--card-rotate": "0deg",
@@ -76,12 +114,11 @@ function buildCardOffset(
   }
 
   const direction = cardState.relativeIndex < 0 ? -1 : 1;
-  const absOffset = Math.abs(cardState.relativeIndex);
   const travel = Math.min(760, 210 + absOffset * 86);
   const lift = Math.min(110, 18 + absOffset * 11);
   const rotate = direction * Math.min(20, 5 + absOffset * 2.3);
   const scale = Math.max(0.7, 0.94 - absOffset * 0.05);
-  const delay = Math.min(110, absOffset * 16);
+  const delay = Math.min(CARD_MAX_STAGGER_MS, absOffset * CARD_STAGGER_STEP_MS);
 
   return {
     opacity: 0,
@@ -111,6 +148,7 @@ export function MovieScroller({
   const animationFrameRef = useRef<number | null>(null);
   const posterRevealTimeoutRef = useRef<number | null>(null);
   const crossfadeTimeoutRef = useRef<number | null>(null);
+  const moveTimeoutRef = useRef<number | null>(null);
   const completeTimeoutRef = useRef<number | null>(null);
   const ghostCleanupTimeoutRef = useRef<number | null>(null);
   const titleId = useId();
@@ -129,6 +167,11 @@ export function MovieScroller({
     if (crossfadeTimeoutRef.current !== null) {
       window.clearTimeout(crossfadeTimeoutRef.current);
       crossfadeTimeoutRef.current = null;
+    }
+
+    if (moveTimeoutRef.current !== null) {
+      window.clearTimeout(moveTimeoutRef.current);
+      moveTimeoutRef.current = null;
     }
 
     if (completeTimeoutRef.current !== null) {
@@ -252,21 +295,21 @@ export function MovieScroller({
 
       posterRevealTimeoutRef.current = window.setTimeout(() => {
         setIsFocusPosterVisible(true);
-      }, 150);
+      }, FOCUS_POSTER_REVEAL_DELAY_MS);
 
       crossfadeTimeoutRef.current = window.setTimeout(() => {
         if (ghostRef.current) {
           ghostRef.current.style.opacity = "0";
         }
-      }, 260);
+      }, GHOST_FADE_OUT_DELAY_MS);
 
       completeTimeoutRef.current = window.setTimeout(() => {
         setPhase("open");
         ghostCleanupTimeoutRef.current = window.setTimeout(() => {
           setShowGhost(false);
           ghostCleanupTimeoutRef.current = null;
-        }, 140);
-      }, 440);
+        }, POSTER_HANDOFF_TOTAL_MS - POSTER_MOVE_DURATION_MS);
+      }, POSTER_HANDOFF_TOTAL_MS);
     }
 
     if (phase === "closing") {
@@ -292,24 +335,38 @@ export function MovieScroller({
 
       applyRectToGhost(closeFromRect);
       if (ghostRef.current) {
-        ghostRef.current.style.opacity = "1";
+        ghostRef.current.style.opacity = "0";
       }
 
-      animationFrameRef.current = window.requestAnimationFrame(() => {
+      posterRevealTimeoutRef.current = window.setTimeout(() => {
+        if (ghostRef.current) {
+          ghostRef.current.style.opacity = "1";
+        }
+      }, CLOSE_GHOST_FADE_IN_DELAY_MS);
+
+      crossfadeTimeoutRef.current = window.setTimeout(() => {
+        setIsFocusPosterVisible(false);
+      }, CLOSE_FOCUS_POSTER_HIDE_DELAY_MS);
+
+      moveTimeoutRef.current = window.setTimeout(() => {
         animationFrameRef.current = window.requestAnimationFrame(() => {
-          setIsFocusPosterVisible(false);
-          applyRectToGhost(selectedMovie.sourceRect);
-          if (ghostRef.current) {
-            ghostRef.current.style.opacity = `${selectedMovie.sourceOpacity}`;
-          }
+          animationFrameRef.current = window.requestAnimationFrame(() => {
+            applyRectToGhost(selectedMovie.sourceRect);
+          });
         });
-      });
+      }, CLOSE_GHOST_MOVE_DELAY_MS);
+
+      ghostCleanupTimeoutRef.current = window.setTimeout(() => {
+        if (ghostRef.current) {
+          ghostRef.current.style.opacity = `${selectedMovie.sourceOpacity}`;
+        }
+      }, CLOSE_GHOST_SOURCE_OPACITY_DELAY_MS);
 
       completeTimeoutRef.current = window.setTimeout(() => {
         setSelectedMovie(null);
         setPhase("idle");
         setShowGhost(false);
-      }, 300);
+      }, POSTER_HANDOFF_TOTAL_MS);
     }
 
     return () => {
@@ -349,7 +406,7 @@ export function MovieScroller({
           : " is-open";
 
   return (
-    <div className="movie-scroller-shell">
+    <div className="movie-scroller-shell" style={movieScrollerTimingStyle}>
       <MovieScrollerBase
         {...props}
         selectedItemIndex={selectedMovie?.itemIndex ?? null}

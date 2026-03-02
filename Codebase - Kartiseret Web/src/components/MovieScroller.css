@@ -13,7 +13,7 @@
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  transition: filter 260ms ease;
+  transition: filter var(--movie-scroller-stage-fade-duration, 260ms) ease;
 }
 
 .movie-scroller::-webkit-scrollbar {
@@ -46,12 +46,14 @@
 }
 
 .movie-scroller-focus-stage.is-opening {
-  animation: movieScrollerStageIn 260ms ease both;
+  animation: movieScrollerStageIn
+    var(--movie-scroller-stage-fade-duration, 260ms) ease both;
 }
 
 .movie-scroller-focus-stage.is-closing {
   pointer-events: none;
-  animation: movieScrollerStageOut 220ms ease both;
+  animation: movieScrollerStageOut
+    var(--movie-scroller-stage-fade-duration, 260ms) ease both;
 }
 
 .movie-scroller-focus-layout {
@@ -163,7 +165,8 @@
   box-shadow:
     0 24px 46px rgba(0, 0, 0, 0.34),
     0 0 0 1px rgba(255, 255, 255, 0.08);
-  transition: opacity 180ms ease;
+  transition:
+    opacity var(--movie-scroller-focus-poster-fade-duration, 180ms) ease;
   will-change: opacity;
   transform: translateZ(0);
   backface-visibility: hidden;
@@ -180,12 +183,17 @@
     0 24px 46px rgba(0, 0, 0, 0.34),
     0 0 0 1px rgba(255, 255, 255, 0.08);
   transition:
-    top 300ms cubic-bezier(0.16, 0.9, 0.26, 1),
-    left 300ms cubic-bezier(0.16, 0.9, 0.26, 1),
-    width 300ms cubic-bezier(0.16, 0.9, 0.26, 1),
-    height 300ms cubic-bezier(0.16, 0.9, 0.26, 1),
-    border-radius 300ms cubic-bezier(0.16, 0.9, 0.26, 1),
-    opacity 120ms ease;
+    top var(--movie-scroller-ghost-move-duration, 300ms)
+      cubic-bezier(0.16, 0.9, 0.26, 1),
+    left var(--movie-scroller-ghost-move-duration, 300ms)
+      cubic-bezier(0.16, 0.9, 0.26, 1),
+    width var(--movie-scroller-ghost-move-duration, 300ms)
+      cubic-bezier(0.16, 0.9, 0.26, 1),
+    height var(--movie-scroller-ghost-move-duration, 300ms)
+      cubic-bezier(0.16, 0.9, 0.26, 1),
+    border-radius var(--movie-scroller-ghost-move-duration, 300ms)
+      cubic-bezier(0.16, 0.9, 0.26, 1),
+    opacity var(--movie-scroller-ghost-opacity-duration, 120ms) ease;
   will-change: top, left, width, height, opacity;
   transform: translateZ(0);
   backface-visibility: hidden;
