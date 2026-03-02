@@ -256,6 +256,12 @@ button {
   color: rgba(233, 226, 245, 0.76);
 }
 
+.details-day-empty {
+  margin: 0 0 0 6px;
+  padding: 8px 0 4px;
+  color: rgba(233, 226, 245, 0.76);
+}
+
 .details-rail {
   display: flex;
   gap: 18px;

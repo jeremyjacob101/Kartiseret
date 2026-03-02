@@ -7,20 +7,22 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 
-const movieCsvPath = path.join(projectRoot, "public/csvs/finalMovies_rows.csv");
+const movieCsvPath = path.join(
+  projectRoot,
+  "src/data/csvs/finalMovies_rows.csv",
+);
 const showtimesInputPath = path.join(
   projectRoot,
-  "public/csvs/finalShowtimes_rows.csv",
+  "src/data/csvs/finalShowtimes_rows.csv",
 );
 const showtimeOutputPaths = [
-  path.join(projectRoot, "public/csvs/finalShowtimes_rows.csv"),
   path.join(projectRoot, "src/data/csvs/finalShowtimes_rows.csv"),
 ];
 
 const keepCities = new Set(["Tel Aviv", "Haifa", "Jerusalem"]);
 const topMovieCount = 10;
 const windowStart = new Date(2026, 2, 2);
-const windowDays = 14;
+const windowEnd = new Date(2026, 2, 11);
 const generatedAt = "2026-03-02 12:00:00+00";
 
 const cinemaConfigs = {
@@ -330,7 +332,11 @@ function formatDate(date) {
   ].join("-");
 }
 
-const windowEnd = formatDate(new Date(windowStart.getFullYear(), windowStart.getMonth(), windowStart.getDate() + windowDays - 1));
+const windowStartString = formatDate(windowStart);
+const windowEndString = formatDate(windowEnd);
+const windowDayCount =
+  Math.round((windowEnd.getTime() - windowStart.getTime()) / (24 * 60 * 60 * 1000)) +
+  1;
 
 function toShowtimeValue(time) {
   return `${time}:00`;
@@ -404,13 +410,11 @@ const { header: showtimeHeader, data: rawShowtimes } = parseCsv(
 const { data: movieRows } = parseCsv(readFileSync(movieCsvPath, "utf8"));
 
 const filteredShowtimes = rawShowtimes.filter((row) =>
-  keepCities.has(normalizeText(row.screening_city)),
+  keepCities.has(normalizeText(row.screening_city)) &&
+  normalizeText(row.date_of_showing) >= windowStartString &&
+  normalizeText(row.date_of_showing) <= windowEndString,
 );
-const baseShowtimes = filteredShowtimes.filter((row) => {
-  const city = normalizeText(row.screening_city);
-  const date = normalizeText(row.date_of_showing);
-  return !(keepCities.has(city) && date >= formatDate(windowStart) && date <= windowEnd);
-});
+const baseShowtimes = filteredShowtimes;
 
 const topMovies = [...movieRows]
   .sort((left, right) => parseNumber(right.popularity) - parseNumber(left.popularity))
@@ -476,7 +480,7 @@ for (const row of baseShowtimes) {
 
 const generatedRows = [];
 
-for (let dayOffset = 0; dayOffset < windowDays; dayOffset += 1) {
+for (let dayOffset = 0; dayOffset < windowDayCount; dayOffset += 1) {
   const currentDate = new Date(windowStart);
   currentDate.setDate(windowStart.getDate() + dayOffset);
   const dateOfShowing = formatDate(currentDate);

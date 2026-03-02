@@ -2,7 +2,6 @@ import moviesCsv from "./csvs/finalMovies_rows.csv?raw";
 import showtimesCsv from "./csvs/finalShowtimes_rows.csv?raw";
 
 const TOP_MOVIE_COUNT = 10;
-const MAX_SHOWTIME_DAYS = 3;
 const THEATER_SORT_ORDER = [
   "Movieland",
   "Yes Planet",
@@ -11,7 +10,9 @@ const THEATER_SORT_ORDER = [
   "Rav Hen",
 ];
 
-export const defaultCity = "Jerusalem";
+export const defaultCity = "Haifa";
+export const fixedAppDateString = "2026-03-02";
+export const fixedShowtimeWindowEndDateString = "2026-03-11";
 
 type CsvRow = Record<string, string>;
 
@@ -134,6 +135,35 @@ function formatShowtime(value: string): string {
   return trimmed.length >= 5 ? trimmed.slice(0, 5) : trimmed;
 }
 
+function parseIsoDate(dateString: string): Date {
+  const [year, month, day] = dateString
+    .split("-")
+    .map((value) => Number.parseInt(value, 10));
+
+  return new Date(year, (month || 1) - 1, day || 1);
+}
+
+function formatIsoDate(date: Date): string {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function buildDateRange(startDateString: string, endDateString: string): string[] {
+  const dates: string[] = [];
+  const currentDate = parseIsoDate(startDateString);
+  const endDate = parseIsoDate(endDateString);
+
+  while (currentDate <= endDate) {
+    dates.push(formatIsoDate(currentDate));
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  return dates;
+}
+
 function compareTheaters(left: string, right: string): number {
   const leftOrder = THEATER_SORT_ORDER.indexOf(left);
   const rightOrder = THEATER_SORT_ORDER.indexOf(right);
@@ -171,6 +201,10 @@ function buildMovieShowtimes(
   rows: CsvRow[],
   selectedMovies: readonly Movie[],
 ): Record<string, MovieShowtimeDay[]> {
+  const showtimeWindowDates = buildDateRange(
+    fixedAppDateString,
+    fixedShowtimeWindowEndDateString,
+  );
   const selectedMovieIds = new Set(
     selectedMovies.map((movie) => movie.tmdbId),
   );
@@ -188,6 +222,11 @@ function buildMovieShowtimes(
     }
 
     const date = normalizeText(row.date_of_showing);
+
+    if (date < fixedAppDateString || date > fixedShowtimeWindowEndDateString) {
+      continue;
+    }
+
     const theater = normalizeText(row.cinema);
     const showtime = formatShowtime(row.showtime);
 
@@ -221,25 +260,34 @@ function buildMovieShowtimes(
       const movieDates = groupedShowtimes.get(movie.tmdbId);
 
       if (!movieDates) {
-        return [movie.tmdbId, []];
+        return [
+          movie.tmdbId,
+          showtimeWindowDates.map((date) => ({
+            date,
+            theaters: [],
+          })),
+        ];
       }
 
-      const days = [...movieDates.entries()]
-        .sort(([leftDate], [rightDate]) => leftDate.localeCompare(rightDate))
-        .slice(0, MAX_SHOWTIME_DAYS)
-        .map(([date, theaterMap]) => ({
+      const days = showtimeWindowDates.map((date) => {
+        const theaterMap = movieDates.get(date);
+
+        return {
           date,
-          theaters: [...theaterMap.entries()]
-            .sort(([leftTheater], [rightTheater]) =>
-              compareTheaters(leftTheater, rightTheater),
-            )
-            .map(([theater, showtimeSet]) => ({
-              theater,
-              showtimes: [...showtimeSet].sort((leftTime, rightTime) =>
-                leftTime.localeCompare(rightTime),
-              ),
-            })),
-        }));
+          theaters: theaterMap
+            ? [...theaterMap.entries()]
+                .sort(([leftTheater], [rightTheater]) =>
+                  compareTheaters(leftTheater, rightTheater),
+                )
+                .map(([theater, showtimeSet]) => ({
+                  theater,
+                  showtimes: [...showtimeSet].sort((leftTime, rightTime) =>
+                    leftTime.localeCompare(rightTime),
+                  ),
+                }))
+            : [],
+        };
+      });
 
       return [movie.tmdbId, days];
     }),

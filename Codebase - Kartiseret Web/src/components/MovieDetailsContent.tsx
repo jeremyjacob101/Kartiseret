@@ -1,6 +1,7 @@
 import type { Ref } from "react";
 import {
   defaultCity,
+  fixedAppDateString,
   getMovieShowtimeDays,
   type Movie,
 } from "../data/movieCatalog";
@@ -9,6 +10,7 @@ type TheaterTheme = {
   accent: string;
   surface: string;
   glow: string;
+  pillBackground?: string;
 };
 
 const theaterThemes: Record<string, TheaterTheme> = {
@@ -28,9 +30,16 @@ const theaterThemes: Record<string, TheaterTheme> = {
     glow: "rgba(255, 107, 107, 0.28)",
   },
   "Rav Hen": {
-    accent: "#61d3a6",
-    surface: "rgba(97, 211, 166, 0.12)",
-    glow: "rgba(97, 211, 166, 0.3)",
+    accent: "#ffb14a",
+    surface: "rgba(255, 177, 74, 0.14)",
+    glow: "rgba(79, 146, 255, 0.32)",
+    pillBackground:
+      "linear-gradient(135deg, rgba(79, 146, 255, 0.22), rgba(255, 177, 74, 0.18))",
+  },
+  "Hot Cinema": {
+    accent: "#ff4fa0",
+    surface: "rgba(255, 79, 160, 0.14)",
+    glow: "rgba(255, 79, 160, 0.32)",
   },
   Movieland: {
     accent: "#58003a",
@@ -94,8 +103,7 @@ function parseLocalDate(dateString: string): Date {
 
 function getShowtimeDateLabel(dateString: string): string {
   const showDate = parseLocalDate(dateString);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const today = parseLocalDate(fixedAppDateString);
   const dayOffset = Math.round(
     (showDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
   );
@@ -184,29 +192,30 @@ export function MovieDetailsContent({
       </div>
 
       <div className="details-showtimes">
-        {showtimeDays.length === 0 ? (
-          <p className="details-showtime-empty">
-            No showtimes listed in {defaultCity}.
-          </p>
-        ) : (
-          <div
-            className="details-rail"
-            aria-label={`${movie.title} showtimes in ${defaultCity}`}
-          >
-            {showtimeDays.map((day) => (
-              <article className="details-day-panel" key={day.date}>
-                <div className="details-day-header">
-                  <div className="details-day-heading">
-                    <h3 className="details-day-title">{defaultCity}</h3>
-                    <p className="details-day-kicker details-day-kicker--inline">
-                      {getShowtimeDateLabel(day.date)}
-                    </p>
-                  </div>
+        <div
+          className="details-rail"
+          aria-label={`${movie.title} showtimes in ${defaultCity}`}
+        >
+          {showtimeDays.map((day) => (
+            <article className="details-day-panel" key={day.date}>
+              <div className="details-day-header">
+                <div className="details-day-heading">
+                  <h3 className="details-day-title">{defaultCity}</h3>
+                  <p className="details-day-kicker details-day-kicker--inline">
+                    {getShowtimeDateLabel(day.date)}
+                  </p>
                 </div>
+              </div>
 
+              {day.theaters.length === 0 ? (
+                <p className="details-day-empty">No showtimes listed.</p>
+              ) : (
                 <div className="details-theaters">
                   {day.theaters.map((theater, theaterIndex) => {
-                    const colors = getTheaterTheme(theater.theater, theaterIndex);
+                    const colors = getTheaterTheme(
+                      theater.theater,
+                      theaterIndex,
+                    );
 
                     return (
                       <section className="details-theater" key={theater.theater}>
@@ -229,7 +238,8 @@ export function MovieDetailsContent({
                               style={{
                                 color: colors.accent,
                                 borderColor: colors.accent,
-                                background: colors.surface,
+                                background:
+                                  colors.pillBackground ?? colors.surface,
                                 boxShadow: `inset 0 0 0 1px ${colors.surface}`,
                               }}
                             >
@@ -241,10 +251,10 @@ export function MovieDetailsContent({
                     );
                   })}
                 </div>
-              </article>
-            ))}
-          </div>
-        )}
+              )}
+            </article>
+          ))}
+        </div>
       </div>
     </>
   );
