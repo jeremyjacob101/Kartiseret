@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { movies, type Movie } from "../data/movies";
+import { movies, type Movie } from "../data/movieCatalog";
 import { getRepeatSetCount2 } from "./MovieScroller2Shared";
 
 export type PosterSourceRect2 = {

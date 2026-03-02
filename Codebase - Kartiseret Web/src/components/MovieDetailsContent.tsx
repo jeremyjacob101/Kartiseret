@@ -1,36 +1,60 @@
 import type { Ref } from "react";
-import type { Movie } from "../data/movies";
-import { fakeShowtimes } from "../data/showtimes";
+import {
+  defaultCity,
+  getMovieShowtimeDays,
+  type Movie,
+} from "../data/movieCatalog";
 
-type DayKey = keyof typeof fakeShowtimes;
-type CityKey = keyof (typeof fakeShowtimes)["dayA"];
-type TheaterKey = keyof (typeof fakeShowtimes)["dayA"]["Jerusalem"];
+type TheaterTheme = {
+  accent: string;
+  surface: string;
+  glow: string;
+};
 
-const dayKeys = Object.keys(fakeShowtimes) as DayKey[];
-const defaultCity: CityKey = "Jerusalem";
-const theaterColors: Record<
-  TheaterKey,
-  { label: string; accent: string; surface: string; glow: string }
-> = {
-  YesPlanet: {
-    label: "Yes Planet",
+const theaterThemes: Record<string, TheaterTheme> = {
+  "Yes Planet": {
     accent: "#ff9a3d",
     surface: "rgba(255, 154, 61, 0.12)",
     glow: "rgba(255, 154, 61, 0.28)",
   },
-  CinemaCity: {
-    label: "Cinema City",
+  "Cinema City": {
     accent: "#5ea8ff",
     surface: "rgba(94, 168, 255, 0.12)",
     glow: "rgba(94, 168, 255, 0.3)",
   },
-  LevCinema: {
-    label: "Lev Cinema",
+  "Lev Cinema": {
     accent: "#ff6b6b",
     surface: "rgba(255, 107, 107, 0.12)",
     glow: "rgba(255, 107, 107, 0.28)",
   },
+  "Rav Hen": {
+    accent: "#61d3a6",
+    surface: "rgba(97, 211, 166, 0.12)",
+    glow: "rgba(97, 211, 166, 0.3)",
+  },
+  Movieland: {
+    accent: "#58003a",
+    surface: "rgba(88, 0, 58, 0.12)",
+    glow: "rgba(88, 0, 58, 0.3)",
+  },
 };
+const fallbackTheaterThemes: TheaterTheme[] = [
+  {
+    accent: "#d29bff",
+    surface: "rgba(210, 155, 255, 0.12)",
+    glow: "rgba(210, 155, 255, 0.28)",
+  },
+  {
+    accent: "#ffd166",
+    surface: "rgba(255, 209, 102, 0.12)",
+    glow: "rgba(255, 209, 102, 0.28)",
+  },
+  {
+    accent: "#7bdff2",
+    surface: "rgba(123, 223, 242, 0.12)",
+    glow: "rgba(123, 223, 242, 0.28)",
+  },
+];
 const showtimeDateFormatter = new Intl.DateTimeFormat(undefined, {
   weekday: "long",
   month: "long",
@@ -56,21 +80,26 @@ function formatRuntime(runtime: number): string {
   return `${hours}h ${minutes}m`;
 }
 
-function getShowtimes(
-  day: DayKey,
-  city: CityKey,
-  theater: TheaterKey,
-  title: string,
-): readonly string[] {
-  const theaterSchedule = fakeShowtimes[day][city][theater] as Record<
-    string,
-    readonly string[]
-  >;
+function parseLocalDate(dateString: string): Date {
+  const [year, month, day] = dateString
+    .split("-")
+    .map((value) => Number.parseInt(value, 10));
 
-  return theaterSchedule[title] ?? [];
+  if (!year || !month || !day) {
+    return new Date(dateString);
+  }
+
+  return new Date(year, month - 1, day);
 }
 
-function getShowtimeDateLabel(dayOffset: number): string {
+function getShowtimeDateLabel(dateString: string): string {
+  const showDate = parseLocalDate(dateString);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dayOffset = Math.round(
+    (showDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
+  );
+
   if (dayOffset === 0) {
     return "Today";
   }
@@ -79,14 +108,11 @@ function getShowtimeDateLabel(dayOffset: number): string {
     return "Tomorrow";
   }
 
-  const today = new Date();
-  const date = new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate() + dayOffset,
-  );
+  return showtimeDateFormatter.format(showDate);
+}
 
-  return showtimeDateFormatter.format(date);
+function getTheaterTheme(theater: string, index: number): TheaterTheme {
+  return theaterThemes[theater] ?? fallbackTheaterThemes[index % fallbackTheaterThemes.length];
 }
 
 export function MovieDetailsContent({
@@ -94,8 +120,10 @@ export function MovieDetailsContent({
   titleId,
   posterRef,
   posterClassName = "details-poster",
-  eyebrow = "Revival spotlight",
+  eyebrow = "Now playing",
 }: MovieDetailsContentProps) {
+  const showtimeDays = getMovieShowtimeDays(movie.tmdbId);
+
   return (
     <>
       <div className="details-hero">
@@ -156,35 +184,32 @@ export function MovieDetailsContent({
       </div>
 
       <div className="details-showtimes">
-        <div className="details-rail" aria-label={`${movie.title} showtimes`}>
-          {dayKeys.map((day, dayIndex) => {
-            const theaters = Object.keys(
-              fakeShowtimes[day][defaultCity],
-            ) as TheaterKey[];
-
-            return (
-              <article className="details-day-panel" key={day}>
+        {showtimeDays.length === 0 ? (
+          <p className="details-showtime-empty">
+            No showtimes listed in {defaultCity}.
+          </p>
+        ) : (
+          <div
+            className="details-rail"
+            aria-label={`${movie.title} showtimes in ${defaultCity}`}
+          >
+            {showtimeDays.map((day) => (
+              <article className="details-day-panel" key={day.date}>
                 <div className="details-day-header">
                   <div className="details-day-heading">
                     <h3 className="details-day-title">{defaultCity}</h3>
                     <p className="details-day-kicker details-day-kicker--inline">
-                      {getShowtimeDateLabel(dayIndex)}
+                      {getShowtimeDateLabel(day.date)}
                     </p>
                   </div>
                 </div>
 
                 <div className="details-theaters">
-                  {theaters.map((theater) => {
-                    const colors = theaterColors[theater];
-                    const showtimes = getShowtimes(
-                      day,
-                      defaultCity,
-                      theater,
-                      movie.title,
-                    );
+                  {day.theaters.map((theater, theaterIndex) => {
+                    const colors = getTheaterTheme(theater.theater, theaterIndex);
 
                     return (
-                      <section className="details-theater" key={theater}>
+                      <section className="details-theater" key={theater.theater}>
                         <div className="details-theater-name">
                           <span
                             className="details-theater-dot"
@@ -193,13 +218,13 @@ export function MovieDetailsContent({
                               boxShadow: `0 0 18px ${colors.glow}`,
                             }}
                           />
-                          <span>{colors.label}</span>
+                          <span>{theater.theater}</span>
                         </div>
 
                         <div className="details-time-grid">
-                          {showtimes.map((time) => (
+                          {theater.showtimes.map((time) => (
                             <span
-                              key={`${theater}-${day}-${time}`}
+                              key={`${theater.theater}-${day.date}-${time}`}
                               className="details-time-pill"
                               style={{
                                 color: colors.accent,
@@ -217,9 +242,9 @@ export function MovieDetailsContent({
                   })}
                 </div>
               </article>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </>
   );

@@ -8,7 +8,7 @@ import {
   type CSSProperties,
 } from "react";
 import { X } from "lucide-react";
-import { movies } from "../data/movies";
+import { movies } from "../data/movieCatalog";
 import {
   MovieScrollerBase2,
   type MovieScroller2CardState,
@@ -80,6 +80,42 @@ function clamp2(value: number, min: number, max: number): number {
 function mod2(value: number, size: number): number {
   const remainder = value % size;
   return remainder < 0 ? remainder + size : remainder;
+}
+
+function easeOutQuad2(value: number): number {
+  return 1 - (1 - value) ** 2;
+}
+
+function getDetailPanelOpacity2(
+  itemIndex: number,
+  scrollLeft: number,
+  clientWidth: number,
+  gap: number,
+  panelWidth: number,
+  itemSpan: number,
+): number {
+  if (clientWidth <= 0) {
+    return 1;
+  }
+
+  const viewportCenter = scrollLeft + clientWidth / 2;
+  const panelCenter = gap + itemIndex * itemSpan + panelWidth / 2;
+  const distanceFromCenter = Math.abs(panelCenter - viewportCenter);
+  const fullOpacityRadius = Math.max(panelWidth * 0.22, 56);
+  const fadeEndDistance = Math.max(itemSpan * 0.95, panelWidth * 0.68);
+
+  if (distanceFromCenter <= fullOpacityRadius) {
+    return 1;
+  }
+
+  const progress = clamp2(
+    (distanceFromCenter - fullOpacityRadius) /
+      Math.max(fadeEndDistance - fullOpacityRadius, 1),
+    0,
+    1,
+  );
+
+  return 1 - easeOutQuad2(progress) * 0.16;
 }
 
 function buildCardOffset2(
@@ -256,6 +292,7 @@ export function MovieScroller2({
     detailMiddleStartIndex,
   );
   const [detailClientWidth, setDetailClientWidth] = useState(0);
+  const [detailScrollLeft, setDetailScrollLeft] = useState(0);
   const [isFocusPosterVisible, setIsFocusPosterVisible] = useState(false);
   const [showGhost, setShowGhost] = useState(false);
   const [isReturnHandoffReady, setIsReturnHandoffReady] = useState(false);
@@ -286,6 +323,17 @@ export function MovieScroller2({
     maxWidth,
     detailTotalItems,
   );
+  const visualActiveIndex =
+    phase === "open" && detailClientWidth > 0
+      ? getCenteredDetailIndex2(
+          detailScrollLeft,
+          detailClientWidth,
+          gap,
+          detailLayout.panelWidth,
+          detailLayout.itemSpan,
+          detailTotalItems,
+        )
+      : detailActiveIndex;
 
   const clearScheduledScrollWork = useCallback(() => {
     if (detailScrollFrameRef.current !== null) {
@@ -439,6 +487,7 @@ export function MovieScroller2({
 
       if (behavior === "auto") {
         scroller.scrollLeft = centeredScrollLeft;
+        setDetailScrollLeft(centeredScrollLeft);
         return;
       }
 
@@ -614,6 +663,7 @@ export function MovieScroller2({
       detailScrollFrameRef.current = window.requestAnimationFrame(() => {
         detailScrollFrameRef.current = null;
         measureDetailScroller();
+        setDetailScrollLeft(detailScrollerRef.current?.scrollLeft ?? 0);
       });
     }
 
@@ -958,9 +1008,17 @@ export function MovieScroller2({
 
   const detailPanels = Array.from({ length: detailTotalItems }, (_, itemIndex) => {
     const movie = movies[mod2(itemIndex, movieCount)];
-    const isActive = itemIndex === detailActiveIndex;
-    const distanceFromActive = Math.abs(itemIndex - detailActiveIndex);
+    const isActive = itemIndex === visualActiveIndex;
+    const distanceFromActive = Math.abs(itemIndex - visualActiveIndex);
     const isDetailReady = distanceFromActive <= DETAIL2_READY_RADIUS;
+    const detailOpacity = getDetailPanelOpacity2(
+      itemIndex,
+      detailScrollLeft,
+      detailClientWidth,
+      gap,
+      detailLayout.panelWidth,
+      detailLayout.itemSpan,
+    );
 
     return (
       <article
@@ -973,6 +1031,7 @@ export function MovieScroller2({
           width: detailLayout.panelWidth,
           height: detailLayout.panelHeight,
           zIndex: isActive ? 20 : Math.max(1, 10 - distanceFromActive),
+          opacity: detailOpacity,
         }}
         aria-labelledby={`${titleId}-${itemIndex}`}
       >

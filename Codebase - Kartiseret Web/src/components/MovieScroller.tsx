@@ -8,7 +8,7 @@ import {
   type CSSProperties,
 } from "react";
 import { X } from "lucide-react";
-import { type Movie } from "../data/movies";
+import { type Movie } from "../data/movieCatalog";
 import "./MovieScroller.css";
 import { MovieDetailsContent } from "./MovieDetailsContent";
 import {

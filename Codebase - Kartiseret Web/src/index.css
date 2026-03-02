@@ -250,6 +250,12 @@ button {
   overflow: hidden;
 }
 
+.details-showtime-empty {
+  margin: 0;
+  padding: 24px;
+  color: rgba(233, 226, 245, 0.76);
+}
+
 .details-rail {
   display: flex;
   gap: 18px;
