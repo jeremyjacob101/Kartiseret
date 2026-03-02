@@ -72,6 +72,14 @@ function getShowtimes(
 }
 
 function getShowtimeDateLabel(dayOffset: number): string {
+  if (dayOffset === 0) {
+    return "Today";
+  }
+
+  if (dayOffset === 1) {
+    return "Tomorrow";
+  }
+
   const today = new Date();
   const date = new Date(
     today.getFullYear(),

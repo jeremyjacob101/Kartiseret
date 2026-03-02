@@ -10,7 +10,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">Kartiseret</div>
         <nav className="topnav" aria-label="Primary">
-          <span className="topnav-link topnav-link--active">Showtimes</span>
+          <span className="topnav-link topnav-link--active">All Showtimes</span>
           <span className="topnav-link">Coming Soon</span>
         </nav>
         <button type="button" className="settings-button" aria-label="Settings">
