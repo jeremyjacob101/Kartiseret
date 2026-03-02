@@ -137,70 +137,6 @@ button {
   color: #f6f0ff;
 }
 
-.details-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: grid;
-  place-items: center;
-  padding: 28px;
-  background: rgba(8, 7, 11, 0.26);
-  backdrop-filter: blur(18px);
-  opacity: 1;
-}
-
-.details-overlay.is-opening {
-  animation: detailsOverlayIn 220ms ease both;
-}
-
-.details-overlay.is-closing {
-  pointer-events: none;
-  animation: detailsOverlayOut 220ms ease both;
-}
-
-.details-card {
-  position: relative;
-  isolation: isolate;
-  width: min(980px, calc(100vw - 56px));
-  max-height: min(820px, calc(100vh - 56px));
-  padding: 26px;
-  border: 1px solid rgba(214, 180, 255, 0.35);
-  border-radius: 30px;
-  overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(54, 45, 70, 0.82), rgba(18, 15, 24, 0.92)),
-    rgba(18, 15, 24, 0.86);
-  box-shadow:
-    0 28px 70px rgba(0, 0, 0, 0.36),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  color: #f6f0ff;
-  backdrop-filter: blur(28px) saturate(135%);
-  opacity: 1;
-}
-
-.details-card.is-opening {
-  animation: detailCardIn 220ms cubic-bezier(0.18, 0.88, 0.3, 1) both;
-}
-
-.details-card.is-closing {
-  animation: detailCardOut 220ms cubic-bezier(0.55, 0.06, 0.68, 0.19) both;
-}
-
-.details-close {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  border: 1px solid rgba(214, 180, 255, 0.4);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #f6f0ff;
-  cursor: pointer;
-}
-
 .details-hero {
   display: grid;
   grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
@@ -227,35 +163,6 @@ button {
 }
 
 .details-poster.is-visible {
-  opacity: 1;
-}
-
-.details-poster.is-revealing {
-  animation: detailsPosterReveal 110ms ease 130ms both;
-}
-
-.details-poster-ghost {
-  position: fixed;
-  z-index: 1002;
-  border-radius: 24px;
-  object-fit: cover;
-  pointer-events: none;
-  opacity: 0;
-  box-shadow:
-    0 24px 46px rgba(0, 0, 0, 0.34),
-    0 0 0 1px rgba(255, 255, 255, 0.08);
-  transition:
-    top 240ms cubic-bezier(0.16, 0.9, 0.26, 1),
-    left 240ms cubic-bezier(0.16, 0.9, 0.26, 1),
-    width 240ms cubic-bezier(0.16, 0.9, 0.26, 1),
-    height 240ms cubic-bezier(0.16, 0.9, 0.26, 1),
-    border-radius 240ms cubic-bezier(0.16, 0.9, 0.26, 1),
-    opacity 120ms ease;
-  will-change: top, left, width, height, opacity;
-}
-
-.details-poster-ghost.is-opening,
-.details-poster-ghost.is-closing {
   opacity: 1;
 }
 
@@ -336,13 +243,6 @@ button {
   flex: none;
 }
 
-.details-note {
-  margin: 18px 0 0;
-  max-width: 48ch;
-  font-size: 0.96rem;
-  color: rgba(233, 226, 245, 0.8);
-}
-
 .details-showtimes {
   border: 1px solid rgba(217, 191, 255, 0.16);
   border-radius: 26px;
@@ -395,11 +295,6 @@ button {
   letter-spacing: -0.03em;
 }
 
-.details-day-hint {
-  font-size: 0.84rem;
-  color: rgba(233, 226, 245, 0.58);
-}
-
 .details-theaters {
   display: grid;
   gap: 14px;
@@ -442,56 +337,6 @@ button {
   letter-spacing: 0.02em;
 }
 
-@keyframes detailsOverlayIn {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes detailsOverlayOut {
-  from {
-    opacity: 1;
-  }
-
-  to {
-    opacity: 0;
-  }
-}
-
-@keyframes detailsPosterReveal {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes detailCardIn {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes detailCardOut {
-  from {
-    opacity: 1;
-  }
-
-  to {
-    opacity: 0;
-  }
-}
-
 @media (max-width: 720px) {
   .app-shell {
     padding: 18px 16px 32px;
@@ -506,17 +351,6 @@ button {
     grid-column: 1 / -1;
     justify-content: flex-start;
     gap: 18px;
-  }
-
-  .details-overlay {
-    padding: 14px;
-  }
-
-  .details-card {
-    width: min(100%, 640px);
-    max-height: calc(100vh - 28px);
-    padding: 20px;
-    border-radius: 24px;
   }
 
   .details-hero {

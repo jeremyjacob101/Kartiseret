@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Settings } from "lucide-react";
-import { MovieScroller2 } from "./components/MovieScroller2";
+import { MovieScroller } from "./components/MovieScroller";
 import "./index.css";
 
 export default function App() {
@@ -25,14 +25,7 @@ export default function App() {
             <h1 className="section-title">Now Playing</h1>
           </div>
           <div className="scroller-stack">
-            {/* <MovieScroller1
-              cardWidth={220}
-              cardHeight={330}
-              gap={22}
-              maxWidth={1100}
-              onSelectMovie={handleSelectMovie}
-            /> */}
-            <MovieScroller2
+            <MovieScroller
               cardWidth={220}
               cardHeight={330}
               gap={22}

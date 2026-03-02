@@ -1,9 +1,9 @@
-.movie-scroller-2-shell {
+.movie-scroller-shell {
   position: relative;
   width: 100%;
 }
 
-.movie-scroller-2 {
+.movie-scroller {
   position: relative;
   z-index: 0;
   width: 100%;
@@ -16,21 +16,21 @@
   transition: filter 260ms ease;
 }
 
-.movie-scroller-2::-webkit-scrollbar {
+.movie-scroller::-webkit-scrollbar {
   display: none;
 }
 
-.movie-scroller-2.is-focused {
+.movie-scroller.is-focused {
   pointer-events: none;
   filter: saturate(0.78) brightness(0.86);
 }
 
-.movie-scroller-2 .movie-scroller__card {
+.movie-scroller .movie-scroller__card {
   backface-visibility: hidden;
   will-change: transform, opacity, filter;
 }
 
-.movie-scroller-2-focus-stage {
+.movie-scroller-focus-stage {
   position: fixed;
   inset: 0;
   z-index: 950;
@@ -45,16 +45,16 @@
   opacity: 1;
 }
 
-.movie-scroller-2-focus-stage.is-opening {
-  animation: movieScroller2StageIn 260ms ease both;
+.movie-scroller-focus-stage.is-opening {
+  animation: movieScrollerStageIn 260ms ease both;
 }
 
-.movie-scroller-2-focus-stage.is-closing {
+.movie-scroller-focus-stage.is-closing {
   pointer-events: none;
-  animation: movieScroller2StageOut 220ms ease both;
+  animation: movieScrollerStageOut 220ms ease both;
 }
 
-.movie-scroller-2-focus-layout {
+.movie-scroller-focus-layout {
   position: relative;
   width: min(980px, calc(100vw - 56px));
   max-height: min(820px, calc(100vh - 56px));
@@ -62,15 +62,15 @@
   color: #f6f0ff;
 }
 
-.movie-scroller-2-focus-layout::before,
-.movie-scroller-2-focus-layout::after {
+.movie-scroller-focus-layout::before,
+.movie-scroller-focus-layout::after {
   content: "";
   position: absolute;
   pointer-events: none;
   filter: blur(26px);
 }
 
-.movie-scroller-2-focus-layout::before {
+.movie-scroller-focus-layout::before {
   top: 44px;
   left: 8px;
   width: 280px;
@@ -81,7 +81,7 @@
       rgba(255, 154, 61, 0));
 }
 
-.movie-scroller-2-focus-layout::after {
+.movie-scroller-focus-layout::after {
   right: 30px;
   bottom: 76px;
   width: 340px;
@@ -92,7 +92,7 @@
       rgba(166, 106, 227, 0));
 }
 
-.movie-scroller-2-focus-content {
+.movie-scroller-focus-content {
   position: relative;
   z-index: 1;
   overflow-y: auto;
@@ -100,12 +100,12 @@
   padding-right: 4px;
 }
 
-.movie-scroller-2-focus-content::-webkit-scrollbar {
+.movie-scroller-focus-content::-webkit-scrollbar {
   width: 0;
   height: 0;
 }
 
-.movie-scroller-2-close {
+.movie-scroller-close {
   position: absolute;
   top: 18px;
   right: 18px;
@@ -123,32 +123,32 @@
   backdrop-filter: blur(14px);
 }
 
-.movie-scroller-2-focus-layout .details-hero,
-.movie-scroller-2-focus-layout .details-copy,
-.movie-scroller-2-focus-layout .details-showtimes,
-.movie-scroller-2-close {
+.movie-scroller-focus-layout .details-hero,
+.movie-scroller-focus-layout .details-copy,
+.movie-scroller-focus-layout .details-showtimes,
+.movie-scroller-close {
   transform: translate3d(0, 0, 0);
   opacity: 1;
 }
 
-.movie-scroller-2-focus-layout .details-hero {
+.movie-scroller-focus-layout .details-hero {
   margin-bottom: 24px;
 }
 
-.movie-scroller-2-focus-layout .details-poster-shell {
+.movie-scroller-focus-layout .details-poster-shell {
   filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.34));
 }
 
-.movie-scroller-2-focus-layout .details-copy {
+.movie-scroller-focus-layout .details-copy {
   max-width: 65ch;
 }
 
-.movie-scroller-2-focus-layout .details-metric {
+.movie-scroller-focus-layout .details-metric {
   background: rgba(255, 255, 255, 0.065);
   backdrop-filter: blur(14px);
 }
 
-.movie-scroller-2-focus-layout .details-showtimes {
+.movie-scroller-focus-layout .details-showtimes {
   border-color: rgba(217, 191, 255, 0.18);
   background:
     linear-gradient(180deg, rgba(18, 15, 24, 0.56), rgba(8, 7, 11, 0.26)),
@@ -159,7 +159,7 @@
   backdrop-filter: blur(16px);
 }
 
-.movie-scroller-2-focus-poster {
+.movie-scroller-focus-poster {
   box-shadow:
     0 24px 46px rgba(0, 0, 0, 0.34),
     0 0 0 1px rgba(255, 255, 255, 0.08);
@@ -169,7 +169,7 @@
   backface-visibility: hidden;
 }
 
-.movie-scroller-2-poster-ghost {
+.movie-scroller-poster-ghost {
   position: fixed;
   z-index: 952;
   border-radius: 24px;
@@ -191,36 +191,36 @@
   backface-visibility: hidden;
 }
 
-.movie-scroller-2-poster-ghost.is-opening,
-.movie-scroller-2-poster-ghost.is-closing {
+.movie-scroller-poster-ghost.is-opening,
+.movie-scroller-poster-ghost.is-closing {
   opacity: 1;
 }
 
-.movie-scroller-2-focus-stage.is-opening .details-copy {
-  animation: movieScroller2ZipUp 520ms cubic-bezier(0.16, 0.9, 0.22, 1) 80ms both;
+.movie-scroller-focus-stage.is-opening .details-copy {
+  animation: movieScrollerZipUp 520ms cubic-bezier(0.16, 0.9, 0.22, 1) 80ms both;
 }
 
-.movie-scroller-2-focus-stage.is-opening .details-showtimes {
-  animation: movieScroller2ZipUp 580ms cubic-bezier(0.16, 0.9, 0.22, 1) 140ms both;
+.movie-scroller-focus-stage.is-opening .details-showtimes {
+  animation: movieScrollerZipUp 580ms cubic-bezier(0.16, 0.9, 0.22, 1) 140ms both;
 }
 
-.movie-scroller-2-focus-stage.is-opening .movie-scroller-2-close {
-  animation: movieScroller2FadeDown 300ms ease 110ms both;
+.movie-scroller-focus-stage.is-opening .movie-scroller-close {
+  animation: movieScrollerFadeDown 300ms ease 110ms both;
 }
 
-.movie-scroller-2-focus-stage.is-closing .details-copy {
-  animation: movieScroller2SlideAway 180ms ease both;
+.movie-scroller-focus-stage.is-closing .details-copy {
+  animation: movieScrollerSlideAway 180ms ease both;
 }
 
-.movie-scroller-2-focus-stage.is-closing .details-showtimes {
-  animation: movieScroller2SlideAway 160ms ease both;
+.movie-scroller-focus-stage.is-closing .details-showtimes {
+  animation: movieScrollerSlideAway 160ms ease both;
 }
 
-.movie-scroller-2-focus-stage.is-closing .movie-scroller-2-close {
-  animation: movieScroller2FadeOut 140ms ease both;
+.movie-scroller-focus-stage.is-closing .movie-scroller-close {
+  animation: movieScrollerFadeOut 140ms ease both;
 }
 
-@keyframes movieScroller2StageIn {
+@keyframes movieScrollerStageIn {
   from {
     opacity: 0;
   }
@@ -230,7 +230,7 @@
   }
 }
 
-@keyframes movieScroller2StageOut {
+@keyframes movieScrollerStageOut {
   from {
     opacity: 1;
   }
@@ -240,7 +240,7 @@
   }
 }
 
-@keyframes movieScroller2ZipUp {
+@keyframes movieScrollerZipUp {
   from {
     opacity: 0;
     transform: translate3d(0, 18vh, 0) scale(0.985);
@@ -252,7 +252,7 @@
   }
 }
 
-@keyframes movieScroller2SlideAway {
+@keyframes movieScrollerSlideAway {
   from {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
@@ -264,7 +264,7 @@
   }
 }
 
-@keyframes movieScroller2FadeDown {
+@keyframes movieScrollerFadeDown {
   from {
     opacity: 0;
     transform: translate3d(0, -16px, 0);
@@ -276,7 +276,7 @@
   }
 }
 
-@keyframes movieScroller2FadeOut {
+@keyframes movieScrollerFadeOut {
   from {
     opacity: 1;
     transform: translate3d(0, 0, 0);
@@ -289,21 +289,21 @@
 }
 
 @media (max-width: 720px) {
-  .movie-scroller-2-focus-stage {
+  .movie-scroller-focus-stage {
     padding: 14px;
   }
 
-  .movie-scroller-2-focus-layout {
+  .movie-scroller-focus-layout {
     width: min(100%, 640px);
     max-height: calc(100vh - 28px);
     padding: 20px 18px 22px;
   }
 
-  .movie-scroller-2-focus-content {
+  .movie-scroller-focus-content {
     max-height: calc(100vh - 72px);
   }
 
-  .movie-scroller-2-close {
+  .movie-scroller-close {
     top: 14px;
     right: 14px;
   }

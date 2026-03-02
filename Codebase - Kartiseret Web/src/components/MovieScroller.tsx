@@ -9,7 +9,7 @@ import {
 } from "react";
 import { X } from "lucide-react";
 import { type Movie } from "../data/movies";
-import "./MovieScroller2.css";
+import "./MovieScroller.css";
 import { MovieDetailsContent } from "./MovieDetailsContent";
 import {
   MovieScrollerBase,
@@ -18,7 +18,7 @@ import {
   type PosterSourceRect,
 } from "./MovieScrollerBase";
 
-type MovieScroller2Props = Omit<MovieScrollerProps, "onSelectMovie">;
+type FocusMovieScrollerProps = Omit<MovieScrollerProps, "onSelectMovie">;
 
 type SelectedMovieState = {
   movie: Movie;
@@ -95,7 +95,10 @@ function buildCardOffset(
   } as CSSProperties;
 }
 
-export function MovieScroller2({ className, ...props }: MovieScroller2Props) {
+export function MovieScroller({
+  className,
+  ...props
+}: FocusMovieScrollerProps) {
   const [selectedMovie, setSelectedMovie] = useState<SelectedMovieState | null>(
     null,
   );
@@ -321,12 +324,12 @@ export function MovieScroller2({ className, ...props }: MovieScroller2Props) {
       }
 
       if (cardState.isSelected) {
-        return "movie-scroller-2__card movie-scroller-2__card--selected";
+        return "movie-scroller__card movie-scroller__card--selected";
       }
 
       return cardState.relativeIndex !== null && cardState.relativeIndex < 0
-        ? "movie-scroller-2__card movie-scroller-2__card--dismiss-left"
-        : "movie-scroller-2__card movie-scroller-2__card--dismiss-right";
+        ? "movie-scroller__card movie-scroller__card--dismiss-left"
+        : "movie-scroller__card movie-scroller__card--dismiss-right";
     },
     [selectedMovie],
   );
@@ -346,7 +349,7 @@ export function MovieScroller2({ className, ...props }: MovieScroller2Props) {
           : " is-open";
 
   return (
-    <div className="movie-scroller-2-shell">
+    <div className="movie-scroller-shell">
       <MovieScrollerBase
         {...props}
         selectedItemIndex={selectedMovie?.itemIndex ?? null}
@@ -354,7 +357,7 @@ export function MovieScroller2({ className, ...props }: MovieScroller2Props) {
         getCardStyle={getCardStyle}
         onSelectMovie={handleSelectMovie}
         className={[
-          "movie-scroller-2",
+          "movie-scroller",
           phase !== "idle" ? "is-focused" : "",
           className,
         ]
@@ -364,12 +367,12 @@ export function MovieScroller2({ className, ...props }: MovieScroller2Props) {
 
       {selectedMovie ? (
         <div
-          className={`movie-scroller-2-focus-stage${focusStateClass}`}
+          className={`movie-scroller-focus-stage${focusStateClass}`}
           onClick={handleRequestClose}
           role="presentation"
         >
           <section
-            className="movie-scroller-2-focus-layout"
+            className="movie-scroller-focus-layout"
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
@@ -379,19 +382,19 @@ export function MovieScroller2({ className, ...props }: MovieScroller2Props) {
           >
             <button
               type="button"
-              className="movie-scroller-2-close"
+              className="movie-scroller-close"
               aria-label="Close spotlight view"
               onClick={handleRequestClose}
             >
               <X size={20} strokeWidth={2.1} />
             </button>
 
-            <div className="movie-scroller-2-focus-content">
+            <div className="movie-scroller-focus-content">
               <MovieDetailsContent
                 movie={selectedMovie.movie}
                 posterRef={posterRef}
                 titleId={titleId}
-                posterClassName={`details-poster movie-scroller-2-focus-poster${
+                posterClassName={`details-poster movie-scroller-focus-poster${
                   isFocusPosterVisible ? " is-visible" : ""
                 }`}
                 eyebrow="Revival spotlight"
@@ -405,7 +408,7 @@ export function MovieScroller2({ className, ...props }: MovieScroller2Props) {
               src={selectedMovie.movie.imageSrc}
               alt=""
               aria-hidden="true"
-              className={`movie-scroller-2-poster-ghost${
+              className={`movie-scroller-poster-ghost${
                 phase === "opening" ? " is-opening" : ""
               }${phase === "closing" ? " is-closing" : ""}`}
               style={
