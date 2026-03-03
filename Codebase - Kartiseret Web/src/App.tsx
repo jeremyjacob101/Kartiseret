@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { Settings } from "lucide-react";
 import { MovieScroller } from "./components/MovieScroller";
 import { MovieScroller2 } from "./components/MovieScroller2";
+import { MovieScroller3 } from "./components/MovieScroller3";
 import "./index.css";
 
 export default function App() {
@@ -38,6 +39,16 @@ export default function App() {
             <h1 className="section-title">Now Playing B</h1>
           </div>
           <MovieScroller2
+            cardWidth={220}
+            cardHeight={330}
+            gap={22}
+            maxWidth={1100}
+          />
+          <div className="section-heading">
+            <p className="section-kicker">Showtimes</p>
+            <h1 className="section-title">Now Playing C</h1>
+          </div>
+          <MovieScroller3
             cardWidth={220}
             cardHeight={330}
             gap={22}
