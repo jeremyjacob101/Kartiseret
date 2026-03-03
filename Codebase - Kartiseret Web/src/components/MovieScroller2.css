@@ -421,6 +421,11 @@
   opacity: 1;
 }
 
+.movie-scroller2-poster-ghost.is-scripted-opening {
+  transition:
+    opacity var(--movie-scroller2-ghost-opacity-duration, 120ms) ease;
+}
+
 .movie-scroller2-poster-ghost.is-closing {
   transition:
     top var(--movie-scroller2-ghost-move-duration, 300ms)

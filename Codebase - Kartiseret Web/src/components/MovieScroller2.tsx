@@ -59,6 +59,7 @@ const CLOSE_STAGE_FADE_DELAY_MS =
   POSTER_HANDOFF_TOTAL_MS - FOCUS_STAGE_FADE_DURATION_MS;
 
 const DETAIL2_REPEAT_SETS = 7;
+const DETAIL2_FOCUS_VIEWPORT_PADDING_PX = 28;
 const DETAIL2_SCROLL_SETTLE_MS = 110;
 const DETAIL2_EDGE_BUFFER_SETS = 1;
 const DETAIL2_READY_RADIUS = 2;
@@ -84,6 +85,70 @@ function mod2(value: number, size: number): number {
 
 function easeOutQuad2(value: number): number {
   return 1 - (1 - value) ** 2;
+}
+
+function easeOutCubic2(value: number): number {
+  return 1 - (1 - value) ** 3;
+}
+
+function easeInOutCubic2(value: number): number {
+  return value < 0.5
+    ? 4 * value ** 3
+    : 1 - ((-2 * value + 2) ** 3) / 2;
+}
+
+function lerp2(start: number, end: number, progress: number): number {
+  return start + (end - start) * progress;
+}
+
+function toPosterSourceRect2(
+  rect: Pick<DOMRect, "top" | "left" | "width" | "height"> | null | undefined,
+  fallback: PosterSourceRect2,
+): PosterSourceRect2 {
+  if (!rect) {
+    return fallback;
+  }
+
+  return {
+    top: rect.top,
+    left: rect.left,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+function getPageScrollTop2(): number {
+  return window.scrollY || window.pageYOffset || 0;
+}
+
+function getMaxPageScrollTop2(): number {
+  const scrollRoot = document.scrollingElement ?? document.documentElement;
+  return Math.max(0, scrollRoot.scrollHeight - window.innerHeight);
+}
+
+function getTargetDetailViewportTop2(panelHeight: number): number {
+  const paddedViewportHeight = Math.max(
+    0,
+    window.innerHeight - DETAIL2_FOCUS_VIEWPORT_PADDING_PX * 2,
+  );
+  const centeredHeight = Math.min(panelHeight, paddedViewportHeight);
+
+  return Math.max(
+    DETAIL2_FOCUS_VIEWPORT_PADDING_PX,
+    (window.innerHeight - centeredHeight) / 2,
+  );
+}
+
+function getViewportScrollTarget2(
+  shellTop: number,
+  currentScrollTop: number,
+  panelHeight: number,
+): number {
+  return clamp2(
+    currentScrollTop + shellTop - getTargetDetailViewportTop2(panelHeight),
+    0,
+    getMaxPageScrollTop2(),
+  );
 }
 
 function getDetailPanelOpacity2(
@@ -425,6 +490,21 @@ export function MovieScroller2({
     ghost.style.boxShadow = FOCUS_POSTER_SHADOW;
   }, []);
 
+  const applyGhostOpeningAppearance = useCallback((progress: number) => {
+    const ghost = ghostRef.current;
+    if (!ghost) {
+      return;
+    }
+
+    ghost.style.borderRadius = `${lerp2(
+      SCROLLER_CARD_RADIUS_PX,
+      FOCUS_POSTER_RADIUS_PX,
+      progress,
+    )}px`;
+    ghost.style.boxShadow =
+      progress < 0.44 ? SCROLLER_CARD_SHADOW : FOCUS_POSTER_SHADOW;
+  }, []);
+
   const getCurrentPositionalOpacity = useCallback(
     (itemIndex: number, fallback: number) => {
       const item = shellRef.current?.querySelector<HTMLElement>(
@@ -493,6 +573,38 @@ export function MovieScroller2({
 
       scroller.scrollTo({
         left: centeredScrollLeft,
+        behavior,
+      });
+    },
+    [detailTotalItems, gap, maxWidth, measureDetailScroller],
+  );
+
+  const syncDetailViewportToFocusPosition = useCallback(
+    (behavior: ScrollBehavior = "auto") => {
+      const shell = shellRef.current;
+      if (!shell) {
+        return;
+      }
+
+      const currentScrollTop = getPageScrollTop2();
+      const panelHeight = getDetailLayout2(
+        measureDetailScroller(),
+        gap,
+        maxWidth,
+        detailTotalItems,
+      ).panelHeight;
+      const targetScrollTop = getViewportScrollTarget2(
+        shell.getBoundingClientRect().top,
+        currentScrollTop,
+        panelHeight,
+      );
+
+      if (Math.abs(targetScrollTop - currentScrollTop) <= 1) {
+        return;
+      }
+
+      window.scrollTo({
+        top: targetScrollTop,
         behavior,
       });
     },
@@ -740,36 +852,103 @@ export function MovieScroller2({
 
     clearScheduledAnimation();
     scrollDetailToIndex(pendingOpenIndexRef.current, "auto");
-
-    const targetRect = posterRef.current?.getBoundingClientRect();
-    if (!targetRect) {
+    const shell = shellRef.current;
+    const ghost = ghostRef.current;
+    if (!shell || !ghost) {
       return;
     }
 
-    targetRectRef.current = {
-      top: targetRect.top,
-      left: targetRect.left,
-      width: targetRect.width,
-      height: targetRect.height,
-    };
+    const openingPanelHeight = getDetailLayout2(
+      measureDetailScroller(),
+      gap,
+      maxWidth,
+      detailTotalItems,
+    ).panelHeight;
+    const initialScrollTop = getPageScrollTop2();
+    const targetScrollTop = getViewportScrollTarget2(
+      shell.getBoundingClientRect().top,
+      initialScrollTop,
+      openingPanelHeight,
+    );
+    const initialTargetRect = toPosterSourceRect2(
+      posterRef.current?.getBoundingClientRect(),
+      ghostTransition.sourceRect,
+    );
+
+    targetRectRef.current = initialTargetRect;
 
     applyRectToGhost(ghostTransition.sourceRect);
     applyGhostScrollerAppearance();
+    ghost.style.opacity = `${ghostTransition.sourceOpacity}`;
 
-    if (ghostRef.current) {
-      ghostRef.current.style.opacity = `${ghostTransition.sourceOpacity}`;
-    }
+    animationFrameRef.current = window.requestAnimationFrame((startTime) => {
+      if (ghostRef.current) {
+        ghostRef.current.style.opacity = "1";
+      }
 
-    animationFrameRef.current = window.requestAnimationFrame(() => {
-      animationFrameRef.current = window.requestAnimationFrame(() => {
+      const animateOpening = (frameTime: number) => {
+        const linearProgress = clamp2(
+          (frameTime - startTime) / POSTER_MOVE_DURATION_MS,
+          0,
+          1,
+        );
+        const scrollProgress = easeInOutCubic2(linearProgress);
+        const ghostProgress = easeOutCubic2(linearProgress);
+        const nextScrollTop = lerp2(
+          initialScrollTop,
+          targetScrollTop,
+          scrollProgress,
+        );
+
+        window.scrollTo({
+          top: nextScrollTop,
+          behavior: "auto",
+        });
+
+        const liveTargetRect = toPosterSourceRect2(
+          posterRef.current?.getBoundingClientRect(),
+          targetRectRef.current ?? ghostTransition.sourceRect,
+        );
+
+        targetRectRef.current = liveTargetRect;
+        applyRectToGhost({
+          top: lerp2(ghostTransition.sourceRect.top, liveTargetRect.top, ghostProgress),
+          left: lerp2(
+            ghostTransition.sourceRect.left,
+            liveTargetRect.left,
+            ghostProgress,
+          ),
+          width: lerp2(
+            ghostTransition.sourceRect.width,
+            liveTargetRect.width,
+            ghostProgress,
+          ),
+          height: lerp2(
+            ghostTransition.sourceRect.height,
+            liveTargetRect.height,
+            ghostProgress,
+          ),
+        });
+        applyGhostOpeningAppearance(ghostProgress);
+
+        if (linearProgress < 1) {
+          animationFrameRef.current = window.requestAnimationFrame(animateOpening);
+          return;
+        }
+
+        window.scrollTo({
+          top: targetScrollTop,
+          behavior: "auto",
+        });
+
         if (targetRectRef.current) {
           applyRectToGhost(targetRectRef.current);
         }
         applyGhostFocusAppearance();
-        if (ghostRef.current) {
-          ghostRef.current.style.opacity = "1";
-        }
-      });
+        animationFrameRef.current = null;
+      };
+
+      animateOpening(startTime);
     });
 
     posterRevealTimeoutRef.current = window.setTimeout(() => {
@@ -792,11 +971,16 @@ export function MovieScroller2({
       clearScheduledAnimation();
     };
   }, [
+    applyGhostOpeningAppearance,
     applyGhostFocusAppearance,
     applyGhostScrollerAppearance,
     applyRectToGhost,
     clearScheduledAnimation,
+    detailTotalItems,
+    gap,
     ghostTransition,
+    maxWidth,
+    measureDetailScroller,
     phase,
     scrollDetailToIndex,
   ]);
@@ -880,6 +1064,10 @@ export function MovieScroller2({
         phase === "opening" ? pendingOpenIndexRef.current : detailActiveIndex,
         "auto",
       );
+
+      if (phase === "open") {
+        syncDetailViewportToFocusPosition("auto");
+      }
     });
 
     observer.observe(scroller);
@@ -893,6 +1081,44 @@ export function MovieScroller2({
     measureDetailScroller,
     phase,
     scrollDetailToIndex,
+    syncDetailViewportToFocusPosition,
+  ]);
+
+  useLayoutEffect(() => {
+    if (phase !== "open") {
+      return;
+    }
+
+    syncDetailViewportToFocusPosition("auto");
+  }, [detailClientWidth, phase, syncDetailViewportToFocusPosition]);
+
+  useEffect(() => {
+    if (!isDetailMounted) {
+      return;
+    }
+
+    const handleWindowResize = () => {
+      scrollDetailToIndex(
+        phase === "opening" ? pendingOpenIndexRef.current : detailActiveIndex,
+        "auto",
+      );
+
+      if (phase === "open") {
+        syncDetailViewportToFocusPosition("auto");
+      }
+    };
+
+    window.addEventListener("resize", handleWindowResize);
+
+    return () => {
+      window.removeEventListener("resize", handleWindowResize);
+    };
+  }, [
+    detailActiveIndex,
+    isDetailMounted,
+    phase,
+    scrollDetailToIndex,
+    syncDetailViewportToFocusPosition,
   ]);
 
   useEffect(() => {
@@ -1163,7 +1389,9 @@ export function MovieScroller2({
           aria-hidden="true"
           className={`movie-scroller2-poster-ghost${
             phase === "opening" ? " is-opening" : ""
-          }${phase === "closing" ? " is-closing" : ""}`}
+          }${phase === "opening" ? " is-scripted-opening" : ""}${
+            phase === "closing" ? " is-closing" : ""
+          }`}
           style={{
             top: ghostTransition.sourceRect.top,
             left: ghostTransition.sourceRect.left,
