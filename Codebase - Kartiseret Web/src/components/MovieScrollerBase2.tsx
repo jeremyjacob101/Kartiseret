@@ -60,12 +60,13 @@ type ViewportState2 = {
 };
 
 const OVERSCAN2_CARDS = 5;
+
 function clamp2(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-function easeOutQuad2(value: number): number {
-  return 1 - (1 - value) ** 2;
+function easeInQuad2(value: number): number {
+  return value ** 2;
 }
 
 export function MovieScrollerBase2({
@@ -289,7 +290,7 @@ export function MovieScrollerBase2({
             )
           : 1;
       const opacity =
-        viewport.clientWidth > 0 ? 1 - easeOutQuad2(fadeProgress) : 1;
+        viewport.clientWidth > 0 ? 1 - easeInQuad2(fadeProgress) : 1;
       const waveProgress =
         viewport.clientWidth > 0 && waveRadius > focusPlateau
           ? clamp2(
