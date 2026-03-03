@@ -1,20 +1,45 @@
-import moviesCsv from "./csvs/finalMovies_rows.csv?raw";
-import showtimesCsv from "./csvs/finalShowtimes_rows.csv?raw";
+import { getSupabaseBrowserClient } from "../lib/supabase";
 
 const TOP_MOVIE_COUNT = 10;
+const SUPABASE_PAGE_SIZE = 1000;
+const MOVIES_TABLE_NAME = "testNPmovies";
+const SHOWTIMES_TABLE_NAME = "testNPshowtimes";
+const MOVIE_SELECT_COLUMNS = [
+  "tmdb_id",
+  "english_title",
+  "release_year",
+  "poster",
+  "backdrop",
+  "imdbRating",
+  "rtCriticRating",
+  "rtAudienceRating",
+  "runtime",
+  "popularity",
+] as const;
+const SHOWTIME_SELECT_COLUMNS = [
+  "tmdb_id",
+  "screening_city",
+  "date_of_showing",
+  "cinema",
+  "showtime",
+] as const;
 const THEATER_SORT_ORDER = [
   "Movieland",
   "Yes Planet",
   "Cinema City",
   "Lev Cinema",
   "Rav Hen",
-];
+] as const;
+const THEATER_SORT_INDEX = new Map(
+  THEATER_SORT_ORDER.map((theater, index) => [theater, index] as const),
+);
 
 export const defaultCity = "Haifa";
 export const fixedAppDateString = "2026-03-02";
 export const fixedShowtimeWindowEndDateString = "2026-03-11";
 
 type CsvRow = Record<string, string>;
+type SupabaseRow = Record<string, string | number | boolean | null>;
 
 export type Movie = {
   tmdbId: string;
@@ -38,83 +63,21 @@ export type MovieShowtimeDay = {
   theaters: TheaterShowtimes[];
 };
 
-function parseCsv(text: string): CsvRow[] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let index = 0;
-  let inQuotes = false;
+export let movies: Movie[] = [];
 
-  while (index < text.length) {
-    const character = text[index];
+let movieShowtimesByTmdbId: Record<string, MovieShowtimeDay[]> = {};
+let isMovieCatalogLoaded = false;
+let loadMovieCatalogPromise: Promise<void> | null = null;
 
-    if (inQuotes) {
-      if (character === '"') {
-        if (text[index + 1] === '"') {
-          field += '"';
-          index += 2;
-          continue;
-        }
-
-        inQuotes = false;
-        index += 1;
-        continue;
-      }
-
-      field += character;
-      index += 1;
-      continue;
-    }
-
-    if (character === '"') {
-      inQuotes = true;
-      index += 1;
-      continue;
-    }
-
-    if (character === ",") {
-      row.push(field);
-      field = "";
-      index += 1;
-      continue;
-    }
-
-    if (character === "\n") {
-      row.push(field);
-      rows.push(row);
-      row = [];
-      field = "";
-      index += 1;
-      continue;
-    }
-
-    if (character === "\r") {
-      index += 1;
-      continue;
-    }
-
-    field += character;
-    index += 1;
-  }
-
-  if (field.length > 0 || row.length > 0) {
-    row.push(field);
-    rows.push(row);
-  }
-
-  const [rawHeader = [], ...dataRows] = rows;
-  const header = rawHeader.map((value) => value.replace(/^\uFEFF/, ""));
-
-  return dataRows
-    .filter((dataRow) => dataRow.some((value) => value.length > 0))
-    .map((dataRow) =>
-      Object.fromEntries(
-        header.map((columnName, columnIndex) => [
-          columnName,
-          dataRow[columnIndex] ?? "",
-        ]),
-      ),
-    );
+function rowsToCsvRows(rows: readonly SupabaseRow[]): CsvRow[] {
+  return rows.map((row) =>
+    Object.fromEntries(
+      Object.entries(row).map(([key, value]) => [
+        key,
+        value == null ? "" : String(value),
+      ]),
+    ),
+  );
 }
 
 function parseNumber(value: string, fallback = 0): number {
@@ -165,11 +128,12 @@ function buildDateRange(startDateString: string, endDateString: string): string[
 }
 
 function compareTheaters(left: string, right: string): number {
-  const leftOrder = THEATER_SORT_ORDER.indexOf(left);
-  const rightOrder = THEATER_SORT_ORDER.indexOf(right);
-  const safeLeftOrder = leftOrder === -1 ? Number.POSITIVE_INFINITY : leftOrder;
+  const safeLeftOrder =
+    THEATER_SORT_INDEX.get(left as (typeof THEATER_SORT_ORDER)[number]) ??
+    Number.POSITIVE_INFINITY;
   const safeRightOrder =
-    rightOrder === -1 ? Number.POSITIVE_INFINITY : rightOrder;
+    THEATER_SORT_INDEX.get(right as (typeof THEATER_SORT_ORDER)[number]) ??
+    Number.POSITIVE_INFINITY;
 
   if (safeLeftOrder !== safeRightOrder) {
     return safeLeftOrder - safeRightOrder;
@@ -180,7 +144,9 @@ function compareTheaters(left: string, right: string): number {
 
 function buildMovies(rows: CsvRow[]): Movie[] {
   return [...rows]
-    .sort((left, right) => parseNumber(right.popularity) - parseNumber(left.popularity))
+    .sort(
+      (left, right) => parseNumber(right.popularity) - parseNumber(left.popularity),
+    )
     .slice(0, TOP_MOVIE_COUNT)
     .map((row) => ({
       tmdbId: normalizeText(row.tmdb_id),
@@ -205,9 +171,7 @@ function buildMovieShowtimes(
     fixedAppDateString,
     fixedShowtimeWindowEndDateString,
   );
-  const selectedMovieIds = new Set(
-    selectedMovies.map((movie) => movie.tmdbId),
-  );
+  const selectedMovieIds = new Set(selectedMovies.map((movie) => movie.tmdbId));
   const groupedShowtimes = new Map<string, Map<string, Map<string, Set<string>>>>();
 
   for (const row of rows) {
@@ -294,12 +258,90 @@ function buildMovieShowtimes(
   );
 }
 
-export const movies = buildMovies(parseCsv(moviesCsv));
+async function fetchAllTableRows(
+  tableName: string,
+  selectColumns: readonly string[],
+  orderColumns: readonly string[],
+): Promise<SupabaseRow[]> {
+  const supabase = getSupabaseBrowserClient();
+  const allRows: SupabaseRow[] = [];
+  let fromIndex = 0;
 
-const movieShowtimesByTmdbId = buildMovieShowtimes(
-  parseCsv(showtimesCsv),
-  movies,
-);
+  while (true) {
+    let query = supabase
+      .from(tableName)
+      .select(selectColumns.join(","))
+      .range(fromIndex, fromIndex + SUPABASE_PAGE_SIZE - 1);
+
+    for (const column of orderColumns) {
+      query = query.order(column, { ascending: true });
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error(
+        `Failed to load ${tableName} from Supabase: ${error.message}`,
+      );
+    }
+
+    const batchRows = ((data ?? []) as unknown) as SupabaseRow[];
+    allRows.push(...batchRows);
+
+    if (batchRows.length < SUPABASE_PAGE_SIZE) {
+      return allRows;
+    }
+
+    fromIndex += SUPABASE_PAGE_SIZE;
+  }
+}
+
+export async function loadMovieCatalog(): Promise<void> {
+  if (isMovieCatalogLoaded) {
+    return;
+  }
+
+  if (loadMovieCatalogPromise) {
+    return loadMovieCatalogPromise;
+  }
+
+  loadMovieCatalogPromise = (async () => {
+    const [movieRows, showtimeRows] = await Promise.all([
+      fetchAllTableRows(MOVIES_TABLE_NAME, MOVIE_SELECT_COLUMNS, ["tmdb_id"]),
+      fetchAllTableRows(SHOWTIMES_TABLE_NAME, SHOWTIME_SELECT_COLUMNS, [
+        "tmdb_id",
+        "date_of_showing",
+        "cinema",
+        "showtime",
+      ]),
+    ]);
+    const nextMovieRows = rowsToCsvRows(movieRows);
+    const nextShowtimeRows = rowsToCsvRows(showtimeRows);
+
+    const nextMovies = buildMovies(nextMovieRows);
+
+    if (nextMovies.length === 0) {
+      throw new Error(
+        `Supabase table ${MOVIES_TABLE_NAME} returned no movie rows.`,
+      );
+    }
+
+    movies = nextMovies;
+    movieShowtimesByTmdbId = buildMovieShowtimes(nextShowtimeRows, nextMovies);
+    isMovieCatalogLoaded = true;
+  })()
+    .catch((error) => {
+      movies = [];
+      movieShowtimesByTmdbId = {};
+      isMovieCatalogLoaded = false;
+      throw error instanceof Error ? error : new Error(String(error));
+    })
+    .finally(() => {
+      loadMovieCatalogPromise = null;
+    });
+
+  return loadMovieCatalogPromise;
+}
 
 export function getMovieShowtimeDays(
   tmdbId: string,

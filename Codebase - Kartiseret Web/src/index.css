@@ -108,11 +108,21 @@ button {
   align-items: center;
 }
 
+.app-inline-note {
+  width: min(100%, 1100px);
+  margin: 0 16px 8px;
+  color: rgba(233, 218, 255, 0.72);
+}
+
 .scroller-stack {
   display: grid;
   gap: 28px;
   width: 100%;
   justify-items: center;
+}
+
+.scroller-slot {
+  width: 100%;
 }
 
 .section-heading {
