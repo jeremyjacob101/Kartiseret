@@ -59,7 +59,25 @@ type ViewportState2 = {
   clientWidth: number;
 };
 
+type IntroPhase2 = "pre" | "animating" | "done";
+
 const OVERSCAN2_CARDS = 5;
+const INTRO2_START_DELAY_MS = 64;
+const INTRO2_DURATION_MS = 1120;
+const INTRO2_STAGGER_STEP_MS = 72;
+const INTRO2_MAX_STAGGER_MS = 320;
+const INTRO2_OFFSCREEN_GUTTER_PX = 72;
+const INTRO2_TARGET_CARD_COUNT = 5;
+
+function getInitialIntroPhase2(): IntroPhase2 {
+  if (typeof window === "undefined") {
+    return "done";
+  }
+
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? "done"
+    : "pre";
+}
 
 function clamp2(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -84,6 +102,10 @@ export function MovieScrollerBase2({
   const movieCount = movies.length;
   const scrollerRef = useRef<HTMLElement | null>(null);
   const rafRef = useRef<number | null>(null);
+  const introStartFrameRef = useRef<number | null>(null);
+  const introCommitFrameRef = useRef<number | null>(null);
+  const introDelayTimeoutRef = useRef<number | null>(null);
+  const introCompleteTimeoutRef = useRef<number | null>(null);
   const seenPosterSrcRef = useRef(new Set<string>());
   const focusedScaleBoost = 0.15;
   const maxCardHeight = Math.ceil(cardHeight * (1 + focusedScaleBoost));
@@ -125,6 +147,31 @@ export function MovieScrollerBase2({
     scrollLeft: 0,
     clientWidth: 0,
   });
+  const [introPhase, setIntroPhase] = useState<IntroPhase2>(
+    () => getInitialIntroPhase2(),
+  );
+  const shouldPlayIntroRef = useRef(introPhase !== "done");
+  const introFallbackViewportWidth =
+    typeof window === "undefined"
+      ? cardWidth * INTRO2_TARGET_CARD_COUNT +
+        gap * (INTRO2_TARGET_CARD_COUNT - 1)
+      : Math.min(
+          window.innerWidth,
+          typeof maxWidth === "number"
+            ? maxWidth
+            : Number.parseFloat(maxWidth) || window.innerWidth,
+        );
+  const effectiveViewportWidth =
+    viewport.clientWidth || introFallbackViewportWidth;
+  const effectiveScrollLeft =
+    viewport.clientWidth > 0
+      ? viewport.scrollLeft
+      : Math.max(
+          0,
+          gap +
+            centeredAnchorIndex * itemSpan -
+            (effectiveViewportWidth - cardWidth) / 2,
+        );
 
   const calculateRange = useCallback(
     (scrollLeft: number, clientWidth: number): WindowRange2 => {
@@ -211,6 +258,28 @@ export function MovieScrollerBase2({
     });
   }, [updateWindowFromScroller]);
 
+  const clearScheduledIntro = useCallback(() => {
+    if (introStartFrameRef.current !== null) {
+      window.cancelAnimationFrame(introStartFrameRef.current);
+      introStartFrameRef.current = null;
+    }
+
+    if (introCommitFrameRef.current !== null) {
+      window.cancelAnimationFrame(introCommitFrameRef.current);
+      introCommitFrameRef.current = null;
+    }
+
+    if (introDelayTimeoutRef.current !== null) {
+      window.clearTimeout(introDelayTimeoutRef.current);
+      introDelayTimeoutRef.current = null;
+    }
+
+    if (introCompleteTimeoutRef.current !== null) {
+      window.clearTimeout(introCompleteTimeoutRef.current);
+      introCompleteTimeoutRef.current = null;
+    }
+  }, []);
+
   useLayoutEffect(() => {
     centerAnchorMovie();
   }, [centerAnchorMovie]);
@@ -236,6 +305,31 @@ export function MovieScrollerBase2({
   }, [centerAnchorMovie]);
 
   useEffect(() => {
+    if (!shouldPlayIntroRef.current) {
+      return;
+    }
+
+    introStartFrameRef.current = window.requestAnimationFrame(() => {
+      introStartFrameRef.current = null;
+      introCommitFrameRef.current = window.requestAnimationFrame(() => {
+        introCommitFrameRef.current = null;
+        introDelayTimeoutRef.current = window.setTimeout(() => {
+          setIntroPhase("animating");
+          introDelayTimeoutRef.current = null;
+          introCompleteTimeoutRef.current = window.setTimeout(() => {
+            setIntroPhase("done");
+            introCompleteTimeoutRef.current = null;
+          }, INTRO2_DURATION_MS + INTRO2_MAX_STAGGER_MS);
+        }, INTRO2_START_DELAY_MS);
+      });
+    });
+
+    return () => {
+      clearScheduledIntro();
+    };
+  }, [clearScheduledIntro]);
+
+  useEffect(() => {
     for (let i = range.start; i <= range.end; i += 1) {
       const movie = movies[i % movieCount];
       const imageSources = [movie.imageSrc, movie.backdropSrc].filter(
@@ -257,15 +351,36 @@ export function MovieScrollerBase2({
 
   const visibleStart = range.firstVisible;
   const visibleEnd = range.firstVisible + range.visibleCount - 1;
-  const viewportCenter = viewport.scrollLeft + viewport.clientWidth / 2;
+  const viewportCenter = effectiveScrollLeft + effectiveViewportWidth / 2;
   const fullOpacityRadius =
-    viewport.clientWidth > 0 ? clamp2(viewport.clientWidth * 0.12, 52, 96) : 96;
+    effectiveViewportWidth > 0
+      ? clamp2(effectiveViewportWidth * 0.12, 52, 96)
+      : 96;
   const fadeEndDistance =
-    viewport.clientWidth > 0
-      ? Math.max(viewport.clientWidth / 2 + cardWidth * 0.5, cardWidth)
+    effectiveViewportWidth > 0
+      ? Math.max(effectiveViewportWidth / 2 + cardWidth * 0.5, cardWidth)
       : cardWidth;
   const focusPlateau = Math.max(itemSpan * 0.16, 28);
   const waveRadius = Math.max(itemSpan * 1.8, cardWidth * 1.55);
+  const hasIntroPhase = introPhase !== "done" && selectedItemIndex === null;
+  const isIntroPre = introPhase === "pre" && selectedItemIndex === null;
+  const introInteractive = introPhase === "done";
+  const introAnimatedStart = clamp2(
+    centeredAnchorIndex - Math.floor(INTRO2_TARGET_CARD_COUNT / 2),
+    0,
+    totalItems - 1,
+  );
+  const introAnimatedEnd = clamp2(
+    introAnimatedStart + INTRO2_TARGET_CARD_COUNT - 1,
+    0,
+    totalItems - 1,
+  );
+  const introLeadCardScreenLeft =
+    gap + introAnimatedStart * itemSpan - effectiveScrollLeft;
+  const introTravelDistance =
+    Math.max(0, introLeadCardScreenLeft) +
+    cardWidth +
+    INTRO2_OFFSCREEN_GUTTER_PX;
 
   const cards = Array.from(
     { length: range.end - range.start + 1 },
@@ -290,9 +405,25 @@ export function MovieScrollerBase2({
             )
           : 1;
       const opacity =
-        viewport.clientWidth > 0 ? 1 - easeInQuad2(fadeProgress) : 1;
+        effectiveViewportWidth > 0 ? 1 - easeInQuad2(fadeProgress) : 1;
+      const shouldAnimateIntroCard =
+        hasIntroPhase &&
+        i >= introAnimatedStart &&
+        i <= introAnimatedEnd;
+      const introOrder = shouldAnimateIntroCard
+        ? i - introAnimatedStart
+        : 0;
+      const introDelayMs = Math.min(
+        INTRO2_MAX_STAGGER_MS,
+        introOrder * INTRO2_STAGGER_STEP_MS,
+      );
+      const introTranslateX = isIntroPre && shouldAnimateIntroCard
+        ? -introTravelDistance
+        : 0;
+      const introOpacity =
+        isIntroPre && shouldAnimateIntroCard ? 0 : opacity;
       const waveProgress =
-        viewport.clientWidth > 0 && waveRadius > focusPlateau
+        effectiveViewportWidth > 0 && waveRadius > focusPlateau
           ? clamp2(
               1 -
                 Math.max(distanceFromCenter - focusPlateau, 0) /
@@ -352,18 +483,26 @@ export function MovieScrollerBase2({
             border: "none",
             borderRadius: 14,
             overflow: "hidden",
-            opacity,
+            opacity: introOpacity,
             background: "transparent",
-            cursor: onSelectMovie ? "pointer" : "grab",
+            cursor:
+              onSelectMovie && introInteractive
+                ? "pointer"
+                : introInteractive
+                  ? "grab"
+                  : "default",
             transform:
               `translateZ(0) ` +
-              `translateX(var(--card-translate-x, 0px)) ` +
+              `translateX(calc(${introTranslateX}px + var(--card-translate-x, 0px))) ` +
               `translateY(var(--card-translate-y, 0px)) ` +
               `rotate(var(--card-rotate, 0deg)) ` +
               `scale(calc(${scale} * var(--card-scale, 1)))`,
             transformOrigin: "center bottom",
             transition:
-              "transform 72ms cubic-bezier(0.22, 0.9, 0.34, 1), opacity 80ms linear",
+              shouldAnimateIntroCard
+                ? `transform ${INTRO2_DURATION_MS}ms cubic-bezier(0.22, 0.86, 0.24, 1) ${introDelayMs}ms, ` +
+                  `opacity 540ms ease ${introDelayMs}ms`
+                : "transform 72ms cubic-bezier(0.22, 0.9, 0.34, 1), opacity 80ms linear",
             willChange: "transform, opacity",
             zIndex: Math.round(waveLift * 100),
             ...cardStyle,
@@ -404,6 +543,7 @@ export function MovieScrollerBase2({
         WebkitOverflowScrolling: "touch",
         scrollbarWidth: "none",
         msOverflowStyle: "none",
+        pointerEvents: introInteractive ? undefined : "none",
       }}
     >
       <div
