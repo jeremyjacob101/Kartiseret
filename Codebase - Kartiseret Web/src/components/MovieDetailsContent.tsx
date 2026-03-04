@@ -174,11 +174,11 @@ function hasRating(value: number | null | undefined): value is number {
 }
 
 function formatPercent(value: number | null | undefined): string {
-  return hasRating(value) ? `${Math.round(value)}%` : "NR";
+  return hasRating(value) ? `${Math.round(value)}%` : "—";
 }
 
 function formatDecimalRating(value: number | null | undefined): string {
-  return hasRating(value) ? value.toFixed(1) : "NR";
+  return hasRating(value) ? value.toFixed(1) : "—";
 }
 
 // RT's full "hot" badges also depend on fields this app does not store
