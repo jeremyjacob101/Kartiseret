@@ -24,6 +24,7 @@ export type MovieScroller3Props = {
   gap?: number;
   maxWidth?: number | string;
   className?: string;
+  focusOffsetItemSpans?: number;
   anchorItemIndex?: number | null;
   onSelectMovie?: (
     movie: Movie,
@@ -75,8 +76,12 @@ function getFocusViewportCenter3(
   cardWidth: number,
   itemSpan: number,
   gap: number,
+  focusOffsetItemSpans: number,
 ): number {
-  const desiredCenter = clientWidth / 2 - itemSpan;
+  const safeFocusOffsetItemSpans = Number.isFinite(focusOffsetItemSpans)
+    ? Math.max(focusOffsetItemSpans, 0)
+    : 0;
+  const desiredCenter = clientWidth / 2 - itemSpan * safeFocusOffsetItemSpans;
   const minimumCenter = gap + cardWidth / 2;
   const maximumCenter = Math.max(minimumCenter, clientWidth - gap - cardWidth / 2);
 
@@ -111,6 +116,7 @@ export function MovieScrollerBase3({
   gap = 16,
   maxWidth = "100%",
   className,
+  focusOffsetItemSpans = 1,
   anchorItemIndex = null,
   onSelectMovie,
   selectedItemIndex = null,
@@ -186,6 +192,7 @@ export function MovieScrollerBase3({
     cardWidth,
     itemSpan,
     gap,
+    focusOffsetItemSpans,
   );
   const effectiveScrollLeft =
     viewport.clientWidth > 0
@@ -263,6 +270,7 @@ export function MovieScrollerBase3({
       cardWidth,
       itemSpan,
       gap,
+      focusOffsetItemSpans,
     );
 
     const centeredScrollLeft = Math.max(
@@ -277,7 +285,14 @@ export function MovieScrollerBase3({
     }
 
     updateWindowFromScroller();
-  }, [cardWidth, centeredAnchorIndex, gap, itemSpan, updateWindowFromScroller]);
+  }, [
+    cardWidth,
+    centeredAnchorIndex,
+    focusOffsetItemSpans,
+    gap,
+    itemSpan,
+    updateWindowFromScroller,
+  ]);
 
   const scheduleWindowUpdate = useCallback(() => {
     if (rafRef.current !== null) {

@@ -336,6 +336,7 @@ export function MovieScroller3({
   gap = 16,
   maxWidth = "100%",
   className,
+  focusOffsetItemSpans = 0.5,
 }: MovieScroller3Props) {
   const movieCount = movies.length;
   const collapsedRepeatSets = getRepeatSetCount3(cardWidth + gap, movieCount);
@@ -1351,6 +1352,7 @@ export function MovieScroller3({
           cardHeight={cardHeight}
           gap={gap}
           maxWidth={maxWidth}
+          focusOffsetItemSpans={focusOffsetItemSpans}
           anchorItemIndex={collapsedAnchorIndex}
           onSelectMovie={handleSelectCollapsedMovie}
           selectedItemIndex={

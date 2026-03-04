@@ -4,6 +4,7 @@ import { Settings } from "lucide-react";
 import { MovieScroller } from "./components/MovieScroller";
 import { MovieScroller2 } from "./components/MovieScroller2";
 import { MovieScroller3 } from "./components/MovieScroller3";
+import { MovieScroller4 } from "./components/MovieScroller4";
 import { loadMovieCatalog, movies } from "./data/movieCatalog";
 import "./index.css";
 
@@ -116,6 +117,23 @@ export default function App() {
           >
             {catalogReady ? (
               <MovieScroller3
+                cardWidth={SCROLLER_CARD_WIDTH}
+                cardHeight={SCROLLER_CARD_HEIGHT}
+                gap={SCROLLER_GAP}
+                maxWidth={SCROLLER_MAX_WIDTH}
+              />
+            ) : null}
+          </div>
+          <div className="section-heading">
+            <p className="section-kicker">Showtimes</p>
+            <h1 className="section-title">Now Playing D</h1>
+          </div>
+          <div
+            className="scroller-slot"
+            style={{ minHeight: SCROLLER_SLOT_MIN_HEIGHT }}
+          >
+            {catalogReady ? (
+              <MovieScroller4
                 cardWidth={SCROLLER_CARD_WIDTH}
                 cardHeight={SCROLLER_CARD_HEIGHT}
                 gap={SCROLLER_GAP}
