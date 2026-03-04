@@ -72,3 +72,17 @@ export default defineConfig([
 ])
 ```
 # kartiseret-moviescroller1
+
+## Environment variables
+
+The client accepts either of these public Supabase variable pairs:
+
+- `SUPABASE_URL` and `SUPABASE_ANON_KEY`
+- `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
+
+Build-time resolution prefers values already present in the environment
+(for example Netlify environment variables), then falls back to local
+`.env` files loaded by Vite.
+
+This is a static frontend, so these values must exist during the build.
+Only use the public anon key here, never a service role key.
