@@ -92,7 +92,7 @@ export default function App() {
           </div>
           <div className="section-heading">
             <p className="section-kicker">Showtimes</p>
-            <h1 className="section-title">Now Playing B</h1>
+            <h1 className="section-title">Now Playing B1</h1>
           </div>
           <div
             className="scroller-slot"
@@ -109,7 +109,7 @@ export default function App() {
           </div>
           <div className="section-heading">
             <p className="section-kicker">Showtimes</p>
-            <h1 className="section-title">Now Playing C</h1>
+            <h1 className="section-title">Now Playing B2</h1>
           </div>
           <div
             className="scroller-slot"
@@ -126,7 +126,7 @@ export default function App() {
           </div>
           <div className="section-heading">
             <p className="section-kicker">Showtimes</p>
-            <h1 className="section-title">Now Playing D</h1>
+            <h1 className="section-title">Now Playing B3</h1>
           </div>
           <div
             className="scroller-slot"
