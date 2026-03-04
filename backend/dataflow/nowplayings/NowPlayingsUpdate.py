@@ -24,7 +24,7 @@ class NowPlayingsUpdate(BaseDataflow):
             new_row["runtime"] = data["runtime"] if data.get("runtime") is not None else self.runtime
             new_row["popularity"] = data["popularity"] if data.get("popularity") is not None else self.popularity
             new_row["imdb_id"] = data.get("external_ids", {}).get("imdb_id") or self.imdb_id
-            new_row["poster"] = "https://image.tmdb.org/t/p/w500" + data["poster_path"] if data.get("poster_path") else self.poster
+            new_row["en_poster"] = "https://image.tmdb.org/t/p/w500" + data["poster_path"] if data.get("poster_path") else self.en_poster
             new_row["backdrop"] = "https://image.tmdb.org/t/p/w1280" + data["backdrop_path"] if data.get("backdrop_path") else self.backdrop
             new_row["release_year"] = data["release_date"][:4] if data.get("release_date") else self.release_year
             new_row["tmdbRating"] = int(round(data["vote_average"] * 10)) if data.get("vote_average") is not None else self.tmdbRating

@@ -150,23 +150,27 @@ class ComingSoonsTmdb(BaseDataflow):
 
             self.non_enriched_updates.append(best)
 
-        # 6) ENRICH TITLE + POSTER + IMDB_ID
+        # 6) ENRICH: TITLE + POSTER + IMDB_ID + TRAILER + RELEASE_YEAR
         for row in self.non_enriched_updates:
             if not (tmdb_id := row.get("tmdb_id")):
                 continue
             try:
-                data = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}", params={"api_key": self.TMDB_API_KEY, "append_to_response": "external_ids"}, timeout=10).json()
+                data = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}", params={"api_key": self.TMDB_API_KEY, "append_to_response": "external_ids,videos"}, timeout=10).json()
             except:
                 continue
             if not isinstance(data, dict) or not data.get("id"):
                 continue
             external_ids = data.get("external_ids") or {}
             new_row = dict(row)
+            trailer = next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Trailer" and v.get("site") == "YouTube" and v.get("key") and v.get("iso_639_1") == "en"), None)
 
             new_row["english_title"] = data["title"].strip() if data.get("title") else new_row.get("english_title")
             new_row["imdb_id"] = external_ids.get("imdb_id") or new_row.get("imdb_id")
-            new_row["poster"] = "https://image.tmdb.org/t/p/w500" + data["poster_path"] if data.get("poster_path") else new_row.get("poster")
+            new_row["en_poster"] = "https://image.tmdb.org/t/p/w500" + data["poster_path"] if data.get("poster_path") else new_row.get("en_poster")
             new_row["backdrop"] = "https://image.tmdb.org/t/p/w1280" + data["backdrop_path"] if data.get("backdrop_path") else new_row.get("backdrop")
+            new_row["en_trailer"] = trailer.get("key") if trailer else new_row.get("en_trailer")
+            new_row["release_year"] = data["release_date"][:4] if data.get("release_date") else new_row.get("release_year")
+
             self.updates.append(new_row)
 
         self.upsertUpdates(self.MOVING_TO_TABLE_NAME)
@@ -175,4 +179,4 @@ class ComingSoonsTmdb(BaseDataflow):
             for i in range(0, len(ids), 200):
                 chunk = ids[i : i + 200]
                 self.supabase.table(self.MAIN_TABLE_NAME).update({"added": True}).in_("id", chunk).execute()
-        self.dedupeTable(self.MOVING_TO_TABLE_NAME, ignore_cols={"poster", "backdrop", "release_date", "hebrew_title"}, sort_key=self.comingSoonsFinalDedupeSortKey2)
+        self.dedupeTable(self.MOVING_TO_TABLE_NAME, ignore_cols={"en_poster", "en_trailer", "backdrop", "release_date", "hebrew_title"}, sort_key=self.comingSoonsFinalDedupeSortKey2)

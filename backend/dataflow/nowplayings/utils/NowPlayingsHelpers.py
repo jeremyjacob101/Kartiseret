@@ -65,7 +65,8 @@ class NowPlayingsHelpers:
         self.lb_id = None
         self.lbRating = None
         self.lbVotes = None
-        self.poster = None
+        self.en_poster = None
+        self.en_trailer = None
         self.backdrop = None
 
     def load_np_main_row(self, row: dict):
@@ -129,7 +130,8 @@ class NowPlayingsHelpers:
         self.lb_id = clean_str(row.get("lb_id"))
         self.lbRating = clean_float(row.get("lbRating"))
         self.lbVotes = clean_int(row.get("lbVotes"))
-        self.poster = clean_str(row.get("poster"))
+        self.en_poster = clean_str(row.get("en_poster"))
+        self.en_trailer = clean_str(row.get("en_trailer"))
         self.backdrop = clean_str(row.get("backdrop"))
 
     def reset_np_groupkey_row_state(self):
