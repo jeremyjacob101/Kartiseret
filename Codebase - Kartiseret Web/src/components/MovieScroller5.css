@@ -61,6 +61,13 @@
   opacity: 0;
 }
 
+.movie-scroller5-shell.is-detail-mode .movie-scroller5-detail-layer {
+  left: 50%;
+  right: auto;
+  width: 100vw;
+  transform: translateX(-50%);
+}
+
 .movie-scroller5-shell.is-opening .movie-scroller5-detail-layer,
 .movie-scroller5-shell.is-open .movie-scroller5-detail-layer,
 .movie-scroller5-shell.is-closing .movie-scroller5-detail-layer {
@@ -92,20 +99,20 @@
 
 .movie-scroller5-side-preview {
   position: absolute;
-  z-index: 2;
+  z-index: 1;
   display: block;
   padding: 0;
   border: 0;
-  border-radius: 24px;
+  border-radius: 28px;
   background: transparent;
   overflow: hidden;
   cursor: pointer;
   box-shadow:
-    0 24px 42px rgba(0, 0, 0, 0.28),
+    0 26px 48px rgba(0, 0, 0, 0.28),
     0 0 0 1px rgba(255, 255, 255, 0.06);
-  opacity: 0.94;
-  filter: saturate(0.84) brightness(0.86);
-  transform: translate3d(0, 0, 0) scale(0.96);
+  opacity: 0.62;
+  filter: saturate(0.7) brightness(0.78);
+  transform: translate3d(0, 24px, 0) scale(0.985);
   transition:
     transform 220ms ease,
     opacity 220ms ease,
@@ -114,13 +121,13 @@
 
 .movie-scroller5-side-preview:hover:not(.is-disabled),
 .movie-scroller5-side-preview:focus-visible:not(.is-disabled) {
-  opacity: 1;
-  filter: saturate(0.96) brightness(0.96);
-  transform: translate3d(0, -4px, 0) scale(0.99);
+  opacity: 0.8;
+  filter: saturate(0.82) brightness(0.88);
+  transform: translate3d(0, 18px, 0) scale(1);
 }
 
 .movie-scroller5-side-preview.is-disabled {
-  opacity: 0.54;
+  opacity: 0.3;
   cursor: default;
 }
 
@@ -129,8 +136,14 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(6, 5, 10, 0.04), rgba(6, 5, 10, 0.4)),
-    linear-gradient(90deg, rgba(6, 5, 10, 0.24), transparent 30%, transparent 70%, rgba(6, 5, 10, 0.24));
+    linear-gradient(180deg, rgba(6, 5, 10, 0.08), rgba(6, 5, 10, 0.5)),
+    linear-gradient(
+      90deg,
+      rgba(6, 5, 10, 0.3),
+      transparent 28%,
+      transparent 72%,
+      rgba(6, 5, 10, 0.3)
+    );
 }
 
 .movie-scroller5-side-preview-image {
@@ -140,31 +153,11 @@
   object-fit: cover;
 }
 
-.movie-scroller5-side-preview-badge {
-  position: absolute;
-  bottom: 12px;
-  right: 12px;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  background: rgba(8, 7, 11, 0.58);
-  color: #f6f0ff;
-  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.24);
-  backdrop-filter: blur(8px);
-}
-
-.movie-scroller5-side-preview--left .movie-scroller5-side-preview-badge {
-  right: auto;
-  left: 12px;
-}
-
 .movie-scroller5-detail-card {
   position: absolute;
   top: 0;
   left: 50%;
+  z-index: 2;
   isolation: isolate;
   border-radius: 34px;
   overflow: hidden;
@@ -257,13 +250,16 @@
   width: 104%;
   height: 54%;
   object-fit: cover;
-  opacity: 0.84;
+  opacity: 0.78;
   filter: blur(0.6px) saturate(1.03) brightness(0.92) contrast(1.02);
-  transform: translate3d(0, -42px, 0) scale(1.035);
+  transform: translate3d(0, 0, 0) scale(1.035);
   transform-origin: center top;
+  will-change: transform, opacity;
+}
+
+.movie-scroller5-detail-backdrop.is-animating-in {
   animation: movieScroller5BackdropIn 720ms cubic-bezier(0.18, 0.88, 0.24, 1)
     both;
-  will-change: transform, opacity;
 }
 
 .movie-scroller5-shell.is-closing

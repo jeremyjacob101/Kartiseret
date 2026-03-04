@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type MouseEvent,
 } from "react";
 import { X } from "lucide-react";
 import { movies } from "../data/movieCatalog";
@@ -255,6 +256,14 @@ function buildCardOffset3(
     "--card-rotate": `${rotate}deg`,
     "--card-scale": `${scale}`,
   } as CSSProperties;
+}
+
+function isDetailPanelTarget3(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  return Boolean(target.closest(".movie-scroller3-detail-panel"));
 }
 
 function getMaxWidthValue3(
@@ -1222,6 +1231,17 @@ export function MovieScroller3({
     [ghostTransition, isReturnHandoffReady, phase],
   );
 
+  const handleDetailLayerClick = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      if (phase !== "open" || isDetailPanelTarget3(event.target)) {
+        return;
+      }
+
+      handleRequestClose();
+    },
+    [handleRequestClose, phase],
+  );
+
   const shellClassName = [
     "movie-scroller3-shell",
     phase === "opening" ? "is-opening" : "",
@@ -1364,7 +1384,10 @@ export function MovieScroller3({
       </div>
 
       {isDetailMounted ? (
-        <div className="movie-scroller3-detail-layer">
+        <div
+          className="movie-scroller3-detail-layer"
+          onClick={handleDetailLayerClick}
+        >
           <div
             ref={detailScrollerRef}
             className="movie-scroller3-detail-rail"

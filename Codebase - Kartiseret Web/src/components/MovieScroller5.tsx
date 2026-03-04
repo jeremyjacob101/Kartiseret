@@ -6,10 +6,11 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type MouseEvent,
   type PointerEvent,
   type WheelEvent,
 } from "react";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { X } from "lucide-react";
 import { movies } from "../data/movieCatalog";
 import {
   MovieScrollerBase5,
@@ -261,41 +262,49 @@ function getDetailLayout5(
   maxWidth: number | string,
 ): DetailLayout5 {
   const viewportFallback =
-    typeof window === "undefined" ? 1200 : Math.max(window.innerWidth - 48, 760);
+    typeof window === "undefined" ? 1440 : Math.max(window.innerWidth, 960);
   const safeClientWidth = Math.max(clientWidth || viewportFallback, 360);
   const maxWidthValue = getMaxWidthValue5(maxWidth, safeClientWidth);
-  const isCompact = safeClientWidth < 720;
+  const isCompact = safeClientWidth < 860;
   const stagePadding = isCompact ? 16 : 28;
-  const previewGap = isCompact ? 12 : 30;
-  const reservedPreviewWidth = isCompact ? 104 : 154;
-  const panelMaxWidth =
-    safeClientWidth - stagePadding * 2 - (reservedPreviewWidth + previewGap) * 2;
-  const boundedPanelWidth =
-    maxWidthValue * (isCompact ? 0.88 : 0.78);
+  const panelMaxWidth = safeClientWidth - stagePadding * 2;
+  const boundedPanelWidth = Math.min(
+    maxWidthValue * (isCompact ? 0.9 : 0.78),
+    safeClientWidth * (isCompact ? 0.9 : 0.7),
+  );
   const panelWidth = Math.max(
-    isCompact ? 300 : 380,
-    Math.min(
-      safeClientWidth - stagePadding * 2,
-      Math.max(panelMaxWidth, isCompact ? 300 : 380),
-      boundedPanelWidth,
-    ),
+    isCompact ? 320 : 420,
+    Math.min(panelMaxWidth, Math.max(boundedPanelWidth, isCompact ? 320 : 420)),
   );
   const panelHeight = isCompact ? 706 : 756;
-  const sideAvailableWidth =
-    (safeClientWidth - panelWidth) / 2 - stagePadding - previewGap;
+  const panelLeft = (safeClientWidth - panelWidth) / 2;
   const previewWidth = clamp5(
-    Math.min(sideAvailableWidth, isCompact ? 132 : 164),
-    72,
-    isCompact ? 132 : 164,
+    Math.min(
+      safeClientWidth * (isCompact ? 0.34 : 0.27),
+      panelWidth * (isCompact ? 0.46 : 0.4),
+    ),
+    isCompact ? 150 : 240,
+    isCompact ? 220 : 340,
   );
   const previewHeight = Math.round(previewWidth * 1.5);
-  const panelLeft = (safeClientWidth - panelWidth) / 2;
-  const previewLeft = Math.max(stagePadding, panelLeft - previewGap - previewWidth);
-  const previewRight = Math.min(
-    safeClientWidth - stagePadding - previewWidth,
-    panelLeft + panelWidth + previewGap,
+  const previewOverlap = Math.min(
+    previewWidth * (isCompact ? 0.42 : 0.38),
+    isCompact ? 72 : 128,
   );
-  const previewTop = isCompact ? 92 : 118;
+  const minLeftOverlap = Math.max(
+    0,
+    previewWidth - (panelLeft - stagePadding),
+  );
+  const minRightOverlap = Math.max(
+    0,
+    previewWidth -
+      (safeClientWidth - stagePadding - (panelLeft + panelWidth)),
+  );
+  const previewLeft =
+    panelLeft - previewWidth + Math.max(previewOverlap, minLeftOverlap);
+  const previewRight =
+    panelLeft + panelWidth - Math.max(previewOverlap, minRightOverlap);
+  const previewTop = isCompact ? 126 : 118;
 
   return {
     panelWidth,
@@ -338,6 +347,28 @@ function getCollapsedScrollLeftForItem5(
   return Math.max(
     0,
     gap + itemIndex * itemSpan - (focusViewportCenter - cardWidth / 2),
+  );
+}
+
+function isInteractiveDetailTarget5(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  return Boolean(
+    target.closest(
+      "button, a, input, textarea, select, summary, [role='button']",
+    ),
+  );
+}
+
+function isDetailSurfaceTarget5(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  return Boolean(
+    target.closest(".movie-scroller5-detail-card, .movie-scroller5-side-preview"),
   );
 }
 
@@ -794,7 +825,11 @@ export function MovieScroller5({
 
   const handleDetailPointerDown = useCallback(
     (event: PointerEvent<HTMLElement>) => {
-      if (!canNavigate) {
+      if (
+        !canNavigate ||
+        event.button !== 0 ||
+        isInteractiveDetailTarget5(event.target)
+      ) {
         return;
       }
 
@@ -841,6 +876,21 @@ export function MovieScroller5({
       handleNavigateDetail(deltaX < 0 ? 1 : -1);
     },
     [clearSwipeGesture, handleNavigateDetail],
+  );
+
+  const handleDetailStageClick = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      if (
+        phase !== "open" ||
+        detailTransition !== null ||
+        isDetailSurfaceTarget5(event.target)
+      ) {
+        return;
+      }
+
+      handleRequestClose();
+    },
+    [detailTransition, handleRequestClose, phase],
   );
 
   useLayoutEffect(() => {
@@ -1240,6 +1290,8 @@ export function MovieScroller5({
     shouldAttachPosterRef: boolean,
   ) => {
     const movie = movies[mod5(itemIndex, movieCount)];
+    const shouldAnimateBackdrop =
+      phase === "opening" || motionClassName.includes("is-entering");
 
     return (
       <div
@@ -1254,7 +1306,9 @@ export function MovieScroller5({
             <img
               src={movie.backdropSrc}
               alt=""
-              className="movie-scroller5-detail-backdrop"
+              className={`movie-scroller5-detail-backdrop${
+                shouldAnimateBackdrop ? " is-animating-in" : ""
+              }`}
               decoding="async"
               loading="eager"
             />
@@ -1342,6 +1396,7 @@ export function MovieScroller5({
           <div
             ref={detailStageRef}
             className="movie-scroller5-detail-stage"
+            onClick={handleDetailStageClick}
             onWheel={handleDetailWheel}
           >
             {movieCount > 1 ? (
@@ -1371,12 +1426,6 @@ export function MovieScroller5({
                     decoding="async"
                     draggable={false}
                   />
-                  <span
-                    className="movie-scroller5-side-preview-badge"
-                    aria-hidden="true"
-                  >
-                    <ChevronLeft size={18} strokeWidth={2.1} />
-                  </span>
                 </button>
 
                 <button
@@ -1404,12 +1453,6 @@ export function MovieScroller5({
                     decoding="async"
                     draggable={false}
                   />
-                  <span
-                    className="movie-scroller5-side-preview-badge"
-                    aria-hidden="true"
-                  >
-                    <ChevronRight size={18} strokeWidth={2.1} />
-                  </span>
                 </button>
               </>
             ) : null}
