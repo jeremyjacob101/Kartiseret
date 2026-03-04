@@ -19,6 +19,7 @@ export type PosterSourceRect3 = {
 };
 
 export type MovieScroller3Props = {
+  movieItems?: readonly Movie[];
   cardWidth?: number;
   cardHeight?: number;
   gap?: number;
@@ -111,6 +112,7 @@ function easeInQuad3(value: number): number {
 }
 
 export function MovieScrollerBase3({
+  movieItems,
   cardWidth = 240,
   cardHeight = 360,
   gap = 16,
@@ -123,7 +125,8 @@ export function MovieScrollerBase3({
   getCardClassName,
   getCardStyle,
 }: MovieScroller3Props) {
-  const movieCount = movies.length;
+  const allMovies = movieItems ?? movies;
+  const movieCount = allMovies.length;
   const scrollerRef = useRef<HTMLElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const introStartFrameRef = useRef<number | null>(null);
@@ -377,7 +380,7 @@ export function MovieScrollerBase3({
 
   useEffect(() => {
     for (let i = range.start; i <= range.end; i += 1) {
-      const movie = movies[i % movieCount];
+      const movie = allMovies[i % movieCount];
       const imageSources = [movie.imageSrc, movie.backdropSrc].filter(
         Boolean,
       ) as string[];
@@ -393,7 +396,7 @@ export function MovieScrollerBase3({
         image.src = src;
       }
     }
-  }, [movieCount, range.start, range.end]);
+  }, [allMovies, movieCount, range.start, range.end]);
 
   const visibleStart = range.firstVisible;
   const visibleEnd = range.firstVisible + range.visibleCount - 1;
@@ -447,7 +450,7 @@ export function MovieScrollerBase3({
     { length: range.end - range.start + 1 },
     (_, offset) => {
       const i = range.start + offset;
-      const movie = movies[i % movieCount];
+      const movie = allMovies[i % movieCount];
       const movieIndex = i % movieCount;
       const isVisible = i >= visibleStart && i <= visibleEnd;
       const isSelected = selectedItemIndex === i;

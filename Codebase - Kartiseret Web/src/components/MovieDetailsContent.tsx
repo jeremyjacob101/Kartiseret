@@ -69,6 +69,11 @@ const showtimeDateFormatter = new Intl.DateTimeFormat(undefined, {
   month: "long",
   day: "numeric",
 });
+const releaseDateFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "long",
+  day: "numeric",
+  year: "numeric",
+});
 const RT_CRITIC_FRESH_MIN_SCORE = 60;
 const RT_CRITIC_CERTIFIED_FRESH_MIN_SCORE = 75;
 const RT_CRITIC_CERTIFIED_FRESH_MIN_REVIEWS = 80;
@@ -82,7 +87,10 @@ type MovieDetailsContentProps = {
   posterRef?: Ref<HTMLImageElement>;
   posterClassName?: string;
   eyebrow?: string;
+  variant?: MovieDetailsVariant;
 };
+
+export type MovieDetailsVariant = "nowPlaying" | "comingSoon";
 
 type MetricDisplay = {
   key: string;
@@ -103,6 +111,20 @@ function formatRuntime(runtime: number): string {
   }
 
   return `${hours}h ${minutes}m`;
+}
+
+function getMovieInfoParts(movie: Movie): string[] {
+  const parts: string[] = [];
+
+  if (movie.year > 0) {
+    parts.push(String(movie.year));
+  }
+
+  if (movie.runtime > 0) {
+    parts.push(formatRuntime(movie.runtime));
+  }
+
+  return parts;
 }
 
 function parseLocalDate(dateString: string): Date {
@@ -133,6 +155,14 @@ function getShowtimeDateLabel(dateString: string): string {
   }
 
   return showtimeDateFormatter.format(showDate);
+}
+
+function formatReleaseDate(dateString: string): string {
+  const releaseDate = parseLocalDate(dateString);
+
+  return Number.isNaN(releaseDate.getTime())
+    ? dateString
+    : releaseDateFormatter.format(releaseDate);
 }
 
 function getTheaterTheme(theater: string, index: number): TheaterTheme {
@@ -271,9 +301,16 @@ export function MovieDetailsContent({
   posterRef,
   posterClassName = "details-poster",
   eyebrow = "Now playing",
+  variant = "nowPlaying",
 }: MovieDetailsContentProps) {
-  const showtimeDays = getMovieShowtimeDays(movie.tmdbId);
-  const metrics = getMetricDisplays(movie);
+  const subtitle = getMovieInfoParts(movie).join(" • ");
+  const releaseDateLabel =
+    variant === "comingSoon" && movie.releaseDate
+      ? formatReleaseDate(movie.releaseDate)
+      : null;
+  const showtimeDays =
+    variant === "nowPlaying" ? getMovieShowtimeDays(movie.tmdbId) : [];
+  const metrics = variant === "nowPlaying" ? getMetricDisplays(movie) : [];
 
   return (
     <>
@@ -293,99 +330,105 @@ export function MovieDetailsContent({
           <h2 id={titleId} className="details-title">
             {movie.title}
           </h2>
-          <p className="details-subtitle">
-            {movie.year} • {formatRuntime(movie.runtime)}
-          </p>
+          {subtitle ? <p className="details-subtitle">{subtitle}</p> : null}
 
-          <div className="details-metrics">
-            {metrics.map((metric) => (
-              <div
-                key={metric.key}
-                className="details-metric"
-                aria-label={metric.ariaLabel}
-              >
-                <span className="details-metric-marker" aria-hidden="true">
-                  <img
-                    src={metric.logoSrc}
-                    alt=""
-                    className={metric.logoClassName}
-                    width={metric.logoWidth}
-                    height={metric.logoHeight}
-                    decoding="async"
-                  />
-                </span>
-                <strong>{metric.value}</strong>
-              </div>
+          {releaseDateLabel ? (
+            <p className="details-release-date">Release date: {releaseDateLabel}</p>
+          ) : null}
+
+          {variant === "nowPlaying" ? (
+            <div className="details-metrics">
+              {metrics.map((metric) => (
+                <div
+                  key={metric.key}
+                  className="details-metric"
+                  aria-label={metric.ariaLabel}
+                >
+                  <span className="details-metric-marker" aria-hidden="true">
+                    <img
+                      src={metric.logoSrc}
+                      alt=""
+                      className={metric.logoClassName}
+                      width={metric.logoWidth}
+                      height={metric.logoHeight}
+                      decoding="async"
+                    />
+                  </span>
+                  <strong>{metric.value}</strong>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {variant === "nowPlaying" ? (
+        <div className="details-showtimes">
+          <div
+            className="details-rail"
+            aria-label={`${movie.title} showtimes in ${defaultCity}`}
+          >
+            {showtimeDays.map((day) => (
+              <article className="details-day-panel" key={day.date}>
+                <div className="details-day-header">
+                  <div className="details-day-heading">
+                    <h3 className="details-day-title">{defaultCity}</h3>
+                    <p className="details-day-kicker details-day-kicker--inline">
+                      {getShowtimeDateLabel(day.date)}
+                    </p>
+                  </div>
+                </div>
+
+                {day.theaters.length === 0 ? (
+                  <p className="details-day-empty">No showtimes listed.</p>
+                ) : (
+                  <div className="details-theaters">
+                    {day.theaters.map((theater, theaterIndex) => {
+                      const colors = getTheaterTheme(
+                        theater.theater,
+                        theaterIndex,
+                      );
+
+                      return (
+                        <section className="details-theater" key={theater.theater}>
+                          <div className="details-theater-name">
+                            <span
+                              className="details-theater-dot"
+                              style={{
+                                backgroundColor: colors.accent,
+                                boxShadow: `0 0 18px ${colors.glow}`,
+                              }}
+                            />
+                            <span>{theater.theater}</span>
+                          </div>
+
+                          <div className="details-time-grid">
+                            {theater.showtimes.map((time) => (
+                              <span
+                                key={`${theater.theater}-${day.date}-${time}`}
+                                className="details-time-pill"
+                                style={{
+                                  color: colors.accent,
+                                  borderColor: colors.accent,
+                                  background:
+                                    colors.pillBackground ?? colors.surface,
+                                  boxShadow: `inset 0 0 0 1px ${colors.surface}`,
+                                }}
+                              >
+                                {time}
+                              </span>
+                            ))}
+                          </div>
+                        </section>
+                      );
+                    })}
+                  </div>
+                )}
+              </article>
             ))}
           </div>
         </div>
-      </div>
-
-      <div className="details-showtimes">
-        <div
-          className="details-rail"
-          aria-label={`${movie.title} showtimes in ${defaultCity}`}
-        >
-          {showtimeDays.map((day) => (
-            <article className="details-day-panel" key={day.date}>
-              <div className="details-day-header">
-                <div className="details-day-heading">
-                  <h3 className="details-day-title">{defaultCity}</h3>
-                  <p className="details-day-kicker details-day-kicker--inline">
-                    {getShowtimeDateLabel(day.date)}
-                  </p>
-                </div>
-              </div>
-
-              {day.theaters.length === 0 ? (
-                <p className="details-day-empty">No showtimes listed.</p>
-              ) : (
-                <div className="details-theaters">
-                  {day.theaters.map((theater, theaterIndex) => {
-                    const colors = getTheaterTheme(
-                      theater.theater,
-                      theaterIndex,
-                    );
-
-                    return (
-                      <section className="details-theater" key={theater.theater}>
-                        <div className="details-theater-name">
-                          <span
-                            className="details-theater-dot"
-                            style={{
-                              backgroundColor: colors.accent,
-                              boxShadow: `0 0 18px ${colors.glow}`,
-                            }}
-                          />
-                          <span>{theater.theater}</span>
-                        </div>
-
-                        <div className="details-time-grid">
-                          {theater.showtimes.map((time) => (
-                            <span
-                              key={`${theater.theater}-${day.date}-${time}`}
-                              className="details-time-pill"
-                              style={{
-                                color: colors.accent,
-                                borderColor: colors.accent,
-                                background:
-                                  colors.pillBackground ?? colors.surface,
-                                boxShadow: `inset 0 0 0 1px ${colors.surface}`,
-                              }}
-                            >
-                              {time}
-                            </span>
-                          ))}
-                        </div>
-                      </section>
-                    );
-                  })}
-                </div>
-              )}
-            </article>
-          ))}
-        </div>
-      </div>
+      ) : null}
     </>
   );
 }

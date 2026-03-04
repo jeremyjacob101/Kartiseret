@@ -6,6 +6,7 @@ import { MovieScroller2 } from "./components/MovieScroller2";
 import { MovieScroller3 } from "./components/MovieScroller3";
 import { MovieScroller4 } from "./components/MovieScroller4";
 import { MovieScroller5 } from "./components/MovieScroller5";
+import { MovieScroller6 } from "./components/MovieScroller6";
 import { loadMovieCatalog, movies } from "./data/movieCatalog";
 import "./index.css";
 
@@ -160,8 +161,21 @@ export default function App() {
             ) : null}
           </div>
           <div className="section-heading">
-            <p className="section-kicker">placeholder</p>
-            <h1 className="section-title">placeholder</h1>
+            <p className="section-kicker">Coming soon</p>
+            <h1 className="section-title">Coming Soon A</h1>
+          </div>
+          <div
+            className="scroller-slot"
+            style={{ minHeight: SCROLLER_SLOT_MIN_HEIGHT }}
+          >
+            {catalogReady ? (
+              <MovieScroller6
+                cardWidth={SCROLLER_CARD_WIDTH}
+                cardHeight={SCROLLER_CARD_HEIGHT}
+                gap={SCROLLER_GAP}
+                maxWidth={SCROLLER_MAX_WIDTH}
+              />
+            ) : null}
           </div>
           <div className="section-heading">
             <p className="section-kicker">placeholder</p>

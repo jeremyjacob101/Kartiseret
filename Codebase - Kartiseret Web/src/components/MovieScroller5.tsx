@@ -11,15 +11,18 @@ import {
   type WheelEvent,
 } from "react";
 import { X } from "lucide-react";
-import { movies } from "../data/movieCatalog";
+import { movies, type Movie } from "../data/movieCatalog";
 import {
   MovieScrollerBase5,
+  type MovieScroller5BaseProps,
   type MovieScroller5CardState,
-  type MovieScroller5Props,
   type PosterSourceRect5,
 } from "./MovieScrollerBase5";
 import { getRepeatSetCount5 } from "./MovieScroller5Shared";
-import { MovieDetailsContent } from "./MovieDetailsContent";
+import {
+  MovieDetailsContent,
+  type MovieDetailsVariant,
+} from "./MovieDetailsContent";
 import "./MovieScroller5.css";
 
 type FocusPhase5 = "collapsed" | "opening" | "open" | "closing";
@@ -54,6 +57,18 @@ type SwipeGesture5 = {
   pointerId: number;
   startX: number;
   startY: number;
+};
+
+export type MovieScroller5Props = MovieScroller5BaseProps & {
+  movieItems?: readonly Movie[];
+  detailVariant?: MovieDetailsVariant;
+  detailEyebrow?: string;
+};
+
+type MovieScroller5ContentProps = MovieScroller5BaseProps & {
+  movieItems: readonly Movie[];
+  detailVariant: MovieDetailsVariant;
+  detailEyebrow: string;
 };
 
 const CARD_MOVE_DURATION_MS = 520;
@@ -373,13 +388,39 @@ function isDetailSurfaceTarget5(target: EventTarget | null): boolean {
 }
 
 export function MovieScroller5({
+  movieItems = movies,
+  detailVariant = "nowPlaying",
+  detailEyebrow,
+  ...props
+}: MovieScroller5Props) {
+  if (movieItems.length === 0) {
+    return null;
+  }
+
+  return (
+    <MovieScroller5Content
+      {...props}
+      movieItems={movieItems}
+      detailVariant={detailVariant}
+      detailEyebrow={
+        detailEyebrow ??
+        (detailVariant === "comingSoon" ? "Coming soon" : "Now playing")
+      }
+    />
+  );
+}
+
+function MovieScroller5Content({
+  movieItems,
+  detailVariant,
+  detailEyebrow,
   cardWidth = 240,
   cardHeight = 360,
   gap = 16,
   maxWidth = "100%",
   className,
-}: MovieScroller5Props) {
-  const movieCount = movies.length;
+}: MovieScroller5ContentProps) {
+  const movieCount = movieItems.length;
   const collapsedRepeatSets = getRepeatSetCount5(cardWidth + gap, movieCount);
   const collapsedMiddleStartIndex =
     Math.floor(collapsedRepeatSets / 2) * movieCount;
@@ -1144,7 +1185,7 @@ export function MovieScroller5({
     }
 
     preloadMovieIndexes.forEach((movieIndex) => {
-      const movie = movies[movieIndex];
+      const movie = movieItems[movieIndex];
       const imageSources = [movie.imageSrc, movie.backdropSrc].filter(
         Boolean,
       ) as string[];
@@ -1160,7 +1201,7 @@ export function MovieScroller5({
         image.src = src;
       });
     });
-  }, [displayMovieIndex, isDetailMounted, movieCount]);
+  }, [displayMovieIndex, isDetailMounted, movieCount, movieItems]);
 
   useEffect(() => {
     if (phase !== "open") {
@@ -1241,7 +1282,7 @@ export function MovieScroller5({
     posterVisible: boolean,
     shouldAttachPosterRef: boolean,
   ) => {
-    const movie = movies[mod5(itemIndex, movieCount)];
+    const movie = movieItems[mod5(itemIndex, movieCount)];
     const shouldAnimateBackdrop =
       phase === "opening" || motionClassName.includes("is-entering");
 
@@ -1274,7 +1315,8 @@ export function MovieScroller5({
             movie={movie}
             posterRef={shouldAttachPosterRef ? posterRef : undefined}
             titleId={`${titleId}-${bodyKey}`}
-            eyebrow="Now playing"
+            eyebrow={detailEyebrow}
+            variant={detailVariant}
             posterClassName={`details-poster movie-scroller5-detail-poster${
               posterVisible ? " is-visible" : ""
             }`}
@@ -1315,8 +1357,8 @@ export function MovieScroller5({
         ),
       ];
 
-  const previousPreviewMovie = movies[mod5(displayMovieIndex - 1, movieCount)];
-  const nextPreviewMovie = movies[mod5(displayMovieIndex + 1, movieCount)];
+  const previousPreviewMovie = movieItems[mod5(displayMovieIndex - 1, movieCount)];
+  const nextPreviewMovie = movieItems[mod5(displayMovieIndex + 1, movieCount)];
 
   return (
     <div
@@ -1329,6 +1371,7 @@ export function MovieScroller5({
     >
       <div className="movie-scroller5-collapsed-layer" aria-hidden={isDetailMounted}>
         <MovieScrollerBase5
+          movieItems={movieItems}
           cardWidth={cardWidth}
           cardHeight={cardHeight}
           gap={gap}
@@ -1415,7 +1458,7 @@ export function MovieScroller5({
                 width: detailLayout.panelWidth,
                 height: detailLayout.panelHeight,
               }}
-              aria-label={`${movies[displayMovieIndex].title} details`}
+              aria-label={`${movieItems[displayMovieIndex].title} details`}
               onPointerDown={handleDetailPointerDown}
               onPointerUp={handleDetailPointerUp}
               onPointerCancel={clearSwipeGesture}
@@ -1423,7 +1466,7 @@ export function MovieScroller5({
               <button
                 type="button"
                 className="movie-scroller5-close"
-                aria-label={`Close ${movies[displayMovieIndex].title} details`}
+                aria-label={`Close ${movieItems[displayMovieIndex].title} details`}
                 onClick={handleRequestClose}
                 disabled={phase !== "open" || detailTransition !== null}
               >
@@ -1439,7 +1482,7 @@ export function MovieScroller5({
       {showGhost && ghostTransition ? (
         <img
           ref={ghostRef}
-          src={movies[mod5(ghostTransition.itemIndex, movieCount)].imageSrc}
+          src={movieItems[mod5(ghostTransition.itemIndex, movieCount)].imageSrc}
           alt=""
           aria-hidden="true"
           className={`movie-scroller5-poster-ghost${

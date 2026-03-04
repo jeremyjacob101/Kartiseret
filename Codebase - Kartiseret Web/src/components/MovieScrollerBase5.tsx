@@ -7,13 +7,13 @@ import {
 
 export type PosterSourceRect5 = PosterSourceRect3;
 
-export type MovieScroller5Props = Omit<
+export type MovieScroller5BaseProps = Omit<
   MovieScroller3Props,
   "focusOffsetItemSpans"
 >;
 
 export type MovieScroller5CardState = MovieScroller3CardState;
 
-export function MovieScrollerBase5(props: MovieScroller5Props) {
+export function MovieScrollerBase5(props: MovieScroller5BaseProps) {
   return <MovieScrollerBase3 {...props} focusOffsetItemSpans={1} />;
 }

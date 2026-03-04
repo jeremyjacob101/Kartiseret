@@ -202,6 +202,13 @@ button {
   color: rgba(233, 226, 245, 0.82);
 }
 
+.details-release-date {
+  margin: 14px 0 0;
+  font-size: 0.96rem;
+  font-weight: 600;
+  color: rgba(233, 226, 245, 0.78);
+}
+
 .details-metrics {
   display: flex;
   flex-wrap: wrap;
