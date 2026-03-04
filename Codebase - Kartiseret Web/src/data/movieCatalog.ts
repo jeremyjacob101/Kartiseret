@@ -8,7 +8,8 @@ const MOVIE_SELECT_COLUMNS = [
   "tmdb_id",
   "english_title",
   "release_year",
-  "poster",
+  "en_poster",
+  "en_trailer",
   "backdrop",
   "imdbRating",
   "rtCriticRating",
@@ -47,6 +48,7 @@ export type Movie = {
   year: number;
   imageSrc: string;
   backdropSrc?: string;
+  trailerKey?: string;
   imdbRating: number;
   rtRating: number;
   runtime: number;
@@ -87,6 +89,27 @@ function parseNumber(value: string, fallback = 0): number {
 
 function normalizeText(value: string): string {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function getFirstNormalizedText(
+  row: CsvRow,
+  keys: readonly string[],
+): string {
+  for (const key of keys) {
+    const value = row[key];
+
+    if (!value) {
+      continue;
+    }
+
+    const normalizedValue = normalizeText(value);
+
+    if (normalizedValue) {
+      return normalizedValue;
+    }
+  }
+
+  return "";
 }
 
 function normalizeTitle(value: string): string {
@@ -148,19 +171,26 @@ function buildMovies(rows: CsvRow[]): Movie[] {
       (left, right) => parseNumber(right.popularity) - parseNumber(left.popularity),
     )
     .slice(0, TOP_MOVIE_COUNT)
-    .map((row) => ({
-      tmdbId: normalizeText(row.tmdb_id),
-      title: normalizeTitle(row.english_title),
-      year: Number.parseInt(row.release_year, 10) || 0,
-      imageSrc: normalizeText(row.poster),
-      backdropSrc: normalizeText(row.backdrop) || normalizeText(row.poster),
-      imdbRating: parseNumber(row.imdbRating),
-      rtRating: Math.round(
-        parseNumber(row.rtCriticRating || row.rtAudienceRating),
-      ),
-      runtime: Number.parseInt(row.runtime, 10) || 0,
-      popularity: parseNumber(row.popularity),
-    }));
+    .map((row) => {
+      const imageSrc = getFirstNormalizedText(row, ["en_poster", "poster"]);
+      const backdropSrc = getFirstNormalizedText(row, ["backdrop"]) || imageSrc;
+      const trailerKey = getFirstNormalizedText(row, ["en_trailer"]);
+
+      return {
+        tmdbId: normalizeText(row.tmdb_id),
+        title: normalizeTitle(row.english_title),
+        year: Number.parseInt(row.release_year, 10) || 0,
+        imageSrc,
+        backdropSrc,
+        trailerKey: trailerKey || undefined,
+        imdbRating: parseNumber(row.imdbRating),
+        rtRating: Math.round(
+          parseNumber(row.rtCriticRating || row.rtAudienceRating),
+        ),
+        runtime: Number.parseInt(row.runtime, 10) || 0,
+        popularity: parseNumber(row.popularity),
+      };
+    });
 }
 
 function buildMovieShowtimes(
