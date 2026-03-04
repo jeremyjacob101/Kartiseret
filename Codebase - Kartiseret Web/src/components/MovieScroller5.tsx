@@ -480,29 +480,6 @@ export function MovieScroller5({
     return nextClientWidth;
   }, []);
 
-  const syncCollapsedScrollerToItem = useCallback(
-    (itemIndex: number) => {
-      const scroller = shellRef.current?.querySelector<HTMLElement>(
-        ".movie-scroller5-collapsed",
-      );
-      if (!scroller) {
-        return;
-      }
-
-      const nextScrollLeft = getCollapsedScrollLeftForItem5(
-        itemIndex,
-        scroller.clientWidth,
-        cardWidth,
-        gap,
-      );
-
-      if (Math.abs(scroller.scrollLeft - nextScrollLeft) > 0.5) {
-        scroller.scrollLeft = nextScrollLeft;
-      }
-    },
-    [cardWidth, gap],
-  );
-
   const getCollapsedFallbackRect = useCallback(
     (itemIndex: number): PosterSourceRect5 => {
       const scroller = shellRef.current?.querySelector<HTMLElement>(
@@ -670,15 +647,14 @@ export function MovieScroller5({
         return;
       }
 
-      const nextItemIndex = recenterCollapsedItemIndex(itemIndex);
+      const detailItemIndex = recenterCollapsedItemIndex(itemIndex);
 
       clearAllScheduledWork();
-      syncCollapsedScrollerToItem(nextItemIndex);
-      setCollapsedSelectedItemIndex(nextItemIndex);
-      setDetailActiveItemIndex(nextItemIndex);
+      setCollapsedSelectedItemIndex(itemIndex);
+      setDetailActiveItemIndex(detailItemIndex);
       setDetailTransition(null);
       setGhostTransition({
-        itemIndex: nextItemIndex,
+        itemIndex,
         sourceRect,
         targetRect: sourceRect,
         sourceOpacity,
@@ -689,7 +665,7 @@ export function MovieScroller5({
       setShowGhost(true);
       setPhase("opening");
     },
-    [clearAllScheduledWork, phase, recenterCollapsedItemIndex, syncCollapsedScrollerToItem],
+    [clearAllScheduledWork, phase, recenterCollapsedItemIndex],
   );
 
   const handleNavigateDetail = useCallback(
@@ -710,8 +686,6 @@ export function MovieScroller5({
       transitionKeyRef.current += 1;
       const transitionKey = transitionKeyRef.current;
 
-      setCollapsedSelectedItemIndex(nextItemIndex);
-      syncCollapsedScrollerToItem(nextItemIndex);
       setDetailTransition({
         key: transitionKey,
         direction,
@@ -734,7 +708,6 @@ export function MovieScroller5({
       movieCount,
       phase,
       recenterCollapsedItemIndex,
-      syncCollapsedScrollerToItem,
     ],
   );
 
@@ -746,8 +719,7 @@ export function MovieScroller5({
     clearAllScheduledWork();
 
     const returnItemIndex =
-      collapsedSelectedItemIndex ?? detailActiveItemIndex;
-    syncCollapsedScrollerToItem(returnItemIndex);
+      collapsedSelectedItemIndex ?? ghostTransition?.itemIndex ?? detailActiveItemIndex;
 
     const fallbackSourceRect =
       ghostTransition?.sourceRect ?? {
@@ -792,9 +764,9 @@ export function MovieScroller5({
     getCollapsedFallbackRect,
     getCurrentDestinationRect,
     getCurrentPositionalOpacity,
+    ghostTransition?.itemIndex,
     ghostTransition?.sourceRect,
     phase,
-    syncCollapsedScrollerToItem,
   ]);
 
   const handleDetailWheel = useCallback(
@@ -892,14 +864,6 @@ export function MovieScroller5({
     },
     [detailTransition, handleRequestClose, phase],
   );
-
-  useLayoutEffect(() => {
-    if (!isDetailMounted || collapsedSelectedItemIndex === null) {
-      return;
-    }
-
-    syncCollapsedScrollerToItem(collapsedSelectedItemIndex);
-  }, [collapsedSelectedItemIndex, isDetailMounted, syncCollapsedScrollerToItem]);
 
   useLayoutEffect(() => {
     if (phase !== "opening" || !ghostTransition) {
@@ -1115,10 +1079,6 @@ export function MovieScroller5({
 
     const observer = new ResizeObserver(() => {
       measureDetailStage();
-      if (collapsedSelectedItemIndex !== null) {
-        syncCollapsedScrollerToItem(collapsedSelectedItemIndex);
-      }
-
       if (phase === "open") {
         syncDetailViewportToFocusPosition("auto");
       }
@@ -1130,11 +1090,9 @@ export function MovieScroller5({
       observer.disconnect();
     };
   }, [
-    collapsedSelectedItemIndex,
     isDetailMounted,
     measureDetailStage,
     phase,
-    syncCollapsedScrollerToItem,
     syncDetailViewportToFocusPosition,
   ]);
 
@@ -1153,10 +1111,6 @@ export function MovieScroller5({
 
     const handleWindowResize = () => {
       measureDetailStage();
-      if (collapsedSelectedItemIndex !== null) {
-        syncCollapsedScrollerToItem(collapsedSelectedItemIndex);
-      }
-
       if (phase === "open") {
         syncDetailViewportToFocusPosition("auto");
       }
@@ -1168,11 +1122,9 @@ export function MovieScroller5({
       window.removeEventListener("resize", handleWindowResize);
     };
   }, [
-    collapsedSelectedItemIndex,
     isDetailMounted,
     measureDetailStage,
     phase,
-    syncCollapsedScrollerToItem,
     syncDetailViewportToFocusPosition,
   ]);
 

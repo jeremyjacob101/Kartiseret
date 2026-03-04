@@ -214,6 +214,7 @@ button {
   flex-direction: column;
   gap: 10px;
   justify-content: space-between;
+  flex: 1 1 112px;
   min-width: 112px;
   padding: 12px 14px;
   border: 1px solid rgba(217, 191, 255, 0.18);
@@ -247,6 +248,11 @@ button {
 .details-metric-logo--rt {
   width: 20px;
   height: 20px;
+}
+
+.details-metric-logo--letterboxd {
+  width: 24px;
+  height: 24px;
 }
 
 .details-metric-icon {

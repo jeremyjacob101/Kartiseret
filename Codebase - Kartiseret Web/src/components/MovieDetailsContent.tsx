@@ -69,6 +69,12 @@ const showtimeDateFormatter = new Intl.DateTimeFormat(undefined, {
   month: "long",
   day: "numeric",
 });
+const RT_CRITIC_FRESH_MIN_SCORE = 60;
+const RT_CRITIC_CERTIFIED_FRESH_MIN_SCORE = 75;
+const RT_CRITIC_CERTIFIED_FRESH_MIN_REVIEWS = 80;
+const RT_AUDIENCE_POSITIVE_MIN_SCORE = 60;
+const RT_AUDIENCE_HOT_MIN_SCORE = 90;
+const RT_AUDIENCE_HOT_MIN_VERIFIED_RATINGS = 500;
 
 type MovieDetailsContentProps = {
   movie: Movie;
@@ -76,6 +82,16 @@ type MovieDetailsContentProps = {
   posterRef?: Ref<HTMLImageElement>;
   posterClassName?: string;
   eyebrow?: string;
+};
+
+type MetricDisplay = {
+  key: string;
+  value: string;
+  ariaLabel: string;
+  logoSrc: string;
+  logoClassName?: string;
+  logoWidth?: number;
+  logoHeight?: number;
 };
 
 function formatRuntime(runtime: number): string {
@@ -123,6 +139,132 @@ function getTheaterTheme(theater: string, index: number): TheaterTheme {
   return theaterThemes[theater] ?? fallbackTheaterThemes[index % fallbackTheaterThemes.length];
 }
 
+function hasRating(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function formatPercent(value: number | null | undefined): string {
+  return hasRating(value) ? `${Math.round(value)}%` : "NR";
+}
+
+function formatDecimalRating(value: number | null | undefined): string {
+  return hasRating(value) ? value.toFixed(1) : "NR";
+}
+
+// RT's full "hot" badges also depend on fields this app does not store
+// (for example Top Critics / verified-release buckets), so we use the
+// available score plus conservative theatrical vote thresholds here.
+function getCriticBadge(
+  score: number | null,
+  votes: number | null,
+): { src: string; description: string } | null {
+  if (!hasRating(score)) {
+    return null;
+  }
+
+  if (
+    score >= RT_CRITIC_CERTIFIED_FRESH_MIN_SCORE &&
+    (votes ?? 0) >= RT_CRITIC_CERTIFIED_FRESH_MIN_REVIEWS
+  ) {
+    return {
+      src: "/logos/rtCriticHot.svg",
+      description: "Certified Fresh",
+    };
+  }
+
+  return score >= RT_CRITIC_FRESH_MIN_SCORE
+    ? {
+        src: "/logos/rtCriticGood.svg",
+        description: "Fresh",
+      }
+    : {
+        src: "/logos/rtCriticBad.svg",
+        description: "Rotten",
+      };
+}
+
+function getAudienceBadge(
+  score: number | null,
+  votes: number | null,
+): { src: string; description: string } | null {
+  if (!hasRating(score)) {
+    return null;
+  }
+
+  if (
+    score >= RT_AUDIENCE_HOT_MIN_SCORE &&
+    (votes ?? 0) >= RT_AUDIENCE_HOT_MIN_VERIFIED_RATINGS
+  ) {
+    return {
+      src: "/logos/rtAudienceHot.svg",
+      description: "Verified Hot",
+    };
+  }
+
+  return score >= RT_AUDIENCE_POSITIVE_MIN_SCORE
+    ? {
+        src: "/logos/rtAudienceGood.svg",
+        description: "Full Popcorn Bucket",
+      }
+    : {
+        src: "/logos/rtAudienceBad.svg",
+        description: "Spilled Popcorn Bucket",
+      };
+}
+
+function getMetricDisplays(movie: Movie): MetricDisplay[] {
+  const criticBadge = getCriticBadge(movie.rtCriticRating, movie.rtCriticVotes);
+  const audienceBadge = getAudienceBadge(
+    movie.rtAudienceRating,
+    movie.rtAudienceVotes,
+  );
+
+  return [
+    {
+      key: "imdb",
+      value: movie.imdbRating.toFixed(1),
+      ariaLabel: `IMDb rating ${movie.imdbRating.toFixed(1)}`,
+      logoSrc: "/logos/imdb.svg",
+      logoClassName: "details-metric-logo details-metric-logo--imdb",
+      logoWidth: 36,
+      logoHeight: 18,
+    },
+    {
+      key: "audience",
+      value: formatPercent(movie.rtAudienceRating),
+      ariaLabel: audienceBadge
+        ? `Rotten Tomatoes audience score ${formatPercent(movie.rtAudienceRating)}, ${audienceBadge.description}`
+        : "Rotten Tomatoes audience score unavailable",
+      logoSrc: audienceBadge?.src ?? "/logos/rtAudienceGood.svg",
+      logoClassName: "details-metric-logo details-metric-logo--rt",
+      logoWidth: 22,
+      logoHeight: 22,
+    },
+    {
+      key: "critic",
+      value: formatPercent(movie.rtCriticRating),
+      ariaLabel: criticBadge
+        ? `Rotten Tomatoes critic score ${formatPercent(movie.rtCriticRating)}, ${criticBadge.description}`
+        : "Rotten Tomatoes critic score unavailable",
+      logoSrc: criticBadge?.src ?? "/logos/rtCriticGood.svg",
+      logoClassName: "details-metric-logo details-metric-logo--rt",
+      logoWidth: 22,
+      logoHeight: 22,
+    },
+    {
+      key: "letterboxd",
+      value: formatDecimalRating(movie.lbRating),
+      ariaLabel: hasRating(movie.lbRating)
+        ? `Letterboxd rating ${movie.lbRating.toFixed(1)}`
+        : "Letterboxd rating unavailable",
+      logoSrc: "/logos/letterboxd.svg",
+      logoClassName: "details-metric-logo details-metric-logo--letterboxd",
+      logoWidth: 24,
+      logoHeight: 24,
+    },
+  ];
+}
+
 export function MovieDetailsContent({
   movie,
   titleId,
@@ -131,6 +273,7 @@ export function MovieDetailsContent({
   eyebrow = "Now playing",
 }: MovieDetailsContentProps) {
   const showtimeDays = getMovieShowtimeDays(movie.tmdbId);
+  const metrics = getMetricDisplays(movie);
 
   return (
     <>
@@ -155,38 +298,25 @@ export function MovieDetailsContent({
           </p>
 
           <div className="details-metrics">
-            <div
-              className="details-metric"
-              aria-label={`IMDb rating ${movie.imdbRating.toFixed(1)}`}
-            >
-              <span className="details-metric-marker" aria-hidden="true">
-                <img
-                  src="/logos/imdblogo.svg"
-                  alt=""
-                  className="details-metric-logo details-metric-logo--imdb"
-                  width="36"
-                  height="18"
-                  decoding="async"
-                />
-              </span>
-              <strong>{movie.imdbRating.toFixed(1)}</strong>
-            </div>
-            <div
-              className="details-metric"
-              aria-label={`Rotten Tomatoes rating ${movie.rtRating} percent`}
-            >
-              <span className="details-metric-marker" aria-hidden="true">
-                <img
-                  src="/logos/rtlogo.svg"
-                  alt=""
-                  className="details-metric-logo details-metric-logo--rt"
-                  width="20"
-                  height="20"
-                  decoding="async"
-                />
-              </span>
-              <strong>{movie.rtRating}%</strong>
-            </div>
+            {metrics.map((metric) => (
+              <div
+                key={metric.key}
+                className="details-metric"
+                aria-label={metric.ariaLabel}
+              >
+                <span className="details-metric-marker" aria-hidden="true">
+                  <img
+                    src={metric.logoSrc}
+                    alt=""
+                    className={metric.logoClassName}
+                    width={metric.logoWidth}
+                    height={metric.logoHeight}
+                    decoding="async"
+                  />
+                </span>
+                <strong>{metric.value}</strong>
+              </div>
+            ))}
           </div>
         </div>
       </div>

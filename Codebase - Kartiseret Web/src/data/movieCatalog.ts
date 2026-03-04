@@ -17,6 +17,13 @@ const MOVIE_SELECT_COLUMNS = [
   "runtime",
   "popularity",
 ] as const;
+const OPTIONAL_MOVIE_SELECT_COLUMNS = [
+  "rtCriticVotes",
+  "rtAudienceVotes",
+  "lb_id",
+  "lbRating",
+  "lbVotes",
+] as const;
 const SHOWTIME_SELECT_COLUMNS = [
   "tmdb_id",
   "screening_city",
@@ -50,7 +57,13 @@ export type Movie = {
   backdropSrc?: string;
   trailerKey?: string;
   imdbRating: number;
-  rtRating: number;
+  lbId?: string;
+  lbRating: number | null;
+  lbVotes: number | null;
+  rtCriticRating: number | null;
+  rtCriticVotes: number | null;
+  rtAudienceRating: number | null;
+  rtAudienceVotes: number | null;
   runtime: number;
   popularity: number;
 };
@@ -85,6 +98,15 @@ function rowsToCsvRows(rows: readonly SupabaseRow[]): CsvRow[] {
 function parseNumber(value: string, fallback = 0): number {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseOptionalNumber(value: string | undefined): number | null {
+  if (!value?.trim()) {
+    return null;
+  }
+
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function normalizeText(value: string): string {
@@ -184,9 +206,13 @@ function buildMovies(rows: CsvRow[]): Movie[] {
         backdropSrc,
         trailerKey: trailerKey || undefined,
         imdbRating: parseNumber(row.imdbRating),
-        rtRating: Math.round(
-          parseNumber(row.rtCriticRating || row.rtAudienceRating),
-        ),
+        lbId: getFirstNormalizedText(row, ["lb_id"]) || undefined,
+        lbRating: parseOptionalNumber(row.lbRating),
+        lbVotes: parseOptionalNumber(row.lbVotes),
+        rtCriticRating: parseOptionalNumber(row.rtCriticRating),
+        rtCriticVotes: parseOptionalNumber(row.rtCriticVotes),
+        rtAudienceRating: parseOptionalNumber(row.rtAudienceRating),
+        rtAudienceVotes: parseOptionalNumber(row.rtAudienceVotes),
         runtime: Number.parseInt(row.runtime, 10) || 0,
         popularity: parseNumber(row.popularity),
       };
@@ -326,6 +352,37 @@ async function fetchAllTableRows(
   }
 }
 
+function isMissingOptionalColumnError(
+  error: unknown,
+  optionalColumns: readonly string[],
+): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+
+  return optionalColumns.some(
+    (column) =>
+      message.includes(column.toLowerCase()) &&
+      (message.includes("column") || message.includes("schema cache")),
+  );
+}
+
+async function fetchMovieRows(): Promise<SupabaseRow[]> {
+  const selectColumns = [...MOVIE_SELECT_COLUMNS, ...OPTIONAL_MOVIE_SELECT_COLUMNS];
+
+  try {
+    return await fetchAllTableRows(MOVIES_TABLE_NAME, selectColumns, ["tmdb_id"]);
+  } catch (error) {
+    if (!isMissingOptionalColumnError(error, OPTIONAL_MOVIE_SELECT_COLUMNS)) {
+      throw error;
+    }
+
+    return fetchAllTableRows(MOVIES_TABLE_NAME, MOVIE_SELECT_COLUMNS, ["tmdb_id"]);
+  }
+}
+
 export async function loadMovieCatalog(): Promise<void> {
   if (isMovieCatalogLoaded) {
     return;
@@ -337,7 +394,7 @@ export async function loadMovieCatalog(): Promise<void> {
 
   loadMovieCatalogPromise = (async () => {
     const [movieRows, showtimeRows] = await Promise.all([
-      fetchAllTableRows(MOVIES_TABLE_NAME, MOVIE_SELECT_COLUMNS, ["tmdb_id"]),
+      fetchMovieRows(),
       fetchAllTableRows(SHOWTIMES_TABLE_NAME, SHOWTIME_SELECT_COLUMNS, [
         "tmdb_id",
         "date_of_showing",
