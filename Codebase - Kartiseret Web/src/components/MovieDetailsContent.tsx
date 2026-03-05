@@ -5,6 +5,8 @@ import {
   getMovieShowtimeDays,
   type Movie,
 } from "../data/movieCatalog";
+import { useRatingSourcesContext } from "../prefs/ratingSourcesStore";
+import { type RatingSource } from "../prefs/ratingSources";
 
 type TheaterTheme = {
   accent: string;
@@ -93,7 +95,7 @@ type MovieDetailsContentProps = {
 export type MovieDetailsVariant = "nowPlaying" | "comingSoon";
 
 type MetricDisplay = {
-  key: string;
+  key: RatingSource;
   value: string;
   ariaLabel: string;
   logoSrc: string;
@@ -242,57 +244,91 @@ function getAudienceBadge(
       };
 }
 
-function getMetricDisplays(movie: Movie): MetricDisplay[] {
+function getMetricDisplay(
+  movie: Movie,
+  source: RatingSource,
+  criticBadge: { src: string; description: string } | null,
+  audienceBadge: { src: string; description: string } | null,
+): MetricDisplay {
+  switch (source) {
+    case "imdbRating":
+      return {
+        key: "imdbRating",
+        value: movie.imdbRating.toFixed(1),
+        ariaLabel: `IMDb rating ${movie.imdbRating.toFixed(1)}`,
+        logoSrc: "/logos/imdb.svg",
+        logoClassName: "details-metric-logo details-metric-logo--imdb",
+        logoWidth: 36,
+        logoHeight: 18,
+      };
+    case "rtAudienceRating":
+      return {
+        key: "rtAudienceRating",
+        value: formatPercent(movie.rtAudienceRating),
+        ariaLabel: audienceBadge
+          ? `Rotten Tomatoes audience score ${formatPercent(movie.rtAudienceRating)}, ${audienceBadge.description}`
+          : "Rotten Tomatoes audience score unavailable",
+        logoSrc: audienceBadge?.src ?? "/logos/rtAudienceGood.svg",
+        logoClassName: "details-metric-logo details-metric-logo--rt",
+        logoWidth: 22,
+        logoHeight: 22,
+      };
+    case "rtCriticRating":
+      return {
+        key: "rtCriticRating",
+        value: formatPercent(movie.rtCriticRating),
+        ariaLabel: criticBadge
+          ? `Rotten Tomatoes critic score ${formatPercent(movie.rtCriticRating)}, ${criticBadge.description}`
+          : "Rotten Tomatoes critic score unavailable",
+        logoSrc: criticBadge?.src ?? "/logos/rtCriticGood.svg",
+        logoClassName: "details-metric-logo details-metric-logo--rt",
+        logoWidth: 22,
+        logoHeight: 22,
+      };
+    case "lbRating":
+      return {
+        key: "lbRating",
+        value: formatDecimalRating(movie.lbRating),
+        ariaLabel: hasRating(movie.lbRating)
+          ? `Letterboxd rating ${movie.lbRating.toFixed(1)}`
+          : "Letterboxd rating unavailable",
+        logoSrc: "/logos/letterboxd.svg",
+        logoClassName: "details-metric-logo details-metric-logo--letterboxd",
+        logoWidth: 24,
+        logoHeight: 24,
+      };
+    case "tmdbRating":
+      return {
+        key: "tmdbRating",
+        value: formatDecimalRating(movie.tmdbRating),
+        ariaLabel: hasRating(movie.tmdbRating)
+          ? `TMDB rating ${movie.tmdbRating.toFixed(1)}`
+          : "TMDB rating unavailable",
+        logoSrc: "/logos/tmdb.svg",
+        logoClassName: "details-metric-logo details-metric-logo--tmdb",
+        logoWidth: 28,
+        logoHeight: 20,
+      };
+    default: {
+      const neverSource: never = source;
+      throw new Error(`Unsupported rating source: ${String(neverSource)}`);
+    }
+  }
+}
+
+function getMetricDisplays(
+  movie: Movie,
+  selectedSources: readonly RatingSource[],
+): MetricDisplay[] {
   const criticBadge = getCriticBadge(movie.rtCriticRating, movie.rtCriticVotes);
   const audienceBadge = getAudienceBadge(
     movie.rtAudienceRating,
     movie.rtAudienceVotes,
   );
 
-  return [
-    {
-      key: "imdb",
-      value: movie.imdbRating.toFixed(1),
-      ariaLabel: `IMDb rating ${movie.imdbRating.toFixed(1)}`,
-      logoSrc: "/logos/imdb.svg",
-      logoClassName: "details-metric-logo details-metric-logo--imdb",
-      logoWidth: 36,
-      logoHeight: 18,
-    },
-    {
-      key: "audience",
-      value: formatPercent(movie.rtAudienceRating),
-      ariaLabel: audienceBadge
-        ? `Rotten Tomatoes audience score ${formatPercent(movie.rtAudienceRating)}, ${audienceBadge.description}`
-        : "Rotten Tomatoes audience score unavailable",
-      logoSrc: audienceBadge?.src ?? "/logos/rtAudienceGood.svg",
-      logoClassName: "details-metric-logo details-metric-logo--rt",
-      logoWidth: 22,
-      logoHeight: 22,
-    },
-    {
-      key: "critic",
-      value: formatPercent(movie.rtCriticRating),
-      ariaLabel: criticBadge
-        ? `Rotten Tomatoes critic score ${formatPercent(movie.rtCriticRating)}, ${criticBadge.description}`
-        : "Rotten Tomatoes critic score unavailable",
-      logoSrc: criticBadge?.src ?? "/logos/rtCriticGood.svg",
-      logoClassName: "details-metric-logo details-metric-logo--rt",
-      logoWidth: 22,
-      logoHeight: 22,
-    },
-    {
-      key: "letterboxd",
-      value: formatDecimalRating(movie.lbRating),
-      ariaLabel: hasRating(movie.lbRating)
-        ? `Letterboxd rating ${movie.lbRating.toFixed(1)}`
-        : "Letterboxd rating unavailable",
-      logoSrc: "/logos/letterboxd.svg",
-      logoClassName: "details-metric-logo details-metric-logo--letterboxd",
-      logoWidth: 24,
-      logoHeight: 24,
-    },
-  ];
+  return selectedSources.map((source) =>
+    getMetricDisplay(movie, source, criticBadge, audienceBadge),
+  );
 }
 
 export function MovieDetailsContent({
@@ -303,6 +339,7 @@ export function MovieDetailsContent({
   eyebrow = "Now playing",
   variant = "nowPlaying",
 }: MovieDetailsContentProps) {
+  const { sources } = useRatingSourcesContext();
   const subtitle = getMovieInfoParts(movie).join(" • ");
   const releaseDateLabel =
     variant === "comingSoon" && movie.releaseDate
@@ -310,7 +347,8 @@ export function MovieDetailsContent({
       : null;
   const showtimeDays =
     variant === "nowPlaying" ? getMovieShowtimeDays(movie.tmdbId) : [];
-  const metrics = variant === "nowPlaying" ? getMetricDisplays(movie) : [];
+  const metrics =
+    variant === "nowPlaying" ? getMetricDisplays(movie, sources) : [];
 
   return (
     <>

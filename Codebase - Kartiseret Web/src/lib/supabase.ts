@@ -26,25 +26,22 @@ export function getSupabaseBrowserClient(): SupabaseClient {
     return supabaseClient;
   }
 
-  // The browser app must only use the public anon key. The service role key
-  // is intentionally not exposed here.
+  // The browser app must only use a public key (publishable/anon). The service
+  // role key is intentionally not exposed here.
   const supabaseUrl = requireConfig(
     "SUPABASE_URL",
     import.meta.env.VITE_SUPABASE_URL,
     __SUPABASE_URL__,
   );
-  const supabaseAnonKey = requireConfig(
-    "SUPABASE_ANON_KEY",
+  const supabasePublishableKey = requireConfig(
+    "SUPABASE_PUBLISHABLE_DEFAULT_KEY or SUPABASE_ANON_KEY",
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY,
     import.meta.env.VITE_SUPABASE_ANON_KEY,
+    __SUPABASE_PUBLISHABLE_DEFAULT_KEY__,
     __SUPABASE_ANON_KEY__,
   );
 
-  supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
+  supabaseClient = createClient(supabaseUrl, supabasePublishableKey);
 
   return supabaseClient;
 }

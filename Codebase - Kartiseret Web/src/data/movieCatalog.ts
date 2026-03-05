@@ -24,6 +24,8 @@ const OPTIONAL_MOVIE_SELECT_COLUMNS = [
   "lb_id",
   "lbRating",
   "lbVotes",
+  "tmdbRating",
+  "tmdbVotes",
 ] as const;
 const COMING_SOON_SELECT_COLUMNS = [
   "tmdb_id",
@@ -72,6 +74,8 @@ export type Movie = {
   lbId?: string;
   lbRating: number | null;
   lbVotes: number | null;
+  tmdbRating: number | null;
+  tmdbVotes: number | null;
   rtCriticRating: number | null;
   rtCriticVotes: number | null;
   rtAudienceRating: number | null;
@@ -272,6 +276,8 @@ function buildMovies(
         lbId: getFirstNormalizedText(row, ["lb_id"]) || undefined,
         lbRating: parseOptionalNumber(row.lbRating),
         lbVotes: parseOptionalNumber(row.lbVotes),
+        tmdbRating: parseOptionalNumber(row.tmdbRating),
+        tmdbVotes: parseOptionalNumber(row.tmdbVotes),
         rtCriticRating: parseOptionalNumber(row.rtCriticRating),
         rtCriticVotes: parseOptionalNumber(row.rtCriticVotes),
         rtAudienceRating: parseOptionalNumber(row.rtAudienceRating),

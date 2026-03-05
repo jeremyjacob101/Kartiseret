@@ -23,6 +23,12 @@ export default defineConfig(({ mode }) => {
     env.SUPABASE_URL,
     env.VITE_SUPABASE_URL,
   );
+  const supabasePublishableKey = resolveEnvValue(
+    process.env.SUPABASE_PUBLISHABLE_DEFAULT_KEY,
+    process.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY,
+    env.SUPABASE_PUBLISHABLE_DEFAULT_KEY,
+    env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY,
+  );
   const supabaseAnonKey = resolveEnvValue(
     process.env.SUPABASE_ANON_KEY,
     process.env.VITE_SUPABASE_ANON_KEY,
@@ -34,6 +40,9 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     define: {
       __SUPABASE_URL__: JSON.stringify(supabaseUrl),
+      __SUPABASE_PUBLISHABLE_DEFAULT_KEY__: JSON.stringify(
+        supabasePublishableKey,
+      ),
       __SUPABASE_ANON_KEY__: JSON.stringify(supabaseAnonKey),
     },
   };
