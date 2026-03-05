@@ -14,7 +14,6 @@ export const DEFAULT_RATING_SOURCES: RatingSource[] = [
   "rtCriticRating",
 ];
 
-const LOCAL_STORAGE_KEY = "rating_sources_v1";
 const ratingSourceSet = new Set<string>(ALL_RATING_SOURCES);
 
 type NormalizeOptions = {
@@ -50,40 +49,4 @@ export function normalizeRatingSources(
   }
 
   return toNormalizedSources(fallback);
-}
-
-export function loadLocalRatingSources(): RatingSource[] {
-  try {
-    const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
-    const defaultSources = [...DEFAULT_RATING_SOURCES];
-
-    if (!raw) {
-      window.localStorage.setItem(
-        LOCAL_STORAGE_KEY,
-        JSON.stringify(defaultSources),
-      );
-      return defaultSources;
-    }
-
-    const normalized = normalizeRatingSources(JSON.parse(raw));
-    const normalizedRaw = JSON.stringify(normalized);
-
-    if (raw !== normalizedRaw) {
-      window.localStorage.setItem(LOCAL_STORAGE_KEY, normalizedRaw);
-    }
-
-    return normalized;
-  } catch {
-    const defaultSources = [...DEFAULT_RATING_SOURCES];
-    window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(defaultSources));
-    return defaultSources;
-  }
-}
-
-export function saveLocalRatingSources(
-  sources: readonly RatingSource[],
-  options: NormalizeOptions = {},
-): void {
-  const normalized = normalizeRatingSources(sources, options);
-  window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(normalized));
 }

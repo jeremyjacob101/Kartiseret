@@ -1,6 +1,5 @@
 import type { Ref } from "react";
 import {
-  defaultCity,
   fixedAppDateString,
   getMovieShowtimeDays,
   type Movie,
@@ -339,14 +338,14 @@ export function MovieDetailsContent({
   eyebrow = "Now playing",
   variant = "nowPlaying",
 }: MovieDetailsContentProps) {
-  const { sources } = useRatingSourcesContext();
+  const { sources, location } = useRatingSourcesContext();
   const subtitle = getMovieInfoParts(movie).join(" • ");
   const releaseDateLabel =
     variant === "comingSoon" && movie.releaseDate
       ? formatReleaseDate(movie.releaseDate)
       : null;
   const showtimeDays =
-    variant === "nowPlaying" ? getMovieShowtimeDays(movie.tmdbId) : [];
+    variant === "nowPlaying" ? getMovieShowtimeDays(movie.tmdbId, location) : [];
   const metrics =
     variant === "nowPlaying" ? getMetricDisplays(movie, sources) : [];
 
@@ -404,13 +403,13 @@ export function MovieDetailsContent({
         <div className="details-showtimes">
           <div
             className="details-rail"
-            aria-label={`${movie.title} showtimes in ${defaultCity}`}
+            aria-label={`${movie.title} showtimes in ${location}`}
           >
             {showtimeDays.map((day) => (
               <article className="details-day-panel" key={day.date}>
                 <div className="details-day-header">
                   <div className="details-day-heading">
-                    <h3 className="details-day-title">{defaultCity}</h3>
+                    <h3 className="details-day-title">{location}</h3>
                     <p className="details-day-kicker details-day-kicker--inline">
                       {getShowtimeDateLabel(day.date)}
                     </p>

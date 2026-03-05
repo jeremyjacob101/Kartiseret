@@ -1,4 +1,5 @@
 import { getSupabaseBrowserClient } from "../lib/supabase";
+import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/locations";
 
 const TOP_NOW_PLAYING_MOVIE_COUNT = 10;
 const SUPABASE_PAGE_SIZE = 1000;
@@ -55,7 +56,7 @@ const THEATER_SORT_INDEX = new Map(
   THEATER_SORT_ORDER.map((theater, index) => [theater, index] as const),
 );
 
-export const defaultCity = "Haifa";
+export const defaultCity: AppLocation = DEFAULT_LOCATION;
 export const fixedAppDateString = "2026-03-02";
 export const fixedShowtimeWindowEndDateString = "2026-03-11";
 
@@ -97,7 +98,9 @@ export type MovieShowtimeDay = {
 export let movies: Movie[] = [];
 export let comingSoonMovies: Movie[] = [];
 
-let movieShowtimesByTmdbId: Record<string, MovieShowtimeDay[]> = {};
+type MovieShowtimesByCity = Record<AppLocation, MovieShowtimeDay[]>;
+
+let movieShowtimesByTmdbId: Record<string, MovieShowtimesByCity> = {};
 let isMovieCatalogLoaded = false;
 let loadMovieCatalogPromise: Promise<void> | null = null;
 
@@ -298,13 +301,17 @@ function buildMovies(
 function buildMovieShowtimes(
   rows: CsvRow[],
   selectedMovies: readonly Movie[],
-): Record<string, MovieShowtimeDay[]> {
+): Record<string, MovieShowtimesByCity> {
   const showtimeWindowDates = buildDateRange(
     fixedAppDateString,
     fixedShowtimeWindowEndDateString,
   );
+  const supportedCities = new Set<string>(ALL_LOCATIONS);
   const selectedMovieIds = new Set(selectedMovies.map((movie) => movie.tmdbId));
-  const groupedShowtimes = new Map<string, Map<string, Map<string, Set<string>>>>();
+  const groupedShowtimes = new Map<
+    string,
+    Map<AppLocation, Map<string, Map<string, Set<string>>>>
+  >();
 
   for (const row of rows) {
     const tmdbId = normalizeText(row.tmdb_id);
@@ -313,10 +320,13 @@ function buildMovieShowtimes(
       continue;
     }
 
-    if (normalizeText(row.screening_city) !== defaultCity) {
+    const city = normalizeText(row.screening_city);
+
+    if (!supportedCities.has(city)) {
       continue;
     }
 
+    const normalizedCity = city as AppLocation;
     const date = normalizeText(row.date_of_showing);
 
     if (date < fixedAppDateString || date > fixedShowtimeWindowEndDateString) {
@@ -336,10 +346,16 @@ function buildMovieShowtimes(
       groupedShowtimes.set(tmdbId, movieDates);
     }
 
-    let theaterMap = movieDates.get(date);
+    let cityDates = movieDates.get(normalizedCity);
+    if (!cityDates) {
+      cityDates = new Map();
+      movieDates.set(normalizedCity, cityDates);
+    }
+
+    let theaterMap = cityDates.get(date);
     if (!theaterMap) {
       theaterMap = new Map();
-      movieDates.set(date, theaterMap);
+      cityDates.set(date, theaterMap);
     }
 
     let showtimeSet = theaterMap.get(theater);
@@ -354,38 +370,34 @@ function buildMovieShowtimes(
   return Object.fromEntries(
     selectedMovies.map((movie) => {
       const movieDates = groupedShowtimes.get(movie.tmdbId);
+      const cityShowtimes = Object.fromEntries(
+        ALL_LOCATIONS.map((city) => {
+          const cityDates = movieDates?.get(city);
+          const days = showtimeWindowDates.map((date) => {
+            const theaterMap = cityDates?.get(date);
 
-      if (!movieDates) {
-        return [
-          movie.tmdbId,
-          showtimeWindowDates.map((date) => ({
-            date,
-            theaters: [],
-          })),
-        ];
-      }
+            return {
+              date,
+              theaters: theaterMap
+                ? [...theaterMap.entries()]
+                    .sort(([leftTheater], [rightTheater]) =>
+                      compareTheaters(leftTheater, rightTheater),
+                    )
+                    .map(([theater, showtimeSet]) => ({
+                      theater,
+                      showtimes: [...showtimeSet].sort((leftTime, rightTime) =>
+                        leftTime.localeCompare(rightTime),
+                      ),
+                    }))
+                : [],
+            };
+          });
 
-      const days = showtimeWindowDates.map((date) => {
-        const theaterMap = movieDates.get(date);
+          return [city, days];
+        }),
+      ) as MovieShowtimesByCity;
 
-        return {
-          date,
-          theaters: theaterMap
-            ? [...theaterMap.entries()]
-                .sort(([leftTheater], [rightTheater]) =>
-                  compareTheaters(leftTheater, rightTheater),
-                )
-                .map(([theater, showtimeSet]) => ({
-                  theater,
-                  showtimes: [...showtimeSet].sort((leftTime, rightTime) =>
-                    leftTime.localeCompare(rightTime),
-                  ),
-                }))
-            : [],
-        };
-      });
-
-      return [movie.tmdbId, days];
+      return [movie.tmdbId, cityShowtimes];
     }),
   );
 }
@@ -544,6 +556,7 @@ export async function loadMovieCatalog(): Promise<void> {
 
 export function getMovieShowtimeDays(
   tmdbId: string,
+  city: AppLocation = defaultCity,
 ): readonly MovieShowtimeDay[] {
-  return movieShowtimesByTmdbId[tmdbId] ?? [];
+  return movieShowtimesByTmdbId[tmdbId]?.[city] ?? [];
 }

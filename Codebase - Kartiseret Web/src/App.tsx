@@ -6,6 +6,8 @@ import {
   useSyncExternalStore,
 } from "react";
 import { createRoot } from "react-dom/client";
+import { Settings } from "lucide-react";
+import { LocationMenu } from "./components/LocationMenu";
 import { MovieScroller } from "./components/MovieScroller";
 import { MovieScroller2 } from "./components/MovieScroller2";
 import { MovieScroller3 } from "./components/MovieScroller3";
@@ -134,12 +136,18 @@ function AppShell() {
             <span className="topnav-link">Coming Soon</span>
           )}
         </nav>
-        <UserMenu
-          currentPath={pathname}
-          onNavigate={(path) => {
-            navigate(path);
-          }}
-        />
+        <div className="topbar-actions">
+          <LocationMenu />
+          <UserMenu
+            currentPath={pathname}
+            onNavigate={(path) => {
+              navigate(path);
+            }}
+          />
+          <button type="button" className="settings-button" aria-label="Settings">
+            <Settings size={18} strokeWidth={1.9} />
+          </button>
+        </div>
       </header>
 
       <main className="app-main">

@@ -90,11 +90,19 @@ button {
   color: var(--text-main);
 }
 
+.topbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .user-menu {
   position: relative;
 }
 
-.user-menu-trigger {
+.user-menu-trigger,
+.location-menu-trigger,
+.settings-button {
   display: grid;
   place-items: center;
   width: 42px;
@@ -108,9 +116,16 @@ button {
 }
 
 .user-menu-trigger:hover,
-.user-menu-trigger.is-open {
+.user-menu-trigger.is-open,
+.location-menu-trigger:hover,
+.location-menu-trigger.is-open,
+.settings-button:hover {
   transform: translateY(-1px);
   box-shadow: 0 12px 24px rgba(45, 34, 58, 0.2);
+}
+
+.location-menu {
+  position: relative;
 }
 
 .user-menu-panel {
@@ -127,6 +142,76 @@ button {
   box-shadow:
     0 24px 42px rgba(26, 20, 38, 0.28),
     0 1px 0 rgba(255, 255, 255, 0.85) inset;
+}
+
+.location-menu-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 80;
+  width: min(88vw, 240px);
+  padding: 14px;
+  border: 1px solid rgba(129, 95, 170, 0.45);
+  border-radius: 16px;
+  background: rgba(245, 239, 251, 0.98);
+  color: var(--text-main);
+  box-shadow:
+    0 24px 42px rgba(26, 20, 38, 0.28),
+    0 1px 0 rgba(255, 255, 255, 0.85) inset;
+}
+
+.location-menu-title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: rgba(72, 57, 92, 0.72);
+}
+
+.location-menu-subtitle {
+  margin: 4px 0 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.location-menu-options {
+  display: grid;
+  gap: 7px;
+}
+
+.location-menu-option {
+  border: 1px solid rgba(147, 106, 194, 0.42);
+  border-radius: 10px;
+  background: #f8f4fe;
+  color: rgba(72, 57, 92, 0.88);
+  padding: 9px 10px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.location-menu-option.is-active {
+  border-color: #8b59c6;
+  background: #8b59c6;
+  color: #fff;
+}
+
+.location-menu-option:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.location-menu-feedback {
+  margin: 10px 0 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(53, 110, 64, 0.92);
+}
+
+.location-menu-feedback--error {
+  color: rgba(146, 27, 67, 0.95);
 }
 
 .user-menu-header {
@@ -354,26 +439,110 @@ button {
   background: rgba(255, 255, 255, 0.05);
 }
 
-.prefs-page-grid {
+.prefs-page-settings {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
-.prefs-page-option {
+.prefs-setting {
+  border: 1px solid rgba(217, 191, 255, 0.22);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.prefs-setting-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #f3ebff;
+  padding: 12px 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.prefs-setting-toggle:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.prefs-setting-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.prefs-setting-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(233, 218, 255, 0.72);
+}
+
+.prefs-setting-summary {
+  display: block;
+  min-width: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f4ebff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prefs-setting-chevron {
+  flex: none;
+  color: rgba(233, 218, 255, 0.84);
+  transition: transform 160ms ease;
+}
+
+.prefs-setting-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.prefs-setting-content {
+  border-top: 1px solid rgba(217, 191, 255, 0.18);
+  padding: 12px 14px 14px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.prefs-setting-options {
+  display: grid;
+  gap: 8px;
+}
+
+.prefs-setting-option {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
   border: 1px solid rgba(217, 191, 255, 0.2);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.03);
   color: #f3ebff;
+  font-size: 0.93rem;
   font-weight: 600;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
 }
 
-.prefs-page-option input {
-  width: 18px;
-  height: 18px;
+.prefs-setting-option:hover {
+  border-color: rgba(190, 133, 255, 0.56);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.prefs-setting-option.is-selected {
+  border-color: rgba(190, 133, 255, 0.76);
+  background: rgba(183, 125, 255, 0.16);
+}
+
+.prefs-setting-option input {
+  width: 17px;
+  height: 17px;
   accent-color: #b77dff;
 }
 
