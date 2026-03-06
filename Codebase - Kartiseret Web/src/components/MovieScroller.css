@@ -1,11 +1,32 @@
 .movie-scroller-shell {
   position: relative;
   width: 100%;
+  transition: height 340ms cubic-bezier(0.16, 0.9, 0.24, 1);
 }
 
-.movie-scroller {
+.movie-scroller-collapsed-layer,
+.movie-scroller-detail-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.movie-scroller-collapsed-layer {
+  z-index: 1;
+  transition: opacity var(--movie-scroller-stage-fade-duration, 260ms) ease;
+}
+
+.movie-scroller-shell.is-open .movie-scroller-collapsed-layer {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.movie-scroller-shell.is-closing .movie-scroller-collapsed-layer {
+  opacity: 1;
+  pointer-events: none;
+}
+
+.movie-scroller-collapsed {
   position: relative;
-  z-index: 0;
   width: 100%;
   margin: 0 auto;
   overflow-x: auto;
@@ -13,55 +34,216 @@
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  transition: filter var(--movie-scroller-stage-fade-duration, 260ms) ease;
 }
 
-.movie-scroller::-webkit-scrollbar {
+.movie-scroller-collapsed::-webkit-scrollbar {
   display: none;
 }
 
-.movie-scroller.is-focused {
-  pointer-events: none;
-  filter: saturate(0.78) brightness(0.86);
-}
-
-.movie-scroller.is-restoring {
-  pointer-events: none;
-  filter: none;
-}
-
-.movie-scroller .movie-scroller__card {
+.movie-scroller-collapsed .movie-scroller__card {
   backface-visibility: hidden;
+  border-radius: 14px;
+  overflow: hidden;
   will-change: transform, opacity, filter;
 }
 
-.movie-scroller-focus-stage {
-  position: fixed;
-  inset: 0;
-  z-index: 950;
-  display: grid;
-  place-items: center;
+.movie-scroller-collapsed .movie-scroller__card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.movie-scroller-detail-layer {
+  z-index: 2;
   overflow: hidden;
-  padding: 28px;
-  background:
-    radial-gradient(circle at 22% 24%, rgba(255, 154, 61, 0.16), transparent 26%),
-    radial-gradient(circle at 78% 16%, rgba(94, 168, 255, 0.14), transparent 24%),
-    linear-gradient(180deg, rgba(11, 9, 14, 0.18), rgba(11, 9, 14, 0.74));
-  backdrop-filter: blur(10px) saturate(112%);
+  opacity: 0;
+}
+
+.movie-scroller-shell.is-detail-mode .movie-scroller-detail-layer {
+  left: 50%;
+  right: auto;
+  width: 100vw;
+  transform: translateX(-50%);
+}
+
+.movie-scroller-shell.is-opening .movie-scroller-detail-layer,
+.movie-scroller-shell.is-open .movie-scroller-detail-layer,
+.movie-scroller-shell.is-closing .movie-scroller-detail-layer {
   opacity: 1;
 }
 
-.movie-scroller-focus-backdrop-shell {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
-  border-radius: 34px;
-  isolation: isolate;
+.movie-scroller-shell.is-opening .movie-scroller-detail-layer {
+  animation: movieScrollerStageIn
+    var(--movie-scroller-stage-fade-duration, 260ms) ease both;
 }
 
-.movie-scroller-focus-backdrop-shell::after {
+.movie-scroller-shell.is-closing .movie-scroller-detail-layer {
+  pointer-events: none;
+  animation: movieScrollerStageOut
+    var(--movie-scroller-stage-fade-duration, 260ms) ease
+    var(--movie-scroller-stage-close-delay, 0ms) both;
+}
+
+.movie-scroller-shell.is-open .movie-scroller-detail-layer {
+  pointer-events: auto;
+}
+
+.movie-scroller-detail-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.movie-scroller-side-preview {
+  --movie-scroller-side-preview-enter-x: 0px;
+  --movie-scroller-side-preview-rest-opacity: 0.86;
+  --movie-scroller-side-preview-hover-opacity: 0.94;
+  position: absolute;
+  z-index: 1;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 28px;
+  background: transparent;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow:
+    0 26px 48px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+  opacity: var(--movie-scroller-side-preview-rest-opacity);
+  filter: saturate(0.8) brightness(0.86);
+  transform: translate3d(0, 24px, 0) scale(0.985);
+  transition:
+    transform 220ms ease,
+    opacity 220ms ease,
+    filter 220ms ease;
+  will-change: transform, opacity, filter;
+}
+
+.movie-scroller-side-preview--left {
+  --movie-scroller-side-preview-enter-x: 56px;
+}
+
+.movie-scroller-side-preview--right {
+  --movie-scroller-side-preview-enter-x: -56px;
+}
+
+.movie-scroller-side-preview:hover:not(.is-disabled),
+.movie-scroller-side-preview:focus-visible:not(.is-disabled) {
+  opacity: var(--movie-scroller-side-preview-hover-opacity);
+  filter: saturate(0.88) brightness(0.94);
+  transform: translate3d(0, 18px, 0) scale(1);
+}
+
+.movie-scroller-side-preview.is-disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.movie-scroller-shell.is-opening .movie-scroller-side-preview {
+  animation: movieScrollerSidePreviewIn 360ms cubic-bezier(0.16, 0.9, 0.24, 1)
+    70ms both;
+}
+
+.movie-scroller-shell.is-opening .movie-scroller-side-preview.is-disabled {
+  opacity: var(--movie-scroller-side-preview-rest-opacity);
+  filter: saturate(0.8) brightness(0.86);
+}
+
+.movie-scroller-side-preview::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(6, 5, 10, 0.06), rgba(6, 5, 10, 0.38)),
+    linear-gradient(
+      90deg,
+      rgba(6, 5, 10, 0.24),
+      transparent 28%,
+      transparent 72%,
+      rgba(6, 5, 10, 0.24)
+    );
+}
+
+.movie-scroller-side-preview-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.movie-scroller-detail-card {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 2;
+  isolation: isolate;
+  border-radius: 34px;
+  overflow: hidden;
+  color: #f6f0ff;
+  background:
+    linear-gradient(180deg, rgba(18, 15, 24, 0.56), rgba(8, 7, 11, 0.26)),
+    rgba(8, 7, 11, 0.18);
+  box-shadow:
+    0 30px 72px rgba(0, 0, 0, 0.26),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+  transform: translateX(-50%);
+  touch-action: pan-y;
+}
+
+.movie-scroller-detail-stack {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.movie-scroller-detail-body {
+  position: absolute;
+  inset: 0;
+  transform: translate3d(0, 0, 0);
+  opacity: 1;
+}
+
+.movie-scroller-detail-body.is-entering-from-right {
+  animation: movieScrollerBodyEnterFromRight
+    var(--movie-scroller-detail-swap-duration, 360ms)
+    cubic-bezier(0.16, 0.9, 0.24, 1) both;
+}
+
+.movie-scroller-detail-body.is-entering-from-left {
+  animation: movieScrollerBodyEnterFromLeft
+    var(--movie-scroller-detail-swap-duration, 360ms)
+    cubic-bezier(0.16, 0.9, 0.24, 1) both;
+}
+
+.movie-scroller-detail-body.is-leaving-to-left {
+  animation: movieScrollerBodyExitToLeft
+    var(--movie-scroller-detail-swap-duration, 360ms)
+    cubic-bezier(0.16, 0.9, 0.24, 1) both;
+}
+
+.movie-scroller-detail-body.is-leaving-to-right {
+  animation: movieScrollerBodyExitToRight
+    var(--movie-scroller-detail-swap-duration, 360ms)
+    cubic-bezier(0.16, 0.9, 0.24, 1) both;
+}
+
+.movie-scroller-detail-backdrop-shell,
+.movie-scroller-detail-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.movie-scroller-detail-backdrop-shell {
+  z-index: 0;
+  overflow: hidden;
+}
+
+.movie-scroller-detail-backdrop-shell::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -72,109 +254,64 @@
       rgba(11, 9, 14, 0.08) 24%,
       rgba(11, 9, 14, 0.18) 48%,
       rgba(11, 9, 14, 0.34) 70%,
-      rgba(11, 9, 14, 0.68) 100%
+      rgba(11, 9, 14, 0.7) 100%
     ),
     linear-gradient(
       90deg,
-      rgba(11, 9, 14, 0.16) 0%,
-      rgba(11, 9, 14, 0.03) 24%,
-      rgba(11, 9, 14, 0.03) 76%,
-      rgba(11, 9, 14, 0.16) 100%
+      rgba(11, 9, 14, 0.18) 0%,
+      rgba(11, 9, 14, 0.04) 24%,
+      rgba(11, 9, 14, 0.04) 76%,
+      rgba(11, 9, 14, 0.18) 100%
     );
 }
 
-.movie-scroller-focus-backdrop {
+.movie-scroller-detail-backdrop {
   position: absolute;
   top: -3%;
   left: -2%;
   width: 104%;
-  height: 56%;
+  height: 54%;
   object-fit: cover;
-  opacity: 0.84;
+  opacity: 0.78;
   filter: blur(0.6px) saturate(1.03) brightness(0.92) contrast(1.02);
-  transform: translate3d(0, -42px, 0) scale(1.035);
+  transform: translate3d(0, 0, 0) scale(1.035);
   transform-origin: center top;
-  animation: movieScrollerBackdropIn 720ms cubic-bezier(0.18, 0.88, 0.24, 1)
-    both;
   will-change: transform, opacity;
 }
 
-.movie-scroller-focus-backdrop-shell.is-closing .movie-scroller-focus-backdrop {
+.movie-scroller-detail-backdrop.is-animating-in {
+  animation: movieScrollerBackdropIn 720ms cubic-bezier(0.18, 0.88, 0.24, 1)
+    both;
+}
+
+.movie-scroller-shell.is-closing
+  .movie-scroller-detail-body.is-current
+  .movie-scroller-detail-backdrop {
   animation: movieScrollerBackdropOut
     var(--movie-scroller-stage-fade-duration, 260ms) ease both;
 }
 
-.movie-scroller-focus-stage.is-opening {
-  animation: movieScrollerStageIn
-    var(--movie-scroller-stage-fade-duration, 260ms) ease both;
-}
-
-.movie-scroller-focus-stage.is-closing {
-  pointer-events: none;
-  animation: movieScrollerStageOut
-    var(--movie-scroller-stage-fade-duration, 260ms) ease
-    var(--movie-scroller-stage-close-delay, 0ms) both;
-}
-
-.movie-scroller-focus-layout {
-  position: relative;
-  z-index: 1;
-  width: min(980px, calc(100vw - 56px));
-  max-height: min(820px, calc(100vh - 56px));
-  padding: 26px;
-  overflow: hidden;
-  border-radius: 34px;
-  color: #f6f0ff;
-}
-
-.movie-scroller-focus-layout::before,
-.movie-scroller-focus-layout::after {
-  content: "";
-  position: absolute;
-  pointer-events: none;
-  filter: blur(26px);
-}
-
-.movie-scroller-focus-layout::before {
-  top: 44px;
-  left: 8px;
-  width: 280px;
-  height: 240px;
-  border-radius: 999px;
-  background: radial-gradient(circle,
-      rgba(255, 154, 61, 0.2),
-      rgba(255, 154, 61, 0));
-}
-
-.movie-scroller-focus-layout::after {
-  right: 30px;
-  bottom: 76px;
-  width: 340px;
-  height: 220px;
-  border-radius: 999px;
-  background: radial-gradient(circle,
-      rgba(166, 106, 227, 0.2),
-      rgba(166, 106, 227, 0));
-}
-
-.movie-scroller-focus-content {
-  position: relative;
-  z-index: 1;
-  overflow-y: auto;
-  max-height: min(768px, calc(100vh - 108px));
-  padding-right: 4px;
-}
-
-.movie-scroller-focus-content::-webkit-scrollbar {
-  width: 0;
-  height: 0;
+.movie-scroller-detail-sheen {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.08) 0%,
+      rgba(255, 255, 255, 0.02) 24%,
+      rgba(255, 255, 255, 0) 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(11, 9, 14, 0.06) 0%,
+      rgba(11, 9, 14, 0.18) 36%,
+      rgba(11, 9, 14, 0.74) 100%
+    );
 }
 
 .movie-scroller-close {
   position: absolute;
   top: 18px;
   right: 18px;
-  z-index: 2;
+  z-index: 4;
   display: grid;
   place-items: center;
   width: 44px;
@@ -185,49 +322,63 @@
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
   color: #f6f0ff;
   cursor: pointer;
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(8px);
 }
 
-.movie-scroller-focus-layout .details-hero,
-.movie-scroller-focus-layout .details-copy,
-.movie-scroller-focus-layout .details-showtimes,
+.movie-scroller-close:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.movie-scroller-shell.is-opening .movie-scroller-close,
+.movie-scroller-shell.is-closing .movie-scroller-close {
+  pointer-events: none;
+}
+
+.movie-scroller-detail-content {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  padding: 26px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.movie-scroller-detail-content::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.movie-scroller-detail-card .details-hero,
+.movie-scroller-detail-card .details-copy,
+.movie-scroller-detail-card .details-showtimes,
 .movie-scroller-close {
   transform: translate3d(0, 0, 0);
   opacity: 1;
 }
 
-.movie-scroller-focus-layout .details-hero {
-  margin-bottom: 24px;
+.movie-scroller-detail-card .details-hero {
+  display: grid;
+  grid-template-columns: minmax(190px, 226px) minmax(0, 1fr);
+  align-items: end;
+  gap: 22px;
+  margin-bottom: 22px;
 }
 
-.movie-scroller-focus-layout .details-poster-shell {
+.movie-scroller-detail-card .details-poster-shell {
+  width: min(100%, 226px);
   filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.34));
 }
 
-.movie-scroller-focus-layout .details-copy {
-  max-width: 65ch;
-}
-
-.movie-scroller-focus-layout .details-metric {
-  background: rgba(255, 255, 255, 0.065);
-  backdrop-filter: blur(14px);
-}
-
-.movie-scroller-focus-layout .details-showtimes {
-  border-color: rgba(217, 191, 255, 0.18);
-  background:
-    linear-gradient(180deg, rgba(18, 15, 24, 0.56), rgba(8, 7, 11, 0.26)),
-    rgba(8, 7, 11, 0.18);
-  box-shadow:
-    0 24px 56px rgba(0, 0, 0, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(16px);
-}
-
-.movie-scroller-focus-poster {
+.movie-scroller-detail-poster {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2 / 3;
+  border-radius: 28px;
   box-shadow:
     0 24px 46px rgba(0, 0, 0, 0.34),
     0 0 0 1px rgba(255, 255, 255, 0.08);
+  opacity: 0;
   transition:
     opacity var(--movie-scroller-focus-poster-fade-duration, 180ms) ease;
   will-change: opacity;
@@ -235,10 +386,129 @@
   backface-visibility: hidden;
 }
 
+.movie-scroller-detail-poster.is-visible {
+  opacity: 1;
+}
+
+.movie-scroller-detail-card .details-copy {
+  max-width: 54ch;
+  color: #f6f0ff;
+}
+
+.movie-scroller-detail-card .details-title,
+.movie-scroller-detail-card .details-day-title,
+.movie-scroller-detail-card .details-theater-name,
+.movie-scroller-detail-card .details-metric strong {
+  color: #f6f0ff;
+}
+
+.movie-scroller-detail-card .details-subtitle,
+.movie-scroller-detail-card .details-day-kicker,
+.movie-scroller-detail-card .details-metric-marker {
+  color: rgba(233, 226, 245, 0.82);
+}
+
+.movie-scroller-detail-card .details-metric {
+  background: rgba(255, 255, 255, 0.065);
+  backdrop-filter: blur(8px);
+}
+
+.movie-scroller-detail-card .details-time-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  min-height: 36px;
+  padding: 5px 10px;
+  border: 2px solid #000;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #6d6666, #4d4747);
+  color: #d8d8d8;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+}
+
+.movie-scroller-detail-card .details-time-pill--yes-planet {
+  background: linear-gradient(to left, #d9710f, #b05806);
+}
+
+.movie-scroller-detail-card .details-time-pill--cinema-city {
+  background: linear-gradient(to right, #186bdf, #084cab);
+}
+
+.movie-scroller-detail-card .details-time-pill--lev-cinema {
+  background: linear-gradient(to right, #b50519, #5e030d);
+}
+
+.movie-scroller-detail-card .details-time-pill--rav-hen {
+  background: linear-gradient(to right, #0d06da, #ab5306);
+}
+
+.movie-scroller-detail-card .details-time-pill--hot-cinema {
+  background: linear-gradient(to left, #f06a87, #c13043);
+}
+
+.movie-scroller-detail-card .details-time-pill--movieland {
+  background: linear-gradient(to right, #58003a, #a80371);
+}
+
+.movie-scroller-detail-card .details-showtimes {
+  border-color: rgba(217, 191, 255, 0.18);
+  background:
+    linear-gradient(180deg, rgba(18, 15, 24, 0.56), rgba(8, 7, 11, 0.26)),
+    rgba(8, 7, 11, 0.18);
+  box-shadow:
+    0 24px 56px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
+}
+
+.movie-scroller-detail-card .details-rail {
+  scrollbar-width: none;
+}
+
+.movie-scroller-detail-card .details-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.movie-scroller-shell.is-opening .movie-scroller-detail-body.is-current .details-copy {
+  animation: movieScrollerZipUp 520ms cubic-bezier(0.16, 0.9, 0.22, 1) 80ms
+    both;
+}
+
+.movie-scroller-shell.is-opening
+  .movie-scroller-detail-body.is-current
+  .details-showtimes {
+  animation: movieScrollerZipUp 580ms cubic-bezier(0.16, 0.9, 0.22, 1) 140ms
+    both;
+}
+
+.movie-scroller-shell.is-opening .movie-scroller-close {
+  animation: movieScrollerFadeDown 300ms ease 110ms both;
+}
+
+.movie-scroller-shell.is-closing .movie-scroller-detail-body.is-current .details-copy {
+  animation: movieScrollerSlideAway 180ms ease both;
+}
+
+.movie-scroller-shell.is-closing
+  .movie-scroller-detail-body.is-current
+  .details-showtimes {
+  animation: movieScrollerSlideAway 160ms ease both;
+}
+
+.movie-scroller-shell.is-closing .movie-scroller-close {
+  animation: movieScrollerFadeOut 140ms ease both;
+}
+
 .movie-scroller-poster-ghost {
   position: fixed;
   z-index: 952;
-  border-radius: 24px;
+  border-radius: 28px;
   object-fit: cover;
   pointer-events: none;
   opacity: 0;
@@ -268,6 +538,11 @@
   opacity: 1;
 }
 
+.movie-scroller-poster-ghost.is-scripted-opening {
+  transition:
+    opacity var(--movie-scroller-ghost-opacity-duration, 120ms) ease;
+}
+
 .movie-scroller-poster-ghost.is-closing {
   transition:
     top var(--movie-scroller-ghost-move-duration, 300ms)
@@ -282,30 +557,6 @@
       cubic-bezier(0.16, 0.9, 0.26, 1),
     box-shadow var(--movie-scroller-ghost-move-duration, 300ms) ease,
     opacity var(--movie-scroller-ghost-move-duration, 300ms) linear;
-}
-
-.movie-scroller-focus-stage.is-opening .details-copy {
-  animation: movieScrollerZipUp 520ms cubic-bezier(0.16, 0.9, 0.22, 1) 80ms both;
-}
-
-.movie-scroller-focus-stage.is-opening .details-showtimes {
-  animation: movieScrollerZipUp 580ms cubic-bezier(0.16, 0.9, 0.22, 1) 140ms both;
-}
-
-.movie-scroller-focus-stage.is-opening .movie-scroller-close {
-  animation: movieScrollerFadeDown 300ms ease 110ms both;
-}
-
-.movie-scroller-focus-stage.is-closing .details-copy {
-  animation: movieScrollerSlideAway 180ms ease both;
-}
-
-.movie-scroller-focus-stage.is-closing .details-showtimes {
-  animation: movieScrollerSlideAway 160ms ease both;
-}
-
-.movie-scroller-focus-stage.is-closing .movie-scroller-close {
-  animation: movieScrollerFadeOut 140ms ease both;
 }
 
 @keyframes movieScrollerStageIn {
@@ -325,6 +576,21 @@
 
   to {
     opacity: 0;
+  }
+}
+
+@keyframes movieScrollerSidePreviewIn {
+  from {
+    opacity: 0.18;
+    filter: saturate(0.64) brightness(0.7);
+    transform: translate3d(var(--movie-scroller-side-preview-enter-x), 36px, 0)
+      scale(0.955);
+  }
+
+  to {
+    opacity: var(--movie-scroller-side-preview-rest-opacity);
+    filter: saturate(0.8) brightness(0.86);
+    transform: translate3d(0, 24px, 0) scale(0.985);
   }
 }
 
@@ -400,26 +666,82 @@
   }
 }
 
-@media (max-width: 720px) {
-  .movie-scroller-focus-stage {
-    padding: 14px;
+@keyframes movieScrollerBodyEnterFromRight {
+  from {
+    opacity: 0;
+    transform: translate3d(88px, 0, 0);
   }
 
-  .movie-scroller-focus-backdrop {
+  45% {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes movieScrollerBodyEnterFromLeft {
+  from {
+    opacity: 0;
+    transform: translate3d(-88px, 0, 0);
+  }
+
+  45% {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes movieScrollerBodyExitToLeft {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate3d(-88px, 0, 0);
+  }
+}
+
+@keyframes movieScrollerBodyExitToRight {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate3d(88px, 0, 0);
+  }
+}
+
+@media (max-width: 720px) {
+  .movie-scroller-detail-backdrop {
     top: -2%;
     left: -4%;
     width: 108%;
     height: 42%;
   }
 
-  .movie-scroller-focus-layout {
-    width: min(100%, 640px);
-    max-height: calc(100vh - 28px);
+  .movie-scroller-detail-content {
     padding: 20px 18px 22px;
   }
 
-  .movie-scroller-focus-content {
-    max-height: calc(100vh - 72px);
+  .movie-scroller-detail-card .details-hero {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    margin-bottom: 18px;
+  }
+
+  .movie-scroller-detail-card .details-poster-shell {
+    width: min(100%, 220px);
   }
 
   .movie-scroller-close {

@@ -6,37 +6,92 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type PointerEvent,
+  type WheelEvent,
 } from "react";
 import { X } from "lucide-react";
-import { type Movie } from "../data/movieCatalog";
-import "./MovieScroller.css";
-import { MovieDetailsContent } from "./MovieDetailsContent";
+import { comingSoonMovies, movies, type Movie } from "../data/movieCatalog";
 import {
   MovieScrollerBase,
+  type MovieScrollerBaseProps,
   type MovieScrollerCardState,
-  type MovieScrollerProps,
   type PosterSourceRect,
 } from "./MovieScrollerBase";
+import { getRepeatSetCount } from "./MovieScrollerShared";
+import {
+  MovieDetailsContent,
+  type MovieDetailsVariant,
+} from "./MovieDetailsContent";
+import "./MovieScroller.css";
 
-type FocusMovieScrollerProps = Omit<MovieScrollerProps, "onSelectMovie">;
+type FocusPhase = "collapsed" | "opening" | "open" | "closing";
+type NavigationDirection = -1 | 1;
 
-type SelectedMovieState = {
-  movie: Movie;
+type GhostTransitionState = {
+  itemIndex: number;
   sourceRect: PosterSourceRect;
   targetRect: PosterSourceRect;
-  itemIndex: number;
   sourceOpacity: number;
   targetOpacity: number;
 };
 
-type FocusPhase = "idle" | "opening" | "open" | "closing";
+type DetailTransitionState = {
+  key: number;
+  direction: NavigationDirection;
+  fromItemIndex: number;
+  toItemIndex: number;
+};
+
+type DetailLayout = {
+  panelWidth: number;
+  panelHeight: number;
+  previewWidth: number;
+  previewHeight: number;
+  previewLeft: number;
+  previewRight: number;
+  previewTop: number;
+};
+
+type SwipeGesture = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+};
+
+type PendingExternalJump = {
+  movieIndex: number;
+  behavior: ScrollBehavior;
+  nonce: number;
+};
+
+export type MovieScrollerProps = MovieScrollerBaseProps & {
+  mode?: MovieDetailsVariant;
+  movieItems?: readonly Movie[];
+  // Backward-compatible alias for previous API naming.
+  detailVariant?: MovieDetailsVariant;
+  detailEyebrow?: string;
+  jumpRequest?: MovieScrollerJumpRequest | null;
+};
+
+type MovieScrollerContentProps = MovieScrollerBaseProps & {
+  movieItems: readonly Movie[];
+  detailVariant: MovieDetailsVariant;
+  detailEyebrow: string;
+  jumpRequest?: MovieScrollerJumpRequest | null;
+};
+
+export type MovieScrollerJumpRequest = {
+  tmdbId: string;
+  nonce: number;
+  behavior?: ScrollBehavior;
+};
 
 const CARD_MOVE_DURATION_MS = 520;
 const CARD_OPACITY_DURATION_MS = 260;
 const CARD_STAGGER_STEP_MS = 16;
 const CARD_MAX_STAGGER_MS = 110;
 const SCROLLER_CARD_RADIUS_PX = 14;
-const FOCUS_POSTER_RADIUS_PX = 24;
+const FOCUS_POSTER_RADIUS_PX = 28;
 const FOCUS_POSTER_SHADOW =
   "0 24px 46px rgba(0, 0, 0, 0.34), 0 0 0 1px rgba(255, 255, 255, 0.08)";
 const SCROLLER_CARD_SHADOW =
@@ -52,6 +107,17 @@ const POSTER_RETURN_SETTLE_DELAY_MS = POSTER_MOVE_DURATION_MS;
 const FOCUS_STAGE_FADE_DURATION_MS = 260;
 const CLOSE_STAGE_FADE_DELAY_MS =
   POSTER_HANDOFF_TOTAL_MS - FOCUS_STAGE_FADE_DURATION_MS;
+const DETAIL_PRELOAD_RADIUS = 2;
+const DETAIL_EDGE_BUFFER_SETS = 1;
+const DETAIL_NAV_DURATION_MS = 360;
+const DETAIL_FOCUS_VIEWPORT_PADDING_PX = 28;
+const DETAIL_WHEEL_LOCK_MS = 420;
+const DETAIL_SWIPE_THRESHOLD_PX = 56;
+const COLLAPSED_CARD_SCALE_BOOST = 0.15;
+const EXTERNAL_JUMP_RUFFLE_DURATION_MS = 440;
+const EXTERNAL_JUMP_VIEWPORT_MIN_TOP_PX = 88;
+const EXTERNAL_JUMP_VIEWPORT_MAX_TOP_PX = 140;
+const EXTERNAL_JUMP_VIEWPORT_EDGE_PX = 72;
 
 const movieScrollerTimingStyle = {
   "--movie-scroller-stage-fade-duration": `${FOCUS_STAGE_FADE_DURATION_MS}ms`,
@@ -59,7 +125,98 @@ const movieScrollerTimingStyle = {
   "--movie-scroller-focus-poster-fade-duration": `${FOCUS_POSTER_FADE_DURATION_MS}ms`,
   "--movie-scroller-ghost-move-duration": `${POSTER_MOVE_DURATION_MS}ms`,
   "--movie-scroller-ghost-opacity-duration": `${POSTER_GHOST_OPACITY_DURATION_MS}ms`,
+  "--movie-scroller-detail-swap-duration": `${DETAIL_NAV_DURATION_MS}ms`,
 } as CSSProperties;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function mod(value: number, size: number): number {
+  const remainder = value % size;
+  return remainder < 0 ? remainder + size : remainder;
+}
+
+function easeOutCubic(value: number): number {
+  return 1 - (1 - value) ** 3;
+}
+
+function easeInOutCubic(value: number): number {
+  return value < 0.5
+    ? 4 * value ** 3
+    : 1 - ((-2 * value + 2) ** 3) / 2;
+}
+
+function lerp(start: number, end: number, progress: number): number {
+  return start + (end - start) * progress;
+}
+
+function toPosterSourceRect(
+  rect: Pick<DOMRect, "top" | "left" | "width" | "height"> | null | undefined,
+  fallback: PosterSourceRect,
+): PosterSourceRect {
+  if (!rect) {
+    return fallback;
+  }
+
+  return {
+    top: rect.top,
+    left: rect.left,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+function getPageScrollTop(): number {
+  return window.scrollY || window.pageYOffset || 0;
+}
+
+function getMaxPageScrollTop(): number {
+  const scrollRoot = document.scrollingElement ?? document.documentElement;
+  return Math.max(0, scrollRoot.scrollHeight - window.innerHeight);
+}
+
+function getTargetDetailViewportTop(panelHeight: number): number {
+  const paddedViewportHeight = Math.max(
+    0,
+    window.innerHeight - DETAIL_FOCUS_VIEWPORT_PADDING_PX * 2,
+  );
+  const centeredHeight = Math.min(panelHeight, paddedViewportHeight);
+
+  return Math.max(
+    DETAIL_FOCUS_VIEWPORT_PADDING_PX,
+    (window.innerHeight - centeredHeight) / 2,
+  );
+}
+
+function getViewportScrollTarget(
+  shellTop: number,
+  currentScrollTop: number,
+  panelHeight: number,
+): number {
+  return clamp(
+    currentScrollTop + shellTop - getTargetDetailViewportTop(panelHeight),
+    0,
+    getMaxPageScrollTop(),
+  );
+}
+
+function getCollapsedViewportScrollTarget(
+  shellTop: number,
+  currentScrollTop: number,
+): number {
+  const targetViewportTop = clamp(
+    window.innerHeight * 0.18,
+    EXTERNAL_JUMP_VIEWPORT_MIN_TOP_PX,
+    EXTERNAL_JUMP_VIEWPORT_MAX_TOP_PX,
+  );
+
+  return clamp(
+    currentScrollTop + shellTop - targetViewportTop,
+    0,
+    getMaxPageScrollTop(),
+  );
+}
 
 function buildCardOffset(
   cardState: MovieScrollerCardState,
@@ -67,7 +224,8 @@ function buildCardOffset(
 ): CSSProperties | undefined {
   if (
     cardState.selectedItemIndex === null ||
-    cardState.relativeIndex === null
+    cardState.relativeIndex === null ||
+    phase === "collapsed"
   ) {
     return undefined;
   }
@@ -102,6 +260,7 @@ function buildCardOffset(
       0,
       CARD_MAX_STAGGER_MS - absOffset * CARD_STAGGER_STEP_MS,
     );
+
     return {
       opacity: cardState.positionalOpacity,
       filter: "blur(0px)",
@@ -133,28 +292,256 @@ function buildCardOffset(
   } as CSSProperties;
 }
 
-export function MovieScroller({
-  className,
-  ...props
-}: FocusMovieScrollerProps) {
-  const [selectedMovie, setSelectedMovie] = useState<SelectedMovieState | null>(
-    null,
+function getMaxWidthValue(
+  maxWidth: number | string,
+  fallback: number,
+): number {
+  if (typeof maxWidth === "number") {
+    return maxWidth;
+  }
+
+  if (maxWidth.trim().endsWith("%")) {
+    return fallback;
+  }
+
+  const parsed = Number.parseFloat(maxWidth);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function getDetailLayout(
+  clientWidth: number,
+  maxWidth: number | string,
+): DetailLayout {
+  const viewportFallback =
+    typeof window === "undefined" ? 1440 : Math.max(window.innerWidth, 960);
+  const safeClientWidth = Math.max(clientWidth || viewportFallback, 360);
+  const maxWidthValue = getMaxWidthValue(maxWidth, safeClientWidth);
+  const isCompact = safeClientWidth < 860;
+  const stagePadding = isCompact ? 16 : 28;
+  const panelMaxWidth = safeClientWidth - stagePadding * 2;
+  const boundedPanelWidth = Math.min(
+    maxWidthValue * (isCompact ? 0.9 : 0.78),
+    safeClientWidth * (isCompact ? 0.9 : 0.7),
   );
-  const [phase, setPhase] = useState<FocusPhase>("idle");
+  const panelWidth = Math.max(
+    isCompact ? 320 : 420,
+    Math.min(panelMaxWidth, Math.max(boundedPanelWidth, isCompact ? 320 : 420)),
+  );
+  const panelHeight = isCompact ? 706 : 756;
+  const panelLeft = (safeClientWidth - panelWidth) / 2;
+  const previewWidth = clamp(
+    Math.min(
+      safeClientWidth * (isCompact ? 0.34 : 0.27),
+      panelWidth * (isCompact ? 0.46 : 0.4),
+    ),
+    isCompact ? 150 : 240,
+    isCompact ? 220 : 340,
+  );
+  const previewHeight = Math.round(previewWidth * 1.5);
+  const previewOverlap = Math.min(
+    previewWidth * (isCompact ? 0.42 : 0.38),
+    isCompact ? 72 : 128,
+  );
+  const minLeftOverlap = Math.max(
+    0,
+    previewWidth - (panelLeft - stagePadding),
+  );
+  const minRightOverlap = Math.max(
+    0,
+    previewWidth -
+      (safeClientWidth - stagePadding - (panelLeft + panelWidth)),
+  );
+  const previewLeft =
+    panelLeft - previewWidth + Math.max(previewOverlap, minLeftOverlap);
+  const previewRight =
+    panelLeft + panelWidth - Math.max(previewOverlap, minRightOverlap);
+  const previewTop = isCompact ? 126 : 118;
+
+  return {
+    panelWidth,
+    panelHeight,
+    previewWidth,
+    previewHeight,
+    previewLeft,
+    previewRight,
+    previewTop,
+  };
+}
+
+function getCollapsedFocusViewportCenter(
+  clientWidth: number,
+  cardWidth: number,
+  itemSpan: number,
+  gap: number,
+): number {
+  const desiredCenter = clientWidth / 2 - itemSpan;
+  const minimumCenter = gap + cardWidth / 2;
+  const maximumCenter = Math.max(minimumCenter, clientWidth - gap - cardWidth / 2);
+
+  return clamp(desiredCenter, minimumCenter, maximumCenter);
+}
+
+function getCollapsedScrollLeftForItem(
+  itemIndex: number,
+  clientWidth: number,
+  cardWidth: number,
+  gap: number,
+): number {
+  const itemSpan = cardWidth + gap;
+  const focusViewportCenter = getCollapsedFocusViewportCenter(
+    clientWidth,
+    cardWidth,
+    itemSpan,
+    gap,
+  );
+
+  return Math.max(
+    0,
+    gap + itemIndex * itemSpan - (focusViewportCenter - cardWidth / 2),
+  );
+}
+
+function isInteractiveDetailTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  return Boolean(
+    target.closest(
+      "button, a, input, textarea, select, summary, [role='button']",
+    ),
+  );
+}
+
+function isDetailSurfaceTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  return Boolean(
+    target.closest(".movie-scroller-detail-card, .movie-scroller-side-preview"),
+  );
+}
+
+function isNavbarInteractiveTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  return Boolean(
+    target.closest(
+      ".topbar button, " +
+        ".topbar a, " +
+        ".topbar input, " +
+        ".topbar textarea, " +
+        ".topbar select, " +
+        ".topbar summary, " +
+        ".topbar [role='button'], " +
+        ".topbar [role='dialog'], " +
+        ".topbar [role='menu'], " +
+        ".topbar [role='menuitem'], " +
+        ".topbar [role='tab'], " +
+        ".topbar [role='tablist']",
+    ),
+  );
+}
+
+export function MovieScroller({
+  mode,
+  movieItems,
+  detailVariant,
+  detailEyebrow,
+  jumpRequest,
+  ...props
+}: MovieScrollerProps) {
+  const resolvedVariant = mode ?? detailVariant ?? "nowPlaying";
+  const resolvedMovieItems =
+    movieItems ??
+    (resolvedVariant === "comingSoon" ? comingSoonMovies : movies);
+
+  if (resolvedMovieItems.length === 0) {
+    return null;
+  }
+
+  return (
+    <MovieScrollerContent
+      {...props}
+      movieItems={resolvedMovieItems}
+      detailVariant={resolvedVariant}
+      jumpRequest={jumpRequest}
+      detailEyebrow={
+        detailEyebrow ??
+        (resolvedVariant === "comingSoon" ? "Coming soon" : "Now playing")
+      }
+    />
+  );
+}
+
+function MovieScrollerContent({
+  movieItems,
+  detailVariant,
+  detailEyebrow,
+  jumpRequest,
+  cardWidth = 240,
+  cardHeight = 360,
+  gap = 16,
+  maxWidth = "100%",
+  className,
+}: MovieScrollerContentProps) {
+  const movieCount = movieItems.length;
+  const collapsedRepeatSets = getRepeatSetCount(cardWidth + gap, movieCount);
+  const collapsedMiddleStartIndex =
+    Math.floor(collapsedRepeatSets / 2) * movieCount;
+  const collapsedHeight = Math.ceil(
+    cardHeight * (1 + COLLAPSED_CARD_SCALE_BOOST),
+  );
+
+  const [phase, setPhase] = useState<FocusPhase>("collapsed");
+  const [collapsedAnchorItemIndex, setCollapsedAnchorItemIndex] = useState(
+    collapsedMiddleStartIndex,
+  );
+  const [collapsedSelectedItemIndex, setCollapsedSelectedItemIndex] = useState<
+    number | null
+  >(null);
+  const [detailActiveItemIndex, setDetailActiveItemIndex] = useState(
+    collapsedMiddleStartIndex,
+  );
+  const [detailClientWidth, setDetailClientWidth] = useState(0);
   const [isFocusPosterVisible, setIsFocusPosterVisible] = useState(false);
   const [showGhost, setShowGhost] = useState(false);
   const [isReturnHandoffReady, setIsReturnHandoffReady] = useState(false);
+  const [ghostTransition, setGhostTransition] =
+    useState<GhostTransitionState | null>(null);
+  const [detailTransition, setDetailTransition] =
+    useState<DetailTransitionState | null>(null);
+
   const shellRef = useRef<HTMLDivElement | null>(null);
+  const detailStageRef = useRef<HTMLDivElement | null>(null);
   const posterRef = useRef<HTMLImageElement | null>(null);
   const ghostRef = useRef<HTMLImageElement | null>(null);
   const targetRectRef = useRef<PosterSourceRect | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const scriptedJumpAnimationFrameRef = useRef<number | null>(null);
   const posterRevealTimeoutRef = useRef<number | null>(null);
   const crossfadeTimeoutRef = useRef<number | null>(null);
   const returnHandoffTimeoutRef = useRef<number | null>(null);
   const completeTimeoutRef = useRef<number | null>(null);
-  const ghostCleanupTimeoutRef = useRef<number | null>(null);
+  const detailTransitionTimeoutRef = useRef<number | null>(null);
+  const seenPosterSrcRef = useRef(new Set<string>());
+  const swipeGestureRef = useRef<SwipeGesture | null>(null);
+  const wheelLockUntilRef = useRef(0);
+  const transitionKeyRef = useRef(0);
+  const pendingViewportBehaviorRef = useRef<ScrollBehavior | null>(null);
+  const pendingExternalJumpRef = useRef<PendingExternalJump | null>(null);
+  const handledExternalJumpNonceRef = useRef<number | null>(null);
   const titleId = useId();
+
+  const isDetailMounted = phase !== "collapsed";
+  const detailLayout = getDetailLayout(detailClientWidth, maxWidth);
+  const displayItemIndex = detailTransition?.toItemIndex ?? detailActiveItemIndex;
+  const displayMovieIndex = mod(displayItemIndex, movieCount);
+  const canNavigate =
+    phase === "open" && detailTransition === null && movieCount > 1;
 
   const clearScheduledAnimation = useCallback(() => {
     if (animationFrameRef.current !== null) {
@@ -181,12 +568,78 @@ export function MovieScroller({
       window.clearTimeout(completeTimeoutRef.current);
       completeTimeoutRef.current = null;
     }
+  }, []);
 
-    if (ghostCleanupTimeoutRef.current !== null) {
-      window.clearTimeout(ghostCleanupTimeoutRef.current);
-      ghostCleanupTimeoutRef.current = null;
+  const clearScheduledDetailTransition = useCallback(() => {
+    if (detailTransitionTimeoutRef.current !== null) {
+      window.clearTimeout(detailTransitionTimeoutRef.current);
+      detailTransitionTimeoutRef.current = null;
     }
   }, []);
+
+  const clearScheduledExternalJump = useCallback(() => {
+    if (scriptedJumpAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(scriptedJumpAnimationFrameRef.current);
+      scriptedJumpAnimationFrameRef.current = null;
+    }
+  }, []);
+
+  const clearAllScheduledWork = useCallback(() => {
+    clearScheduledAnimation();
+    clearScheduledDetailTransition();
+    clearScheduledExternalJump();
+  }, [
+    clearScheduledAnimation,
+    clearScheduledDetailTransition,
+    clearScheduledExternalJump,
+  ]);
+
+  const measureDetailStage = useCallback(() => {
+    const stage = detailStageRef.current;
+    if (!stage) {
+      return 0;
+    }
+
+    const nextClientWidth = stage.clientWidth;
+    setDetailClientWidth((previous) =>
+      previous === nextClientWidth ? previous : nextClientWidth,
+    );
+
+    return nextClientWidth;
+  }, []);
+
+  const getCollapsedFallbackRect = useCallback(
+    (itemIndex: number): PosterSourceRect => {
+      const scroller = shellRef.current?.querySelector<HTMLElement>(
+        ".movie-scroller-collapsed",
+      );
+      const scrollerRect = scroller?.getBoundingClientRect();
+      const fallbackClientWidth =
+        scroller?.clientWidth ??
+        (typeof window === "undefined" ? 0 : Math.min(window.innerWidth, 1100));
+      const scrollLeft =
+        scroller?.scrollLeft ??
+        getCollapsedScrollLeftForItem(
+          itemIndex,
+          fallbackClientWidth,
+          cardWidth,
+          gap,
+        );
+      const itemSpan = cardWidth + gap;
+      const maxCardHeight = Math.ceil(
+        cardHeight * (1 + COLLAPSED_CARD_SCALE_BOOST),
+      );
+      const left = gap + itemIndex * itemSpan - scrollLeft;
+
+      return {
+        top: (scrollerRect?.top ?? 0) + maxCardHeight - cardHeight,
+        left: (scrollerRect?.left ?? 0) + left,
+        width: cardWidth,
+        height: cardHeight,
+      };
+    },
+    [cardHeight, cardWidth, gap],
+  );
 
   const applyRectToGhost = useCallback((rect: PosterSourceRect) => {
     const ghost = ghostRef.current;
@@ -220,12 +673,27 @@ export function MovieScroller({
     ghost.style.boxShadow = FOCUS_POSTER_SHADOW;
   }, []);
 
+  const applyGhostOpeningAppearance = useCallback((progress: number) => {
+    const ghost = ghostRef.current;
+    if (!ghost) {
+      return;
+    }
+
+    ghost.style.borderRadius = `${lerp(
+      SCROLLER_CARD_RADIUS_PX,
+      FOCUS_POSTER_RADIUS_PX,
+      progress,
+    )}px`;
+    ghost.style.boxShadow =
+      progress < 0.44 ? SCROLLER_CARD_SHADOW : FOCUS_POSTER_SHADOW;
+  }, []);
+
   const getCurrentPositionalOpacity = useCallback(
     (itemIndex: number, fallback: number) => {
       const item = shellRef.current?.querySelector<HTMLElement>(
-        `[data-scroller-item-index="${itemIndex}"]`,
+        `[data-movie-scroller-item-index="${itemIndex}"]`,
       );
-      const value = item?.dataset.scrollerPositionalOpacity;
+      const value = item?.dataset.movieScrollerPositionalOpacity;
       const parsed = value ? Number(value) : Number.NaN;
 
       return Number.isFinite(parsed) ? parsed : fallback;
@@ -236,12 +704,12 @@ export function MovieScroller({
   const getCurrentDestinationRect = useCallback(
     (itemIndex: number, fallback: PosterSourceRect) => {
       const item = shellRef.current?.querySelector<HTMLElement>(
-        `[data-scroller-item-index="${itemIndex}"]`,
+        `[data-movie-scroller-item-index="${itemIndex}"]`,
       );
       const rect = item?.getBoundingClientRect();
 
       if (!rect) {
-        return fallback;
+        return getCollapsedFallbackRect(itemIndex) ?? fallback;
       }
 
       return {
@@ -251,214 +719,653 @@ export function MovieScroller({
         height: rect.height,
       };
     },
+    [getCollapsedFallbackRect],
+  );
+
+  const getCollapsedScrollerElement = useCallback(
+    () =>
+      shellRef.current?.querySelector<HTMLElement>(".movie-scroller-collapsed") ??
+      null,
     [],
   );
 
-  const handleSelectMovie = useCallback(
-    (
-      movie: Movie,
-      sourceRect: PosterSourceRect,
-      itemIndex?: number,
-      sourceOpacity = 1,
-    ) => {
-      if (phase !== "idle" || itemIndex === undefined) {
+  const getCollapsedItemElement = useCallback(
+    (itemIndex: number) =>
+      shellRef.current?.querySelector<HTMLElement>(
+        `[data-movie-scroller-item-index="${itemIndex}"]`,
+      ) ?? null,
+    [],
+  );
+
+  const getCollapsedItemSource = useCallback(
+    (itemIndex: number) => {
+      const fallbackRect = getCollapsedFallbackRect(itemIndex);
+      const item = getCollapsedItemElement(itemIndex);
+
+      return {
+        sourceRect: toPosterSourceRect(item?.getBoundingClientRect(), fallbackRect),
+        sourceOpacity: getCurrentPositionalOpacity(itemIndex, 1),
+      };
+    },
+    [
+      getCollapsedFallbackRect,
+      getCollapsedItemElement,
+      getCurrentPositionalOpacity,
+    ],
+  );
+
+  const recenterCollapsedItemIndex = useCallback(
+    (itemIndex: number) => {
+      const setIndex = Math.floor(itemIndex / movieCount);
+      const minSet = DETAIL_EDGE_BUFFER_SETS;
+      const maxSet = collapsedRepeatSets - DETAIL_EDGE_BUFFER_SETS - 1;
+
+      if (setIndex > minSet && setIndex < maxSet) {
+        return itemIndex;
+      }
+
+      return collapsedMiddleStartIndex + mod(itemIndex, movieCount);
+    },
+    [collapsedMiddleStartIndex, collapsedRepeatSets, movieCount],
+  );
+
+  const beginCollapsedMovieOpen = useCallback(
+    (itemIndex: number, sourceRect: PosterSourceRect, sourceOpacity = 1) => {
+      if (phase !== "collapsed") {
         return;
       }
 
-      setIsFocusPosterVisible(false);
-      setIsReturnHandoffReady(false);
-      setShowGhost(true);
-      setSelectedMovie({
-        movie,
+      const detailItemIndex = recenterCollapsedItemIndex(itemIndex);
+
+      clearAllScheduledWork();
+      swipeGestureRef.current = null;
+      targetRectRef.current = null;
+      setCollapsedAnchorItemIndex(itemIndex);
+      setCollapsedSelectedItemIndex(itemIndex);
+      setDetailActiveItemIndex(detailItemIndex);
+      setDetailTransition(null);
+      setGhostTransition({
+        itemIndex,
         sourceRect,
         targetRect: sourceRect,
-        itemIndex,
         sourceOpacity,
         targetOpacity: sourceOpacity,
       });
+      setIsFocusPosterVisible(false);
+      setIsReturnHandoffReady(false);
+      setShowGhost(true);
       setPhase("opening");
     },
-    [phase],
+    [clearAllScheduledWork, phase, recenterCollapsedItemIndex],
+  );
+
+  const syncDetailViewportToFocusPosition = useCallback(
+    (behavior: ScrollBehavior = "auto") => {
+      const shell = shellRef.current;
+      if (!shell) {
+        return;
+      }
+
+      const currentScrollTop = getPageScrollTop();
+      const panelHeight = getDetailLayout(
+        measureDetailStage(),
+        maxWidth,
+      ).panelHeight;
+      const targetScrollTop = getViewportScrollTarget(
+        shell.getBoundingClientRect().top,
+        currentScrollTop,
+        panelHeight,
+      );
+
+      if (Math.abs(targetScrollTop - currentScrollTop) <= 1) {
+        return;
+      }
+
+      window.scrollTo({
+        top: targetScrollTop,
+        behavior,
+      });
+    },
+    [maxWidth, measureDetailStage],
+  );
+
+  const finalizeExternalMovieOpen = useCallback(
+    (itemIndex: number) => {
+      setCollapsedAnchorItemIndex(itemIndex);
+      scriptedJumpAnimationFrameRef.current = window.requestAnimationFrame(() => {
+        scriptedJumpAnimationFrameRef.current = null;
+        const { sourceRect, sourceOpacity } = getCollapsedItemSource(itemIndex);
+        beginCollapsedMovieOpen(itemIndex, sourceRect, sourceOpacity);
+      });
+    },
+    [beginCollapsedMovieOpen, getCollapsedItemSource],
+  );
+
+  const openMovieFromExternalRequest = useCallback(
+    (movieIndex: number, behavior: ScrollBehavior = "smooth") => {
+      const itemIndex = collapsedMiddleStartIndex + mod(movieIndex, movieCount);
+      const prefersReducedMotion =
+        typeof window !== "undefined" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const shouldAnimateTravel =
+        behavior !== "auto" && !prefersReducedMotion;
+      const scroller = getCollapsedScrollerElement();
+      const shellRect = shellRef.current?.getBoundingClientRect() ?? null;
+      const currentScrollTop = getPageScrollTop();
+      const shouldAnimatePage =
+        shellRect !== null &&
+        (shellRect.top < EXTERNAL_JUMP_VIEWPORT_EDGE_PX ||
+          shellRect.bottom > window.innerHeight - EXTERNAL_JUMP_VIEWPORT_EDGE_PX);
+
+      clearAllScheduledWork();
+      swipeGestureRef.current = null;
+      pendingViewportBehaviorRef.current = behavior;
+      setDetailTransition(null);
+      setGhostTransition(null);
+      setCollapsedSelectedItemIndex(null);
+      setIsFocusPosterVisible(false);
+      setIsReturnHandoffReady(false);
+      setShowGhost(false);
+
+      if (!shouldAnimateTravel || !scroller || scroller.clientWidth <= 0) {
+        finalizeExternalMovieOpen(itemIndex);
+        return;
+      }
+
+      const targetScrollLeft = getCollapsedScrollLeftForItem(
+        itemIndex,
+        scroller.clientWidth,
+        cardWidth,
+        gap,
+      );
+      const initialScrollLeft = scroller.scrollLeft;
+      const targetScrollTop =
+        shellRect === null || !shouldAnimatePage
+          ? currentScrollTop
+          : getCollapsedViewportScrollTarget(shellRect.top, currentScrollTop);
+
+      if (
+        Math.abs(initialScrollLeft - targetScrollLeft) <= 1 &&
+        Math.abs(currentScrollTop - targetScrollTop) <= 1
+      ) {
+        finalizeExternalMovieOpen(itemIndex);
+        return;
+      }
+
+      scriptedJumpAnimationFrameRef.current = window.requestAnimationFrame(
+        (startTime) => {
+          const animateTravel = (frameTime: number) => {
+            const progress = clamp(
+              (frameTime - startTime) / EXTERNAL_JUMP_RUFFLE_DURATION_MS,
+              0,
+              1,
+            );
+            const easedProgress = easeInOutCubic(progress);
+
+            scroller.scrollLeft = lerp(
+              initialScrollLeft,
+              targetScrollLeft,
+              easedProgress,
+            );
+
+            if (shouldAnimatePage) {
+              window.scrollTo({
+                top: lerp(currentScrollTop, targetScrollTop, easedProgress),
+                behavior: "auto",
+              });
+            }
+
+            if (progress < 1) {
+              scriptedJumpAnimationFrameRef.current =
+                window.requestAnimationFrame(animateTravel);
+              return;
+            }
+
+            scroller.scrollLeft = targetScrollLeft;
+
+            if (shouldAnimatePage) {
+              window.scrollTo({
+                top: targetScrollTop,
+                behavior: "auto",
+              });
+            }
+
+            scriptedJumpAnimationFrameRef.current = null;
+            finalizeExternalMovieOpen(itemIndex);
+          };
+
+          animateTravel(startTime);
+        },
+      );
+    },
+    [
+      cardWidth,
+      clearAllScheduledWork,
+      collapsedMiddleStartIndex,
+      finalizeExternalMovieOpen,
+      gap,
+      getCollapsedScrollerElement,
+      movieCount,
+    ],
+  );
+
+  const handleSelectCollapsedMovie = useCallback<
+    NonNullable<MovieScrollerProps["onSelectMovie"]>
+  >(
+    (_movie, sourceRect, itemIndex, sourceOpacity = 1) => {
+      if (itemIndex === undefined) {
+        return;
+      }
+
+      beginCollapsedMovieOpen(itemIndex, sourceRect, sourceOpacity);
+    },
+    [beginCollapsedMovieOpen],
+  );
+
+  const handleNavigateDetail = useCallback(
+    (direction: NavigationDirection) => {
+      if (phase !== "open" || detailTransition || movieCount <= 1) {
+        return;
+      }
+
+      const nextItemIndex = recenterCollapsedItemIndex(
+        detailActiveItemIndex + direction,
+      );
+
+      if (nextItemIndex === detailActiveItemIndex) {
+        return;
+      }
+
+      clearScheduledDetailTransition();
+      transitionKeyRef.current += 1;
+      const transitionKey = transitionKeyRef.current;
+
+      setDetailTransition({
+        key: transitionKey,
+        direction,
+        fromItemIndex: detailActiveItemIndex,
+        toItemIndex: nextItemIndex,
+      });
+
+      detailTransitionTimeoutRef.current = window.setTimeout(() => {
+        setDetailActiveItemIndex(nextItemIndex);
+        setDetailTransition((current) =>
+          current?.key === transitionKey ? null : current,
+        );
+        detailTransitionTimeoutRef.current = null;
+      }, DETAIL_NAV_DURATION_MS);
+    },
+    [
+      clearScheduledDetailTransition,
+      detailActiveItemIndex,
+      detailTransition,
+      movieCount,
+      phase,
+      recenterCollapsedItemIndex,
+    ],
   );
 
   const handleRequestClose = useCallback(() => {
-    if (!selectedMovie || phase === "idle" || phase === "closing") {
+    if (phase !== "open" || detailTransition) {
       return;
     }
 
-    const currentPosterRect = posterRef.current?.getBoundingClientRect();
-    if (currentPosterRect) {
-      targetRectRef.current = {
-        top: currentPosterRect.top,
-        left: currentPosterRect.left,
-        width: currentPosterRect.width,
-        height: currentPosterRect.height,
+    clearAllScheduledWork();
+
+    const returnItemIndex =
+      collapsedSelectedItemIndex ?? ghostTransition?.itemIndex ?? detailActiveItemIndex;
+
+    const fallbackSourceRect =
+      ghostTransition?.sourceRect ?? {
+        top: 0,
+        left: 0,
+        width: cardWidth,
+        height: cardHeight,
       };
-    }
-
-    const targetOpacity = getCurrentPositionalOpacity(
-      selectedMovie.itemIndex,
-      selectedMovie.sourceOpacity,
-    );
+    const currentPosterRect = posterRef.current?.getBoundingClientRect();
+    const sourceRect = currentPosterRect
+      ? {
+          top: currentPosterRect.top,
+          left: currentPosterRect.left,
+          width: currentPosterRect.width,
+          height: currentPosterRect.height,
+        }
+      : fallbackSourceRect;
+    const targetOpacity = getCurrentPositionalOpacity(returnItemIndex, 1);
     const targetRect = getCurrentDestinationRect(
-      selectedMovie.itemIndex,
-      selectedMovie.sourceRect,
+      returnItemIndex,
+      getCollapsedFallbackRect(returnItemIndex),
     );
 
-    setSelectedMovie((current) =>
-      current ? { ...current, targetOpacity, targetRect } : current,
-    );
+    targetRectRef.current = sourceRect;
+    setGhostTransition({
+      itemIndex: returnItemIndex,
+      sourceRect,
+      targetRect,
+      sourceOpacity: 1,
+      targetOpacity,
+    });
     setIsReturnHandoffReady(false);
     setShowGhost(true);
     setPhase("closing");
   }, [
+    cardHeight,
+    cardWidth,
+    clearAllScheduledWork,
+    collapsedSelectedItemIndex,
+    detailActiveItemIndex,
+    detailTransition,
+    getCollapsedFallbackRect,
     getCurrentDestinationRect,
     getCurrentPositionalOpacity,
+    ghostTransition?.itemIndex,
+    ghostTransition?.sourceRect,
     phase,
-    selectedMovie,
   ]);
 
+  const handleDetailWheel = useCallback(
+    (event: WheelEvent<HTMLDivElement>) => {
+      if (!canNavigate) {
+        return;
+      }
+
+      const horizontalDominant =
+        Math.abs(event.deltaX) > Math.abs(event.deltaY) &&
+        Math.abs(event.deltaX) > 24;
+
+      if (!horizontalDominant) {
+        return;
+      }
+
+      const now = performance.now();
+      if (wheelLockUntilRef.current > now) {
+        return;
+      }
+
+      wheelLockUntilRef.current = now + DETAIL_WHEEL_LOCK_MS;
+      event.preventDefault();
+      handleNavigateDetail(event.deltaX > 0 ? 1 : -1);
+    },
+    [canNavigate, handleNavigateDetail],
+  );
+
+  const handleDetailPointerDown = useCallback(
+    (event: PointerEvent<HTMLElement>) => {
+      if (
+        !canNavigate ||
+        event.button !== 0 ||
+        isInteractiveDetailTarget(event.target)
+      ) {
+        return;
+      }
+
+      swipeGestureRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+    },
+    [canNavigate],
+  );
+
+  const clearSwipeGesture = useCallback(
+    (event?: PointerEvent<HTMLElement>) => {
+      if (event && event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+
+      swipeGestureRef.current = null;
+    },
+    [],
+  );
+
+  const handleDetailPointerUp = useCallback(
+    (event: PointerEvent<HTMLElement>) => {
+      const swipeGesture = swipeGestureRef.current;
+      clearSwipeGesture(event);
+
+      if (!swipeGesture || swipeGesture.pointerId !== event.pointerId) {
+        return;
+      }
+
+      const deltaX = event.clientX - swipeGesture.startX;
+      const deltaY = event.clientY - swipeGesture.startY;
+
+      if (
+        Math.abs(deltaX) < DETAIL_SWIPE_THRESHOLD_PX ||
+        Math.abs(deltaX) <= Math.abs(deltaY) * 1.25
+      ) {
+        return;
+      }
+
+      handleNavigateDetail(deltaX < 0 ? 1 : -1);
+    },
+    [clearSwipeGesture, handleNavigateDetail],
+  );
+
   useEffect(() => {
-    if (!selectedMovie) {
+    if (phase !== "open") {
       return;
     }
 
-    const previousOverflow = document.body.style.overflow;
-    const previousPaddingRight = document.body.style.paddingRight;
-    const computedPaddingRight =
-      Number.parseFloat(window.getComputedStyle(document.body).paddingRight) ||
-      0;
-    const scrollbarWidth =
-      window.innerWidth - document.documentElement.clientWidth;
-
-    document.body.style.overflow = "hidden";
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${computedPaddingRight + scrollbarWidth}px`;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        handleRequestClose();
+    const handleWindowPointerDown = (event: globalThis.PointerEvent) => {
+      if (event.button !== 0) {
+        return;
       }
+
+      const target = event.target;
+
+      if (
+        isDetailSurfaceTarget(target) ||
+        isNavbarInteractiveTarget(target)
+      ) {
+        return;
+      }
+
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+
+      handleRequestClose();
     };
 
-    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("pointerdown", handleWindowPointerDown, true);
 
     return () => {
-      document.body.style.overflow = previousOverflow;
-      document.body.style.paddingRight = previousPaddingRight;
-      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("pointerdown", handleWindowPointerDown, true);
     };
-  }, [handleRequestClose, selectedMovie]);
+  }, [handleRequestClose, phase]);
 
   useLayoutEffect(() => {
-    if (!selectedMovie) {
+    if (phase !== "opening" || !ghostTransition) {
+      return;
+    }
+
+    clearScheduledAnimation();
+    const shell = shellRef.current;
+    const ghost = ghostRef.current;
+    if (!shell || !ghost) {
+      return;
+    }
+
+    const openingPanelHeight = getDetailLayout(
+      measureDetailStage(),
+      maxWidth,
+    ).panelHeight;
+    const initialScrollTop = getPageScrollTop();
+    const targetScrollTop = getViewportScrollTarget(
+      shell.getBoundingClientRect().top,
+      initialScrollTop,
+      openingPanelHeight,
+    );
+    const initialTargetRect = toPosterSourceRect(
+      posterRef.current?.getBoundingClientRect(),
+      ghostTransition.sourceRect,
+    );
+
+    targetRectRef.current = initialTargetRect;
+
+    applyRectToGhost(ghostTransition.sourceRect);
+    applyGhostScrollerAppearance();
+    ghost.style.opacity = `${ghostTransition.sourceOpacity}`;
+
+    animationFrameRef.current = window.requestAnimationFrame((startTime) => {
+      if (ghostRef.current) {
+        ghostRef.current.style.opacity = "1";
+      }
+
+      const animateOpening = (frameTime: number) => {
+        const linearProgress = clamp(
+          (frameTime - startTime) / POSTER_MOVE_DURATION_MS,
+          0,
+          1,
+        );
+        const scrollProgress = easeInOutCubic(linearProgress);
+        const ghostProgress = easeOutCubic(linearProgress);
+        const nextScrollTop = lerp(
+          initialScrollTop,
+          targetScrollTop,
+          scrollProgress,
+        );
+
+        window.scrollTo({
+          top: nextScrollTop,
+          behavior: "auto",
+        });
+
+        const liveTargetRect = toPosterSourceRect(
+          posterRef.current?.getBoundingClientRect(),
+          targetRectRef.current ?? ghostTransition.sourceRect,
+        );
+
+        targetRectRef.current = liveTargetRect;
+        applyRectToGhost({
+          top: lerp(
+            ghostTransition.sourceRect.top,
+            liveTargetRect.top,
+            ghostProgress,
+          ),
+          left: lerp(
+            ghostTransition.sourceRect.left,
+            liveTargetRect.left,
+            ghostProgress,
+          ),
+          width: lerp(
+            ghostTransition.sourceRect.width,
+            liveTargetRect.width,
+            ghostProgress,
+          ),
+          height: lerp(
+            ghostTransition.sourceRect.height,
+            liveTargetRect.height,
+            ghostProgress,
+          ),
+        });
+        applyGhostOpeningAppearance(ghostProgress);
+
+        if (linearProgress < 1) {
+          animationFrameRef.current = window.requestAnimationFrame(animateOpening);
+          return;
+        }
+
+        window.scrollTo({
+          top: targetScrollTop,
+          behavior: "auto",
+        });
+
+        if (targetRectRef.current) {
+          applyRectToGhost(targetRectRef.current);
+        }
+        applyGhostFocusAppearance();
+        animationFrameRef.current = null;
+      };
+
+      animateOpening(startTime);
+    });
+
+    posterRevealTimeoutRef.current = window.setTimeout(() => {
+      setIsFocusPosterVisible(true);
+    }, FOCUS_POSTER_REVEAL_DELAY_MS);
+
+    crossfadeTimeoutRef.current = window.setTimeout(() => {
+      if (ghostRef.current) {
+        ghostRef.current.style.opacity = "0";
+      }
+    }, GHOST_FADE_OUT_DELAY_MS);
+
+    completeTimeoutRef.current = window.setTimeout(() => {
+      setPhase("open");
+      setShowGhost(false);
+      completeTimeoutRef.current = null;
+    }, POSTER_HANDOFF_TOTAL_MS);
+
+    return () => {
+      clearScheduledAnimation();
+    };
+  }, [
+    applyGhostFocusAppearance,
+    applyGhostOpeningAppearance,
+    applyGhostScrollerAppearance,
+    applyRectToGhost,
+    clearScheduledAnimation,
+    ghostTransition,
+    maxWidth,
+    measureDetailStage,
+    phase,
+  ]);
+
+  useLayoutEffect(() => {
+    if (phase !== "closing" || !ghostTransition) {
       return;
     }
 
     clearScheduledAnimation();
 
-    if (phase === "opening") {
-      const targetRect = posterRef.current?.getBoundingClientRect();
-      if (!targetRect) {
-        return;
-      }
+    const closeFromRect =
+      targetRectRef.current ??
+      (posterRef.current
+        ? {
+            top: posterRef.current.getBoundingClientRect().top,
+            left: posterRef.current.getBoundingClientRect().left,
+            width: posterRef.current.getBoundingClientRect().width,
+            height: posterRef.current.getBoundingClientRect().height,
+          }
+        : ghostTransition.sourceRect);
 
-      targetRectRef.current = {
-        top: targetRect.top,
-        left: targetRect.left,
-        width: targetRect.width,
-        height: targetRect.height,
-      };
+    applyRectToGhost(closeFromRect);
+    applyGhostFocusAppearance();
 
-      applyRectToGhost(selectedMovie.sourceRect);
-      applyGhostScrollerAppearance();
-      if (ghostRef.current) {
-        ghostRef.current.style.opacity = `${selectedMovie.sourceOpacity}`;
-      }
+    if (ghostRef.current) {
+      ghostRef.current.style.opacity = "1";
+    }
 
+    animationFrameRef.current = window.requestAnimationFrame(() => {
       animationFrameRef.current = window.requestAnimationFrame(() => {
-        animationFrameRef.current = window.requestAnimationFrame(() => {
-          if (targetRectRef.current) {
-            applyRectToGhost(targetRectRef.current);
-          }
-          applyGhostFocusAppearance();
-          if (ghostRef.current) {
-            ghostRef.current.style.opacity = "1";
-          }
-        });
-      });
-
-      posterRevealTimeoutRef.current = window.setTimeout(() => {
-        setIsFocusPosterVisible(true);
-      }, FOCUS_POSTER_REVEAL_DELAY_MS);
-
-      crossfadeTimeoutRef.current = window.setTimeout(() => {
+        setIsFocusPosterVisible(false);
+        applyRectToGhost(ghostTransition.targetRect);
+        applyGhostScrollerAppearance();
         if (ghostRef.current) {
-          ghostRef.current.style.opacity = "0";
+          ghostRef.current.style.opacity = `${ghostTransition.targetOpacity}`;
         }
-      }, GHOST_FADE_OUT_DELAY_MS);
-
-      completeTimeoutRef.current = window.setTimeout(() => {
-        setPhase("open");
-        ghostCleanupTimeoutRef.current = window.setTimeout(() => {
-          setShowGhost(false);
-          ghostCleanupTimeoutRef.current = null;
-        }, POSTER_HANDOFF_TOTAL_MS - POSTER_MOVE_DURATION_MS);
-      }, POSTER_HANDOFF_TOTAL_MS);
-    }
-
-    if (phase === "closing") {
-      const closeFromRect =
-        targetRectRef.current ??
-        (posterRef.current
-          ? {
-              top: posterRef.current.getBoundingClientRect().top,
-              left: posterRef.current.getBoundingClientRect().left,
-              width: posterRef.current.getBoundingClientRect().width,
-              height: posterRef.current.getBoundingClientRect().height,
-            }
-          : null);
-
-      if (!closeFromRect) {
-        completeTimeoutRef.current = window.setTimeout(() => {
-          setSelectedMovie(null);
-          setPhase("idle");
-          setShowGhost(false);
-        }, 0);
-        return;
-      }
-
-      applyRectToGhost(closeFromRect);
-      applyGhostFocusAppearance();
-      if (ghostRef.current) {
-        ghostRef.current.style.opacity = "1";
-      }
-
-      animationFrameRef.current = window.requestAnimationFrame(() => {
-        animationFrameRef.current = window.requestAnimationFrame(() => {
-          setIsFocusPosterVisible(false);
-          applyRectToGhost(selectedMovie.targetRect);
-          applyGhostScrollerAppearance();
-          if (ghostRef.current) {
-            ghostRef.current.style.opacity = `${selectedMovie.targetOpacity}`;
-          }
-        });
       });
+    });
 
-      returnHandoffTimeoutRef.current = window.setTimeout(() => {
-        setIsReturnHandoffReady(true);
-        setShowGhost(false);
-        returnHandoffTimeoutRef.current = null;
-      }, POSTER_RETURN_SETTLE_DELAY_MS);
+    returnHandoffTimeoutRef.current = window.setTimeout(() => {
+      setIsReturnHandoffReady(true);
+      setShowGhost(false);
+      returnHandoffTimeoutRef.current = null;
+    }, POSTER_RETURN_SETTLE_DELAY_MS);
 
-      completeTimeoutRef.current = window.setTimeout(() => {
-        setIsReturnHandoffReady(false);
-        setSelectedMovie(null);
-        setPhase("idle");
-        setShowGhost(false);
-      }, POSTER_HANDOFF_TOTAL_MS);
-    }
+    completeTimeoutRef.current = window.setTimeout(() => {
+      setIsReturnHandoffReady(false);
+      setCollapsedSelectedItemIndex(null);
+      setGhostTransition(null);
+      setDetailTransition(null);
+      setShowGhost(false);
+      setPhase("collapsed");
+      completeTimeoutRef.current = null;
+    }, POSTER_HANDOFF_TOTAL_MS);
 
     return () => {
       clearScheduledAnimation();
@@ -468,40 +1375,227 @@ export function MovieScroller({
     applyGhostScrollerAppearance,
     applyRectToGhost,
     clearScheduledAnimation,
+    ghostTransition,
     phase,
-    selectedMovie,
   ]);
 
-  const getCardClassName = useCallback(
-    (cardState: MovieScrollerCardState) => {
-      if (!selectedMovie) {
-        return undefined;
+  useEffect(() => {
+    if (!isDetailMounted) {
+      return;
+    }
+
+    const stage = detailStageRef.current;
+    if (!stage) {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      measureDetailStage();
+      if (phase === "open") {
+        syncDetailViewportToFocusPosition("auto");
+      }
+    });
+
+    observer.observe(stage);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [
+    isDetailMounted,
+    measureDetailStage,
+    phase,
+    syncDetailViewportToFocusPosition,
+  ]);
+
+  useLayoutEffect(() => {
+    if (phase !== "open") {
+      return;
+    }
+
+    const behavior = pendingViewportBehaviorRef.current ?? "auto";
+    pendingViewportBehaviorRef.current = null;
+    syncDetailViewportToFocusPosition(behavior);
+  }, [
+    detailActiveItemIndex,
+    detailClientWidth,
+    phase,
+    syncDetailViewportToFocusPosition,
+  ]);
+
+  useEffect(() => {
+    if (!jumpRequest) {
+      return;
+    }
+
+    const movieIndex = movieItems.findIndex(
+      (movie) => movie.tmdbId === jumpRequest.tmdbId,
+    );
+
+    if (movieIndex === -1) {
+      return;
+    }
+
+    if (handledExternalJumpNonceRef.current === jumpRequest.nonce) {
+      return;
+    }
+
+    handledExternalJumpNonceRef.current = jumpRequest.nonce;
+    pendingExternalJumpRef.current = {
+      movieIndex,
+      behavior: jumpRequest.behavior ?? "smooth",
+      nonce: jumpRequest.nonce,
+    };
+
+    if (phase === "collapsed") {
+      const pendingJump = pendingExternalJumpRef.current;
+      pendingExternalJumpRef.current = null;
+
+      if (pendingJump) {
+        openMovieFromExternalRequest(
+          pendingJump.movieIndex,
+          pendingJump.behavior,
+        );
+      }
+      return;
+    }
+
+    if (phase === "open") {
+      handleRequestClose();
+    }
+  }, [
+    handleRequestClose,
+    jumpRequest,
+    movieItems,
+    openMovieFromExternalRequest,
+    phase,
+  ]);
+
+  useEffect(() => {
+    const pendingJump = pendingExternalJumpRef.current;
+    if (!pendingJump) {
+      return;
+    }
+
+    if (phase === "collapsed") {
+      pendingExternalJumpRef.current = null;
+      openMovieFromExternalRequest(pendingJump.movieIndex, pendingJump.behavior);
+      return;
+    }
+
+    if (phase === "open") {
+      handleRequestClose();
+    }
+  }, [handleRequestClose, openMovieFromExternalRequest, phase]);
+
+  useEffect(() => {
+    if (!isDetailMounted) {
+      return;
+    }
+
+    const handleWindowResize = () => {
+      measureDetailStage();
+      if (phase === "open") {
+        syncDetailViewportToFocusPosition("auto");
+      }
+    };
+
+    window.addEventListener("resize", handleWindowResize);
+
+    return () => {
+      window.removeEventListener("resize", handleWindowResize);
+    };
+  }, [
+    isDetailMounted,
+    measureDetailStage,
+    phase,
+    syncDetailViewportToFocusPosition,
+  ]);
+
+  useEffect(() => {
+    if (!isDetailMounted) {
+      return;
+    }
+
+    const preloadMovieIndexes = new Set<number>();
+
+    for (
+      let offset = -DETAIL_PRELOAD_RADIUS;
+      offset <= DETAIL_PRELOAD_RADIUS;
+      offset += 1
+    ) {
+      preloadMovieIndexes.add(mod(displayMovieIndex + offset, movieCount));
+    }
+
+    preloadMovieIndexes.forEach((movieIndex) => {
+      const movie = movieItems[movieIndex];
+      const imageSources = [movie.imageSrc, movie.backdropSrc].filter(
+        Boolean,
+      ) as string[];
+
+      imageSources.forEach((src) => {
+        if (seenPosterSrcRef.current.has(src)) {
+          return;
+        }
+
+        seenPosterSrcRef.current.add(src);
+        const image = new Image();
+        image.decoding = "async";
+        image.src = src;
+      });
+    });
+  }, [displayMovieIndex, isDetailMounted, movieCount, movieItems]);
+
+  useEffect(() => {
+    if (phase !== "open") {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        handleRequestClose();
+        return;
       }
 
-      if (cardState.isSelected) {
-        return "movie-scroller__card movie-scroller__card--selected";
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        handleNavigateDetail(1);
+        return;
       }
 
-      return cardState.relativeIndex !== null && cardState.relativeIndex < 0
-        ? "movie-scroller__card movie-scroller__card--dismiss-left"
-        : "movie-scroller__card movie-scroller__card--dismiss-right";
-    },
-    [selectedMovie],
-  );
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        handleNavigateDetail(-1);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleNavigateDetail, handleRequestClose, phase]);
+
+  useEffect(() => {
+    return () => {
+      clearAllScheduledWork();
+    };
+  }, [clearAllScheduledWork]);
 
   const getCardStyle = useCallback(
     (cardState: MovieScrollerCardState) => {
       const style = buildCardOffset(cardState, phase);
+
       if (
         phase === "closing" &&
-        selectedMovie &&
+        ghostTransition &&
         cardState.isSelected &&
         style
       ) {
         return isReturnHandoffReady
           ? {
               ...style,
-              opacity: selectedMovie.targetOpacity,
+              opacity: ghostTransition.targetOpacity,
               transition: "none",
             }
           : style;
@@ -509,117 +1603,243 @@ export function MovieScroller({
 
       return style;
     },
-    [isReturnHandoffReady, phase, selectedMovie],
+    [ghostTransition, isReturnHandoffReady, phase],
   );
 
-  const focusStateClass =
-    phase === "idle"
-      ? ""
-      : phase === "closing"
-        ? " is-closing"
-        : phase === "opening"
-          ? " is-opening"
-          : " is-open";
+  const shellClassName = [
+    "movie-scroller-shell",
+    phase === "opening" ? "is-opening" : "",
+    phase === "open" ? "is-open" : "",
+    phase === "closing" ? "is-closing" : "",
+    phase !== "collapsed" ? "is-detail-mode" : "",
+    detailTransition ? "is-transitioning" : "",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const renderDetailBody = (
+    itemIndex: number,
+    bodyKey: string,
+    motionClassName: string,
+    posterVisible: boolean,
+    shouldAttachPosterRef: boolean,
+  ) => {
+    const movie = movieItems[mod(itemIndex, movieCount)];
+    const shouldAnimateBackdrop =
+      phase === "opening" || motionClassName.includes("is-entering");
+
+    return (
+      <div
+        key={bodyKey}
+        className={["movie-scroller-detail-body", motionClassName]
+          .filter(Boolean)
+          .join(" ")}
+        aria-hidden={motionClassName.includes("leaving") ? "true" : undefined}
+      >
+        {movie.backdropSrc ? (
+          <div className="movie-scroller-detail-backdrop-shell" aria-hidden="true">
+            <img
+              src={movie.backdropSrc}
+              alt=""
+              className={`movie-scroller-detail-backdrop${
+                shouldAnimateBackdrop ? " is-animating-in" : ""
+              }`}
+              decoding="async"
+              loading="eager"
+            />
+          </div>
+        ) : null}
+
+        <div className="movie-scroller-detail-sheen" aria-hidden="true" />
+
+        <div className="movie-scroller-detail-content">
+          <MovieDetailsContent
+            movie={movie}
+            posterRef={shouldAttachPosterRef ? posterRef : undefined}
+            titleId={`${titleId}-${bodyKey}`}
+            eyebrow={detailEyebrow}
+            variant={detailVariant}
+            posterClassName={`details-poster movie-scroller-detail-poster${
+              posterVisible ? " is-visible" : ""
+            }`}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  const detailBodies = detailTransition
+    ? [
+        renderDetailBody(
+          detailTransition.fromItemIndex,
+          `leave-${detailTransition.key}`,
+          detailTransition.direction > 0
+            ? "is-current is-leaving-to-left"
+            : "is-current is-leaving-to-right",
+          true,
+          false,
+        ),
+        renderDetailBody(
+          detailTransition.toItemIndex,
+          `enter-${detailTransition.key}`,
+          detailTransition.direction > 0
+            ? "is-current is-entering-from-right"
+            : "is-current is-entering-from-left",
+          true,
+          false,
+        ),
+      ]
+    : [
+        renderDetailBody(
+          detailActiveItemIndex,
+          `steady-${detailActiveItemIndex}`,
+          "is-current",
+          phase === "opening" ? isFocusPosterVisible : true,
+          true,
+        ),
+      ];
+
+  const previousPreviewMovie = movieItems[mod(displayMovieIndex - 1, movieCount)];
+  const nextPreviewMovie = movieItems[mod(displayMovieIndex + 1, movieCount)];
 
   return (
     <div
       ref={shellRef}
-      className="movie-scroller-shell"
-      style={movieScrollerTimingStyle}
+      className={shellClassName}
+      style={{
+        ...movieScrollerTimingStyle,
+        height: phase === "collapsed" ? collapsedHeight : detailLayout.panelHeight,
+      }}
     >
-      <MovieScrollerBase
-        {...props}
-        selectedItemIndex={selectedMovie?.itemIndex ?? null}
-        getCardClassName={getCardClassName}
-        getCardStyle={getCardStyle}
-        onSelectMovie={handleSelectMovie}
-        className={[
-          "movie-scroller",
-          phase === "opening" || phase === "open" ? "is-focused" : "",
-          phase === "closing" ? "is-restoring" : "",
-          className,
-        ]
-          .filter(Boolean)
-          .join(" ")}
-      />
+      <div className="movie-scroller-collapsed-layer" aria-hidden={isDetailMounted}>
+        <MovieScrollerBase
+          movieItems={movieItems}
+          cardWidth={cardWidth}
+          cardHeight={cardHeight}
+          gap={gap}
+          maxWidth={maxWidth}
+          anchorItemIndex={collapsedAnchorItemIndex}
+          onSelectMovie={handleSelectCollapsedMovie}
+          selectedItemIndex={
+            phase === "collapsed" ? null : collapsedSelectedItemIndex
+          }
+          getCardStyle={getCardStyle}
+          className="movie-scroller-collapsed"
+        />
+      </div>
 
-      {selectedMovie ? (
-        <>
+      {isDetailMounted ? (
+        <div className="movie-scroller-detail-layer">
           <div
-            className={`movie-scroller-focus-stage${focusStateClass}`}
-            onClick={handleRequestClose}
-            role="presentation"
+            ref={detailStageRef}
+            className="movie-scroller-detail-stage"
+            onWheel={handleDetailWheel}
           >
-            <section
-              className="movie-scroller-focus-layout"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby={titleId}
-              onClick={(event) => {
-                event.stopPropagation();
-              }}
-            >
-              {selectedMovie.movie.backdropSrc ? (
-                <div
-                  className={`movie-scroller-focus-backdrop-shell${focusStateClass}`}
-                  aria-hidden="true"
+            {movieCount > 1 ? (
+              <>
+                <button
+                  type="button"
+                  className={`movie-scroller-side-preview movie-scroller-side-preview--left${
+                    canNavigate ? "" : " is-disabled"
+                  }`}
+                  aria-label={`Show previous movie: ${previousPreviewMovie.title}`}
+                  disabled={!canNavigate}
+                  onClick={() => {
+                    handleNavigateDetail(-1);
+                  }}
+                  style={{
+                    top: detailLayout.previewTop,
+                    left: detailLayout.previewLeft,
+                    width: detailLayout.previewWidth,
+                    height: detailLayout.previewHeight,
+                  }}
                 >
                   <img
-                    src={selectedMovie.movie.backdropSrc}
-                    alt=""
-                    className="movie-scroller-focus-backdrop"
+                    src={previousPreviewMovie.imageSrc}
+                    alt={previousPreviewMovie.title}
+                    className="movie-scroller-side-preview-image"
+                    loading="eager"
                     decoding="async"
-                    fetchPriority="high"
+                    draggable={false}
                   />
-                </div>
-              ) : null}
+                </button>
 
+                <button
+                  type="button"
+                  className={`movie-scroller-side-preview movie-scroller-side-preview--right${
+                    canNavigate ? "" : " is-disabled"
+                  }`}
+                  aria-label={`Show next movie: ${nextPreviewMovie.title}`}
+                  disabled={!canNavigate}
+                  onClick={() => {
+                    handleNavigateDetail(1);
+                  }}
+                  style={{
+                    top: detailLayout.previewTop,
+                    left: detailLayout.previewRight,
+                    width: detailLayout.previewWidth,
+                    height: detailLayout.previewHeight,
+                  }}
+                >
+                  <img
+                    src={nextPreviewMovie.imageSrc}
+                    alt={nextPreviewMovie.title}
+                    className="movie-scroller-side-preview-image"
+                    loading="eager"
+                    decoding="async"
+                    draggable={false}
+                  />
+                </button>
+              </>
+            ) : null}
+
+            <article
+              className="movie-scroller-detail-card"
+              style={{
+                width: detailLayout.panelWidth,
+                height: detailLayout.panelHeight,
+              }}
+              aria-label={`${movieItems[displayMovieIndex].title} details`}
+              onPointerDown={handleDetailPointerDown}
+              onPointerUp={handleDetailPointerUp}
+              onPointerCancel={clearSwipeGesture}
+            >
               <button
                 type="button"
                 className="movie-scroller-close"
-                aria-label="Close spotlight view"
+                aria-label={`Close ${movieItems[displayMovieIndex].title} details`}
                 onClick={handleRequestClose}
+                disabled={phase !== "open" || detailTransition !== null}
               >
                 <X size={20} strokeWidth={2.1} />
               </button>
 
-              <div className="movie-scroller-focus-content">
-                <MovieDetailsContent
-                  movie={selectedMovie.movie}
-                  posterRef={posterRef}
-                  titleId={titleId}
-                  posterClassName={`details-poster movie-scroller-focus-poster${
-                    isFocusPosterVisible ? " is-visible" : ""
-                  }`}
-                  eyebrow="Revival spotlight"
-                />
-              </div>
-            </section>
+              <div className="movie-scroller-detail-stack">{detailBodies}</div>
+            </article>
           </div>
+        </div>
+      ) : null}
 
-          {showGhost ? (
-            <img
-              ref={ghostRef}
-              src={selectedMovie.movie.imageSrc}
-              alt=""
-              aria-hidden="true"
-              className={`movie-scroller-poster-ghost${
-                phase === "opening" ? " is-opening" : ""
-              }${phase === "closing" ? " is-closing" : ""}`}
-              style={
-                phase === "opening"
-                  ? {
-                      top: selectedMovie.sourceRect.top,
-                      left: selectedMovie.sourceRect.left,
-                      width: selectedMovie.sourceRect.width,
-                      height: selectedMovie.sourceRect.height,
-                      opacity: selectedMovie.sourceOpacity,
-                    }
-                  : undefined
-              }
-            />
-          ) : null}
-        </>
+      {showGhost && ghostTransition ? (
+        <img
+          ref={ghostRef}
+          src={movieItems[mod(ghostTransition.itemIndex, movieCount)].imageSrc}
+          alt=""
+          aria-hidden="true"
+          className={`movie-scroller-poster-ghost${
+            phase === "opening" ? " is-opening" : ""
+          }${phase === "opening" ? " is-scripted-opening" : ""}${
+            phase === "closing" ? " is-closing" : ""
+          }`}
+          style={{
+            top: ghostTransition.sourceRect.top,
+            left: ghostTransition.sourceRect.left,
+            width: ghostTransition.sourceRect.width,
+            height: ghostTransition.sourceRect.height,
+            opacity: ghostTransition.sourceOpacity,
+          }}
+        />
       ) : null}
     </div>
   );

@@ -12,40 +12,47 @@ type TheaterTheme = {
   surface: string;
   glow: string;
   pillBackground?: string;
+  pillClassName?: string;
 };
 
 const theaterThemes: Record<string, TheaterTheme> = {
   "Yes Planet": {
-    accent: "#ff9a3d",
+    accent: "#d9710f",
     surface: "rgba(255, 154, 61, 0.12)",
-    glow: "rgba(255, 154, 61, 0.28)",
+    glow: "rgba(217, 113, 15, 0.28)",
+    pillClassName: "details-time-pill--yes-planet",
   },
   "Cinema City": {
-    accent: "#5ea8ff",
+    accent: "#186bdf",
     surface: "rgba(94, 168, 255, 0.12)",
-    glow: "rgba(94, 168, 255, 0.3)",
+    glow: "rgba(24, 107, 223, 0.3)",
+    pillClassName: "details-time-pill--cinema-city",
   },
   "Lev Cinema": {
-    accent: "#ff6b6b",
+    accent: "#b50519",
     surface: "rgba(255, 107, 107, 0.12)",
-    glow: "rgba(255, 107, 107, 0.28)",
+    glow: "rgba(181, 5, 25, 0.28)",
+    pillClassName: "details-time-pill--lev-cinema",
   },
   "Rav Hen": {
-    accent: "#ffb14a",
+    accent: "#ab5306",
     surface: "rgba(255, 177, 74, 0.14)",
-    glow: "rgba(79, 146, 255, 0.32)",
+    glow: "rgba(13, 6, 218, 0.32)",
     pillBackground:
       "linear-gradient(135deg, rgba(79, 146, 255, 0.22), rgba(255, 177, 74, 0.18))",
+    pillClassName: "details-time-pill--rav-hen",
   },
   "Hot Cinema": {
-    accent: "#ff4fa0",
+    accent: "#f06a87",
     surface: "rgba(255, 79, 160, 0.14)",
-    glow: "rgba(255, 79, 160, 0.32)",
+    glow: "rgba(240, 106, 135, 0.32)",
+    pillClassName: "details-time-pill--hot-cinema",
   },
   Movieland: {
-    accent: "#58003a",
+    accent: "#a80371",
     surface: "rgba(88, 0, 58, 0.12)",
-    glow: "rgba(88, 0, 58, 0.3)",
+    glow: "rgba(168, 3, 113, 0.3)",
+    pillClassName: "details-time-pill--movieland",
   },
 };
 const fallbackTheaterThemes: TheaterTheme[] = [
@@ -443,14 +450,24 @@ export function MovieDetailsContent({
                             {theater.showtimes.map((time) => (
                               <span
                                 key={`${theater.theater}-${day.date}-${time}`}
-                                className="details-time-pill"
-                                style={{
-                                  color: colors.accent,
-                                  borderColor: colors.accent,
-                                  background:
-                                    colors.pillBackground ?? colors.surface,
-                                  boxShadow: `inset 0 0 0 1px ${colors.surface}`,
-                                }}
+                                className={[
+                                  "details-time-pill",
+                                  colors.pillClassName,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" ")}
+                                style={
+                                  colors.pillClassName
+                                    ? undefined
+                                    : {
+                                        color: colors.accent,
+                                        borderColor: colors.accent,
+                                        background:
+                                          colors.pillBackground ??
+                                          colors.surface,
+                                        boxShadow: `inset 0 0 0 1px ${colors.surface}`,
+                                      }
+                                }
                               >
                                 {time}
                               </span>
