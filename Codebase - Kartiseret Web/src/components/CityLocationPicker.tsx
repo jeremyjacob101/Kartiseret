@@ -8,6 +8,7 @@ import {
 } from "react";
 import { LoaderCircle, LocateFixed, Search } from "lucide-react";
 import {
+  GeolocateControl,
   LngLatBounds,
   Map as MapLibreMap,
   Marker,
@@ -199,6 +200,45 @@ function buildBounds(points: readonly [number, number][]): LngLatBounds | null {
   }
 
   return bounds;
+}
+
+function toRadians(value: number) {
+  return (value * Math.PI) / 180;
+}
+
+function getDistanceMeters(
+  first: [number, number],
+  second: [number, number],
+) {
+  const earthRadiusMeters = 6_371_000;
+  const deltaLat = toRadians(second[1] - first[1]);
+  const deltaLng = toRadians(second[0] - first[0]);
+  const firstLat = toRadians(first[1]);
+  const secondLat = toRadians(second[1]);
+  const haversine =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(firstLat) * Math.cos(secondLat) * Math.sin(deltaLng / 2) ** 2;
+
+  return 2 * earthRadiusMeters * Math.asin(Math.sqrt(haversine));
+}
+
+function getNearestCityLocation(
+  point: [number, number],
+  entries: readonly CityEntry[],
+) {
+  let nearestLocation: AppLocation | null = null;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (const entry of entries) {
+    const distance = getDistanceMeters(point, entry.center);
+
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestLocation = entry.location;
+    }
+  }
+
+  return nearestLocation;
 }
 
 function buildCityEntries(theaters: readonly Theater[]): CityEntry[] {
@@ -629,6 +669,13 @@ export function CityLocationPicker({
     const secondaryLabelElements: SecondaryCityMarkerState[] = [];
     const markers: Marker[] = [];
     const theaterMarkers: TheaterMarkerState[] = [];
+    const geolocateControl = new GeolocateControl({
+      positionOptions: {
+        enableHighAccuracy: true,
+      },
+      showAccuracyCircle: false,
+      trackUserLocation: false,
+    });
     let visibilityFrame = 0;
 
     mapRef.current = map;
@@ -638,6 +685,7 @@ export function CityLocationPicker({
     map.dragRotate.disable();
     map.touchZoomRotate.disableRotation();
     map.addControl(new NavigationControl({ showCompass: false }), "top-right");
+    map.addControl(geolocateControl, "top-right");
 
     function syncMarkerVisibility() {
       const zoom = map.getZoom();
@@ -904,6 +952,21 @@ export function CityLocationPicker({
       setIsMapLoading(false);
     }
 
+    function handleGeolocate(position: GeolocationPosition) {
+      const nearestLocation = getNearestCityLocation(
+        [position.coords.longitude, position.coords.latitude],
+        cityEntries,
+      );
+
+      if (!nearestLocation) {
+        return;
+      }
+
+      void handleLocationSelect(nearestLocation);
+    }
+
+    geolocateControl.on("geolocate", handleGeolocate);
+
     map.once("load", handleLoad);
 
     return () => {
@@ -925,6 +988,7 @@ export function CityLocationPicker({
       map.off("move", scheduleSyncMarkerVisibility);
       map.off("zoom", scheduleSyncMarkerVisibility);
       map.off("resize", scheduleSyncMarkerVisibility);
+      geolocateControl.off("geolocate", handleGeolocate);
       scheduleVisibilitySyncRef.current = null;
       cityMarkersRef.current = [];
       secondaryCityLabelElementsRef.current = [];
