@@ -24,44 +24,35 @@ const CITY_START_BOUNDS: [[number, number], [number, number]] = [
   [34.48, 31.18],
   [35.34, 33.02],
 ];
-const ALWAYS_VISIBLE_CITIES = new Set<AppLocation>([
-  "Beer Sheva",
-  "Haifa",
-  "Jerusalem",
-  "Tel Aviv",
-]);
-const JERUSALEM_ONLY_MAX_ZOOM = 6.35;
-const ANCHOR_CITIES_ONLY_MAX_ZOOM = 8.55;
-const MID_CITY_MIN_ZOOM = 9.4;
-const DETAIL_CITY_MIN_ZOOM = 10.05;
-const OTHER_CITY_MIN_ZOOM = 9.75;
+const INITIAL_MAP_CENTER: [number, number] = [34.96, 32.15];
+const INITIAL_MAP_ZOOM = 2;
+const DEFAULT_CITY_REVEAL_ZOOM = 10;
+const CITY_REVEAL_ZOOM: Partial<Record<AppLocation, number>> = {
+  Jerusalem: 0,
+  "Beer Sheva": 6,
+  "Tel Aviv": 6,
+  Haifa: 6,
+  Ashkelon: 7,
+  Ashdod: 7.5,
+  "Zichron Yaakov": 7.5,
+  Carmiel: 7.5,
+  Netanya: 7.5,
+  Modiin: 7.5,
+  Chadera: 8,
+  Nahariya: 8,
+  "Rishon Letzion": 8,
+  Glilot: 8,
+  "Kiryat Bialik": 8.5,
+  Herziliya: 9,
+  Rehovot: 9,
+  Omer: 9,
+  "Ayalon": 9.5,
+  "Kfar Saba" : 9.5,
+};
+const PRIMARY_CITY_COLLISION_PADDING = { x: 18, y: 14 };
+const CITY_LABEL_NORTH_OFFSET = 0.00115;
 const MAP_MAX_ZOOM = 16.5;
 const SINGLE_CITY_FOCUS_ZOOM = 11.6;
-const MID_ZOOM_CITIES = new Set<AppLocation>([
-  "Ashdod",
-  "Ashkelon",
-  "Carmiel",
-  "Chadera",
-  "Kiryat Bialik",
-  "Netanya",
-  "Omer",
-  "Rishon Letzion",
-  "Zichron Yaakov",
-]);
-const DETAIL_ZOOM_CITIES = new Set<AppLocation>([
-  "Ayalon",
-  "Even Yehuda",
-  "Givataim",
-  "Glilot",
-  "Herziliya",
-  "Kfar Saba",
-  "Kiryat Ono",
-  "Modiin",
-  "Petach Tikvah",
-  "Raanana",
-  "Ramat Hasharon",
-  "Rehovot",
-]);
 const appLocationSet = new Set<string>(ALL_LOCATIONS);
 const ROAD_LABEL_KEYWORDS = [
   "road",
@@ -127,7 +118,7 @@ const SECONDARY_CITIES: ReadonlyArray<{
   { name: "Lod", center: [34.8881, 31.951], minZoom: 9.85, priority: 58 },
   { name: "Ramla", center: [34.8675, 31.9316], minZoom: 9.95, priority: 54 },
   { name: "Yavne", center: [34.7386, 31.8781], minZoom: 10.05, priority: 46 },
-  { name: "Ness Ziona", center: [34.7987, 31.9293], minZoom: 10.1, priority: 42 },
+  { name: "Ness Ziona", center: [34.7987, 31.9293], minZoom: 9.1, priority: 42 },
   { name: "Ramallah", center: [35.2045, 31.9038], minZoom: 9.75, priority: 72 },
   { name: "Bethlehem", center: [35.2034, 31.7054], minZoom: 9.9, priority: 64 },
   { name: "Hebron", center: [35.0998, 31.5326], minZoom: 9.85, priority: 68 },
@@ -140,6 +131,7 @@ const SECONDARY_CITIES: ReadonlyArray<{
 type CityEntry = {
   location: AppLocation;
   center: [number, number];
+  labelCenter: [number, number];
   theaterCount: number;
   chains: string[];
 };
@@ -154,6 +146,7 @@ type CityMarkerState = {
 type TheaterMarkerState = {
   marker: Marker;
   element: HTMLButtonElement;
+  location: AppLocation | null;
   popup: Popup;
 };
 
@@ -245,6 +238,7 @@ function buildCityEntries(theaters: readonly Theater[]): CityEntry[] {
       {
         location,
         center,
+        labelCenter: [center[0], center[1] + CITY_LABEL_NORTH_OFFSET],
         theaterCount: cityTheaters.length,
         chains: [...new Set(cityTheaters.map((theater) => theater.chain))].sort(),
       },
@@ -265,7 +259,12 @@ function styleCityLabel(
   element.disabled = options.syncing;
   element.setAttribute("aria-pressed", String(options.active));
   element.setAttribute("aria-disabled", String(options.syncing));
+  element.setAttribute("aria-hidden", String(!options.visible));
   element.tabIndex = options.visible ? 0 : -1;
+  element.style.opacity = options.visible ? "1" : "0";
+  element.style.visibility = options.visible ? "visible" : "hidden";
+  element.style.pointerEvents =
+    options.visible && !options.syncing ? "auto" : "none";
 }
 
 function styleSecondaryCityLabel(
@@ -274,6 +273,17 @@ function styleSecondaryCityLabel(
 ) {
   element.classList.toggle("is-hidden", !visible);
   element.setAttribute("aria-hidden", String(!visible));
+  element.style.opacity = visible ? "1" : "0";
+  element.style.visibility = visible ? "visible" : "hidden";
+}
+
+function styleTheaterDot(element: HTMLButtonElement, visible: boolean) {
+  element.classList.toggle("is-visible", visible);
+  element.setAttribute("aria-hidden", String(!visible));
+  element.tabIndex = visible ? 0 : -1;
+  element.style.opacity = visible ? "0.95" : "0";
+  element.style.visibility = visible ? "visible" : "hidden";
+  element.style.pointerEvents = visible ? "auto" : "none";
 }
 
 function configureBaseLabels(map: MapLibreMap) {
@@ -342,91 +352,20 @@ function getTheaterDisplayName(theater: Theater): string {
 }
 
 function getCityMinZoom(entry: CityEntry): number {
-  if (ALWAYS_VISIBLE_CITIES.has(entry.location)) {
-    return 0;
-  }
-
-  if (DETAIL_ZOOM_CITIES.has(entry.location)) {
-    return DETAIL_CITY_MIN_ZOOM;
-  }
-
-  if (MID_ZOOM_CITIES.has(entry.location)) {
-    return MID_CITY_MIN_ZOOM;
-  }
-
-  return OTHER_CITY_MIN_ZOOM;
+  return CITY_REVEAL_ZOOM[entry.location] ?? DEFAULT_CITY_REVEAL_ZOOM;
 }
 
 function getCityPriority(entry: CityEntry): number {
-  let priority = entry.theaterCount * 10;
-
-  if (entry.location === "Jerusalem") {
-    priority += 600;
-  } else if (ALWAYS_VISIBLE_CITIES.has(entry.location)) {
-    priority += 400;
-  }
-
-  if (MID_ZOOM_CITIES.has(entry.location)) {
-    priority += 90;
-  }
-
-  if (DETAIL_ZOOM_CITIES.has(entry.location)) {
-    priority += 20;
-  }
-
-  return priority;
-}
-
-function getMaxVisibleCities(zoom: number): number {
-  if (zoom < JERUSALEM_ONLY_MAX_ZOOM) {
-    return 1;
-  }
-
-  if (zoom < ANCHOR_CITIES_ONLY_MAX_ZOOM) {
-    return 4;
-  }
-
-  if (zoom < MID_CITY_MIN_ZOOM) {
-    return 5;
-  }
-
-  if (zoom < DETAIL_CITY_MIN_ZOOM) {
-    return 8;
-  }
-
-  return 12;
+  const revealZoom = getCityMinZoom(entry);
+  return (20 - revealZoom) * 10 + entry.theaterCount;
 }
 
 function getMaxVisibleSecondaryCities(zoom: number): number {
-  if (zoom < 9.35) {
+  if (zoom < 8.65) {
     return 0;
   }
 
-  if (zoom < 9.9) {
-    return 6;
-  }
-
-  if (zoom < 10.4) {
-    return 10;
-  }
-
-  return 14;
-}
-
-function getCityCollisionPadding(zoom: number) {
-  if (zoom < ANCHOR_CITIES_ONLY_MAX_ZOOM) {
-    return { x: 60, y: 34 };
-  }
-
-  if (zoom < MID_CITY_MIN_ZOOM) {
-    return { x: 44, y: 28 };
-  }
-
-  if (zoom < DETAIL_CITY_MIN_ZOOM) {
-    return { x: 30, y: 22 };
-  }
-
-  return { x: 18, y: 14 };
+  return Number.POSITIVE_INFINITY;
 }
 
 function getSecondaryCityCollisionPadding(zoom: number) {
@@ -455,16 +394,32 @@ function estimateSecondaryCityLabelSize(name: string) {
   };
 }
 
-function isPrimaryCityAllowedAtZoom(location: AppLocation, zoom: number, minZoom: number) {
-  if (zoom < JERUSALEM_ONLY_MAX_ZOOM) {
-    return location === "Jerusalem";
+function getPrimaryLayerLabel(zoom: number) {
+  if (zoom < 7) {
+    return "Layer: Jerusalem only";
   }
 
-  if (zoom < ANCHOR_CITIES_ONLY_MAX_ZOOM) {
-    return ALWAYS_VISIBLE_CITIES.has(location);
+  if (zoom < 7.5) {
+    return "Layer: 7.0";
   }
 
-  return zoom >= minZoom;
+  if (zoom < 8) {
+    return "Layer: 7.5";
+  }
+
+  if (zoom < 8.5) {
+    return "Layer: 8.0";
+  }
+
+  if (zoom < 9) {
+    return "Layer: 8.5";
+  }
+
+  if (zoom < 10) {
+    return "Layer: 9.0";
+  }
+
+  return "Layer: 10+";
 }
 
 function rectanglesOverlap(
@@ -496,6 +451,7 @@ export function CityLocationPicker({
   syncing = false,
 }: CityLocationPickerProps) {
   const [query, setQuery] = useState("");
+  const [zoomLevel, setZoomLevel] = useState(6.25);
   const [showTheaters, setShowTheaters] = useState(true);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
     "loading",
@@ -521,20 +477,24 @@ export function CityLocationPicker({
     [cityEntries],
   );
 
-  const fitStartingView = useCallback((options: { animate?: boolean } = {}) => {
-    const map = mapRef.current;
+  const fitStartingView = useCallback(
+    (options: { animate?: boolean; duration?: number } = {}) => {
+      const map = mapRef.current;
 
-    if (!map) {
-      return;
-    }
+      if (!map) {
+        return;
+      }
 
-    map.fitBounds(CITY_START_BOUNDS, {
-      padding: getFitPadding(),
-      duration: options.animate === false ? 0 : 720,
-      maxZoom: 6.9,
-      essential: true,
-    });
-  }, []);
+      map.fitBounds(CITY_START_BOUNDS, {
+        padding: getFitPadding(),
+        duration: options.animate === false ? 0 : (options.duration ?? 720),
+        easing: (progress) => 1 - (1 - progress) ** 3,
+        maxZoom: 6.9,
+        essential: true,
+      });
+    },
+    [],
+  );
 
   const fitLocations = useCallback(
     (
@@ -646,21 +606,7 @@ export function CityLocationPicker({
   }, [showTheaters]);
 
   useEffect(() => {
-    const map = mapRef.current;
-
-    for (const theaterMarker of theaterMarkersRef.current) {
-      theaterMarker.element.classList.toggle("is-visible", showTheaters);
-
-      if (!showTheaters) {
-        theaterMarker.popup.remove();
-        theaterMarker.marker.remove();
-        continue;
-      }
-
-      if (map && !theaterMarker.marker.getElement().isConnected) {
-        theaterMarker.marker.addTo(map);
-      }
-    }
+    scheduleVisibilitySyncRef.current?.();
   }, [showTheaters]);
 
   useEffect(() => {
@@ -671,8 +617,8 @@ export function CityLocationPicker({
     const map = new MapLibreMap({
       container: mapContainerRef.current,
       style: MAP_STYLE_URL,
-      center: [34.96, 32.15],
-      zoom: 6.25,
+      center: INITIAL_MAP_CENTER,
+      zoom: INITIAL_MAP_ZOOM,
       maxZoom: MAP_MAX_ZOOM,
       renderWorldCopies: false,
       attributionControl: {
@@ -695,12 +641,13 @@ export function CityLocationPicker({
 
     function syncMarkerVisibility() {
       const zoom = map.getZoom();
+      setZoomLevel((previousZoom) =>
+        Math.abs(previousZoom - zoom) >= 0.01 ? zoom : previousZoom,
+      );
       const currentSelection = currentLocationRef.current;
       const mapWidth = map.getContainer().clientWidth;
       const mapHeight = map.getContainer().clientHeight;
-      const maxVisibleCities = getMaxVisibleCities(zoom);
       const maxVisibleSecondaryCities = getMaxVisibleSecondaryCities(zoom);
-      const collisionPadding = getCityCollisionPadding(zoom);
       const secondaryCollisionPadding = getSecondaryCityCollisionPadding(zoom);
       const visibleRects: Array<{
         left: number;
@@ -708,77 +655,41 @@ export function CityLocationPicker({
         top: number;
         bottom: number;
       }> = [];
-      let visibleCount = 0;
+      const visiblePrimaryCities = new Set<AppLocation>();
       let visibleSecondaryCount = 0;
-      const candidates: Array<{
-        location: AppLocation;
-        state: CityMarkerState;
-      }> = [];
-
+ 
       for (const [location, state] of labelElements) {
         const active = location === currentSelection;
-        const baseVisible = isPrimaryCityAllowedAtZoom(
-          location,
-          zoom,
-          state.minZoom,
-        );
+        const visible = zoom >= state.minZoom;
 
-        if (!baseVisible) {
-          styleCityLabel(state.element, {
-            active,
-            syncing: syncingRef.current,
-            visible: false,
-          });
+        styleCityLabel(state.element, {
+          active,
+          syncing: syncingRef.current,
+          visible,
+        });
+
+        if (!visible) {
           continue;
         }
 
-        candidates.push({
-          location,
-          state,
-        });
-      }
+        visiblePrimaryCities.add(location);
 
-      candidates.sort((left, right) => {
-        const leftActive = left.location === currentSelection;
-        const rightActive = right.location === currentSelection;
-
-        if (leftActive !== rightActive) {
-          return leftActive ? -1 : 1;
-        }
-
-        return right.state.priority - left.state.priority;
-      });
-
-      for (const candidate of candidates) {
-        const active = candidate.location === currentSelection;
-        const point = map.project(candidate.state.center);
-        const size = estimateCityBubbleSize(candidate.location, active);
+        const point = map.project(state.center);
+        const size = estimateCityBubbleSize(location, active);
         const collisionRect = {
-          left: point.x - size.width / 2 - collisionPadding.x,
-          right: point.x + size.width / 2 + collisionPadding.x,
-          top: point.y - size.height / 2 - collisionPadding.y,
-          bottom: point.y + size.height / 2 + collisionPadding.y,
+          left: point.x - size.width / 2 - PRIMARY_CITY_COLLISION_PADDING.x,
+          right: point.x + size.width / 2 + PRIMARY_CITY_COLLISION_PADDING.x,
+          top: point.y - size.height / 2 - PRIMARY_CITY_COLLISION_PADDING.y,
+          bottom: point.y + size.height / 2 + PRIMARY_CITY_COLLISION_PADDING.y,
         };
         const inViewport =
           collisionRect.right >= 0 &&
           collisionRect.left <= mapWidth &&
           collisionRect.bottom >= 0 &&
           collisionRect.top <= mapHeight;
-        const collides = visibleRects.some((visibleRect) =>
-          rectanglesOverlap(collisionRect, visibleRect),
-        );
-        const withinBudget = visibleCount < maxVisibleCities;
-        const visible = inViewport && withinBudget && !collides;
 
-        styleCityLabel(candidate.state.element, {
-          active,
-          syncing: syncingRef.current,
-          visible,
-        });
-
-        if (visible) {
+        if (inViewport) {
           visibleRects.push(collisionRect);
-          visibleCount += 1;
         }
       }
 
@@ -811,6 +722,17 @@ export function CityLocationPicker({
         if (visible) {
           visibleRects.push(collisionRect);
           visibleSecondaryCount += 1;
+        }
+      }
+
+      for (const theaterMarker of theaterMarkers) {
+        const visible = showTheatersRef.current;
+
+        styleTheaterDot(theaterMarker.element, visible);
+
+        if (!visible) {
+          theaterMarker.popup.remove();
+          continue;
         }
       }
     }
@@ -852,17 +774,19 @@ export function CityLocationPicker({
         });
         labelElements.set(entry.location, {
           element,
-          center: entry.center,
+          center: entry.labelCenter,
           priority: getCityPriority(entry),
           minZoom: getCityMinZoom(entry),
         });
+        element.dataset.city = entry.location;
+        element.dataset.minZoom = String(getCityMinZoom(entry));
 
         markers.push(
           new Marker({
             element,
             anchor: "center",
           })
-            .setLngLat(entry.center)
+            .setLngLat(entry.labelCenter)
             .addTo(map),
         );
       }
@@ -872,6 +796,7 @@ export function CityLocationPicker({
         element.className = "theater-map-secondary-city-label";
         element.style.zIndex = "20";
         element.textContent = city.name;
+        element.dataset.minZoom = String(city.minZoom);
         styleSecondaryCityLabel(element, false);
         secondaryLabelElements.push({
           element,
@@ -898,13 +823,13 @@ export function CityLocationPicker({
         const element = document.createElement("button");
         element.type = "button";
         element.className = "theater-map-theater-dot";
-         element.style.zIndex = "10";
+        element.style.zIndex = "10";
         element.style.setProperty("--theater-dot-color", getTheaterDotColor(theater.chain));
-        element.classList.toggle("is-visible", showTheatersRef.current);
         element.setAttribute(
           "aria-label",
           `${getTheaterDisplayName(theater)}, ${theater.address}`,
         );
+        styleTheaterDot(element, false);
 
         const popupContent = document.createElement("div");
         popupContent.className = "theater-map-theater-popup";
@@ -914,13 +839,10 @@ export function CityLocationPicker({
         title.textContent = getTheaterDisplayName(theater);
         popupContent.appendChild(title);
 
-        const link = document.createElement("a");
-        link.className = "theater-map-theater-popup-link";
-        link.href = theater.location;
-        link.target = "_blank";
-        link.rel = "noreferrer";
-        link.textContent = theater.address;
-        popupContent.appendChild(link);
+        const address = document.createElement("span");
+        address.className = "theater-map-theater-popup-link";
+        address.textContent = theater.address;
+        popupContent.appendChild(address);
 
         const popup = new Popup({
           closeButton: false,
@@ -950,30 +872,34 @@ export function CityLocationPicker({
         element.addEventListener("blur", () => {
           popup.remove();
         });
+        element.addEventListener("click", () => {
+          window.open(theater.location, "_blank", "noopener,noreferrer");
+        });
 
         const marker = new Marker({
           element,
           anchor: "center",
-        }).setLngLat([theater.lng, theater.lat]);
-
-        if (showTheatersRef.current) {
-          marker.addTo(map);
-        }
+        })
+          .setLngLat([theater.lng, theater.lat])
+          .addTo(map);
 
         theaterMarkers.push({
           marker,
           element,
+          location: isAppLocation(theater.city) ? theater.city : null,
           popup,
         });
       }
 
-      map.on("move", scheduleSyncMarkerVisibility);
-      map.on("zoom", scheduleSyncMarkerVisibility);
       map.on("moveend", scheduleSyncMarkerVisibility);
       map.on("zoomend", scheduleSyncMarkerVisibility);
+      map.on("move", scheduleSyncMarkerVisibility);
+      map.on("zoom", scheduleSyncMarkerVisibility);
       map.on("resize", scheduleSyncMarkerVisibility);
-      scheduleSyncMarkerVisibility();
-      fitStartingView({ animate: false });
+      syncMarkerVisibility();
+      window.requestAnimationFrame(() => {
+        fitStartingView({ duration: 1000 });
+      });
       theaterMarkersRef.current = theaterMarkers;
       setIsMapLoading(false);
     }
@@ -994,10 +920,10 @@ export function CityLocationPicker({
         window.cancelAnimationFrame(visibilityFrame);
       }
 
-      map.off("move", scheduleSyncMarkerVisibility);
-      map.off("zoom", scheduleSyncMarkerVisibility);
       map.off("moveend", scheduleSyncMarkerVisibility);
       map.off("zoomend", scheduleSyncMarkerVisibility);
+      map.off("move", scheduleSyncMarkerVisibility);
+      map.off("zoom", scheduleSyncMarkerVisibility);
       map.off("resize", scheduleSyncMarkerVisibility);
       scheduleVisibilitySyncRef.current = null;
       cityMarkersRef.current = [];
@@ -1047,6 +973,10 @@ export function CityLocationPicker({
 
       <div className="theater-map-canvas-shell">
         <div className="theater-map-canvas" ref={mapContainerRef} />
+        <div className="theater-map-zoom-chip" aria-live="polite">
+          <strong>{`Zoom ${zoomLevel.toFixed(2)}`}</strong>
+          <span>{getPrimaryLayerLabel(zoomLevel)}</span>
+        </div>
 
         {loadState === "loading" || isMapLoading ? (
           <div className="theater-map-state">

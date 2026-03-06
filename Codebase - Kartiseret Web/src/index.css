@@ -861,6 +861,36 @@ button {
   height: clamp(360px, 52vh, 560px);
 }
 
+.theater-map-zoom-chip {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 6;
+  display: grid;
+  gap: 2px;
+  padding: 8px 11px;
+  border: 1px solid rgba(203, 178, 255, 0.32);
+  border-radius: 12px;
+  background: rgba(16, 20, 27, 0.88);
+  color: rgba(239, 243, 250, 0.94);
+  box-shadow: 0 10px 24px rgba(4, 6, 12, 0.28);
+  pointer-events: none;
+}
+
+.theater-map-zoom-chip strong {
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+
+.theater-map-zoom-chip span {
+  font-size: 0.69rem;
+  color: rgba(214, 219, 229, 0.76);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
 .theater-map-state {
   position: absolute;
   inset: 20px;
@@ -1071,12 +1101,14 @@ button {
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
   text-shadow:
     0 1px 0 rgba(6, 8, 12, 0.64);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
   cursor: pointer;
   transition:
     background-color 140ms ease,
     border-color 140ms ease,
     color 140ms ease,
-    opacity 140ms ease,
+    opacity 500ms ease,
     box-shadow 140ms ease;
 }
 
@@ -1091,6 +1123,7 @@ button {
   border-color: rgba(152, 160, 176, 0.74);
   background: rgba(184, 150, 255, 0.78);
   color: #17131f;
+  text-shadow: none;
   box-shadow:
     0 14px 28px rgba(75, 49, 118, 0.34),
     0 0 0 1px rgba(255, 255, 255, 0.05) inset;
@@ -1118,7 +1151,7 @@ button {
   pointer-events: none;
   user-select: none;
   transition:
-    opacity 140ms ease,
+    opacity 500ms ease,
     color 140ms ease;
 }
 
@@ -1147,7 +1180,7 @@ button {
   cursor: pointer;
   pointer-events: none;
   transition:
-    opacity 120ms ease,
+    opacity 500ms ease,
     box-shadow 120ms ease;
 }
 
