@@ -10,7 +10,6 @@ import {
 } from "react";
 import { createRoot } from "react-dom/client";
 import { Settings } from "lucide-react";
-import { LocationMenu } from "./components/LocationMenu";
 import {
   MovieScroller,
   type MovieScrollerJumpRequest,
@@ -19,6 +18,7 @@ import {
   MovieSearchMenu,
   type MovieSearchResult,
 } from "./components/MovieSearchMenu";
+import { TheaterMapDialog } from "./components/TheaterMapDialog";
 import { UserMenu } from "./components/UserMenu";
 import { UserPreferencesPage } from "./components/UserPreferencesPage";
 import {
@@ -35,9 +35,14 @@ const SCROLLER_CARD_HEIGHT = 330;
 const SCROLLER_GAP = 22;
 const SCROLLER_MAX_WIDTH = 1100;
 const SCROLLER_SLOT_MIN_HEIGHT = 420;
-const TOPBAR_INTRO_DURATION_MS = 640;
+const TOPBAR_INTRO_DURATION_MS = 760;
 
-type TopbarPhase = "top" | "to-bottom" | "bottom" | "to-top";
+type TopbarPhase =
+  | "top"
+  | "packing-to-bottom"
+  | "to-bottom"
+  | "bottom"
+  | "to-top";
 type MovieSearchMode = "nowPlaying" | "comingSoon";
 
 type AppMovieJumpRequest = MovieScrollerJumpRequest & {
@@ -141,6 +146,7 @@ function AppShell() {
 
   const measureTopbarShell = useCallback(() => {
     if (
+      topbarPhaseRef.current === "packing-to-bottom" ||
       topbarPhaseRef.current === "to-bottom" ||
       topbarPhaseRef.current === "to-top"
     ) {
@@ -260,7 +266,7 @@ function AppShell() {
     }
 
     if (topbarPhaseRef.current === "top" && shouldDock) {
-      startTopbarTransition("to-bottom");
+      setTopbarPhase("packing-to-bottom");
     } else if (topbarPhaseRef.current === "bottom" && !shouldDock) {
       startTopbarTransition("to-top");
     }
@@ -313,6 +319,11 @@ function AppShell() {
         return;
       }
 
+      if (topbarPhase === "packing-to-bottom") {
+        startTopbarTransition("to-bottom");
+        return;
+      }
+
       if (topbarPhase === "to-bottom") {
         setTopbarPhase("bottom");
         return;
@@ -322,7 +333,7 @@ function AppShell() {
         setTopbarPhase("top");
       }
     },
-    [topbarPhase],
+    [startTopbarTransition, topbarPhase],
   );
 
   useEffect(() => {
@@ -423,6 +434,8 @@ function AppShell() {
     topbarSize.height > 0
       ? ({ "--topbar-shell-height": `${topbarSize.height}px` } as CSSProperties)
       : undefined;
+  const hasFloatingTopbar =
+    topbarPhase !== "top" && topbarPhase !== "packing-to-bottom";
   const topbarShellStyle =
     topbarSize.height > 0
       ? ({ minHeight: `${topbarSize.height}px` } as CSSProperties)
@@ -451,7 +464,7 @@ function AppShell() {
 
   return (
     <div
-      className={`app-shell${topbarPhase !== "top" ? " has-floating-topbar" : ""}`}
+      className={`app-shell${hasFloatingTopbar ? " has-floating-topbar" : ""}`}
       style={appShellStyle}
     >
       <div
@@ -468,6 +481,9 @@ function AppShell() {
           style={topbarStyle}
           onAnimationEnd={handleTopbarAnimationEnd}
         >
+          <div className="topbar-intro-mark" aria-hidden="true">
+            K
+          </div>
           <div className="topbar-content">
             <div className="brand">Kartiseret</div>
             <nav className="topnav" aria-label="Primary">
@@ -505,7 +521,7 @@ function AppShell() {
                 onOpen={handleCatalogLoadRequest}
                 onSelectResult={handleMovieSearchSelect}
               />
-              <LocationMenu />
+              <TheaterMapDialog />
               <UserMenu
                 currentPath={pathname}
                 onNavigate={(path) => {
@@ -517,7 +533,7 @@ function AppShell() {
                 className="settings-button"
                 aria-label="Settings"
               >
-                <Settings size={18} strokeWidth={1.9} />
+                <Settings size={20} strokeWidth={2.75} color="#a66ae3"/>
               </button>
             </div>
           </div>

@@ -33,6 +33,7 @@ export type RatingSourcesState = {
 
 const PREFERENCES_TABLE = "user_preferences_ratings";
 const LOCATION_COLUMN = "location";
+const SIGNUP_LOCATION_METADATA_KEY = "signup_location";
 const supabase = getSupabaseBrowserClient();
 
 function isMissingColumnError(error: unknown, column: string): boolean {
@@ -60,6 +61,10 @@ export function useRatingSources(): RatingSourcesState {
   const [error, setError] = useState<string | null>(null);
   const [sessionResolved, setSessionResolved] = useState(false);
   const userId = user?.id ?? null;
+  const signupLocationFromUser =
+    typeof user?.user_metadata?.[SIGNUP_LOCATION_METADATA_KEY] === "string"
+      ? normalizeLocation(user.user_metadata[SIGNUP_LOCATION_METADATA_KEY], DEFAULT_LOCATION)
+      : null;
   const sourcesRef = useRef<RatingSource[]>(sources);
   const locationRef = useRef<AppLocation>(location);
   const hasLocationColumnRef = useRef<boolean | null>(null);
@@ -175,6 +180,9 @@ export function useRatingSources(): RatingSourcesState {
 
       if (!rowData) {
         const defaultSources = [...DEFAULT_RATING_SOURCES];
+        const initialLocation = signupLocationFromUser ?? DEFAULT_LOCATION;
+        let createdLocation =
+          hasLocationColumnRef.current === false ? DEFAULT_LOCATION : initialLocation;
 
         const createPayload: {
           user_id: string;
@@ -186,7 +194,7 @@ export function useRatingSources(): RatingSourcesState {
         };
 
         if (hasLocationColumnRef.current !== false) {
-          createPayload.location = DEFAULT_LOCATION;
+          createPayload.location = createdLocation;
         }
 
         const { error: createError } = await supabase
@@ -199,6 +207,7 @@ export function useRatingSources(): RatingSourcesState {
 
         if (createError && isMissingColumnError(createError, LOCATION_COLUMN)) {
           hasLocationColumnRef.current = false;
+          createdLocation = DEFAULT_LOCATION;
           const { error: retryError } = await supabase
             .from(PREFERENCES_TABLE)
             .upsert(
@@ -227,7 +236,7 @@ export function useRatingSources(): RatingSourcesState {
         }
 
         setSources(defaultSources);
-        setLocation(DEFAULT_LOCATION);
+        setLocation(createdLocation);
         setSyncing(false);
         setLoading(false);
         return;
@@ -252,7 +261,7 @@ export function useRatingSources(): RatingSourcesState {
     return () => {
       cancelled = true;
     };
-  }, [sessionResolved, userId]);
+  }, [sessionResolved, signupLocationFromUser, userId]);
 
   const saveSources = useCallback(
     async (nextSourcesInput: readonly RatingSource[]) => {

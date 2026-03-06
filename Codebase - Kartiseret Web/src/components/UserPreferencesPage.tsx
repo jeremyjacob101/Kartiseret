@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { CityLocationPicker } from "./CityLocationPicker";
 import { useRatingSourcesContext } from "../prefs/ratingSourcesStore";
 import { type RatingSource } from "../prefs/ratingSources";
 import { type AppLocation } from "../prefs/locations";
@@ -11,12 +12,6 @@ const sourceLabelMap: Record<RatingSource, string> = {
   lbRating: "Letterboxd",
   tmdbRating: "TMDB",
 };
-const locationLabelMap: Record<AppLocation, string> = {
-  Haifa: "Haifa",
-  Jerusalem: "Jerusalem",
-  "Tel Aviv": "Tel Aviv",
-};
-
 type UserPreferencesPageProps = {
   onBackHome: () => void;
 };
@@ -58,33 +53,28 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
     sources,
     location,
     allSources,
-    allLocations,
     syncing,
     error,
     saveSources,
     setLocationPreference,
   } = useRatingSourcesContext();
   const [draftSources, setDraftSources] = useState<RatingSource[]>(sources);
-  const [draftLocation, setDraftLocation] = useState(location);
-  const [isLocationOpen, setIsLocationOpen] = useState(true);
   const [isSourcesOpen, setIsSourcesOpen] = useState(true);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
+  const [locationStatusMessage, setLocationStatusMessage] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     setDraftSources(sources);
   }, [sources]);
 
-  useEffect(() => {
-    setDraftLocation(location);
-  }, [location]);
-
   const hasSourceChanges = useMemo(
     () => !areSourcesEqual(draftSources, sources),
     [draftSources, sources],
   );
-  const hasLocationChanges = draftLocation !== location;
-  const hasChanges = hasSourceChanges || hasLocationChanges;
+  const hasChanges = hasSourceChanges;
 
   function toggleDraftSource(source: RatingSource) {
     setStatusMessage(null);
@@ -112,17 +102,22 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
       }
     }
 
-    if (hasLocationChanges) {
-      const didSaveLocation = await setLocationPreference(draftLocation);
-
-      if (!didSaveLocation) {
-        setStatusError("Could not save location. Try again.");
-        return;
-      }
-    }
-
     setStatusMessage("Preferences saved.");
   }
+
+  const handleLocationPick = useCallback(
+    async (nextLocation: AppLocation) => {
+      setLocationStatusMessage(null);
+      const didSave = await setLocationPreference(nextLocation);
+
+      if (!didSave) {
+        return;
+      }
+
+      setLocationStatusMessage(`City set to ${nextLocation}.`);
+    },
+    [setLocationPreference],
+  );
 
   return (
     <section className="prefs-page" aria-label="User preferences">
@@ -138,62 +133,31 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
 
       <p className="prefs-page-email">{user?.email}</p>
       <p className="prefs-page-note">
-        Manage settings with a unified dropdown-style layout.
+        Manage your saved city directly from the map and search panel below.
       </p>
 
       <div className="prefs-page-card">
+        <section className="prefs-location-card">
+          <div className="prefs-location-header">
+            <div>
+              <p className="prefs-setting-label">Location</p>
+              <h2 className="prefs-location-title">{location}</h2>
+            </div>
+            <p className="prefs-location-note">
+              Click a city region or choose it from the search results.
+            </p>
+          </div>
+
+          <CityLocationPicker
+            className="theater-map-panel--embedded"
+            currentLocation={location}
+            feedbackMessage={locationStatusMessage ?? error}
+            onPickLocation={handleLocationPick}
+            syncing={syncing}
+          />
+        </section>
+
         <div className="prefs-page-settings">
-          <section className="prefs-setting">
-            <button
-              type="button"
-              className="prefs-setting-toggle"
-              aria-expanded={isLocationOpen}
-              onClick={() => {
-                setIsLocationOpen((open) => !open);
-              }}
-            >
-              <span className="prefs-setting-copy">
-                <span className="prefs-setting-label">Location</span>
-                <span className="prefs-setting-summary">
-                  {locationLabelMap[draftLocation]}
-                </span>
-              </span>
-              <ChevronDown
-                size={16}
-                strokeWidth={2.2}
-                className={`prefs-setting-chevron${isLocationOpen ? " is-open" : ""}`}
-              />
-            </button>
-
-            {isLocationOpen ? (
-              <div className="prefs-setting-content">
-                <div className="prefs-setting-options">
-                  {allLocations.map((entry) => (
-                    <label
-                      key={entry}
-                      className={`prefs-setting-option${
-                        draftLocation === entry ? " is-selected" : ""
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="prefs-location"
-                        checked={draftLocation === entry}
-                        disabled={syncing}
-                        onChange={() => {
-                          setDraftLocation(entry);
-                          setStatusMessage(null);
-                          setStatusError(null);
-                        }}
-                      />
-                      <span>{locationLabelMap[entry]}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </section>
-
           <section className="prefs-setting">
             <button
               type="button"

@@ -1,4 +1,31 @@
-export const ALL_LOCATIONS = ["Haifa", "Jerusalem", "Tel Aviv"] as const;
+export const ALL_LOCATIONS = [
+  "Ashdod",
+  "Ashkelon",
+  "Ayalon",
+  "Beer Sheva",
+  "Carmiel",
+  "Chadera",
+  "Even Yehuda",
+  "Givataim",
+  "Glilot",
+  "Haifa",
+  "Herziliya",
+  "Jerusalem",
+  "Kfar Saba",
+  "Kiryat Bialik",
+  "Kiryat Ono",
+  "Modiin",
+  "Nahariya",
+  "Netanya",
+  "Omer",
+  "Petach Tikvah",
+  "Raanana",
+  "Ramat Hasharon",
+  "Rehovot",
+  "Rishon Letzion",
+  "Tel Aviv",
+  "Zichron Yaakov",
+] as const;
 export type AppLocation = (typeof ALL_LOCATIONS)[number];
 
 export const DEFAULT_LOCATION: AppLocation = "Haifa";

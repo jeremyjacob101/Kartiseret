@@ -180,7 +180,7 @@ export function MovieSearchMenu({
           setIsOpen((open) => !open);
         }}
       >
-        <Search size={18} strokeWidth={1.9} />
+        <Search size={20} strokeWidth={2.75} color="#a66ae3"/>
       </button>
 
       {isOpen ? (

@@ -3,12 +3,6 @@ import { MapPin } from "lucide-react";
 import { useRatingSourcesContext } from "../prefs/ratingSourcesStore";
 import { type AppLocation } from "../prefs/locations";
 
-const locationLabelMap: Record<AppLocation, string> = {
-  Haifa: "Haifa",
-  Jerusalem: "Jerusalem",
-  "Tel Aviv": "Tel Aviv",
-};
-
 export function LocationMenu() {
   const { location, allLocations, syncing, setLocationPreference, error } =
     useRatingSourcesContext();
@@ -74,7 +68,7 @@ export function LocationMenu() {
           setIsOpen((open) => !open);
         }}
       >
-        <MapPin size={18} strokeWidth={1.9} />
+        <MapPin size={20} strokeWidth={2.75} color="#a66ae3"/>
       </button>
 
       {isOpen ? (
@@ -95,7 +89,7 @@ export function LocationMenu() {
                 }}
                 disabled={syncing || isSaving}
               >
-                {locationLabelMap[entry]}
+                {entry}
               </button>
             ))}
           </div>

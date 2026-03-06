@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { LogOut, User } from "lucide-react";
 import { getSupabaseBrowserClient } from "../lib/supabase";
+import { loadGuestLocation } from "../prefs/locations";
 import { useRatingSourcesContext } from "../prefs/ratingSourcesStore";
 
 type AuthMode = "login" | "signup";
@@ -70,9 +71,17 @@ export function UserMenu({ currentPath, onNavigate }: UserMenuProps) {
     setAuthPending(true);
 
     if (authMode === "signup") {
+      const guestLocation = loadGuestLocation();
       const { data, error } = await supabase.auth.signUp({
         email: trimmedEmail,
         password,
+        options: guestLocation
+          ? {
+              data: {
+                signup_location: guestLocation,
+              },
+            }
+          : undefined,
       });
 
       setAuthPending(false);
@@ -135,7 +144,7 @@ export function UserMenu({ currentPath, onNavigate }: UserMenuProps) {
           setIsOpen((open) => !open);
         }}
       >
-        <User size={18} strokeWidth={1.9} />
+        <User size={20} strokeWidth={2.75} color="#a66ae3"/>
       </button>
 
       {isOpen ? (
@@ -240,7 +249,7 @@ export function UserMenu({ currentPath, onNavigate }: UserMenuProps) {
                 }}
                 disabled={logoutPending}
               >
-                <LogOut size={16} strokeWidth={2} />
+                <LogOut size={20} strokeWidth={2.75} color="#a66ae3"/>
                 {logoutPending ? "Signing out..." : "Sign out"}
               </button>
             </div>

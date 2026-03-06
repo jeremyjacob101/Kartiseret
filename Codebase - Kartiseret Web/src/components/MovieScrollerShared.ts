@@ -1,12 +1,15 @@
-const MAX_TRACK_PX = 12_000_000;
+const TARGET_ITEMS_PER_SIDE = 280;
+const MIN_REPEAT_SETS = 5;
 
 export function getRepeatSetCount(
-  itemSpan: number,
+  _itemSpan: number,
   movieCount: number,
 ): number {
-  const setsByWidth = Math.floor(
-    MAX_TRACK_PX / Math.max(itemSpan * movieCount, 1),
+  const safeMovieCount = Math.max(movieCount, 1);
+  const setsPerSide = Math.max(
+    Math.ceil(TARGET_ITEMS_PER_SIDE / safeMovieCount),
+    Math.floor(MIN_REPEAT_SETS / 2),
   );
-  const bounded = Math.max(101, setsByWidth);
-  return bounded % 2 === 0 ? bounded + 1 : bounded;
+
+  return setsPerSide * 2 + 1;
 }

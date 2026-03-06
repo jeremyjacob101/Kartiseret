@@ -18,6 +18,11 @@ export type PosterSourceRect = {
   height: number;
 };
 
+export type MovieScrollerScrollRequest = {
+  scrollLeft: number;
+  nonce: number;
+};
+
 export type MovieScrollerBaseProps = {
   movieItems?: readonly Movie[];
   cardWidth?: number;
@@ -27,6 +32,7 @@ export type MovieScrollerBaseProps = {
   className?: string;
   focusOffsetItemSpans?: number;
   anchorItemIndex?: number | null;
+  scrollRequest?: MovieScrollerScrollRequest | null;
   onSelectMovie?: (
     movie: Movie,
     sourceRect: PosterSourceRect,
@@ -120,6 +126,7 @@ export function MovieScrollerBase({
   className,
   focusOffsetItemSpans = 1,
   anchorItemIndex = null,
+  scrollRequest = null,
   onSelectMovie,
   selectedItemIndex = null,
   getCardClassName,
@@ -333,6 +340,23 @@ export function MovieScrollerBase({
     centerAnchorMovie();
   }, [centerAnchorMovie]);
 
+  useLayoutEffect(() => {
+    if (!scrollRequest) {
+      return;
+    }
+
+    const scroller = scrollerRef.current;
+    if (!scroller) {
+      return;
+    }
+
+    if (Math.abs(scroller.scrollLeft - scrollRequest.scrollLeft) > 0.5) {
+      scroller.scrollLeft = scrollRequest.scrollLeft;
+    }
+
+    updateWindowFromScroller();
+  }, [scrollRequest, updateWindowFromScroller]);
+
   useEffect(() => {
     const scroller = scrollerRef.current;
     if (!scroller) {
@@ -515,8 +539,8 @@ export function MovieScrollerBase({
       };
       const cardClassName = getCardClassName?.(cardState);
       const cardStyle = getCardStyle?.(cardState);
-      const handleSelectMovie = (event: MouseEvent<HTMLButtonElement>) => {
-        const rect = event.currentTarget.getBoundingClientRect();
+      const activateMovie = (target: HTMLDivElement) => {
+        const rect = target.getBoundingClientRect();
 
         onSelectMovie?.(
           movie,
@@ -531,11 +555,13 @@ export function MovieScrollerBase({
         );
       };
 
+      const handleSelectMovie = (event: MouseEvent<HTMLDivElement>) => {
+        activateMovie(event.currentTarget);
+      };
+
       return (
-        <button
+        <div
           key={i}
-          type="button"
-          aria-label={`Open details for ${movie.title}`}
           data-movie-scroller-item-index={i}
           data-movie-scroller-positional-opacity={opacity.toFixed(6)}
           onClick={handleSelectMovie}
@@ -560,6 +586,7 @@ export function MovieScrollerBase({
                 : introInteractive
                   ? "grab"
                   : "default",
+            WebkitTapHighlightColor: "transparent",
             transform:
               `translateZ(0) ` +
               `translateX(calc(${introTranslateX}px + var(--card-translate-x, 0px))) ` +
@@ -575,8 +602,8 @@ export function MovieScrollerBase({
             willChange: "transform, opacity",
             zIndex: Math.round(waveLift * 100),
             ...cardStyle,
-          }}
-        >
+            }}
+          >
           <img
             src={movie.imageSrc}
             alt={movie.title}
@@ -592,7 +619,7 @@ export function MovieScrollerBase({
               userSelect: "none",
             }}
           />
-        </button>
+        </div>
       );
     },
   );
