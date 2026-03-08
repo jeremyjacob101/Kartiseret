@@ -1382,9 +1382,7 @@ button {
 }
 
 .theater-map-panel .theater-map-close-button:focus,
-.theater-map-panel .theater-map-close-button:focus-visible,
-.theater-map-panel .theater-map-action-button--theaters:focus,
-.theater-map-panel .theater-map-action-button--theaters:focus-visible {
+.theater-map-panel .theater-map-close-button:focus-visible {
   box-shadow: none;
   outline: none;
 }
@@ -1419,9 +1417,7 @@ button {
 }
 
 .theater-map-panel .theater-map-close-button:active,
-.theater-map-panel .theater-map-close-button:focus:not(:focus-visible),
-.theater-map-panel .theater-map-action-button--theaters:active,
-.theater-map-panel .theater-map-action-button--theaters:focus:not(:focus-visible) {
+.theater-map-panel .theater-map-close-button:focus:not(:focus-visible) {
   background: rgba(16, 20, 27, 0.94);
   box-shadow: none;
 }

@@ -7,7 +7,6 @@ import {
   useState,
 } from "react";
 import {
-  Building2,
   Ban,
   Info,
   List,
@@ -280,9 +279,6 @@ const LOCATION_UNSUPPORTED_MESSAGE =
 const RESET_CONTROL_ICON = renderToStaticMarkup(
   <LocateFixed size={18} strokeWidth={2.5} />,
 );
-const THEATERS_CONTROL_ICON = renderToStaticMarkup(
-  <Building2 size={16} strokeWidth={2.5} />,
-);
 const THEATER_MARKER_ICON = renderToStaticMarkup(
   <Clapperboard size={16} strokeWidth={2.5} />,
 );
@@ -431,68 +427,6 @@ class TheaterMapCloseControl implements IControl {
   onRemove() {
     this.container?.remove();
     this.container = undefined;
-  }
-}
-
-class TheaterMapTheatersControl implements IControl {
-  private container?: HTMLDivElement;
-  private button?: HTMLButtonElement;
-  private isActive: boolean;
-  private readonly onToggle: () => void;
-
-  constructor(options: { active: boolean; onToggle: () => void }) {
-    this.isActive = options.active;
-    this.onToggle = options.onToggle;
-  }
-
-  onAdd() {
-    const container = document.createElement("div");
-    container.className =
-      "maplibregl-ctrl maplibregl-ctrl-group theater-map-theaters-control";
-
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className =
-      "theater-map-action-button theater-map-action-button--theaters";
-    button.addEventListener("click", this.onToggle);
-
-    const icon = document.createElement("span");
-    icon.className =
-      "theater-map-action-glyph theater-map-action-glyph--theaters";
-    icon.setAttribute("aria-hidden", "true");
-    icon.innerHTML = THEATERS_CONTROL_ICON;
-
-    button.append(icon);
-    container.append(button);
-    this.container = container;
-    this.button = button;
-    this.syncButton();
-
-    return container;
-  }
-
-  onRemove() {
-    this.container?.remove();
-    this.container = undefined;
-    this.button = undefined;
-  }
-
-  setActive(isActive: boolean) {
-    this.isActive = isActive;
-    this.syncButton();
-  }
-
-  private syncButton() {
-    if (!this.button) {
-      return;
-    }
-
-    this.button.setAttribute("aria-pressed", String(this.isActive));
-    this.button.setAttribute(
-      "aria-label",
-      this.isActive ? "Hide theaters" : "Show theaters",
-    );
-    this.button.title = this.isActive ? "Hide theaters" : "Show theaters";
   }
 }
 
@@ -1046,7 +980,6 @@ export function CityLocationPicker({
   syncing = false,
 }: CityLocationPickerProps) {
   const [query, setQuery] = useState("");
-  const [showTheaters, setShowTheaters] = useState(true);
   const [isCityListOpen, setIsCityListOpen] = useState(false);
   const [optimisticLocation, setOptimisticLocation] =
     useState<AppLocation | null>(null);
@@ -1059,7 +992,6 @@ export function CityLocationPicker({
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const mapActionControlRef = useRef<TheaterMapActionControl | null>(null);
-  const mapTheatersControlRef = useRef<TheaterMapTheatersControl | null>(null);
   const locateBlockedMessageRef = useRef<string | null>(
     typeof navigator === "undefined" ||
       typeof navigator.geolocation === "undefined"
@@ -1069,7 +1001,6 @@ export function CityLocationPicker({
   const onCloseRef = useRef(onClose);
   const currentLocationRef = useRef(currentLocation);
   const syncingRef = useRef(syncing);
-  const showTheatersRef = useRef(showTheaters);
   const geolocationRequestRef = useRef(false);
   const cityLabelElementsRef = useRef(new Map<string, CityMarkerState>());
   const secondaryCityLabelElementsRef = useRef<SecondaryCityMarkerState[]>([]);
@@ -1457,11 +1388,6 @@ export function CityLocationPicker({
   }, [setLocateBlockedMessage]);
 
   useEffect(() => {
-    showTheatersRef.current = showTheaters;
-    mapTheatersControlRef.current?.setActive(showTheaters);
-  }, [showTheaters]);
-
-  useEffect(() => {
     if (!mapControlMessage) {
       return;
     }
@@ -1474,10 +1400,6 @@ export function CityLocationPicker({
       window.clearTimeout(timeoutId);
     };
   }, [mapControlMessage]);
-
-  useEffect(() => {
-    scheduleVisibilitySyncRef.current?.();
-  }, [showTheaters]);
 
   useEffect(() => {
     if (!mapContainerRef.current || cityEntries.length === 0) {
@@ -1505,17 +1427,10 @@ export function CityLocationPicker({
       },
       onLocate: handleLocateNearestCity,
     });
-    const mapTheatersControl = new TheaterMapTheatersControl({
-      active: showTheatersRef.current,
-      onToggle: () => {
-        setShowTheaters((current) => !current);
-      },
-    });
     let visibilityFrame = 0;
 
     mapRef.current = map;
     mapActionControlRef.current = mapActionControl;
-    mapTheatersControlRef.current = mapTheatersControl;
     cityLabelElementsRef.current = labelElements;
     secondaryCityLabelElementsRef.current = secondaryLabelElements;
     cityMarkersRef.current = markers;
@@ -1531,7 +1446,6 @@ export function CityLocationPicker({
     }
     map.addControl(new NavigationControl({ showCompass: false }), "top-right");
     map.addControl(mapActionControl, "top-right");
-    map.addControl(mapTheatersControl, "top-right");
     map.addControl(new TheaterMapAttributionControl(), "bottom-right");
 
     function syncMarkerVisibility() {
@@ -1654,7 +1568,6 @@ export function CityLocationPicker({
           : undefined;
         const active = theaterMarker.location === currentSelection;
         const visible =
-          showTheatersRef.current &&
           cityState !== undefined &&
           isCityLabelRevealed(
             zoom,
@@ -1902,7 +1815,6 @@ export function CityLocationPicker({
       labelElements.clear();
       cityLabelElementsRef.current = new Map();
       mapActionControlRef.current = null;
-      mapTheatersControlRef.current = null;
       geolocationRequestRef.current = false;
       map.remove();
       mapRef.current = null;
