@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { MapPin, X } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { CityLocationPicker } from "./CityLocationPicker";
 import { useRatingSourcesContext } from "../prefs/ratingSourcesStore";
 import { type AppLocation } from "../prefs/locations";
@@ -24,6 +24,10 @@ export function TheaterMapDialog() {
     },
     [setLocationPreference],
   );
+
+  const handleCloseDialog = useCallback(() => {
+    setIsOpen(false);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
@@ -52,30 +56,16 @@ export function TheaterMapDialog() {
       className="theater-map-backdrop"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
-          setIsOpen(false);
+          handleCloseDialog();
         }
       }}
     >
       <div className="theater-map-dialog" role="dialog" aria-modal="true">
-        <div className="theater-map-dialog-header">
-          <div className="theater-map-dialog-actions">
-            <button
-              type="button"
-              className="theater-map-toolbar-button theater-map-toolbar-button--close"
-              onClick={() => {
-                setIsOpen(false);
-              }}
-            >
-              <X size={16} />
-              <span>Close</span>
-            </button>
-          </div>
-        </div>
-
         <CityLocationPicker
           currentLocation={location}
           feedbackMessage={statusMessage ?? error}
           onPickLocation={handleLocationPick}
+          onClose={handleCloseDialog}
           syncing={syncing}
         />
       </div>
