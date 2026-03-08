@@ -876,36 +876,6 @@ button {
   height: 100%;
 }
 
-.theater-map-zoom-chip {
-  position: absolute;
-  top: 58px;
-  left: 14px;
-  z-index: 6;
-  display: grid;
-  gap: 2px;
-  padding: 8px 11px;
-  border: 1px solid rgba(203, 178, 255, 0.32);
-  border-radius: 12px;
-  background: rgba(16, 20, 27, 0.88);
-  color: rgba(239, 243, 250, 0.94);
-  box-shadow: 0 10px 24px rgba(4, 6, 12, 0.28);
-  pointer-events: none;
-}
-
-.theater-map-zoom-chip strong {
-  font-size: 0.8rem;
-  letter-spacing: 0.03em;
-  line-height: 1;
-}
-
-.theater-map-zoom-chip span {
-  font-size: 0.69rem;
-  color: rgba(214, 219, 229, 0.76);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  line-height: 1;
-}
-
 .theater-map-state {
   position: absolute;
   inset: 20px;
@@ -1190,36 +1160,46 @@ button {
 
 .theater-map-theater-dot {
   --theater-dot-color: #8c96a6;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  width: 12px;
+  height: 12px;
+  min-width: 12px;
+  min-height: 12px;
+  border: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: none;
+}
+
+.theater-map-theater-dot-surface {
   display: block;
   box-sizing: border-box;
   width: 12px;
   height: 12px;
   min-width: 12px;
   min-height: 12px;
-  padding: 0;
   border: 2px solid rgba(12, 15, 20, 0.84);
   border-radius: 50%;
-  appearance: none;
-  -webkit-appearance: none;
   background: var(--theater-dot-color);
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--theater-dot-color) 36%, transparent),
     0 6px 14px rgba(6, 8, 12, 0.28);
   opacity: 0;
-  cursor: pointer;
-  pointer-events: none;
   transition:
     opacity 500ms ease,
     box-shadow 120ms ease;
 }
 
-.theater-map-theater-dot.is-visible {
+.theater-map-theater-dot.is-visible .theater-map-theater-dot-surface {
   opacity: 0.95;
-  pointer-events: auto;
 }
 
-.theater-map-theater-dot:hover,
-.theater-map-theater-dot:focus-visible {
+.theater-map-theater-dot:hover .theater-map-theater-dot-surface,
+.theater-map-theater-dot:focus-visible .theater-map-theater-dot-surface {
   outline: none;
   box-shadow:
     0 0 0 3px color-mix(in srgb, var(--theater-dot-color) 22%, transparent),
