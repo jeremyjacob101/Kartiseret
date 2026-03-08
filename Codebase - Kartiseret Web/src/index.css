@@ -782,6 +782,7 @@ button {
 .theater-map-current-chip {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   width: fit-content;
   border: 1px solid rgba(212, 182, 255, 0.2);
   border-radius: 999px;
@@ -794,15 +795,13 @@ button {
   text-transform: uppercase;
 }
 
-.theater-map-current-chip--overlay {
-  position: absolute;
-  top: 14px;
-  left: 14px;
-  z-index: 6;
+.theater-map-current-chip--search {
+  min-width: max-content;
+  padding: 0 14px;
+  border-radius: 16px;
   border-color: rgba(203, 178, 255, 0.28);
   background: rgba(16, 20, 27, 0.88);
   color: rgba(244, 235, 255, 0.94);
-  padding: 7px 11px;
   font-size: 0.78rem;
   box-shadow: 0 10px 24px rgba(4, 6, 12, 0.28);
 }
@@ -876,40 +875,6 @@ button {
   height: 100%;
 }
 
-.theater-map-state {
-  position: absolute;
-  inset: 20px;
-  display: grid;
-  place-items: center;
-  gap: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 20px;
-  background: rgba(22, 18, 29, 0.42);
-  color: #fff;
-  text-align: center;
-  backdrop-filter: blur(12px);
-}
-
-.theater-map-state--error {
-  background: rgba(92, 24, 46, 0.58);
-}
-
-.theater-map-state p {
-  margin: 0;
-  max-width: 30ch;
-  font-weight: 600;
-}
-
-.theater-map-spinner {
-  animation: theater-map-spin 900ms linear infinite;
-}
-
-@keyframes theater-map-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .theater-map-search-panel {
   display: grid;
   gap: 12px;
@@ -919,9 +884,15 @@ button {
   background: rgba(255, 255, 255, 0.04);
 }
 
-.theater-map-search-field {
+.theater-map-search-row {
   display: grid;
-  gap: 8px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.theater-map-search-field {
+  min-width: 0;
 }
 
 .theater-map-search-label {
@@ -936,6 +907,7 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-height: 100%;
   border: 1px solid rgba(204, 170, 245, 0.22);
   border-bottom-left-radius: 16px;
   border-bottom-right-radius: 16px;
@@ -1465,6 +1437,7 @@ button {
   align-items: center;
   min-height: 34px;
   max-width: 220px;
+  width: 150px;
   padding: 0 12px;
   border: 1px solid rgba(241, 236, 255, 0.82);
   border-radius: 12px;

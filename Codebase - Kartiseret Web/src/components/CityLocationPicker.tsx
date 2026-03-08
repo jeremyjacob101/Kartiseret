@@ -9,7 +9,6 @@ import {
 import {
   Building2,
   Ban,
-  LoaderCircle,
   Info,
   LocateFixed,
   Navigation,
@@ -955,11 +954,6 @@ export function CityLocationPicker({
 }: CityLocationPickerProps) {
   const [query, setQuery] = useState("");
   const [showTheaters, setShowTheaters] = useState(false);
-  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
-    "loading",
-  );
-  const [isMapLoading, setIsMapLoading] = useState(false);
-  const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null);
   const [mapControlMessage, setMapControlMessage] = useState<string | null>(
     null,
   );
@@ -1150,9 +1144,6 @@ export function CityLocationPicker({
 
         startTransition(() => {
           setTheaters(nextTheaters);
-          setLoadState("ready");
-          setLoadErrorMessage(null);
-          setIsMapLoading(true);
         });
       })
       .catch((loadError: unknown) => {
@@ -1160,13 +1151,7 @@ export function CityLocationPicker({
           return;
         }
 
-        setLoadErrorMessage(
-          loadError instanceof Error
-            ? loadError.message
-            : "Could not load theaters from Supabase.",
-        );
-        setIsMapLoading(false);
-        setLoadState("error");
+        console.error("Could not load theaters from Supabase.", loadError);
       });
 
     return () => {
@@ -1601,7 +1586,6 @@ export function CityLocationPicker({
         fitStartingView({ duration: 1000 });
       });
       theaterMarkersRef.current = theaterMarkers;
-      setIsMapLoading(false);
     }
 
     map.once("load", handleLoad);
@@ -1634,7 +1618,6 @@ export function CityLocationPicker({
       mapActionControlRef.current = null;
       mapTheatersControlRef.current = null;
       geolocationRequestRef.current = false;
-      setIsMapLoading(false);
       map.remove();
       mapRef.current = null;
     };
@@ -1652,44 +1635,34 @@ export function CityLocationPicker({
 
       <div className="theater-map-canvas-shell">
         <div className="theater-map-canvas" ref={mapContainerRef} />
-        <div className="theater-map-current-chip theater-map-current-chip--overlay">
-          {currentLocation}
-        </div>
         {mapControlMessage ? (
           <div className="theater-map-control-message" aria-live="polite">
             {mapControlMessage}
           </div>
         ) : null}
-
-        {loadState === "loading" || isMapLoading ? (
-          <div className="theater-map-state">
-            <LoaderCircle className="theater-map-spinner" size={22} />
-            <p>Loading city map...</p>
-          </div>
-        ) : loadState === "error" ? (
-          <div className="theater-map-state theater-map-state--error">
-            <p>
-              {loadErrorMessage ?? "Could not load theaters from Supabase."}
-            </p>
-          </div>
-        ) : null}
       </div>
 
-      <label className="theater-map-search-field">
-        <div className="theater-map-search-input-shell">
-          <Search size={17} />
-          <input
-            ref={searchInputRef}
-            type="search"
-            name="city-search"
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-            }}
-            placeholder="Search any city in your theater list"
-          />
+      <div className="theater-map-search-row">
+        <div className="theater-map-current-chip theater-map-current-chip--search">
+          {currentLocation}
         </div>
-      </label>
+
+        <label className="theater-map-search-field">
+          <div className="theater-map-search-input-shell">
+            <Search size={17} />
+            <input
+              ref={searchInputRef}
+              type="search"
+              name="city-search"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+              }}
+              placeholder="Search any city in your theater list"
+            />
+          </div>
+        </label>
+      </div>
     </div>
   );
 }
