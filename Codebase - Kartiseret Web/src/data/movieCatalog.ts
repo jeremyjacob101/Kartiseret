@@ -327,6 +327,7 @@ function buildMovieShowtimes(
     }
 
     const normalizedCity = city as AppLocation;
+    supportedCities.add(normalizedCity);
     const date = normalizeText(row.date_of_showing);
 
     if (date < fixedAppDateString || date > fixedShowtimeWindowEndDateString) {
@@ -367,11 +368,19 @@ function buildMovieShowtimes(
     showtimeSet.add(showtime);
   }
 
+  const canonicalCities = new Set<string>(ALL_LOCATIONS);
+  const orderedCities = [
+    ...ALL_LOCATIONS,
+    ...[...supportedCities]
+      .filter((city) => !canonicalCities.has(city))
+      .sort((left, right) => left.localeCompare(right)),
+  ];
+
   return Object.fromEntries(
     selectedMovies.map((movie) => {
       const movieDates = groupedShowtimes.get(movie.tmdbId);
       const cityShowtimes = Object.fromEntries(
-        ALL_LOCATIONS.map((city) => {
+        orderedCities.map((city) => {
           const cityDates = movieDates?.get(city);
           const days = showtimeWindowDates.map((date) => {
             const theaterMap = cityDates?.get(date);

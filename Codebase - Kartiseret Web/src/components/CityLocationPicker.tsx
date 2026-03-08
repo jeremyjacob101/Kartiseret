@@ -28,7 +28,7 @@ import {
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { loadTheaters, type Theater } from "../data/theaters";
-import { ALL_LOCATIONS, type AppLocation } from "../prefs/locations";
+import { type AppLocation } from "../prefs/locations";
 
 const MAP_STYLE_URL =
   "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
@@ -38,53 +38,15 @@ const CITY_START_BOUNDS: [[number, number], [number, number]] = [
 ];
 const INITIAL_MAP_CENTER: [number, number] = [34.96, 32.15];
 const INITIAL_MAP_ZOOM = 2;
-const DEFAULT_CITY_REVEAL_ZOOM = 10;
-const CITY_REVEAL_ZOOM: Partial<Record<AppLocation, number>> = {
-  Jerusalem: 0,
-  "Beer Sheva": 6,
-  "Tel Aviv": 6,
-  Haifa: 6,
-  Ashkelon: 7,
-  Ashdod: 7.5,
-  "Zichron Yaakov": 7.5,
-  Carmiel: 7.5,
-  Netanya: 7.5,
-  Modiin: 7.5,
-  Chadera: 8,
-  Nahariya: 8,
-  "Rishon Letzion": 8,
-  Glilot: 8,
-  "Kiryat Bialik": 8.5,
-  Herziliya: 9,
-  Rehovot: 9,
-  Omer: 9,
-  Ayalon: 9.5,
-  "Kfar Saba": 9.5,
-};
 const CITY_OPACITY_BASE = 0.01;
 const CITY_OPACITY_STEP = 0.085;
 const CITY_MAX_PRE_REVEAL_OPACITY = 0.9;
-const CITY_OPACITY_LAYERS = Array.from(
-  new Set(
-    [...Object.values(CITY_REVEAL_ZOOM), DEFAULT_CITY_REVEAL_ZOOM].filter(
-      (zoom): zoom is number => typeof zoom === "number" && zoom > 0,
-    ),
-  ),
-).sort((left, right) => left - right);
-const CITY_REVEAL_LAYERS = Array.from(
-  new Set([0, ...Object.values(CITY_REVEAL_ZOOM), DEFAULT_CITY_REVEAL_ZOOM]),
-).sort((left, right) => left - right);
-const CITY_Z_INDEX_BY_REVEAL_ZOOM = new Map(
-  CITY_REVEAL_LAYERS.map((zoom, index) => [zoom, String(100 - index)]),
-);
-const FIRST_CITY_OPACITY_LAYER = CITY_OPACITY_LAYERS[0] ?? DEFAULT_CITY_REVEAL_ZOOM;
 const SELECTED_CITY_Z_INDEX = "200";
 const SEARCH_RESULT_Z_INDEX_OFFSET = 1000;
 const PRIMARY_CITY_COLLISION_PADDING = { x: 18, y: 14 };
 const CITY_LABEL_NORTH_OFFSET = 0.00615;
 const MAP_MAX_ZOOM = 16.5;
 const SINGLE_CITY_FOCUS_ZOOM = 11.6;
-const appLocationSet = new Set<string>(ALL_LOCATIONS);
 const ROAD_LABEL_KEYWORDS = [
   "road",
   "street",
@@ -180,11 +142,19 @@ const SECONDARY_CITIES: ReadonlyArray<{
 ];
 
 type CityEntry = {
-  location: AppLocation;
+  location: string;
   center: [number, number];
   labelCenter: [number, number];
+  searchTerms: string[];
   theaterCount: number;
   chains: string[];
+  zoomLayer: number | null;
+};
+
+type CityRevealConfig = {
+  fallbackRevealZoom: number;
+  opacityLayers: number[];
+  zIndexByRevealZoom: Map<number, string>;
 };
 
 type CityMarkerState = {
@@ -198,7 +168,7 @@ type CityMarkerState = {
 type TheaterMarkerState = {
   marker: Marker;
   element: HTMLButtonElement;
-  location: AppLocation | null;
+  location: string | null;
   popup: Popup;
 };
 
@@ -229,10 +199,6 @@ const THEATER_DOT_COLORS: Record<string, string> = {
   Movieland: "#a80371",
   Cinematheque: "#31a26d",
 };
-
-function isAppLocation(value: string): value is AppLocation {
-  return appLocationSet.has(value);
-}
 
 function getFitPadding() {
   return window.innerWidth <= 720
@@ -277,7 +243,7 @@ function getNearestCityLocation(
   point: [number, number],
   entries: readonly CityEntry[],
 ) {
-  let nearestLocation: AppLocation | null = null;
+  let nearestLocation: string | null = null;
   let nearestDistance = Number.POSITIVE_INFINITY;
 
   for (const entry of entries) {
@@ -677,10 +643,10 @@ class TheaterMapActionControl implements IControl {
 }
 
 function buildCityEntries(theaters: readonly Theater[]): CityEntry[] {
-  const theatersByCity = new Map<AppLocation, Theater[]>();
+  const theatersByCity = new Map<string, Theater[]>();
 
   for (const theater of theaters) {
-    if (!isAppLocation(theater.city)) {
+    if (!theater.city) {
       continue;
     }
 
@@ -689,8 +655,11 @@ function buildCityEntries(theaters: readonly Theater[]): CityEntry[] {
     theatersByCity.set(theater.city, cityTheaters);
   }
 
-  return ALL_LOCATIONS.flatMap((location) => {
-    const cityTheaters = theatersByCity.get(location) ?? [];
+  return [...theatersByCity.entries()]
+    .sort(([leftLocation], [rightLocation]) =>
+      leftLocation.localeCompare(rightLocation),
+    )
+    .map(([location, cityTheaters]) => {
     const points = cityTheaters.flatMap((theater) =>
       theater.lat !== null && theater.lng !== null
         ? ([[theater.lng, theater.lat]] as [number, number][])
@@ -698,7 +667,7 @@ function buildCityEntries(theaters: readonly Theater[]): CityEntry[] {
     );
 
     if (points.length === 0) {
-      return [];
+      return null;
     }
 
     const center = points.reduce(
@@ -709,36 +678,89 @@ function buildCityEntries(theaters: readonly Theater[]): CityEntry[] {
       [0, 0],
     ) as [number, number];
 
-    return [
-      {
-        location,
-        center,
-        labelCenter: [center[0], center[1] + CITY_LABEL_NORTH_OFFSET],
-        theaterCount: cityTheaters.length,
-        chains: [
-          ...new Set(cityTheaters.map((theater) => theater.chain)),
-        ].sort(),
-      },
-    ];
-  });
+    return {
+      location,
+      center,
+      labelCenter: [center[0], center[1] + CITY_LABEL_NORTH_OFFSET],
+      searchTerms: [
+        ...new Set(
+          cityTheaters.flatMap((theater) => theater.cityAltSpellings).concat(location),
+        ),
+      ]
+        .map(normalizeCitySearchQuery)
+        .filter(Boolean),
+      theaterCount: cityTheaters.length,
+      chains: [
+        ...new Set(cityTheaters.map((theater) => theater.chain)),
+      ].sort(),
+      zoomLayer: resolveCityZoomLayer(location, cityTheaters),
+    };
+  })
+    .filter((entry): entry is CityEntry => entry !== null);
+}
+
+function resolveCityZoomLayer(
+  location: string,
+  cityTheaters: readonly Theater[],
+): number | null {
+  const zoomLayers = [...new Set(
+    cityTheaters.flatMap((theater) =>
+      typeof theater.zoomLayer === "number" ? [theater.zoomLayer] : [],
+    ),
+  )].sort((left, right) => left - right);
+
+  if (zoomLayers.length === 0) {
+    return null;
+  }
+
+  if (zoomLayers.length > 1) {
+    console.warn(
+      `City ${location} has inconsistent zoom_layer values in theaters; using the earliest reveal layer.`,
+      zoomLayers,
+    );
+  }
+
+  return zoomLayers[0];
+}
+
+function buildCityRevealConfig(entries: readonly CityEntry[]): CityRevealConfig {
+  const revealLayers = Array.from(
+    new Set(
+      entries.flatMap((entry) =>
+        typeof entry.zoomLayer === "number" ? [entry.zoomLayer] : [],
+      ),
+    ),
+  ).sort((left, right) => left - right);
+  const opacityLayers = revealLayers.filter((zoom) => zoom > 0);
+  const fallbackRevealZoom = revealLayers.at(-1) ?? 0;
+
+  return {
+    fallbackRevealZoom,
+    opacityLayers,
+    zIndexByRevealZoom: new Map(
+      revealLayers.map((zoom, index) => [zoom, String(100 - index)]),
+    ),
+  };
 }
 
 function normalizeCitySearchQuery(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-function cityMatchesSearchQuery(location: AppLocation, query: string) {
+function cityMatchesSearchQuery(query: string, searchTerms: readonly string[]) {
   if (!query) {
     return true;
   }
 
-  const normalizedLocation = normalizeCitySearchQuery(location);
-  const compactLocation = normalizedLocation.replace(/\s+/g, "");
   const compactQuery = query.replace(/\s+/g, "");
 
-  return (
-    normalizedLocation.includes(query) || compactLocation.includes(compactQuery)
-  );
+  return searchTerms.some((searchTerm) => {
+    const compactSearchTerm = searchTerm.replace(/\s+/g, "");
+
+    return (
+      searchTerm.includes(query) || compactSearchTerm.includes(compactQuery)
+    );
+  });
 }
 
 function styleCityLabel(
@@ -850,12 +872,22 @@ function getTheaterDisplayName(theater: Theater): string {
   return `${theater.chain} ${theater.city}`.trim();
 }
 
-function getCityMinZoom(entry: CityEntry): number {
-  return CITY_REVEAL_ZOOM[entry.location] ?? DEFAULT_CITY_REVEAL_ZOOM;
+function getCityMinZoom(
+  entry: CityEntry,
+  revealConfig: CityRevealConfig,
+): number {
+  return entry.zoomLayer ?? revealConfig.fallbackRevealZoom;
 }
 
-function getCityMarkerZIndex(revealZoom: number) {
-  return CITY_Z_INDEX_BY_REVEAL_ZOOM.get(getEffectiveCityRevealZoom(revealZoom)) ?? "1";
+function getCityMarkerZIndex(
+  revealZoom: number,
+  revealConfig: CityRevealConfig,
+) {
+  return (
+    revealConfig.zIndexByRevealZoom.get(
+      getEffectiveCityRevealZoom(revealZoom, revealConfig),
+    ) ?? "1"
+  );
 }
 
 function getSearchCityMarkerZIndex(baseZIndex: string, isMatch: boolean) {
@@ -870,20 +902,27 @@ function getSearchCityMarkerZIndex(baseZIndex: string, isMatch: boolean) {
   );
 }
 
-function getEffectiveCityRevealZoom(revealZoom: number) {
-  return revealZoom > 0 ? revealZoom : FIRST_CITY_OPACITY_LAYER;
+function getEffectiveCityRevealZoom(
+  revealZoom: number,
+  revealConfig: CityRevealConfig,
+) {
+  return revealZoom > 0 ? revealZoom : revealConfig.opacityLayers[0] ?? revealZoom;
 }
 
 function getCityLabelOpacity(
   zoom: number,
   revealZoom: number,
   selected: boolean,
+  revealConfig: CityRevealConfig,
 ) {
   if (selected) {
     return 1;
   }
 
-  const effectiveRevealZoom = getEffectiveCityRevealZoom(revealZoom);
+  const effectiveRevealZoom = getEffectiveCityRevealZoom(
+    revealZoom,
+    revealConfig,
+  );
 
   if (zoom >= effectiveRevealZoom) {
     return 1;
@@ -891,7 +930,7 @@ function getCityLabelOpacity(
 
   let passedLayerCount = 0;
 
-  for (const layerZoom of CITY_OPACITY_LAYERS) {
+  for (const layerZoom of revealConfig.opacityLayers) {
     if (layerZoom >= effectiveRevealZoom) {
       break;
     }
@@ -911,16 +950,17 @@ function isCityLabelRevealed(
   zoom: number,
   revealZoom: number,
   selected: boolean,
+  revealConfig: CityRevealConfig,
 ) {
   if (selected) {
     return true;
   }
 
-  return zoom >= getEffectiveCityRevealZoom(revealZoom);
+  return zoom >= getEffectiveCityRevealZoom(revealZoom, revealConfig);
 }
 
-function getCityPriority(entry: CityEntry): number {
-  const revealZoom = getCityMinZoom(entry);
+function getCityPriority(entry: CityEntry, revealConfig: CityRevealConfig): number {
+  const revealZoom = getCityMinZoom(entry, revealConfig);
   return (20 - revealZoom) * 10 + entry.theaterCount;
 }
 
@@ -944,7 +984,7 @@ function getSecondaryCityCollisionPadding(zoom: number) {
   return { x: 12, y: 8 };
 }
 
-function estimateCityBubbleSize(location: AppLocation, active: boolean) {
+function estimateCityBubbleSize(location: string, active: boolean) {
   const width = Math.max(112, location.length * 15 + 34) + (active ? 10 : 0);
   const height = active ? 48 : 42;
 
@@ -1015,7 +1055,7 @@ export function CityLocationPicker({
   const syncingRef = useRef(syncing);
   const showTheatersRef = useRef(showTheaters);
   const geolocationRequestRef = useRef(false);
-  const cityLabelElementsRef = useRef(new Map<AppLocation, CityMarkerState>());
+  const cityLabelElementsRef = useRef(new Map<string, CityMarkerState>());
   const secondaryCityLabelElementsRef = useRef<SecondaryCityMarkerState[]>([]);
   const cityMarkersRef = useRef<Marker[]>([]);
   const theaterMarkersRef = useRef<TheaterMarkerState[]>([]);
@@ -1036,6 +1076,10 @@ export function CityLocationPicker({
   }, []);
 
   const cityEntries = useMemo(() => buildCityEntries(theaters), [theaters]);
+  const cityRevealConfig = useMemo(
+    () => buildCityRevealConfig(cityEntries),
+    [cityEntries],
+  );
   const cityEntryMap = useMemo(
     () => new Map(cityEntries.map((entry) => [entry.location, entry] as const)),
     [cityEntries],
@@ -1051,7 +1095,7 @@ export function CityLocationPicker({
     () =>
       normalizedQuery
         ? cityEntries.flatMap((entry) =>
-            cityMatchesSearchQuery(entry.location, normalizedQuery)
+            cityMatchesSearchQuery(normalizedQuery, entry.searchTerms)
               ? [entry.location]
               : [],
           )
@@ -1433,7 +1477,7 @@ export function CityLocationPicker({
       renderWorldCopies: false,
       attributionControl: false,
     });
-    const labelElements = new Map<AppLocation, CityMarkerState>();
+    const labelElements = new Map<string, CityMarkerState>();
     const secondaryLabelElements: SecondaryCityMarkerState[] = [];
     const markers: Marker[] = [];
     const theaterMarkers: TheaterMarkerState[] = [];
@@ -1483,7 +1527,7 @@ export function CityLocationPicker({
         ? cityEntries.reduce(
             (count, entry) =>
               count +
-              (cityMatchesSearchQuery(entry.location, searchQuery) ? 1 : 0),
+              (cityMatchesSearchQuery(searchQuery, entry.searchTerms) ? 1 : 0),
             0,
           )
         : 0;
@@ -1505,20 +1549,29 @@ export function CityLocationPicker({
 
       for (const [location, state] of labelElements) {
         const isSelected = location === currentSelection;
-        const searchMatch = cityMatchesSearchQuery(location, searchQuery);
+        const searchMatch = cityMatchesSearchQuery(
+          searchQuery,
+          cityEntryMap.get(location)?.searchTerms ??
+            [normalizeCitySearchQuery(location)],
+        );
         const active = searchActive ? false : isSelected;
         const opacity = searchActive
           ? searchMatch
             ? 1
             : 0.1
-          : getCityLabelOpacity(zoom, state.minZoom, active);
+          : getCityLabelOpacity(zoom, state.minZoom, active, cityRevealConfig);
         const interactive = searchActive
           ? searchMatch
-          : isCityLabelRevealed(zoom, state.minZoom, active);
+          : isCityLabelRevealed(
+              zoom,
+              state.minZoom,
+              active,
+              cityRevealConfig,
+            );
         const defaultZIndex =
           active && !searchActive
             ? SELECTED_CITY_Z_INDEX
-            : getCityMarkerZIndex(state.minZoom);
+            : getCityMarkerZIndex(state.minZoom, cityRevealConfig);
 
         styleCityLabel(state.element, state.surface, {
           active,
@@ -1591,7 +1644,12 @@ export function CityLocationPicker({
         const visible =
           showTheatersRef.current &&
           cityState !== undefined &&
-          isCityLabelRevealed(zoom, cityState.minZoom, active);
+          isCityLabelRevealed(
+            zoom,
+            cityState.minZoom,
+            active,
+            cityRevealConfig,
+          );
 
         styleTheaterDot(theaterMarker.element, visible);
 
@@ -1619,7 +1677,7 @@ export function CityLocationPicker({
       configureBaseLabels(map);
 
       for (const entry of cityEntries) {
-        const revealZoom = getCityMinZoom(entry);
+        const revealZoom = getCityMinZoom(entry, cityRevealConfig);
         const active = entry.location === currentLocationRef.current;
         const element = document.createElement("button");
         element.type = "button";
@@ -1632,9 +1690,21 @@ export function CityLocationPicker({
         styleCityLabel(element, surface, {
           active,
           syncing: syncingRef.current,
-          opacity: getCityLabelOpacity(map.getZoom(), revealZoom, active),
-          interactive: isCityLabelRevealed(map.getZoom(), revealZoom, active),
-          zIndex: active ? SELECTED_CITY_Z_INDEX : getCityMarkerZIndex(revealZoom),
+          opacity: getCityLabelOpacity(
+            map.getZoom(),
+            revealZoom,
+            active,
+            cityRevealConfig,
+          ),
+          interactive: isCityLabelRevealed(
+            map.getZoom(),
+            revealZoom,
+            active,
+            cityRevealConfig,
+          ),
+          zIndex: active
+            ? SELECTED_CITY_Z_INDEX
+            : getCityMarkerZIndex(revealZoom, cityRevealConfig),
         });
         element.addEventListener("click", () => {
           if (syncingRef.current) {
@@ -1649,7 +1719,7 @@ export function CityLocationPicker({
           element,
           surface,
           center: entry.labelCenter,
-          priority: getCityPriority(entry),
+          priority: getCityPriority(entry, cityRevealConfig),
           minZoom: revealZoom,
         });
         element.dataset.city = entry.location;
@@ -1774,7 +1844,7 @@ export function CityLocationPicker({
         theaterMarkers.push({
           marker,
           element,
-          location: isAppLocation(theater.city) ? theater.city : null,
+          location: theater.city || null,
           popup,
         });
       }
@@ -1825,7 +1895,9 @@ export function CityLocationPicker({
       mapRef.current = null;
     };
   }, [
+    cityEntryMap,
     cityEntries,
+    cityRevealConfig,
     fitStartingView,
     handleLocateNearestCity,
     handleLocationSelect,

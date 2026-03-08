@@ -26,19 +26,32 @@ export const ALL_LOCATIONS = [
   "Tel Aviv",
   "Zichron Yaakov",
 ] as const;
-export type AppLocation = (typeof ALL_LOCATIONS)[number];
+export type CanonicalAppLocation = (typeof ALL_LOCATIONS)[number];
+export type AppLocation = string;
 
 export const DEFAULT_LOCATION: AppLocation = "Haifa";
 
 const GUEST_LOCATION_KEY = "guest_location_v1";
-const locationSet = new Set<string>(ALL_LOCATIONS);
+const canonicalLocationByNormalizedValue = new Map(
+  ALL_LOCATIONS.map((location) => [normalizeLocationValue(location), location]),
+);
+
+function normalizeLocationValue(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
 
 export function normalizeLocation(
   value: unknown,
   fallback: AppLocation = DEFAULT_LOCATION,
 ): AppLocation {
-  if (typeof value === "string" && locationSet.has(value)) {
-    return value as AppLocation;
+  if (typeof value === "string") {
+    const normalizedValue = normalizeLocationValue(value);
+
+    if (!normalizedValue) {
+      return fallback;
+    }
+
+    return canonicalLocationByNormalizedValue.get(normalizedValue) ?? normalizedValue;
   }
 
   return fallback;

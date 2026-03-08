@@ -5,15 +5,12 @@ import {
   type RatingSource,
 } from "./ratingSources";
 import {
-  ALL_LOCATIONS,
   DEFAULT_LOCATION,
-  type AppLocation,
 } from "./locations";
 import { type RatingSourcesState } from "./useRatingSources";
 
 export type RatingSourcesContextValue = RatingSourcesState & {
   allSources: readonly RatingSource[];
-  allLocations: readonly AppLocation[];
 };
 
 const fallbackValue: RatingSourcesContextValue = {
@@ -24,7 +21,6 @@ const fallbackValue: RatingSourcesContextValue = {
   syncing: false,
   error: null,
   allSources: ALL_RATING_SOURCES,
-  allLocations: ALL_LOCATIONS,
   saveSources: async () => false,
   setLocationPreference: async () => false,
 };

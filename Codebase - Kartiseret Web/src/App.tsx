@@ -23,6 +23,7 @@ import {
   loadMovieCatalog,
   movies,
 } from "./data/movieCatalog";
+import { preloadTheaters } from "./data/theaters";
 import { RatingSourcesProvider } from "./prefs/RatingSourcesContext";
 import { useRatingSourcesContext } from "./prefs/ratingSourcesStore";
 import "./index.css";
@@ -130,6 +131,48 @@ function AppShell() {
 
     return () => {
       isActive = false;
+    };
+  }, [catalogReady, pathname]);
+
+  useEffect(() => {
+    if (!catalogReady || pathname !== "/") {
+      return;
+    }
+
+    let timeoutId: number | null = null;
+    let idleId: number | null = null;
+    const windowWithIdleCallbacks = window as Window & {
+      cancelIdleCallback?: (handle: number) => void;
+      requestIdleCallback?: (
+        callback: IdleRequestCallback,
+        options?: IdleRequestOptions,
+      ) => number;
+    };
+    const runPreload = () => {
+      preloadTheaters();
+    };
+
+    if (typeof windowWithIdleCallbacks.requestIdleCallback === "function") {
+      idleId = windowWithIdleCallbacks.requestIdleCallback(() => {
+        runPreload();
+      }, { timeout: 1200 });
+    } else {
+      timeoutId = window.setTimeout(() => {
+        runPreload();
+      }, 300);
+    }
+
+    return () => {
+      if (
+        idleId !== null &&
+        typeof windowWithIdleCallbacks.cancelIdleCallback === "function"
+      ) {
+        windowWithIdleCallbacks.cancelIdleCallback(idleId);
+      }
+
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
     };
   }, [catalogReady, pathname]);
 
