@@ -1271,13 +1271,13 @@ button {
 .theater-map-theater-popup-shell .maplibregl-popup-content {
   padding: 0;
   border-radius: 14px;
-  background: rgba(18, 22, 30, 0.98);
+  background: rgba(18, 22, 30, 0.9);
   box-shadow: 0 22px 40px rgba(4, 6, 12, 0.34);
 }
 
 .theater-map-theater-popup-shell .maplibregl-popup-tip {
-  border-top-color: rgba(18, 22, 30, 0.98);
-  border-bottom-color: rgba(18, 22, 30, 0.98);
+  border-top-color: rgba(18, 22, 30, 0.9);
+  border-bottom-color: rgba(18, 22, 30, 0.9);
 }
 
 .theater-map-theater-popup {
