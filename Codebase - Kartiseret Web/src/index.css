@@ -1258,6 +1258,14 @@ button {
   right: 14px;
 }
 
+.theater-map-panel .maplibregl-control-container,
+.theater-map-panel .maplibregl-ctrl-top-left,
+.theater-map-panel .maplibregl-ctrl-top-right,
+.theater-map-panel .maplibregl-ctrl-bottom-left,
+.theater-map-panel .maplibregl-ctrl-bottom-right {
+  z-index: 140;
+}
+
 .theater-map-panel .theater-map-close-control {
   margin: 10px 10px 0 0;
 }
