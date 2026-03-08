@@ -129,6 +129,8 @@ const movieScrollerTimingStyle = {
   "--movie-scroller-detail-swap-duration": `${DETAIL_NAV_DURATION_MS}ms`,
 } as CSSProperties;
 
+let persistedDetailShowtimeDate: string | null = null;
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
@@ -433,7 +435,7 @@ function isInteractiveDetailTarget(target: EventTarget | null): boolean {
 
   return Boolean(
     target.closest(
-      "button, a, input, textarea, select, summary, [role='button']",
+      "button, a, input, textarea, select, summary, [role='button'], [data-movie-scroller-swipe-ignore='true']",
     ),
   );
 }
@@ -541,6 +543,9 @@ function MovieScrollerContent({
     useState<GhostTransitionState | null>(null);
   const [detailTransition, setDetailTransition] =
     useState<DetailTransitionState | null>(null);
+  const [detailShowtimeDate, setDetailShowtimeDate] = useState<string | null>(
+    () => persistedDetailShowtimeDate,
+  );
 
   const shellRef = useRef<HTMLDivElement | null>(null);
   const detailStageRef = useRef<HTMLDivElement | null>(null);
@@ -625,6 +630,13 @@ function MovieScrollerContent({
     clearScheduledDetailTransition,
     clearScheduledExternalJump,
   ]);
+
+  const handleDetailShowtimeDateChange = useCallback((nextDate: string) => {
+    persistedDetailShowtimeDate = nextDate;
+    setDetailShowtimeDate((current) =>
+      current === nextDate ? current : nextDate,
+    );
+  }, []);
 
   const measureDetailStage = useCallback(() => {
     const stage = detailStageRef.current;
@@ -1227,7 +1239,7 @@ function MovieScrollerContent({
 
   const handleDetailWheel = useCallback(
     (event: WheelEvent<HTMLDivElement>) => {
-      if (!canNavigate) {
+      if (!canNavigate || isInteractiveDetailTarget(event.target)) {
         return;
       }
 
@@ -1823,6 +1835,8 @@ function MovieScrollerContent({
             titleId={`${titleId}-${bodyKey}`}
             eyebrow={detailEyebrow}
             variant={detailVariant}
+            preferredShowtimeDate={detailShowtimeDate}
+            onPreferredShowtimeDateChange={handleDetailShowtimeDateChange}
             posterClassName={`details-poster movie-scroller-detail-poster${
               posterVisible ? " is-visible" : ""
             }`}

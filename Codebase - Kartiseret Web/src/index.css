@@ -566,7 +566,7 @@ button {
 }
 
 .theater-map-dialog {
-  width: min(750px, calc(100vw - 48px), calc(100vh - 48px));
+  width: min(550px, calc(100vw - 48px), calc(100vh - 48px));
   height: min(750px, calc(100vw - 48px), calc(100vh - 48px));
   display: grid;
   gap: 16px;
@@ -2180,6 +2180,7 @@ button {
   border-radius: 26px;
   background: rgba(8, 7, 11, 0.18);
   overflow: hidden;
+  touch-action: pan-x;
 }
 
 .details-showtime-empty {
@@ -2202,6 +2203,8 @@ button {
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
 }
 
 .details-rail::-webkit-scrollbar {
@@ -2354,7 +2357,7 @@ button {
   }
 
   .theater-map-dialog {
-    width: min(750px, calc(100vw - 24px), calc(100vh - 24px));
+    width: min(550px, calc(100vw - 24px), calc(100vh - 24px));
     height: min(750px, calc(100vw - 24px), calc(100vh - 24px));
     padding: 14px;
     border-radius: 24px;

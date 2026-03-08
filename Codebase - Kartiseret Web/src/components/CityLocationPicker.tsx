@@ -10,12 +10,12 @@ import {
   Ban,
   Info,
   List,
-  LocateFixed,
   MapPin,
   Navigation,
   Search,
   X,
   Clapperboard,
+  Locate,
 } from "lucide-react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
@@ -277,7 +277,7 @@ const LOCATION_UNSUPPORTED_MESSAGE =
   "Location services are not available in this browser.";
 
 const RESET_CONTROL_ICON = renderToStaticMarkup(
-  <LocateFixed size={18} strokeWidth={2.5} />,
+  <Locate size={18} strokeWidth={2.5} />,
 );
 const THEATER_MARKER_ICON = renderToStaticMarkup(
   <Clapperboard size={16} strokeWidth={2.5} />,

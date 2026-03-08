@@ -1,8 +1,15 @@
-import type { Ref } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type Ref,
+} from "react";
 import {
   fixedAppDateString,
   getMovieShowtimeDays,
   type Movie,
+  type MovieShowtimeDay,
 } from "../data/movieCatalog";
 import { useRatingSourcesContext } from "../prefs/ratingSourcesStore";
 import { type RatingSource } from "../prefs/ratingSources";
@@ -96,6 +103,8 @@ type MovieDetailsContentProps = {
   posterClassName?: string;
   eyebrow?: string;
   variant?: MovieDetailsVariant;
+  preferredShowtimeDate?: string | null;
+  onPreferredShowtimeDateChange?: (date: string) => void;
 };
 
 export type MovieDetailsVariant = "nowPlaying" | "comingSoon";
@@ -340,6 +349,69 @@ function getMetricDisplays(
   );
 }
 
+function getShowtimeTargetDate(
+  showtimeDays: readonly MovieShowtimeDay[],
+  preferredShowtimeDate: string | null | undefined,
+): string | null {
+  if (showtimeDays.length === 0) {
+    return null;
+  }
+
+  if (
+    preferredShowtimeDate &&
+    showtimeDays.some((day) => day.date === preferredShowtimeDate)
+  ) {
+    return preferredShowtimeDate;
+  }
+
+  return showtimeDays[0]?.date ?? null;
+}
+
+function findShowtimePanel(
+  rail: HTMLDivElement,
+  date: string,
+): HTMLElement | null {
+  for (const child of Array.from(rail.children)) {
+    if (
+      child instanceof HTMLElement &&
+      child.dataset.showtimeDate === date
+    ) {
+      return child;
+    }
+  }
+
+  return null;
+}
+
+function getNearestShowtimeDate(
+  rail: HTMLDivElement,
+  showtimeDays: readonly MovieShowtimeDay[],
+): string | null {
+  let nearestDate = showtimeDays[0]?.date ?? null;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (const child of Array.from(rail.children)) {
+    if (!(child instanceof HTMLElement)) {
+      continue;
+    }
+
+    const panelDate = child.dataset.showtimeDate;
+
+    if (!panelDate) {
+      continue;
+    }
+
+    const distance = Math.abs(child.offsetLeft - rail.scrollLeft);
+
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestDate = panelDate;
+    }
+  }
+
+  return nearestDate;
+}
+
 export function MovieDetailsContent({
   movie,
   titleId,
@@ -347,8 +419,13 @@ export function MovieDetailsContent({
   posterClassName = "details-poster",
   eyebrow = "Now playing",
   variant = "nowPlaying",
+  preferredShowtimeDate = null,
+  onPreferredShowtimeDateChange,
 }: MovieDetailsContentProps) {
   const { sources, location } = useRatingSourcesContext();
+  const railRef = useRef<HTMLDivElement | null>(null);
+  const railScrollFrameRef = useRef<number | null>(null);
+  const visibleShowtimeDateRef = useRef<string | null>(null);
   const subtitle = getMovieInfoParts(movie).join(" • ");
   const releaseDateLabel =
     variant === "comingSoon" && movie.releaseDate
@@ -360,6 +437,73 @@ export function MovieDetailsContent({
       : [];
   const metrics =
     variant === "nowPlaying" ? getMetricDisplays(movie, sources) : [];
+  const targetShowtimeDate = getShowtimeTargetDate(
+    showtimeDays,
+    preferredShowtimeDate,
+  );
+
+  const reportVisibleShowtimeDate = useCallback(
+    (nextDate: string | null) => {
+      if (!nextDate || visibleShowtimeDateRef.current === nextDate) {
+        return;
+      }
+
+      visibleShowtimeDateRef.current = nextDate;
+      onPreferredShowtimeDateChange?.(nextDate);
+    },
+    [onPreferredShowtimeDateChange],
+  );
+
+  const handleRailScroll = useCallback(() => {
+    if (railScrollFrameRef.current !== null) {
+      return;
+    }
+
+    railScrollFrameRef.current = window.requestAnimationFrame(() => {
+      railScrollFrameRef.current = null;
+
+      const rail = railRef.current;
+      if (!rail) {
+        return;
+      }
+
+      reportVisibleShowtimeDate(getNearestShowtimeDate(rail, showtimeDays));
+    });
+  }, [reportVisibleShowtimeDate, showtimeDays]);
+
+  useLayoutEffect(() => {
+    const rail = railRef.current;
+
+    if (!rail || !targetShowtimeDate) {
+      visibleShowtimeDateRef.current = targetShowtimeDate;
+      return;
+    }
+
+    if (visibleShowtimeDateRef.current === targetShowtimeDate) {
+      return;
+    }
+
+    const targetPanel = findShowtimePanel(rail, targetShowtimeDate);
+    if (!targetPanel) {
+      visibleShowtimeDateRef.current = targetShowtimeDate;
+      return;
+    }
+
+    if (Math.abs(rail.scrollLeft - targetPanel.offsetLeft) > 1) {
+      rail.scrollLeft = targetPanel.offsetLeft;
+    }
+
+    visibleShowtimeDateRef.current = targetShowtimeDate;
+  }, [movie.tmdbId, location, targetShowtimeDate]);
+
+  useEffect(() => {
+    return () => {
+      if (railScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(railScrollFrameRef.current);
+        railScrollFrameRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <>
@@ -414,13 +558,22 @@ export function MovieDetailsContent({
       </div>
 
       {variant === "nowPlaying" ? (
-        <div className="details-showtimes">
+        <div
+          className="details-showtimes"
+          data-movie-scroller-swipe-ignore="true"
+        >
           <div
+            ref={railRef}
             className="details-rail"
             aria-label={`${movie.title} showtimes in ${location}`}
+            onScroll={handleRailScroll}
           >
             {showtimeDays.map((day) => (
-              <article className="details-day-panel" key={day.date}>
+              <article
+                className="details-day-panel"
+                data-showtime-date={day.date}
+                key={day.date}
+              >
                 <div className="details-day-header">
                   <div className="details-day-heading">
                     <h3 className="details-day-title">{location}</h3>

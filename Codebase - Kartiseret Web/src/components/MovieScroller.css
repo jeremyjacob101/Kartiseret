@@ -136,8 +136,9 @@
 }
 
 .movie-scroller-side-preview.is-disabled {
-  opacity: 0.3;
+  opacity: calc(var(--movie-scroller-side-preview-rest-opacity) * 0.85);
   cursor: default;
+  pointer-events: none;
 }
 
 .movie-scroller-shell.is-opening .movie-scroller-side-preview {
@@ -557,6 +558,10 @@
     transform: translate3d(0, -82px, 0) scale(1.05);
   }
 
+  12% {
+    opacity: 0.74;
+  }
+
   to {
     opacity: 0.78;
     transform: translate3d(0, 0, 0) scale(1.035);
@@ -629,8 +634,8 @@
     transform: translate3d(88px, 0, 0);
   }
 
-  45% {
-    opacity: 1;
+  12% {
+    opacity: 0.95;
   }
 
   to {
@@ -645,8 +650,8 @@
     transform: translate3d(-88px, 0, 0);
   }
 
-  45% {
-    opacity: 1;
+  12% {
+    opacity: 0.95;
   }
 
   to {
