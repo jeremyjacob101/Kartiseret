@@ -16,6 +16,7 @@ import {
   Navigation,
   Search,
   X,
+  Clapperboard,
 } from "lucide-react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
@@ -281,6 +282,9 @@ const RESET_CONTROL_ICON = renderToStaticMarkup(
 );
 const THEATERS_CONTROL_ICON = renderToStaticMarkup(
   <Building2 size={16} strokeWidth={2.5} />,
+);
+const THEATER_MARKER_ICON = renderToStaticMarkup(
+  <Clapperboard size={16} strokeWidth={2.5} />,
 );
 const BLOCKED_LOCATE_ICON = renderToStaticMarkup(
   <Ban size={16} strokeWidth={2.5} />,
@@ -865,6 +869,10 @@ function getTheaterDotColor(chain: string): string {
 }
 
 function getTheaterDisplayName(theater: Theater): string {
+  if (theater.theaterName) {
+    return theater.theaterName;
+  }
+
   if (theater.address && !/\d/.test(theater.address)) {
     return theater.address;
   }
@@ -1030,7 +1038,7 @@ export function CityLocationPicker({
   syncing = false,
 }: CityLocationPickerProps) {
   const [query, setQuery] = useState("");
-  const [showTheaters, setShowTheaters] = useState(false);
+  const [showTheaters, setShowTheaters] = useState(true);
   const [isCityListOpen, setIsCityListOpen] = useState(false);
   const [optimisticLocation, setOptimisticLocation] =
     useState<AppLocation | null>(null);
@@ -1779,6 +1787,7 @@ export function CityLocationPicker({
         const surface = document.createElement("span");
         surface.className = "theater-map-theater-dot-surface";
         surface.setAttribute("aria-hidden", "true");
+        surface.innerHTML = THEATER_MARKER_ICON;
         element.append(surface);
         styleTheaterDot(element, false);
 

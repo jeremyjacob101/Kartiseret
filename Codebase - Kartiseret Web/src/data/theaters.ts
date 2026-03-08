@@ -5,6 +5,7 @@ type TheaterRow = {
   chain: string | null;
   address: string | null;
   location: string;
+  theater_name: string | null;
   city_alt_spellings: string[] | string | null;
   latitude: number | string | null;
   longitude: number | string | null;
@@ -15,6 +16,7 @@ export type Theater = {
   city: string;
   chain: string;
   address: string;
+  theaterName: string;
   cityAltSpellings: string[];
   location: string;
   lat: number | null;
@@ -28,6 +30,7 @@ const THEATER_SELECT_COLUMNS = [
   "chain",
   "address",
   "location",
+  "theater_name",
   "city_alt_spellings",
   "latitude",
   "longitude",
@@ -132,6 +135,7 @@ function mapRowToTheater(row: TheaterRow): Theater {
     city,
     chain: normalizeText(row.chain),
     address: normalizeText(row.address),
+    theaterName: normalizeText(row.theater_name),
     cityAltSpellings,
     location,
     lat: normalizeOptionalNumber(row.latitude),
