@@ -57,9 +57,25 @@ const CITY_REVEAL_ZOOM: Partial<Record<AppLocation, number>> = {
   Herziliya: 9,
   Rehovot: 9,
   Omer: 9,
-  "Ayalon": 9.5,
-  "Kfar Saba" : 9.5,
+  Ayalon: 9.5,
+  "Kfar Saba": 9.5,
 };
+const CITY_OPACITY_BASE = 0.1;
+const CITY_OPACITY_STEP = 0.1;
+const CITY_MAX_PRE_REVEAL_OPACITY = 0.9;
+const CITY_OPACITY_LAYERS = Array.from(
+  new Set(
+    [...Object.values(CITY_REVEAL_ZOOM), DEFAULT_CITY_REVEAL_ZOOM].filter(
+      (zoom): zoom is number => typeof zoom === "number" && zoom > 0,
+    ),
+  ),
+).sort((left, right) => left - right);
+const CITY_REVEAL_LAYERS = Array.from(
+  new Set([0, ...Object.values(CITY_REVEAL_ZOOM), DEFAULT_CITY_REVEAL_ZOOM]),
+).sort((left, right) => left - right);
+const CITY_Z_INDEX_BY_REVEAL_ZOOM = new Map(
+  CITY_REVEAL_LAYERS.map((zoom, index) => [zoom, String(100 - index)]),
+);
 const PRIMARY_CITY_COLLISION_PADDING = { x: 18, y: 14 };
 const CITY_LABEL_NORTH_OFFSET = 0.00115;
 const MAP_MAX_ZOOM = 16.5;
@@ -124,19 +140,39 @@ const SECONDARY_CITIES: ReadonlyArray<{
   { name: "Kfar Yona", center: [34.935, 32.3166], minZoom: 9.8, priority: 46 },
   { name: "Holon", center: [34.7792, 32.0158], minZoom: 9.85, priority: 60 },
   { name: "Bat Yam", center: [34.7519, 32.023], minZoom: 9.95, priority: 56 },
-  { name: "Ramat Gan", center: [34.8248, 32.0706], minZoom: 9.85, priority: 66 },
-  { name: "Bnei Brak", center: [34.8334, 32.0836], minZoom: 10.1, priority: 50 },
+  {
+    name: "Ramat Gan",
+    center: [34.8248, 32.0706],
+    minZoom: 9.85,
+    priority: 66,
+  },
+  {
+    name: "Bnei Brak",
+    center: [34.8334, 32.0836],
+    minZoom: 10.1,
+    priority: 50,
+  },
   { name: "Lod", center: [34.8881, 31.951], minZoom: 9.85, priority: 58 },
   { name: "Ramla", center: [34.8675, 31.9316], minZoom: 9.95, priority: 54 },
   { name: "Yavne", center: [34.7386, 31.8781], minZoom: 10.05, priority: 46 },
-  { name: "Ness Ziona", center: [34.7987, 31.9293], minZoom: 9.1, priority: 42 },
+  {
+    name: "Ness Ziona",
+    center: [34.7987, 31.9293],
+    minZoom: 9.1,
+    priority: 42,
+  },
   { name: "Ramallah", center: [35.2045, 31.9038], minZoom: 9.75, priority: 72 },
   { name: "Bethlehem", center: [35.2034, 31.7054], minZoom: 9.9, priority: 64 },
   { name: "Hebron", center: [35.0998, 31.5326], minZoom: 9.85, priority: 68 },
   { name: "Jericho", center: [35.4581, 31.8702], minZoom: 10.1, priority: 40 },
   { name: "Nablus", center: [35.262, 32.2211], minZoom: 9.75, priority: 70 },
   { name: "Tulkarm", center: [35.0124, 32.3114], minZoom: 10, priority: 44 },
-  { name: "Qalqilya", center: [34.9706, 32.1896], minZoom: 10.05, priority: 38 },
+  {
+    name: "Qalqilya",
+    center: [34.9706, 32.1896],
+    minZoom: 10.05,
+    priority: 38,
+  },
 ];
 
 type CityEntry = {
@@ -149,6 +185,7 @@ type CityEntry = {
 
 type CityMarkerState = {
   element: HTMLButtonElement;
+  surface: HTMLSpanElement;
   center: [number, number];
   priority: number;
   minZoom: number;
@@ -217,10 +254,7 @@ function toRadians(value: number) {
   return (value * Math.PI) / 180;
 }
 
-function getDistanceMeters(
-  first: [number, number],
-  second: [number, number],
-) {
+function getDistanceMeters(first: [number, number], second: [number, number]) {
   const earthRadiusMeters = 6_371_000;
   const deltaLat = toRadians(second[1] - first[1]);
   const deltaLng = toRadians(second[0] - first[0]);
@@ -265,7 +299,8 @@ function getGeolocationErrorMessage(error: GeolocationPositionError) {
   }
 }
 
-const LOCATION_DISABLED_MESSAGE = "Location services are disabled for this site.";
+const LOCATION_DISABLED_MESSAGE =
+  "Location services are disabled for this site.";
 const LOCATION_UNSUPPORTED_MESSAGE =
   "Location services are not available in this browser.";
 
@@ -278,8 +313,12 @@ const THEATERS_CONTROL_ICON = renderToStaticMarkup(
 const BLOCKED_LOCATE_ICON = renderToStaticMarkup(
   <Ban size={16} strokeWidth={2.5} />,
 );
-const CLOSE_CONTROL_ICON = renderToStaticMarkup(<X size={16} strokeWidth={3.5} />);
-const INFO_CONTROL_ICON = renderToStaticMarkup(<Info size={16} strokeWidth={3} />);
+const CLOSE_CONTROL_ICON = renderToStaticMarkup(
+  <X size={16} strokeWidth={3.5} />,
+);
+const INFO_CONTROL_ICON = renderToStaticMarkup(
+  <Info size={16} strokeWidth={3} />,
+);
 const NAVIGATION_CONTROL_ICON = renderToStaticMarkup(
   <Navigation size={16} strokeWidth={3} />,
 );
@@ -442,7 +481,8 @@ class TheaterMapTheatersControl implements IControl {
     button.addEventListener("click", this.onToggle);
 
     const icon = document.createElement("span");
-    icon.className = "theater-map-action-glyph theater-map-action-glyph--theaters";
+    icon.className =
+      "theater-map-action-glyph theater-map-action-glyph--theaters";
     icon.setAttribute("aria-hidden", "true");
     icon.innerHTML = THEATERS_CONTROL_ICON;
 
@@ -507,7 +547,8 @@ class TheaterMapActionControl implements IControl {
     container.className = "maplibregl-ctrl theater-map-action-controls-wrap";
 
     const controlsGroup = document.createElement("div");
-    controlsGroup.className = "maplibregl-ctrl-group theater-map-action-controls";
+    controlsGroup.className =
+      "maplibregl-ctrl-group theater-map-action-controls";
 
     const resetButton = document.createElement("button");
     resetButton.type = "button";
@@ -517,7 +558,8 @@ class TheaterMapActionControl implements IControl {
     resetButton.title = "Reset map view";
     resetButton.addEventListener("click", this.options.onReset);
     const resetIcon = document.createElement("span");
-    resetIcon.className = "theater-map-action-glyph theater-map-action-glyph--reset";
+    resetIcon.className =
+      "theater-map-action-glyph theater-map-action-glyph--reset";
     resetIcon.setAttribute("aria-hidden", "true");
     resetIcon.innerHTML = RESET_CONTROL_ICON;
     resetButton.append(resetIcon);
@@ -667,7 +709,9 @@ function buildCityEntries(theaters: readonly Theater[]): CityEntry[] {
         center,
         labelCenter: [center[0], center[1] + CITY_LABEL_NORTH_OFFSET],
         theaterCount: cityTheaters.length,
-        chains: [...new Set(cityTheaters.map((theater) => theater.chain))].sort(),
+        chains: [
+          ...new Set(cityTheaters.map((theater) => theater.chain)),
+        ].sort(),
       },
     ];
   });
@@ -675,29 +719,30 @@ function buildCityEntries(theaters: readonly Theater[]): CityEntry[] {
 
 function styleCityLabel(
   element: HTMLButtonElement,
+  surface: HTMLSpanElement,
   options: {
     active: boolean;
     syncing: boolean;
-    visible: boolean;
+    opacity: number;
+    interactive: boolean;
   },
 ) {
   element.classList.toggle("is-active", options.active);
-  element.classList.toggle("is-hidden", !options.visible);
   element.disabled = options.syncing;
   element.setAttribute("aria-pressed", String(options.active));
-  element.setAttribute("aria-disabled", String(options.syncing));
-  element.setAttribute("aria-hidden", String(!options.visible));
-  element.tabIndex = options.visible ? 0 : -1;
-  element.style.opacity = options.visible ? "1" : "0";
-  element.style.visibility = options.visible ? "visible" : "hidden";
+  element.setAttribute(
+    "aria-disabled",
+    String(options.syncing || !options.interactive),
+  );
+  element.setAttribute("aria-hidden", "false");
+  element.tabIndex = !options.syncing && options.interactive ? 0 : -1;
   element.style.pointerEvents =
-    options.visible && !options.syncing ? "auto" : "none";
+    !options.syncing && options.interactive ? "auto" : "none";
+  // MapLibre rewrites opacity on the marker root while the camera moves.
+  surface.style.opacity = String(options.opacity);
 }
 
-function styleSecondaryCityLabel(
-  element: HTMLSpanElement,
-  visible: boolean,
-) {
+function styleSecondaryCityLabel(element: HTMLSpanElement, visible: boolean) {
   element.classList.toggle("is-hidden", !visible);
   element.setAttribute("aria-hidden", String(!visible));
   element.style.opacity = visible ? "1" : "0";
@@ -782,6 +827,37 @@ function getCityMinZoom(entry: CityEntry): number {
   return CITY_REVEAL_ZOOM[entry.location] ?? DEFAULT_CITY_REVEAL_ZOOM;
 }
 
+function getCityMarkerZIndex(revealZoom: number) {
+  return CITY_Z_INDEX_BY_REVEAL_ZOOM.get(revealZoom) ?? "1";
+}
+
+function getCityLabelOpacity(zoom: number, revealZoom: number) {
+  if (revealZoom <= 0 || zoom >= revealZoom) {
+    return 1;
+  }
+
+  let passedLayerCount = 0;
+
+  for (const layerZoom of CITY_OPACITY_LAYERS) {
+    if (layerZoom >= revealZoom) {
+      break;
+    }
+
+    if (zoom >= layerZoom) {
+      passedLayerCount += 1;
+    }
+  }
+
+  return Math.min(
+    CITY_OPACITY_BASE + passedLayerCount * CITY_OPACITY_STEP,
+    CITY_MAX_PRE_REVEAL_OPACITY,
+  );
+}
+
+function isCityLabelRevealed(zoom: number, revealZoom: number) {
+  return revealZoom <= 0 || zoom >= revealZoom;
+}
+
 function getCityPriority(entry: CityEntry): number {
   const revealZoom = getCityMinZoom(entry);
   return (20 - revealZoom) * 10 + entry.theaterCount;
@@ -822,8 +898,12 @@ function estimateSecondaryCityLabelSize(name: string) {
 }
 
 function getPrimaryLayerLabel(zoom: number) {
+  if (zoom < 6) {
+    return "Layer: pre-6.0";
+  }
+
   if (zoom < 7) {
-    return "Layer: Jerusalem only";
+    return "Layer: 6.0";
   }
 
   if (zoom < 7.5) {
@@ -886,7 +966,9 @@ export function CityLocationPicker({
   );
   const [isMapLoading, setIsMapLoading] = useState(false);
   const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null);
-  const [mapControlMessage, setMapControlMessage] = useState<string | null>(null);
+  const [mapControlMessage, setMapControlMessage] = useState<string | null>(
+    null,
+  );
   const [theaters, setTheaters] = useState<Theater[]>([]);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -1256,24 +1338,19 @@ export function CityLocationPicker({
         top: number;
         bottom: number;
       }> = [];
-      const visiblePrimaryCities = new Set<AppLocation>();
       let visibleSecondaryCount = 0;
- 
+
       for (const [location, state] of labelElements) {
         const active = location === currentSelection;
-        const visible = zoom >= state.minZoom;
+        const opacity = getCityLabelOpacity(zoom, state.minZoom);
+        const interactive = isCityLabelRevealed(zoom, state.minZoom);
 
-        styleCityLabel(state.element, {
+        styleCityLabel(state.element, state.surface, {
           active,
           syncing: syncingRef.current,
-          visible,
+          opacity,
+          interactive,
         });
-
-        if (!visible) {
-          continue;
-        }
-
-        visiblePrimaryCities.add(location);
 
         const point = map.project(state.center);
         const size = estimateCityBubbleSize(location, active);
@@ -1300,7 +1377,9 @@ export function CityLocationPicker({
 
       for (const state of secondaryCandidates) {
         const point = map.project(state.center);
-        const size = estimateSecondaryCityLabelSize(state.element.textContent ?? "");
+        const size = estimateSecondaryCityLabelSize(
+          state.element.textContent ?? "",
+        );
         const collisionRect = {
           left: point.x - size.width / 2 - secondaryCollisionPadding.x,
           right: point.x + size.width / 2 + secondaryCollisionPadding.x,
@@ -1355,16 +1434,21 @@ export function CityLocationPicker({
       configureBaseLabels(map);
 
       for (const entry of cityEntries) {
+        const revealZoom = getCityMinZoom(entry);
         const element = document.createElement("button");
         element.type = "button";
         element.className = "theater-map-city-label";
-        element.style.zIndex = "30";
-        element.textContent = entry.location.toUpperCase();
+        element.style.zIndex = getCityMarkerZIndex(revealZoom);
         element.setAttribute("aria-label", `Select ${entry.location}`);
-        styleCityLabel(element, {
+        const surface = document.createElement("span");
+        surface.className = "theater-map-city-label-surface";
+        surface.textContent = entry.location.toUpperCase();
+        element.append(surface);
+        styleCityLabel(element, surface, {
           active: entry.location === currentLocationRef.current,
           syncing: syncingRef.current,
-          visible: false,
+          opacity: getCityLabelOpacity(map.getZoom(), revealZoom),
+          interactive: isCityLabelRevealed(map.getZoom(), revealZoom),
         });
         element.addEventListener("click", () => {
           if (syncingRef.current) {
@@ -1375,12 +1459,13 @@ export function CityLocationPicker({
         });
         labelElements.set(entry.location, {
           element,
+          surface,
           center: entry.labelCenter,
           priority: getCityPriority(entry),
-          minZoom: getCityMinZoom(entry),
+          minZoom: revealZoom,
         });
         element.dataset.city = entry.location;
-        element.dataset.minZoom = String(getCityMinZoom(entry));
+        element.dataset.minZoom = String(revealZoom);
 
         markers.push(
           new Marker({
@@ -1425,7 +1510,10 @@ export function CityLocationPicker({
         element.type = "button";
         element.className = "theater-map-theater-dot";
         element.style.zIndex = "10";
-        element.style.setProperty("--theater-dot-color", getTheaterDotColor(theater.chain));
+        element.style.setProperty(
+          "--theater-dot-color",
+          getTheaterDotColor(theater.chain),
+        );
         element.setAttribute(
           "aria-label",
           `${getTheaterDisplayName(theater)}, ${theater.address}`,
@@ -1573,28 +1661,28 @@ export function CityLocationPicker({
           </div>
         ) : loadState === "error" ? (
           <div className="theater-map-state theater-map-state--error">
-            <p>{loadErrorMessage ?? "Could not load theaters from Supabase."}</p>
+            <p>
+              {loadErrorMessage ?? "Could not load theaters from Supabase."}
+            </p>
           </div>
         ) : null}
       </div>
 
-
-        <label className="theater-map-search-field">
-          <div className="theater-map-search-input-shell">
-            <Search size={17} />
-            <input
-              ref={searchInputRef}
-              type="search"
-              name="city-search"
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-              }}
-              placeholder="Search any city in your theater list"
-            />
-          </div>
-        </label>
-
+      <label className="theater-map-search-field">
+        <div className="theater-map-search-input-shell">
+          <Search size={17} />
+          <input
+            ref={searchInputRef}
+            type="search"
+            name="city-search"
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+            }}
+            placeholder="Search any city in your theater list"
+          />
+        </div>
+      </label>
     </div>
   );
 }

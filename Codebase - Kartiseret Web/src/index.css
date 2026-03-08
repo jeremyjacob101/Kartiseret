@@ -1100,6 +1100,20 @@ button {
 }
 
 .theater-map-city-label {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.theater-map-city-label-surface {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1.5px solid rgba(203, 178, 255, 0.72);
   border-radius: 999px;
   background: rgba(27, 31, 39, 0.66);
@@ -1119,7 +1133,7 @@ button {
     0 1px 0 rgba(6, 8, 12, 0.64);
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
-  cursor: pointer;
+  opacity: 0.1;
   transition:
     background-color 140ms ease,
     border-color 140ms ease,
@@ -1128,14 +1142,14 @@ button {
     box-shadow 140ms ease;
 }
 
-.theater-map-city-label:hover,
-.theater-map-city-label:focus-visible {
+.theater-map-city-label:hover .theater-map-city-label-surface,
+.theater-map-city-label:focus-visible .theater-map-city-label-surface {
   background: rgba(36, 41, 51, 0.78);
   color: rgba(244, 247, 252, 0.98);
   outline: none;
 }
 
-.theater-map-city-label.is-active {
+.theater-map-city-label.is-active .theater-map-city-label-surface {
   border-color: rgba(152, 160, 176, 0.74);
   background: rgba(184, 150, 255, 0.78);
   color: #17131f;
@@ -1145,14 +1159,13 @@ button {
     0 0 0 1px rgba(255, 255, 255, 0.05) inset;
 }
 
-.theater-map-city-label:disabled {
-  opacity: 0.56;
-  cursor: progress;
+.theater-map-city-label:focus-visible {
+  outline: none;
 }
 
-.theater-map-city-label.is-hidden {
-  opacity: 0;
-  pointer-events: none;
+.theater-map-city-label:disabled .theater-map-city-label-surface {
+  opacity: 0.56;
+  cursor: progress;
 }
 
 .theater-map-secondary-city-label {
