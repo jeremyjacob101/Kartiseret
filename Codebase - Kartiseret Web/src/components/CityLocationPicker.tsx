@@ -664,42 +664,44 @@ function buildCityEntries(theaters: readonly Theater[]): CityEntry[] {
       leftLocation.localeCompare(rightLocation),
     )
     .map(([location, cityTheaters]) => {
-    const points = cityTheaters.flatMap((theater) =>
-      theater.lat !== null && theater.lng !== null
-        ? ([[theater.lng, theater.lat]] as [number, number][])
-        : [],
-    );
+      const points = cityTheaters.flatMap((theater) =>
+        theater.lat !== null && theater.lng !== null
+          ? ([[theater.lng, theater.lat]] as [number, number][])
+          : [],
+      );
 
-    if (points.length === 0) {
-      return null;
-    }
+      if (points.length === 0) {
+        return null;
+      }
 
-    const center = points.reduce(
-      (accumulator, [lng, lat]) => [
-        accumulator[0] + lng / points.length,
-        accumulator[1] + lat / points.length,
-      ],
-      [0, 0],
-    ) as [number, number];
+      const center = points.reduce(
+        (accumulator, [lng, lat]) => [
+          accumulator[0] + lng / points.length,
+          accumulator[1] + lat / points.length,
+        ],
+        [0, 0],
+      ) as [number, number];
 
-    return {
-      location,
-      center,
-      labelCenter: [center[0], center[1] + CITY_LABEL_NORTH_OFFSET],
-      searchTerms: [
-        ...new Set(
-          cityTheaters.flatMap((theater) => theater.cityAltSpellings).concat(location),
-        ),
-      ]
-        .map(normalizeCitySearchQuery)
-        .filter(Boolean),
-      theaterCount: cityTheaters.length,
-      chains: [
-        ...new Set(cityTheaters.map((theater) => theater.chain)),
-      ].sort(),
-      zoomLayer: resolveCityZoomLayer(location, cityTheaters),
-    };
-  })
+      return {
+        location,
+        center,
+        labelCenter: [center[0], center[1] + CITY_LABEL_NORTH_OFFSET],
+        searchTerms: [
+          ...new Set(
+            cityTheaters
+              .flatMap((theater) => theater.cityAltSpellings)
+              .concat(location),
+          ),
+        ]
+          .map(normalizeCitySearchQuery)
+          .filter(Boolean),
+        theaterCount: cityTheaters.length,
+        chains: [
+          ...new Set(cityTheaters.map((theater) => theater.chain)),
+        ].sort(),
+        zoomLayer: resolveCityZoomLayer(location, cityTheaters),
+      };
+    })
     .filter((entry): entry is CityEntry => entry !== null);
 }
 
@@ -707,11 +709,13 @@ function resolveCityZoomLayer(
   location: string,
   cityTheaters: readonly Theater[],
 ): number | null {
-  const zoomLayers = [...new Set(
-    cityTheaters.flatMap((theater) =>
-      typeof theater.zoomLayer === "number" ? [theater.zoomLayer] : [],
+  const zoomLayers = [
+    ...new Set(
+      cityTheaters.flatMap((theater) =>
+        typeof theater.zoomLayer === "number" ? [theater.zoomLayer] : [],
+      ),
     ),
-  )].sort((left, right) => left - right);
+  ].sort((left, right) => left - right);
 
   if (zoomLayers.length === 0) {
     return null;
@@ -727,7 +731,9 @@ function resolveCityZoomLayer(
   return zoomLayers[0];
 }
 
-function buildCityRevealConfig(entries: readonly CityEntry[]): CityRevealConfig {
+function buildCityRevealConfig(
+  entries: readonly CityEntry[],
+): CityRevealConfig {
   const revealLayers = Array.from(
     new Set(
       entries.flatMap((entry) =>
@@ -801,10 +807,7 @@ function styleSecondaryCityLabel(element: HTMLSpanElement, visible: boolean) {
   element.style.visibility = visible ? "visible" : "hidden";
 }
 
-function styleTheaterDot(
-  element: HTMLButtonElement,
-  visible: boolean,
-) {
+function styleTheaterDot(element: HTMLButtonElement, visible: boolean) {
   element.classList.toggle("is-visible", visible);
   element.setAttribute("aria-hidden", String(!visible));
   element.tabIndex = visible ? 0 : -1;
@@ -914,7 +917,9 @@ function getEffectiveCityRevealZoom(
   revealZoom: number,
   revealConfig: CityRevealConfig,
 ) {
-  return revealZoom > 0 ? revealZoom : revealConfig.opacityLayers[0] ?? revealZoom;
+  return revealZoom > 0
+    ? revealZoom
+    : (revealConfig.opacityLayers[0] ?? revealZoom);
 }
 
 function getCityLabelOpacity(
@@ -967,7 +972,10 @@ function isCityLabelRevealed(
   return zoom >= getEffectiveCityRevealZoom(revealZoom, revealConfig);
 }
 
-function getCityPriority(entry: CityEntry, revealConfig: CityRevealConfig): number {
+function getCityPriority(
+  entry: CityEntry,
+  revealConfig: CityRevealConfig,
+): number {
   const revealZoom = getCityMinZoom(entry, revealConfig);
   return (20 - revealZoom) * 10 + entry.theaterCount;
 }
@@ -1559,8 +1567,9 @@ export function CityLocationPicker({
         const isSelected = location === currentSelection;
         const searchMatch = cityMatchesSearchQuery(
           searchQuery,
-          cityEntryMap.get(location)?.searchTerms ??
-            [normalizeCitySearchQuery(location)],
+          cityEntryMap.get(location)?.searchTerms ?? [
+            normalizeCitySearchQuery(location),
+          ],
         );
         const active = searchActive ? false : isSelected;
         const opacity = searchActive
@@ -1570,12 +1579,7 @@ export function CityLocationPicker({
           : getCityLabelOpacity(zoom, state.minZoom, active, cityRevealConfig);
         const interactive = searchActive
           ? searchMatch
-          : isCityLabelRevealed(
-              zoom,
-              state.minZoom,
-              active,
-              cityRevealConfig,
-            );
+          : isCityLabelRevealed(zoom, state.minZoom, active, cityRevealConfig);
         const defaultZIndex =
           active && !searchActive
             ? SELECTED_CITY_Z_INDEX
@@ -2029,7 +2033,8 @@ export function CityLocationPicker({
                 }}
                 onChange={(event) => {
                   const nextQuery = event.target.value;
-                  const nextNormalizedQuery = normalizeCitySearchQuery(nextQuery);
+                  const nextNormalizedQuery =
+                    normalizeCitySearchQuery(nextQuery);
 
                   clearPendingSearchZoomOut();
                   setQuery(nextQuery);

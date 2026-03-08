@@ -90,7 +90,10 @@ function getFocusViewportCenter(
     : 0;
   const desiredCenter = clientWidth / 2 - itemSpan * safeFocusOffsetItemSpans;
   const minimumCenter = gap + cardWidth / 2;
-  const maximumCenter = Math.max(minimumCenter, clientWidth - gap - cardWidth / 2);
+  const maximumCenter = Math.max(
+    minimumCenter,
+    clientWidth - gap - cardWidth / 2,
+  );
 
   return clamp(desiredCenter, minimumCenter, maximumCenter);
 }
@@ -165,11 +168,7 @@ export function MovieScrollerBase({
       0,
       totalItems - 1,
     );
-    const end = clamp(
-      centeredAnchorIndex + OVERSCAN_CARDS,
-      0,
-      totalItems - 1,
-    );
+    const end = clamp(centeredAnchorIndex + OVERSCAN_CARDS, 0, totalItems - 1);
     return {
       start,
       end,
@@ -181,8 +180,8 @@ export function MovieScrollerBase({
     scrollLeft: 0,
     clientWidth: 0,
   });
-  const [introPhase, setIntroPhase] = useState<IntroPhase>(
-    () => getInitialIntroPhase(),
+  const [introPhase, setIntroPhase] = useState<IntroPhase>(() =>
+    getInitialIntroPhase(),
   );
   const shouldPlayIntroRef = useRef(introPhase !== "done");
   const introFallbackViewportWidth =
@@ -485,7 +484,9 @@ export function MovieScrollerBase({
       const signedDistanceFromFocus = cardCenter - focusTrackCenter;
       const distanceFromCenter = Math.abs(signedDistanceFromFocus);
       const directionalFadeEndDistance =
-        signedDistanceFromFocus < 0 ? leftFadeEndDistance : rightFadeEndDistance;
+        signedDistanceFromFocus < 0
+          ? leftFadeEndDistance
+          : rightFadeEndDistance;
       const fadeProgress =
         directionalFadeEndDistance > fullOpacityRadius
           ? clamp(
@@ -498,21 +499,15 @@ export function MovieScrollerBase({
       const opacity =
         effectiveViewportWidth > 0 ? 1 - easeInQuad(fadeProgress) : 1;
       const shouldAnimateIntroCard =
-        hasIntroPhase &&
-        i >= introAnimatedStart &&
-        i <= introAnimatedEnd;
-      const introOrder = shouldAnimateIntroCard
-        ? i - introAnimatedStart
-        : 0;
+        hasIntroPhase && i >= introAnimatedStart && i <= introAnimatedEnd;
+      const introOrder = shouldAnimateIntroCard ? i - introAnimatedStart : 0;
       const introDelayMs = Math.min(
         INTRO_MAX_STAGGER_MS,
         introOrder * INTRO_STAGGER_STEP_MS,
       );
-      const introTranslateX = isIntroPre && shouldAnimateIntroCard
-        ? -introTravelDistance
-        : 0;
-      const introOpacity =
-        isIntroPre && shouldAnimateIntroCard ? 0 : opacity;
+      const introTranslateX =
+        isIntroPre && shouldAnimateIntroCard ? -introTravelDistance : 0;
+      const introOpacity = isIntroPre && shouldAnimateIntroCard ? 0 : opacity;
       const directionalWaveRadius =
         signedDistanceFromFocus < 0 ? leftWaveRadius : rightWaveRadius;
       const waveProgress =
@@ -594,16 +589,15 @@ export function MovieScrollerBase({
               `rotate(var(--card-rotate, 0deg)) ` +
               `scale(calc(${scale} * var(--card-scale, 1)))`,
             transformOrigin: "center bottom",
-            transition:
-              shouldAnimateIntroCard
-                ? `transform ${INTRO_DURATION_MS}ms cubic-bezier(0.22, 0.86, 0.24, 1) ${introDelayMs}ms, ` +
-                  `opacity 540ms ease ${introDelayMs}ms`
-                : "transform 72ms cubic-bezier(0.22, 0.9, 0.34, 1), opacity 80ms linear",
+            transition: shouldAnimateIntroCard
+              ? `transform ${INTRO_DURATION_MS}ms cubic-bezier(0.22, 0.86, 0.24, 1) ${introDelayMs}ms, ` +
+                `opacity 540ms ease ${introDelayMs}ms`
+              : "transform 72ms cubic-bezier(0.22, 0.9, 0.34, 1), opacity 80ms linear",
             willChange: "transform, opacity",
             zIndex: Math.round(waveLift * 100),
             ...cardStyle,
-            }}
-          >
+          }}
+        >
           <img
             src={movie.imageSrc}
             alt={movie.title}

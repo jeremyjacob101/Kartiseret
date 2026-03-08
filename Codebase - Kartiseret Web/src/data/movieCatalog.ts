@@ -1,5 +1,9 @@
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/locations";
+import {
+  ALL_LOCATIONS,
+  DEFAULT_LOCATION,
+  type AppLocation,
+} from "../prefs/locations";
 
 const TOP_NOW_PLAYING_MOVIE_COUNT = 10;
 const SUPABASE_PAGE_SIZE = 1000;
@@ -133,10 +137,7 @@ function normalizeText(value: string): string {
   return value.trim().replace(/\s+/g, " ");
 }
 
-function getFirstNormalizedText(
-  row: CsvRow,
-  keys: readonly string[],
-): string {
+function getFirstNormalizedText(row: CsvRow, keys: readonly string[]): string {
   for (const key of keys) {
     const value = row[key];
 
@@ -171,7 +172,11 @@ function compareByReleaseDate(left: CsvRow, right: CsvRow): number {
   const leftReleaseDate = getFirstNormalizedText(left, ["release_date"]);
   const rightReleaseDate = getFirstNormalizedText(right, ["release_date"]);
 
-  if (leftReleaseDate && rightReleaseDate && leftReleaseDate !== rightReleaseDate) {
+  if (
+    leftReleaseDate &&
+    rightReleaseDate &&
+    leftReleaseDate !== rightReleaseDate
+  ) {
     return leftReleaseDate.localeCompare(rightReleaseDate);
   }
 
@@ -209,7 +214,10 @@ function formatIsoDate(date: Date): string {
   ].join("-");
 }
 
-function buildDateRange(startDateString: string, endDateString: string): string[] {
+function buildDateRange(
+  startDateString: string,
+  endDateString: string,
+): string[] {
   const dates: string[] = [];
   const currentDate = parseIsoDate(startDateString);
   const endDate = parseIsoDate(endDateString);
@@ -264,7 +272,8 @@ function buildMovies(
         getFirstNormalizedText(row, ["backdrop", "en_poster", "poster"]) ||
         imageSrc;
       const trailerKey = getFirstNormalizedText(row, ["en_trailer"]);
-      const releaseDate = getFirstNormalizedText(row, ["release_date"]) || undefined;
+      const releaseDate =
+        getFirstNormalizedText(row, ["release_date"]) || undefined;
       const parsedReleaseYear = Number.parseInt(row.release_year, 10) || 0;
 
       return {
@@ -289,9 +298,7 @@ function buildMovies(
         popularity: parseNumber(row.popularity),
       };
     })
-    .filter(
-      (movie) => Boolean(movie.tmdbId && movie.title && movie.imageSrc),
-    );
+    .filter((movie) => Boolean(movie.tmdbId && movie.title && movie.imageSrc));
 
   return typeof limit === "number"
     ? normalizedMovies.slice(0, limit)
@@ -438,7 +445,7 @@ async function fetchAllTableRows(
       );
     }
 
-    const batchRows = ((data ?? []) as unknown) as SupabaseRow[];
+    const batchRows = (data ?? []) as unknown as SupabaseRow[];
     allRows.push(...batchRows);
 
     if (batchRows.length < SUPABASE_PAGE_SIZE) {
@@ -467,16 +474,23 @@ function isMissingOptionalColumnError(
 }
 
 async function fetchMovieRows(): Promise<SupabaseRow[]> {
-  const selectColumns = [...MOVIE_SELECT_COLUMNS, ...OPTIONAL_MOVIE_SELECT_COLUMNS];
+  const selectColumns = [
+    ...MOVIE_SELECT_COLUMNS,
+    ...OPTIONAL_MOVIE_SELECT_COLUMNS,
+  ];
 
   try {
-    return await fetchAllTableRows(MOVIES_TABLE_NAME, selectColumns, ["tmdb_id"]);
+    return await fetchAllTableRows(MOVIES_TABLE_NAME, selectColumns, [
+      "tmdb_id",
+    ]);
   } catch (error) {
     if (!isMissingOptionalColumnError(error, OPTIONAL_MOVIE_SELECT_COLUMNS)) {
       throw error;
     }
 
-    return fetchAllTableRows(MOVIES_TABLE_NAME, MOVIE_SELECT_COLUMNS, ["tmdb_id"]);
+    return fetchAllTableRows(MOVIES_TABLE_NAME, MOVIE_SELECT_COLUMNS, [
+      "tmdb_id",
+    ]);
   }
 }
 
@@ -491,13 +505,17 @@ async function fetchComingSoonMovieRows(): Promise<SupabaseRow[]> {
       "tmdb_id",
     ]);
   } catch (error) {
-    if (!isMissingOptionalColumnError(error, OPTIONAL_COMING_SOON_SELECT_COLUMNS)) {
+    if (
+      !isMissingOptionalColumnError(error, OPTIONAL_COMING_SOON_SELECT_COLUMNS)
+    ) {
       throw error;
     }
 
-    return fetchAllTableRows(COMING_SOON_TABLE_NAME, COMING_SOON_SELECT_COLUMNS, [
-      "tmdb_id",
-    ]);
+    return fetchAllTableRows(
+      COMING_SOON_TABLE_NAME,
+      COMING_SOON_SELECT_COLUMNS,
+      ["tmdb_id"],
+    );
   }
 }
 

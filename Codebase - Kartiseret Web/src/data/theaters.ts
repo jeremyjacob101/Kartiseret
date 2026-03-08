@@ -85,8 +85,9 @@ function normalizeOptionalNumber(
 function normalizeStringArray(
   value: string[] | string | null | undefined,
 ): string[] {
-  const normalizeValues = (values: readonly string[]) =>
-    [...new Set(values.map(normalizeText).filter(Boolean))];
+  const normalizeValues = (values: readonly string[]) => [
+    ...new Set(values.map(normalizeText).filter(Boolean)),
+  ];
 
   if (Array.isArray(value)) {
     return normalizeValues(value);

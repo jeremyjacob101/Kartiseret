@@ -62,9 +62,9 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
   const [isSourcesOpen, setIsSourcesOpen] = useState(true);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
-  const [locationStatusMessage, setLocationStatusMessage] = useState<string | null>(
-    null,
-  );
+  const [locationStatusMessage, setLocationStatusMessage] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     setDraftSources(sources);
@@ -225,12 +225,18 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
         </div>
       </div>
 
-      {statusMessage ? <p className="prefs-page-feedback">{statusMessage}</p> : null}
+      {statusMessage ? (
+        <p className="prefs-page-feedback">{statusMessage}</p>
+      ) : null}
       {statusError ? (
-        <p className="prefs-page-feedback prefs-page-feedback--error">{statusError}</p>
+        <p className="prefs-page-feedback prefs-page-feedback--error">
+          {statusError}
+        </p>
       ) : null}
       {error ? (
-        <p className="prefs-page-feedback prefs-page-feedback--error">{error}</p>
+        <p className="prefs-page-feedback prefs-page-feedback--error">
+          {error}
+        </p>
       ) : null}
     </section>
   );

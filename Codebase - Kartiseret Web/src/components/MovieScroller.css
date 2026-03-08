@@ -75,15 +75,12 @@
 }
 
 .movie-scroller-shell.is-opening .movie-scroller-detail-layer {
-  animation: movieScrollerStageIn
-    var(--movie-scroller-stage-fade-duration, 260ms) ease both;
+  animation: movieScrollerStageIn var(--movie-scroller-stage-fade-duration, 260ms) ease both;
 }
 
 .movie-scroller-shell.is-closing .movie-scroller-detail-layer {
   pointer-events: none;
-  animation: movieScrollerStageOut
-    var(--movie-scroller-stage-fade-duration, 260ms) ease
-    var(--movie-scroller-stage-close-delay, 0ms) both;
+  animation: movieScrollerStageOut var(--movie-scroller-stage-fade-duration, 260ms) ease var(--movie-scroller-stage-close-delay, 0ms) both;
 }
 
 .movie-scroller-shell.is-open .movie-scroller-detail-layer {
@@ -144,8 +141,7 @@
 }
 
 .movie-scroller-shell.is-opening .movie-scroller-side-preview {
-  animation: movieScrollerSidePreviewIn 360ms cubic-bezier(0.16, 0.9, 0.24, 1)
-    70ms both;
+  animation: movieScrollerSidePreviewIn 360ms cubic-bezier(0.16, 0.9, 0.24, 1) 70ms both;
 }
 
 .movie-scroller-shell.is-opening .movie-scroller-side-preview.is-disabled {
@@ -159,13 +155,11 @@
   inset: 0;
   background:
     linear-gradient(180deg, rgba(6, 5, 10, 0.06), rgba(6, 5, 10, 0.38)),
-    linear-gradient(
-      90deg,
+    linear-gradient(90deg,
       rgba(6, 5, 10, 0.24),
       transparent 28%,
       transparent 72%,
-      rgba(6, 5, 10, 0.24)
-    );
+      rgba(6, 5, 10, 0.24));
 }
 
 .movie-scroller-side-preview-image {
@@ -208,27 +202,19 @@
 }
 
 .movie-scroller-detail-body.is-entering-from-right {
-  animation: movieScrollerBodyEnterFromRight
-    var(--movie-scroller-detail-swap-duration, 360ms)
-    cubic-bezier(0.16, 0.9, 0.24, 1) both;
+  animation: movieScrollerBodyEnterFromRight var(--movie-scroller-detail-swap-duration, 360ms) cubic-bezier(0.16, 0.9, 0.24, 1) both;
 }
 
 .movie-scroller-detail-body.is-entering-from-left {
-  animation: movieScrollerBodyEnterFromLeft
-    var(--movie-scroller-detail-swap-duration, 360ms)
-    cubic-bezier(0.16, 0.9, 0.24, 1) both;
+  animation: movieScrollerBodyEnterFromLeft var(--movie-scroller-detail-swap-duration, 360ms) cubic-bezier(0.16, 0.9, 0.24, 1) both;
 }
 
 .movie-scroller-detail-body.is-leaving-to-left {
-  animation: movieScrollerBodyExitToLeft
-    var(--movie-scroller-detail-swap-duration, 360ms)
-    cubic-bezier(0.16, 0.9, 0.24, 1) both;
+  animation: movieScrollerBodyExitToLeft var(--movie-scroller-detail-swap-duration, 360ms) cubic-bezier(0.16, 0.9, 0.24, 1) both;
 }
 
 .movie-scroller-detail-body.is-leaving-to-right {
-  animation: movieScrollerBodyExitToRight
-    var(--movie-scroller-detail-swap-duration, 360ms)
-    cubic-bezier(0.16, 0.9, 0.24, 1) both;
+  animation: movieScrollerBodyExitToRight var(--movie-scroller-detail-swap-duration, 360ms) cubic-bezier(0.16, 0.9, 0.24, 1) both;
 }
 
 .movie-scroller-detail-backdrop-shell,
@@ -248,21 +234,17 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(
-      180deg,
+    linear-gradient(180deg,
       rgba(11, 9, 14, 0.06) 0%,
       rgba(11, 9, 14, 0.08) 24%,
       rgba(11, 9, 14, 0.18) 48%,
       rgba(11, 9, 14, 0.34) 70%,
-      rgba(11, 9, 14, 0.7) 100%
-    ),
-    linear-gradient(
-      90deg,
+      rgba(11, 9, 14, 0.7) 100%),
+    linear-gradient(90deg,
       rgba(11, 9, 14, 0.18) 0%,
       rgba(11, 9, 14, 0.04) 24%,
       rgba(11, 9, 14, 0.04) 76%,
-      rgba(11, 9, 14, 0.18) 100%
-    );
+      rgba(11, 9, 14, 0.18) 100%);
 }
 
 .movie-scroller-detail-backdrop {
@@ -280,31 +262,23 @@
 }
 
 .movie-scroller-detail-backdrop.is-animating-in {
-  animation: movieScrollerBackdropIn 720ms cubic-bezier(0.18, 0.88, 0.24, 1)
-    both;
+  animation: movieScrollerBackdropIn 720ms cubic-bezier(0.18, 0.88, 0.24, 1) both;
 }
 
-.movie-scroller-shell.is-closing
-  .movie-scroller-detail-body.is-current
-  .movie-scroller-detail-backdrop {
-  animation: movieScrollerBackdropOut
-    var(--movie-scroller-stage-fade-duration, 260ms) ease both;
+.movie-scroller-shell.is-closing .movie-scroller-detail-body.is-current .movie-scroller-detail-backdrop {
+  animation: movieScrollerBackdropOut var(--movie-scroller-stage-fade-duration, 260ms) ease both;
 }
 
 .movie-scroller-detail-sheen {
   background:
-    linear-gradient(
-      180deg,
+    linear-gradient(180deg,
       rgba(255, 255, 255, 0.08) 0%,
       rgba(255, 255, 255, 0.02) 24%,
-      rgba(255, 255, 255, 0) 100%
-    ),
-    linear-gradient(
-      180deg,
+      rgba(255, 255, 255, 0) 100%),
+    linear-gradient(180deg,
       rgba(11, 9, 14, 0.06) 0%,
       rgba(11, 9, 14, 0.18) 36%,
-      rgba(11, 9, 14, 0.74) 100%
-    );
+      rgba(11, 9, 14, 0.74) 100%);
 }
 
 .movie-scroller-close {
@@ -476,15 +450,11 @@
 }
 
 .movie-scroller-shell.is-opening .movie-scroller-detail-body.is-current .details-copy {
-  animation: movieScrollerZipUp 520ms cubic-bezier(0.16, 0.9, 0.22, 1) 80ms
-    both;
+  animation: movieScrollerZipUp 520ms cubic-bezier(0.16, 0.9, 0.22, 1) 80ms both;
 }
 
-.movie-scroller-shell.is-opening
-  .movie-scroller-detail-body.is-current
-  .details-showtimes {
-  animation: movieScrollerZipUp 580ms cubic-bezier(0.16, 0.9, 0.22, 1) 140ms
-    both;
+.movie-scroller-shell.is-opening .movie-scroller-detail-body.is-current .details-showtimes {
+  animation: movieScrollerZipUp 580ms cubic-bezier(0.16, 0.9, 0.22, 1) 140ms both;
 }
 
 .movie-scroller-shell.is-opening .movie-scroller-close {
@@ -495,9 +465,7 @@
   animation: movieScrollerSlideAway 180ms ease both;
 }
 
-.movie-scroller-shell.is-closing
-  .movie-scroller-detail-body.is-current
-  .details-showtimes {
+.movie-scroller-shell.is-closing .movie-scroller-detail-body.is-current .details-showtimes {
   animation: movieScrollerSlideAway 160ms ease both;
 }
 
@@ -516,16 +484,11 @@
     0 24px 46px rgba(0, 0, 0, 0.34),
     0 0 0 1px rgba(255, 255, 255, 0.08);
   transition:
-    top var(--movie-scroller-ghost-move-duration, 300ms)
-      cubic-bezier(0.16, 0.9, 0.26, 1),
-    left var(--movie-scroller-ghost-move-duration, 300ms)
-      cubic-bezier(0.16, 0.9, 0.26, 1),
-    width var(--movie-scroller-ghost-move-duration, 300ms)
-      cubic-bezier(0.16, 0.9, 0.26, 1),
-    height var(--movie-scroller-ghost-move-duration, 300ms)
-      cubic-bezier(0.16, 0.9, 0.26, 1),
-    border-radius var(--movie-scroller-ghost-move-duration, 300ms)
-      cubic-bezier(0.16, 0.9, 0.26, 1),
+    top var(--movie-scroller-ghost-move-duration, 300ms) cubic-bezier(0.16, 0.9, 0.26, 1),
+    left var(--movie-scroller-ghost-move-duration, 300ms) cubic-bezier(0.16, 0.9, 0.26, 1),
+    width var(--movie-scroller-ghost-move-duration, 300ms) cubic-bezier(0.16, 0.9, 0.26, 1),
+    height var(--movie-scroller-ghost-move-duration, 300ms) cubic-bezier(0.16, 0.9, 0.26, 1),
+    border-radius var(--movie-scroller-ghost-move-duration, 300ms) cubic-bezier(0.16, 0.9, 0.26, 1),
     box-shadow var(--movie-scroller-ghost-move-duration, 300ms) ease,
     opacity var(--movie-scroller-ghost-opacity-duration, 120ms) ease;
   will-change: top, left, width, height, opacity;
@@ -545,16 +508,11 @@
 
 .movie-scroller-poster-ghost.is-closing {
   transition:
-    top var(--movie-scroller-ghost-move-duration, 300ms)
-      cubic-bezier(0.16, 0.9, 0.26, 1),
-    left var(--movie-scroller-ghost-move-duration, 300ms)
-      cubic-bezier(0.16, 0.9, 0.26, 1),
-    width var(--movie-scroller-ghost-move-duration, 300ms)
-      cubic-bezier(0.16, 0.9, 0.26, 1),
-    height var(--movie-scroller-ghost-move-duration, 300ms)
-      cubic-bezier(0.16, 0.9, 0.26, 1),
-    border-radius var(--movie-scroller-ghost-move-duration, 300ms)
-      cubic-bezier(0.16, 0.9, 0.26, 1),
+    top var(--movie-scroller-ghost-move-duration, 300ms) cubic-bezier(0.16, 0.9, 0.26, 1),
+    left var(--movie-scroller-ghost-move-duration, 300ms) cubic-bezier(0.16, 0.9, 0.26, 1),
+    width var(--movie-scroller-ghost-move-duration, 300ms) cubic-bezier(0.16, 0.9, 0.26, 1),
+    height var(--movie-scroller-ghost-move-duration, 300ms) cubic-bezier(0.16, 0.9, 0.26, 1),
+    border-radius var(--movie-scroller-ghost-move-duration, 300ms) cubic-bezier(0.16, 0.9, 0.26, 1),
     box-shadow var(--movie-scroller-ghost-move-duration, 300ms) ease,
     opacity var(--movie-scroller-ghost-move-duration, 300ms) linear;
 }
@@ -583,8 +541,7 @@
   from {
     opacity: 0.18;
     filter: saturate(0.64) brightness(0.7);
-    transform: translate3d(var(--movie-scroller-side-preview-enter-x), 36px, 0)
-      scale(0.955);
+    transform: translate3d(var(--movie-scroller-side-preview-enter-x), 36px, 0) scale(0.955);
   }
 
   to {

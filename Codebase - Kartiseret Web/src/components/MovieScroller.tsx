@@ -143,9 +143,7 @@ function easeOutCubic(value: number): number {
 }
 
 function easeInOutCubic(value: number): number {
-  return value < 0.5
-    ? 4 * value ** 3
-    : 1 - ((-2 * value + 2) ** 3) / 2;
+  return value < 0.5 ? 4 * value ** 3 : 1 - (-2 * value + 2) ** 3 / 2;
 }
 
 function easeInQuad(value: number): number {
@@ -297,10 +295,7 @@ function buildCardOffset(
   } as CSSProperties;
 }
 
-function getMaxWidthValue(
-  maxWidth: number | string,
-  fallback: number,
-): number {
+function getMaxWidthValue(maxWidth: number | string, fallback: number): number {
   if (typeof maxWidth === "number") {
     return maxWidth;
   }
@@ -347,14 +342,10 @@ function getDetailLayout(
     previewWidth * (isCompact ? 0.42 : 0.38),
     isCompact ? 72 : 128,
   );
-  const minLeftOverlap = Math.max(
-    0,
-    previewWidth - (panelLeft - stagePadding),
-  );
+  const minLeftOverlap = Math.max(0, previewWidth - (panelLeft - stagePadding));
   const minRightOverlap = Math.max(
     0,
-    previewWidth -
-      (safeClientWidth - stagePadding - (panelLeft + panelWidth)),
+    previewWidth - (safeClientWidth - stagePadding - (panelLeft + panelWidth)),
   );
   const previewLeft =
     panelLeft - previewWidth + Math.max(previewOverlap, minLeftOverlap);
@@ -381,7 +372,10 @@ function getCollapsedFocusViewportCenter(
 ): number {
   const desiredCenter = clientWidth / 2 - itemSpan;
   const minimumCenter = gap + cardWidth / 2;
-  const maximumCenter = Math.max(minimumCenter, clientWidth - gap - cardWidth / 2);
+  const maximumCenter = Math.max(
+    minimumCenter,
+    clientWidth - gap - cardWidth / 2,
+  );
 
   return clamp(desiredCenter, minimumCenter, maximumCenter);
 }
@@ -575,7 +569,8 @@ function MovieScrollerContent({
 
   const isDetailMounted = phase !== "collapsed";
   const detailLayout = getDetailLayout(detailClientWidth, maxWidth);
-  const displayItemIndex = detailTransition?.toItemIndex ?? detailActiveItemIndex;
+  const displayItemIndex =
+    detailTransition?.toItemIndex ?? detailActiveItemIndex;
   const displayMovieIndex = mod(displayItemIndex, movieCount);
   const canNavigate =
     phase === "open" && detailTransition === null && movieCount > 1;
@@ -686,7 +681,10 @@ function MovieScrollerContent({
       const focusPlateau = Math.max(itemSpan * 0.16, 28);
       const waveRadius = Math.max(itemSpan * 1.8, cardWidth * 1.55);
       const leftFadeEndDistance = getDirectionalDistance(
-        Math.max(fadeEndDistance * 0.56, focusViewportCenter + cardWidth * 0.32),
+        Math.max(
+          fadeEndDistance * 0.56,
+          focusViewportCenter + cardWidth * 0.32,
+        ),
       );
       const rightFadeEndDistance = getDirectionalDistance(
         Math.max(
@@ -705,7 +703,9 @@ function MovieScrollerContent({
       const signedDistanceFromFocus = cardCenter - focusTrackCenter;
       const distanceFromCenter = Math.abs(signedDistanceFromFocus);
       const directionalFadeEndDistance =
-        signedDistanceFromFocus < 0 ? leftFadeEndDistance : rightFadeEndDistance;
+        signedDistanceFromFocus < 0
+          ? leftFadeEndDistance
+          : rightFadeEndDistance;
       const fadeProgress =
         directionalFadeEndDistance > fullOpacityRadius
           ? clamp(
@@ -813,8 +813,9 @@ function MovieScrollerContent({
 
   const getCollapsedScrollerElement = useCallback(
     () =>
-      shellRef.current?.querySelector<HTMLElement>(".movie-scroller-collapsed") ??
-      null,
+      shellRef.current?.querySelector<HTMLElement>(
+        ".movie-scroller-collapsed",
+      ) ?? null,
     [],
   );
 
@@ -833,7 +834,10 @@ function MovieScrollerContent({
       const item = getCollapsedItemElement(itemIndex);
 
       return {
-        sourceRect: toPosterSourceRect(item?.getBoundingClientRect(), fallbackRect),
+        sourceRect: toPosterSourceRect(
+          item?.getBoundingClientRect(),
+          fallbackRect,
+        ),
         sourceOpacity: getCurrentPositionalOpacity(
           itemIndex,
           fallbackPresentation.sourceOpacity,
@@ -859,13 +863,14 @@ function MovieScrollerContent({
 
     collapsedOpenScrollLeftRef.current = scroller.scrollLeft;
     collapsedOpenClientWidthRef.current = scroller.clientWidth;
-    collapsedOpenAnchorItemIndexRef.current = getCollapsedAnchorItemIndexFromScrollLeft(
-      scroller.scrollLeft,
-      scroller.clientWidth,
-      cardWidth,
-      gap,
-      collapsedRepeatSets * movieCount,
-    );
+    collapsedOpenAnchorItemIndexRef.current =
+      getCollapsedAnchorItemIndexFromScrollLeft(
+        scroller.scrollLeft,
+        scroller.clientWidth,
+        cardWidth,
+        gap,
+        collapsedRepeatSets * movieCount,
+      );
   }, [
     cardWidth,
     collapsedAnchorItemIndex,
@@ -985,11 +990,14 @@ function MovieScrollerContent({
   const finalizeExternalMovieOpen = useCallback(
     (itemIndex: number) => {
       setCollapsedAnchorItemIndex(itemIndex);
-      scriptedJumpAnimationFrameRef.current = window.requestAnimationFrame(() => {
-        scriptedJumpAnimationFrameRef.current = null;
-        const { sourceRect, sourceOpacity } = getCollapsedItemSource(itemIndex);
-        beginCollapsedMovieOpen(itemIndex, sourceRect, sourceOpacity);
-      });
+      scriptedJumpAnimationFrameRef.current = window.requestAnimationFrame(
+        () => {
+          scriptedJumpAnimationFrameRef.current = null;
+          const { sourceRect, sourceOpacity } =
+            getCollapsedItemSource(itemIndex);
+          beginCollapsedMovieOpen(itemIndex, sourceRect, sourceOpacity);
+        },
+      );
     },
     [beginCollapsedMovieOpen, getCollapsedItemSource],
   );
@@ -1000,15 +1008,15 @@ function MovieScrollerContent({
       const prefersReducedMotion =
         typeof window !== "undefined" &&
         window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const shouldAnimateTravel =
-        behavior !== "auto" && !prefersReducedMotion;
+      const shouldAnimateTravel = behavior !== "auto" && !prefersReducedMotion;
       const scroller = getCollapsedScrollerElement();
       const shellRect = shellRef.current?.getBoundingClientRect() ?? null;
       const currentScrollTop = getPageScrollTop();
       const shouldAnimatePage =
         shellRect !== null &&
         (shellRect.top < EXTERNAL_JUMP_VIEWPORT_EDGE_PX ||
-          shellRect.bottom > window.innerHeight - EXTERNAL_JUMP_VIEWPORT_EDGE_PX);
+          shellRect.bottom >
+            window.innerHeight - EXTERNAL_JUMP_VIEWPORT_EDGE_PX);
 
       clearAllScheduledWork();
       swipeGestureRef.current = null;
@@ -1168,15 +1176,16 @@ function MovieScrollerContent({
     restoreCollapsedViewportSnapshot();
 
     const returnItemIndex =
-      collapsedSelectedItemIndex ?? ghostTransition?.itemIndex ?? detailActiveItemIndex;
+      collapsedSelectedItemIndex ??
+      ghostTransition?.itemIndex ??
+      detailActiveItemIndex;
 
-    const fallbackSourceRect =
-      ghostTransition?.sourceRect ?? {
-        top: 0,
-        left: 0,
-        width: cardWidth,
-        height: cardHeight,
-      };
+    const fallbackSourceRect = ghostTransition?.sourceRect ?? {
+      top: 0,
+      left: 0,
+      width: cardWidth,
+      height: cardHeight,
+    };
     const currentPosterRect = posterRef.current?.getBoundingClientRect();
     const sourceRect = currentPosterRect
       ? {
@@ -1186,7 +1195,8 @@ function MovieScrollerContent({
           height: currentPosterRect.height,
         }
       : fallbackSourceRect;
-    const targetPresentation = getCollapsedFallbackPresentation(returnItemIndex);
+    const targetPresentation =
+      getCollapsedFallbackPresentation(returnItemIndex);
     const targetOpacity = targetPresentation.sourceOpacity;
     const targetRect = targetPresentation.sourceRect;
 
@@ -1261,16 +1271,13 @@ function MovieScrollerContent({
     [canNavigate],
   );
 
-  const clearSwipeGesture = useCallback(
-    (event?: PointerEvent<HTMLElement>) => {
-      if (event && event.currentTarget.hasPointerCapture(event.pointerId)) {
-        event.currentTarget.releasePointerCapture(event.pointerId);
-      }
+  const clearSwipeGesture = useCallback((event?: PointerEvent<HTMLElement>) => {
+    if (event && event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
 
-      swipeGestureRef.current = null;
-    },
-    [],
-  );
+    swipeGestureRef.current = null;
+  }, []);
 
   const handleDetailPointerUp = useCallback(
     (event: PointerEvent<HTMLElement>) => {
@@ -1308,10 +1315,7 @@ function MovieScrollerContent({
 
       const target = event.target;
 
-      if (
-        isDetailSurfaceTarget(target) ||
-        isNavbarInteractiveTarget(target)
-      ) {
+      if (isDetailSurfaceTarget(target) || isNavbarInteractiveTarget(target)) {
         return;
       }
 
@@ -1417,7 +1421,8 @@ function MovieScrollerContent({
         applyGhostOpeningAppearance(ghostProgress);
 
         if (linearProgress < 1) {
-          animationFrameRef.current = window.requestAnimationFrame(animateOpening);
+          animationFrameRef.current =
+            window.requestAnimationFrame(animateOpening);
           return;
         }
 
@@ -1631,7 +1636,10 @@ function MovieScrollerContent({
 
     if (phase === "collapsed") {
       pendingExternalJumpRef.current = null;
-      openMovieFromExternalRequest(pendingJump.movieIndex, pendingJump.behavior);
+      openMovieFromExternalRequest(
+        pendingJump.movieIndex,
+        pendingJump.behavior,
+      );
       return;
     }
 
@@ -1790,7 +1798,10 @@ function MovieScrollerContent({
         aria-hidden={motionClassName.includes("leaving") ? "true" : undefined}
       >
         {movie.backdropSrc ? (
-          <div className="movie-scroller-detail-backdrop-shell" aria-hidden="true">
+          <div
+            className="movie-scroller-detail-backdrop-shell"
+            aria-hidden="true"
+          >
             <img
               src={movie.backdropSrc}
               alt=""
@@ -1852,7 +1863,8 @@ function MovieScrollerContent({
         ),
       ];
 
-  const previousPreviewMovie = movieItems[mod(displayMovieIndex - 1, movieCount)];
+  const previousPreviewMovie =
+    movieItems[mod(displayMovieIndex - 1, movieCount)];
   const nextPreviewMovie = movieItems[mod(displayMovieIndex + 1, movieCount)];
 
   return (
@@ -1861,10 +1873,14 @@ function MovieScrollerContent({
       className={shellClassName}
       style={{
         ...movieScrollerTimingStyle,
-        height: phase === "collapsed" ? collapsedHeight : detailLayout.panelHeight,
+        height:
+          phase === "collapsed" ? collapsedHeight : detailLayout.panelHeight,
       }}
     >
-      <div className="movie-scroller-collapsed-layer" aria-hidden={isDetailMounted}>
+      <div
+        className="movie-scroller-collapsed-layer"
+        aria-hidden={isDetailMounted}
+      >
         <MovieScrollerBase
           movieItems={movieItems}
           cardWidth={cardWidth}

@@ -17,9 +17,7 @@
   --topbar-reveal-duration: 760ms;
   --topbar-reveal-ease: cubic-bezier(0.38, 0.02, 0.2, 1);
   --topbar-intro-core-size: 74px;
-  --topbar-intro-side-inset: calc(
-    50% - (var(--topbar-intro-core-size) / 2)
-  );
+  --topbar-intro-side-inset: calc(50% - (var(--topbar-intro-core-size) / 2));
 }
 
 * {
@@ -110,18 +108,16 @@ button {
 
 .topbar.is-intro {
   overflow: hidden;
-  animation: topbar-reveal-fallback var(--topbar-reveal-duration)
-    var(--topbar-reveal-ease) both;
+  animation: topbar-reveal-fallback var(--topbar-reveal-duration) var(--topbar-reveal-ease) both;
 }
 
 .topbar.is-intro .topbar-intro-mark {
-  animation: topbar-intro-mark var(--topbar-reveal-duration)
-    var(--topbar-reveal-ease) both;
+  animation: topbar-intro-mark var(--topbar-reveal-duration) var(--topbar-reveal-ease) both;
 }
 
-.topbar.is-intro .topbar-content > .brand,
-.topbar.is-intro .topbar-content > .topnav,
-.topbar.is-intro .topbar-content > .topbar-actions {
+.topbar.is-intro .topbar-content>.brand,
+.topbar.is-intro .topbar-content>.topnav,
+.topbar.is-intro .topbar-content>.topbar-actions {
   opacity: 0;
   transform: translateY(10px);
   animation-duration: var(--topbar-reveal-duration);
@@ -129,24 +125,21 @@ button {
   animation-fill-mode: both;
 }
 
-.topbar.is-intro .topbar-content > .brand {
+.topbar.is-intro .topbar-content>.brand {
   animation-name: topbar-content-reveal-brand;
 }
 
-.topbar.is-intro .topbar-content > .topnav {
+.topbar.is-intro .topbar-content>.topnav {
   animation-name: topbar-content-reveal-nav;
 }
 
-.topbar.is-intro .topbar-content > .topbar-actions {
+.topbar.is-intro .topbar-content>.topbar-actions {
   animation-name: topbar-content-reveal-actions;
 }
 
 @supports (clip-path: inset(0 0 0 0 round 20px)) {
   .topbar.is-intro {
-    clip-path: inset(
-      0 var(--topbar-intro-side-inset) 0 var(--topbar-intro-side-inset) round
-        999px
-    );
+    clip-path: inset(0 var(--topbar-intro-side-inset) 0 var(--topbar-intro-side-inset) round 999px);
     animation-name: topbar-reveal-clip;
   }
 }
@@ -170,17 +163,11 @@ button {
 
 @keyframes topbar-reveal-clip {
   0% {
-    clip-path: inset(
-      0 var(--topbar-intro-side-inset) 0 var(--topbar-intro-side-inset) round
-        999px
-    );
+    clip-path: inset(0 var(--topbar-intro-side-inset) 0 var(--topbar-intro-side-inset) round 999px);
   }
 
   26% {
-    clip-path: inset(
-      0 var(--topbar-intro-side-inset) 0 var(--topbar-intro-side-inset) round
-        999px
-    );
+    clip-path: inset(0 var(--topbar-intro-side-inset) 0 var(--topbar-intro-side-inset) round 999px);
   }
 
   100% {
@@ -189,6 +176,7 @@ button {
 }
 
 @keyframes topbar-intro-mark {
+
   0%,
   26% {
     opacity: 1;
@@ -203,6 +191,7 @@ button {
 }
 
 @keyframes topbar-content-reveal-brand {
+
   0%,
   56% {
     opacity: 0;
@@ -216,6 +205,7 @@ button {
 }
 
 @keyframes topbar-content-reveal-nav {
+
   0%,
   64% {
     opacity: 0;
@@ -229,6 +219,7 @@ button {
 }
 
 @keyframes topbar-content-reveal-actions {
+
   0%,
   72% {
     opacity: 0;
@@ -996,8 +987,7 @@ button {
   outline: none;
 }
 
-.theater-map-search-input-shell
-  input[type="search"]::-webkit-search-cancel-button {
+.theater-map-search-input-shell input[type="search"]::-webkit-search-cancel-button {
   -webkit-appearance: none;
   appearance: none;
   width: 18px;
@@ -1006,9 +996,7 @@ button {
   border: 1px solid rgba(203, 178, 255, 0.32);
   border-radius: 999px;
   background:
-    rgba(16, 20, 27, 0.92)
-    url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='none' viewBox='0 0 10 10'%3E%3Cpath stroke='%23a66ae3' stroke-linecap='round' stroke-width='1.7' d='M2 2l6 6M8 2L2 8'/%3E%3C/svg%3E")
-    center / 10px 10px no-repeat;
+    rgba(16, 20, 27, 0.92) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='none' viewBox='0 0 10 10'%3E%3Cpath stroke='%23a66ae3' stroke-linecap='round' stroke-width='1.7' d='M2 2l6 6M8 2L2 8'/%3E%3C/svg%3E") center / 10px 10px no-repeat;
   box-shadow: 0 4px 12px rgba(4, 6, 12, 0.16);
   cursor: pointer;
   transition:
@@ -1017,8 +1005,7 @@ button {
     box-shadow 140ms ease;
 }
 
-.theater-map-search-input-shell
-  input[type="search"]::-webkit-search-cancel-button:hover {
+.theater-map-search-input-shell input[type="search"]::-webkit-search-cancel-button:hover {
   border-color: rgba(215, 186, 255, 0.52);
   background-color: rgba(27, 33, 43, 0.98);
   box-shadow: 0 6px 14px rgba(4, 6, 12, 0.22);
@@ -1242,8 +1229,7 @@ button {
   height: 18px;
   min-width: 18px;
   min-height: 18px;
-  border: 1.5px solid
-    color-mix(in srgb, var(--theater-dot-color) 48%, rgba(239, 229, 255, 0.22));
+  border: 1.5px solid color-mix(in srgb, var(--theater-dot-color) 48%, rgba(239, 229, 255, 0.22));
   border-radius: 4px;
   color: var(--theater-dot-color);
   transform: scale(1);
@@ -1361,7 +1347,7 @@ button {
   color: var(--surface);
 }
 
-.theater-map-panel .theater-map-action-controls button + button {
+.theater-map-panel .theater-map-action-controls button+button {
   border-top: 1px solid rgba(166, 106, 227, 0.22);
 }
 
@@ -1377,7 +1363,7 @@ button {
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' fill='%23a66ae3' viewBox='0 0 29 29'%3E%3Cpath d='M10 13c-.75 0-1.5.75-1.5 1.5S9.25 16 10 16h9c.75 0 1.5-.75 1.5-1.5S19.75 13 19 13z'/%3E%3C/svg%3E") !important;
 }
 
-.theater-map-panel .maplibregl-ctrl-group button + button {
+.theater-map-panel .maplibregl-ctrl-group button+button {
   border-top: 1px solid rgba(166, 106, 227, 0.22);
 }
 
@@ -1416,18 +1402,14 @@ button {
   line-height: 1;
 }
 
-.theater-map-panel
-  .theater-map-action-glyph
-  svg {
+.theater-map-panel .theater-map-action-glyph svg {
   display: block;
   width: 16px;
   height: 16px;
   stroke: currentColor;
 }
 
-.theater-map-panel
-  .theater-map-action-glyph--reset
-  svg {
+.theater-map-panel .theater-map-action-glyph--reset svg {
   width: 18px;
   height: 18px;
 }
@@ -2324,10 +2306,11 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .topbar.is-intro,
-  .topbar.is-intro .topbar-content > .brand,
-  .topbar.is-intro .topbar-content > .topnav,
-  .topbar.is-intro .topbar-content > .topbar-actions {
+  .topbar.is-intro .topbar-content>.brand,
+  .topbar.is-intro .topbar-content>.topnav,
+  .topbar.is-intro .topbar-content>.topbar-actions {
     animation: none;
     clip-path: none;
     opacity: 1;

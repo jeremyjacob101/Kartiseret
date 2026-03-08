@@ -48,8 +48,9 @@ export function TheaterMapDialog() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [showInlineMapIcon, setShowInlineMapIcon] = useState(false);
-  const [flyingMapIcon, setFlyingMapIcon] =
-    useState<FlyingMapIconState | null>(null);
+  const [flyingMapIcon, setFlyingMapIcon] = useState<FlyingMapIconState | null>(
+    null,
+  );
   const [mapIconAnchor, setMapIconAnchor] = useState<HTMLButtonElement | null>(
     null,
   );
@@ -159,7 +160,12 @@ export function TheaterMapDialog() {
   ]);
 
   useLayoutEffect(() => {
-    if (!isOpen || isClosing || !mapIconAnchor || openAnimationStartedRef.current) {
+    if (
+      !isOpen ||
+      isClosing ||
+      !mapIconAnchor ||
+      openAnimationStartedRef.current
+    ) {
       return;
     }
 
@@ -204,9 +210,12 @@ export function TheaterMapDialog() {
       });
     });
 
-    flightHandoffTimeoutRef.current = window.setTimeout(() => {
-      setShowInlineMapIcon(true);
-    }, Math.max(0, OPEN_TRANSITION_MS - INLINE_ICON_HANDOFF_LEAD_MS));
+    flightHandoffTimeoutRef.current = window.setTimeout(
+      () => {
+        setShowInlineMapIcon(true);
+      },
+      Math.max(0, OPEN_TRANSITION_MS - INLINE_ICON_HANDOFF_LEAD_MS),
+    );
 
     flightCleanupTimeoutRef.current = window.setTimeout(() => {
       setFlyingMapIcon(null);

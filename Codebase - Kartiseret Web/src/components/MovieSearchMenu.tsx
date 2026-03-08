@@ -1,11 +1,5 @@
 import { Search } from "lucide-react";
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-} from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { type Movie } from "../data/movieCatalog";
 
 export type MovieSearchMode = "nowPlaying" | "comingSoon";
@@ -180,11 +174,15 @@ export function MovieSearchMenu({
           setIsOpen((open) => !open);
         }}
       >
-        <Search size={20} strokeWidth={2.75} color="#a66ae3"/>
+        <Search size={20} strokeWidth={2.75} color="#a66ae3" />
       </button>
 
       {isOpen ? (
-        <div className="movie-search-panel" role="dialog" aria-label="Search movies">
+        <div
+          className="movie-search-panel"
+          role="dialog"
+          aria-label="Search movies"
+        >
           <label className="movie-search-field">
             <span className="movie-search-title">Search movies</span>
             <input
@@ -198,7 +196,9 @@ export function MovieSearchMenu({
 
           <div className="movie-search-results" role="list">
             {!normalizedQuery ? (
-              <p className="movie-search-empty">Type a movie title to search.</p>
+              <p className="movie-search-empty">
+                Type a movie title to search.
+              </p>
             ) : loading && results.length === 0 ? (
               <p className="movie-search-empty">Loading movie library...</p>
             ) : results.length === 0 ? (

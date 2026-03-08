@@ -174,7 +174,10 @@ function formatReleaseDate(dateString: string): string {
 }
 
 function getTheaterTheme(theater: string, index: number): TheaterTheme {
-  return theaterThemes[theater] ?? fallbackTheaterThemes[index % fallbackTheaterThemes.length];
+  return (
+    theaterThemes[theater] ??
+    fallbackTheaterThemes[index % fallbackTheaterThemes.length]
+  );
 }
 
 function hasRating(value: number | null | undefined): value is number {
@@ -352,7 +355,9 @@ export function MovieDetailsContent({
       ? formatReleaseDate(movie.releaseDate)
       : null;
   const showtimeDays =
-    variant === "nowPlaying" ? getMovieShowtimeDays(movie.tmdbId, location) : [];
+    variant === "nowPlaying"
+      ? getMovieShowtimeDays(movie.tmdbId, location)
+      : [];
   const metrics =
     variant === "nowPlaying" ? getMetricDisplays(movie, sources) : [];
 
@@ -377,7 +382,9 @@ export function MovieDetailsContent({
           {subtitle ? <p className="details-subtitle">{subtitle}</p> : null}
 
           {releaseDateLabel ? (
-            <p className="details-release-date">Release date: {releaseDateLabel}</p>
+            <p className="details-release-date">
+              Release date: {releaseDateLabel}
+            </p>
           ) : null}
 
           {variant === "nowPlaying" ? (
@@ -434,7 +441,10 @@ export function MovieDetailsContent({
                       );
 
                       return (
-                        <section className="details-theater" key={theater.theater}>
+                        <section
+                          className="details-theater"
+                          key={theater.theater}
+                        >
                           <div className="details-theater-name">
                             <span
                               className="details-theater-dot"

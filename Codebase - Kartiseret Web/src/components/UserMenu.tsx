@@ -144,13 +144,19 @@ export function UserMenu({ currentPath, onNavigate }: UserMenuProps) {
           setIsOpen((open) => !open);
         }}
       >
-        <User size={20} strokeWidth={2.75} color="#a66ae3"/>
+        <User size={20} strokeWidth={2.75} color="#a66ae3" />
       </button>
 
       {isOpen ? (
-        <div className="user-menu-panel" role="menu" aria-label="User account menu">
+        <div
+          className="user-menu-panel"
+          role="menu"
+          aria-label="User account menu"
+        >
           <div className="user-menu-header">
-            <p className="user-menu-title">{user ? "Account" : "Auth testing"}</p>
+            <p className="user-menu-title">
+              {user ? "Account" : "Auth testing"}
+            </p>
             <p className="user-menu-subtitle">
               {user ? user.email : "Create an account or log in"}
             </p>
@@ -158,7 +164,11 @@ export function UserMenu({ currentPath, onNavigate }: UserMenuProps) {
 
           {!user ? (
             <form className="user-menu-auth-form" onSubmit={handleAuthSubmit}>
-              <div className="user-menu-auth-toggle" role="tablist" aria-label="Auth mode">
+              <div
+                className="user-menu-auth-toggle"
+                role="tablist"
+                aria-label="Auth mode"
+              >
                 <button
                   type="button"
                   className={`user-menu-mode${authMode === "login" ? " is-active" : ""}`}
@@ -218,7 +228,11 @@ export function UserMenu({ currentPath, onNavigate }: UserMenuProps) {
                 />
               </label>
 
-              <button type="submit" className="user-menu-submit" disabled={authPending}>
+              <button
+                type="submit"
+                className="user-menu-submit"
+                disabled={authPending}
+              >
                 {authPending
                   ? authMode === "signup"
                     ? "Creating..."
@@ -238,7 +252,9 @@ export function UserMenu({ currentPath, onNavigate }: UserMenuProps) {
                   setIsOpen(false);
                 }}
               >
-                {currentPath === "/user" ? "Back to Home" : "Open User Preferences"}
+                {currentPath === "/user"
+                  ? "Back to Home"
+                  : "Open User Preferences"}
               </button>
 
               <button
@@ -249,15 +265,19 @@ export function UserMenu({ currentPath, onNavigate }: UserMenuProps) {
                 }}
                 disabled={logoutPending}
               >
-                <LogOut size={20} strokeWidth={2.75} color="#a66ae3"/>
+                <LogOut size={20} strokeWidth={2.75} color="#a66ae3" />
                 {logoutPending ? "Signing out..." : "Sign out"}
               </button>
             </div>
           )}
 
-          {authMessage ? <p className="user-menu-feedback">{authMessage}</p> : null}
+          {authMessage ? (
+            <p className="user-menu-feedback">{authMessage}</p>
+          ) : null}
           {authError ? (
-            <p className="user-menu-feedback user-menu-feedback--error">{authError}</p>
+            <p className="user-menu-feedback user-menu-feedback--error">
+              {authError}
+            </p>
           ) : null}
         </div>
       ) : null}
