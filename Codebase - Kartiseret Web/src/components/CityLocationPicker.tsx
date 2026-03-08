@@ -10,7 +10,9 @@ import {
   Building2,
   Ban,
   Info,
+  List,
   LocateFixed,
+  MapPin,
   Navigation,
   Search,
   X,
@@ -77,6 +79,7 @@ const CITY_Z_INDEX_BY_REVEAL_ZOOM = new Map(
 );
 const FIRST_CITY_OPACITY_LAYER = CITY_OPACITY_LAYERS[0] ?? DEFAULT_CITY_REVEAL_ZOOM;
 const SELECTED_CITY_Z_INDEX = "200";
+const SEARCH_RESULT_Z_INDEX_OFFSET = 1000;
 const PRIMARY_CITY_COLLISION_PADDING = { x: 18, y: 14 };
 const CITY_LABEL_NORTH_OFFSET = 0.00615;
 const MAP_MAX_ZOOM = 16.5;
@@ -210,8 +213,10 @@ export type CityLocationPickerProps = {
   className?: string;
   currentLocation: AppLocation;
   feedbackMessage?: string | null;
+  mapIconAnchorRef?: (element: HTMLButtonElement | null) => void;
   onPickLocation: (location: AppLocation) => Promise<void>;
   onClose?: () => void;
+  showMapIcon?: boolean;
   syncing?: boolean;
 };
 
@@ -718,6 +723,24 @@ function buildCityEntries(theaters: readonly Theater[]): CityEntry[] {
   });
 }
 
+function normalizeCitySearchQuery(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function cityMatchesSearchQuery(location: AppLocation, query: string) {
+  if (!query) {
+    return true;
+  }
+
+  const normalizedLocation = normalizeCitySearchQuery(location);
+  const compactLocation = normalizedLocation.replace(/\s+/g, "");
+  const compactQuery = query.replace(/\s+/g, "");
+
+  return (
+    normalizedLocation.includes(query) || compactLocation.includes(compactQuery)
+  );
+}
+
 function styleCityLabel(
   element: HTMLButtonElement,
   surface: HTMLSpanElement,
@@ -835,6 +858,18 @@ function getCityMarkerZIndex(revealZoom: number) {
   return CITY_Z_INDEX_BY_REVEAL_ZOOM.get(getEffectiveCityRevealZoom(revealZoom)) ?? "1";
 }
 
+function getSearchCityMarkerZIndex(baseZIndex: string, isMatch: boolean) {
+  const numericBaseZIndex = Number(baseZIndex);
+
+  if (!Number.isFinite(numericBaseZIndex)) {
+    return baseZIndex;
+  }
+
+  return String(
+    numericBaseZIndex + (isMatch ? SEARCH_RESULT_Z_INDEX_OFFSET : 0),
+  );
+}
+
 function getEffectiveCityRevealZoom(revealZoom: number) {
   return revealZoom > 0 ? revealZoom : FIRST_CITY_OPACITY_LAYER;
 }
@@ -948,16 +983,22 @@ function rectanglesOverlap(
 export function CityLocationPicker({
   className,
   currentLocation,
+  mapIconAnchorRef,
   onPickLocation,
   onClose,
+  showMapIcon = true,
   syncing = false,
 }: CityLocationPickerProps) {
   const [query, setQuery] = useState("");
   const [showTheaters, setShowTheaters] = useState(false);
+  const [isCityListOpen, setIsCityListOpen] = useState(false);
+  const [optimisticLocation, setOptimisticLocation] =
+    useState<AppLocation | null>(null);
   const [mapControlMessage, setMapControlMessage] = useState<string | null>(
     null,
   );
   const [theaters, setTheaters] = useState<Theater[]>([]);
+  const cityListWrapRef = useRef<HTMLDivElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -979,11 +1020,43 @@ export function CityLocationPicker({
   const cityMarkersRef = useRef<Marker[]>([]);
   const theaterMarkersRef = useRef<TheaterMarkerState[]>([]);
   const scheduleVisibilitySyncRef = useRef<(() => void) | null>(null);
+  const searchZoomOutTimeoutRef = useRef<number | null>(null);
+  const searchQueryRef = useRef("");
+  const normalizedQuery = useMemo(
+    () => normalizeCitySearchQuery(query),
+    [query],
+  );
+  const displayedCurrentLocation = optimisticLocation ?? currentLocation;
+
+  const clearPendingSearchZoomOut = useCallback(() => {
+    if (searchZoomOutTimeoutRef.current !== null) {
+      window.clearTimeout(searchZoomOutTimeoutRef.current);
+      searchZoomOutTimeoutRef.current = null;
+    }
+  }, []);
 
   const cityEntries = useMemo(() => buildCityEntries(theaters), [theaters]);
   const cityEntryMap = useMemo(
     () => new Map(cityEntries.map((entry) => [entry.location, entry] as const)),
     [cityEntries],
+  );
+  const availableCityLocations = useMemo(
+    () =>
+      cityEntries
+        .map((entry) => entry.location)
+        .sort((left, right) => left.localeCompare(right)),
+    [cityEntries],
+  );
+  const matchingSearchLocations = useMemo(
+    () =>
+      normalizedQuery
+        ? cityEntries.flatMap((entry) =>
+            cityMatchesSearchQuery(entry.location, normalizedQuery)
+              ? [entry.location]
+              : [],
+          )
+        : [],
+    [cityEntries, normalizedQuery],
   );
 
   const fitStartingView = useCallback(
@@ -1054,12 +1127,55 @@ export function CityLocationPicker({
     [cityEntryMap],
   );
 
-  const handleLocationSelect = useCallback(
-    async (nextLocation: AppLocation) => {
-      fitLocations([nextLocation]);
-      await onPickLocation(nextLocation);
+  const focusLocation = useCallback(
+    (
+      location: AppLocation,
+      options: {
+        clearSearch?: boolean;
+      } = {},
+    ) => {
+      if (options.clearSearch) {
+        clearPendingSearchZoomOut();
+        searchQueryRef.current = "";
+        setQuery("");
+      }
+
+      scheduleVisibilitySyncRef.current?.();
+      fitLocations([location]);
     },
-    [fitLocations, onPickLocation],
+    [clearPendingSearchZoomOut, fitLocations],
+  );
+
+  const handleLocationSelect = useCallback(
+    async (
+      nextLocation: AppLocation,
+      options: {
+        clearSearch?: boolean;
+      } = {},
+    ) => {
+      const previousLocation = currentLocationRef.current;
+
+      if (options.clearSearch) {
+        clearPendingSearchZoomOut();
+        searchQueryRef.current = "";
+        setQuery("");
+      }
+
+      setOptimisticLocation(nextLocation);
+      currentLocationRef.current = nextLocation;
+      scheduleVisibilitySyncRef.current?.();
+      fitLocations([nextLocation]);
+
+      try {
+        await onPickLocation(nextLocation);
+      } catch (error) {
+        setOptimisticLocation(null);
+        currentLocationRef.current = previousLocation;
+        scheduleVisibilitySyncRef.current?.();
+        throw error;
+      }
+    },
+    [clearPendingSearchZoomOut, fitLocations, onPickLocation],
   );
 
   const setLocateBlockedMessage = useCallback((message: string | null) => {
@@ -1167,14 +1283,71 @@ export function CityLocationPicker({
   }, []);
 
   useEffect(() => {
-    currentLocationRef.current = currentLocation;
+    const focusFrame = window.requestAnimationFrame(() => {
+      searchInputRef.current?.focus({ preventScroll: true });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+    };
+  }, []);
+
+  useEffect(() => {
+    searchQueryRef.current = normalizedQuery;
+    scheduleVisibilitySyncRef.current?.();
+  }, [normalizedQuery]);
+
+  useEffect(() => clearPendingSearchZoomOut, [clearPendingSearchZoomOut]);
+
+  useEffect(() => {
+    let clearOptimisticFrame = 0;
+
+    if (optimisticLocation !== null && currentLocation === optimisticLocation) {
+      clearOptimisticFrame = window.requestAnimationFrame(() => {
+        setOptimisticLocation(null);
+      });
+    }
+
+    currentLocationRef.current = optimisticLocation ?? currentLocation;
     syncingRef.current = syncing;
     scheduleVisibilitySyncRef.current?.();
-  }, [currentLocation, syncing]);
+
+    return () => {
+      if (clearOptimisticFrame !== 0) {
+        window.cancelAnimationFrame(clearOptimisticFrame);
+      }
+    };
+  }, [currentLocation, optimisticLocation, syncing]);
 
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
+
+  useEffect(() => {
+    if (!isCityListOpen) {
+      return;
+    }
+
+    function handleDocumentMouseDown(event: MouseEvent) {
+      if (!cityListWrapRef.current?.contains(event.target as Node)) {
+        setIsCityListOpen(false);
+      }
+    }
+
+    function handleDocumentKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsCityListOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleDocumentMouseDown);
+    document.addEventListener("keydown", handleDocumentKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handleDocumentMouseDown);
+      document.removeEventListener("keydown", handleDocumentKeyDown);
+    };
+  }, [isCityListOpen]);
 
   useEffect(() => {
     if (
@@ -1304,6 +1477,20 @@ export function CityLocationPicker({
     function syncMarkerVisibility() {
       const zoom = map.getZoom();
       const currentSelection = currentLocationRef.current;
+      const searchQuery = searchQueryRef.current;
+      const searchActive = searchQuery.length > 0;
+      const searchMatchCount = searchActive
+        ? cityEntries.reduce(
+            (count, entry) =>
+              count +
+              (cityMatchesSearchQuery(entry.location, searchQuery) ? 1 : 0),
+            0,
+          )
+        : 0;
+      const prioritizeSearchResults =
+        searchActive &&
+        searchMatchCount > 0 &&
+        searchMatchCount < cityEntries.length;
       const mapWidth = map.getContainer().clientWidth;
       const mapHeight = map.getContainer().clientHeight;
       const maxVisibleSecondaryCities = getMaxVisibleSecondaryCities(zoom);
@@ -1317,16 +1504,30 @@ export function CityLocationPicker({
       let visibleSecondaryCount = 0;
 
       for (const [location, state] of labelElements) {
-        const active = location === currentSelection;
-        const opacity = getCityLabelOpacity(zoom, state.minZoom, active);
-        const interactive = isCityLabelRevealed(zoom, state.minZoom, active);
+        const isSelected = location === currentSelection;
+        const searchMatch = cityMatchesSearchQuery(location, searchQuery);
+        const active = searchActive ? false : isSelected;
+        const opacity = searchActive
+          ? searchMatch
+            ? 1
+            : 0.1
+          : getCityLabelOpacity(zoom, state.minZoom, active);
+        const interactive = searchActive
+          ? searchMatch
+          : isCityLabelRevealed(zoom, state.minZoom, active);
+        const defaultZIndex =
+          active && !searchActive
+            ? SELECTED_CITY_Z_INDEX
+            : getCityMarkerZIndex(state.minZoom);
 
         styleCityLabel(state.element, state.surface, {
           active,
           syncing: syncingRef.current,
           opacity,
           interactive,
-          zIndex: active ? SELECTED_CITY_Z_INDEX : getCityMarkerZIndex(state.minZoom),
+          zIndex: prioritizeSearchResults
+            ? getSearchCityMarkerZIndex(defaultZIndex, searchMatch)
+            : defaultZIndex,
         });
 
         const point = map.project(state.center);
@@ -1440,7 +1641,9 @@ export function CityLocationPicker({
             return;
           }
 
-          void handleLocationSelect(entry.location);
+          void handleLocationSelect(entry.location, {
+            clearSearch: searchQueryRef.current.length > 0,
+          });
         });
         labelElements.set(entry.location, {
           element,
@@ -1640,28 +1843,134 @@ export function CityLocationPicker({
             {mapControlMessage}
           </div>
         ) : null}
-      </div>
 
-      <div className="theater-map-search-row">
-        <div className="theater-map-current-chip theater-map-current-chip--search">
-          {currentLocation}
-        </div>
-
-        <label className="theater-map-search-field">
-          <div className="theater-map-search-input-shell">
-            <Search size={17} />
-            <input
-              ref={searchInputRef}
-              type="search"
-              name="city-search"
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
+        <div className="theater-map-search-row theater-map-search-row--overlay">
+          <div className="theater-map-city-list-wrap" ref={cityListWrapRef}>
+            <button
+              type="button"
+              className="theater-map-search-action-button theater-map-city-list-button"
+              aria-expanded={isCityListOpen}
+              aria-haspopup="listbox"
+              aria-label="Open city list"
+              onClick={() => {
+                setIsCityListOpen((current) => !current);
               }}
-              placeholder="Search any city in your theater list"
-            />
+            >
+              <List size={18} strokeWidth={2.6} />
+            </button>
+
+            {isCityListOpen ? (
+              <div
+                className="theater-map-city-list-panel"
+                role="listbox"
+                aria-label="Select a city"
+              >
+                {availableCityLocations.map((location) => {
+                  const isSelected =
+                    location === (optimisticLocation ?? currentLocation);
+
+                  return (
+                    <button
+                      key={location}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      className={`theater-map-city-list-option${
+                        isSelected ? " is-selected" : ""
+                      }`}
+                      onClick={() => {
+                        setIsCityListOpen(false);
+
+                        if (location === currentLocationRef.current) {
+                          focusLocation(location, {
+                            clearSearch: searchQueryRef.current.length > 0,
+                          });
+                          return;
+                        }
+
+                        void handleLocationSelect(location, {
+                          clearSearch: searchQueryRef.current.length > 0,
+                        });
+                      }}
+                    >
+                      {location}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
-        </label>
+
+          <div className="theater-map-current-chip theater-map-current-chip--search">
+            {displayedCurrentLocation}
+          </div>
+
+          <button
+            type="button"
+            ref={mapIconAnchorRef}
+            className={`theater-map-search-action-button theater-map-inline-map-indicator${
+              showMapIcon ? " is-visible" : ""
+            }`}
+            aria-label={`Zoom to ${displayedCurrentLocation}`}
+            disabled={!showMapIcon}
+            tabIndex={showMapIcon ? 0 : -1}
+            onClick={() => {
+              focusLocation(currentLocationRef.current, {
+                clearSearch: searchQueryRef.current.length > 0,
+              });
+            }}
+          >
+            <MapPin size={20} strokeWidth={2.75} />
+          </button>
+
+          <label className="theater-map-search-field">
+            <div className="theater-map-search-input-shell">
+              <Search size={17} />
+              <input
+                ref={searchInputRef}
+                type="search"
+                name="city-search"
+                value={query}
+                onKeyDown={(event) => {
+                  if (
+                    event.key !== "Enter" ||
+                    !normalizedQuery ||
+                    matchingSearchLocations.length !== 1 ||
+                    syncingRef.current
+                  ) {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  void handleLocationSelect(matchingSearchLocations[0], {
+                    clearSearch: true,
+                  });
+                }}
+                onChange={(event) => {
+                  const nextQuery = event.target.value;
+                  const nextNormalizedQuery = normalizeCitySearchQuery(nextQuery);
+
+                  clearPendingSearchZoomOut();
+                  setQuery(nextQuery);
+
+                  if (!nextNormalizedQuery) {
+                    return;
+                  }
+
+                  searchZoomOutTimeoutRef.current = window.setTimeout(() => {
+                    if (searchQueryRef.current !== nextNormalizedQuery) {
+                      return;
+                    }
+
+                    fitStartingView({ duration: 420 });
+                    searchZoomOutTimeoutRef.current = null;
+                  }, 120);
+                }}
+                placeholder="Search"
+              />
+            </div>
+          </label>
+        </div>
       </div>
     </div>
   );
