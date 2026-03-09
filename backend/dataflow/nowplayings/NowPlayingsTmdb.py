@@ -167,7 +167,7 @@ class NowPlayingsTmdb(BaseDataflow):
             if (tmdb_id := res.get("tmdb_id")) and tmdb_id not in self.movies_by_tmdb:
                 self.movies_by_tmdb[tmdb_id] = res
 
-        # 6) ENRICH TITLE + POSTER (+ imdb_id)
+        # 6) ENRICH TITLE + POSTER + IMDB_ID + GENRES
         for tmdb_id, res in self.movies_by_tmdb.items():
             try:
                 data = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}", params={"api_key": self.TMDB_API_KEY, "append_to_response": "external_ids,videos"}, timeout=10).json()
@@ -176,6 +176,7 @@ class NowPlayingsTmdb(BaseDataflow):
             if not isinstance(data, dict) or not data.get("id"):
                 continue
             external_ids = data.get("external_ids") or {}
+            genres = [genre["name"] for genre in (data.get("genres") or []) if genre.get("name")]
             trailer = next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Trailer" and v.get("site") == "YouTube" and v.get("key") and v.get("iso_639_1") == "en"), None)
 
             res["english_title"] = data["title"].strip() if data.get("title") else res.get("english_title")
@@ -184,6 +185,7 @@ class NowPlayingsTmdb(BaseDataflow):
             res["imdb_id"] = external_ids.get("imdb_id") or res.get("imdb_id")
             res["en_poster"] = "https://image.tmdb.org/t/p/w500" + data["poster_path"] if data.get("poster_path") else res.get("en_poster")
             res["backdrop"] = "https://image.tmdb.org/t/p/w1280" + data["backdrop_path"] if data.get("backdrop_path") else res.get("backdrop")
+            res["genres"] = genres or res.get("genres")
             res["en_trailer"] = trailer.get("key") if trailer else res.get("en_trailer")
             res["release_year"] = data["release_date"][:4] if data.get("release_date") else res.get("release_year")
 
@@ -220,7 +222,7 @@ class NowPlayingsTmdb(BaseDataflow):
             if not tmdb_id:
                 continue
             imdb_id = res.get("imdb_id") or None
-            self.updates.append({"tmdb_id": tmdb_id, "english_title": res.get("english_title"), "runtime": res.get("runtime"), "popularity": res.get("popularity"), "imdb_id": imdb_id, "en_poster": res.get("en_poster"), "en_trailer": res.get("en_trailer"), "backdrop": res.get("backdrop"), "release_year": res.get("release_year")})
+            self.updates.append({"tmdb_id": tmdb_id, "english_title": res.get("english_title"), "runtime": res.get("runtime"), "popularity": res.get("popularity"), "imdb_id": imdb_id, "genres": res.get("genres"), "en_poster": res.get("en_poster"), "en_trailer": res.get("en_trailer"), "backdrop": res.get("backdrop"), "release_year": res.get("release_year")})
 
         self.upsertUpdates(self.MOVING_TO_TABLE_NAME_2)
-        self.dedupeTable(self.MOVING_TO_TABLE_NAME_2, ignore_cols={"english_title", "runtime", "popularity", "en_poster", "en_trailer", "backdrop", "imdb_id", "imdbRating", "imdbVotes", "rt_id", "rtAudienceRating", "rtAudienceVotes", "rtCriticRating", "rtCriticVotes", "lb_id", "lbRating", "lbVotes", "tmdbRating", "tmdbVotes", "release_year"}, sort_key=self.newestCreatedAtSortKey, sort_reverse=True)
+        self.dedupeTable(self.MOVING_TO_TABLE_NAME_2, ignore_cols={"english_title", "runtime", "popularity", "genres", "en_poster", "en_trailer", "backdrop", "imdb_id", "imdbRating", "imdbVotes", "rt_id", "rtAudienceRating", "rtAudienceVotes", "rtCriticRating", "rtCriticVotes", "lb_id", "lbRating", "lbVotes", "tmdbRating", "tmdbVotes", "release_year"}, sort_key=self.newestCreatedAtSortKey, sort_reverse=True)
