@@ -31,7 +31,7 @@ export type RatingSourcesState = {
   setLocationPreference: (location: AppLocation) => Promise<boolean>;
 };
 
-const PREFERENCES_TABLE = "user_preferences_ratings";
+const PREFERENCES_TABLE = "user_preferences";
 const LOCATION_COLUMN = "location";
 const SIGNUP_LOCATION_METADATA_KEY = "signup_location";
 const supabase = getSupabaseBrowserClient();
@@ -313,7 +313,7 @@ export function useRatingSources(): RatingSourcesState {
 
       if (hasLocationColumnRef.current === false) {
         setError(
-          "Add a `location` column to public.user_preferences_ratings to persist locations.",
+          "Add a `location` column to public.user_preferences to persist locations.",
         );
         return false;
       }
@@ -336,7 +336,7 @@ export function useRatingSources(): RatingSourcesState {
         if (isMissingColumnError(upsertError, LOCATION_COLUMN)) {
           hasLocationColumnRef.current = false;
           setError(
-            "Add a `location` column to public.user_preferences_ratings to persist locations.",
+            "Add a `location` column to public.user_preferences to persist locations.",
           );
         } else {
           setError(upsertError.message);
