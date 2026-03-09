@@ -2,45 +2,57 @@ import {
   StrictMode,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
 } from "react";
 import { createRoot } from "react-dom/client";
-import { Film } from "lucide-react";
+import { Film, Settings } from "lucide-react";
 import {
   MovieScroller,
   type MovieScrollerJumpRequest,
 } from "./components/MovieScroller";
 import {
-  TopbarActions,
-} from "./components/topbar/TopbarActions";
-import {
+  MovieSearchMenu,
+  type MovieSearchCollection,
   type MovieSearchResult,
-} from "./components/topbar/search/MovieSearchMenu";
-import { UserPreferencesPage } from "./components/topbar/settings/UserPreferencesPage";
+} from "./components/MovieSearchMenu";
+import { TheaterMapDialog } from "./components/TheaterMapDialog";
+import { UserMenu } from "./components/UserMenu";
+import { UserPreferencesPage } from "./components/UserPreferencesPage";
 import {
   comingSoonMovies,
   loadMovieCatalog,
   movies,
 } from "./data/movieCatalog";
 import { preloadTheaters } from "./data/theaters";
-import { getCssTimeMs } from "./lib/cssVariables";
 import { RatingSourcesProvider } from "./prefs/RatingSourcesContext";
 import { useRatingSourcesContext } from "./prefs/ratingSourcesStore";
-import "./components/topbar/topbar.css";
 import "./index.css";
 
 const SCROLLER_CARD_WIDTH = 220;
 const SCROLLER_CARD_HEIGHT = 330;
 const SCROLLER_GAP = 22;
 const SCROLLER_MAX_WIDTH = 1100;
+const SCROLLER_SLOT_MIN_HEIGHT = 420;
+const TOPBAR_INTRO_DURATION_MS = 760;
+const FLOATING_TOPBAR_TRANSITION_MS = 620;
 
 type MovieSearchMode = "nowPlaying" | "comingSoon";
 
 type AppMovieJumpRequest = MovieScrollerJumpRequest & {
   mode: MovieSearchMode;
+};
+
+type TopbarActionsProps = {
+  catalogReady: boolean;
+  currentPath: "/" | "/user";
+  searchCollections: readonly MovieSearchCollection[];
+  variant?: "inline" | "floating";
+  onNavigate: (path: string) => void;
+  onSearchOpen: () => void;
+  onSelectResult: (result: MovieSearchResult) => void;
+  onSettingsClick: () => void;
 };
 
 function normalizePathname(pathname: string): "/" | "/user" {
@@ -61,6 +73,59 @@ function getPathnameSnapshot(): "/" | "/user" {
   return normalizePathname(window.location.pathname);
 }
 
+function TopbarActions({
+  catalogReady,
+  currentPath,
+  searchCollections,
+  variant = "inline",
+  onNavigate,
+  onSearchOpen,
+  onSelectResult,
+  onSettingsClick,
+}: TopbarActionsProps) {
+  const isFloating = variant === "floating";
+  const containerClassName = isFloating
+    ? "floating-topbar-actions"
+    : "topbar-actions";
+
+  return (
+    <div className={containerClassName}>
+      <div
+        className={isFloating ? "floating-topbar-item floating-topbar-item--search" : undefined}
+      >
+        <MovieSearchMenu
+          collections={searchCollections}
+          loading={!catalogReady}
+          onOpen={onSearchOpen}
+          onSelectResult={onSelectResult}
+        />
+      </div>
+      <div
+        className={isFloating ? "floating-topbar-item floating-topbar-item--map" : undefined}
+      >
+        <TheaterMapDialog />
+      </div>
+      <div
+        className={isFloating ? "floating-topbar-item floating-topbar-item--user" : undefined}
+      >
+        <UserMenu currentPath={currentPath} onNavigate={onNavigate} />
+      </div>
+      <div
+        className={isFloating ? "floating-topbar-item floating-topbar-item--settings" : undefined}
+      >
+        <button
+          type="button"
+          className="settings-button"
+          aria-label="Settings"
+          onClick={onSettingsClick}
+        >
+          <Settings size={20} strokeWidth={2.75} color="#a66ae3" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AppShell() {
   const { user, loading } = useRatingSourcesContext();
   const [catalogReady, setCatalogReady] = useState(() => movies.length > 0);
@@ -78,14 +143,6 @@ function AppShell() {
   const topbarShellRef = useRef<HTMLDivElement | null>(null);
   const floatingTopbarEnterFrameRef = useRef<number | null>(null);
   const floatingTopbarExitTimeoutRef = useRef<number | null>(null);
-  const topbarIntroDurationMs = useMemo(
-    () => getCssTimeMs("--topbar-reveal-duration", 760),
-    [],
-  );
-  const floatingTopbarExitDurationMs = useMemo(
-    () => getCssTimeMs("--floating-topbar-exit-duration", 620),
-    [],
-  );
 
   const navigate = useCallback((path: string, replace = false) => {
     const targetPath = normalizePathname(path);
@@ -104,12 +161,12 @@ function AppShell() {
   useEffect(() => {
     const introTimeout = window.setTimeout(() => {
       setShowTopbarIntro(false);
-    }, topbarIntroDurationMs);
+    }, TOPBAR_INTRO_DURATION_MS);
 
     return () => {
       window.clearTimeout(introTimeout);
     };
-  }, [topbarIntroDurationMs]);
+  }, []);
 
   useEffect(() => {
     if (!loading && !user && pathname === "/user") {
@@ -197,6 +254,9 @@ function AppShell() {
         window.clearTimeout(floatingTopbarExitTimeoutRef.current);
         floatingTopbarExitTimeoutRef.current = null;
       }
+
+      setFloatingTopbarVisible(false);
+      setRenderFloatingTopbar(false);
       return;
     }
 
@@ -207,21 +267,16 @@ function AppShell() {
       }
 
       if (!renderFloatingTopbar) {
+        setRenderFloatingTopbar(true);
+        setFloatingTopbarVisible(false);
         floatingTopbarEnterFrameRef.current = window.requestAnimationFrame(() => {
-          setRenderFloatingTopbar(true);
-          setFloatingTopbarVisible(false);
-          floatingTopbarEnterFrameRef.current = window.requestAnimationFrame(() => {
-            floatingTopbarEnterFrameRef.current = null;
-            setFloatingTopbarVisible(true);
-          });
+          floatingTopbarEnterFrameRef.current = null;
+          setFloatingTopbarVisible(true);
         });
         return;
       }
 
-      floatingTopbarEnterFrameRef.current = window.requestAnimationFrame(() => {
-        floatingTopbarEnterFrameRef.current = null;
-        setFloatingTopbarVisible(true);
-      });
+      setFloatingTopbarVisible(true);
       return;
     }
 
@@ -230,10 +285,7 @@ function AppShell() {
       floatingTopbarEnterFrameRef.current = null;
     }
 
-    floatingTopbarEnterFrameRef.current = window.requestAnimationFrame(() => {
-      floatingTopbarEnterFrameRef.current = null;
-      setFloatingTopbarVisible(false);
-    });
+    setFloatingTopbarVisible(false);
 
     if (!renderFloatingTopbar) {
       return;
@@ -242,13 +294,8 @@ function AppShell() {
     floatingTopbarExitTimeoutRef.current = window.setTimeout(() => {
       floatingTopbarExitTimeoutRef.current = null;
       setRenderFloatingTopbar(false);
-    }, floatingTopbarExitDurationMs);
-  }, [
-    floatingTopbarExitDurationMs,
-    renderFloatingTopbar,
-    showFloatingTopbar,
-    showTopbarIntro,
-  ]);
+    }, FLOATING_TOPBAR_TRANSITION_MS);
+  }, [renderFloatingTopbar, showFloatingTopbar, showTopbarIntro]);
 
   useEffect(() => {
     return () => {
@@ -503,6 +550,7 @@ function AppShell() {
             </div>
             <div
               className="scroller-slot"
+              style={{ minHeight: SCROLLER_SLOT_MIN_HEIGHT }}
             >
               {catalogReady ? (
                 <MovieScroller
@@ -525,6 +573,7 @@ function AppShell() {
             </div>
             <div
               className="scroller-slot"
+              style={{ minHeight: SCROLLER_SLOT_MIN_HEIGHT }}
             >
               {catalogReady ? (
                 <MovieScroller

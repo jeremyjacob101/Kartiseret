@@ -23,7 +23,7 @@ import {
   MovieDetailsContent,
   type MovieDetailsVariant,
 } from "./MovieDetailsContent";
-import "./movie-scroller/css/MovieScroller.css";
+import "./MovieScroller.css";
 
 type FocusPhase = "collapsed" | "opening" | "open" | "closing";
 type NavigationDirection = -1 | 1;
@@ -99,10 +99,16 @@ const SCROLLER_CARD_SHADOW =
   "0 0 0 rgba(0, 0, 0, 0), 0 0 0 rgba(255, 255, 255, 0)";
 
 const POSTER_MOVE_DURATION_MS = 300;
+const POSTER_GHOST_OPACITY_DURATION_MS = 120;
+const POSTER_RETURN_OPACITY_DURATION_MS = 220;
+const FOCUS_POSTER_FADE_DURATION_MS = 180;
 const FOCUS_POSTER_REVEAL_DELAY_MS = 150;
 const GHOST_FADE_OUT_DELAY_MS = 260;
 const POSTER_HANDOFF_TOTAL_MS = 440;
 const POSTER_RETURN_SETTLE_DELAY_MS = POSTER_MOVE_DURATION_MS;
+const FOCUS_STAGE_FADE_DURATION_MS = 260;
+const CLOSE_STAGE_FADE_DELAY_MS =
+  POSTER_HANDOFF_TOTAL_MS - FOCUS_STAGE_FADE_DURATION_MS;
 const DETAIL_PRELOAD_RADIUS = 2;
 const DETAIL_EDGE_BUFFER_SETS = 1;
 const DETAIL_NAV_DURATION_MS = 360;
@@ -115,24 +121,17 @@ const EXTERNAL_JUMP_VIEWPORT_MIN_TOP_PX = 88;
 const EXTERNAL_JUMP_VIEWPORT_MAX_TOP_PX = 140;
 const EXTERNAL_JUMP_VIEWPORT_EDGE_PX = 72;
 
+const movieScrollerTimingStyle = {
+  "--movie-scroller-stage-fade-duration": `${FOCUS_STAGE_FADE_DURATION_MS}ms`,
+  "--movie-scroller-stage-close-delay": `${CLOSE_STAGE_FADE_DELAY_MS}ms`,
+  "--movie-scroller-focus-poster-fade-duration": `${FOCUS_POSTER_FADE_DURATION_MS}ms`,
+  "--movie-scroller-ghost-move-duration": `${POSTER_MOVE_DURATION_MS}ms`,
+  "--movie-scroller-ghost-opacity-duration": `${POSTER_GHOST_OPACITY_DURATION_MS}ms`,
+  "--movie-scroller-ghost-close-opacity-duration": `${POSTER_RETURN_OPACITY_DURATION_MS}ms`,
+  "--movie-scroller-detail-swap-duration": `${DETAIL_NAV_DURATION_MS}ms`,
+} as CSSProperties;
+
 let persistedDetailShowtimeDate: string | null = null;
-
-function applyMovieScrollerShellHeight(
-  element: HTMLDivElement,
-  height: number,
-) {
-  element.style.height = `${height}px`;
-}
-
-function applyMovieScrollerRect(
-  element: HTMLElement,
-  rect: { top: number; left: number; width: number; height: number },
-) {
-  element.style.top = `${rect.top}px`;
-  element.style.left = `${rect.left}px`;
-  element.style.width = `${rect.width}px`;
-  element.style.height = `${rect.height}px`;
-}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -250,10 +249,10 @@ function buildCardOffset(
         opacity: 0,
         filter: "blur(0px)",
         transition,
-        "--movie-scroller-card-offset-x": "0px",
-        "--movie-scroller-card-offset-y": "0px",
-        "--movie-scroller-card-rotate": "0deg",
-        "--movie-scroller-card-scale": "1",
+        "--card-translate-x": "0px",
+        "--card-translate-y": "0px",
+        "--card-rotate": "0deg",
+        "--card-scale": "1",
       } as CSSProperties;
     }
 
@@ -274,10 +273,10 @@ function buildCardOffset(
       filter: "blur(0px)",
       transition,
       transitionDelay: `${reverseDelay}ms`,
-      "--movie-scroller-card-offset-x": "0px",
-      "--movie-scroller-card-offset-y": "0px",
-      "--movie-scroller-card-rotate": "0deg",
-      "--movie-scroller-card-scale": "1",
+      "--card-translate-x": "0px",
+      "--card-translate-y": "0px",
+      "--card-rotate": "0deg",
+      "--card-scale": "1",
     } as CSSProperties;
   }
 
@@ -293,10 +292,10 @@ function buildCardOffset(
     filter: `blur(${Math.min(18, 5 + absOffset * 1.6)}px) saturate(0.76)`,
     transition,
     transitionDelay: `${delay}ms`,
-    "--movie-scroller-card-offset-x": `${direction * travel}px`,
-    "--movie-scroller-card-offset-y": `${-lift}px`,
-    "--movie-scroller-card-rotate": `${rotate}deg`,
-    "--movie-scroller-card-scale": `${scale}`,
+    "--card-translate-x": `${direction * travel}px`,
+    "--card-translate-y": `${-lift}px`,
+    "--card-rotate": `${rotate}deg`,
+    "--card-scale": `${scale}`,
   } as CSSProperties;
 }
 
@@ -1888,19 +1887,13 @@ function MovieScrollerContent({
 
   return (
     <div
-      ref={(element) => {
-        shellRef.current = element;
-
-        if (!element) {
-          return;
-        }
-
-        applyMovieScrollerShellHeight(
-          element,
-          phase === "collapsed" ? collapsedHeight : detailLayout.panelHeight,
-        );
-      }}
+      ref={shellRef}
       className={shellClassName}
+      style={{
+        ...movieScrollerTimingStyle,
+        height:
+          phase === "collapsed" ? collapsedHeight : detailLayout.panelHeight,
+      }}
     >
       <div
         className="movie-scroller-collapsed-layer"
@@ -1936,24 +1929,19 @@ function MovieScrollerContent({
                   className={`movie-scroller-side-preview movie-scroller-side-preview--left${
                     canNavigate ? "" : " is-disabled"
                   }`}
-                  ref={(element) => {
-                    if (!element) {
-                      return;
-                    }
-
-                    applyMovieScrollerRect(element, {
-                      top: detailLayout.previewTop,
-                      left: detailLayout.previewLeft,
-                      width: detailLayout.previewWidth,
-                      height: detailLayout.previewHeight,
-                    });
-                  }}
                   onClick={() => {
                     if (!canNavigate) {
                       return;
                     }
 
                     handleNavigateDetail(-1);
+                  }}
+                  style={{
+                    top: detailLayout.previewTop,
+                    left: detailLayout.previewLeft,
+                    width: detailLayout.previewWidth,
+                    height: detailLayout.previewHeight,
+                    WebkitTapHighlightColor: "transparent",
                   }}
                 >
                   <img
@@ -1970,24 +1958,19 @@ function MovieScrollerContent({
                   className={`movie-scroller-side-preview movie-scroller-side-preview--right${
                     canNavigate ? "" : " is-disabled"
                   }`}
-                  ref={(element) => {
-                    if (!element) {
-                      return;
-                    }
-
-                    applyMovieScrollerRect(element, {
-                      top: detailLayout.previewTop,
-                      left: detailLayout.previewRight,
-                      width: detailLayout.previewWidth,
-                      height: detailLayout.previewHeight,
-                    });
-                  }}
                   onClick={() => {
                     if (!canNavigate) {
                       return;
                     }
 
                     handleNavigateDetail(1);
+                  }}
+                  style={{
+                    top: detailLayout.previewTop,
+                    left: detailLayout.previewRight,
+                    width: detailLayout.previewWidth,
+                    height: detailLayout.previewHeight,
+                    WebkitTapHighlightColor: "transparent",
                   }}
                 >
                   <img
@@ -2004,13 +1987,9 @@ function MovieScrollerContent({
 
             <article
               className="movie-scroller-detail-card"
-              ref={(element) => {
-                if (!element) {
-                  return;
-                }
-
-                element.style.width = `${detailLayout.panelWidth}px`;
-                element.style.height = `${detailLayout.panelHeight}px`;
+              style={{
+                width: detailLayout.panelWidth,
+                height: detailLayout.panelHeight,
               }}
               aria-label={`${movieItems[displayMovieIndex].title} details`}
               onPointerDown={handleDetailPointerDown}
@@ -2044,6 +2023,13 @@ function MovieScrollerContent({
           }${phase === "opening" ? " is-scripted-opening" : ""}${
             phase === "closing" ? " is-closing" : ""
           }`}
+          style={{
+            top: ghostTransition.sourceRect.top,
+            left: ghostTransition.sourceRect.left,
+            width: ghostTransition.sourceRect.width,
+            height: ghostTransition.sourceRect.height,
+            opacity: ghostTransition.sourceOpacity,
+          }}
         />
       ) : null}
     </div>

@@ -1,7 +1,6 @@
 import { Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { type Movie } from "../../../data/movieCatalog";
-import "./search.css";
+import { type Movie } from "../data/movieCatalog";
 
 export type MovieSearchMode = "nowPlaying" | "comingSoon";
 

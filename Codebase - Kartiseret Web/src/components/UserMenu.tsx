@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { LogOut, User } from "lucide-react";
-import { getSupabaseBrowserClient } from "../../../lib/supabase";
-import { loadGuestLocation } from "../../../prefs/locations";
-import { useRatingSourcesContext } from "../../../prefs/ratingSourcesStore";
-import "./user.css";
+import { getSupabaseBrowserClient } from "../lib/supabase";
+import { loadGuestLocation } from "../prefs/locations";
+import { useRatingSourcesContext } from "../prefs/ratingSourcesStore";
 
 type AuthMode = "login" | "signup";
 type UserMenuProps = {
