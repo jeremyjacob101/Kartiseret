@@ -51,9 +51,7 @@ export function normalizeLocation(
       return fallback;
     }
 
-    return (
-      canonicalLocationByNormalizedValue.get(normalizedValue) ?? normalizedValue
-    );
+    return canonicalLocationByNormalizedValue.get(normalizedValue) ?? normalizedValue;
   }
 
   return fallback;

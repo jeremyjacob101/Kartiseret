@@ -2,14 +2,8 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "target": "ES2023",
-    "lib": [
-      "ES2023"
-    ],
-    "types": [
-      "node"
-    ]
+    "lib": ["ES2023"],
+    "types": ["node"]
   },
-  "include": [
-    "./vite.config.ts"
-  ]
+  "include": ["./vite.config.ts"]
 }

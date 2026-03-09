@@ -169,9 +169,7 @@ function formatReleaseDate(dateString: string): string {
     : releaseDateFormatter.format(releaseDate);
 }
 
-function extractYouTubeVideoKey(
-  value: string | null | undefined,
-): string | null {
+function extractYouTubeVideoKey(value: string | null | undefined): string | null {
   const normalizedValue = value?.trim();
 
   if (!normalizedValue) {
@@ -186,12 +184,12 @@ function extractYouTubeVideoKey(
     /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/,
   )?.[1];
 
-  return matchedKey && YOUTUBE_KEY_PATTERN.test(matchedKey) ? matchedKey : null;
+  return matchedKey && YOUTUBE_KEY_PATTERN.test(matchedKey)
+    ? matchedKey
+    : null;
 }
 
-function getTrailerEmbedUrl(
-  trailerValue: string | null | undefined,
-): string | null {
+function getTrailerEmbedUrl(trailerValue: string | null | undefined): string | null {
   const videoKey = extractYouTubeVideoKey(trailerValue);
 
   if (!videoKey) {
@@ -205,10 +203,7 @@ function isAbsoluteUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
 }
 
-function toPathUrl(
-  baseUrl: string,
-  value: string | null | undefined,
-): string | null {
+function toPathUrl(baseUrl: string, value: string | null | undefined): string | null {
   const normalizedValue = value?.trim();
 
   if (!normalizedValue) {
@@ -458,7 +453,10 @@ function findShowtimePanel(
   date: string,
 ): HTMLElement | null {
   for (const child of Array.from(rail.children)) {
-    if (child instanceof HTMLElement && child.dataset.showtimeDate === date) {
+    if (
+      child instanceof HTMLElement &&
+      child.dataset.showtimeDate === date
+    ) {
       return child;
     }
   }
@@ -679,8 +677,7 @@ export function MovieDetailsContent({
           <h2 id={titleId} className="details-title">
             {movie.title}
           </h2>
-          {infoParts.length > 0 ||
-          (variant === "nowPlaying" && trailerEmbedUrl) ? (
+          {infoParts.length > 0 || (variant === "nowPlaying" && trailerEmbedUrl) ? (
             <div className="details-subtitle details-subtitle--meta-row">
               {infoParts.map((part, index) => (
                 <span key={`${movie.tmdbId}-meta-${part}`}>
@@ -875,7 +872,9 @@ export function MovieDetailsContent({
               </div>
             </div>
           ) : (
-            <p className="details-showtime-empty">Trailer not available yet.</p>
+            <p className="details-showtime-empty">
+              Trailer not available yet.
+            </p>
           )}
         </section>
       )}

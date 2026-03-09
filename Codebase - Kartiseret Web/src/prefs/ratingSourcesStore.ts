@@ -4,7 +4,9 @@ import {
   DEFAULT_RATING_SOURCES,
   type RatingSource,
 } from "./ratingSources";
-import { DEFAULT_LOCATION } from "./locations";
+import {
+  DEFAULT_LOCATION,
+} from "./locations";
 import { type RatingSourcesState } from "./useRatingSources";
 
 export type RatingSourcesContextValue = RatingSourcesState & {
@@ -23,8 +25,9 @@ const fallbackValue: RatingSourcesContextValue = {
   setLocationPreference: async () => false,
 };
 
-export const RatingSourcesContext =
-  createContext<RatingSourcesContextValue | null>(null);
+export const RatingSourcesContext = createContext<RatingSourcesContextValue | null>(
+  null,
+);
 
 export function useRatingSourcesContext(): RatingSourcesContextValue {
   return useContext(RatingSourcesContext) ?? fallbackValue;
