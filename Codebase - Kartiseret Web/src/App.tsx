@@ -7,7 +7,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { createRoot } from "react-dom/client";
-import { Settings } from "lucide-react";
+import { Film, Settings } from "lucide-react";
 import {
   MovieScroller,
   type MovieScrollerJumpRequest,
@@ -455,7 +455,14 @@ function AppShell() {
                   navigate("/");
                 }}
               >
-                All Showtimes
+                <Film
+                  className="topnav-icon"
+                  size={18}
+                  strokeWidth={2.5}
+                  color="#212121"
+                  aria-hidden="true"
+                />
+                <span>All Showtimes</span>
               </button>
               {user ? (
                 <button
@@ -470,7 +477,13 @@ function AppShell() {
                   User Preferences
                 </button>
               ) : (
-                <span className="topnav-link">Coming Soon</span>
+                <span className="topnav-link">
+                  <span
+                    className="topnav-icon topnav-icon--soon"
+                    aria-hidden="true"
+                  />
+                  <span>Coming Soon</span>
+                </span>
               )}
             </nav>
             <TopbarActions

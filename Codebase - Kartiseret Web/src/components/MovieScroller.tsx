@@ -448,7 +448,9 @@ function isDetailSurfaceTarget(target: EventTarget | null): boolean {
   }
 
   return Boolean(
-    target.closest(".movie-scroller-detail-card, .movie-scroller-side-preview"),
+    target.closest(
+      ".movie-scroller-detail-card, .movie-scroller-side-preview, .movie-trailer-modal",
+    ),
   );
 }
 

@@ -281,8 +281,30 @@ button {
 }
 
 .topnav-link {
-  font-size: 0.96rem;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.topnav-icon {
+  flex: none;
+}
+
+.topnav-icon--soon {
+  display: inline-block;
+  width: 1.22rem;
+  height: 1.22rem;
+  background-color: #212121;
+  -webkit-mask-image: url("/icons/soon-icon-1.svg");
+  mask-image: url("/icons/soon-icon-1.svg");
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
 }
 
 .topnav-button {
@@ -2219,6 +2241,43 @@ button {
   color: rgba(233, 226, 245, 0.82);
 }
 
+.details-subtitle--meta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.details-subtitle-divider {
+  display: inline-block;
+  margin-right: 2px;
+  color: rgba(233, 226, 245, 0.58);
+}
+
+.details-trailer-launch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  transition: transform 140ms ease, opacity 140ms ease;
+}
+
+.details-trailer-launch:hover,
+.details-trailer-launch:focus-visible {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.details-trailer-launch-logo {
+  display: block;
+  width: 30px;
+  height: 22px;
+  object-fit: contain;
+}
+
 .details-release-date {
   margin: 14px 0 0;
   font-size: 0.96rem;
@@ -2265,6 +2324,21 @@ button {
   color: rgba(233, 226, 245, 0.76);
 }
 
+.details-metric-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  text-decoration: none;
+  transition: transform 140ms ease, opacity 140ms ease;
+}
+
+.details-metric-link:hover,
+.details-metric-link:focus-visible {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
 .details-metric-logo {
   display: block;
   object-fit: contain;
@@ -2302,10 +2376,117 @@ button {
   touch-action: pan-x;
 }
 
+.details-showtimes--trailer {
+  padding: 18px;
+  touch-action: auto;
+}
+
 .details-showtime-empty {
   margin: 0;
   padding: 24px;
   color: rgba(233, 226, 245, 0.76);
+}
+
+.details-trailer-shell {
+  display: grid;
+  gap: 14px;
+}
+
+.details-trailer-header {
+  display: grid;
+  gap: 4px;
+}
+
+.details-trailer-header .details-day-kicker {
+  margin: 0;
+}
+
+.details-trailer-header .details-day-title {
+  font-size: clamp(1.2rem, 2.5vw, 1.6rem);
+  text-transform: none;
+}
+
+.details-trailer-frame {
+  position: relative;
+  width: 100%;
+  height: clamp(220px, 30vw, 360px);
+  border-radius: 22px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top, rgba(166, 106, 227, 0.22), transparent 54%),
+    #050507;
+  box-shadow:
+    0 22px 48px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.details-trailer-frame iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.movie-trailer-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(5, 5, 9, 0.72);
+  backdrop-filter: blur(12px);
+}
+
+.movie-trailer-modal__dialog {
+  position: relative;
+  width: min(960px, calc(100vw - 48px));
+  border: 1px solid rgba(217, 191, 255, 0.18);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top, rgba(166, 106, 227, 0.2), transparent 54%),
+    rgba(7, 7, 11, 0.96);
+  box-shadow:
+    0 34px 80px rgba(0, 0, 0, 0.46),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.movie-trailer-modal__close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(217, 191, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(15, 12, 22, 0.88);
+  color: #f6f0ff;
+  cursor: pointer;
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.movie-trailer-modal__close:hover,
+.movie-trailer-modal__close:focus-visible {
+  background: rgba(24, 20, 34, 0.96);
+  transform: scale(1.04);
+}
+
+.movie-trailer-modal__frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+
+.movie-trailer-modal__frame iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
 }
 
 .details-day-empty {
@@ -2497,6 +2678,31 @@ button {
   .details-day-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .details-showtimes--trailer {
+    padding: 14px;
+  }
+
+  .details-trailer-frame {
+    height: clamp(200px, 52vw, 260px);
+    border-radius: 18px;
+  }
+
+  .movie-trailer-modal {
+    padding: 14px;
+  }
+
+  .movie-trailer-modal__dialog {
+    width: min(100vw - 28px, 960px);
+    border-radius: 22px;
+  }
+
+  .movie-trailer-modal__close {
+    top: 10px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
   }
 
   .theater-map-backdrop {

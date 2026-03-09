@@ -3,8 +3,11 @@ import {
   useEffect,
   useLayoutEffect,
   useRef,
+  useState,
   type Ref,
 } from "react";
+import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 import {
   fixedAppDateString,
   getMovieShowtimeDays,
@@ -95,6 +98,7 @@ const RT_CRITIC_CERTIFIED_FRESH_MIN_REVIEWS = 80;
 const RT_AUDIENCE_POSITIVE_MIN_SCORE = 60;
 const RT_AUDIENCE_HOT_MIN_SCORE = 90;
 const RT_AUDIENCE_HOT_MIN_VERIFIED_RATINGS = 500;
+const YOUTUBE_KEY_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 
 type MovieDetailsContentProps = {
   movie: Movie;
@@ -114,6 +118,8 @@ type MetricDisplay = {
   value: string;
   ariaLabel: string;
   logoSrc: string;
+  href?: string;
+  linkAriaLabel?: string;
   logoClassName?: string;
   logoWidth?: number;
   logoHeight?: number;
@@ -180,6 +186,90 @@ function formatReleaseDate(dateString: string): string {
   return Number.isNaN(releaseDate.getTime())
     ? dateString
     : releaseDateFormatter.format(releaseDate);
+}
+
+function extractYouTubeVideoKey(value: string | null | undefined): string | null {
+  const normalizedValue = value?.trim();
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  if (YOUTUBE_KEY_PATTERN.test(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  const matchedKey = normalizedValue.match(
+    /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/,
+  )?.[1];
+
+  return matchedKey && YOUTUBE_KEY_PATTERN.test(matchedKey)
+    ? matchedKey
+    : null;
+}
+
+function getTrailerEmbedUrl(trailerValue: string | null | undefined): string | null {
+  const videoKey = extractYouTubeVideoKey(trailerValue);
+
+  if (!videoKey) {
+    return null;
+  }
+
+  return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoKey)}?rel=0&modestbranding=1&playsinline=1`;
+}
+
+function isAbsoluteUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value);
+}
+
+function toPathUrl(baseUrl: string, value: string | null | undefined): string | null {
+  const normalizedValue = value?.trim();
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  if (isAbsoluteUrl(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  return `${baseUrl}/${normalizedValue.replace(/^\/+/, "")}`;
+}
+
+function getImdbUrl(movie: Movie): string | null {
+  const imdbId = movie.imdbId?.trim();
+
+  if (!imdbId) {
+    return null;
+  }
+
+  if (isAbsoluteUrl(imdbId)) {
+    return imdbId;
+  }
+
+  return `https://www.imdb.com/title/${imdbId.replace(/^\/+|\/+$/g, "")}/`;
+}
+
+function getRottenTomatoesUrl(movie: Movie): string | null {
+  return toPathUrl("https://www.rottentomatoes.com", movie.rtId);
+}
+
+function getLetterboxdUrl(movie: Movie): string | null {
+  return toPathUrl("https://letterboxd.com", movie.lbId);
+}
+
+function getTmdbUrl(movie: Movie): string | null {
+  const tmdbId = movie.tmdbId?.trim();
+
+  if (!tmdbId) {
+    return null;
+  }
+
+  if (isAbsoluteUrl(tmdbId)) {
+    return tmdbId;
+  }
+
+  return `https://www.themoviedb.org/movie/${encodeURIComponent(tmdbId)}`;
 }
 
 function getTheaterTheme(theater: string, index: number): TheaterTheme {
@@ -275,6 +365,8 @@ function getMetricDisplay(
         value: movie.imdbRating.toFixed(1),
         ariaLabel: `IMDb rating ${movie.imdbRating.toFixed(1)}`,
         logoSrc: "/logos/imdb.svg",
+        href: getImdbUrl(movie) ?? undefined,
+        linkAriaLabel: `Open ${movie.title} on IMDb`,
         logoClassName: "details-metric-logo details-metric-logo--imdb",
         logoWidth: 36,
         logoHeight: 18,
@@ -287,6 +379,8 @@ function getMetricDisplay(
           ? `Rotten Tomatoes audience score ${formatPercent(movie.rtAudienceRating)}, ${audienceBadge.description}`
           : "Rotten Tomatoes audience score unavailable",
         logoSrc: audienceBadge?.src ?? "/logos/rtAudienceGood.svg",
+        href: getRottenTomatoesUrl(movie) ?? undefined,
+        linkAriaLabel: `Open ${movie.title} on Rotten Tomatoes`,
         logoClassName: "details-metric-logo details-metric-logo--rt",
         logoWidth: 22,
         logoHeight: 22,
@@ -299,6 +393,8 @@ function getMetricDisplay(
           ? `Rotten Tomatoes critic score ${formatPercent(movie.rtCriticRating)}, ${criticBadge.description}`
           : "Rotten Tomatoes critic score unavailable",
         logoSrc: criticBadge?.src ?? "/logos/rtCriticGood.svg",
+        href: getRottenTomatoesUrl(movie) ?? undefined,
+        linkAriaLabel: `Open ${movie.title} on Rotten Tomatoes`,
         logoClassName: "details-metric-logo details-metric-logo--rt",
         logoWidth: 22,
         logoHeight: 22,
@@ -311,6 +407,8 @@ function getMetricDisplay(
           ? `Letterboxd rating ${movie.lbRating.toFixed(1)}`
           : "Letterboxd rating unavailable",
         logoSrc: "/logos/letterboxd.svg",
+        href: getLetterboxdUrl(movie) ?? undefined,
+        linkAriaLabel: `Open ${movie.title} on Letterboxd`,
         logoClassName: "details-metric-logo details-metric-logo--letterboxd",
         logoWidth: 24,
         logoHeight: 24,
@@ -323,6 +421,8 @@ function getMetricDisplay(
           ? `TMDB rating ${movie.tmdbRating.toFixed(1)}`
           : "TMDB rating unavailable",
         logoSrc: "/logos/tmdb.svg",
+        href: getTmdbUrl(movie) ?? undefined,
+        linkAriaLabel: `Open ${movie.title} on TMDB`,
         logoClassName: "details-metric-logo details-metric-logo--tmdb",
         logoWidth: 28,
         logoHeight: 20,
@@ -426,7 +526,8 @@ export function MovieDetailsContent({
   const railRef = useRef<HTMLDivElement | null>(null);
   const railScrollFrameRef = useRef<number | null>(null);
   const visibleShowtimeDateRef = useRef<string | null>(null);
-  const subtitle = getMovieInfoParts(movie).join(" • ");
+  const [isTrailerModalOpen, setIsTrailerModalOpen] = useState(false);
+  const infoParts = getMovieInfoParts(movie);
   const releaseDateLabel =
     variant === "comingSoon" && movie.releaseDate
       ? formatReleaseDate(movie.releaseDate)
@@ -437,6 +538,7 @@ export function MovieDetailsContent({
       : [];
   const metrics =
     variant === "nowPlaying" ? getMetricDisplays(movie, sources) : [];
+  const trailerEmbedUrl = getTrailerEmbedUrl(movie.trailerKey);
   const targetShowtimeDate = getShowtimeTargetDate(
     showtimeDays,
     preferredShowtimeDate,
@@ -505,6 +607,76 @@ export function MovieDetailsContent({
     };
   }, []);
 
+  useEffect(() => {
+    setIsTrailerModalOpen(false);
+  }, [movie.tmdbId, variant]);
+
+  useEffect(() => {
+    if (!isTrailerModalOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsTrailerModalOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [isTrailerModalOpen]);
+
+  const trailerModal =
+    isTrailerModalOpen && trailerEmbedUrl && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            className="movie-trailer-modal"
+            data-movie-scroller-detail-overlay="true"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                setIsTrailerModalOpen(false);
+              }
+            }}
+          >
+            <div
+              className="movie-trailer-modal__dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-label={`${movie.title} trailer`}
+            >
+              <button
+                type="button"
+                className="movie-trailer-modal__close"
+                aria-label="Close trailer"
+                onClick={() => {
+                  setIsTrailerModalOpen(false);
+                }}
+              >
+                <X size={20} strokeWidth={2.6} />
+              </button>
+              <div className="movie-trailer-modal__frame">
+                <iframe
+                  src={`${trailerEmbedUrl}&autoplay=1`}
+                  title={`${movie.title} trailer`}
+                  loading="eager"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  referrerPolicy="strict-origin-when-cross-origin"
+                />
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
     <>
       <div className="details-hero">
@@ -523,7 +695,52 @@ export function MovieDetailsContent({
           <h2 id={titleId} className="details-title">
             {movie.title}
           </h2>
-          {subtitle ? <p className="details-subtitle">{subtitle}</p> : null}
+          {infoParts.length > 0 || (variant === "nowPlaying" && trailerEmbedUrl) ? (
+            <div className="details-subtitle details-subtitle--meta-row">
+              {infoParts.map((part, index) => (
+                <span key={`${movie.tmdbId}-meta-${part}`}>
+                  {index > 0 ? (
+                    <span
+                      className="details-subtitle-divider"
+                      aria-hidden="true"
+                    >
+                      •
+                    </span>
+                  ) : null}
+                  <span>{part}</span>
+                </span>
+              ))}
+              {variant === "nowPlaying" && trailerEmbedUrl ? (
+                <>
+                  {infoParts.length > 0 ? (
+                    <span
+                      className="details-subtitle-divider"
+                      aria-hidden="true"
+                    >
+                      •
+                    </span>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="details-trailer-launch"
+                    aria-label={`Watch ${movie.title} trailer`}
+                    onClick={() => {
+                      setIsTrailerModalOpen(true);
+                    }}
+                  >
+                    <img
+                      src="/logos/youtube.svg"
+                      alt=""
+                      className="details-trailer-launch-logo"
+                      width={28}
+                      height={20}
+                      decoding="async"
+                    />
+                  </button>
+                </>
+              ) : null}
+            </div>
+          ) : null}
 
           {releaseDateLabel ? (
             <p className="details-release-date">
@@ -539,16 +756,35 @@ export function MovieDetailsContent({
                   className="details-metric"
                   aria-label={metric.ariaLabel}
                 >
-                  <span className="details-metric-marker" aria-hidden="true">
-                    <img
-                      src={metric.logoSrc}
-                      alt=""
-                      className={metric.logoClassName}
-                      width={metric.logoWidth}
-                      height={metric.logoHeight}
-                      decoding="async"
-                    />
-                  </span>
+                  <div className="details-metric-marker">
+                    {metric.href ? (
+                      <a
+                        href={metric.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="details-metric-link"
+                        aria-label={metric.linkAriaLabel}
+                      >
+                        <img
+                          src={metric.logoSrc}
+                          alt=""
+                          className={metric.logoClassName}
+                          width={metric.logoWidth}
+                          height={metric.logoHeight}
+                          decoding="async"
+                        />
+                      </a>
+                    ) : (
+                      <img
+                        src={metric.logoSrc}
+                        alt=""
+                        className={metric.logoClassName}
+                        width={metric.logoWidth}
+                        height={metric.logoHeight}
+                        decoding="async"
+                      />
+                    )}
+                  </div>
                   <strong>{metric.value}</strong>
                 </div>
               ))}
@@ -645,7 +881,33 @@ export function MovieDetailsContent({
             ))}
           </div>
         </div>
-      ) : null}
+      ) : (
+        <section
+          className="details-showtimes details-showtimes--trailer"
+          data-movie-scroller-swipe-ignore="true"
+          aria-label={`${movie.title} trailer`}
+        >
+          {trailerEmbedUrl ? (
+            <div className="details-trailer-shell">
+              <div className="details-trailer-frame">
+                <iframe
+                  src={trailerEmbedUrl}
+                  title={`${movie.title} official trailer`}
+                  loading="lazy"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  referrerPolicy="strict-origin-when-cross-origin"
+                />
+              </div>
+            </div>
+          ) : (
+            <p className="details-showtime-empty">
+              Trailer not available yet.
+            </p>
+          )}
+        </section>
+      )}
+      {trailerModal}
     </>
   );
 }

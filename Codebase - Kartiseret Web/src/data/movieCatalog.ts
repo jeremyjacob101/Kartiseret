@@ -24,6 +24,8 @@ const MOVIE_SELECT_COLUMNS = [
   "popularity",
 ] as const;
 const OPTIONAL_MOVIE_SELECT_COLUMNS = [
+  "imdb_id",
+  "rt_id",
   "rtCriticVotes",
   "rtAudienceVotes",
   "lb_id",
@@ -69,6 +71,8 @@ type SupabaseRow = Record<string, string | number | boolean | null>;
 
 export type Movie = {
   tmdbId: string;
+  imdbId?: string;
+  rtId?: string;
   title: string;
   year: number;
   releaseDate?: string;
@@ -278,6 +282,8 @@ function buildMovies(
 
       return {
         tmdbId: normalizeText(row.tmdb_id),
+        imdbId: getFirstNormalizedText(row, ["imdb_id"]) || undefined,
+        rtId: getFirstNormalizedText(row, ["rt_id"]) || undefined,
         title: normalizeTitle(row.english_title),
         year: parsedReleaseYear || getReleaseYearFromDate(releaseDate),
         releaseDate,
