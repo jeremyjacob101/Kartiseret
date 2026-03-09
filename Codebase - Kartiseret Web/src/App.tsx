@@ -7,7 +7,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { createRoot } from "react-dom/client";
-import { Film, Settings } from "lucide-react";
+import { Clock8, Film, Settings } from "lucide-react";
 import {
   MovieScroller,
   type MovieScrollerJumpRequest,
@@ -20,10 +20,11 @@ import {
 import { TheaterMapDialog } from "./components/TheaterMapDialog";
 import { UserMenu } from "./components/UserMenu";
 import { UserPreferencesPage } from "./components/UserPreferencesPage";
+import { PosterGridPage } from "./components/PosterGridPage";
 import {
+  allNowPlayingMovies,
   comingSoonMovies,
   loadMovieCatalog,
-  movies,
 } from "./data/movieCatalog";
 import { preloadTheaters } from "./data/theaters";
 import { RatingSourcesProvider } from "./prefs/RatingSourcesContext";
@@ -39,14 +40,17 @@ const TOPBAR_INTRO_DURATION_MS = 760;
 const FLOATING_TOPBAR_TRANSITION_MS = 620;
 
 type MovieSearchMode = "nowPlaying" | "comingSoon";
+type CatalogPageView = "grid" | "scroller";
 
 type AppMovieJumpRequest = MovieScrollerJumpRequest & {
   mode: MovieSearchMode;
 };
 
+type AppPath = "/" | "/movies" | "/showtimes" | "/soons" | "/user";
+
 type TopbarActionsProps = {
   catalogReady: boolean;
-  currentPath: "/" | "/user";
+  currentPath: AppPath;
   searchCollections: readonly MovieSearchCollection[];
   variant?: "inline" | "floating";
   onNavigate: (path: string) => void;
@@ -55,8 +59,24 @@ type TopbarActionsProps = {
   onSettingsClick: () => void;
 };
 
-function normalizePathname(pathname: string): "/" | "/user" {
-  return pathname === "/user" ? "/user" : "/";
+function normalizePathname(pathname: string): AppPath {
+  if (pathname === "/movies") {
+    return "/movies";
+  }
+
+  if (pathname === "/showtimes") {
+    return "/showtimes";
+  }
+
+  if (pathname === "/soons") {
+    return "/soons";
+  }
+
+  if (pathname === "/user") {
+    return "/user";
+  }
+
+  return "/";
 }
 
 function subscribeToPathname(onStoreChange: () => void): () => void {
@@ -69,7 +89,7 @@ function subscribeToPathname(onStoreChange: () => void): () => void {
   };
 }
 
-function getPathnameSnapshot(): "/" | "/user" {
+function getPathnameSnapshot(): AppPath {
   return normalizePathname(window.location.pathname);
 }
 
@@ -128,7 +148,9 @@ function TopbarActions({
 
 function AppShell() {
   const { user, loading } = useRatingSourcesContext();
-  const [catalogReady, setCatalogReady] = useState(() => movies.length > 0);
+  const [catalogReady, setCatalogReady] = useState(
+    () => allNowPlayingMovies.length > 0 && comingSoonMovies.length > 0,
+  );
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const pathname = useSyncExternalStore(
     subscribeToPathname,
@@ -138,8 +160,11 @@ function AppShell() {
   const [showFloatingTopbar, setShowFloatingTopbar] = useState(false);
   const [renderFloatingTopbar, setRenderFloatingTopbar] = useState(false);
   const [floatingTopbarVisible, setFloatingTopbarVisible] = useState(false);
-  const [movieJumpRequest, setMovieJumpRequest] =
+  const [catalogMovieJumpRequest, setCatalogMovieJumpRequest] =
     useState<AppMovieJumpRequest | null>(null);
+  const [moviesPageView, setMoviesPageView] =
+    useState<CatalogPageView>("grid");
+  const [soonsPageView, setSoonsPageView] = useState<CatalogPageView>("grid");
   const topbarShellRef = useRef<HTMLDivElement | null>(null);
   const floatingTopbarEnterFrameRef = useRef<number | null>(null);
   const floatingTopbarExitTimeoutRef = useRef<number | null>(null);
@@ -372,26 +397,6 @@ function AppShell() {
       });
   }, [catalogReady]);
 
-  const handleMovieSearchSelect = useCallback(
-    (result: MovieSearchResult) => {
-      handleCatalogLoadRequest();
-
-      const nextRequest: AppMovieJumpRequest = {
-        tmdbId: result.tmdbId,
-        mode: result.mode,
-        nonce: Date.now(),
-        behavior: "smooth",
-      };
-
-      setMovieJumpRequest(nextRequest);
-
-      if (pathname !== "/") {
-        navigate("/");
-      }
-    },
-    [handleCatalogLoadRequest, navigate, pathname],
-  );
-
   const handleSettingsClick = useCallback(() => {
     if (!user) {
       return;
@@ -399,6 +404,85 @@ function AppShell() {
 
     navigate("/user");
   }, [navigate, user]);
+
+  const showtimeCatalogMovies = allNowPlayingMovies;
+
+  const resetCatalogPage = useCallback((mode: MovieSearchMode) => {
+    if (mode === "nowPlaying") {
+      setMoviesPageView("grid");
+    } else {
+      setSoonsPageView("grid");
+    }
+
+    setCatalogMovieJumpRequest(null);
+  }, []);
+
+  const openCatalogMovie = useCallback(
+    (mode: MovieSearchMode, tmdbId: string) => {
+      handleCatalogLoadRequest();
+
+      const nextRequest: AppMovieJumpRequest = {
+        tmdbId,
+        mode,
+        nonce: Date.now(),
+        behavior: "smooth",
+      };
+
+      setCatalogMovieJumpRequest(nextRequest);
+
+      if (mode === "nowPlaying") {
+        setMoviesPageView("scroller");
+        return;
+      }
+
+      setSoonsPageView("scroller");
+    },
+    [handleCatalogLoadRequest],
+  );
+
+  const handleCatalogPosterSelect = useCallback(
+    (mode: MovieSearchMode, tmdbId: string) => {
+      openCatalogMovie(mode, tmdbId);
+    },
+    [openCatalogMovie],
+  );
+
+  const handleMovieSearchSelect = useCallback(
+    (result: MovieSearchResult) => {
+      openCatalogMovie(result.mode, result.tmdbId);
+
+      const targetPath = result.mode === "nowPlaying" ? "/movies" : "/soons";
+
+      if (pathname !== targetPath) {
+        navigate(targetPath);
+      }
+    },
+    [navigate, openCatalogMovie, pathname],
+  );
+
+  const handleMoviesNavClick = useCallback(() => {
+    if (pathname === "/movies") {
+      resetCatalogPage("nowPlaying");
+      return;
+    }
+
+    resetCatalogPage("nowPlaying");
+    navigate("/movies");
+  }, [navigate, pathname, resetCatalogPage]);
+
+  const handleAllShowtimesNavClick = useCallback(() => {
+    navigate("/showtimes");
+  }, [navigate]);
+
+  const handleSoonsNavClick = useCallback(() => {
+    if (pathname === "/soons") {
+      resetCatalogPage("comingSoon");
+      return;
+    }
+
+    resetCatalogPage("comingSoon");
+    navigate("/soons");
+  }, [navigate, pathname, resetCatalogPage]);
 
   const handleFloatingHomeClick = useCallback(() => {
     if (pathname !== "/") {
@@ -419,12 +503,12 @@ function AppShell() {
     {
       mode: "nowPlaying" as const,
       label: "Now Playing",
-      movies,
+      movies: catalogReady ? allNowPlayingMovies : [],
     },
     {
       mode: "comingSoon" as const,
       label: "Coming Soon",
-      movies: comingSoonMovies,
+      movies: catalogReady ? comingSoonMovies : [],
     },
   ];
 
@@ -438,53 +522,58 @@ function AppShell() {
             <span className="brand-mark brand-mark--intro" />
           </div>
           <div className="topbar-content">
-            <div className="brand">
+            <button
+              type="button"
+              className="brand brand-button"
+              aria-label="Go to top of home page"
+              onClick={handleFloatingHomeClick}
+            >
               <span className="brand-mark brand-mark--lockup" aria-hidden="true" />
               <span className="brand-text" aria-hidden="true">
                 ARTISERET
               </span>
               <span className="visually-hidden">Kartiseret</span>
-            </div>
+            </button>
             <nav className="topnav" aria-label="Primary">
               <button
                 type="button"
                 className={`topnav-link topnav-button${
-                  pathname === "/" ? " topnav-link--active" : ""
+                  pathname === "/movies" ? " topnav-link--active" : ""
                 }`}
-                onClick={() => {
-                  navigate("/");
-                }}
+                onClick={handleMoviesNavClick}
               >
                 <Film
                   className="topnav-icon"
-                  size={18}
-                  strokeWidth={2.5}
-                  color="#212121"
+                  aria-hidden="true"
+                />
+                <span>Movies</span>
+              </button>
+              <button
+                type="button"
+                className={`topnav-link topnav-button${
+                  pathname === "/soons" ? " topnav-link--active" : ""
+                }`}
+                onClick={handleSoonsNavClick}
+              >
+                <span
+                  className="topnav-icon topnav-icon--soon"
+                  aria-hidden="true"
+                />
+                <span>Coming Soon</span>
+              </button>
+              <button
+                type="button"
+                className={`topnav-link topnav-button${
+                  pathname === "/showtimes" ? " topnav-link--active" : ""
+                }`}
+                onClick={handleAllShowtimesNavClick}
+              >
+                <Clock8
+                  className="topnav-icon"
                   aria-hidden="true"
                 />
                 <span>All Showtimes</span>
               </button>
-              {user ? (
-                <button
-                  type="button"
-                  className={`topnav-link topnav-button${
-                    pathname === "/user" ? " topnav-link--active" : ""
-                  }`}
-                  onClick={() => {
-                    navigate("/user");
-                  }}
-                >
-                  User Preferences
-                </button>
-              ) : (
-                <span className="topnav-link">
-                  <span
-                    className="topnav-icon topnav-icon--soon"
-                    aria-hidden="true"
-                  />
-                  <span>Coming Soon</span>
-                </span>
-              )}
             </nav>
             <TopbarActions
               catalogReady={catalogReady}
@@ -537,6 +626,123 @@ function AppShell() {
               navigate("/");
             }}
           />
+        ) : pathname === "/movies" ? (
+          <section className="page-panel">
+            {catalogError ? (
+              <p className="app-inline-note" role="status">
+                {catalogError}
+              </p>
+            ) : null}
+            {catalogReady ? (
+              moviesPageView === "grid" ? (
+                <PosterGridPage
+                  kicker="Showtimes"
+                  title="Movies"
+                  movies={showtimeCatalogMovies}
+                  onPosterSelect={(movie) => {
+                    handleCatalogPosterSelect("nowPlaying", movie.tmdbId);
+                  }}
+                />
+              ) : (
+                <section className="catalog-browser-page" aria-label="Movies">
+                  <div className="section-heading catalog-browser-page__heading">
+                    <div className="catalog-browser-page__heading-copy">
+                      <p className="section-kicker">Showtimes</p>
+                      <h1 className="section-title">Movies</h1>
+                    </div>
+                  </div>
+                  <div
+                    className="scroller-slot"
+                    style={{ minHeight: SCROLLER_SLOT_MIN_HEIGHT }}
+                  >
+                    <MovieScroller
+                      mode="nowPlaying"
+                      movieItems={showtimeCatalogMovies}
+                      jumpRequest={
+                        catalogMovieJumpRequest?.mode === "nowPlaying"
+                          ? catalogMovieJumpRequest
+                          : null
+                      }
+                      jumpOpenMode="detail"
+                      onExitDetail={() => {
+                        resetCatalogPage("nowPlaying");
+                      }}
+                      cardWidth={SCROLLER_CARD_WIDTH}
+                      cardHeight={SCROLLER_CARD_HEIGHT}
+                      gap={SCROLLER_GAP}
+                      maxWidth={SCROLLER_MAX_WIDTH}
+                    />
+                  </div>
+                </section>
+              )
+            ) : null}
+          </section>
+        ) : pathname === "/showtimes" ? (
+          <section className="page-panel">
+            <section className="showtimes-placeholder" aria-label="All Showtimes">
+              <div className="section-heading showtimes-placeholder__heading">
+                <p className="section-kicker">Showtimes</p>
+                <h1 className="section-title">All Showtimes</h1>
+              </div>
+              <p className="showtimes-placeholder__note">
+                Showtime route placeholder. Add the full listings logic here.
+              </p>
+            </section>
+          </section>
+        ) : pathname === "/soons" ? (
+          <section className="page-panel">
+            {catalogError ? (
+              <p className="app-inline-note" role="status">
+                {catalogError}
+              </p>
+            ) : null}
+            {catalogReady ? (
+              soonsPageView === "grid" ? (
+                <PosterGridPage
+                  kicker="Coming soon"
+                  title="Coming Soon"
+                  movies={comingSoonMovies}
+                  onPosterSelect={(movie) => {
+                    handleCatalogPosterSelect("comingSoon", movie.tmdbId);
+                  }}
+                />
+              ) : (
+                <section
+                  className="catalog-browser-page"
+                  aria-label="Coming Soon"
+                >
+                  <div className="section-heading catalog-browser-page__heading">
+                    <div className="catalog-browser-page__heading-copy">
+                      <p className="section-kicker">Coming soon</p>
+                      <h1 className="section-title">Coming Soon</h1>
+                    </div>
+                  </div>
+                  <div
+                    className="scroller-slot"
+                    style={{ minHeight: SCROLLER_SLOT_MIN_HEIGHT }}
+                  >
+                    <MovieScroller
+                      mode="comingSoon"
+                      movieItems={comingSoonMovies}
+                      jumpRequest={
+                        catalogMovieJumpRequest?.mode === "comingSoon"
+                          ? catalogMovieJumpRequest
+                          : null
+                      }
+                      jumpOpenMode="detail"
+                      onExitDetail={() => {
+                        resetCatalogPage("comingSoon");
+                      }}
+                      cardWidth={SCROLLER_CARD_WIDTH}
+                      cardHeight={SCROLLER_CARD_HEIGHT}
+                      gap={SCROLLER_GAP}
+                      maxWidth={SCROLLER_MAX_WIDTH}
+                    />
+                  </div>
+                </section>
+              )
+            ) : null}
+          </section>
         ) : (
           <section className="scroller-panel" aria-label="Now Playing">
             {catalogError ? (
@@ -555,11 +761,6 @@ function AppShell() {
               {catalogReady ? (
                 <MovieScroller
                   mode="nowPlaying"
-                  jumpRequest={
-                    movieJumpRequest?.mode === "nowPlaying"
-                      ? movieJumpRequest
-                      : null
-                  }
                   cardWidth={SCROLLER_CARD_WIDTH}
                   cardHeight={SCROLLER_CARD_HEIGHT}
                   gap={SCROLLER_GAP}
@@ -578,11 +779,6 @@ function AppShell() {
               {catalogReady ? (
                 <MovieScroller
                   mode="comingSoon"
-                  jumpRequest={
-                    movieJumpRequest?.mode === "comingSoon"
-                      ? movieJumpRequest
-                      : null
-                  }
                   cardWidth={SCROLLER_CARD_WIDTH}
                   cardHeight={SCROLLER_CARD_HEIGHT}
                   gap={SCROLLER_GAP}

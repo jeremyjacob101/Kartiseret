@@ -72,6 +72,8 @@ export type MovieScrollerProps = MovieScrollerBaseProps & {
   detailVariant?: MovieDetailsVariant;
   detailEyebrow?: string;
   jumpRequest?: MovieScrollerJumpRequest | null;
+  jumpOpenMode?: "scroller" | "detail";
+  onExitDetail?: () => void;
 };
 
 type MovieScrollerContentProps = MovieScrollerBaseProps & {
@@ -79,6 +81,8 @@ type MovieScrollerContentProps = MovieScrollerBaseProps & {
   detailVariant: MovieDetailsVariant;
   detailEyebrow: string;
   jumpRequest?: MovieScrollerJumpRequest | null;
+  jumpOpenMode: "scroller" | "detail";
+  onExitDetail?: () => void;
 };
 
 export type MovieScrollerJumpRequest = {
@@ -483,6 +487,8 @@ export function MovieScroller({
   detailVariant,
   detailEyebrow,
   jumpRequest,
+  jumpOpenMode = "scroller",
+  onExitDetail,
   ...props
 }: MovieScrollerProps) {
   const resolvedVariant = mode ?? detailVariant ?? "nowPlaying";
@@ -500,6 +506,8 @@ export function MovieScroller({
       movieItems={resolvedMovieItems}
       detailVariant={resolvedVariant}
       jumpRequest={jumpRequest}
+      jumpOpenMode={jumpOpenMode}
+      onExitDetail={onExitDetail}
       detailEyebrow={
         detailEyebrow ??
         (resolvedVariant === "comingSoon" ? "Coming soon" : "Now playing")
@@ -513,6 +521,8 @@ function MovieScrollerContent({
   detailVariant,
   detailEyebrow,
   jumpRequest,
+  jumpOpenMode,
+  onExitDetail,
   cardWidth = 240,
   cardHeight = 360,
   gap = 16,
@@ -1127,6 +1137,55 @@ function MovieScrollerContent({
     ],
   );
 
+  const openMovieDetailFromExternalRequest = useCallback(
+    (movieIndex: number, behavior: ScrollBehavior = "auto") => {
+      const itemIndex = collapsedMiddleStartIndex + mod(movieIndex, movieCount);
+      const scroller = getCollapsedScrollerElement();
+      const viewportFallback =
+        typeof window === "undefined"
+          ? Math.max(getMaxWidthValue(maxWidth, 1100), 360)
+          : Math.max(
+              Math.min(window.innerWidth, getMaxWidthValue(maxWidth, window.innerWidth)),
+              360,
+            );
+      const clientWidth = scroller?.clientWidth ?? viewportFallback;
+      const targetScrollLeft = getCollapsedScrollLeftForItem(
+        itemIndex,
+        clientWidth,
+        cardWidth,
+        gap,
+      );
+
+      clearAllScheduledWork();
+      swipeGestureRef.current = null;
+      pendingViewportBehaviorRef.current = behavior;
+      targetRectRef.current = null;
+      setCollapsedScrollRequest(null);
+      setCollapsedAnchorItemIndex(itemIndex);
+      setCollapsedSelectedItemIndex(itemIndex);
+      setDetailActiveItemIndex(itemIndex);
+      setDetailTransition(null);
+      setGhostTransition(null);
+      setIsFocusPosterVisible(true);
+      setIsReturnHandoffReady(false);
+      setShowGhost(false);
+      setPhase("open");
+
+      collapsedOpenScrollLeftRef.current = targetScrollLeft;
+      collapsedOpenClientWidthRef.current = clientWidth;
+      collapsedOpenAnchorItemIndexRef.current = itemIndex;
+    },
+    [
+      cardWidth,
+      clearAllScheduledWork,
+      collapsedMiddleStartIndex,
+      gap,
+      getCollapsedScrollerElement,
+      maxWidth,
+      movieCount,
+    ],
+  );
+
   const handleSelectCollapsedMovie = useCallback<
     NonNullable<MovieScrollerProps["onSelectMovie"]>
   >(
@@ -1241,6 +1300,26 @@ function MovieScrollerContent({
     restoreCollapsedViewportSnapshot,
   ]);
 
+  const handleExitDetail = useCallback(() => {
+    if (phase !== "open" || detailTransition) {
+      return;
+    }
+
+    if (onExitDetail) {
+      clearAllScheduledWork();
+      onExitDetail();
+      return;
+    }
+
+    handleRequestClose();
+  }, [
+    clearAllScheduledWork,
+    detailTransition,
+    handleRequestClose,
+    onExitDetail,
+    phase,
+  ]);
+
   const handleDetailWheel = useCallback(
     (event: WheelEvent<HTMLDivElement>) => {
       if (!canNavigate || isInteractiveDetailTarget(event.target)) {
@@ -1339,7 +1418,7 @@ function MovieScrollerContent({
         event.preventDefault();
       }
 
-      handleRequestClose();
+      handleExitDetail();
     };
 
     window.addEventListener("pointerdown", handleWindowPointerDown, true);
@@ -1347,7 +1426,7 @@ function MovieScrollerContent({
     return () => {
       window.removeEventListener("pointerdown", handleWindowPointerDown, true);
     };
-  }, [handleRequestClose, phase]);
+  }, [handleExitDetail, phase]);
 
   useLayoutEffect(() => {
     if (phase !== "opening" || !ghostTransition) {
@@ -1625,10 +1704,17 @@ function MovieScrollerContent({
       pendingExternalJumpRef.current = null;
 
       if (pendingJump) {
-        openMovieFromExternalRequest(
-          pendingJump.movieIndex,
-          pendingJump.behavior,
-        );
+        if (jumpOpenMode === "detail") {
+          openMovieDetailFromExternalRequest(
+            pendingJump.movieIndex,
+            pendingJump.behavior,
+          );
+        } else {
+          openMovieFromExternalRequest(
+            pendingJump.movieIndex,
+            pendingJump.behavior,
+          );
+        }
       }
       return;
     }
@@ -1639,6 +1725,8 @@ function MovieScrollerContent({
   }, [
     handleRequestClose,
     jumpRequest,
+    jumpOpenMode,
+    openMovieDetailFromExternalRequest,
     movieItems,
     openMovieFromExternalRequest,
     phase,
@@ -1652,17 +1740,30 @@ function MovieScrollerContent({
 
     if (phase === "collapsed") {
       pendingExternalJumpRef.current = null;
-      openMovieFromExternalRequest(
-        pendingJump.movieIndex,
-        pendingJump.behavior,
-      );
+      if (jumpOpenMode === "detail") {
+        openMovieDetailFromExternalRequest(
+          pendingJump.movieIndex,
+          pendingJump.behavior,
+        );
+      } else {
+        openMovieFromExternalRequest(
+          pendingJump.movieIndex,
+          pendingJump.behavior,
+        );
+      }
       return;
     }
 
     if (phase === "open") {
       handleRequestClose();
     }
-  }, [handleRequestClose, openMovieFromExternalRequest, phase]);
+  }, [
+    handleRequestClose,
+    jumpOpenMode,
+    openMovieDetailFromExternalRequest,
+    openMovieFromExternalRequest,
+    phase,
+  ]);
 
   useEffect(() => {
     if (!isDetailMounted) {
@@ -1729,7 +1830,7 @@ function MovieScrollerContent({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        handleRequestClose();
+        handleExitDetail();
         return;
       }
 
@@ -1750,7 +1851,7 @@ function MovieScrollerContent({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [handleNavigateDetail, handleRequestClose, phase]);
+  }, [handleExitDetail, handleNavigateDetail, phase]);
 
   useEffect(() => {
     return () => {
@@ -2000,7 +2101,7 @@ function MovieScrollerContent({
                 type="button"
                 className="movie-scroller-close"
                 aria-label={`Close ${movieItems[displayMovieIndex].title} details`}
-                onClick={handleRequestClose}
+                onClick={handleExitDetail}
                 disabled={phase !== "open" || detailTransition !== null}
               >
                 <X size={20} strokeWidth={2.1} />

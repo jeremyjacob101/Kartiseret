@@ -104,6 +104,7 @@ export type MovieShowtimeDay = {
 };
 
 export let movies: Movie[] = [];
+export let allNowPlayingMovies: Movie[] = [];
 export let comingSoonMovies: Movie[] = [];
 
 type MovieShowtimesByCity = Record<AppLocation, MovieShowtimeDay[]>;
@@ -549,9 +550,8 @@ export async function loadMovieCatalog(): Promise<void> {
     const nextShowtimeRows = rowsToCsvRows(showtimeRows);
     const nextComingSoonRows = rowsToCsvRows(comingSoonRows);
 
-    const nextMovies = buildMovies(nextMovieRows, {
-      limit: TOP_NOW_PLAYING_MOVIE_COUNT,
-    });
+    const nextAllNowPlayingMovies = buildMovies(nextMovieRows);
+    const nextMovies = nextAllNowPlayingMovies.slice(0, TOP_NOW_PLAYING_MOVIE_COUNT);
     const nextComingSoonMovies = buildMovies(nextComingSoonRows, {
       sortMode: "releaseDate",
     });
@@ -569,12 +569,17 @@ export async function loadMovieCatalog(): Promise<void> {
     }
 
     movies = nextMovies;
+    allNowPlayingMovies = nextAllNowPlayingMovies;
     comingSoonMovies = nextComingSoonMovies;
-    movieShowtimesByTmdbId = buildMovieShowtimes(nextShowtimeRows, nextMovies);
+    movieShowtimesByTmdbId = buildMovieShowtimes(
+      nextShowtimeRows,
+      nextAllNowPlayingMovies,
+    );
     isMovieCatalogLoaded = true;
   })()
     .catch((error) => {
       movies = [];
+      allNowPlayingMovies = [];
       comingSoonMovies = [];
       movieShowtimesByTmdbId = {};
       isMovieCatalogLoaded = false;
