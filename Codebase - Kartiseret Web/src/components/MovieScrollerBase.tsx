@@ -225,11 +225,7 @@ function applyScrollerCardStyles(
     "--movie-scroller-card-rotate",
     rotateValue,
   );
-  setOptionalCustomProperty(
-    element,
-    "--movie-scroller-card-scale",
-    scaleValue,
-  );
+  setOptionalCustomProperty(element, "--movie-scroller-card-scale", scaleValue);
 }
 
 function getFocusViewportCenter(

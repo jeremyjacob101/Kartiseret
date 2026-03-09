@@ -101,16 +101,16 @@ const cinemaConfigs = {
 };
 
 const dailyShowtimeRanges = {
-  "1317288": [4, 8],
-  "1316092": [3, 7],
-  "1291335": [3, 6],
-  "1312157": [2, 5],
-  "1529023": [2, 5],
-  "1063873": [1, 4],
-  "1119449": [1, 3],
-  "1140498": [3, 7],
-  "1400743": [1, 4],
-  "1297842": [4, 8],
+  1317288: [4, 8],
+  1316092: [3, 7],
+  1291335: [3, 6],
+  1312157: [2, 5],
+  1529023: [2, 5],
+  1063873: [1, 4],
+  1119449: [1, 3],
+  1140498: [3, 7],
+  1400743: [1, 4],
+  1297842: [4, 8],
 };
 
 const cinemaFallbackTimePool = {
@@ -305,7 +305,9 @@ function formatCsv(header, rows) {
   const lines = [header.map(escapeCsvValue).join(",")];
 
   for (const row of rows) {
-    lines.push(header.map((columnName) => escapeCsvValue(row[columnName])).join(","));
+    lines.push(
+      header.map((columnName) => escapeCsvValue(row[columnName])).join(","),
+    );
   }
 
   return `${lines.join("\n")}\n`;
@@ -335,8 +337,9 @@ function formatDate(date) {
 const windowStartString = formatDate(windowStart);
 const windowEndString = formatDate(windowEnd);
 const windowDayCount =
-  Math.round((windowEnd.getTime() - windowStart.getTime()) / (24 * 60 * 60 * 1000)) +
-  1;
+  Math.round(
+    (windowEnd.getTime() - windowStart.getTime()) / (24 * 60 * 60 * 1000),
+  ) + 1;
 
 function toShowtimeValue(time) {
   return `${time}:00`;
@@ -357,7 +360,10 @@ function buildUuid(seed) {
 }
 
 function buildSeedNumber(seed) {
-  return Number.parseInt(createHash("sha1").update(seed).digest("hex").slice(0, 12), 16);
+  return Number.parseInt(
+    createHash("sha1").update(seed).digest("hex").slice(0, 12),
+    16,
+  );
 }
 
 function uniqueSortedTimes(times) {
@@ -389,7 +395,9 @@ function pickTimes(pool, count, offset) {
 
 function getTargetShowtimeCount({ city, cinema, tmdbId, dateOfShowing }) {
   const [minCount, maxCount] = dailyShowtimeRanges[tmdbId] ?? [1, 4];
-  const variationSeed = buildSeedNumber(`${city}|${cinema}|${tmdbId}|${dateOfShowing}`);
+  const variationSeed = buildSeedNumber(
+    `${city}|${cinema}|${tmdbId}|${dateOfShowing}`,
+  );
   const theaterBias =
     {
       "Lev Cinema": 0,
@@ -409,15 +417,19 @@ const { header: showtimeHeader, data: rawShowtimes } = parseCsv(
 );
 const { data: movieRows } = parseCsv(readFileSync(movieCsvPath, "utf8"));
 
-const filteredShowtimes = rawShowtimes.filter((row) =>
-  keepCities.has(normalizeText(row.screening_city)) &&
-  normalizeText(row.date_of_showing) >= windowStartString &&
-  normalizeText(row.date_of_showing) <= windowEndString,
+const filteredShowtimes = rawShowtimes.filter(
+  (row) =>
+    keepCities.has(normalizeText(row.screening_city)) &&
+    normalizeText(row.date_of_showing) >= windowStartString &&
+    normalizeText(row.date_of_showing) <= windowEndString,
 );
 const baseShowtimes = filteredShowtimes;
 
 const topMovies = [...movieRows]
-  .sort((left, right) => parseNumber(right.popularity) - parseNumber(left.popularity))
+  .sort(
+    (left, right) =>
+      parseNumber(right.popularity) - parseNumber(left.popularity),
+  )
   .slice(0, topMovieCount)
   .map((row) => ({
     tmdbId: normalizeText(row.tmdb_id),
@@ -428,8 +440,9 @@ const topMovieIds = topMovies.map((movie) => movie.tmdbId);
 const movieMetaById = new Map(
   topMovies.map((movie) => {
     const sampleRow =
-      filteredShowtimes.find((row) => normalizeText(row.tmdb_id) === movie.tmdbId) ??
-      {};
+      filteredShowtimes.find(
+        (row) => normalizeText(row.tmdb_id) === movie.tmdbId,
+      ) ?? {};
 
     return [
       movie.tmdbId,
@@ -491,14 +504,20 @@ for (let dayOffset = 0; dayOffset < windowDayCount; dayOffset += 1) {
         planEntry.movieIds === "ALL" ? topMovieIds : planEntry.movieIds;
 
       for (const tmdbId of movieIds) {
-        const existingDateKey = [city, planEntry.cinema, tmdbId, dateOfShowing].join("|");
+        const existingDateKey = [
+          city,
+          planEntry.cinema,
+          tmdbId,
+          dateOfShowing,
+        ].join("|");
         const targetCount = getTargetShowtimeCount({
           city,
           cinema: planEntry.cinema,
           tmdbId,
           dateOfShowing,
         });
-        const existingTimesForDate = existingTimesByDateKey.get(existingDateKey) ?? new Set();
+        const existingTimesForDate =
+          existingTimesByDateKey.get(existingDateKey) ?? new Set();
         const count = Math.max(0, targetCount - existingTimesForDate.size);
 
         if (count === 0) {
@@ -506,7 +525,9 @@ for (let dayOffset = 0; dayOffset < windowDayCount; dayOffset += 1) {
         }
 
         const observedPool =
-          observedTimesByCityMovieCinema.get([city, tmdbId, planEntry.cinema].join("|")) ??
+          observedTimesByCityMovieCinema.get(
+            [city, tmdbId, planEntry.cinema].join("|"),
+          ) ??
           observedTimesByMovie.get(tmdbId) ??
           cinemaFallbackTimePool[planEntry.cinema] ??
           cinemaConfigs[planEntry.cinema].fallbackTimes;
@@ -520,7 +541,13 @@ for (let dayOffset = 0; dayOffset < windowDayCount; dayOffset += 1) {
         const movieMeta = movieMetaById.get(tmdbId);
 
         for (const time of selectedTimes) {
-          const rowKey = [city, planEntry.cinema, tmdbId, dateOfShowing, time].join("|");
+          const rowKey = [
+            city,
+            planEntry.cinema,
+            tmdbId,
+            dateOfShowing,
+            time,
+          ].join("|");
 
           if (existingRowKeys.has(rowKey)) {
             continue;
@@ -558,27 +585,29 @@ for (let dayOffset = 0; dayOffset < windowDayCount; dayOffset += 1) {
   }
 }
 
-const combinedRows = [...baseShowtimes, ...generatedRows].sort((left, right) => {
-  return [
-    normalizeText(left.screening_city),
-    normalizeText(left.date_of_showing),
-    normalizeText(left.cinema),
-    normalizeText(left.english_title),
-    normalizeText(left.showtime),
-    normalizeText(left.id),
-  ]
-    .join("|")
-    .localeCompare(
-      [
-        normalizeText(right.screening_city),
-        normalizeText(right.date_of_showing),
-        normalizeText(right.cinema),
-        normalizeText(right.english_title),
-        normalizeText(right.showtime),
-        normalizeText(right.id),
-      ].join("|"),
-    );
-});
+const combinedRows = [...baseShowtimes, ...generatedRows].sort(
+  (left, right) => {
+    return [
+      normalizeText(left.screening_city),
+      normalizeText(left.date_of_showing),
+      normalizeText(left.cinema),
+      normalizeText(left.english_title),
+      normalizeText(left.showtime),
+      normalizeText(left.id),
+    ]
+      .join("|")
+      .localeCompare(
+        [
+          normalizeText(right.screening_city),
+          normalizeText(right.date_of_showing),
+          normalizeText(right.cinema),
+          normalizeText(right.english_title),
+          normalizeText(right.showtime),
+          normalizeText(right.id),
+        ].join("|"),
+      );
+  },
+);
 
 const csvOutput = formatCsv(showtimeHeader, combinedRows);
 
