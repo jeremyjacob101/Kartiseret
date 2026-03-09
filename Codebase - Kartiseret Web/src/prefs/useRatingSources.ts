@@ -63,7 +63,10 @@ export function useRatingSources(): RatingSourcesState {
   const userId = user?.id ?? null;
   const signupLocationFromUser =
     typeof user?.user_metadata?.[SIGNUP_LOCATION_METADATA_KEY] === "string"
-      ? normalizeLocation(user.user_metadata[SIGNUP_LOCATION_METADATA_KEY], DEFAULT_LOCATION)
+      ? normalizeLocation(
+          user.user_metadata[SIGNUP_LOCATION_METADATA_KEY],
+          DEFAULT_LOCATION,
+        )
       : null;
   const sourcesRef = useRef<RatingSource[]>(sources);
   const locationRef = useRef<AppLocation>(location);
@@ -182,7 +185,9 @@ export function useRatingSources(): RatingSourcesState {
         const defaultSources = [...DEFAULT_RATING_SOURCES];
         const initialLocation = signupLocationFromUser ?? DEFAULT_LOCATION;
         let createdLocation =
-          hasLocationColumnRef.current === false ? DEFAULT_LOCATION : initialLocation;
+          hasLocationColumnRef.current === false
+            ? DEFAULT_LOCATION
+            : initialLocation;
 
         const createPayload: {
           user_id: string;
@@ -279,13 +284,15 @@ export function useRatingSources(): RatingSourcesState {
       setSyncing(true);
       setSources(normalized);
 
-      const { error: upsertError } = await supabase.from(PREFERENCES_TABLE).upsert(
-        {
-          user_id: userId,
-          rating_sources: normalized,
-        } satisfies UserPreferencesRow,
-        { onConflict: "user_id" },
-      );
+      const { error: upsertError } = await supabase
+        .from(PREFERENCES_TABLE)
+        .upsert(
+          {
+            user_id: userId,
+            rating_sources: normalized,
+          } satisfies UserPreferencesRow,
+          { onConflict: "user_id" },
+        );
 
       setSyncing(false);
 
@@ -302,7 +309,10 @@ export function useRatingSources(): RatingSourcesState {
 
   const setLocationPreference = useCallback(
     async (nextLocationInput: AppLocation) => {
-      const normalizedLocation = normalizeLocation(nextLocationInput, DEFAULT_LOCATION);
+      const normalizedLocation = normalizeLocation(
+        nextLocationInput,
+        DEFAULT_LOCATION,
+      );
       setError(null);
 
       if (!userId) {
@@ -322,13 +332,15 @@ export function useRatingSources(): RatingSourcesState {
       setSyncing(true);
       setLocation(normalizedLocation);
 
-      const { error: upsertError } = await supabase.from(PREFERENCES_TABLE).upsert(
-        {
-          user_id: userId,
-          location: normalizedLocation,
-        },
-        { onConflict: "user_id" },
-      );
+      const { error: upsertError } = await supabase
+        .from(PREFERENCES_TABLE)
+        .upsert(
+          {
+            user_id: userId,
+            location: normalizedLocation,
+          },
+          { onConflict: "user_id" },
+        );
 
       setSyncing(false);
 

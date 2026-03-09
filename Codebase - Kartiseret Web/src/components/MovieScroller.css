@@ -136,7 +136,7 @@
 }
 
 .movie-scroller-side-preview.is-disabled {
-  opacity: calc(var(--movie-scroller-side-preview-rest-opacity) * 0.85);
+  opacity: calc(var(--movie-scroller-side-preview-rest-opacity) * 0.9);
   cursor: default;
   pointer-events: none;
 }

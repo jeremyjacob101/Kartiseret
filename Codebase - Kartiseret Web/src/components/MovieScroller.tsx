@@ -1145,7 +1145,10 @@ function MovieScrollerContent({
         typeof window === "undefined"
           ? Math.max(getMaxWidthValue(maxWidth, 1100), 360)
           : Math.max(
-              Math.min(window.innerWidth, getMaxWidthValue(maxWidth, window.innerWidth)),
+              Math.min(
+                window.innerWidth,
+                getMaxWidthValue(maxWidth, window.innerWidth),
+              ),
               360,
             );
       const clientWidth = scroller?.clientWidth ?? viewportFallback;

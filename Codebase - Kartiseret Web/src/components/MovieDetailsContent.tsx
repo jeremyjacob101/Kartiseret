@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type Ref,
@@ -99,6 +100,7 @@ const RT_AUDIENCE_POSITIVE_MIN_SCORE = 60;
 const RT_AUDIENCE_HOT_MIN_SCORE = 90;
 const RT_AUDIENCE_HOT_MIN_VERIFIED_RATINGS = 500;
 const YOUTUBE_KEY_PATTERN = /^[A-Za-z0-9_-]{11}$/;
+const EMPTY_SHOWTIME_DAYS: readonly MovieShowtimeDay[] = Object.freeze([]);
 
 type MovieDetailsContentProps = {
   movie: Movie;
@@ -188,7 +190,9 @@ function formatReleaseDate(dateString: string): string {
     : releaseDateFormatter.format(releaseDate);
 }
 
-function extractYouTubeVideoKey(value: string | null | undefined): string | null {
+function extractYouTubeVideoKey(
+  value: string | null | undefined,
+): string | null {
   const normalizedValue = value?.trim();
 
   if (!normalizedValue) {
@@ -203,12 +207,12 @@ function extractYouTubeVideoKey(value: string | null | undefined): string | null
     /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/,
   )?.[1];
 
-  return matchedKey && YOUTUBE_KEY_PATTERN.test(matchedKey)
-    ? matchedKey
-    : null;
+  return matchedKey && YOUTUBE_KEY_PATTERN.test(matchedKey) ? matchedKey : null;
 }
 
-function getTrailerEmbedUrl(trailerValue: string | null | undefined): string | null {
+function getTrailerEmbedUrl(
+  trailerValue: string | null | undefined,
+): string | null {
   const videoKey = extractYouTubeVideoKey(trailerValue);
 
   if (!videoKey) {
@@ -222,7 +226,10 @@ function isAbsoluteUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
 }
 
-function toPathUrl(baseUrl: string, value: string | null | undefined): string | null {
+function toPathUrl(
+  baseUrl: string,
+  value: string | null | undefined,
+): string | null {
   const normalizedValue = value?.trim();
 
   if (!normalizedValue) {
@@ -472,10 +479,7 @@ function findShowtimePanel(
   date: string,
 ): HTMLElement | null {
   for (const child of Array.from(rail.children)) {
-    if (
-      child instanceof HTMLElement &&
-      child.dataset.showtimeDate === date
-    ) {
+    if (child instanceof HTMLElement && child.dataset.showtimeDate === date) {
       return child;
     }
   }
@@ -512,6 +516,18 @@ function getNearestShowtimeDate(
   return nearestDate;
 }
 
+function cloneShowtimeDays(
+  showtimeDays: readonly MovieShowtimeDay[],
+): MovieShowtimeDay[] {
+  return showtimeDays.map((day) => ({
+    date: day.date,
+    theaters: day.theaters.map((theater) => ({
+      theater: theater.theater,
+      showtimes: [...theater.showtimes],
+    })),
+  }));
+}
+
 export function MovieDetailsContent({
   movie,
   titleId,
@@ -526,23 +542,37 @@ export function MovieDetailsContent({
   const railRef = useRef<HTMLDivElement | null>(null);
   const railScrollFrameRef = useRef<number | null>(null);
   const visibleShowtimeDateRef = useRef<string | null>(null);
-  const [isTrailerModalOpen, setIsTrailerModalOpen] = useState(false);
+  const [openTrailerModalId, setOpenTrailerModalId] = useState<string | null>(
+    null,
+  );
   const infoParts = getMovieInfoParts(movie);
+  const metaParts =
+    movie.genres.length > 0
+      ? [...infoParts, movie.genres.join(", ")]
+      : infoParts;
   const releaseDateLabel =
     variant === "comingSoon" && movie.releaseDate
       ? formatReleaseDate(movie.releaseDate)
       : null;
-  const showtimeDays =
-    variant === "nowPlaying"
-      ? getMovieShowtimeDays(movie.tmdbId, location)
-      : [];
+  const showtimeDays = useMemo(
+    () =>
+      variant === "nowPlaying"
+        ? cloneShowtimeDays(getMovieShowtimeDays(movie.tmdbId, location))
+        : EMPTY_SHOWTIME_DAYS,
+    [location, movie.tmdbId, variant],
+  );
   const metrics =
     variant === "nowPlaying" ? getMetricDisplays(movie, sources) : [];
   const trailerEmbedUrl = getTrailerEmbedUrl(movie.trailerKey);
+  const trailerModalId = `${variant}:${movie.tmdbId}`;
   const targetShowtimeDate = getShowtimeTargetDate(
     showtimeDays,
     preferredShowtimeDate,
   );
+  const isTrailerModalOpen =
+    Boolean(trailerEmbedUrl) && openTrailerModalId === trailerModalId;
+  const hasTrailerLaunch = variant === "nowPlaying" && Boolean(trailerEmbedUrl);
+  const hasMetrics = metrics.length > 0;
 
   const reportVisibleShowtimeDate = useCallback(
     (nextDate: string | null) => {
@@ -608,10 +638,6 @@ export function MovieDetailsContent({
   }, []);
 
   useEffect(() => {
-    setIsTrailerModalOpen(false);
-  }, [movie.tmdbId, variant]);
-
-  useEffect(() => {
     if (!isTrailerModalOpen) {
       return;
     }
@@ -621,7 +647,7 @@ export function MovieDetailsContent({
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setIsTrailerModalOpen(false);
+        setOpenTrailerModalId(null);
       }
     };
 
@@ -641,7 +667,7 @@ export function MovieDetailsContent({
             data-movie-scroller-detail-overlay="true"
             onMouseDown={(event) => {
               if (event.target === event.currentTarget) {
-                setIsTrailerModalOpen(false);
+                setOpenTrailerModalId(null);
               }
             }}
           >
@@ -656,7 +682,7 @@ export function MovieDetailsContent({
                 className="movie-trailer-modal__close"
                 aria-label="Close trailer"
                 onClick={() => {
-                  setIsTrailerModalOpen(false);
+                  setOpenTrailerModalId(null);
                 }}
               >
                 <X size={20} strokeWidth={2.6} />
@@ -695,9 +721,9 @@ export function MovieDetailsContent({
           <h2 id={titleId} className="details-title">
             {movie.title}
           </h2>
-          {infoParts.length > 0 || (variant === "nowPlaying" && trailerEmbedUrl) ? (
+          {metaParts.length > 0 ? (
             <div className="details-subtitle details-subtitle--meta-row">
-              {infoParts.map((part, index) => (
+              {metaParts.map((part, index) => (
                 <span key={`${movie.tmdbId}-meta-${part}`}>
                   {index > 0 ? (
                     <span
@@ -710,35 +736,6 @@ export function MovieDetailsContent({
                   <span>{part}</span>
                 </span>
               ))}
-              {variant === "nowPlaying" && trailerEmbedUrl ? (
-                <>
-                  {infoParts.length > 0 ? (
-                    <span
-                      className="details-subtitle-divider"
-                      aria-hidden="true"
-                    >
-                      •
-                    </span>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="details-trailer-launch"
-                    aria-label={`Watch ${movie.title} trailer`}
-                    onClick={() => {
-                      setIsTrailerModalOpen(true);
-                    }}
-                  >
-                    <img
-                      src="/logos/youtube.svg"
-                      alt=""
-                      className="details-trailer-launch-logo"
-                      width={28}
-                      height={20}
-                      decoding="async"
-                    />
-                  </button>
-                </>
-              ) : null}
             </div>
           ) : null}
 
@@ -748,46 +745,74 @@ export function MovieDetailsContent({
             </p>
           ) : null}
 
-          {variant === "nowPlaying" ? (
-            <div className="details-metrics">
-              {metrics.map((metric) => (
-                <div
-                  key={metric.key}
-                  className="details-metric"
-                  aria-label={metric.ariaLabel}
+          {variant === "nowPlaying" && (hasTrailerLaunch || hasMetrics) ? (
+            <div className="details-metrics-row">
+              {hasTrailerLaunch ? (
+                <button
+                  type="button"
+                  className="details-trailer-launch details-trailer-launch--metrics"
+                  aria-label={`Watch ${movie.title} trailer`}
+                  onClick={() => {
+                    setOpenTrailerModalId(trailerModalId);
+                  }}
                 >
-                  <div className="details-metric-marker">
-                    {metric.href ? (
-                      <a
-                        href={metric.href}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="details-metric-link"
-                        aria-label={metric.linkAriaLabel}
-                      >
-                        <img
-                          src={metric.logoSrc}
-                          alt=""
-                          className={metric.logoClassName}
-                          width={metric.logoWidth}
-                          height={metric.logoHeight}
-                          decoding="async"
-                        />
-                      </a>
-                    ) : (
-                      <img
-                        src={metric.logoSrc}
-                        alt=""
-                        className={metric.logoClassName}
-                        width={metric.logoWidth}
-                        height={metric.logoHeight}
-                        decoding="async"
-                      />
-                    )}
-                  </div>
-                  <strong>{metric.value}</strong>
+                  <img
+                    src="/logos/youtube.svg"
+                    alt=""
+                    className="details-trailer-launch-logo"
+                    width={28}
+                    height={20}
+                    decoding="async"
+                  />
+                </button>
+              ) : null}
+
+              {hasTrailerLaunch && hasMetrics ? (
+                <span className="details-metrics-divider" aria-hidden="true" />
+              ) : null}
+
+              {hasMetrics ? (
+                <div className="details-metrics">
+                  {metrics.map((metric) => (
+                    <div
+                      key={metric.key}
+                      className="details-metric"
+                      aria-label={metric.ariaLabel}
+                    >
+                      <div className="details-metric-marker">
+                        {metric.href ? (
+                          <a
+                            href={metric.href}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="details-metric-link"
+                            aria-label={metric.linkAriaLabel}
+                          >
+                            <img
+                              src={metric.logoSrc}
+                              alt=""
+                              className={metric.logoClassName}
+                              width={metric.logoWidth}
+                              height={metric.logoHeight}
+                              decoding="async"
+                            />
+                          </a>
+                        ) : (
+                          <img
+                            src={metric.logoSrc}
+                            alt=""
+                            className={metric.logoClassName}
+                            width={metric.logoWidth}
+                            height={metric.logoHeight}
+                            decoding="async"
+                          />
+                        )}
+                      </div>
+                      <strong>{metric.value}</strong>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -901,9 +926,7 @@ export function MovieDetailsContent({
               </div>
             </div>
           ) : (
-            <p className="details-showtime-empty">
-              Trailer not available yet.
-            </p>
+            <p className="details-showtime-empty">Trailer not available yet.</p>
           )}
         </section>
       )}

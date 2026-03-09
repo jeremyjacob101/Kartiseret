@@ -111,7 +111,11 @@ function TopbarActions({
   return (
     <div className={containerClassName}>
       <div
-        className={isFloating ? "floating-topbar-item floating-topbar-item--search" : undefined}
+        className={
+          isFloating
+            ? "floating-topbar-item floating-topbar-item--search"
+            : undefined
+        }
       >
         <MovieSearchMenu
           collections={searchCollections}
@@ -121,17 +125,29 @@ function TopbarActions({
         />
       </div>
       <div
-        className={isFloating ? "floating-topbar-item floating-topbar-item--map" : undefined}
+        className={
+          isFloating
+            ? "floating-topbar-item floating-topbar-item--map"
+            : undefined
+        }
       >
         <TheaterMapDialog />
       </div>
       <div
-        className={isFloating ? "floating-topbar-item floating-topbar-item--user" : undefined}
+        className={
+          isFloating
+            ? "floating-topbar-item floating-topbar-item--user"
+            : undefined
+        }
       >
         <UserMenu currentPath={currentPath} onNavigate={onNavigate} />
       </div>
       <div
-        className={isFloating ? "floating-topbar-item floating-topbar-item--settings" : undefined}
+        className={
+          isFloating
+            ? "floating-topbar-item floating-topbar-item--settings"
+            : undefined
+        }
       >
         <button
           type="button"
@@ -162,10 +178,10 @@ function AppShell() {
   const [floatingTopbarVisible, setFloatingTopbarVisible] = useState(false);
   const [catalogMovieJumpRequest, setCatalogMovieJumpRequest] =
     useState<AppMovieJumpRequest | null>(null);
-  const [moviesPageView, setMoviesPageView] =
-    useState<CatalogPageView>("grid");
+  const [moviesPageView, setMoviesPageView] = useState<CatalogPageView>("grid");
   const [soonsPageView, setSoonsPageView] = useState<CatalogPageView>("grid");
   const topbarShellRef = useRef<HTMLDivElement | null>(null);
+  const floatingTopbarStateFrameRef = useRef<number | null>(null);
   const floatingTopbarEnterFrameRef = useRef<number | null>(null);
   const floatingTopbarExitTimeoutRef = useRef<number | null>(null);
 
@@ -269,7 +285,12 @@ function AppShell() {
   }, [pathname]);
 
   useEffect(() => {
-    if (showTopbarIntro) {
+    const clearFloatingTopbarTransitions = () => {
+      if (floatingTopbarStateFrameRef.current !== null) {
+        window.cancelAnimationFrame(floatingTopbarStateFrameRef.current);
+        floatingTopbarStateFrameRef.current = null;
+      }
+
       if (floatingTopbarEnterFrameRef.current !== null) {
         window.cancelAnimationFrame(floatingTopbarEnterFrameRef.current);
         floatingTopbarEnterFrameRef.current = null;
@@ -279,10 +300,26 @@ function AppShell() {
         window.clearTimeout(floatingTopbarExitTimeoutRef.current);
         floatingTopbarExitTimeoutRef.current = null;
       }
+    };
 
-      setFloatingTopbarVisible(false);
-      setRenderFloatingTopbar(false);
-      return;
+    const scheduleFloatingTopbarStateUpdate = (callback: () => void) => {
+      if (floatingTopbarStateFrameRef.current !== null) {
+        window.cancelAnimationFrame(floatingTopbarStateFrameRef.current);
+      }
+
+      floatingTopbarStateFrameRef.current = window.requestAnimationFrame(() => {
+        floatingTopbarStateFrameRef.current = null;
+        callback();
+      });
+    };
+
+    if (showTopbarIntro) {
+      clearFloatingTopbarTransitions();
+      scheduleFloatingTopbarStateUpdate(() => {
+        setFloatingTopbarVisible(false);
+        setRenderFloatingTopbar(false);
+      });
+      return clearFloatingTopbarTransitions;
     }
 
     if (showFloatingTopbar) {
@@ -292,17 +329,28 @@ function AppShell() {
       }
 
       if (!renderFloatingTopbar) {
-        setRenderFloatingTopbar(true);
-        setFloatingTopbarVisible(false);
-        floatingTopbarEnterFrameRef.current = window.requestAnimationFrame(() => {
-          floatingTopbarEnterFrameRef.current = null;
-          setFloatingTopbarVisible(true);
+        scheduleFloatingTopbarStateUpdate(() => {
+          setRenderFloatingTopbar(true);
+          setFloatingTopbarVisible(false);
+          floatingTopbarEnterFrameRef.current = window.requestAnimationFrame(
+            () => {
+              floatingTopbarEnterFrameRef.current = null;
+              setFloatingTopbarVisible(true);
+            },
+          );
         });
-        return;
+        return clearFloatingTopbarTransitions;
       }
 
-      setFloatingTopbarVisible(true);
-      return;
+      scheduleFloatingTopbarStateUpdate(() => {
+        setFloatingTopbarVisible(true);
+      });
+      return clearFloatingTopbarTransitions;
+    }
+
+    if (floatingTopbarStateFrameRef.current !== null) {
+      window.cancelAnimationFrame(floatingTopbarStateFrameRef.current);
+      floatingTopbarStateFrameRef.current = null;
     }
 
     if (floatingTopbarEnterFrameRef.current !== null) {
@@ -310,20 +358,28 @@ function AppShell() {
       floatingTopbarEnterFrameRef.current = null;
     }
 
-    setFloatingTopbarVisible(false);
+    scheduleFloatingTopbarStateUpdate(() => {
+      setFloatingTopbarVisible(false);
+    });
 
     if (!renderFloatingTopbar) {
-      return;
+      return clearFloatingTopbarTransitions;
     }
 
     floatingTopbarExitTimeoutRef.current = window.setTimeout(() => {
       floatingTopbarExitTimeoutRef.current = null;
       setRenderFloatingTopbar(false);
     }, FLOATING_TOPBAR_TRANSITION_MS);
+
+    return clearFloatingTopbarTransitions;
   }, [renderFloatingTopbar, showFloatingTopbar, showTopbarIntro]);
 
   useEffect(() => {
     return () => {
+      if (floatingTopbarStateFrameRef.current !== null) {
+        window.cancelAnimationFrame(floatingTopbarStateFrameRef.current);
+      }
+
       if (floatingTopbarEnterFrameRef.current !== null) {
         window.cancelAnimationFrame(floatingTopbarEnterFrameRef.current);
       }
@@ -353,9 +409,12 @@ function AppShell() {
     };
 
     if (typeof windowWithIdleCallbacks.requestIdleCallback === "function") {
-      idleId = windowWithIdleCallbacks.requestIdleCallback(() => {
-        runPreload();
-      }, { timeout: 1200 });
+      idleId = windowWithIdleCallbacks.requestIdleCallback(
+        () => {
+          runPreload();
+        },
+        { timeout: 1200 },
+      );
     } else {
       timeoutId = window.setTimeout(() => {
         runPreload();
@@ -515,9 +574,7 @@ function AppShell() {
   return (
     <div className="app-shell">
       <div className="topbar-shell" ref={topbarShellRef}>
-        <header
-          className={`topbar${showTopbarIntro ? " is-intro" : ""}`}
-        >
+        <header className={`topbar${showTopbarIntro ? " is-intro" : ""}`}>
           <div className="topbar-intro-mark" aria-hidden="true">
             <span className="brand-mark brand-mark--intro" />
           </div>
@@ -528,7 +585,10 @@ function AppShell() {
               aria-label="Go to top of home page"
               onClick={handleFloatingHomeClick}
             >
-              <span className="brand-mark brand-mark--lockup" aria-hidden="true" />
+              <span
+                className="brand-mark brand-mark--lockup"
+                aria-hidden="true"
+              />
               <span className="brand-text" aria-hidden="true">
                 ARTISERET
               </span>
@@ -542,10 +602,7 @@ function AppShell() {
                 }`}
                 onClick={handleMoviesNavClick}
               >
-                <Film
-                  className="topnav-icon"
-                  aria-hidden="true"
-                />
+                <Film className="topnav-icon" aria-hidden="true" />
                 <span>Movies</span>
               </button>
               <button
@@ -568,10 +625,7 @@ function AppShell() {
                 }`}
                 onClick={handleAllShowtimesNavClick}
               >
-                <Clock8
-                  className="topnav-icon"
-                  aria-hidden="true"
-                />
+                <Clock8 className="topnav-icon" aria-hidden="true" />
                 <span>All Showtimes</span>
               </button>
             </nav>
@@ -613,7 +667,10 @@ function AppShell() {
               aria-label="Go to homepage"
               onClick={handleFloatingHomeClick}
             >
-              <span className="brand-mark brand-mark--floating-home" aria-hidden="true" />
+              <span
+                className="brand-mark brand-mark--floating-home"
+                aria-hidden="true"
+              />
             </button>
           </div>
         </div>
@@ -636,7 +693,7 @@ function AppShell() {
             {catalogReady ? (
               moviesPageView === "grid" ? (
                 <PosterGridPage
-                  kicker="Showtimes"
+                  kicker="Movies"
                   title="Movies"
                   movies={showtimeCatalogMovies}
                   onPosterSelect={(movie) => {
@@ -647,7 +704,7 @@ function AppShell() {
                 <section className="catalog-browser-page" aria-label="Movies">
                   <div className="section-heading catalog-browser-page__heading">
                     <div className="catalog-browser-page__heading-copy">
-                      <p className="section-kicker">Showtimes</p>
+                      <p className="section-kicker">Movies</p>
                       <h1 className="section-title">Movies</h1>
                     </div>
                   </div>
@@ -679,7 +736,10 @@ function AppShell() {
           </section>
         ) : pathname === "/showtimes" ? (
           <section className="page-panel">
-            <section className="showtimes-placeholder" aria-label="All Showtimes">
+            <section
+              className="showtimes-placeholder"
+              aria-label="All Showtimes"
+            >
               <div className="section-heading showtimes-placeholder__heading">
                 <p className="section-kicker">Showtimes</p>
                 <h1 className="section-title">All Showtimes</h1>

@@ -14,6 +14,7 @@ const MOVIE_SELECT_COLUMNS = [
   "tmdb_id",
   "english_title",
   "release_year",
+  "genres",
   "en_poster",
   "en_trailer",
   "backdrop",
@@ -39,6 +40,7 @@ const COMING_SOON_SELECT_COLUMNS = [
   "english_title",
   "release_year",
   "release_date",
+  "genres",
   "en_poster",
   "backdrop",
   "en_trailer",
@@ -67,7 +69,8 @@ export const fixedAppDateString = "2026-03-02";
 export const fixedShowtimeWindowEndDateString = "2026-03-11";
 
 type CsvRow = Record<string, string>;
-type SupabaseRow = Record<string, string | number | boolean | null>;
+type SupabaseValue = string | number | boolean | null | string[];
+type SupabaseRow = Record<string, SupabaseValue>;
 
 export type Movie = {
   tmdbId: string;
@@ -76,6 +79,7 @@ export type Movie = {
   title: string;
   year: number;
   releaseDate?: string;
+  genres: string[];
   imageSrc: string;
   backdropSrc?: string;
   trailerKey?: string;
@@ -118,7 +122,11 @@ function rowsToCsvRows(rows: readonly SupabaseRow[]): CsvRow[] {
     Object.fromEntries(
       Object.entries(row).map(([key, value]) => [
         key,
-        value == null ? "" : String(value),
+        value == null
+          ? ""
+          : Array.isArray(value)
+            ? JSON.stringify(value)
+            : String(value),
       ]),
     ),
   );
@@ -162,6 +170,52 @@ function getFirstNormalizedText(row: CsvRow, keys: readonly string[]): string {
 
 function normalizeTitle(value: string): string {
   return normalizeText(value).replace(/^"+|"+$/g, "");
+}
+
+function parseGenres(value: string | undefined): string[] {
+  const normalizedValue = value?.trim();
+
+  if (!normalizedValue) {
+    return [];
+  }
+
+  const normalizedGenres = new Set<string>();
+  const addGenre = (genre: string) => {
+    const normalizedGenre = normalizeText(genre.replace(/^"+|"+$/g, ""));
+
+    if (normalizedGenre) {
+      normalizedGenres.add(normalizedGenre);
+    }
+  };
+
+  if (
+    (normalizedValue.startsWith("[") && normalizedValue.endsWith("]")) ||
+    (normalizedValue.startsWith("{") && normalizedValue.endsWith("}"))
+  ) {
+    const jsonCandidate = normalizedValue.startsWith("{")
+      ? `[${normalizedValue.slice(1, -1)}]`
+      : normalizedValue;
+
+    try {
+      const parsedValue = JSON.parse(jsonCandidate);
+
+      if (Array.isArray(parsedValue)) {
+        for (const item of parsedValue) {
+          if (typeof item === "string") {
+            addGenre(item);
+          }
+        }
+
+        return [...normalizedGenres];
+      }
+    } catch {
+      // Fall back to comma-splitting below for non-JSON array strings.
+    }
+  }
+
+  normalizedValue.split(",").forEach(addGenre);
+
+  return [...normalizedGenres];
 }
 
 function getReleaseYearFromDate(releaseDate: string | undefined): number {
@@ -288,6 +342,7 @@ function buildMovies(
         title: normalizeTitle(row.english_title),
         year: parsedReleaseYear || getReleaseYearFromDate(releaseDate),
         releaseDate,
+        genres: parseGenres(row.genres),
         imageSrc,
         backdropSrc,
         trailerKey: trailerKey || undefined,
@@ -551,7 +606,10 @@ export async function loadMovieCatalog(): Promise<void> {
     const nextComingSoonRows = rowsToCsvRows(comingSoonRows);
 
     const nextAllNowPlayingMovies = buildMovies(nextMovieRows);
-    const nextMovies = nextAllNowPlayingMovies.slice(0, TOP_NOW_PLAYING_MOVIE_COUNT);
+    const nextMovies = nextAllNowPlayingMovies.slice(
+      0,
+      TOP_NOW_PLAYING_MOVIE_COUNT,
+    );
     const nextComingSoonMovies = buildMovies(nextComingSoonRows, {
       sortMode: "releaseDate",
     });
