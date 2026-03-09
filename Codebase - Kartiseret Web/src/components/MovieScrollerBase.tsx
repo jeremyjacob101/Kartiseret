@@ -363,7 +363,7 @@ export function MovieScrollerBase({
     }
 
     const observer = new ResizeObserver(() => {
-      centerAnchorMovie();
+      updateWindowFromScroller();
     });
     observer.observe(scroller);
 
@@ -374,7 +374,7 @@ export function MovieScrollerBase({
         rafRef.current = null;
       }
     };
-  }, [centerAnchorMovie]);
+  }, [updateWindowFromScroller]);
 
   useEffect(() => {
     if (!shouldPlayIntroRef.current) {

@@ -2,6 +2,7 @@ import {
   StrictMode,
   useCallback,
   useEffect,
+  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -13,6 +14,7 @@ import {
 } from "./components/MovieScroller";
 import {
   MovieSearchMenu,
+  type MovieSearchCollection,
   type MovieSearchResult,
 } from "./components/MovieSearchMenu";
 import { TheaterMapDialog } from "./components/TheaterMapDialog";
@@ -34,11 +36,23 @@ const SCROLLER_GAP = 22;
 const SCROLLER_MAX_WIDTH = 1100;
 const SCROLLER_SLOT_MIN_HEIGHT = 420;
 const TOPBAR_INTRO_DURATION_MS = 760;
+const FLOATING_TOPBAR_TRANSITION_MS = 620;
 
 type MovieSearchMode = "nowPlaying" | "comingSoon";
 
 type AppMovieJumpRequest = MovieScrollerJumpRequest & {
   mode: MovieSearchMode;
+};
+
+type TopbarActionsProps = {
+  catalogReady: boolean;
+  currentPath: "/" | "/user";
+  searchCollections: readonly MovieSearchCollection[];
+  variant?: "inline" | "floating";
+  onNavigate: (path: string) => void;
+  onSearchOpen: () => void;
+  onSelectResult: (result: MovieSearchResult) => void;
+  onSettingsClick: () => void;
 };
 
 function normalizePathname(pathname: string): "/" | "/user" {
@@ -59,6 +73,59 @@ function getPathnameSnapshot(): "/" | "/user" {
   return normalizePathname(window.location.pathname);
 }
 
+function TopbarActions({
+  catalogReady,
+  currentPath,
+  searchCollections,
+  variant = "inline",
+  onNavigate,
+  onSearchOpen,
+  onSelectResult,
+  onSettingsClick,
+}: TopbarActionsProps) {
+  const isFloating = variant === "floating";
+  const containerClassName = isFloating
+    ? "floating-topbar-actions"
+    : "topbar-actions";
+
+  return (
+    <div className={containerClassName}>
+      <div
+        className={isFloating ? "floating-topbar-item floating-topbar-item--search" : undefined}
+      >
+        <MovieSearchMenu
+          collections={searchCollections}
+          loading={!catalogReady}
+          onOpen={onSearchOpen}
+          onSelectResult={onSelectResult}
+        />
+      </div>
+      <div
+        className={isFloating ? "floating-topbar-item floating-topbar-item--map" : undefined}
+      >
+        <TheaterMapDialog />
+      </div>
+      <div
+        className={isFloating ? "floating-topbar-item floating-topbar-item--user" : undefined}
+      >
+        <UserMenu currentPath={currentPath} onNavigate={onNavigate} />
+      </div>
+      <div
+        className={isFloating ? "floating-topbar-item floating-topbar-item--settings" : undefined}
+      >
+        <button
+          type="button"
+          className="settings-button"
+          aria-label="Settings"
+          onClick={onSettingsClick}
+        >
+          <Settings size={20} strokeWidth={2.75} color="#a66ae3" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AppShell() {
   const { user, loading } = useRatingSourcesContext();
   const [catalogReady, setCatalogReady] = useState(() => movies.length > 0);
@@ -68,8 +135,14 @@ function AppShell() {
     getPathnameSnapshot,
   );
   const [showTopbarIntro, setShowTopbarIntro] = useState(true);
+  const [showFloatingTopbar, setShowFloatingTopbar] = useState(false);
+  const [renderFloatingTopbar, setRenderFloatingTopbar] = useState(false);
+  const [floatingTopbarVisible, setFloatingTopbarVisible] = useState(false);
   const [movieJumpRequest, setMovieJumpRequest] =
     useState<AppMovieJumpRequest | null>(null);
+  const topbarShellRef = useRef<HTMLDivElement | null>(null);
+  const floatingTopbarEnterFrameRef = useRef<number | null>(null);
+  const floatingTopbarExitTimeoutRef = useRef<number | null>(null);
 
   const navigate = useCallback((path: string, replace = false) => {
     const targetPath = normalizePathname(path);
@@ -133,6 +206,108 @@ function AppShell() {
       isActive = false;
     };
   }, [catalogReady, pathname]);
+
+  useEffect(() => {
+    let frameId: number | null = null;
+
+    const updateFloatingTopbar = () => {
+      frameId = null;
+      const topbarBottom =
+        topbarShellRef.current?.getBoundingClientRect().bottom ?? 0;
+
+      setShowFloatingTopbar(topbarBottom <= 0);
+    };
+
+    const requestFloatingTopbarUpdate = () => {
+      if (frameId !== null) {
+        return;
+      }
+
+      frameId = window.requestAnimationFrame(updateFloatingTopbar);
+    };
+
+    updateFloatingTopbar();
+
+    window.addEventListener("scroll", requestFloatingTopbarUpdate, {
+      passive: true,
+    });
+    window.addEventListener("resize", requestFloatingTopbarUpdate);
+
+    return () => {
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+
+      window.removeEventListener("scroll", requestFloatingTopbarUpdate);
+      window.removeEventListener("resize", requestFloatingTopbarUpdate);
+    };
+  }, [pathname]);
+
+  useEffect(() => {
+    if (showTopbarIntro) {
+      if (floatingTopbarEnterFrameRef.current !== null) {
+        window.cancelAnimationFrame(floatingTopbarEnterFrameRef.current);
+        floatingTopbarEnterFrameRef.current = null;
+      }
+
+      if (floatingTopbarExitTimeoutRef.current !== null) {
+        window.clearTimeout(floatingTopbarExitTimeoutRef.current);
+        floatingTopbarExitTimeoutRef.current = null;
+      }
+
+      setFloatingTopbarVisible(false);
+      setRenderFloatingTopbar(false);
+      return;
+    }
+
+    if (showFloatingTopbar) {
+      if (floatingTopbarExitTimeoutRef.current !== null) {
+        window.clearTimeout(floatingTopbarExitTimeoutRef.current);
+        floatingTopbarExitTimeoutRef.current = null;
+      }
+
+      if (!renderFloatingTopbar) {
+        setRenderFloatingTopbar(true);
+        setFloatingTopbarVisible(false);
+        floatingTopbarEnterFrameRef.current = window.requestAnimationFrame(() => {
+          floatingTopbarEnterFrameRef.current = null;
+          setFloatingTopbarVisible(true);
+        });
+        return;
+      }
+
+      setFloatingTopbarVisible(true);
+      return;
+    }
+
+    if (floatingTopbarEnterFrameRef.current !== null) {
+      window.cancelAnimationFrame(floatingTopbarEnterFrameRef.current);
+      floatingTopbarEnterFrameRef.current = null;
+    }
+
+    setFloatingTopbarVisible(false);
+
+    if (!renderFloatingTopbar) {
+      return;
+    }
+
+    floatingTopbarExitTimeoutRef.current = window.setTimeout(() => {
+      floatingTopbarExitTimeoutRef.current = null;
+      setRenderFloatingTopbar(false);
+    }, FLOATING_TOPBAR_TRANSITION_MS);
+  }, [renderFloatingTopbar, showFloatingTopbar, showTopbarIntro]);
+
+  useEffect(() => {
+    return () => {
+      if (floatingTopbarEnterFrameRef.current !== null) {
+        window.cancelAnimationFrame(floatingTopbarEnterFrameRef.current);
+      }
+
+      if (floatingTopbarExitTimeoutRef.current !== null) {
+        window.clearTimeout(floatingTopbarExitTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!catalogReady || pathname !== "/") {
@@ -217,6 +392,29 @@ function AppShell() {
     [handleCatalogLoadRequest, navigate, pathname],
   );
 
+  const handleSettingsClick = useCallback(() => {
+    if (!user) {
+      return;
+    }
+
+    navigate("/user");
+  }, [navigate, user]);
+
+  const handleFloatingHomeClick = useCallback(() => {
+    if (pathname !== "/") {
+      navigate("/");
+    }
+
+    window.requestAnimationFrame(() => {
+      const behavior = window.matchMedia("(prefers-reduced-motion: reduce)")
+        .matches
+        ? "auto"
+        : "smooth";
+
+      window.scrollTo({ top: 0, behavior });
+    });
+  }, [navigate, pathname]);
+
   const searchCollections = [
     {
       mode: "nowPlaying" as const,
@@ -232,7 +430,7 @@ function AppShell() {
 
   return (
     <div className="app-shell">
-      <div className="topbar-shell">
+      <div className="topbar-shell" ref={topbarShellRef}>
         <header
           className={`topbar${showTopbarIntro ? " is-intro" : ""}`}
         >
@@ -275,31 +473,49 @@ function AppShell() {
                 <span className="topnav-link">Coming Soon</span>
               )}
             </nav>
-            <div className="topbar-actions">
-              <MovieSearchMenu
-                collections={searchCollections}
-                loading={!catalogReady}
-                onOpen={handleCatalogLoadRequest}
-                onSelectResult={handleMovieSearchSelect}
-              />
-              <TheaterMapDialog />
-              <UserMenu
-                currentPath={pathname}
-                onNavigate={(path) => {
-                  navigate(path);
-                }}
-              />
-              <button
-                type="button"
-                className="settings-button"
-                aria-label="Settings"
-              >
-                <Settings size={20} strokeWidth={2.75} color="#a66ae3"/>
-              </button>
-            </div>
+            <TopbarActions
+              catalogReady={catalogReady}
+              currentPath={pathname}
+              searchCollections={searchCollections}
+              onNavigate={navigate}
+              onSearchOpen={handleCatalogLoadRequest}
+              onSelectResult={handleMovieSearchSelect}
+              onSettingsClick={handleSettingsClick}
+            />
           </div>
         </header>
       </div>
+
+      {renderFloatingTopbar ? (
+        <div
+          className={`floating-topbar-stack${
+            floatingTopbarVisible ? " is-visible" : ""
+          }`}
+          aria-label="Quick actions"
+          aria-hidden={!floatingTopbarVisible}
+        >
+          <TopbarActions
+            catalogReady={catalogReady}
+            currentPath={pathname}
+            searchCollections={searchCollections}
+            variant="floating"
+            onNavigate={navigate}
+            onSearchOpen={handleCatalogLoadRequest}
+            onSelectResult={handleMovieSearchSelect}
+            onSettingsClick={handleSettingsClick}
+          />
+          <div className="floating-topbar-item floating-topbar-item--home">
+            <button
+              type="button"
+              className="floating-home-button"
+              aria-label="Go to homepage"
+              onClick={handleFloatingHomeClick}
+            >
+              <span className="brand-mark brand-mark--floating-home" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <main className="app-main">
         {pathname === "/user" && user ? (

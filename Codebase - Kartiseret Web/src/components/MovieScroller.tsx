@@ -100,6 +100,7 @@ const SCROLLER_CARD_SHADOW =
 
 const POSTER_MOVE_DURATION_MS = 300;
 const POSTER_GHOST_OPACITY_DURATION_MS = 120;
+const POSTER_RETURN_OPACITY_DURATION_MS = 220;
 const FOCUS_POSTER_FADE_DURATION_MS = 180;
 const FOCUS_POSTER_REVEAL_DELAY_MS = 150;
 const GHOST_FADE_OUT_DELAY_MS = 260;
@@ -126,6 +127,7 @@ const movieScrollerTimingStyle = {
   "--movie-scroller-focus-poster-fade-duration": `${FOCUS_POSTER_FADE_DURATION_MS}ms`,
   "--movie-scroller-ghost-move-duration": `${POSTER_MOVE_DURATION_MS}ms`,
   "--movie-scroller-ghost-opacity-duration": `${POSTER_GHOST_OPACITY_DURATION_MS}ms`,
+  "--movie-scroller-ghost-close-opacity-duration": `${POSTER_RETURN_OPACITY_DURATION_MS}ms`,
   "--movie-scroller-detail-swap-duration": `${DETAIL_NAV_DURATION_MS}ms`,
 } as CSSProperties;
 
@@ -1517,14 +1519,14 @@ function MovieScrollerContent({
         if (ghostRef.current) {
           ghostRef.current.style.opacity = `${ghostTransition.targetOpacity}`;
         }
+
+        returnHandoffTimeoutRef.current = window.setTimeout(() => {
+          setIsReturnHandoffReady(true);
+          setShowGhost(false);
+          returnHandoffTimeoutRef.current = null;
+        }, POSTER_RETURN_SETTLE_DELAY_MS);
       });
     });
-
-    returnHandoffTimeoutRef.current = window.setTimeout(() => {
-      setIsReturnHandoffReady(true);
-      setShowGhost(false);
-      returnHandoffTimeoutRef.current = null;
-    }, POSTER_RETURN_SETTLE_DELAY_MS);
 
     completeTimeoutRef.current = window.setTimeout(() => {
       setIsReturnHandoffReady(false);
