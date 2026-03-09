@@ -597,10 +597,10 @@ export function MovieScrollerBase({
     0,
     totalItems - 1,
   );
-  const introLeadCardScreenLeft =
-    gap + introAnimatedStart * itemSpan - effectiveScrollLeft;
+  const introTrailingCardScreenLeft =
+    gap + introAnimatedEnd * itemSpan - effectiveScrollLeft;
   const introTravelDistance =
-    Math.max(0, introLeadCardScreenLeft) +
+    Math.max(0, introTrailingCardScreenLeft) +
     cardWidth +
     INTRO_OFFSCREEN_GUTTER_PX;
   const leftFadeEndDistance = getDirectionalDistance(
@@ -650,6 +650,8 @@ export function MovieScrollerBase({
         effectiveViewportWidth > 0 ? 1 - easeInQuad(fadeProgress) : 1;
       const shouldAnimateIntroCard =
         hasIntroPhase && i >= introAnimatedStart && i <= introAnimatedEnd;
+      const shouldPrioritizeCardImage =
+        isVisible || (hasIntroPhase && i >= introAnimatedStart && i <= introAnimatedEnd);
       const introOrder = shouldAnimateIntroCard ? i - introAnimatedStart : 0;
       const introDelayMs = Math.min(
         INTRO_MAX_STAGGER_MS,
@@ -742,8 +744,8 @@ export function MovieScrollerBase({
           <img
             src={movie.imageSrc}
             alt={movie.title}
-            loading={isVisible ? "eager" : "lazy"}
-            fetchPriority={isVisible ? "high" : "auto"}
+            loading={shouldPrioritizeCardImage ? "eager" : "lazy"}
+            fetchPriority={shouldPrioritizeCardImage ? "high" : "auto"}
             decoding="async"
             draggable={false}
             className="movie-scroller__card-image"

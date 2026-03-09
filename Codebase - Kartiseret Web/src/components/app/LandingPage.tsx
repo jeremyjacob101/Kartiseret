@@ -6,46 +6,12 @@ const SCROLLER_GAP = 22;
 const SCROLLER_MAX_WIDTH = 1100;
 const PLACEHOLDER_SECTION_COUNT = 8;
 
-type MovieScrollerSectionProps = {
-  jumpRequest: MovieScrollerJumpRequest | null;
-  kicker: string;
-  mode: "comingSoon" | "nowPlaying";
-  title: string;
-};
-
 type LandingPageProps = {
   catalogError: string | null;
   catalogReady: boolean;
   comingSoonJumpRequest: MovieScrollerJumpRequest | null;
   nowPlayingJumpRequest: MovieScrollerJumpRequest | null;
 };
-
-function MovieScrollerSection({
-  jumpRequest,
-  kicker,
-  mode,
-  title,
-}: MovieScrollerSectionProps) {
-  return (
-    <>
-      <div className="section-heading">
-        <p className="section-kicker">{kicker}</p>
-        <h1 className="section-title">{title}</h1>
-      </div>
-
-      <div className="scroller-slot">
-        <MovieScroller
-          mode={mode}
-          jumpRequest={jumpRequest}
-          cardWidth={SCROLLER_CARD_WIDTH}
-          cardHeight={SCROLLER_CARD_HEIGHT}
-          gap={SCROLLER_GAP}
-          maxWidth={SCROLLER_MAX_WIDTH}
-        />
-      </div>
-    </>
-  );
-}
 
 function PlaceholderSections() {
   return Array.from({ length: PLACEHOLDER_SECTION_COUNT }, (_, index) => (
@@ -70,35 +36,38 @@ export function LandingPage({
         </p>
       ) : null}
 
-      {catalogReady ? (
-        <>
-          <MovieScrollerSection
-            jumpRequest={nowPlayingJumpRequest}
-            kicker="Showtimes"
+      <div className="section-heading">
+        <p className="section-kicker">Showtimes</p>
+        <h1 className="section-title">Now Playing</h1>
+      </div>
+      <div className="scroller-slot">
+        {catalogReady ? (
+          <MovieScroller
             mode="nowPlaying"
-            title="Now Playing"
+            jumpRequest={nowPlayingJumpRequest}
+            cardWidth={SCROLLER_CARD_WIDTH}
+            cardHeight={SCROLLER_CARD_HEIGHT}
+            gap={SCROLLER_GAP}
+            maxWidth={SCROLLER_MAX_WIDTH}
           />
-          <MovieScrollerSection
-            jumpRequest={comingSoonJumpRequest}
-            kicker="Coming soon"
+        ) : null}
+      </div>
+      <div className="section-heading">
+        <p className="section-kicker">Coming soon</p>
+        <h1 className="section-title">Coming Soon</h1>
+      </div>
+      <div className="scroller-slot">
+        {catalogReady ? (
+          <MovieScroller
             mode="comingSoon"
-            title="Coming Soon"
+            jumpRequest={comingSoonJumpRequest}
+            cardWidth={SCROLLER_CARD_WIDTH}
+            cardHeight={SCROLLER_CARD_HEIGHT}
+            gap={SCROLLER_GAP}
+            maxWidth={SCROLLER_MAX_WIDTH}
           />
-        </>
-      ) : (
-        <>
-          <div className="section-heading">
-            <p className="section-kicker">Showtimes</p>
-            <h1 className="section-title">Now Playing</h1>
-          </div>
-          <div className="scroller-slot" />
-          <div className="section-heading">
-            <p className="section-kicker">Coming soon</p>
-            <h1 className="section-title">Coming Soon</h1>
-          </div>
-          <div className="scroller-slot" />
-        </>
-      )}
+        ) : null}
+      </div>
 
       <PlaceholderSections />
     </section>
