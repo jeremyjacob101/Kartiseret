@@ -1,0 +1,216 @@
+.prefs-page {
+  width: min(100%, 1100px);
+}
+
+.prefs-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 8px 16px 4px;
+}
+
+.prefs-page-back {
+  padding: 8px 14px;
+  border: 1px solid rgba(166, 106, 227, 0.58);
+  border-radius: 999px;
+  background: rgba(245, 239, 251, 0.12);
+  color: #efe3ff;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.prefs-page-email {
+  margin: 6px 16px 0;
+  color: rgba(233, 218, 255, 0.88);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.prefs-page-note {
+  margin: 6px 16px 16px;
+  color: rgba(233, 218, 255, 0.76);
+}
+
+.prefs-page-card {
+  margin: 0 16px;
+  padding: 18px;
+  border: 1px solid rgba(217, 191, 255, 0.2);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.prefs-location-card {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid rgba(217, 191, 255, 0.18);
+  border-radius: 18px;
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(166, 106, 227, 0.12),
+      transparent 40%
+    ),
+    rgba(255, 255, 255, 0.03);
+}
+
+.prefs-location-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.prefs-location-title {
+  margin: 4px 0 0;
+  color: #fff;
+  font-size: clamp(1.2rem, 2.4vw, 1.5rem);
+  line-height: 1.05;
+}
+
+.prefs-location-note {
+  margin: 0;
+  max-width: 34ch;
+  color: rgba(233, 218, 255, 0.74);
+}
+
+.prefs-page-settings {
+  display: grid;
+  gap: 12px;
+}
+
+.prefs-setting {
+  overflow: hidden;
+  border: 1px solid rgba(217, 191, 255, 0.22);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.prefs-setting-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  color: #f3ebff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.prefs-setting-toggle:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.prefs-setting-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.prefs-setting-label {
+  color: rgba(233, 218, 255, 0.72);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.prefs-setting-summary {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: #f4ebff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.prefs-setting-chevron {
+  flex: none;
+  color: rgba(233, 218, 255, 0.84);
+  transition: transform 160ms ease;
+}
+
+.prefs-setting-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.prefs-setting-content {
+  padding: 12px 14px 14px;
+  border-top: 1px solid rgba(217, 191, 255, 0.18);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.prefs-setting-options {
+  display: grid;
+  gap: 8px;
+}
+
+.prefs-setting-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(217, 191, 255, 0.2);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #f3ebff;
+  font-size: 0.93rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.prefs-setting-option:hover {
+  border-color: rgba(190, 133, 255, 0.56);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.prefs-setting-option.is-selected {
+  border-color: rgba(190, 133, 255, 0.76);
+  background: rgba(183, 125, 255, 0.16);
+}
+
+.prefs-setting-option input {
+  width: 17px;
+  height: 17px;
+  accent-color: #b77dff;
+}
+
+.prefs-page-actions {
+  margin-top: 14px;
+}
+
+.prefs-page-save {
+  padding: 10px 14px;
+  border: 1px solid #9d67df;
+  border-radius: 10px;
+  background: #9d67df;
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.prefs-page-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.prefs-page-feedback {
+  margin: 12px 16px 0;
+  color: rgba(149, 251, 176, 0.92);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.prefs-page-feedback--error {
+  color: rgba(255, 154, 191, 0.95);
+}

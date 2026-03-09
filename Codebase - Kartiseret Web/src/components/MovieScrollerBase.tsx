@@ -68,6 +68,12 @@ type ViewportState = {
 };
 
 type IntroPhase = "pre" | "animating" | "done";
+type MovieScrollerCardStyle = CSSProperties & {
+  "--movie-scroller-card-offset-x"?: string;
+  "--movie-scroller-card-offset-y"?: string;
+  "--movie-scroller-card-rotate"?: string;
+  "--movie-scroller-card-scale"?: string;
+};
 
 const OVERSCAN_CARDS = 5;
 const INTRO_START_DELAY_MS = 64;
@@ -77,6 +83,154 @@ const INTRO_MAX_STAGGER_MS = 320;
 const INTRO_OFFSCREEN_GUTTER_PX = 72;
 const INTRO_TARGET_CARD_COUNT = 5;
 const INTRO_LEADING_CARD_COUNT = 1;
+
+function setOptionalStyle(
+  element: HTMLElement,
+  propertyName: string,
+  value: string | null,
+) {
+  if (value) {
+    element.style.setProperty(propertyName, value);
+    return;
+  }
+
+  element.style.removeProperty(propertyName);
+}
+
+function setOptionalCustomProperty(
+  element: HTMLElement,
+  propertyName: string,
+  value: string | null,
+) {
+  if (value) {
+    element.style.setProperty(propertyName, value);
+    return;
+  }
+
+  element.style.removeProperty(propertyName);
+}
+
+function applyScrollerBaseStyles(
+  element: HTMLElement,
+  maxWidth: number | string,
+  isInteractive: boolean,
+) {
+  element.style.maxWidth =
+    typeof maxWidth === "number" ? `${maxWidth}px` : maxWidth;
+  element.style.pointerEvents = isInteractive ? "" : "none";
+}
+
+function applyScrollerTrackStyles(
+  element: HTMLDivElement,
+  height: number,
+  width: number,
+) {
+  element.style.height = `${height}px`;
+  element.style.width = `${width}px`;
+}
+
+function applyScrollerCardStyles(
+  element: HTMLDivElement,
+  options: {
+    cardHeight: number;
+    cardStyle: MovieScrollerCardStyle | undefined;
+    cardWidth: number;
+    cursor: "default" | "grab" | "pointer";
+    introDelayMs: number;
+    introOpacity: number;
+    introTranslateX: number;
+    left: number;
+    scale: number;
+    shouldAnimateIntroCard: boolean;
+    waveLift: number;
+  },
+) {
+  const {
+    cardHeight,
+    cardStyle,
+    cardWidth,
+    cursor,
+    introDelayMs,
+    introOpacity,
+    introTranslateX,
+    left,
+    scale,
+    shouldAnimateIntroCard,
+    waveLift,
+  } = options;
+  const nextCardStyle = cardStyle;
+  const translateXValue =
+    typeof nextCardStyle?.["--movie-scroller-card-offset-x"] === "string"
+      ? nextCardStyle["--movie-scroller-card-offset-x"]
+      : null;
+  const translateYValue =
+    typeof nextCardStyle?.["--movie-scroller-card-offset-y"] === "string"
+      ? nextCardStyle["--movie-scroller-card-offset-y"]
+      : null;
+  const rotateValue =
+    typeof nextCardStyle?.["--movie-scroller-card-rotate"] === "string"
+      ? nextCardStyle["--movie-scroller-card-rotate"]
+      : null;
+  const scaleValue =
+    typeof nextCardStyle?.["--movie-scroller-card-scale"] === "string"
+      ? nextCardStyle["--movie-scroller-card-scale"]
+      : null;
+  const opacityValue =
+    typeof nextCardStyle?.opacity === "number"
+      ? String(nextCardStyle.opacity)
+      : typeof nextCardStyle?.opacity === "string"
+        ? nextCardStyle.opacity
+        : String(introOpacity);
+  const filterValue =
+    typeof nextCardStyle?.filter === "string" ? nextCardStyle.filter : null;
+  const transitionValue =
+    typeof nextCardStyle?.transition === "string"
+      ? nextCardStyle.transition
+      : shouldAnimateIntroCard
+        ? `transform ${INTRO_DURATION_MS}ms cubic-bezier(0.22, 0.86, 0.24, 1) ${introDelayMs}ms, ` +
+          `opacity 540ms ease ${introDelayMs}ms`
+        : "transform 72ms cubic-bezier(0.22, 0.9, 0.34, 1), opacity 80ms linear";
+  const transitionDelayValue =
+    typeof nextCardStyle?.transitionDelay === "string"
+      ? nextCardStyle.transitionDelay
+      : null;
+
+  element.style.left = `${left}px`;
+  element.style.width = `${cardWidth}px`;
+  element.style.height = `${cardHeight}px`;
+  element.style.opacity = opacityValue;
+  element.style.cursor = cursor;
+  element.style.transform =
+    `translateZ(0) ` +
+    `translateX(calc(${introTranslateX}px + var(--movie-scroller-card-offset-x, 0px))) ` +
+    `translateY(var(--movie-scroller-card-offset-y, 0px)) ` +
+    `rotate(var(--movie-scroller-card-rotate, 0deg)) ` +
+    `scale(calc(${scale} * var(--movie-scroller-card-scale, 1)))`;
+  element.style.transition = transitionValue;
+  element.style.zIndex = `${Math.round(waveLift * 100)}`;
+  setOptionalStyle(element, "filter", filterValue);
+  setOptionalStyle(element, "transition-delay", transitionDelayValue);
+  setOptionalCustomProperty(
+    element,
+    "--movie-scroller-card-offset-x",
+    translateXValue,
+  );
+  setOptionalCustomProperty(
+    element,
+    "--movie-scroller-card-offset-y",
+    translateYValue,
+  );
+  setOptionalCustomProperty(
+    element,
+    "--movie-scroller-card-rotate",
+    rotateValue,
+  );
+  setOptionalCustomProperty(
+    element,
+    "--movie-scroller-card-scale",
+    scaleValue,
+  );
+}
 
 function getFocusViewportCenter(
   clientWidth: number,
@@ -553,6 +707,12 @@ export function MovieScrollerBase({
       const handleSelectMovie = (event: MouseEvent<HTMLDivElement>) => {
         activateMovie(event.currentTarget);
       };
+      const cardCursor =
+        onSelectMovie && introInteractive
+          ? "pointer"
+          : introInteractive
+            ? "grab"
+            : "default";
 
       return (
         <div
@@ -563,39 +723,24 @@ export function MovieScrollerBase({
           className={["movie-scroller__card", cardClassName]
             .filter(Boolean)
             .join(" ")}
-          style={{
-            position: "absolute",
-            left,
-            bottom: 0,
-            width: cardWidth,
-            height: cardHeight,
-            padding: 0,
-            border: "none",
-            borderRadius: 14,
-            overflow: "hidden",
-            opacity: introOpacity,
-            background: "transparent",
-            cursor:
-              onSelectMovie && introInteractive
-                ? "pointer"
-                : introInteractive
-                  ? "grab"
-                  : "default",
-            WebkitTapHighlightColor: "transparent",
-            transform:
-              `translateZ(0) ` +
-              `translateX(calc(${introTranslateX}px + var(--card-translate-x, 0px))) ` +
-              `translateY(var(--card-translate-y, 0px)) ` +
-              `rotate(var(--card-rotate, 0deg)) ` +
-              `scale(calc(${scale} * var(--card-scale, 1)))`,
-            transformOrigin: "center bottom",
-            transition: shouldAnimateIntroCard
-              ? `transform ${INTRO_DURATION_MS}ms cubic-bezier(0.22, 0.86, 0.24, 1) ${introDelayMs}ms, ` +
-                `opacity 540ms ease ${introDelayMs}ms`
-              : "transform 72ms cubic-bezier(0.22, 0.9, 0.34, 1), opacity 80ms linear",
-            willChange: "transform, opacity",
-            zIndex: Math.round(waveLift * 100),
-            ...cardStyle,
+          ref={(element) => {
+            if (!element) {
+              return;
+            }
+
+            applyScrollerCardStyles(element, {
+              cardHeight,
+              cardStyle: cardStyle as MovieScrollerCardStyle | undefined,
+              cardWidth,
+              cursor: cardCursor,
+              introDelayMs,
+              introOpacity,
+              introTranslateX,
+              left,
+              scale,
+              shouldAnimateIntroCard,
+              waveLift,
+            });
           }}
         >
           <img
@@ -605,13 +750,7 @@ export function MovieScrollerBase({
             fetchPriority={isVisible ? "high" : "auto"}
             decoding="async"
             draggable={false}
-            style={{
-              display: "block",
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              userSelect: "none",
-            }}
+            className="movie-scroller__card-image"
           />
         </div>
       );
@@ -620,27 +759,26 @@ export function MovieScrollerBase({
 
   return (
     <section
-      ref={scrollerRef}
-      onScroll={scheduleWindowUpdate}
-      className={className}
-      style={{
-        position: "relative",
-        width: "100%",
-        margin: "0 auto",
-        maxWidth,
-        overflowX: "auto",
-        overflowY: "hidden",
-        WebkitOverflowScrolling: "touch",
-        scrollbarWidth: "none",
-        msOverflowStyle: "none",
-        pointerEvents: introInteractive ? undefined : "none",
+      ref={(element) => {
+        scrollerRef.current = element;
+
+        if (!element) {
+          return;
+        }
+
+        applyScrollerBaseStyles(element, maxWidth, introInteractive);
       }}
+      onScroll={scheduleWindowUpdate}
+      className={["movie-scroller-base", className].filter(Boolean).join(" ")}
     >
       <div
-        style={{
-          position: "relative",
-          height: maxCardHeight,
-          width: trackWidth,
+        className="movie-scroller-track"
+        ref={(element) => {
+          if (!element) {
+            return;
+          }
+
+          applyScrollerTrackStyles(element, maxCardHeight, trackWidth);
         }}
       >
         {cards}

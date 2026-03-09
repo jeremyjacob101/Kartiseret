@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type Ref,
@@ -18,68 +19,48 @@ import { useRatingSourcesContext } from "../prefs/ratingSourcesStore";
 import { type RatingSource } from "../prefs/ratingSources";
 
 type TheaterTheme = {
-  accent: string;
-  surface: string;
-  glow: string;
-  pillBackground?: string;
+  dotClassName: string;
   pillClassName?: string;
 };
 
 const theaterThemes: Record<string, TheaterTheme> = {
   "Yes Planet": {
-    accent: "#d9710f",
-    surface: "rgba(255, 154, 61, 0.12)",
-    glow: "rgba(217, 113, 15, 0.28)",
+    dotClassName: "details-theater-dot--yes-planet",
     pillClassName: "details-time-pill--yes-planet",
   },
   "Cinema City": {
-    accent: "#186bdf",
-    surface: "rgba(94, 168, 255, 0.12)",
-    glow: "rgba(24, 107, 223, 0.3)",
+    dotClassName: "details-theater-dot--cinema-city",
     pillClassName: "details-time-pill--cinema-city",
   },
   "Lev Cinema": {
-    accent: "#b50519",
-    surface: "rgba(255, 107, 107, 0.12)",
-    glow: "rgba(181, 5, 25, 0.28)",
+    dotClassName: "details-theater-dot--lev-cinema",
     pillClassName: "details-time-pill--lev-cinema",
   },
   "Rav Hen": {
-    accent: "#ab5306",
-    surface: "rgba(255, 177, 74, 0.14)",
-    glow: "rgba(13, 6, 218, 0.32)",
-    pillBackground:
-      "linear-gradient(135deg, rgba(79, 146, 255, 0.22), rgba(255, 177, 74, 0.18))",
+    dotClassName: "details-theater-dot--rav-hen",
     pillClassName: "details-time-pill--rav-hen",
   },
   "Hot Cinema": {
-    accent: "#f06a87",
-    surface: "rgba(255, 79, 160, 0.14)",
-    glow: "rgba(240, 106, 135, 0.32)",
+    dotClassName: "details-theater-dot--hot-cinema",
     pillClassName: "details-time-pill--hot-cinema",
   },
   Movieland: {
-    accent: "#a80371",
-    surface: "rgba(88, 0, 58, 0.12)",
-    glow: "rgba(168, 3, 113, 0.3)",
+    dotClassName: "details-theater-dot--movieland",
     pillClassName: "details-time-pill--movieland",
   },
 };
 const fallbackTheaterThemes: TheaterTheme[] = [
   {
-    accent: "#d29bff",
-    surface: "rgba(210, 155, 255, 0.12)",
-    glow: "rgba(210, 155, 255, 0.28)",
+    dotClassName: "details-theater-dot--fallback-1",
+    pillClassName: "details-time-pill--fallback-1",
   },
   {
-    accent: "#ffd166",
-    surface: "rgba(255, 209, 102, 0.12)",
-    glow: "rgba(255, 209, 102, 0.28)",
+    dotClassName: "details-theater-dot--fallback-2",
+    pillClassName: "details-time-pill--fallback-2",
   },
   {
-    accent: "#7bdff2",
-    surface: "rgba(123, 223, 242, 0.12)",
-    glow: "rgba(123, 223, 242, 0.28)",
+    dotClassName: "details-theater-dot--fallback-3",
+    pillClassName: "details-time-pill--fallback-3",
   },
 ];
 const showtimeDateFormatter = new Intl.DateTimeFormat(undefined, {
@@ -532,12 +513,17 @@ export function MovieDetailsContent({
     variant === "comingSoon" && movie.releaseDate
       ? formatReleaseDate(movie.releaseDate)
       : null;
-  const showtimeDays =
-    variant === "nowPlaying"
-      ? getMovieShowtimeDays(movie.tmdbId, location)
-      : [];
-  const metrics =
-    variant === "nowPlaying" ? getMetricDisplays(movie, sources) : [];
+  const showtimeDays = useMemo(
+    () =>
+      variant === "nowPlaying"
+        ? getMovieShowtimeDays(movie.tmdbId, location)
+        : [],
+    [location, movie.tmdbId, variant],
+  );
+  const metrics = useMemo(
+    () => (variant === "nowPlaying" ? getMetricDisplays(movie, sources) : []),
+    [movie, sources, variant],
+  );
   const trailerEmbedUrl = getTrailerEmbedUrl(movie.trailerKey);
   const targetShowtimeDate = getShowtimeTargetDate(
     showtimeDays,
@@ -606,10 +592,6 @@ export function MovieDetailsContent({
       }
     };
   }, []);
-
-  useEffect(() => {
-    setIsTrailerModalOpen(false);
-  }, [movie.tmdbId, variant]);
 
   useEffect(() => {
     if (!isTrailerModalOpen) {
@@ -836,11 +818,12 @@ export function MovieDetailsContent({
                         >
                           <div className="details-theater-name">
                             <span
-                              className="details-theater-dot"
-                              style={{
-                                backgroundColor: colors.accent,
-                                boxShadow: `0 0 18px ${colors.glow}`,
-                              }}
+                              className={[
+                                "details-theater-dot",
+                                colors.dotClassName,
+                              ]
+                                .filter(Boolean)
+                                .join(" ")}
                             />
                             <span>{theater.theater}</span>
                           </div>
@@ -855,18 +838,6 @@ export function MovieDetailsContent({
                                 ]
                                   .filter(Boolean)
                                   .join(" ")}
-                                style={
-                                  colors.pillClassName
-                                    ? undefined
-                                    : {
-                                        color: colors.accent,
-                                        borderColor: colors.accent,
-                                        background:
-                                          colors.pillBackground ??
-                                          colors.surface,
-                                        boxShadow: `inset 0 0 0 1px ${colors.surface}`,
-                                      }
-                                }
                               >
                                 {time}
                               </span>

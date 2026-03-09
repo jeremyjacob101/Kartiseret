@@ -2,18 +2,17 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import { createPortal } from "react-dom";
 import { MapPin } from "lucide-react";
 import { CityLocationPicker } from "./CityLocationPicker";
-import { useRatingSourcesContext } from "../prefs/ratingSourcesStore";
-import { type AppLocation } from "../prefs/locations";
-
-const OPEN_TRANSITION_MS = 420;
-const INLINE_ICON_HANDOFF_LEAD_MS = 80;
-const FLY_ICON_FADE_OUT_MS = 140;
+import { getCssTimeMs } from "../../../lib/cssVariables";
+import { type AppLocation } from "../../../prefs/locations";
+import { useRatingSourcesContext } from "../../../prefs/ratingSourcesStore";
+import "./map.css";
 
 type FlightRect = {
   top: number;
@@ -55,12 +54,54 @@ export function TheaterMapDialog() {
     null,
   );
   const triggerButtonRef = useRef<HTMLButtonElement | null>(null);
+  const flyingMapIconRef = useRef<HTMLDivElement | null>(null);
   const pendingFlightOriginRef = useRef<FlightRect | null>(null);
   const openAnimationStartedRef = useRef(false);
   const flightStartFrameRef = useRef<number | null>(null);
   const flightEndFrameRef = useRef<number | null>(null);
   const flightHandoffTimeoutRef = useRef<number | null>(null);
   const flightCleanupTimeoutRef = useRef<number | null>(null);
+  const dialogFadeDurationMs = useMemo(
+    () => getCssTimeMs("--theater-map-dialog-fade-duration", 320),
+    [],
+  );
+  const openTransitionMs = useMemo(
+    () => getCssTimeMs("--theater-map-dialog-transition-duration", 420),
+    [],
+  );
+  const inlineIconHandoffLeadMs = useMemo(
+    () => getCssTimeMs("--theater-map-inline-icon-handoff-lead-duration", 80),
+    [],
+  );
+  const flyIconFadeOutMs = useMemo(
+    () => getCssTimeMs("--theater-map-fly-fade-out-duration", 140),
+    [],
+  );
+
+  useLayoutEffect(() => {
+    const flyingMapIconElement = flyingMapIconRef.current;
+
+    if (!flyingMapIconElement || !flyingMapIcon) {
+      return;
+    }
+
+    flyingMapIconElement.style.setProperty(
+      "--theater-map-fly-height",
+      `${flyingMapIcon.rect.height}px`,
+    );
+    flyingMapIconElement.style.setProperty(
+      "--theater-map-fly-left",
+      `${flyingMapIcon.rect.left}px`,
+    );
+    flyingMapIconElement.style.setProperty(
+      "--theater-map-fly-top",
+      `${flyingMapIcon.rect.top}px`,
+    );
+    flyingMapIconElement.style.setProperty(
+      "--theater-map-fly-width",
+      `${flyingMapIcon.rect.width}px`,
+    );
+  }, [flyingMapIcon]);
 
   const clearPinFlightAnimation = useCallback(() => {
     if (flightStartFrameRef.current !== null) {
@@ -128,7 +169,7 @@ export function TheaterMapDialog() {
       setIsDialogVisible(false);
       flightCleanupTimeoutRef.current = window.setTimeout(() => {
         finishCloseDialog();
-      }, 320);
+      }, dialogFadeDurationMs);
       return;
     }
 
@@ -150,13 +191,15 @@ export function TheaterMapDialog() {
 
     flightCleanupTimeoutRef.current = window.setTimeout(() => {
       finishCloseDialog();
-    }, OPEN_TRANSITION_MS);
+    }, openTransitionMs);
   }, [
     clearPinFlightAnimation,
+    dialogFadeDurationMs,
     finishCloseDialog,
     isClosing,
     isOpen,
     mapIconAnchor,
+    openTransitionMs,
   ]);
 
   useLayoutEffect(() => {
@@ -214,14 +257,22 @@ export function TheaterMapDialog() {
       () => {
         setShowInlineMapIcon(true);
       },
-      Math.max(0, OPEN_TRANSITION_MS - INLINE_ICON_HANDOFF_LEAD_MS),
+      Math.max(0, openTransitionMs - inlineIconHandoffLeadMs),
     );
 
     flightCleanupTimeoutRef.current = window.setTimeout(() => {
       setFlyingMapIcon(null);
       pendingFlightOriginRef.current = null;
-    }, OPEN_TRANSITION_MS + FLY_ICON_FADE_OUT_MS);
-  }, [clearPinFlightAnimation, isClosing, isOpen, mapIconAnchor]);
+    }, openTransitionMs + flyIconFadeOutMs);
+  }, [
+    clearPinFlightAnimation,
+    flyIconFadeOutMs,
+    inlineIconHandoffLeadMs,
+    isClosing,
+    isOpen,
+    mapIconAnchor,
+    openTransitionMs,
+  ]);
 
   useEffect(() => clearPinFlightAnimation, [clearPinFlightAnimation]);
 
@@ -275,15 +326,10 @@ export function TheaterMapDialog() {
       </div>
       {flyingMapIcon ? (
         <div
+          ref={flyingMapIconRef}
           className={`theater-map-fly-icon${
             flyingMapIcon.arrived ? " is-arrived" : ""
           }${showInlineMapIcon ? " is-handoff" : ""}`}
-          style={{
-            height: `${flyingMapIcon.rect.height}px`,
-            left: `${flyingMapIcon.rect.left}px`,
-            top: `${flyingMapIcon.rect.top}px`,
-            width: `${flyingMapIcon.rect.width}px`,
-          }}
           aria-hidden="true"
         >
           <MapPin size={20} strokeWidth={2.75} />

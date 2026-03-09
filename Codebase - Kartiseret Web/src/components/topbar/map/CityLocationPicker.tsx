@@ -27,8 +27,8 @@ import {
   Popup,
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { loadTheaters, type Theater } from "../data/theaters";
-import { type AppLocation } from "../prefs/locations";
+import { loadTheaters, type Theater } from "../../../data/theaters";
+import { type AppLocation } from "../../../prefs/locations";
 
 const MAP_STYLE_URL =
   "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";

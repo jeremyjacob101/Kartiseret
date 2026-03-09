@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { CityLocationPicker } from "./CityLocationPicker";
-import { useRatingSourcesContext } from "../prefs/ratingSourcesStore";
-import { type RatingSource } from "../prefs/ratingSources";
-import { type AppLocation } from "../prefs/locations";
+import { CityLocationPicker } from "../map/CityLocationPicker";
+import { type AppLocation } from "../../../prefs/locations";
+import { type RatingSource } from "../../../prefs/ratingSources";
+import { useRatingSourcesContext } from "../../../prefs/ratingSourcesStore";
+import "./settings.css";
 
 const sourceLabelMap: Record<RatingSource, string> = {
   imdbRating: "IMDb",
