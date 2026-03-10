@@ -1,9 +1,5 @@
 import { createContext, useContext } from "react";
-import {
-  ALL_RATING_SOURCES,
-  DEFAULT_RATING_SOURCES,
-  type RatingSource,
-} from "./ratingSources";
+import { ALL_RATING_SOURCES, DEFAULT_RATING_SOURCES, type RatingSource } from "./ratingSources";
 import { DEFAULT_LOCATION } from "./locations";
 import { type RatingSourcesState } from "./useRatingSources";
 

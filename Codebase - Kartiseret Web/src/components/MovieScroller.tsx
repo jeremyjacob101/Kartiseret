@@ -1,28 +1,9 @@
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type PointerEvent,
-  type WheelEvent,
-} from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type WheelEvent } from "react";
 import { X } from "lucide-react";
 import { comingSoonMovies, movies, type Movie } from "../data/movieCatalog";
-import {
-  MovieScrollerBase,
-  type MovieScrollerBaseProps,
-  type MovieScrollerCardState,
-  type MovieScrollerScrollRequest,
-  type PosterSourceRect,
-} from "./MovieScrollerBase";
+import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
 import { getRepeatSetCount } from "./MovieScrollerShared";
-import {
-  MovieDetailsContent,
-  type MovieDetailsVariant,
-} from "./MovieDetailsContent";
+import { MovieDetailsContent, type MovieDetailsVariant } from "./MovieDetailsContent";
 import "./MovieScroller.css";
 
 type FocusPhase = "collapsed" | "opening" | "open" | "closing";
@@ -648,8 +629,7 @@ function MovieScrollerContent({
   const handleDetailShowtimeDateChange = useCallback((nextDate: string) => {
     persistedDetailShowtimeDate = nextDate;
     setDetailShowtimeDate((current) =>
-      current === nextDate ? current : nextDate,
-    );
+      current === nextDate ? current : nextDate);
   }, []);
 
   const measureDetailStage = useCallback(() => {
@@ -660,8 +640,7 @@ function MovieScrollerContent({
 
     const nextClientWidth = stage.clientWidth;
     setDetailClientWidth((previous) =>
-      previous === nextClientWidth ? previous : nextClientWidth,
-    );
+      previous === nextClientWidth ? previous : nextClientWidth);
 
     return nextClientWidth;
   }, []);
@@ -824,18 +803,18 @@ function MovieScrollerContent({
       progress < 0.44 ? SCROLLER_CARD_SHADOW : FOCUS_POSTER_SHADOW;
   }, []);
 
-  const getCurrentPositionalOpacity = useCallback(
-    (itemIndex: number, fallback: number) => {
-      const item = shellRef.current?.querySelector<HTMLElement>(
-        `[data-movie-scroller-item-index="${itemIndex}"]`,
-      );
-      const value = item?.dataset.movieScrollerPositionalOpacity;
-      const parsed = value ? Number(value) : Number.NaN;
+  const getCurrentPositionalOpacity = useCallback((
+    itemIndex: number,
+    fallback: number,
+  ) => {
+    const item = shellRef.current?.querySelector<HTMLElement>(
+      `[data-movie-scroller-item-index="${itemIndex}"]`,
+    );
+    const value = item?.dataset.movieScrollerPositionalOpacity;
+    const parsed = value ? Number(value) : Number.NaN;
 
-      return Number.isFinite(parsed) ? parsed : fallback;
-    },
-    [],
-  );
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }, []);
 
   const getCollapsedScrollerElement = useCallback(
     () =>
@@ -1080,51 +1059,51 @@ function MovieScrollerContent({
         return;
       }
 
-      scriptedJumpAnimationFrameRef.current = window.requestAnimationFrame(
-        (startTime) => {
-          const animateTravel = (frameTime: number) => {
-            const progress = clamp(
-              (frameTime - startTime) / EXTERNAL_JUMP_RUFFLE_DURATION_MS,
-              0,
-              1,
-            );
-            const easedProgress = easeInOutCubic(progress);
+      scriptedJumpAnimationFrameRef.current = window.requestAnimationFrame((
+        startTime,
+      ) => {
+        const animateTravel = (frameTime: number) => {
+          const progress = clamp(
+            (frameTime - startTime) / EXTERNAL_JUMP_RUFFLE_DURATION_MS,
+            0,
+            1,
+          );
+          const easedProgress = easeInOutCubic(progress);
 
-            scroller.scrollLeft = lerp(
-              initialScrollLeft,
-              targetScrollLeft,
-              easedProgress,
-            );
+          scroller.scrollLeft = lerp(
+            initialScrollLeft,
+            targetScrollLeft,
+            easedProgress,
+          );
 
-            if (shouldAnimatePage) {
-              window.scrollTo({
-                top: lerp(currentScrollTop, targetScrollTop, easedProgress),
-                behavior: "auto",
-              });
-            }
+          if (shouldAnimatePage) {
+            window.scrollTo({
+              top: lerp(currentScrollTop, targetScrollTop, easedProgress),
+              behavior: "auto",
+            });
+          }
 
-            if (progress < 1) {
-              scriptedJumpAnimationFrameRef.current =
-                window.requestAnimationFrame(animateTravel);
-              return;
-            }
+          if (progress < 1) {
+            scriptedJumpAnimationFrameRef.current =
+              window.requestAnimationFrame(animateTravel);
+            return;
+          }
 
-            scroller.scrollLeft = targetScrollLeft;
+          scroller.scrollLeft = targetScrollLeft;
 
-            if (shouldAnimatePage) {
-              window.scrollTo({
-                top: targetScrollTop,
-                behavior: "auto",
-              });
-            }
+          if (shouldAnimatePage) {
+            window.scrollTo({
+              top: targetScrollTop,
+              behavior: "auto",
+            });
+          }
 
-            scriptedJumpAnimationFrameRef.current = null;
-            finalizeExternalMovieOpen(itemIndex);
-          };
+          scriptedJumpAnimationFrameRef.current = null;
+          finalizeExternalMovieOpen(itemIndex);
+        };
 
-          animateTravel(startTime);
-        },
-      );
+        animateTravel(startTime);
+      });
     },
     [
       cardWidth,
@@ -1230,8 +1209,7 @@ function MovieScrollerContent({
       detailTransitionTimeoutRef.current = window.setTimeout(() => {
         setDetailActiveItemIndex(nextItemIndex);
         setDetailTransition((current) =>
-          current?.key === transitionKey ? null : current,
-        );
+          current?.key === transitionKey ? null : current);
         detailTransitionTimeoutRef.current = null;
       }, DETAIL_NAV_DURATION_MS);
     },

@@ -1,13 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  type CSSProperties,
-  type MouseEvent,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useLayoutEffect, type CSSProperties, type MouseEvent, useMemo, useRef, useState } from "react";
 import { movies, type Movie } from "../data/movieCatalog";
 import { getRepeatSetCount } from "./MovieScrollerShared";
 
@@ -181,8 +172,7 @@ export function MovieScrollerBase({
     clientWidth: 0,
   });
   const [introPhase, setIntroPhase] = useState<IntroPhase>(() =>
-    getInitialIntroPhase(),
-  );
+    getInitialIntroPhase());
   const shouldPlayIntroRef = useRef(introPhase !== "done");
   const introFallbackViewportWidth =
     typeof window === "undefined"
@@ -469,154 +459,152 @@ export function MovieScrollerBase({
     Math.max(waveRadius * 1.72, itemSpan * 3.2),
   );
 
-  const cards = Array.from(
-    { length: range.end - range.start + 1 },
-    (_, offset) => {
-      const i = range.start + offset;
-      const movie = allMovies[i % movieCount];
-      const movieIndex = i % movieCount;
-      const isVisible = i >= visibleStart && i <= visibleEnd;
-      const isSelected = selectedItemIndex === i;
-      const relativeIndex =
-        selectedItemIndex === null ? null : i - selectedItemIndex;
-      const left = gap + i * itemSpan;
-      const cardCenter = left + cardWidth / 2;
-      const signedDistanceFromFocus = cardCenter - focusTrackCenter;
-      const distanceFromCenter = Math.abs(signedDistanceFromFocus);
-      const directionalFadeEndDistance =
-        signedDistanceFromFocus < 0
-          ? leftFadeEndDistance
-          : rightFadeEndDistance;
-      const fadeProgress =
-        directionalFadeEndDistance > fullOpacityRadius
-          ? clamp(
-              (distanceFromCenter - fullOpacityRadius) /
-                (directionalFadeEndDistance - fullOpacityRadius),
-              0,
-              1,
-            )
-          : 1;
-      const opacity =
-        effectiveViewportWidth > 0 ? 1 - easeInQuad(fadeProgress) : 1;
-      const shouldAnimateIntroCard =
-        hasIntroPhase && i >= introAnimatedStart && i <= introAnimatedEnd;
-      const introOrder = shouldAnimateIntroCard ? i - introAnimatedStart : 0;
-      const introDelayMs = Math.min(
-        INTRO_MAX_STAGGER_MS,
-        introOrder * INTRO_STAGGER_STEP_MS,
-      );
-      const introTranslateX =
-        isIntroPre && shouldAnimateIntroCard ? -introTravelDistance : 0;
-      const introOpacity = isIntroPre && shouldAnimateIntroCard ? 0 : opacity;
-      const directionalWaveRadius =
-        signedDistanceFromFocus < 0 ? leftWaveRadius : rightWaveRadius;
-      const waveProgress =
-        effectiveViewportWidth > 0 && directionalWaveRadius > focusPlateau
-          ? clamp(
-              1 -
-                Math.max(distanceFromCenter - focusPlateau, 0) /
-                  (directionalWaveRadius - focusPlateau),
-              0,
-              1,
-            )
-          : 0;
-      const waveLift = Math.sin((waveProgress * Math.PI) / 2);
-      const scale = 1 + focusedScaleBoost * waveLift;
-      const cardState: MovieScrollerCardState = {
-        itemIndex: i,
-        movieIndex,
+  const cards = Array.from({ length: range.end - range.start + 1 }, (
+    _,
+    offset,
+  ) => {
+    const i = range.start + offset;
+    const movie = allMovies[i % movieCount];
+    const movieIndex = i % movieCount;
+    const isVisible = i >= visibleStart && i <= visibleEnd;
+    const isSelected = selectedItemIndex === i;
+    const relativeIndex =
+      selectedItemIndex === null ? null : i - selectedItemIndex;
+    const left = gap + i * itemSpan;
+    const cardCenter = left + cardWidth / 2;
+    const signedDistanceFromFocus = cardCenter - focusTrackCenter;
+    const distanceFromCenter = Math.abs(signedDistanceFromFocus);
+    const directionalFadeEndDistance =
+      signedDistanceFromFocus < 0 ? leftFadeEndDistance : rightFadeEndDistance;
+    const fadeProgress =
+      directionalFadeEndDistance > fullOpacityRadius
+        ? clamp(
+            (distanceFromCenter - fullOpacityRadius) /
+              (directionalFadeEndDistance - fullOpacityRadius),
+            0,
+            1,
+          )
+        : 1;
+    const opacity =
+      effectiveViewportWidth > 0 ? 1 - easeInQuad(fadeProgress) : 1;
+    const shouldAnimateIntroCard =
+      hasIntroPhase && i >= introAnimatedStart && i <= introAnimatedEnd;
+    const introOrder = shouldAnimateIntroCard ? i - introAnimatedStart : 0;
+    const introDelayMs = Math.min(
+      INTRO_MAX_STAGGER_MS,
+      introOrder * INTRO_STAGGER_STEP_MS,
+    );
+    const introTranslateX =
+      isIntroPre && shouldAnimateIntroCard ? -introTravelDistance : 0;
+    const introOpacity = isIntroPre && shouldAnimateIntroCard ? 0 : opacity;
+    const directionalWaveRadius =
+      signedDistanceFromFocus < 0 ? leftWaveRadius : rightWaveRadius;
+    const waveProgress =
+      effectiveViewportWidth > 0 && directionalWaveRadius > focusPlateau
+        ? clamp(
+            1 -
+              Math.max(distanceFromCenter - focusPlateau, 0) /
+                (directionalWaveRadius - focusPlateau),
+            0,
+            1,
+          )
+        : 0;
+    const waveLift = Math.sin((waveProgress * Math.PI) / 2);
+    const scale = 1 + focusedScaleBoost * waveLift;
+    const cardState: MovieScrollerCardState = {
+      itemIndex: i,
+      movieIndex,
+      movie,
+      isVisible,
+      isSelected,
+      selectedItemIndex,
+      relativeIndex,
+      positionalOpacity: opacity,
+    };
+    const cardClassName = getCardClassName?.(cardState);
+    const cardStyle = getCardStyle?.(cardState);
+    const activateMovie = (target: HTMLDivElement) => {
+      const rect = target.getBoundingClientRect();
+
+      onSelectMovie?.(
         movie,
-        isVisible,
-        isSelected,
-        selectedItemIndex,
-        relativeIndex,
-        positionalOpacity: opacity,
-      };
-      const cardClassName = getCardClassName?.(cardState);
-      const cardStyle = getCardStyle?.(cardState);
-      const activateMovie = (target: HTMLDivElement) => {
-        const rect = target.getBoundingClientRect();
-
-        onSelectMovie?.(
-          movie,
-          {
-            top: rect.top,
-            left: rect.left,
-            width: rect.width,
-            height: rect.height,
-          },
-          i,
-          opacity,
-        );
-      };
-
-      const handleSelectMovie = (event: MouseEvent<HTMLDivElement>) => {
-        activateMovie(event.currentTarget);
-      };
-
-      return (
-        <div
-          key={i}
-          data-movie-scroller-item-index={i}
-          data-movie-scroller-positional-opacity={opacity.toFixed(6)}
-          onClick={handleSelectMovie}
-          className={["movie-scroller__card", cardClassName]
-            .filter(Boolean)
-            .join(" ")}
-          style={{
-            position: "absolute",
-            left,
-            bottom: 0,
-            width: cardWidth,
-            height: cardHeight,
-            padding: 0,
-            border: "none",
-            borderRadius: 14,
-            overflow: "hidden",
-            opacity: introOpacity,
-            background: "transparent",
-            cursor:
-              onSelectMovie && introInteractive
-                ? "pointer"
-                : introInteractive
-                  ? "grab"
-                  : "default",
-            WebkitTapHighlightColor: "transparent",
-            transform:
-              `translateZ(0) ` +
-              `translateX(calc(${introTranslateX}px + var(--card-translate-x, 0px))) ` +
-              `translateY(var(--card-translate-y, 0px)) ` +
-              `rotate(var(--card-rotate, 0deg)) ` +
-              `scale(calc(${scale} * var(--card-scale, 1)))`,
-            transformOrigin: "center bottom",
-            transition: shouldAnimateIntroCard
-              ? `transform ${INTRO_DURATION_MS}ms cubic-bezier(0.22, 0.86, 0.24, 1) ${introDelayMs}ms, ` +
-                `opacity 540ms ease ${introDelayMs}ms`
-              : "transform 72ms cubic-bezier(0.22, 0.9, 0.34, 1), opacity 80ms linear",
-            willChange: "transform, opacity",
-            zIndex: Math.round(waveLift * 100),
-            ...cardStyle,
-          }}
-        >
-          <img
-            src={movie.imageSrc}
-            alt={movie.title}
-            loading={isVisible ? "eager" : "lazy"}
-            fetchPriority={isVisible ? "high" : "auto"}
-            decoding="async"
-            draggable={false}
-            style={{
-              display: "block",
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              userSelect: "none",
-            }}
-          />
-        </div>
+        {
+          top: rect.top,
+          left: rect.left,
+          width: rect.width,
+          height: rect.height,
+        },
+        i,
+        opacity,
       );
-    },
-  );
+    };
+
+    const handleSelectMovie = (event: MouseEvent<HTMLDivElement>) => {
+      activateMovie(event.currentTarget);
+    };
+
+    return (
+      <div
+        key={i}
+        data-movie-scroller-item-index={i}
+        data-movie-scroller-positional-opacity={opacity.toFixed(6)}
+        onClick={handleSelectMovie}
+        className={["movie-scroller__card", cardClassName]
+          .filter(Boolean)
+          .join(" ")}
+        style={{
+          position: "absolute",
+          left,
+          bottom: 0,
+          width: cardWidth,
+          height: cardHeight,
+          padding: 0,
+          border: "none",
+          borderRadius: 14,
+          overflow: "hidden",
+          opacity: introOpacity,
+          background: "transparent",
+          cursor:
+            onSelectMovie && introInteractive
+              ? "pointer"
+              : introInteractive
+                ? "grab"
+                : "default",
+          WebkitTapHighlightColor: "transparent",
+          transform:
+            `translateZ(0) ` +
+            `translateX(calc(${introTranslateX}px + var(--card-translate-x, 0px))) ` +
+            `translateY(var(--card-translate-y, 0px)) ` +
+            `rotate(var(--card-rotate, 0deg)) ` +
+            `scale(calc(${scale} * var(--card-scale, 1)))`,
+          transformOrigin: "center bottom",
+          transition: shouldAnimateIntroCard
+            ? `transform ${INTRO_DURATION_MS}ms cubic-bezier(0.22, 0.86, 0.24, 1) ${introDelayMs}ms, ` +
+              `opacity 540ms ease ${introDelayMs}ms`
+            : "transform 72ms cubic-bezier(0.22, 0.9, 0.34, 1), opacity 80ms linear",
+          willChange: "transform, opacity",
+          zIndex: Math.round(waveLift * 100),
+          ...cardStyle,
+        }}
+      >
+        <img
+          src={movie.imageSrc}
+          alt={movie.title}
+          loading={isVisible ? "eager" : "lazy"}
+          fetchPriority={isVisible ? "high" : "auto"}
+          decoding="async"
+          draggable={false}
+          style={{
+            display: "block",
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            userSelect: "none",
+          }}
+        />
+      </div>
+    );
+  });
 
   return (
     <section

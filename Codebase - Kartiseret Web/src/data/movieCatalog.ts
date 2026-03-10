@@ -1,9 +1,5 @@
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import {
-  ALL_LOCATIONS,
-  DEFAULT_LOCATION,
-  type AppLocation,
-} from "../prefs/locations";
+import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/locations";
 
 const TOP_NOW_PLAYING_MOVIE_COUNT = 10;
 const SUPABASE_PAGE_SIZE = 1000;
@@ -128,8 +124,7 @@ function rowsToCsvRows(rows: readonly SupabaseRow[]): CsvRow[] {
             ? JSON.stringify(value)
             : String(value),
       ]),
-    ),
-  );
+    ));
 }
 
 function parseNumber(value: string, fallback = 0): number {
@@ -459,13 +454,11 @@ function buildMovieShowtimes(
               theaters: theaterMap
                 ? [...theaterMap.entries()]
                     .sort(([leftTheater], [rightTheater]) =>
-                      compareTheaters(leftTheater, rightTheater),
-                    )
+                      compareTheaters(leftTheater, rightTheater))
                     .map(([theater, showtimeSet]) => ({
                       theater,
                       showtimes: [...showtimeSet].sort((leftTime, rightTime) =>
-                        leftTime.localeCompare(rightTime),
-                      ),
+                        leftTime.localeCompare(rightTime)),
                     }))
                 : [],
             };

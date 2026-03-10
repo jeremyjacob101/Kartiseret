@@ -1,31 +1,7 @@
-import {
-  startTransition,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import {
-  Ban,
-  Info,
-  List,
-  MapPin,
-  Navigation,
-  Search,
-  X,
-  Clapperboard,
-  Locate,
-} from "lucide-react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Ban, Info, List, MapPin, Navigation, Search, X, Clapperboard, Locate } from "lucide-react";
 import { renderToStaticMarkup } from "react-dom/server";
-import {
-  type IControl,
-  LngLatBounds,
-  Map as MapLibreMap,
-  Marker,
-  NavigationControl,
-  Popup,
-} from "maplibre-gl";
+import { type IControl, LngLatBounds, Map as MapLibreMap, Marker, NavigationControl, Popup } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { loadTheaters, type Theater } from "../data/theaters";
 import { type AppLocation } from "../prefs/locations";
@@ -595,14 +571,12 @@ function buildCityEntries(theaters: readonly Theater[]): CityEntry[] {
 
   return [...theatersByCity.entries()]
     .sort(([leftLocation], [rightLocation]) =>
-      leftLocation.localeCompare(rightLocation),
-    )
+      leftLocation.localeCompare(rightLocation))
     .map(([location, cityTheaters]) => {
       const points = cityTheaters.flatMap((theater) =>
         theater.lat !== null && theater.lng !== null
           ? ([[theater.lng, theater.lat]] as [number, number][])
-          : [],
-      );
+          : []);
 
       if (points.length === 0) {
         return null;
@@ -646,8 +620,7 @@ function resolveCityZoomLayer(
   const zoomLayers = [
     ...new Set(
       cityTheaters.flatMap((theater) =>
-        typeof theater.zoomLayer === "number" ? [theater.zoomLayer] : [],
-      ),
+        typeof theater.zoomLayer === "number" ? [theater.zoomLayer] : []),
     ),
   ].sort((left, right) => left - right);
 
@@ -671,8 +644,7 @@ function buildCityRevealConfig(
   const revealLayers = Array.from(
     new Set(
       entries.flatMap((entry) =>
-        typeof entry.zoomLayer === "number" ? [entry.zoomLayer] : [],
-      ),
+        typeof entry.zoomLayer === "number" ? [entry.zoomLayer] : []),
     ),
   ).sort((left, right) => left - right);
   const opacityLayers = revealLayers.filter((zoom) => zoom > 0);
@@ -758,11 +730,9 @@ function configureBaseLabels(map: MapLibreMap) {
 
     const layerId = layer.id.toLowerCase();
     const isRoadLabel = ROAD_LABEL_KEYWORDS.some((keyword) =>
-      layerId.includes(keyword),
-    );
+      layerId.includes(keyword));
     const shouldHide = NON_ROAD_LABEL_KEYWORDS.some((keyword) =>
-      layerId.includes(keyword),
-    );
+      layerId.includes(keyword));
 
     try {
       if (shouldHide && !isRoadLabel) {
@@ -1044,30 +1014,28 @@ export function CityLocationPicker({
         ? cityEntries.flatMap((entry) =>
             cityMatchesSearchQuery(normalizedQuery, entry.searchTerms)
               ? [entry.location]
-              : [],
-          )
+              : [])
         : [],
     [cityEntries, normalizedQuery],
   );
 
-  const fitStartingView = useCallback(
-    (options: { animate?: boolean; duration?: number } = {}) => {
-      const map = mapRef.current;
+  const fitStartingView = useCallback((
+    options: { animate?: boolean; duration?: number } = {},
+  ) => {
+    const map = mapRef.current;
 
-      if (!map) {
-        return;
-      }
+    if (!map) {
+      return;
+    }
 
-      map.fitBounds(CITY_START_BOUNDS, {
-        padding: getFitPadding(),
-        duration: options.animate === false ? 0 : (options.duration ?? 720),
-        easing: (progress) => 1 - (1 - progress) ** 3,
-        maxZoom: 6.9,
-        essential: true,
-      });
-    },
-    [],
-  );
+    map.fitBounds(CITY_START_BOUNDS, {
+      padding: getFitPadding(),
+      duration: options.animate === false ? 0 : (options.duration ?? 720),
+      easing: (progress) => 1 - (1 - progress) ** 3,
+      maxZoom: 6.9,
+      essential: true,
+    });
+  }, []);
 
   const fitLocations = useCallback(
     (
@@ -1549,8 +1517,7 @@ export function CityLocationPicker({
           collisionRect.bottom >= 0 &&
           collisionRect.top <= mapHeight;
         const collides = visibleRects.some((visibleRect) =>
-          rectanglesOverlap(collisionRect, visibleRect),
-        );
+          rectanglesOverlap(collisionRect, visibleRect));
         const withinBudget = visibleSecondaryCount < maxVisibleSecondaryCities;
         const visible = inViewport && withinBudget && !collides;
 

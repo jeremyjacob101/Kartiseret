@@ -1,18 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import {
-  DEFAULT_RATING_SOURCES,
-  normalizeRatingSources,
-  type RatingSource,
-} from "./ratingSources";
-import {
-  DEFAULT_LOCATION,
-  loadGuestLocation,
-  normalizeLocation,
-  saveGuestLocation,
-  type AppLocation,
-} from "./locations";
+import { DEFAULT_RATING_SOURCES, normalizeRatingSources, type RatingSource } from "./ratingSources";
+import { DEFAULT_LOCATION, loadGuestLocation, normalizeLocation, saveGuestLocation, type AppLocation } from "./locations";
 
 type UserPreferencesRow = {
   user_id: string;
@@ -100,11 +90,12 @@ export function useRatingSources(): RatingSourcesState {
 
     void initializeSession();
 
-    const { data: authSubscription } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null);
-      },
-    );
+    const { data: authSubscription } = supabase.auth.onAuthStateChange((
+      _event,
+      session,
+    ) => {
+      setUser(session?.user ?? null);
+    });
 
     return () => {
       isActive = false;

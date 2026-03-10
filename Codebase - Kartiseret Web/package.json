@@ -7,7 +7,33 @@
     "dev": "vite --config config/vite.config.ts",
     "build": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p config/tsconfig.node.json && vite build --config config/vite.config.ts",
     "lint": "eslint .",
+    "format": "prettier --ignore-path .gitignore --cache --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts}\"",
+    "format:check": "prettier --ignore-path .gitignore --check \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts}\"",
     "preview": "vite preview --config config/vite.config.ts"
+  },
+  "prettier": {
+    "plugins": [
+      "./config/prettier-plugin-single-line-imports.mjs"
+    ],
+    "singleLineImports": true,
+    "overrides": [
+      {
+        "files": [
+          "**/*.{js,jsx,cjs,mjs}"
+        ],
+        "options": {
+          "parser": "imports-babel"
+        }
+      },
+      {
+        "files": [
+          "**/*.{ts,tsx,cts,mts}"
+        ],
+        "options": {
+          "parser": "imports-typescript"
+        }
+      }
+    ]
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
@@ -26,6 +52,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "prettier": "^3.8.1",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.48.0",
     "vite": "^7.3.1"

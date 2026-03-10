@@ -135,8 +135,7 @@ export function MovieSearchMenu({
             } satisfies MovieSearchResult,
             score: getSearchScore(movie, normalizedQuery),
           }))
-          .filter((entry) => entry.score > 0),
-      )
+          .filter((entry) => entry.score > 0))
       .sort((left, right) => {
         if (right.score !== left.score) {
           return right.score - left.score;

@@ -1,31 +1,13 @@
-import {
-  StrictMode,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { StrictMode, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
 import { Clock8, Film, Settings } from "lucide-react";
-import {
-  MovieScroller,
-  type MovieScrollerJumpRequest,
-} from "./components/MovieScroller";
-import {
-  MovieSearchMenu,
-  type MovieSearchCollection,
-  type MovieSearchResult,
-} from "./components/MovieSearchMenu";
+import { MovieScroller, type MovieScrollerJumpRequest } from "./components/MovieScroller";
+import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "./components/MovieSearchMenu";
 import { TheaterMapDialog } from "./components/TheaterMapDialog";
 import { UserMenu } from "./components/UserMenu";
 import { UserPreferencesPage } from "./components/UserPreferencesPage";
 import { PosterGridPage } from "./components/PosterGridPage";
-import {
-  allNowPlayingMovies,
-  comingSoonMovies,
-  loadMovieCatalog,
-} from "./data/movieCatalog";
+import { allNowPlayingMovies, comingSoonMovies, loadMovieCatalog } from "./data/movieCatalog";
 import { preloadTheaters } from "./data/theaters";
 import { RatingSourcesProvider } from "./prefs/RatingSourcesContext";
 import { useRatingSourcesContext } from "./prefs/ratingSourcesStore";
