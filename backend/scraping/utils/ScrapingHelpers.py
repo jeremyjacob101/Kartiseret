@@ -97,3 +97,9 @@ class ScrapingHelpers:
 
     def printRow(self):
         print(f"{(self.english_title)!s:29.29} - {(self.hebrew_title)!s:20.20} - {self.screening_type!s:10.10} - {(self.screening_tech)!s:10.10} - {self.CINEMA_NAME!s:15.15} - {self.screening_city!s:15.15} - {self.date_of_showing!s:10.10} - {self.showtime!s:5.5}".rstrip())
+
+    def is_forbidden_page(self):
+        page_text = (self.driver.page_source or "").lower()
+        title = (self.driver.title or "").lower()
+
+        return "http error 403" in page_text or "access to hotcinema.co.il was denied" in page_text or "you don't have authorization to view this page" in page_text or "403 forbidden" in title or "access denied" in title

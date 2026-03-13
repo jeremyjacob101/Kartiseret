@@ -25,6 +25,8 @@ class HCsoon(BaseCinema):
                 self.english_hrefs.append(self.element(f"/html/body/div[2]/div[4]/div[2]/div/div/div[{film_block}]/div[{film_card}]/div[1]/a").get_attribute("href"))
         for href in self.english_hrefs:
             self.driver.get(href)
+            if self.is_forbidden_page():
+                continue
             self.sleep(0.25)
 
             self.english_title = self.element("/html/body/div[2]/div[4]/div[2]/div[1]/div[1]/div[2]/div[2]/div[1]/div[2]/h2").text.strip()
@@ -41,7 +43,7 @@ class HCsoon(BaseCinema):
             last_token = raw_text.split()[-1] if raw_text else ""
             self.release_year = int(last_token) if last_token.isdigit() and len(last_token) == 4 else None
 
-            self.ratings = self.element("/html/body/div[2]/div[4]/div[2]/div[1]/div[1]/div[2]/div[2]/div[2]/div[1]/div[3]/div[2]/div[2]/span").text.strip()
+            self.rating = self.element("/html/body/div[2]/div[4]/div[2]/div[1]/div[1]/div[2]/div[2]/div[2]/div[1]/div[3]/div[2]/div[2]/span").text.strip()
             self.runtime = self.tryExceptNone(lambda: int(re.sub(r"\D", "", self.element("/html/body/div[2]/div[4]/div[2]/div[1]/div[1]/div[2]/div[2]/div[2]/div[1]/div[3]/div[1]/div[2]/span").text.strip())))
 
             release_date = self.element("/html/body/div[2]/div[4]/div[2]/div[1]/div[1]/div[2]/div[2]/div[2]/div[1]/div[3]/div[2]/div[1]/span").text.split(":")[1].strip().replace(".", "/")

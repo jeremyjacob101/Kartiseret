@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: HCsoon
+URL: https://hotcinema.co.il/movie/3635/%D7%9C%D7%99%D7%9C%D7%9A-%D7%91%D7%A8%D7%A0%D7%93%D7%94-%D7%A2%D7%95%D7%A3-%D7%94%D7%97%D7%95%D7%9C-%E2%80%93-40%-%D7%A9%D7%9C-%D7%91%D7%97%D7%99%D7%A8%D7%94-%D7%A9%D7%9E%D7%A9%D7%A0%D7%99%D7%9D-%D7%97%D7%99%D7%99%D7%9D
+Exception: TimeoutException - Message: 
+Call Chain: runners.py:40 > runners.py:18 > BaseCinema.py:28 > HCsoon.py:30 > ScrapingHelpers.py:19
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/248/HCsoon-ThreadPoolExecutor-0_3-20260313-104558.png
+CSV: backend/utils/log/logger_artifacts/248/HCsoon-ThreadPoolExecutor-0_3-20260313-104558-gathering_info.csv

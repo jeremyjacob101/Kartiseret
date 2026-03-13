@@ -15,6 +15,8 @@ def setUpSupabase(self):
 
 def navigate(self):
     self.driver.get(self.URL)
+    if self.is_forbidden_page():
+        return
 
 
 def build_chrome(headless: bool = True):
