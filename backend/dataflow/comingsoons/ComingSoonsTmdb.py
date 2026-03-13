@@ -11,8 +11,8 @@ class ComingSoonsTmdb(BaseDataflow):
     HELPER_TABLE_NAME_2 = "tableSkips"
 
     def logic(self):
-        self.dedupeTable(self.MAIN_TABLE_NAME)
-        self.dedupeTable(self.MOVING_TO_TABLE_NAME)
+        self.dedupeAllSoons(self.MAIN_TABLE_NAME)
+        self.dedupeFinalSoons(self.MOVING_TO_TABLE_NAME)
 
         for skip_row in self.helper_table_2_rows:
             skip_value = skip_row.get("name_or_tmdb_id").strip()
@@ -182,4 +182,4 @@ class ComingSoonsTmdb(BaseDataflow):
             for i in range(0, len(ids), 200):
                 chunk = ids[i : i + 200]
                 self.supabase.table(self.MAIN_TABLE_NAME).update({"added": True}).in_("id", chunk).execute()
-        self.dedupeTable(self.MOVING_TO_TABLE_NAME, ignore_cols={"en_poster", "en_trailer", "backdrop", "release_date", "hebrew_title", "genres"}, sort_key=self.comingSoonsFinalDedupeSortKey2)
+        self.dedupeFinalSoons(self.MOVING_TO_TABLE_NAME)

@@ -12,9 +12,8 @@ class NowPlayingsTmdb(BaseDataflow):
     HELPER_TABLE_NAME_2 = "tableSkips"
 
     def logic(self):
-        self.dedupeTable(self.MAIN_TABLE_NAME)
-        self.dedupeTable(self.MOVING_TO_TABLE_NAME)
-        self.dedupeTable(self.MOVING_TO_TABLE_NAME_2)
+        self.dedupeFinalShowtimes(self.MOVING_TO_TABLE_NAME)
+        self.dedupeFinalMovies(self.MOVING_TO_TABLE_NAME_2)
 
         for skip_row in self.helper_table_2_rows:
             skip_value = skip_row.get("name_or_tmdb_id").strip()
@@ -216,7 +215,7 @@ class NowPlayingsTmdb(BaseDataflow):
             for i in range(0, len(ids), 200):
                 chunk = ids[i : i + 200]
                 self.supabase.table(self.MAIN_TABLE_NAME).update({"added": True}).in_("id", chunk).execute()
-        self.dedupeTable(self.MOVING_TO_TABLE_NAME, ignore_cols={"id", "created_at", "run_id", "release_year", "hebrew_title", "hebrew_href", "english_href", "rating", "directed_by", "runtime"}, sort_key=self.newestCreatedAtSortKey, sort_reverse=True)
+        self.dedupeFinalShowtimes(self.MOVING_TO_TABLE_NAME)
 
         for tmdb_id, res in tmdb_id_to_enriched.items():
             if not tmdb_id:
@@ -225,4 +224,4 @@ class NowPlayingsTmdb(BaseDataflow):
             self.updates.append({"tmdb_id": tmdb_id, "english_title": res.get("english_title"), "runtime": res.get("runtime"), "popularity": res.get("popularity"), "imdb_id": imdb_id, "genres": res.get("genres"), "en_poster": res.get("en_poster"), "en_trailer": res.get("en_trailer"), "backdrop": res.get("backdrop"), "release_year": res.get("release_year")})
 
         self.upsertUpdates(self.MOVING_TO_TABLE_NAME_2)
-        self.dedupeTable(self.MOVING_TO_TABLE_NAME_2, ignore_cols={"english_title", "runtime", "popularity", "genres", "en_poster", "en_trailer", "backdrop", "imdb_id", "imdbRating", "imdbVotes", "rt_id", "rtAudienceRating", "rtAudienceVotes", "rtCriticRating", "rtCriticVotes", "lb_id", "lbRating", "lbVotes", "tmdbRating", "tmdbVotes", "release_year"}, sort_key=self.newestCreatedAtSortKey, sort_reverse=True)
+        self.dedupeFinalMovies(self.MOVING_TO_TABLE_NAME_2)

@@ -8,7 +8,7 @@ class NowPlayingsUpdate(BaseDataflow):
     HEADLESS = False
 
     def logic(self):
-        self.dedupeTable(self.MAIN_TABLE_NAME)
+        self.dedupeFinalMovies(self.MAIN_TABLE_NAME)
 
         for row in self.main_table_rows:
             self.reset_np_main_row_state()
@@ -135,4 +135,4 @@ class NowPlayingsUpdate(BaseDataflow):
 
         if self.updates:
             self.upsertUpdates(self.MAIN_TABLE_NAME)
-            self.dedupeTable(self.MAIN_TABLE_NAME, sort_key=self.newestCreatedAtSortKey, sort_reverse=True)
+            self.dedupeFinalMovies(self.MAIN_TABLE_NAME)

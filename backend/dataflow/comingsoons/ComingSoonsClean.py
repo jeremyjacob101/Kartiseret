@@ -6,7 +6,7 @@ class ComingSoonsClean(BaseDataflow):
     MAIN_TABLE_NAME = "allSoons"
 
     def logic(self):
-        self.dedupeTable(self.MAIN_TABLE_NAME)
+        self.dedupeAllSoons(self.MAIN_TABLE_NAME)
 
         for row in self.main_table_rows:
             if row.get("cleaned") is True:
@@ -21,7 +21,7 @@ class ComingSoonsClean(BaseDataflow):
 
         self.upsertUpdates(self.MAIN_TABLE_NAME, refresh=False)
         self.deleteTheseRows(self.MAIN_TABLE_NAME, refresh=False)
-        self.dedupeTable(self.MAIN_TABLE_NAME)
+        self.dedupeAllSoons(self.MAIN_TABLE_NAME)
 
         groups, fuzzy_cache = defaultdict(list), {}
         for row in self.main_table_rows:
@@ -40,4 +40,4 @@ class ComingSoonsClean(BaseDataflow):
                     self.delete_these.append(r[self.PRIMARY_KEY])
 
         self.deleteTheseRows(self.MAIN_TABLE_NAME, refresh=False)
-        self.dedupeTable(self.MAIN_TABLE_NAME, refresh=False)
+        self.dedupeAllSoons(self.MAIN_TABLE_NAME, refresh=False)
