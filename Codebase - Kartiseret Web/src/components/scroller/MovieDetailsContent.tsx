@@ -709,17 +709,12 @@ export function MovieDetailsContent({
           </h2>
           {metaParts.length > 0 ? (
             <div className="details-subtitle details-subtitle--meta-row">
-              {metaParts.map((part, index) => (
-                <span key={`${movie.tmdbId}-meta-${part}`}>
-                  {index > 0 ? (
-                    <span
-                      className="details-subtitle-divider"
-                      aria-hidden="true"
-                    >
-                      •
-                    </span>
-                  ) : null}
-                  <span>{part}</span>
+              {metaParts.map((part) => (
+                <span
+                  key={`${movie.tmdbId}-meta-${part}`}
+                  className="details-subtitle-item"
+                >
+                  {part}
                 </span>
               ))}
             </div>

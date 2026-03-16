@@ -386,9 +386,10 @@
   gap: 8px;
 }
 
-.details-subtitle-divider {
+.details-subtitle-item+.details-subtitle-item::before {
+  content: "•";
   display: inline-block;
-  margin-right: 2px;
+  margin-inline-end: 8px;
   color: rgba(233, 226, 245, 0.58);
 }
 
@@ -777,14 +778,14 @@
 
 .movie-scroller-detail-card .details-hero {
   display: grid;
-  grid-template-columns: minmax(190px, 226px) minmax(0, 1fr);
+  grid-template-columns: minmax(180px, 216px) minmax(0, 1fr);
   align-items: end;
   gap: 22px;
   margin-bottom: 22px;
 }
 
 .movie-scroller-detail-card .details-poster-shell {
-  width: min(100%, 226px);
+  width: min(100%, 216px);
   filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.34));
 }
 
@@ -809,7 +810,6 @@
 }
 
 .movie-scroller-detail-card .details-copy {
-  max-width: 54ch;
   color: #f6f0ff;
 }
 
