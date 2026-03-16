@@ -23,8 +23,6 @@ const MOVIE_SELECT_COLUMNS = [
   "rtAudienceRating",
   "runtime",
   "popularity",
-] as const;
-const OPTIONAL_MOVIE_SELECT_COLUMNS = [
   "imdb_id",
   "rt_id",
   "rtCriticVotes",
@@ -44,8 +42,8 @@ const COMING_SOON_SELECT_COLUMNS = [
   "en_poster",
   "backdrop",
   "en_trailer",
+  "runtime",
 ] as const;
-const OPTIONAL_COMING_SOON_SELECT_COLUMNS = ["runtime"] as const;
 const SHOWTIME_SELECT_COLUMNS = [
   "tmdb_id",
   "screening_city",
@@ -520,67 +518,16 @@ async function fetchAllTableRows(
   }
 }
 
-function isMissingOptionalColumnError(
-  error: unknown,
-  optionalColumns: readonly string[],
-): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  const message = error.message.toLowerCase();
-
-  return optionalColumns.some(
-    (column) =>
-      message.includes(column.toLowerCase()) &&
-      (message.includes("column") || message.includes("schema cache")),
-  );
-}
-
 async function fetchMovieRows(): Promise<SupabaseRow[]> {
-  const selectColumns = [
-    ...MOVIE_SELECT_COLUMNS,
-    ...OPTIONAL_MOVIE_SELECT_COLUMNS,
-  ];
-
-  try {
-    return await fetchAllTableRows(MOVIES_TABLE_NAME, selectColumns, [
-      "tmdb_id",
-    ]);
-  } catch (error) {
-    if (!isMissingOptionalColumnError(error, OPTIONAL_MOVIE_SELECT_COLUMNS)) {
-      throw error;
-    }
-
-    return fetchAllTableRows(MOVIES_TABLE_NAME, MOVIE_SELECT_COLUMNS, [
-      "tmdb_id",
-    ]);
-  }
+  return fetchAllTableRows(MOVIES_TABLE_NAME, MOVIE_SELECT_COLUMNS, [
+    "tmdb_id",
+  ]);
 }
 
 async function fetchComingSoonMovieRows(): Promise<SupabaseRow[]> {
-  const selectColumns = [
-    ...COMING_SOON_SELECT_COLUMNS,
-    ...OPTIONAL_COMING_SOON_SELECT_COLUMNS,
-  ];
-
-  try {
-    return await fetchAllTableRows(COMING_SOON_TABLE_NAME, selectColumns, [
-      "tmdb_id",
-    ]);
-  } catch (error) {
-    if (
-      !isMissingOptionalColumnError(error, OPTIONAL_COMING_SOON_SELECT_COLUMNS)
-    ) {
-      throw error;
-    }
-
-    return fetchAllTableRows(
-      COMING_SOON_TABLE_NAME,
-      COMING_SOON_SELECT_COLUMNS,
-      ["tmdb_id"],
-    );
-  }
+  return fetchAllTableRows(COMING_SOON_TABLE_NAME, COMING_SOON_SELECT_COLUMNS, [
+    "tmdb_id",
+  ]);
 }
 
 export async function loadMovieCatalog(): Promise<void> {

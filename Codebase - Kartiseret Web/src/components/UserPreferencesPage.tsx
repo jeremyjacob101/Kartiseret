@@ -115,11 +115,6 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
         </button>
       </div>
 
-      <p className="prefs-page-email">{user?.email}</p>
-      <p className="prefs-page-note">
-        Manage your saved city, rating sources, and site theme below.
-      </p>
-
       <div className="prefs-page-card" aria-busy={syncing}>
         <section className="prefs-location-card">
           <div className="prefs-location-header">

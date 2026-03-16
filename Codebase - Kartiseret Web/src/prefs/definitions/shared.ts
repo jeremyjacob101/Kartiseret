@@ -1,9 +1,3 @@
-import type { User } from "@supabase/supabase-js";
-
-export type PreferenceInitializationContext = {
-  user: User | null;
-};
-
 export type GuestPreferencePersistence<Value> = {
   load: () => Value | null;
   save?: (value: Value) => void;
@@ -33,5 +27,4 @@ export type UserPreferenceDefinition<
   normalize: (value: unknown) => Value;
   guestPersistence?: GuestPreferencePersistence<Value>;
   clientCache?: PreferenceClientCache<Value>;
-  getInitialValue?: (context: PreferenceInitializationContext) => Value;
 };
