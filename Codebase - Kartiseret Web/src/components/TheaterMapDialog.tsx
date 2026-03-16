@@ -312,7 +312,7 @@ export function TheaterMapDialog() {
           setIsOpen(true);
         }}
       >
-        <MapPin size={20} strokeWidth={2.75} color="#a66ae3" />
+        <MapPin size={20} strokeWidth={2.75} className="app-accent-icon" />
       </button>
       {dialog ? createPortal(dialog, document.body) : null}
     </div>

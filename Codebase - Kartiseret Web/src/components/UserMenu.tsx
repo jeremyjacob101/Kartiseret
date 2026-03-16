@@ -144,7 +144,7 @@ export function UserMenu({ currentPath, onNavigate }: UserMenuProps) {
           setIsOpen((open) => !open);
         }}
       >
-        <User size={20} strokeWidth={2.75} color="#a66ae3" />
+        <User size={20} strokeWidth={2.75} className="app-accent-icon" />
       </button>
 
       {isOpen ? (
@@ -265,7 +265,11 @@ export function UserMenu({ currentPath, onNavigate }: UserMenuProps) {
                 }}
                 disabled={logoutPending}
               >
-                <LogOut size={20} strokeWidth={2.75} color="#a66ae3" />
+                <LogOut
+                  size={20}
+                  strokeWidth={2.75}
+                  className="app-accent-icon"
+                />
                 {logoutPending ? "Signing out..." : "Sign out"}
               </button>
             </div>

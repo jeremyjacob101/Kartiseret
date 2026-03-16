@@ -38,9 +38,6 @@ export const LOCATION_PREFERENCE_KEY = "location";
 export const LOCATION_SIGNUP_METADATA_KEY = "signup_location";
 export const LOCATION_PREFERENCE_COLUMN = {
   name: "location",
-  optional: true,
-  missingColumnMessage:
-    "Add a `location` column to public.user_preferences to persist locations.",
 } as const;
 
 const GUEST_LOCATION_KEY = "guest_location_v1";

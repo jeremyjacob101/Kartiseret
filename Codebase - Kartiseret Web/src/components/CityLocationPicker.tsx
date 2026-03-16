@@ -992,6 +992,13 @@ export function CityLocationPicker({
     }
   }, []);
 
+  const clearSearchQuery = useCallback(() => {
+    clearPendingSearchZoomOut();
+    searchQueryRef.current = "";
+    setQuery("");
+    searchInputRef.current?.focus({ preventScroll: true });
+  }, [clearPendingSearchZoomOut]);
+
   const cityEntries = useMemo(() => buildCityEntries(theaters), [theaters]);
   const cityRevealConfig = useMemo(
     () => buildCityRevealConfig(cityEntries),
@@ -1933,6 +1940,21 @@ export function CityLocationPicker({
                 }}
                 placeholder="Search"
               />
+              {query ? (
+                <button
+                  type="button"
+                  className="theater-map-search-clear"
+                  aria-label="Clear city search"
+                  onClick={() => {
+                    clearSearchQuery();
+                  }}
+                >
+                  <span
+                    className="theater-map-search-clear-icon"
+                    aria-hidden="true"
+                  />
+                </button>
+              ) : null}
             </div>
           </label>
         </div>

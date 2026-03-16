@@ -10,18 +10,9 @@ export type GuestPreferencePersistence<Value> = {
   unsupportedMessage?: string;
 };
 
-export type OptionalPreferenceColumn = {
+export type PreferenceColumn = {
   name: string;
-  optional: true;
-  missingColumnMessage: string;
 };
-
-export type RequiredPreferenceColumn = {
-  name: string;
-  optional?: false;
-};
-
-export type PreferenceColumn = OptionalPreferenceColumn | RequiredPreferenceColumn;
 
 export type UserPreferenceDefinition<
   Key extends string,

@@ -4,6 +4,7 @@ import { CityLocationPicker } from "./CityLocationPicker";
 import { useUserPreferencesContext } from "../prefs/useUserPreferences";
 import { type RatingSource } from "../prefs/definitions/ratingSources";
 import { type AppLocation } from "../prefs/definitions/locations";
+import { type SiteColor } from "../prefs/definitions/siteColor";
 
 const sourceLabelMap: Record<RatingSource, string> = {
   imdbRating: "IMDb",
@@ -53,16 +54,23 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
     sources,
     location,
     allSources,
+    siteColor,
+    defaultSiteColor,
     syncing,
     error,
     saveSources,
     setLocationPreference,
+    saveSiteColor,
+    resetSiteColor,
   } = useUserPreferencesContext();
   const [draftSources, setDraftSources] = useState<RatingSource[]>(sources);
   const [isSourcesOpen, setIsSourcesOpen] = useState(true);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [locationStatusMessage, setLocationStatusMessage] = useState<
+    string | null
+  >(null);
+  const [siteColorStatusMessage, setSiteColorStatusMessage] = useState<
     string | null
   >(null);
 
@@ -119,12 +127,41 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
     [setLocationPreference],
   );
 
+  const handleSiteColorChange = useCallback(
+    async (nextSiteColor: SiteColor) => {
+      setSiteColorStatusMessage(null);
+      const didSave = await saveSiteColor(nextSiteColor);
+
+      if (!didSave) {
+        return;
+      }
+
+      setSiteColorStatusMessage(
+        `Site color updated to ${nextSiteColor.toUpperCase()}.`,
+      );
+    },
+    [saveSiteColor],
+  );
+
+  const handleSiteColorReset = useCallback(async () => {
+    setSiteColorStatusMessage(null);
+    const didReset = await resetSiteColor();
+
+    if (!didReset) {
+      return;
+    }
+
+    setSiteColorStatusMessage(
+      `Site color reset to ${defaultSiteColor.toUpperCase()}.`,
+    );
+  }, [defaultSiteColor, resetSiteColor]);
+
   return (
     <section className="prefs-page" aria-label="User preferences">
       <div className="prefs-page-header">
         <div>
           <p className="section-kicker">User</p>
-          <h1 className="section-title">Rating Source Preferences</h1>
+          <h1 className="section-title">User Preferences</h1>
         </div>
         <button type="button" className="prefs-page-back" onClick={onBackHome}>
           Back to Home
@@ -133,7 +170,7 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
 
       <p className="prefs-page-email">{user?.email}</p>
       <p className="prefs-page-note">
-        Manage your saved city directly from the map and search panel below.
+        Manage your saved city, rating sources, and site theme below.
       </p>
 
       <div className="prefs-page-card">
@@ -158,6 +195,60 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
         </section>
 
         <div className="prefs-page-settings">
+          <section className="prefs-setting prefs-setting--static">
+            <div className="prefs-setting-content prefs-setting-content--static">
+              <div className="prefs-color-setting">
+                <div className="prefs-color-copy">
+                  <span className="prefs-setting-label">Site Color</span>
+                  <span className="prefs-setting-summary">
+                    {siteColor.toUpperCase()}
+                  </span>
+                  <p className="prefs-color-note">
+                    Pick the main accent color for the app. Changes apply
+                    immediately and are saved to your account.
+                  </p>
+                </div>
+
+                <div className="prefs-color-controls">
+                  <div
+                    className="prefs-color-preview"
+                    style={{ backgroundColor: siteColor }}
+                    aria-hidden="true"
+                  />
+
+                  <label className="prefs-color-picker">
+                    <span className="visually-hidden">Choose site color</span>
+                    <input
+                      type="color"
+                      value={siteColor}
+                      disabled={syncing || !user}
+                      onChange={(event) => {
+                        void handleSiteColorChange(event.target.value);
+                      }}
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    className="prefs-color-reset"
+                    disabled={
+                      syncing || !user || siteColor === defaultSiteColor
+                    }
+                    onClick={() => {
+                      void handleSiteColorReset();
+                    }}
+                  >
+                    Reset to Default
+                  </button>
+                </div>
+              </div>
+
+              <p className="prefs-color-meta">
+                Stored as a hex value like <code>#a66ae3</code>.
+              </p>
+            </div>
+          </section>
+
           <section className="prefs-setting">
             <button
               type="button"
@@ -227,6 +318,9 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
 
       {statusMessage ? (
         <p className="prefs-page-feedback">{statusMessage}</p>
+      ) : null}
+      {siteColorStatusMessage ? (
+        <p className="prefs-page-feedback">{siteColorStatusMessage}</p>
       ) : null}
       {statusError ? (
         <p className="prefs-page-feedback prefs-page-feedback--error">

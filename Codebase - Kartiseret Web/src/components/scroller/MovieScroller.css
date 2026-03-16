@@ -576,7 +576,7 @@
   border-radius: 22px;
   overflow: hidden;
   background:
-    radial-gradient(circle at top, rgba(166, 106, 227, 0.22), transparent 54%),
+    radial-gradient(circle at top, rgba(var(--main-app-color-rgb), 0.22), transparent 54%),
     #050507;
   box-shadow:
     0 22px 48px rgba(0, 0, 0, 0.28),
@@ -607,7 +607,7 @@
   border: 1px solid rgba(217, 191, 255, 0.18);
   border-radius: 28px;
   background:
-    radial-gradient(circle at top, rgba(166, 106, 227, 0.2), transparent 54%),
+    radial-gradient(circle at top, rgba(var(--main-app-color-rgb), 0.2), transparent 54%),
     rgba(7, 7, 11, 0.96);
   box-shadow:
     0 34px 80px rgba(0, 0, 0, 0.46),

@@ -173,7 +173,7 @@ export function MovieSearchMenu({
           setIsOpen((open) => !open);
         }}
       >
-        <Search size={20} strokeWidth={2.75} color="#a66ae3" />
+        <Search size={20} strokeWidth={2.75} className="app-accent-icon" />
       </button>
 
       {isOpen ? (

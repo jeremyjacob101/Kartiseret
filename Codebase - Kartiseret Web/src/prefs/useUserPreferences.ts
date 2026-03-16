@@ -9,6 +9,12 @@ import {
   ratingSourcesPreferenceDefinition,
   type RatingSource,
 } from "./definitions/ratingSources";
+import {
+  DEFAULT_SITE_COLOR,
+  applySiteColor,
+  siteColorPreferenceDefinition,
+  type SiteColor,
+} from "./definitions/siteColor";
 import type { UserPreferenceDefinition } from "./definitions/shared";
 
 const PREFERENCES_TABLE = "user_preferences";
@@ -17,6 +23,7 @@ const supabase = getSupabaseBrowserClient();
 const preferenceDefinitions = {
   ratingSources: ratingSourcesPreferenceDefinition,
   location: locationPreferenceDefinition,
+  siteColor: siteColorPreferenceDefinition,
 } as const;
 
 type PreferenceDefinitions = typeof preferenceDefinitions;
@@ -40,7 +47,6 @@ type UserPreferenceOptions = {
     | readonly PreferenceOption<PreferenceDefinitions[Key]>[]
     | undefined;
 };
-type PreferenceColumnAvailability = Partial<Record<PreferenceKey, boolean>>;
 type SavePreference = <Key extends PreferenceKey>(
   key: Key,
   value: UserPreferences[Key],
@@ -57,12 +63,16 @@ export type UserPreferencesState = {
   allSources: readonly RatingSource[];
   location: AppLocation;
   allLocations: readonly AppLocation[];
+  siteColor: SiteColor;
+  defaultSiteColor: SiteColor;
   loading: boolean;
   syncing: boolean;
   error: string | null;
   savePreference: SavePreference;
   saveSources: (sources: readonly RatingSource[]) => Promise<boolean>;
   saveLocation: (location: AppLocation) => Promise<boolean>;
+  saveSiteColor: (siteColor: SiteColor) => Promise<boolean>;
+  resetSiteColor: () => Promise<boolean>;
   setLocationPreference: (location: AppLocation) => Promise<boolean>;
 };
 
@@ -83,12 +93,16 @@ const fallbackValue: UserPreferencesContextValue = {
   allSources: preferenceOptions.ratingSources ?? [],
   location: defaultPreferences.location,
   allLocations: preferenceOptions.location ?? [],
+  siteColor: defaultPreferences.siteColor,
+  defaultSiteColor: DEFAULT_SITE_COLOR,
   loading: false,
   syncing: false,
   error: null,
   savePreference: fallbackSavePreference,
   saveSources: async () => false,
   saveLocation: async () => false,
+  saveSiteColor: async () => false,
+  resetSiteColor: async () => false,
   setLocationPreference: async () => false,
 };
 
@@ -168,147 +182,56 @@ function updatePreferenceValue<Key extends PreferenceKey>(
   };
 }
 
-function isMissingColumnError(error: unknown, column: string): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  const message = error.message.toLowerCase();
-  const target = column.toLowerCase();
-
-  return (
-    message.includes(target) &&
-    (message.includes("column") || message.includes("schema cache"))
-  );
-}
-
-function getPersistedPreferenceKeys(
-  columnAvailability: PreferenceColumnAvailability,
-): PreferenceKey[] {
-  return preferenceKeys.filter((key) => {
-    const column = preferenceDefinitions[key].column;
-
-    return !column.optional || columnAvailability[key] !== false;
-  });
-}
-
-function findMissingOptionalPreferenceKey(
-  error: unknown,
-  selectedKeys: readonly PreferenceKey[],
-): PreferenceKey | null {
-  for (const key of selectedKeys) {
-    const column = preferenceDefinitions[key].column;
-
-    if (column.optional && isMissingColumnError(error, column.name)) {
-      return key;
-    }
-  }
-
-  return null;
-}
-
 async function loadPreferencesRow(
   userId: string,
-  columnAvailability: PreferenceColumnAvailability,
 ) {
-  while (true) {
-    const selectedKeys = getPersistedPreferenceKeys(columnAvailability);
-    const selectClause = ["user_id"]
-      .concat(selectedKeys.map((key) => preferenceDefinitions[key].column.name))
-      .join(", ");
+  const selectClause = ["user_id"]
+    .concat(preferenceKeys.map((key) => preferenceDefinitions[key].column.name))
+    .join(", ");
 
-    const { data, error } = await supabase
-      .from(PREFERENCES_TABLE)
-      .select(selectClause)
-      .eq("user_id", userId)
-      .maybeSingle();
+  const { data, error } = await supabase
+    .from(PREFERENCES_TABLE)
+    .select(selectClause)
+    .eq("user_id", userId)
+    .maybeSingle();
 
-    if (!error) {
-      for (const key of selectedKeys) {
-        if (preferenceDefinitions[key].column.optional) {
-          columnAvailability[key] = true;
-        }
-      }
-
-      return {
-        error: null,
-        row: (data as UserPreferencesRow | null) ?? null,
-      };
-    }
-
-    const missingKey = findMissingOptionalPreferenceKey(error, selectedKeys);
-
-    if (!missingKey) {
-      return { error, row: null };
-    }
-
-    columnAvailability[missingKey] = false;
-  }
+  return {
+    error,
+    row: (data as UserPreferencesRow | null) ?? null,
+  };
 }
 
 function buildCreatePayload(
   userId: string,
   user: User | null,
-  columnAvailability: PreferenceColumnAvailability,
 ) {
-  const selectedKeys = getPersistedPreferenceKeys(columnAvailability);
   const values = {} as UserPreferences;
   const payload: UserPreferencesRow = { user_id: userId };
 
   for (const key of preferenceKeys) {
     const definition = preferenceDefinitions[key];
-    const canPersist = selectedKeys.includes(key);
-    const initialValue = canPersist
-      ? normalizePreferenceValue(
-          key,
-          definition.getInitialValue?.({ user }) ?? definition.defaultValue,
-        )
-      : getDefaultPreferenceValue(key);
+    const initialValue = normalizePreferenceValue(
+      key,
+      definition.getInitialValue?.({ user }) ?? definition.defaultValue,
+    );
 
     values[key] = copyPreferenceValue(key, initialValue) as never;
-
-    if (canPersist) {
-      payload[definition.column.name] = copyPreferenceValue(key, initialValue);
-    }
+    payload[definition.column.name] = copyPreferenceValue(key, initialValue);
   }
 
-  return { payload, selectedKeys, values };
+  return { payload, values };
 }
 
 async function createPreferencesRow(
   userId: string,
   user: User | null,
-  columnAvailability: PreferenceColumnAvailability,
 ) {
-  while (true) {
-    const { payload, selectedKeys, values } = buildCreatePayload(
-      userId,
-      user,
-      columnAvailability,
-    );
+  const { payload, values } = buildCreatePayload(userId, user);
+  const { error } = await supabase
+    .from(PREFERENCES_TABLE)
+    .upsert(payload, { onConflict: "user_id" });
 
-    const { error } = await supabase
-      .from(PREFERENCES_TABLE)
-      .upsert(payload, { onConflict: "user_id" });
-
-    if (!error) {
-      for (const key of selectedKeys) {
-        if (preferenceDefinitions[key].column.optional) {
-          columnAvailability[key] = true;
-        }
-      }
-
-      return { error: null, values };
-    }
-
-    const missingKey = findMissingOptionalPreferenceKey(error, selectedKeys);
-
-    if (!missingKey) {
-      return { error, values: null };
-    }
-
-    columnAvailability[missingKey] = false;
-  }
+  return { error, values: error ? null : values };
 }
 
 function getGuestPreferences(): UserPreferences {
@@ -325,15 +248,10 @@ function getGuestPreferences(): UserPreferences {
 
 function normalizePreferencesRow(
   row: UserPreferencesRow,
-  columnAvailability: PreferenceColumnAvailability,
 ): UserPreferences {
-  return createPreferenceValues((key, definition) => {
-    if (definition.column.optional && columnAvailability[key] === false) {
-      return getDefaultPreferenceValue(key);
-    }
-
-    return normalizePreferenceValue(key, row[definition.column.name]);
-  });
+  return createPreferenceValues((key, definition) =>
+    normalizePreferenceValue(key, row[definition.column.name]),
+  );
 }
 
 export function useUserPreferences(): UserPreferencesState {
@@ -347,11 +265,14 @@ export function useUserPreferences(): UserPreferencesState {
   const [sessionResolved, setSessionResolved] = useState(false);
   const userId = user?.id ?? null;
   const preferencesRef = useRef<UserPreferences>(preferences);
-  const columnAvailabilityRef = useRef<PreferenceColumnAvailability>({});
 
   useEffect(() => {
     preferencesRef.current = preferences;
   }, [preferences]);
+
+  useEffect(() => {
+    applySiteColor(preferences.siteColor);
+  }, [preferences.siteColor]);
 
   useEffect(() => {
     let isActive = true;
@@ -406,10 +327,7 @@ export function useUserPreferences(): UserPreferencesState {
 
       setSyncing(true);
 
-      const { row, error: loadError } = await loadPreferencesRow(
-        userId,
-        columnAvailabilityRef.current,
-      );
+      const { row, error: loadError } = await loadPreferencesRow(userId);
 
       if (cancelled) {
         return;
@@ -426,7 +344,6 @@ export function useUserPreferences(): UserPreferencesState {
         const { values, error: createError } = await createPreferencesRow(
           userId,
           user,
-          columnAvailabilityRef.current,
         );
 
         if (cancelled) {
@@ -446,9 +363,7 @@ export function useUserPreferences(): UserPreferencesState {
         return;
       }
 
-      setPreferences(
-        normalizePreferencesRow(row, columnAvailabilityRef.current),
-      );
+      setPreferences(normalizePreferencesRow(row));
       setSyncing(false);
       setLoading(false);
     }
@@ -472,19 +387,22 @@ export function useUserPreferences(): UserPreferencesState {
           | ((value: UserPreferences[typeof key]) => void)
           | undefined;
 
+        if (!saveGuestPreference) {
+          if (guestPersistence?.unsupportedMessage) {
+            setError(guestPersistence.unsupportedMessage);
+          }
+
+          return false;
+        }
+
         if (guestPersistence?.unsupportedMessage) {
           setError(guestPersistence.unsupportedMessage);
           return false;
         }
 
-        saveGuestPreference?.(copyPreferenceValue(key, normalized));
+        saveGuestPreference(copyPreferenceValue(key, normalized));
         setPreferences((current) => updatePreferenceValue(current, key, normalized));
         return true;
-      }
-
-      if (definition.column.optional && columnAvailabilityRef.current[key] === false) {
-        setError(definition.column.missingColumnMessage);
-        return false;
       }
 
       const previous = preferencesRef.current[key];
@@ -504,22 +422,10 @@ export function useUserPreferences(): UserPreferencesState {
       setSyncing(false);
 
       if (upsertError) {
-        if (
-          definition.column.optional &&
-          isMissingColumnError(upsertError, definition.column.name)
-        ) {
-          columnAvailabilityRef.current[key] = false;
-          setError(definition.column.missingColumnMessage);
-        } else {
-          setError(upsertError.message);
-        }
+        setError(upsertError.message);
 
         setPreferences((current) => updatePreferenceValue(current, key, previous));
         return false;
-      }
-
-      if (definition.column.optional) {
-        columnAvailabilityRef.current[key] = true;
       }
 
       return true;
@@ -538,6 +444,16 @@ export function useUserPreferences(): UserPreferencesState {
     [savePreference],
   );
 
+  const saveSiteColor = useCallback(
+    async (siteColor: SiteColor) => savePreference("siteColor", siteColor),
+    [savePreference],
+  );
+
+  const resetSiteColor = useCallback(
+    async () => savePreference("siteColor", DEFAULT_SITE_COLOR),
+    [savePreference],
+  );
+
   return {
     user,
     preferences,
@@ -546,12 +462,16 @@ export function useUserPreferences(): UserPreferencesState {
     allSources: preferenceOptions.ratingSources ?? [],
     location: preferences.location,
     allLocations: preferenceOptions.location ?? [],
+    siteColor: preferences.siteColor,
+    defaultSiteColor: DEFAULT_SITE_COLOR,
     loading,
     syncing,
     error,
     savePreference,
     saveSources,
     saveLocation,
+    saveSiteColor,
+    resetSiteColor,
     setLocationPreference: saveLocation,
   };
 }

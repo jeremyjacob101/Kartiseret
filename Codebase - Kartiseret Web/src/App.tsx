@@ -137,7 +137,11 @@ function TopbarActions({
           aria-label="Settings"
           onClick={onSettingsClick}
         >
-          <Settings size={20} strokeWidth={2.75} color="#a66ae3" />
+          <Settings
+            size={20}
+            strokeWidth={2.75}
+            className="app-accent-icon"
+          />
         </button>
       </div>
     </div>
