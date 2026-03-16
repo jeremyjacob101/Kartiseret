@@ -268,7 +268,7 @@ export function UserMenu({ currentPath, onNavigate }: UserMenuProps) {
                 <LogOut
                   size={20}
                   strokeWidth={2.75}
-                  className="app-accent-icon"
+                  className="user-menu-signout-icon"
                 />
                 {logoutPending ? "Signing out..." : "Sign out"}
               </button>

@@ -1898,14 +1898,24 @@ span.topnav-icon {
   justify-content: center;
   gap: 8px;
   width: 100%;
-  border: 1px solid var(--main-app-color);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 36%, transparent);
   border-radius: 10px;
-  background: var(--main-app-color);
-  color: #fff;
+  background: rgba(255, 255, 255, 0.76);
+  color: rgba(45, 35, 58, 0.92);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.88) inset;
   padding: 10px 12px;
   font-size: 0.9rem;
   font-weight: 700;
   cursor: pointer;
+}
+
+.user-menu-submit:hover:not(:disabled),
+.user-menu-signout:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.user-menu-signout-icon {
+  color: currentColor;
 }
 
 .user-menu-authenticated {
