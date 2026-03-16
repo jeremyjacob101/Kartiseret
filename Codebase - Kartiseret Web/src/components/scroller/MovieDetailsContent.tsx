@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Ref } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
-import { fixedAppDateString, getMovieShowtimeDays, type Movie, type MovieShowtimeDay } from "../data/movieCatalog";
-import { useRatingSourcesContext } from "../prefs/ratingSourcesStore";
-import { type RatingSource } from "../prefs/ratingSources";
+import { fixedAppDateString, getMovieShowtimeDays, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
+import { useRatingSourcesContext } from "../../prefs/ratingSourcesStore";
+import { type RatingSource } from "../../prefs/ratingSources";
 
 type TheaterTheme = {
   accent: string;

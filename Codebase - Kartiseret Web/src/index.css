@@ -101,7 +101,7 @@ button {
   z-index: 2;
   display: grid;
   place-items: center;
-  width: calc(var(--topbar-intro-core-size) * 0.8);
+  width: calc(var(--topbar-intro-core-size) * 0.7);
   color: var(--text-main);
   pointer-events: none;
   opacity: 0;
@@ -152,7 +152,7 @@ button {
     border-radius: 999px;
   }
 
-  26% {
+  39% {
     transform: scaleX(0.06);
     border-radius: 999px;
   }
@@ -168,7 +168,7 @@ button {
     clip-path: inset(0 var(--topbar-intro-side-inset) 0 var(--topbar-intro-side-inset) round 999px);
   }
 
-  26% {
+  39% {
     clip-path: inset(0 var(--topbar-intro-side-inset) 0 var(--topbar-intro-side-inset) round 999px);
   }
 
@@ -180,12 +180,12 @@ button {
 @keyframes topbar-intro-mark {
 
   0%,
-  26% {
+  39% {
     opacity: 1;
     transform: translate(-50%, -50%) scale(1);
   }
 
-  42%,
+  55%,
   100% {
     opacity: 0;
     transform: translate(-50%, -50%) scale(0.88);
@@ -195,7 +195,7 @@ button {
 @keyframes topbar-content-reveal-brand {
 
   0%,
-  56% {
+  69% {
     opacity: 0;
     transform: translateY(10px);
   }
@@ -209,7 +209,7 @@ button {
 @keyframes topbar-content-reveal-nav {
 
   0%,
-  64% {
+  77% {
     opacity: 0;
     transform: translateY(10px);
   }
@@ -223,7 +223,7 @@ button {
 @keyframes topbar-content-reveal-actions {
 
   0%,
-  72% {
+  85% {
     opacity: 0;
     transform: translateY(10px);
   }
@@ -2310,448 +2310,6 @@ span.topnav-icon {
   object-fit: cover;
 }
 
-.details-hero {
-  display: grid;
-  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
-  align-items: end;
-  gap: 24px;
-  margin-bottom: 22px;
-}
-
-.details-poster-shell {
-  position: relative;
-}
-
-.details-poster {
-  display: block;
-  width: 90%;
-  aspect-ratio: 2 / 3;
-  object-fit: cover;
-  border-radius: 24px;
-  opacity: 0;
-  box-shadow:
-    0 18px 45px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.08);
-  transition: opacity 120ms ease;
-}
-
-.details-poster.is-visible {
-  opacity: 1;
-}
-
-.details-copy {
-  min-width: 0;
-}
-
-.details-eyebrow {
-  margin: 0 0 10px;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: rgba(221, 194, 255, 0.78);
-}
-
-.details-title {
-  margin: 0;
-  font-size: clamp(2rem, 4vw, 3.2rem);
-  line-height: 0.94;
-  letter-spacing: -0.05em;
-}
-
-.details-subtitle {
-  margin: 12px 0 0;
-  font-size: 1rem;
-  color: rgba(233, 226, 245, 0.82);
-}
-
-.details-subtitle--meta-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.details-subtitle-divider {
-  display: inline-block;
-  margin-right: 2px;
-  color: rgba(233, 226, 245, 0.58);
-}
-
-.details-trailer-launch {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  transition: transform 140ms ease, opacity 140ms ease;
-}
-
-.details-trailer-launch:hover,
-.details-trailer-launch:focus-visible {
-  opacity: 0.88;
-  transform: translateY(-1px);
-}
-
-.details-trailer-launch-logo {
-  display: block;
-  width: 30px;
-  height: 22px;
-  object-fit: contain;
-}
-
-.details-release-date {
-  margin: 14px 0 0;
-  font-size: 0.96rem;
-  font-weight: 600;
-  color: rgba(233, 226, 245, 0.78);
-}
-
-.details-metrics-row {
-  display: flex;
-  align-items: stretch;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.details-trailer-launch--metrics {
-  align-self: stretch;
-  min-width: 36px;
-  padding: 0 2px;
-}
-
-.details-metrics-divider {
-  width: 1px;
-  align-self: center;
-  height: 54px;
-  background: linear-gradient(180deg,
-      rgba(217, 191, 255, 0),
-      rgba(217, 191, 255, 0.42) 18%,
-      rgba(217, 191, 255, 0.42) 82%,
-      rgba(217, 191, 255, 0));
-}
-
-.details-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 0;
-}
-
-.details-metric {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  justify-content: space-between;
-  width: 80px;
-  height: 80px;
-  flex: 0 0 80px;
-  min-width: 80px;
-  max-width: 80px;
-  min-height: 80px;
-  max-height: 80px;
-  padding: 12px;
-  border: 1px solid rgba(217, 191, 255, 0.18);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.details-metric strong {
-  display: block;
-  font-size: 1rem;
-  line-height: 1.1;
-  font-weight: 700;
-}
-
-.details-metric-marker {
-  display: inline-flex;
-  align-items: center;
-  height: 18px;
-  color: rgba(233, 226, 245, 0.76);
-}
-
-.details-metric-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: inherit;
-  text-decoration: none;
-  transition: transform 140ms ease, opacity 140ms ease;
-}
-
-.details-metric-link:hover,
-.details-metric-link:focus-visible {
-  opacity: 0.88;
-  transform: translateY(-1px);
-}
-
-.details-metric-logo {
-  display: block;
-  object-fit: contain;
-}
-
-.details-metric-logo--imdb {
-  width: 36px;
-  height: 18px;
-}
-
-.details-metric-logo--rt {
-  width: 20px;
-  height: 20px;
-}
-
-.details-metric-logo--letterboxd {
-  width: 24px;
-  height: 24px;
-}
-
-.details-metric-logo--tmdb {
-  width: 28px;
-  height: 20px;
-}
-
-.details-metric-icon {
-  flex: none;
-}
-
-.details-showtimes {
-  border: 1px solid rgba(217, 191, 255, 0.16);
-  border-radius: 26px;
-  background: rgba(8, 7, 11, 0.18);
-  overflow: hidden;
-  touch-action: pan-x;
-}
-
-.details-showtimes--trailer {
-  padding: 18px;
-  touch-action: auto;
-}
-
-.details-showtime-empty {
-  margin: 0;
-  padding: 24px;
-  color: rgba(233, 226, 245, 0.76);
-}
-
-.details-trailer-shell {
-  display: grid;
-  gap: 14px;
-}
-
-.details-trailer-header {
-  display: grid;
-  gap: 4px;
-}
-
-.details-trailer-header .details-day-kicker {
-  margin: 0;
-}
-
-.details-trailer-header .details-day-title {
-  font-size: clamp(1.2rem, 2.5vw, 1.6rem);
-  text-transform: none;
-}
-
-.details-trailer-frame {
-  position: relative;
-  width: 100%;
-  height: clamp(220px, 30vw, 360px);
-  border-radius: 22px;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at top, rgba(166, 106, 227, 0.22), transparent 54%),
-    #050507;
-  box-shadow:
-    0 22px 48px rgba(0, 0, 0, 0.28),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-}
-
-.details-trailer-frame iframe {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border: 0;
-}
-
-.movie-trailer-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 220;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgba(5, 5, 9, 0.72);
-  backdrop-filter: blur(12px);
-}
-
-.movie-trailer-modal__dialog {
-  position: relative;
-  width: min(960px, calc(100vw - 48px));
-  border: 1px solid rgba(217, 191, 255, 0.18);
-  border-radius: 28px;
-  background:
-    radial-gradient(circle at top, rgba(166, 106, 227, 0.2), transparent 54%),
-    rgba(7, 7, 11, 0.96);
-  box-shadow:
-    0 34px 80px rgba(0, 0, 0, 0.46),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  overflow: hidden;
-}
-
-.movie-trailer-modal__close {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border: 1px solid rgba(217, 191, 255, 0.22);
-  border-radius: 999px;
-  background: rgba(15, 12, 22, 0.88);
-  color: #f6f0ff;
-  cursor: pointer;
-  transition: transform 140ms ease, background 140ms ease;
-}
-
-.movie-trailer-modal__close:hover,
-.movie-trailer-modal__close:focus-visible {
-  background: rgba(24, 20, 34, 0.96);
-  transform: scale(1.04);
-}
-
-.movie-trailer-modal__frame {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  background: #000;
-}
-
-.movie-trailer-modal__frame iframe {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border: 0;
-}
-
-.details-day-empty {
-  margin: 0 0 0 6px;
-  padding: 8px 0 4px;
-  color: rgba(233, 226, 245, 0.76);
-}
-
-.details-rail {
-  display: flex;
-  gap: 18px;
-  overflow-x: auto;
-  padding: 18px;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  overscroll-behavior-x: contain;
-  touch-action: pan-x;
-}
-
-.details-rail::-webkit-scrollbar {
-  display: none;
-}
-
-.details-day-panel {
-  flex: 0 0 100%;
-  min-width: 0;
-  scroll-snap-align: start;
-  padding: 6px;
-}
-
-.details-day-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-  margin-left: 6px;
-}
-
-.details-day-heading {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.details-day-kicker {
-  margin: 0 0 4px;
-  font-size: 0.76rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: rgba(221, 194, 255, 0.7);
-}
-
-.details-day-title {
-  margin: 0;
-  font-size: 1.45rem;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  text-transform: uppercase;
-}
-
-.details-day-kicker--inline {
-  margin: 0;
-}
-
-.details-day-divider {
-  display: inline-block;
-  margin-right: 10px;
-  color: rgba(221, 194, 255, 0.48);
-}
-
-.details-theaters {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  margin-left: 6px;
-}
-
-.details-theater {
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
-
-.details-theater-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.98rem;
-  font-weight: 700;
-}
-
-.details-theater-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-}
-
-.details-time-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.details-time-pill {
-  padding: 8px 12px;
-  border: 1px solid currentColor;
-  border-radius: 999px;
-  font-size: 0.9rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
 
 @media (prefers-reduced-motion: reduce) {
 
@@ -2777,156 +2335,5 @@ span.topnav-icon {
 
   .floating-topbar-item {
     opacity: 1;
-  }
-}
-
-@media (max-width: 720px) {
-  .app-shell {
-    padding: 18px 16px 32px;
-  }
-
-  .floating-topbar-stack {
-    right: max(16px, calc(env(safe-area-inset-right) + 10px));
-    bottom: max(16px, calc(env(safe-area-inset-bottom) + 10px));
-  }
-
-  .topbar-content {
-    grid-template-columns: 1fr auto;
-    gap: 14px;
-  }
-
-  .topnav {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-    gap: 18px;
-  }
-
-  .poster-grid-page__grid {
-    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
-    gap: 16px;
-  }
-
-  .floating-topbar-stack .user-menu-panel,
-  .floating-topbar-stack .movie-search-panel {
-    top: auto;
-    right: 0;
-    bottom: calc(100% + 12px);
-    transform: none;
-    width: min(calc(100vw - 32px), 360px);
-  }
-
-  .prefs-page-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .details-hero {
-    grid-template-columns: 1fr;
-    gap: 18px;
-  }
-
-  .details-poster-shell {
-    width: min(100%, 240px);
-  }
-
-  .details-day-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .details-showtimes--trailer {
-    padding: 14px;
-  }
-
-  .details-trailer-frame {
-    height: clamp(200px, 52vw, 260px);
-    border-radius: 18px;
-  }
-
-  .movie-trailer-modal {
-    padding: 14px;
-  }
-
-  .movie-trailer-modal__dialog {
-    width: min(100vw - 28px, 960px);
-    border-radius: 22px;
-  }
-
-  .movie-trailer-modal__close {
-    top: 10px;
-    right: 10px;
-    width: 36px;
-    height: 36px;
-  }
-
-  .theater-map-backdrop {
-    padding: 12px;
-  }
-
-  .theater-map-dialog {
-    width: min(550px, calc(100vw - 24px), calc(100vh - 24px));
-    height: min(750px, calc(100vw - 24px), calc(100vh - 24px));
-    padding: 14px;
-    border-radius: 24px;
-  }
-
-  .theater-map-dialog-header {
-    flex-direction: column;
-  }
-
-  .theater-map-dialog-actions {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .theater-map-panel-bar,
-  .prefs-location-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .theater-map-panel-actions {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .theater-map-toolbar-button {
-    justify-content: center;
-    width: 100%;
-  }
-
-  .theater-map-toggle {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .theater-map-canvas-shell {
-    min-height: 360px;
-  }
-
-  .theater-map-canvas {
-    height: 360px;
-  }
-
-  .theater-map-search-panel {
-    padding: 14px;
-  }
-
-  .theater-map-search-meta {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .theater-map-search-result {
-    grid-template-columns: 1fr auto;
-  }
-
-  .theater-map-search-result-main {
-    flex-wrap: wrap;
-  }
-
-  .theater-map-panel--embedded .theater-map-canvas-shell {
-    min-height: 360px;
   }
 }

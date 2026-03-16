@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type WheelEvent } from "react";
 import { X } from "lucide-react";
-import { comingSoonMovies, movies, type Movie } from "../data/movieCatalog";
+import { comingSoonMovies, movies, type Movie } from "../../data/movieCatalog";
 import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
 import { getRepeatSetCount } from "./MovieScrollerShared";
 import { MovieDetailsContent, type MovieDetailsVariant } from "./MovieDetailsContent";

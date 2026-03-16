@@ -1,7 +1,7 @@
 import { StrictMode, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
 import { Clock8, Film, Settings } from "lucide-react";
-import { MovieScroller, type MovieScrollerJumpRequest } from "./components/MovieScroller";
+import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
 import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "./components/MovieSearchMenu";
 import { TheaterMapDialog } from "./components/TheaterMapDialog";
 import { UserMenu } from "./components/UserMenu";

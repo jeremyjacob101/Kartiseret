@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, type CSSProperties, type MouseEvent, useMemo, useRef, useState } from "react";
-import { movies, type Movie } from "../data/movieCatalog";
+import { movies, type Movie } from "../../data/movieCatalog";
 import { getRepeatSetCount } from "./MovieScrollerShared";
 
 export type PosterSourceRect = {
