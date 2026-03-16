@@ -251,12 +251,39 @@ async function loadPreferencesRow(userId: string) {
     .from(PREFERENCES_TABLE)
     .select(selectClause)
     .eq("user_id", userId)
-    .single();
+    .maybeSingle();
 
   return {
-    error: error ? new Error(error.message) : null,
+    error,
     row: (data as UserPreferencesRow | null) ?? null,
   };
+}
+
+function buildCreatePayload(userId: string, user: User | null) {
+  const values = {} as UserPreferences;
+  const payload: UserPreferencesRow = { user_id: userId };
+
+  for (const key of preferenceKeys) {
+    const definition = preferenceDefinitions[key];
+    const initialValue = normalizePreferenceValue(
+      key,
+      definition.getInitialValue?.({ user }) ?? definition.defaultValue,
+    );
+
+    values[key] = copyPreferenceValue(key, initialValue) as never;
+    payload[definition.column.name] = copyPreferenceValue(key, initialValue);
+  }
+
+  return { payload, values };
+}
+
+async function createPreferencesRow(userId: string, user: User | null) {
+  const { payload, values } = buildCreatePayload(userId, user);
+  const { error } = await supabase
+    .from(PREFERENCES_TABLE)
+    .upsert(payload, { onConflict: "user_id" });
+
+  return { error, values: error ? null : values };
 }
 
 function getGuestPreferences(): UserPreferences {
@@ -394,8 +421,33 @@ export function useUserPreferences(): UserPreferencesState {
         return;
       }
 
-      if (loadError || !row) {
-        setError(loadError?.message ?? "Unable to load preferences.");
+      if (loadError) {
+        setError(loadError.message);
+        setSyncing(false);
+        setLoading(false);
+        return;
+      }
+
+      if (!row) {
+        const { values, error: createError } = await createPreferencesRow(
+          userId,
+          user,
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        if (createError || !values) {
+          setError(createError?.message ?? "Unable to initialize preferences.");
+          setSyncing(false);
+          setLoading(false);
+          return;
+        }
+
+        saveCachedPreferences(values);
+        confirmedPreferencesRef.current = values;
+        setPreferences(values);
         setSyncing(false);
         setLoading(false);
         return;

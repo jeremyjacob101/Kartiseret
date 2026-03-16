@@ -2031,18 +2031,6 @@ span.topnav-icon {
   cursor: pointer;
 }
 
-.prefs-page-email {
-  margin: 6px 16px 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: rgba(233, 218, 255, 0.88);
-}
-
-.prefs-page-note {
-  margin: 6px 16px 16px;
-  color: rgba(233, 218, 255, 0.76);
-}
-
 .prefs-page-card {
   margin: 0 16px;
   padding: 18px;
