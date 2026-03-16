@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { LogOut, User } from "lucide-react";
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import { loadGuestLocation } from "../prefs/locations";
-import { useRatingSourcesContext } from "../prefs/ratingSourcesStore";
+import { loadGuestLocation } from "../prefs/definitions/locations";
+import { useUserPreferencesContext } from "../prefs/useUserPreferences";
 
 type AuthMode = "login" | "signup";
 type UserMenuProps = {
@@ -13,7 +13,7 @@ type UserMenuProps = {
 const supabase = getSupabaseBrowserClient();
 
 export function UserMenu({ currentPath, onNavigate }: UserMenuProps) {
-  const { user } = useRatingSourcesContext();
+  const { user } = useUserPreferencesContext();
   const [isOpen, setIsOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");

@@ -1,5 +1,9 @@
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/locations";
+import {
+  ALL_LOCATIONS,
+  DEFAULT_LOCATION,
+  type AppLocation,
+} from "../prefs/definitions/locations";
 
 const TOP_NOW_PLAYING_MOVIE_COUNT = 10;
 const SUPABASE_PAGE_SIZE = 1000;

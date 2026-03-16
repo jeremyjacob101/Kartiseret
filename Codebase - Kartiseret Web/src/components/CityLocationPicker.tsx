@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { type IControl, LngLatBounds, Map as MapLibreMap, Marker, NavigationControl, Popup } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { loadTheaters, type Theater } from "../data/theaters";
-import { type AppLocation } from "../prefs/locations";
+import { type AppLocation } from "../prefs/definitions/locations";
 
 const MAP_STYLE_URL =
   "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";

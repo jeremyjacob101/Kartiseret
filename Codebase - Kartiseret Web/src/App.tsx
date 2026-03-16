@@ -9,8 +9,8 @@ import { UserPreferencesPage } from "./components/UserPreferencesPage";
 import { PosterGridPage } from "./components/PosterGridPage";
 import { allNowPlayingMovies, comingSoonMovies, loadMovieCatalog } from "./data/movieCatalog";
 import { preloadTheaters } from "./data/theaters";
-import { RatingSourcesProvider } from "./prefs/RatingSourcesContext";
-import { useRatingSourcesContext } from "./prefs/ratingSourcesStore";
+import { UserPreferencesProvider } from "./prefs/UserPreferencesContext";
+import { useUserPreferencesContext } from "./prefs/useUserPreferences";
 import "./index.css";
 
 const SCROLLER_CARD_WIDTH = 220;
@@ -145,7 +145,7 @@ function TopbarActions({
 }
 
 function AppShell() {
-  const { user, loading } = useRatingSourcesContext();
+  const { user, loading } = useUserPreferencesContext();
   const [catalogReady, setCatalogReady] = useState(
     () => allNowPlayingMovies.length > 0 && comingSoonMovies.length > 0,
   );
@@ -869,19 +869,13 @@ function AppShell() {
 
 export default function App() {
   return (
-    <RatingSourcesProvider>
+    <UserPreferencesProvider>
       <AppShell />
-    </RatingSourcesProvider>
+    </UserPreferencesProvider>
   );
 }
 
-const rootElement = document.getElementById("root");
-
-if (!rootElement) {
-  throw new Error("Root element not found");
-}
-
-createRoot(rootElement).render(
+createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <App />
   </StrictMode>,

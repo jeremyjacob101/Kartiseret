@@ -2,8 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { MapPin } from "lucide-react";
 import { CityLocationPicker } from "./CityLocationPicker";
-import { useRatingSourcesContext } from "../prefs/ratingSourcesStore";
-import { type AppLocation } from "../prefs/locations";
+import { useUserPreferencesContext } from "../prefs/useUserPreferences";
+import { type AppLocation } from "../prefs/definitions/locations";
 
 const OPEN_TRANSITION_MS = 420;
 const INLINE_ICON_HANDOFF_LEAD_MS = 80;
@@ -36,7 +36,7 @@ function toFlightRect(rect?: DOMRect | null): FlightRect | null {
 
 export function TheaterMapDialog() {
   const { location, syncing, setLocationPreference, error } =
-    useRatingSourcesContext();
+    useUserPreferencesContext();
   const [isOpen, setIsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);

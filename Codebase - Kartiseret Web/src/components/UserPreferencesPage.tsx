@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { CityLocationPicker } from "./CityLocationPicker";
-import { useRatingSourcesContext } from "../prefs/ratingSourcesStore";
-import { type RatingSource } from "../prefs/ratingSources";
-import { type AppLocation } from "../prefs/locations";
+import { useUserPreferencesContext } from "../prefs/useUserPreferences";
+import { type RatingSource } from "../prefs/definitions/ratingSources";
+import { type AppLocation } from "../prefs/definitions/locations";
 
 const sourceLabelMap: Record<RatingSource, string> = {
   imdbRating: "IMDb",
@@ -57,7 +57,7 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
     error,
     saveSources,
     setLocationPreference,
-  } = useRatingSourcesContext();
+  } = useUserPreferencesContext();
   const [draftSources, setDraftSources] = useState<RatingSource[]>(sources);
   const [isSourcesOpen, setIsSourcesOpen] = useState(true);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);

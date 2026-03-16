@@ -2,8 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { fixedAppDateString, getMovieShowtimeDays, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
-import { useRatingSourcesContext } from "../../prefs/ratingSourcesStore";
-import { type RatingSource } from "../../prefs/ratingSources";
+import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
+import { type RatingSource } from "../../prefs/definitions/ratingSources";
 
 type TheaterTheme = {
   accent: string;
@@ -524,7 +524,7 @@ export function MovieDetailsContent({
   preferredShowtimeDate = null,
   onPreferredShowtimeDateChange,
 }: MovieDetailsContentProps) {
-  const { sources, location } = useRatingSourcesContext();
+  const { sources, location } = useUserPreferencesContext();
   const railRef = useRef<HTMLDivElement | null>(null);
   const railScrollFrameRef = useRef<number | null>(null);
   const visibleShowtimeDateRef = useRef<string | null>(null);
