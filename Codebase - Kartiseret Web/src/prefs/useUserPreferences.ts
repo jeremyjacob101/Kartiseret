@@ -1,21 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import {
-  locationPreferenceDefinition,
-  type AppLocation,
-} from "./definitions/locations";
-import {
-  ratingSourcesPreferenceDefinition,
-  type RatingSource,
-} from "./definitions/ratingSources";
-import {
-  DEFAULT_SITE_COLOR,
-  applySiteColor,
-  initializeSiteColorTheme,
-  siteColorPreferenceDefinition,
-  type SiteColor,
-} from "./definitions/siteColor";
+import { locationPreferenceDefinition, type AppLocation } from "./definitions/locations";
+import { ratingSourcesPreferenceDefinition, type RatingSource } from "./definitions/ratingSources";
+import { DEFAULT_SITE_COLOR, applySiteColor, initializeSiteColorTheme, siteColorPreferenceDefinition, type SiteColorOption, type SiteColor } from "./definitions/siteColor";
 import type { UserPreferenceDefinition } from "./definitions/shared";
 
 const PREFERENCES_TABLE = "user_preferences";
@@ -56,6 +44,9 @@ type SavePreference = <Key extends PreferenceKey>(
 type UserPreferencesRow = {
   user_id: string;
 } & Record<string, unknown>;
+type QueuedPreferenceSaves = Partial<{
+  [Key in PreferenceKey]: UserPreferences[Key];
+}>;
 
 export type UserPreferencesState = {
   user: User | null;
@@ -65,6 +56,7 @@ export type UserPreferencesState = {
   allSources: readonly RatingSource[];
   location: AppLocation;
   allLocations: readonly AppLocation[];
+  allSiteColors: readonly SiteColorOption[];
   siteColor: SiteColor;
   defaultSiteColor: SiteColor;
   loading: boolean;
@@ -82,8 +74,7 @@ export type UserPreferencesContextValue = UserPreferencesState;
 
 const preferenceKeys = Object.keys(preferenceDefinitions) as PreferenceKey[];
 const defaultPreferences = createPreferenceValues((key) =>
-  getDefaultPreferenceValue(key),
-);
+  getDefaultPreferenceValue(key));
 const preferenceOptions = createPreferenceOptions();
 const fallbackSavePreference: SavePreference = async () => false;
 
@@ -95,6 +86,7 @@ const fallbackValue: UserPreferencesContextValue = {
   allSources: preferenceOptions.ratingSources ?? [],
   location: defaultPreferences.location,
   allLocations: preferenceOptions.location ?? [],
+  allSiteColors: preferenceOptions.siteColor ?? [],
   siteColor: defaultPreferences.siteColor,
   defaultSiteColor: DEFAULT_SITE_COLOR,
   loading: false,
@@ -142,6 +134,18 @@ function createPreferenceOptions(): UserPreferenceOptions {
   return options;
 }
 
+function createPreferenceKeyRecord<Value>(
+  getValue: (key: PreferenceKey) => Value,
+): Record<PreferenceKey, Value> {
+  const values = {} as Record<PreferenceKey, Value>;
+
+  for (const key of preferenceKeys) {
+    values[key] = getValue(key);
+  }
+
+  return values;
+}
+
 function copyPreferenceValue<Key extends PreferenceKey>(
   key: Key,
   value: UserPreferences[Key],
@@ -184,6 +188,25 @@ function updatePreferenceValue<Key extends PreferenceKey>(
   };
 }
 
+function arePreferenceValuesEqual<Key extends PreferenceKey>(
+  key: Key,
+  left: UserPreferences[Key],
+  right: UserPreferences[Key],
+): boolean {
+  const leftCopy = copyPreferenceValue(key, left);
+  const rightCopy = copyPreferenceValue(key, right);
+
+  if (Array.isArray(leftCopy) && Array.isArray(rightCopy)) {
+    if (leftCopy.length !== rightCopy.length) {
+      return false;
+    }
+
+    return leftCopy.every((entry, index) => entry === rightCopy[index]);
+  }
+
+  return Object.is(leftCopy, rightCopy);
+}
+
 function getBootstrappedPreferences(): UserPreferences {
   return createPreferenceValues((key) => {
     const cachedValue = getPreferenceDefinition(key).clientCache?.load();
@@ -219,9 +242,7 @@ function clearCachedPreferences(): void {
   }
 }
 
-async function loadPreferencesRow(
-  userId: string,
-) {
+async function loadPreferencesRow(userId: string) {
   const selectClause = ["user_id"]
     .concat(preferenceKeys.map((key) => preferenceDefinitions[key].column.name))
     .join(", ");
@@ -238,10 +259,7 @@ async function loadPreferencesRow(
   };
 }
 
-function buildCreatePayload(
-  userId: string,
-  user: User | null,
-) {
+function buildCreatePayload(userId: string, user: User | null) {
   const values = {} as UserPreferences;
   const payload: UserPreferencesRow = { user_id: userId };
 
@@ -259,10 +277,7 @@ function buildCreatePayload(
   return { payload, values };
 }
 
-async function createPreferencesRow(
-  userId: string,
-  user: User | null,
-) {
+async function createPreferencesRow(userId: string, user: User | null) {
   const { payload, values } = buildCreatePayload(userId, user);
   const { error } = await supabase
     .from(PREFERENCES_TABLE)
@@ -283,29 +298,42 @@ function getGuestPreferences(): UserPreferences {
   });
 }
 
-function normalizePreferencesRow(
-  row: UserPreferencesRow,
-): UserPreferences {
+function normalizePreferencesRow(row: UserPreferencesRow): UserPreferences {
   return createPreferenceValues((key, definition) =>
-    normalizePreferenceValue(key, row[definition.column.name]),
-  );
+    normalizePreferenceValue(key, row[definition.column.name]));
 }
 
 export function useUserPreferences(): UserPreferencesState {
   const [user, setUser] = useState<User | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences>(() =>
-    getBootstrappedPreferences(),
-  );
+    getBootstrappedPreferences());
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sessionResolved, setSessionResolved] = useState(false);
   const userId = user?.id ?? null;
   const preferencesRef = useRef<UserPreferences>(preferences);
+  const confirmedPreferencesRef = useRef<UserPreferences>(preferences);
+  const activeUserIdRef = useRef<string | null>(userId);
+  const queuedPreferenceSavesRef = useRef<QueuedPreferenceSaves>({});
+  const savingPreferenceKeysRef = useRef(
+    createPreferenceKeyRecord(() => false),
+  );
+  const saveGenerationRef = useRef(0);
+
+  const resetPendingPreferenceSaves = useCallback(() => {
+    saveGenerationRef.current += 1;
+    queuedPreferenceSavesRef.current = {};
+    savingPreferenceKeysRef.current = createPreferenceKeyRecord(() => false);
+  }, []);
 
   useEffect(() => {
     preferencesRef.current = preferences;
   }, [preferences]);
+
+  useEffect(() => {
+    activeUserIdRef.current = userId;
+  }, [userId]);
 
   useEffect(() => {
     applySiteColor(preferences.siteColor);
@@ -327,8 +355,11 @@ export function useUserPreferences(): UserPreferencesState {
       }
 
       if (!sessionUser) {
+        resetPendingPreferenceSaves();
         clearCachedPreferences();
-        setPreferences(getGuestPreferences());
+        const guestPreferences = getGuestPreferences();
+        confirmedPreferencesRef.current = guestPreferences;
+        setPreferences(guestPreferences);
       }
 
       setUser(sessionUser);
@@ -342,10 +373,13 @@ export function useUserPreferences(): UserPreferencesState {
       session,
     ) => {
       const nextUser = session?.user ?? null;
+      resetPendingPreferenceSaves();
 
       if (!nextUser) {
         clearCachedPreferences();
-        setPreferences(getGuestPreferences());
+        const guestPreferences = getGuestPreferences();
+        confirmedPreferencesRef.current = guestPreferences;
+        setPreferences(guestPreferences);
       }
 
       setUser(nextUser);
@@ -355,7 +389,7 @@ export function useUserPreferences(): UserPreferencesState {
       isActive = false;
       authSubscription.subscription.unsubscribe();
     };
-  }, []);
+  }, [resetPendingPreferenceSaves]);
 
   useEffect(() => {
     if (!sessionResolved) {
@@ -369,8 +403,11 @@ export function useUserPreferences(): UserPreferencesState {
       setLoading(true);
 
       if (!userId) {
+        resetPendingPreferenceSaves();
         clearCachedPreferences();
-        setPreferences(getGuestPreferences());
+        const guestPreferences = getGuestPreferences();
+        confirmedPreferencesRef.current = guestPreferences;
+        setPreferences(guestPreferences);
         setSyncing(false);
         setLoading(false);
         return;
@@ -409,6 +446,7 @@ export function useUserPreferences(): UserPreferencesState {
         }
 
         saveCachedPreferences(values);
+        confirmedPreferencesRef.current = values;
         setPreferences(values);
         setSyncing(false);
         setLoading(false);
@@ -417,6 +455,7 @@ export function useUserPreferences(): UserPreferencesState {
 
       const normalizedPreferences = normalizePreferencesRow(row);
       saveCachedPreferences(normalizedPreferences);
+      confirmedPreferencesRef.current = normalizedPreferences;
       setPreferences(normalizedPreferences);
       setSyncing(false);
       setLoading(false);
@@ -427,7 +466,89 @@ export function useUserPreferences(): UserPreferencesState {
     return () => {
       cancelled = true;
     };
-  }, [sessionResolved, user, userId]);
+  }, [resetPendingPreferenceSaves, sessionResolved, user, userId]);
+
+  const flushQueuedPreferenceSave = useCallback(async (key: PreferenceKey) => {
+    const requestUserId = activeUserIdRef.current;
+
+    if (!requestUserId || savingPreferenceKeysRef.current[key]) {
+      return;
+    }
+
+    const generation = saveGenerationRef.current;
+    savingPreferenceKeysRef.current[key] = true;
+
+    try {
+      while (true) {
+        const queuedValue = queuedPreferenceSavesRef.current[key];
+
+        if (queuedValue === undefined) {
+          return;
+        }
+
+        delete queuedPreferenceSavesRef.current[key];
+
+        const nextValue = copyPreferenceValue(
+          key,
+          queuedValue as UserPreferences[typeof key],
+        );
+        const definition = preferenceDefinitions[key];
+        const { error: upsertError } = await supabase
+          .from(PREFERENCES_TABLE)
+          .upsert(
+            {
+              user_id: requestUserId,
+              [definition.column.name]: copyPreferenceValue(key, nextValue),
+            },
+            { onConflict: "user_id" },
+          );
+
+        const becameStale =
+          saveGenerationRef.current !== generation ||
+          activeUserIdRef.current !== requestUserId;
+
+        if (becameStale) {
+          return;
+        }
+
+        if (upsertError) {
+          setError(upsertError.message);
+
+          if (queuedPreferenceSavesRef.current[key] !== undefined) {
+            continue;
+          }
+
+          const currentValue = preferencesRef.current[key];
+
+          if (arePreferenceValuesEqual(key, currentValue, nextValue)) {
+            const confirmedValue = confirmedPreferencesRef.current[key];
+            saveCachedPreference(key, confirmedValue);
+            setPreferences((current) =>
+              updatePreferenceValue(current, key, confirmedValue));
+          }
+
+          continue;
+        }
+
+        confirmedPreferencesRef.current = updatePreferenceValue(
+          confirmedPreferencesRef.current,
+          key,
+          nextValue,
+        );
+      }
+    } finally {
+      if (
+        saveGenerationRef.current === generation &&
+        activeUserIdRef.current === requestUserId
+      ) {
+        savingPreferenceKeysRef.current[key] = false;
+
+        if (queuedPreferenceSavesRef.current[key] !== undefined) {
+          void flushQueuedPreferenceSave(key);
+        }
+      }
+    }
+  }, []);
 
   const savePreference = useCallback(
     async (key: PreferenceKey, nextInput: UserPreferences[PreferenceKey]) => {
@@ -455,38 +576,29 @@ export function useUserPreferences(): UserPreferencesState {
         }
 
         saveGuestPreference(copyPreferenceValue(key, normalized));
-        setPreferences((current) => updatePreferenceValue(current, key, normalized));
+        const nextPreferences = updatePreferenceValue(
+          preferencesRef.current,
+          key,
+          normalized,
+        );
+        confirmedPreferencesRef.current = nextPreferences;
+        setPreferences(nextPreferences);
         return true;
       }
 
-      const previous = preferencesRef.current[key];
-      setSyncing(true);
       saveCachedPreference(key, normalized);
-      setPreferences((current) => updatePreferenceValue(current, key, normalized));
+      queuedPreferenceSavesRef.current[key] = copyPreferenceValue(
+        key,
+        normalized,
+      ) as never;
+      setPreferences((current) =>
+        updatePreferenceValue(current, key, normalized));
 
-      const { error: upsertError } = await supabase
-        .from(PREFERENCES_TABLE)
-        .upsert(
-          {
-            user_id: userId,
-            [definition.column.name]: copyPreferenceValue(key, normalized),
-          },
-          { onConflict: "user_id" },
-        );
-
-      setSyncing(false);
-
-      if (upsertError) {
-        setError(upsertError.message);
-        saveCachedPreference(key, previous);
-
-        setPreferences((current) => updatePreferenceValue(current, key, previous));
-        return false;
-      }
+      void flushQueuedPreferenceSave(key);
 
       return true;
     },
-    [userId],
+    [flushQueuedPreferenceSave, userId],
   ) as SavePreference;
 
   const saveSources = useCallback(
@@ -518,6 +630,7 @@ export function useUserPreferences(): UserPreferencesState {
     allSources: preferenceOptions.ratingSources ?? [],
     location: preferences.location,
     allLocations: preferenceOptions.location ?? [],
+    allSiteColors: preferenceOptions.siteColor ?? [],
     siteColor: preferences.siteColor,
     defaultSiteColor: DEFAULT_SITE_COLOR,
     loading,

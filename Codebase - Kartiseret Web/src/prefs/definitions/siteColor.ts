@@ -1,12 +1,27 @@
 import type { UserPreferenceDefinition } from "./shared";
 
 export type SiteColor = string;
+export type SiteColorOption = {
+  label: string;
+  value: SiteColor;
+};
 
 export const DEFAULT_SITE_COLOR: SiteColor = "#a66ae3";
 export const SITE_COLOR_PREFERENCE_KEY = "siteColor";
 export const SITE_COLOR_PREFERENCE_COLUMN = {
   name: "site_color",
 } as const;
+export const SITE_COLOR_OPTIONS = [
+  { label: "Pink", value: "#e269ba" },
+  { label: "Red", value: "#ed4c57" },
+  { label: "Orange", value: "#d97f3a" },
+  { label: "Yellow", value: "#bebe2d" },
+  { label: "Green", value: "#63ae3d" },
+  { label: "Teal", value: "#3caa8e" },
+  { label: "Blue", value: "#69b0e2" },
+  { label: "Indigo", value: "#4375d9" },
+  { label: "Purple", value: DEFAULT_SITE_COLOR },
+] as const satisfies readonly SiteColorOption[];
 const CACHED_SITE_COLOR_KEY = "cached_site_color_v1";
 const SITE_COLOR_TRANSITIONS_ENABLED_CLASS = "site-color-transitions-enabled";
 const SITE_COLOR_INITIALIZED_ATTRIBUTE = "data-site-color-initialized";
@@ -63,10 +78,7 @@ export function clearCachedSiteColor(): void {
   }
 }
 
-function setSiteColorVariables(
-  root: HTMLElement,
-  siteColor: SiteColor,
-): void {
+function setSiteColorVariables(root: HTMLElement, siteColor: SiteColor): void {
   root.style.setProperty("--main-app-color", siteColor);
 }
 
@@ -102,13 +114,24 @@ export function applySiteColor(siteColor: SiteColor): void {
   setSiteColorVariables(root, normalizedColor);
 }
 
+export function getSiteColorLabel(siteColor: SiteColor): string {
+  const normalizedColor = normalizeSiteColor(siteColor, DEFAULT_SITE_COLOR);
+  const matchingOption = SITE_COLOR_OPTIONS.find(
+    (option) => option.value === normalizedColor,
+  );
+
+  return matchingOption?.label ?? normalizedColor.toUpperCase();
+}
+
 export const siteColorPreferenceDefinition: UserPreferenceDefinition<
   typeof SITE_COLOR_PREFERENCE_KEY,
-  SiteColor
+  SiteColor,
+  SiteColorOption
 > = {
   key: SITE_COLOR_PREFERENCE_KEY,
   column: SITE_COLOR_PREFERENCE_COLUMN,
   defaultValue: DEFAULT_SITE_COLOR,
+  options: SITE_COLOR_OPTIONS,
   copy: (value) => normalizeSiteColor(value, DEFAULT_SITE_COLOR),
   normalize: (value) => normalizeSiteColor(value, DEFAULT_SITE_COLOR),
   clientCache: {

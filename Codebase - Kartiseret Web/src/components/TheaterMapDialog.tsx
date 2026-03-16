@@ -258,7 +258,7 @@ export function TheaterMapDialog() {
         >
           <CityLocationPicker
             currentLocation={location}
-            feedbackMessage={statusMessage ?? error}
+            feedbackMessage={error ?? statusMessage}
             mapIconAnchorRef={setMapIconAnchor}
             onPickLocation={handleLocationPick}
             onClose={handleCloseDialog}

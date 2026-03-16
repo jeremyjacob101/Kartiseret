@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { CityLocationPicker } from "./CityLocationPicker";
 import { useUserPreferencesContext } from "../prefs/useUserPreferences";
 import { type RatingSource } from "../prefs/definitions/ratingSources";
 import { type AppLocation } from "../prefs/definitions/locations";
-import { type SiteColor } from "../prefs/definitions/siteColor";
+import {
+  getSiteColorLabel,
+  type SiteColor,
+  type SiteColorOption,
+} from "../prefs/definitions/siteColor";
 
 const sourceLabelMap: Record<RatingSource, string> = {
   imdbRating: "IMDb",
@@ -16,23 +20,6 @@ const sourceLabelMap: Record<RatingSource, string> = {
 type UserPreferencesPageProps = {
   onBackHome: () => void;
 };
-
-function areSourcesEqual(
-  left: readonly RatingSource[],
-  right: readonly RatingSource[],
-): boolean {
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  for (let index = 0; index < left.length; index += 1) {
-    if (left[index] !== right[index]) {
-      return false;
-    }
-  }
-
-  return true;
-}
 
 function getSourcesSummary(sources: readonly RatingSource[]): string {
   if (sources.length === 0) {
@@ -48,12 +35,30 @@ function getSourcesSummary(sources: readonly RatingSource[]): string {
   return `${labels[0]}, ${labels[1]} +${labels.length - 2} more`;
 }
 
+function getVisibleSiteColors(
+  siteColor: SiteColor,
+  options: readonly SiteColorOption[],
+): readonly SiteColorOption[] {
+  if (options.some((option) => option.value === siteColor)) {
+    return options;
+  }
+
+  return [
+    {
+      label: `Current ${siteColor.toUpperCase()}`,
+      value: siteColor,
+    },
+    ...options,
+  ];
+}
+
 export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
   const {
     user,
     sources,
     location,
     allSources,
+    allSiteColors,
     siteColor,
     defaultSiteColor,
     syncing,
@@ -63,98 +68,40 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
     saveSiteColor,
     resetSiteColor,
   } = useUserPreferencesContext();
-  const [draftSources, setDraftSources] = useState<RatingSource[]>(sources);
   const [isSourcesOpen, setIsSourcesOpen] = useState(true);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [statusError, setStatusError] = useState<string | null>(null);
-  const [locationStatusMessage, setLocationStatusMessage] = useState<
-    string | null
-  >(null);
-  const [siteColorStatusMessage, setSiteColorStatusMessage] = useState<
-    string | null
-  >(null);
-
-  useEffect(() => {
-    setDraftSources(sources);
-  }, [sources]);
-
-  const hasSourceChanges = useMemo(
-    () => !areSourcesEqual(draftSources, sources),
-    [draftSources, sources],
+  const visibleSiteColors = useMemo(
+    () => getVisibleSiteColors(siteColor, allSiteColors),
+    [allSiteColors, siteColor],
   );
-  const hasChanges = hasSourceChanges;
 
-  function toggleDraftSource(source: RatingSource) {
-    setStatusMessage(null);
-    setStatusError(null);
+  const handleSourceToggle = useCallback(
+    async (source: RatingSource) => {
+      const nextSources = sources.includes(source)
+        ? sources.filter((entry) => entry !== source)
+        : [...sources, source];
 
-    setDraftSources((current) => {
-      const isSelected = current.includes(source);
-
-      return isSelected
-        ? current.filter((entry) => entry !== source)
-        : [...current, source];
-    });
-  }
-
-  async function handleSave() {
-    setStatusMessage(null);
-    setStatusError(null);
-
-    if (hasSourceChanges) {
-      const didSaveSources = await saveSources(draftSources);
-
-      if (!didSaveSources) {
-        setStatusError("Could not save preferences. Try again.");
-        return;
-      }
-    }
-
-    setStatusMessage("Preferences saved.");
-  }
+      await saveSources(nextSources);
+    },
+    [saveSources, sources],
+  );
 
   const handleLocationPick = useCallback(
     async (nextLocation: AppLocation) => {
-      setLocationStatusMessage(null);
-      const didSave = await setLocationPreference(nextLocation);
-
-      if (!didSave) {
-        return;
-      }
-
-      setLocationStatusMessage(`City set to ${nextLocation}.`);
+      await setLocationPreference(nextLocation);
     },
     [setLocationPreference],
   );
 
   const handleSiteColorChange = useCallback(
     async (nextSiteColor: SiteColor) => {
-      setSiteColorStatusMessage(null);
-      const didSave = await saveSiteColor(nextSiteColor);
-
-      if (!didSave) {
-        return;
-      }
-
-      setSiteColorStatusMessage(
-        `Site color updated to ${nextSiteColor.toUpperCase()}.`,
-      );
+      await saveSiteColor(nextSiteColor);
     },
     [saveSiteColor],
   );
 
   const handleSiteColorReset = useCallback(async () => {
-    setSiteColorStatusMessage(null);
-    const didReset = await resetSiteColor();
-
-    if (!didReset) {
-      return;
-    }
-
-    setSiteColorStatusMessage(
-      `Site color reset to ${defaultSiteColor.toUpperCase()}.`,
-    );
-  }, [defaultSiteColor, resetSiteColor]);
+    await resetSiteColor();
+  }, [resetSiteColor]);
 
   return (
     <section className="prefs-page" aria-label="User preferences">
@@ -173,7 +120,7 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
         Manage your saved city, rating sources, and site theme below.
       </p>
 
-      <div className="prefs-page-card">
+      <div className="prefs-page-card" aria-busy={syncing}>
         <section className="prefs-location-card">
           <div className="prefs-location-header">
             <div>
@@ -185,7 +132,6 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
           <CityLocationPicker
             className="theater-map-panel--embedded"
             currentLocation={location}
-            feedbackMessage={locationStatusMessage ?? error}
             onPickLocation={handleLocationPick}
             syncing={syncing}
           />
@@ -198,28 +144,36 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
                 <div className="prefs-color-copy">
                   <span className="prefs-setting-label">Color</span>
                   <span className="prefs-setting-summary">
-                    Site Color
+                    Site Color {getSiteColorLabel(siteColor)}
                   </span>
                 </div>
 
                 <div className="prefs-color-controls">
                   <div
-                    className="prefs-color-preview"
-                    style={{ backgroundColor: siteColor }}
-                    aria-hidden="true"
-                  />
+                    className="prefs-color-swatches"
+                    role="list"
+                    aria-label="Site colors"
+                  >
+                    {visibleSiteColors.map((colorOption) => {
+                      const isSelected = colorOption.value === siteColor;
 
-                  <label className="prefs-color-picker">
-                    <span className="visually-hidden">Choose site color</span>
-                    <input
-                      type="color"
-                      value={siteColor}
-                      disabled={syncing || !user}
-                      onChange={(event) => {
-                        void handleSiteColorChange(event.target.value);
-                      }}
-                    />
-                  </label>
+                      return (
+                        <button
+                          key={colorOption.value}
+                          type="button"
+                          className={`prefs-color-swatch${isSelected ? " is-selected" : ""}`}
+                          style={{ backgroundColor: colorOption.value }}
+                          aria-label={`Use ${colorOption.label} site color`}
+                          aria-pressed={isSelected}
+                          title={colorOption.label}
+                          disabled={syncing || !user}
+                          onClick={() => {
+                            void handleSiteColorChange(colorOption.value);
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
 
                   <button
                     type="button"
@@ -250,7 +204,7 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
               <span className="prefs-setting-copy">
                 <span className="prefs-setting-label">Rating Sources</span>
                 <span className="prefs-setting-summary">
-                  {getSourcesSummary(draftSources)}
+                  {getSourcesSummary(sources)}
                 </span>
               </span>
               <ChevronDown
@@ -264,7 +218,7 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
               <div className="prefs-setting-content">
                 <div className="prefs-setting-options">
                   {allSources.map((source) => {
-                    const checked = draftSources.includes(source);
+                    const checked = sources.includes(source);
 
                     return (
                       <label
@@ -278,7 +232,7 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
                           checked={checked}
                           disabled={syncing}
                           onChange={() => {
-                            toggleDraftSource(source);
+                            void handleSourceToggle(source);
                           }}
                         />
                         <span>{sourceLabelMap[source]}</span>
@@ -290,32 +244,7 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
             ) : null}
           </section>
         </div>
-
-        <div className="prefs-page-actions">
-          <button
-            type="button"
-            className="prefs-page-save"
-            onClick={() => {
-              void handleSave();
-            }}
-            disabled={syncing || !hasChanges}
-          >
-            {syncing ? "Saving..." : "Save Preferences"}
-          </button>
-        </div>
       </div>
-
-      {statusMessage ? (
-        <p className="prefs-page-feedback">{statusMessage}</p>
-      ) : null}
-      {siteColorStatusMessage ? (
-        <p className="prefs-page-feedback">{siteColorStatusMessage}</p>
-      ) : null}
-      {statusError ? (
-        <p className="prefs-page-feedback prefs-page-feedback--error">
-          {statusError}
-        </p>
-      ) : null}
       {error ? (
         <p className="prefs-page-feedback prefs-page-feedback--error">
           {error}

@@ -2209,45 +2209,42 @@ span.topnav-icon {
   flex-wrap: wrap;
 }
 
-.prefs-color-preview {
-  width: 44px;
-  height: 44px;
-  border: 1px solid color-mix(in srgb, var(--main-app-color) 34%, transparent);
-  border-radius: 14px;
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.24),
-    0 10px 22px rgba(0, 0, 0, 0.22);
+.prefs-color-swatches {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.prefs-color-picker {
-  display: inline-flex;
-}
-
-.prefs-color-picker input[type="color"] {
-  width: 58px;
-  height: 44px;
+.prefs-color-swatch {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
   padding: 0;
-  border: 1px solid color-mix(in srgb, var(--main-app-color) 34%, transparent);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.06);
   cursor: pointer;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 0 0 4px transparent,
+    0 8px 18px rgba(0, 0, 0, 0.2);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease;
 }
 
-.prefs-color-picker input[type="color"]::-webkit-color-swatch-wrapper {
-  padding: 4px;
+.prefs-color-swatch:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
-.prefs-color-picker input[type="color"]::-webkit-color-swatch {
-  border: 0;
-  border-radius: 10px;
+.prefs-color-swatch.is-selected {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.84),
+    0 0 0 5px color-mix(in srgb, var(--main-app-color) 22%, transparent),
+    0 10px 22px rgba(0, 0, 0, 0.24);
 }
 
-.prefs-color-picker input[type="color"]::-moz-color-swatch {
-  border: 0;
-  border-radius: 10px;
-}
-
-.prefs-color-picker input[type="color"]:disabled,
+.prefs-color-swatch:disabled,
 .prefs-color-reset:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -2264,31 +2261,10 @@ span.topnav-icon {
   cursor: pointer;
 }
 
-.prefs-page-actions {
-  margin-top: 14px;
-}
-
-.prefs-page-save {
-  border: 1px solid var(--main-app-color);
-  border-radius: 10px;
-  background: var(--main-app-color);
-  color: #fff;
-  padding: 10px 14px;
-  font-size: 0.92rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.prefs-page-save:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .prefs-page-feedback {
   margin: 12px 16px 0;
   font-size: 0.86rem;
   font-weight: 600;
-  color: rgba(149, 251, 176, 0.92);
 }
 
 .prefs-page-feedback--error {
