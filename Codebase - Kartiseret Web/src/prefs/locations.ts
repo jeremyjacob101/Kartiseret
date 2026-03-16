@@ -29,7 +29,7 @@ export const ALL_LOCATIONS = [
 export type CanonicalAppLocation = (typeof ALL_LOCATIONS)[number];
 export type AppLocation = string;
 
-export const DEFAULT_LOCATION: AppLocation = "Haifa";
+export const DEFAULT_LOCATION: AppLocation = "Jerusalem";
 
 const GUEST_LOCATION_KEY = "guest_location_v1";
 const canonicalLocationByNormalizedValue = new Map(

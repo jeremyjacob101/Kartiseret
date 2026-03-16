@@ -64,9 +64,8 @@ export const defaultCity: AppLocation = DEFAULT_LOCATION;
 export const fixedAppDateString = "2026-03-02";
 export const fixedShowtimeWindowEndDateString = "2026-03-11";
 
-type CsvRow = Record<string, string>;
 type SupabaseValue = string | number | boolean | null | string[];
-type SupabaseRow = Record<string, SupabaseValue>;
+type SupabaseRow = Partial<Record<string, SupabaseValue>>;
 
 export type Movie = {
   tmdbId: string;
@@ -113,31 +112,30 @@ let movieShowtimesByTmdbId: Record<string, MovieShowtimesByCity> = {};
 let isMovieCatalogLoaded = false;
 let loadMovieCatalogPromise: Promise<void> | null = null;
 
-function rowsToCsvRows(rows: readonly SupabaseRow[]): CsvRow[] {
-  return rows.map((row) =>
-    Object.fromEntries(
-      Object.entries(row).map(([key, value]) => [
-        key,
-        value == null
-          ? ""
-          : Array.isArray(value)
-            ? JSON.stringify(value)
-            : String(value),
-      ]),
-    ));
+function stringifySupabaseValue(value: SupabaseValue | undefined): string {
+  if (value == null) {
+    return "";
+  }
+
+  return Array.isArray(value) ? JSON.stringify(value) : String(value);
 }
 
-function parseNumber(value: string, fallback = 0): number {
-  const parsed = Number.parseFloat(value);
+function parseNumberValue(
+  value: SupabaseValue | undefined,
+  fallback = 0,
+): number {
+  const parsed = Number.parseFloat(stringifySupabaseValue(value));
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function parseOptionalNumber(value: string | undefined): number | null {
-  if (!value?.trim()) {
+function parseOptionalNumberValue(value: SupabaseValue | undefined): number | null {
+  const normalizedValue = stringifySupabaseValue(value).trim();
+
+  if (!normalizedValue) {
     return null;
   }
 
-  const parsed = Number.parseFloat(value);
+  const parsed = Number.parseFloat(normalizedValue);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
@@ -145,15 +143,12 @@ function normalizeText(value: string): string {
   return value.trim().replace(/\s+/g, " ");
 }
 
-function getFirstNormalizedText(row: CsvRow, keys: readonly string[]): string {
+function getFirstNormalizedText(
+  row: SupabaseRow,
+  keys: readonly string[],
+): string {
   for (const key of keys) {
-    const value = row[key];
-
-    if (!value) {
-      continue;
-    }
-
-    const normalizedValue = normalizeText(value);
+    const normalizedValue = normalizeText(stringifySupabaseValue(row[key]));
 
     if (normalizedValue) {
       return normalizedValue;
@@ -167,13 +162,7 @@ function normalizeTitle(value: string): string {
   return normalizeText(value).replace(/^"+|"+$/g, "");
 }
 
-function parseGenres(value: string | undefined): string[] {
-  const normalizedValue = value?.trim();
-
-  if (!normalizedValue) {
-    return [];
-  }
-
+function parseGenres(value: SupabaseValue | undefined): string[] {
   const normalizedGenres = new Set<string>();
   const addGenre = (genre: string) => {
     const normalizedGenre = normalizeText(genre.replace(/^"+|"+$/g, ""));
@@ -182,6 +171,17 @@ function parseGenres(value: string | undefined): string[] {
       normalizedGenres.add(normalizedGenre);
     }
   };
+
+  if (Array.isArray(value)) {
+    value.forEach(addGenre);
+    return [...normalizedGenres];
+  }
+
+  const normalizedValue = stringifySupabaseValue(value).trim();
+
+  if (!normalizedValue) {
+    return [];
+  }
 
   if (
     (normalizedValue.startsWith("[") && normalizedValue.endsWith("]")) ||
@@ -222,7 +222,7 @@ function getReleaseYearFromDate(releaseDate: string | undefined): number {
   return Number.parseInt(year, 10) || 0;
 }
 
-function compareByReleaseDate(left: CsvRow, right: CsvRow): number {
+function compareByReleaseDate(left: SupabaseRow, right: SupabaseRow): number {
   const leftReleaseDate = getFirstNormalizedText(left, ["release_date"]);
   const rightReleaseDate = getFirstNormalizedText(right, ["release_date"]);
 
@@ -242,8 +242,10 @@ function compareByReleaseDate(left: CsvRow, right: CsvRow): number {
     return 1;
   }
 
-  return normalizeTitle(left.english_title).localeCompare(
-    normalizeTitle(right.english_title),
+  return normalizeTitle(
+    stringifySupabaseValue(left.english_title),
+  ).localeCompare(
+    normalizeTitle(stringifySupabaseValue(right.english_title)),
   );
 }
 
@@ -305,7 +307,7 @@ type BuildMoviesOptions = {
 };
 
 function buildMovies(
-  rows: CsvRow[],
+  rows: SupabaseRow[],
   { limit, sortMode = "popularity" }: BuildMoviesOptions = {},
 ): Movie[] {
   const normalizedMovies = [...rows]
@@ -314,7 +316,9 @@ function buildMovies(
         return compareByReleaseDate(left, right);
       }
 
-      return parseNumber(right.popularity) - parseNumber(left.popularity);
+      return (
+        parseNumberValue(right.popularity) - parseNumberValue(left.popularity)
+      );
     })
     .map((row) => {
       const imageSrc = getFirstNormalizedText(row, [
@@ -328,31 +332,32 @@ function buildMovies(
       const trailerKey = getFirstNormalizedText(row, ["en_trailer"]);
       const releaseDate =
         getFirstNormalizedText(row, ["release_date"]) || undefined;
-      const parsedReleaseYear = Number.parseInt(row.release_year, 10) || 0;
+      const parsedReleaseYear =
+        Number.parseInt(stringifySupabaseValue(row.release_year), 10) || 0;
 
       return {
-        tmdbId: normalizeText(row.tmdb_id),
+        tmdbId: normalizeText(stringifySupabaseValue(row.tmdb_id)),
         imdbId: getFirstNormalizedText(row, ["imdb_id"]) || undefined,
         rtId: getFirstNormalizedText(row, ["rt_id"]) || undefined,
-        title: normalizeTitle(row.english_title),
+        title: normalizeTitle(stringifySupabaseValue(row.english_title)),
         year: parsedReleaseYear || getReleaseYearFromDate(releaseDate),
         releaseDate,
         genres: parseGenres(row.genres),
         imageSrc,
         backdropSrc,
         trailerKey: trailerKey || undefined,
-        imdbRating: parseNumber(row.imdbRating),
+        imdbRating: parseNumberValue(row.imdbRating),
         lbId: getFirstNormalizedText(row, ["lb_id"]) || undefined,
-        lbRating: parseOptionalNumber(row.lbRating),
-        lbVotes: parseOptionalNumber(row.lbVotes),
-        tmdbRating: parseOptionalNumber(row.tmdbRating),
-        tmdbVotes: parseOptionalNumber(row.tmdbVotes),
-        rtCriticRating: parseOptionalNumber(row.rtCriticRating),
-        rtCriticVotes: parseOptionalNumber(row.rtCriticVotes),
-        rtAudienceRating: parseOptionalNumber(row.rtAudienceRating),
-        rtAudienceVotes: parseOptionalNumber(row.rtAudienceVotes),
-        runtime: Number.parseInt(row.runtime, 10) || 0,
-        popularity: parseNumber(row.popularity),
+        lbRating: parseOptionalNumberValue(row.lbRating),
+        lbVotes: parseOptionalNumberValue(row.lbVotes),
+        tmdbRating: parseOptionalNumberValue(row.tmdbRating),
+        tmdbVotes: parseOptionalNumberValue(row.tmdbVotes),
+        rtCriticRating: parseOptionalNumberValue(row.rtCriticRating),
+        rtCriticVotes: parseOptionalNumberValue(row.rtCriticVotes),
+        rtAudienceRating: parseOptionalNumberValue(row.rtAudienceRating),
+        rtAudienceVotes: parseOptionalNumberValue(row.rtAudienceVotes),
+        runtime: Number.parseInt(stringifySupabaseValue(row.runtime), 10) || 0,
+        popularity: parseNumberValue(row.popularity),
       };
     })
     .filter((movie) => Boolean(movie.tmdbId && movie.title && movie.imageSrc));
@@ -363,7 +368,7 @@ function buildMovies(
 }
 
 function buildMovieShowtimes(
-  rows: CsvRow[],
+  rows: SupabaseRow[],
   selectedMovies: readonly Movie[],
 ): Record<string, MovieShowtimesByCity> {
   const showtimeWindowDates = buildDateRange(
@@ -378,13 +383,13 @@ function buildMovieShowtimes(
   >();
 
   for (const row of rows) {
-    const tmdbId = normalizeText(row.tmdb_id);
+    const tmdbId = normalizeText(stringifySupabaseValue(row.tmdb_id));
 
     if (!selectedMovieIds.has(tmdbId)) {
       continue;
     }
 
-    const city = normalizeText(row.screening_city);
+    const city = normalizeText(stringifySupabaseValue(row.screening_city));
 
     if (!supportedCities.has(city)) {
       continue;
@@ -392,14 +397,14 @@ function buildMovieShowtimes(
 
     const normalizedCity = city as AppLocation;
     supportedCities.add(normalizedCity);
-    const date = normalizeText(row.date_of_showing);
+    const date = normalizeText(stringifySupabaseValue(row.date_of_showing));
 
     if (date < fixedAppDateString || date > fixedShowtimeWindowEndDateString) {
       continue;
     }
 
-    const theater = normalizeText(row.cinema);
-    const showtime = formatShowtime(row.showtime);
+    const theater = normalizeText(stringifySupabaseValue(row.cinema));
+    const showtime = formatShowtime(stringifySupabaseValue(row.showtime));
 
     if (!date || !theater || !showtime) {
       continue;
@@ -594,16 +599,13 @@ export async function loadMovieCatalog(): Promise<void> {
       ]),
       fetchComingSoonMovieRows(),
     ]);
-    const nextMovieRows = rowsToCsvRows(movieRows);
-    const nextShowtimeRows = rowsToCsvRows(showtimeRows);
-    const nextComingSoonRows = rowsToCsvRows(comingSoonRows);
 
-    const nextAllNowPlayingMovies = buildMovies(nextMovieRows);
+    const nextAllNowPlayingMovies = buildMovies(movieRows);
     const nextMovies = nextAllNowPlayingMovies.slice(
       0,
       TOP_NOW_PLAYING_MOVIE_COUNT,
     );
-    const nextComingSoonMovies = buildMovies(nextComingSoonRows, {
+    const nextComingSoonMovies = buildMovies(comingSoonRows, {
       sortMode: "releaseDate",
     });
 
@@ -623,7 +625,7 @@ export async function loadMovieCatalog(): Promise<void> {
     allNowPlayingMovies = nextAllNowPlayingMovies;
     comingSoonMovies = nextComingSoonMovies;
     movieShowtimesByTmdbId = buildMovieShowtimes(
-      nextShowtimeRows,
+      showtimeRows,
       nextAllNowPlayingMovies,
     );
     isMovieCatalogLoaded = true;
