@@ -12,6 +12,7 @@ import {
 import {
   DEFAULT_SITE_COLOR,
   applySiteColor,
+  initializeSiteColorTheme,
   siteColorPreferenceDefinition,
   type SiteColor,
 } from "./definitions/siteColor";
@@ -19,6 +20,7 @@ import type { UserPreferenceDefinition } from "./definitions/shared";
 
 const PREFERENCES_TABLE = "user_preferences";
 const supabase = getSupabaseBrowserClient();
+initializeSiteColorTheme();
 
 const preferenceDefinitions = {
   ratingSources: ratingSourcesPreferenceDefinition,
@@ -182,6 +184,41 @@ function updatePreferenceValue<Key extends PreferenceKey>(
   };
 }
 
+function getBootstrappedPreferences(): UserPreferences {
+  return createPreferenceValues((key) => {
+    const cachedValue = getPreferenceDefinition(key).clientCache?.load();
+
+    if (cachedValue === null || cachedValue === undefined) {
+      return getDefaultPreferenceValue(key);
+    }
+
+    return normalizePreferenceValue(key, cachedValue);
+  });
+}
+
+function saveCachedPreference<Key extends PreferenceKey>(
+  key: Key,
+  value: UserPreferences[Key],
+): void {
+  const save = getPreferenceDefinition(key).clientCache?.save as
+    | ((nextValue: UserPreferences[Key]) => void)
+    | undefined;
+
+  save?.(copyPreferenceValue(key, value));
+}
+
+function saveCachedPreferences(preferences: UserPreferences): void {
+  for (const key of preferenceKeys) {
+    saveCachedPreference(key, preferences[key]);
+  }
+}
+
+function clearCachedPreferences(): void {
+  for (const key of preferenceKeys) {
+    getPreferenceDefinition(key).clientCache?.clear();
+  }
+}
+
 async function loadPreferencesRow(
   userId: string,
 ) {
@@ -256,8 +293,8 @@ function normalizePreferencesRow(
 
 export function useUserPreferences(): UserPreferencesState {
   const [user, setUser] = useState<User | null>(null);
-  const [preferences, setPreferences] = useState<UserPreferences>(
-    defaultPreferences,
+  const [preferences, setPreferences] = useState<UserPreferences>(() =>
+    getBootstrappedPreferences(),
   );
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -279,6 +316,7 @@ export function useUserPreferences(): UserPreferencesState {
 
     async function initializeSession() {
       const { data, error: sessionError } = await supabase.auth.getSession();
+      const sessionUser = data.session?.user ?? null;
 
       if (!isActive) {
         return;
@@ -288,7 +326,12 @@ export function useUserPreferences(): UserPreferencesState {
         setError(sessionError.message);
       }
 
-      setUser(data.session?.user ?? null);
+      if (!sessionUser) {
+        clearCachedPreferences();
+        setPreferences(getGuestPreferences());
+      }
+
+      setUser(sessionUser);
       setSessionResolved(true);
     }
 
@@ -298,7 +341,14 @@ export function useUserPreferences(): UserPreferencesState {
       _event,
       session,
     ) => {
-      setUser(session?.user ?? null);
+      const nextUser = session?.user ?? null;
+
+      if (!nextUser) {
+        clearCachedPreferences();
+        setPreferences(getGuestPreferences());
+      }
+
+      setUser(nextUser);
     });
 
     return () => {
@@ -319,6 +369,7 @@ export function useUserPreferences(): UserPreferencesState {
       setLoading(true);
 
       if (!userId) {
+        clearCachedPreferences();
         setPreferences(getGuestPreferences());
         setSyncing(false);
         setLoading(false);
@@ -357,13 +408,16 @@ export function useUserPreferences(): UserPreferencesState {
           return;
         }
 
+        saveCachedPreferences(values);
         setPreferences(values);
         setSyncing(false);
         setLoading(false);
         return;
       }
 
-      setPreferences(normalizePreferencesRow(row));
+      const normalizedPreferences = normalizePreferencesRow(row);
+      saveCachedPreferences(normalizedPreferences);
+      setPreferences(normalizedPreferences);
       setSyncing(false);
       setLoading(false);
     }
@@ -407,6 +461,7 @@ export function useUserPreferences(): UserPreferencesState {
 
       const previous = preferencesRef.current[key];
       setSyncing(true);
+      saveCachedPreference(key, normalized);
       setPreferences((current) => updatePreferenceValue(current, key, normalized));
 
       const { error: upsertError } = await supabase
@@ -423,6 +478,7 @@ export function useUserPreferences(): UserPreferencesState {
 
       if (upsertError) {
         setError(upsertError.message);
+        saveCachedPreference(key, previous);
 
         setPreferences((current) => updatePreferenceValue(current, key, previous));
         return false;

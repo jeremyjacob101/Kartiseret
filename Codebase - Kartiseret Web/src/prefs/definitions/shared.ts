@@ -10,6 +10,12 @@ export type GuestPreferencePersistence<Value> = {
   unsupportedMessage?: string;
 };
 
+export type PreferenceClientCache<Value> = {
+  load: () => Value | null;
+  save: (value: Value) => void;
+  clear: () => void;
+};
+
 export type PreferenceColumn = {
   name: string;
 };
@@ -26,5 +32,6 @@ export type UserPreferenceDefinition<
   copy: (value: Value) => Value;
   normalize: (value: unknown) => Value;
   guestPersistence?: GuestPreferencePersistence<Value>;
+  clientCache?: PreferenceClientCache<Value>;
   getInitialValue?: (context: PreferenceInitializationContext) => Value;
 };

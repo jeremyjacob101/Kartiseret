@@ -180,9 +180,6 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
               <p className="prefs-setting-label">Location</p>
               <h2 className="prefs-location-title">{location}</h2>
             </div>
-            <p className="prefs-location-note">
-              Click a city region or choose it from the search results.
-            </p>
           </div>
 
           <CityLocationPicker
@@ -199,14 +196,10 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
             <div className="prefs-setting-content prefs-setting-content--static">
               <div className="prefs-color-setting">
                 <div className="prefs-color-copy">
-                  <span className="prefs-setting-label">Site Color</span>
+                  <span className="prefs-setting-label">Color</span>
                   <span className="prefs-setting-summary">
-                    {siteColor.toUpperCase()}
+                    Site Color
                   </span>
-                  <p className="prefs-color-note">
-                    Pick the main accent color for the app. Changes apply
-                    immediately and are saved to your account.
-                  </p>
                 </div>
 
                 <div className="prefs-color-controls">
@@ -238,14 +231,10 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
                       void handleSiteColorReset();
                     }}
                   >
-                    Reset to Default
+                    Reset
                   </button>
                 </div>
               </div>
-
-              <p className="prefs-color-meta">
-                Stored as a hex value like <code>#a66ae3</code>.
-              </p>
             </div>
           </section>
 

@@ -1,3 +1,9 @@
+@property --main-app-color {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #a66ae3;
+}
+
 :root {
   font-family: "Avenir Next", "Segoe UI", sans-serif;
   line-height: 1.5;
@@ -10,7 +16,6 @@
   -moz-osx-font-smoothing: grayscale;
   --app-bg: #212121;
   --main-app-color: #a66ae3;
-  --main-app-color-rgb: 166, 106, 227;
   --surface: var(--main-app-color);
   --surface-strong: rgba(245, 239, 251, 0.96);
   --border: var(--main-app-color);
@@ -22,6 +27,10 @@
   --topbar-intro-side-inset: calc(50% - (var(--topbar-intro-core-size) / 2));
   --floating-topbar-size: 46px;
   --floating-topbar-home-size: 56px;
+}
+
+.site-color-transitions-enabled {
+  transition: --main-app-color 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 * {
@@ -577,7 +586,7 @@ span.topnav-icon {
 
 .movie-search-field input {
   width: 100%;
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.34);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 34%, transparent);
   border-bottom-left-radius: 12px;
   border-bottom-right-radius: 12px;
   background: #fff;
@@ -587,7 +596,7 @@ span.topnav-icon {
 }
 
 .movie-search-field input:focus {
-  outline: 2px solid rgba(var(--main-app-color-rgb), 0.35);
+  outline: 2px solid color-mix(in srgb, var(--main-app-color) 35%, transparent);
   outline-offset: 1px;
 }
 
@@ -612,7 +621,7 @@ span.topnav-icon {
   align-items: center;
   gap: 10px;
   width: 100%;
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.28);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 28%, transparent);
   border-radius: 12px;
   background: #fbf8ff;
   color: inherit;
@@ -627,7 +636,7 @@ span.topnav-icon {
 
 .movie-search-result:hover,
 .movie-search-result:focus-visible {
-  border-color: rgba(var(--main-app-color-rgb), 0.56);
+  border-color: color-mix(in srgb, var(--main-app-color) 56%, transparent);
   transform: translateY(-1px);
   box-shadow: 0 12px 22px rgba(45, 34, 58, 0.12);
 }
@@ -684,7 +693,7 @@ span.topnav-icon {
 }
 
 .location-menu-option {
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.42);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 42%, transparent);
   border-radius: 10px;
   background: #f8f4fe;
   color: rgba(72, 57, 92, 0.88);
@@ -789,7 +798,7 @@ span.topnav-icon {
 
 .theater-map-fly-icon.is-arrived {
   border-width: 1px;
-  border-color: rgba(var(--main-app-color-rgb), 0.28);
+  border-color: color-mix(in srgb, var(--main-app-color) 28%, transparent);
   border-radius: 16px;
   background: rgba(16, 20, 27, 0.52);
   box-shadow: 0 10px 24px rgba(4, 6, 12, 0.24);
@@ -889,7 +898,7 @@ span.topnav-icon {
   width: fit-content;
   border: 1px solid rgba(212, 182, 255, 0.2);
   border-radius: 999px;
-  background: rgba(var(--main-app-color-rgb), 0.18);
+  background: color-mix(in srgb, var(--main-app-color) 18%, transparent);
   color: rgba(244, 235, 255, 0.82);
   padding: 5px 10px;
   font-size: 0.73rem;
@@ -904,7 +913,7 @@ span.topnav-icon {
   min-height: 48px;
   padding: 0 14px;
   border-radius: 16px;
-  border-color: rgba(var(--main-app-color-rgb), 0.28);
+  border-color: color-mix(in srgb, var(--main-app-color) 28%, transparent);
   background: rgba(16, 20, 27, 0.88);
   color: rgba(244, 235, 255, 0.94);
   font-size: 0.78rem;
@@ -945,14 +954,14 @@ span.topnav-icon {
 }
 
 .theater-map-toolbar-button--close {
-  background: rgba(var(--main-app-color-rgb), 0.18);
+  background: color-mix(in srgb, var(--main-app-color) 18%, transparent);
 }
 
 .theater-map-toggle {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.18);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 18%, transparent);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.05);
   color: rgba(239, 233, 248, 0.88);
@@ -986,7 +995,7 @@ span.topnav-icon {
   display: grid;
   gap: 12px;
   padding: 16px 18px 18px;
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.16);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 16%, transparent);
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.04);
 }
@@ -1023,7 +1032,7 @@ span.topnav-icon {
   min-height: 48px;
   box-sizing: border-box;
   padding: 0;
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.28);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 28%, transparent);
   border-radius: 16px;
   background: rgba(16, 20, 27, 0.52);
   color: var(--main-app-color);
@@ -1072,7 +1081,7 @@ span.topnav-icon {
   max-height: min(320px, calc(100vh - 220px));
   overflow-y: auto;
   padding: 8px;
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.24);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 24%, transparent);
   border-radius: 18px;
   background:
     linear-gradient(180deg, rgba(18, 22, 30, 0.98), rgba(12, 14, 20, 0.98));
@@ -1100,12 +1109,12 @@ span.topnav-icon {
 .theater-map-city-list-option:hover,
 .theater-map-city-list-option:focus-visible {
   outline: none;
-  background: rgba(var(--main-app-color-rgb), 0.18);
+  background: color-mix(in srgb, var(--main-app-color) 18%, transparent);
   color: #fff;
 }
 
 .theater-map-city-list-option.is-selected {
-  background: rgba(var(--main-app-color-rgb), 0.26);
+  background: color-mix(in srgb, var(--main-app-color) 26%, transparent);
   color: #fff;
 }
 
@@ -1141,7 +1150,7 @@ span.topnav-icon {
 
 .theater-map-search-input-shell:focus-within {
   border-color: rgba(215, 186, 255, 0.52);
-  box-shadow: 0 0 0 4px rgba(var(--main-app-color-rgb), 0.16);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--main-app-color) 16%, transparent);
 }
 
 .theater-map-search-input-shell input {
@@ -1175,7 +1184,7 @@ span.topnav-icon {
   width: 24px;
   height: 24px;
   padding: 0;
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.32);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 32%, transparent);
   border-radius: 999px;
   background: rgba(16, 20, 27, 0.92);
   color: var(--main-app-color);
@@ -1232,7 +1241,7 @@ span.topnav-icon {
 }
 
 .theater-map-search-empty {
-  border: 1px dashed rgba(var(--main-app-color-rgb), 0.18);
+  border: 1px dashed color-mix(in srgb, var(--main-app-color) 18%, transparent);
   border-radius: 18px;
   color: rgba(234, 221, 255, 0.74);
   padding: 16px;
@@ -1244,7 +1253,7 @@ span.topnav-icon {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 6px 14px;
   width: 100%;
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.12);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 12%, transparent);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.04);
   color: inherit;
@@ -1326,7 +1335,7 @@ span.topnav-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1.5px solid rgba(var(--main-app-color-rgb), 0.72);
+  border: 1.5px solid color-mix(in srgb, var(--main-app-color) 72%, transparent);
   border-radius: 999px;
   background: rgba(27, 31, 39, 0.66);
   color: rgba(226, 231, 239, 0.9);
@@ -1363,7 +1372,7 @@ span.topnav-icon {
 
 .theater-map-city-label.is-active .theater-map-city-label-surface {
   border-color: rgba(152, 160, 176, 0.74);
-  background: rgba(var(--main-app-color-rgb), 0.78);
+  background: color-mix(in srgb, var(--main-app-color) 78%, transparent);
   color: #17131f;
   text-shadow: none;
   box-shadow:
@@ -1497,7 +1506,7 @@ span.topnav-icon {
 
 .theater-map-theater-popup-link:hover,
 .theater-map-theater-popup-link:focus-visible {
-  color: rgba(var(--main-app-color-rgb), 0.9);
+  color: color-mix(in srgb, var(--main-app-color) 90%, transparent);
   text-decoration: underline;
 }
 
@@ -1532,7 +1541,7 @@ span.topnav-icon {
 
 .theater-map-panel .maplibregl-ctrl-group {
   overflow: hidden;
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.36);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 36%, transparent);
   border-radius: 16px;
   box-shadow: 0 14px 28px rgba(4, 6, 12, 0.24);
 }
@@ -1545,7 +1554,7 @@ span.topnav-icon {
 }
 
 .theater-map-panel .theater-map-action-controls button+button {
-  border-top: 1px solid rgba(var(--main-app-color-rgb), 0.22);
+  border-top: 1px solid color-mix(in srgb, var(--main-app-color) 22%, transparent);
 }
 
 .theater-map-panel .maplibregl-ctrl-group button span {
@@ -1567,7 +1576,7 @@ span.topnav-icon {
 }
 
 .theater-map-panel .maplibregl-ctrl-group button+button {
-  border-top: 1px solid rgba(var(--main-app-color-rgb), 0.22);
+  border-top: 1px solid color-mix(in srgb, var(--main-app-color) 22%, transparent);
 }
 
 .theater-map-panel .theater-map-action-button {
@@ -1838,7 +1847,7 @@ span.topnav-icon {
 }
 
 .user-menu-mode {
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.42);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 42%, transparent);
   border-radius: 999px;
   background: #f8f4fe;
   color: rgba(72, 57, 92, 0.82);
@@ -1869,7 +1878,7 @@ span.topnav-icon {
 
 .user-menu-field input {
   width: 100%;
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.34);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 34%, transparent);
   border-radius: 10px;
   background: #fff;
   color: #241f2b;
@@ -1878,7 +1887,7 @@ span.topnav-icon {
 }
 
 .user-menu-field input:focus {
-  outline: 2px solid rgba(var(--main-app-color-rgb), 0.35);
+  outline: 2px solid color-mix(in srgb, var(--main-app-color) 35%, transparent);
   outline-offset: 1px;
 }
 
@@ -1909,7 +1918,7 @@ span.topnav-icon {
   align-items: center;
   justify-content: center;
   width: 100%;
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.45);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 45%, transparent);
   border-radius: 10px;
   background: #f8f4fe;
   color: var(--main-app-color);
@@ -2002,7 +2011,7 @@ span.topnav-icon {
 }
 
 .prefs-page-back {
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.58);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 58%, transparent);
   border-radius: 999px;
   background: rgba(245, 239, 251, 0.12);
   color: #efe3ff;
@@ -2027,7 +2036,7 @@ span.topnav-icon {
 .prefs-page-card {
   margin: 0 16px;
   padding: 18px;
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.2);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 20%, transparent);
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.05);
 }
@@ -2037,10 +2046,10 @@ span.topnav-icon {
   gap: 14px;
   margin-bottom: 16px;
   padding: 16px;
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.18);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 18%, transparent);
   border-radius: 18px;
   background:
-    radial-gradient(circle at top right, rgba(var(--main-app-color-rgb), 0.12), transparent 40%),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--main-app-color) 12%, transparent), transparent 40%),
     rgba(255, 255, 255, 0.03);
 }
 
@@ -2070,7 +2079,7 @@ span.topnav-icon {
 }
 
 .prefs-setting {
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.22);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 22%, transparent);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.04);
   overflow: hidden;
@@ -2130,7 +2139,7 @@ span.topnav-icon {
 }
 
 .prefs-setting-content {
-  border-top: 1px solid rgba(var(--main-app-color-rgb), 0.18);
+  border-top: 1px solid color-mix(in srgb, var(--main-app-color) 18%, transparent);
   padding: 12px 14px 14px;
   background: rgba(255, 255, 255, 0.02);
 }
@@ -2149,7 +2158,7 @@ span.topnav-icon {
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.2);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 20%, transparent);
   border-radius: 11px;
   background: rgba(255, 255, 255, 0.03);
   color: #f3ebff;
@@ -2160,13 +2169,13 @@ span.topnav-icon {
 }
 
 .prefs-setting-option:hover {
-  border-color: rgba(var(--main-app-color-rgb), 0.56);
+  border-color: color-mix(in srgb, var(--main-app-color) 56%, transparent);
   background: rgba(255, 255, 255, 0.06);
 }
 
 .prefs-setting-option.is-selected {
-  border-color: rgba(var(--main-app-color-rgb), 0.76);
-  background: rgba(var(--main-app-color-rgb), 0.16);
+  border-color: color-mix(in srgb, var(--main-app-color) 76%, transparent);
+  background: color-mix(in srgb, var(--main-app-color) 16%, transparent);
 }
 
 .prefs-setting-option input {
@@ -2203,7 +2212,7 @@ span.topnav-icon {
 .prefs-color-preview {
   width: 44px;
   height: 44px;
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.34);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 34%, transparent);
   border-radius: 14px;
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.24),
@@ -2218,7 +2227,7 @@ span.topnav-icon {
   width: 58px;
   height: 44px;
   padding: 0;
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.34);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 34%, transparent);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.06);
   cursor: pointer;
@@ -2245,9 +2254,9 @@ span.topnav-icon {
 }
 
 .prefs-color-reset {
-  border: 1px solid rgba(var(--main-app-color-rgb), 0.58);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 58%, transparent);
   border-radius: 999px;
-  background: rgba(var(--main-app-color-rgb), 0.14);
+  background: color-mix(in srgb, var(--main-app-color) 14%, transparent);
   color: #fff;
   padding: 10px 14px;
   font-size: 0.84rem;
