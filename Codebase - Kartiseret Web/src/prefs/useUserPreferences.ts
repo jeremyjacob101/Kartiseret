@@ -1,8 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import { locationPreferenceDefinition, type AppLocation } from "./definitions/locations";
-import { ratingSourcesPreferenceDefinition, type RatingSource } from "./definitions/ratingSources";
+import {
+  locationPreferenceDefinition,
+  type AppLocation,
+} from "./definitions/locations";
+import {
+  ratingSourcesPreferenceDefinition,
+  type RatingSource,
+} from "./definitions/ratingSources";
 import { DEFAULT_SITE_COLOR, applySiteColor, initializeSiteColorTheme, siteColorPreferenceDefinition, type SiteColorOption, type SiteColor } from "./definitions/siteColor";
 import type { UserPreferenceDefinition } from "./definitions/shared";
 
@@ -259,33 +265,6 @@ async function loadPreferencesRow(userId: string) {
   };
 }
 
-function buildCreatePayload(userId: string, user: User | null) {
-  const values = {} as UserPreferences;
-  const payload: UserPreferencesRow = { user_id: userId };
-
-  for (const key of preferenceKeys) {
-    const definition = preferenceDefinitions[key];
-    const initialValue = normalizePreferenceValue(
-      key,
-      definition.getInitialValue?.({ user }) ?? definition.defaultValue,
-    );
-
-    values[key] = copyPreferenceValue(key, initialValue) as never;
-    payload[definition.column.name] = copyPreferenceValue(key, initialValue);
-  }
-
-  return { payload, values };
-}
-
-async function createPreferencesRow(userId: string, user: User | null) {
-  const { payload, values } = buildCreatePayload(userId, user);
-  const { error } = await supabase
-    .from(PREFERENCES_TABLE)
-    .upsert(payload, { onConflict: "user_id" });
-
-  return { error, values: error ? null : values };
-}
-
 function getGuestPreferences(): UserPreferences {
   return createPreferenceValues((key, definition) => {
     const guestValue = definition.guestPersistence?.load();
@@ -301,6 +280,36 @@ function getGuestPreferences(): UserPreferences {
 function normalizePreferencesRow(row: UserPreferencesRow): UserPreferences {
   return createPreferenceValues((key, definition) =>
     normalizePreferenceValue(key, row[definition.column.name]));
+}
+
+function shouldPersistPreferenceDefault(value: unknown): boolean {
+  return (
+    value === null ||
+    value === undefined ||
+    (typeof value === "string" && value.trim() === "")
+  );
+}
+
+function buildMissingPreferenceDefaultsPatch(
+  row: UserPreferencesRow,
+): Partial<UserPreferencesRow> {
+  const patch: Partial<UserPreferencesRow> = {};
+
+  for (const key of preferenceKeys) {
+    const definition = preferenceDefinitions[key];
+    const rawValue = row[definition.column.name];
+
+    if (!shouldPersistPreferenceDefault(rawValue)) {
+      continue;
+    }
+
+    patch[definition.column.name] = copyPreferenceValue(
+      key,
+      getDefaultPreferenceValue(key),
+    );
+  }
+
+  return patch;
 }
 
 export function useUserPreferences(): UserPreferencesState {
@@ -429,31 +438,43 @@ export function useUserPreferences(): UserPreferencesState {
       }
 
       if (!row) {
-        const { values, error: createError } = await createPreferencesRow(
-          userId,
-          user,
-        );
-
-        if (cancelled) {
-          return;
-        }
-
-        if (createError || !values) {
-          setError(createError?.message ?? "Unable to initialize preferences.");
-          setSyncing(false);
-          setLoading(false);
-          return;
-        }
-
-        saveCachedPreferences(values);
-        confirmedPreferencesRef.current = values;
-        setPreferences(values);
+        setError("Missing user preferences row.");
         setSyncing(false);
         setLoading(false);
         return;
       }
 
-      const normalizedPreferences = normalizePreferencesRow(row);
+      const defaultPatch = buildMissingPreferenceDefaultsPatch(row);
+      const hasMissingPreferenceDefaults =
+        Object.keys(defaultPatch).length > 0;
+      let nextRow = row;
+
+      if (hasMissingPreferenceDefaults) {
+        const { error: defaultsError } = await supabase
+          .from(PREFERENCES_TABLE)
+          .upsert(
+            {
+              user_id: userId,
+              ...defaultPatch,
+            },
+            { onConflict: "user_id" },
+          );
+
+        if (cancelled) {
+          return;
+        }
+
+        if (defaultsError) {
+          setError(defaultsError.message);
+        } else {
+          nextRow = {
+            ...row,
+            ...defaultPatch,
+          };
+        }
+      }
+
+      const normalizedPreferences = normalizePreferencesRow(nextRow);
       saveCachedPreferences(normalizedPreferences);
       confirmedPreferencesRef.current = normalizedPreferences;
       setPreferences(normalizedPreferences);

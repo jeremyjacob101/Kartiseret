@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { LogOut, User } from "lucide-react";
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import { loadGuestLocation } from "../prefs/definitions/locations";
+import {
+  DEFAULT_LOCATION,
+  loadGuestLocation,
+  LOCATION_SIGNUP_METADATA_KEY,
+} from "../prefs/definitions/locations";
+import { DEFAULT_RATING_SOURCES } from "../prefs/definitions/ratingSources";
+import { DEFAULT_SITE_COLOR } from "../prefs/definitions/siteColor";
 import { useUserPreferencesContext } from "../prefs/useUserPreferences";
 
 type AuthMode = "login" | "signup";
@@ -11,6 +17,26 @@ type UserMenuProps = {
 };
 
 const supabase = getSupabaseBrowserClient();
+const PREFERENCES_TABLE = "user_preferences";
+
+async function persistSignupPreferenceDefaults(
+  userId: string,
+  location: string,
+): Promise<string | null> {
+  const { error } = await supabase
+    .from(PREFERENCES_TABLE)
+    .upsert(
+      {
+        user_id: userId,
+        rating_sources: [...DEFAULT_RATING_SOURCES],
+        location,
+        site_color: DEFAULT_SITE_COLOR,
+      },
+      { onConflict: "user_id" },
+    );
+
+  return error?.message ?? null;
+}
 
 export function UserMenu({ currentPath, onNavigate }: UserMenuProps) {
   const { user } = useUserPreferencesContext();
@@ -71,30 +97,45 @@ export function UserMenu({ currentPath, onNavigate }: UserMenuProps) {
     setAuthPending(true);
 
     if (authMode === "signup") {
-      const guestLocation = loadGuestLocation();
+      const signupLocation = loadGuestLocation() ?? DEFAULT_LOCATION;
       const { data, error } = await supabase.auth.signUp({
         email: trimmedEmail,
         password,
-        options: guestLocation
-          ? {
-              data: {
-                signup_location: guestLocation,
-              },
-            }
-          : undefined,
+        options: {
+          data: {
+            [LOCATION_SIGNUP_METADATA_KEY]: signupLocation,
+          },
+        },
       });
 
-      setAuthPending(false);
-
       if (error) {
+        setAuthPending(false);
         setAuthError(error.message);
         return;
       }
 
+      let preferenceInitializationError: string | null = null;
+
+      if (data.session && data.user) {
+        preferenceInitializationError = await persistSignupPreferenceDefaults(
+          data.user.id,
+          signupLocation,
+        );
+      }
+
+      setAuthPending(false);
+
       setPassword("");
+
+      if (preferenceInitializationError) {
+        setAuthError(preferenceInitializationError);
+      }
+
       setAuthMessage(
         data.session
-          ? "Account created. You are signed in."
+          ? preferenceInitializationError
+            ? "Account created. You are signed in, but default preferences could not be finalized."
+            : "Account created. You are signed in."
           : "Account created. Set Confirm Email OFF for instant sign-in.",
       );
       return;

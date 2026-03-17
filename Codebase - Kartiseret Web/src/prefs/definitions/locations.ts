@@ -86,14 +86,6 @@ export function saveGuestLocation(location: AppLocation): void {
   window.localStorage.setItem(GUEST_LOCATION_KEY, location);
 }
 
-function getSignupLocation(value: unknown): AppLocation | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  return normalizeLocation(value, DEFAULT_LOCATION);
-}
-
 export const locationPreferenceDefinition: UserPreferenceDefinition<
   typeof LOCATION_PREFERENCE_KEY,
   AppLocation,
@@ -109,7 +101,4 @@ export const locationPreferenceDefinition: UserPreferenceDefinition<
     load: loadGuestLocation,
     save: saveGuestLocation,
   },
-  getInitialValue: ({ user }) =>
-    getSignupLocation(user?.user_metadata?.[LOCATION_SIGNUP_METADATA_KEY]) ??
-    DEFAULT_LOCATION,
 };
