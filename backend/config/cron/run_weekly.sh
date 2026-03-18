@@ -6,7 +6,7 @@ export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 export GIT_SSH_COMMAND="ssh -i /Users/jeremyjacob/.ssh/id_ed25519_kartiseret -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
 
 PROJECT_ROOT="/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025"
-PYTHON="$PROJECT_ROOT/venv/bin/python"
+PYTHON="$PROJECT_ROOT/.venv/bin/python"
 ARTIFACT_DIR="$PROJECT_ROOT/backend/utils/log/logger_artifacts"
 LOG_DIR="$PROJECT_ROOT/backend/config/cron/run_weekly_logs"
 

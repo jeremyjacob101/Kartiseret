@@ -1,0 +1,10 @@
+==== cron run start: 2026-03-17T18:00:00+0200 ====
+From github.com:jeremyjacob101/Kartiseret
+ * branch            main       -> FETCH_HEAD
+   0112d40..d39fac7  main       -> origin/main
+Already on 'main'
+M	backend/config/cron/cron_weekly.log
+Your branch is behind 'origin/main' by 2 commits, and can be fast-forwarded.
+  (use "git pull" to update your local branch)
+HEAD is now at d39fac7 [++] Cleaned up dedupe logic | allShowtimes now DOESN'T DEDUPE
+/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/cron/run_weekly.sh: line 32: /Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/venv/bin/python: No such file or directory
