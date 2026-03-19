@@ -110,8 +110,6 @@ type MetricDisplay = {
   href?: string;
   linkAriaLabel?: string;
   logoClassName?: string;
-  logoWidth?: number;
-  logoHeight?: number;
 };
 
 function formatRuntime(runtime: number): string {
@@ -362,37 +360,49 @@ function getMetricDisplay(
         href: getImdbUrl(movie) ?? undefined,
         linkAriaLabel: `Open ${movie.title} on IMDb`,
         logoClassName: "details-metric-logo details-metric-logo--imdb",
-        logoWidth: 36,
-        logoHeight: 18,
       };
-    case "rtAudienceRating":
+    case "rtAudienceRating": {
+      const logoSrc = audienceBadge?.src ?? "/logos/rtAudienceGood.svg";
+      const logoClassName =
+        logoSrc === "/logos/rtAudienceBad.svg"
+          ? "details-metric-logo details-metric-logo--rt-audience-bad"
+          : logoSrc === "/logos/rtAudienceHot.svg"
+            ? "details-metric-logo details-metric-logo--rt-audience-hot"
+            : "details-metric-logo details-metric-logo--rt-audience-good";
+
       return {
         key: "rtAudienceRating",
         value: formatPercent(movie.rtAudienceRating),
         ariaLabel: audienceBadge
           ? `Rotten Tomatoes audience score ${formatPercent(movie.rtAudienceRating)}, ${audienceBadge.description}`
           : "Rotten Tomatoes audience score unavailable",
-        logoSrc: audienceBadge?.src ?? "/logos/rtAudienceGood.svg",
+        logoSrc,
         href: getRottenTomatoesUrl(movie) ?? undefined,
         linkAriaLabel: `Open ${movie.title} on Rotten Tomatoes`,
-        logoClassName: "details-metric-logo details-metric-logo--rt",
-        logoWidth: 22,
-        logoHeight: 22,
+        logoClassName,
       };
-    case "rtCriticRating":
+    }
+    case "rtCriticRating": {
+      const logoSrc = criticBadge?.src ?? "/logos/rtCriticGood.svg";
+      const logoClassName =
+        logoSrc === "/logos/rtCriticBad.svg"
+          ? "details-metric-logo details-metric-logo--rt-critic-bad"
+          : logoSrc === "/logos/rtCriticHot.svg"
+            ? "details-metric-logo details-metric-logo--rt-critic-hot"
+            : "details-metric-logo details-metric-logo--rt-critic-good";
+
       return {
         key: "rtCriticRating",
         value: formatPercent(movie.rtCriticRating),
         ariaLabel: criticBadge
           ? `Rotten Tomatoes critic score ${formatPercent(movie.rtCriticRating)}, ${criticBadge.description}`
           : "Rotten Tomatoes critic score unavailable",
-        logoSrc: criticBadge?.src ?? "/logos/rtCriticGood.svg",
+        logoSrc,
         href: getRottenTomatoesUrl(movie) ?? undefined,
         linkAriaLabel: `Open ${movie.title} on Rotten Tomatoes`,
-        logoClassName: "details-metric-logo details-metric-logo--rt",
-        logoWidth: 22,
-        logoHeight: 22,
+        logoClassName,
       };
+    }
     case "lbRating":
       return {
         key: "lbRating",
@@ -404,8 +414,6 @@ function getMetricDisplay(
         href: getLetterboxdUrl(movie) ?? undefined,
         linkAriaLabel: `Open ${movie.title} on Letterboxd`,
         logoClassName: "details-metric-logo details-metric-logo--letterboxd",
-        logoWidth: 24,
-        logoHeight: 24,
       };
     case "tmdbRating":
       return {
@@ -418,8 +426,6 @@ function getMetricDisplay(
         href: getTmdbUrl(movie) ?? undefined,
         linkAriaLabel: `Open ${movie.title} on TMDB`,
         logoClassName: "details-metric-logo details-metric-logo--tmdb",
-        logoWidth: 28,
-        logoHeight: 20,
       };
     default: {
       const neverSource: never = source;
@@ -773,8 +779,6 @@ export function MovieDetailsContent({
                               src={metric.logoSrc}
                               alt=""
                               className={metric.logoClassName}
-                              width={metric.logoWidth}
-                              height={metric.logoHeight}
                               decoding="async"
                             />
                           </a>
@@ -783,8 +787,6 @@ export function MovieDetailsContent({
                             src={metric.logoSrc}
                             alt=""
                             className={metric.logoClassName}
-                            width={metric.logoWidth}
-                            height={metric.logoHeight}
                             decoding="async"
                           />
                         )}

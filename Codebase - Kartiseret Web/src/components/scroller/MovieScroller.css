@@ -256,7 +256,7 @@
   height: 54%;
   object-fit: cover;
   opacity: 0.78;
-  filter: blur(0.6px) saturate(1.03) brightness(0.92) contrast(1.02);
+  filter: blur(0.6px) saturate(1.03) brightness(0.6) contrast(1.02);
   transform: translate3d(0, 0, 0) scale(1.035);
   transform-origin: center top;
   will-change: transform, opacity;
@@ -390,7 +390,7 @@
   content: "•";
   display: inline-block;
   margin-inline-end: 8px;
-  color: rgba(233, 226, 245, 0.58);
+  color: rgba(233, 226, 245, 94);
 }
 
 .details-trailer-launch {
@@ -452,7 +452,7 @@
 .details-metrics {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
   margin-top: 0;
 }
 
@@ -461,21 +461,19 @@
   flex-direction: column;
   gap: 8px;
   justify-content: space-between;
-  width: 80px;
-  height: 80px;
-  flex: 0 0 80px;
-  min-width: 80px;
-  max-width: 80px;
-  min-height: 80px;
-  max-height: 80px;
+  width: 70px;
+  height: 70px;
+  flex: 0 0 70px;
+  min-width: 70px;
+  max-width: 70px;
+  min-height: 70px;
+  max-height: 70px;
   padding: 12px;
-  border: 1px solid rgba(217, 191, 255, 0.18);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.05);
 }
 
 .details-metric strong {
-  display: block;
+  display: flex;
+  justify-content: center;
   font-size: 1rem;
   line-height: 1.1;
   font-weight: 700;
@@ -484,6 +482,7 @@
 .details-metric-marker {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   height: 18px;
   color: rgba(233, 226, 245, 0.76);
 }
@@ -509,22 +508,47 @@
 }
 
 .details-metric-logo--imdb {
-  width: 36px;
-  height: 18px;
-}
-
-.details-metric-logo--rt {
-  width: 20px;
+  width: 37px;
   height: 20px;
 }
 
+.details-metric-logo--rt-audience-bad {
+  width: 30px;
+  height: 30px;
+}
+
+.details-metric-logo--rt-audience-good {
+  width: 28px;
+  height: 28px;
+}
+
+.details-metric-logo--rt-audience-hot {
+  width: 30px;
+  height: 30px;
+}
+
+.details-metric-logo--rt-critic-bad {
+  width: 28px;
+  height: 28px;
+}
+
+.details-metric-logo--rt-critic-good {
+  width: 26px;
+  height: 26px;
+}
+
+.details-metric-logo--rt-critic-hot {
+  width: 30px;
+  height: 30px;
+}
+
 .details-metric-logo--letterboxd {
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 30px;
 }
 
 .details-metric-logo--tmdb {
-  width: 28px;
+  width: 36px;
   height: 20px;
 }
 
@@ -823,12 +847,7 @@
 .movie-scroller-detail-card .details-subtitle,
 .movie-scroller-detail-card .details-day-kicker,
 .movie-scroller-detail-card .details-metric-marker {
-  color: rgba(233, 226, 245, 0.82);
-}
-
-.movie-scroller-detail-card .details-metric {
-  background: rgba(255, 255, 255, 0.065);
-  backdrop-filter: blur(8px);
+  color: rgba(233, 226, 245, 0.94);
 }
 
 .movie-scroller-detail-card .details-time-pill {
