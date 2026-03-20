@@ -34,11 +34,9 @@ export function getSupabaseBrowserClient(): SupabaseClient {
     __SUPABASE_URL__,
   );
   const supabasePublishableKey = requireConfig(
-    "SUPABASE_PUBLISHABLE_DEFAULT_KEY or SUPABASE_ANON_KEY",
-    import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY,
-    import.meta.env.VITE_SUPABASE_ANON_KEY,
-    __SUPABASE_PUBLISHABLE_DEFAULT_KEY__,
-    __SUPABASE_ANON_KEY__,
+    "SUPABASE_PUBLISHABLE_KEY",
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    __SUPABASE_PUBLISHABLE_KEY__,
   );
 
   supabaseClient = createClient(supabaseUrl, supabasePublishableKey);
