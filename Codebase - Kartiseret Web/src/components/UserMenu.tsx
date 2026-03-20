@@ -17,7 +17,7 @@ type UserMenuProps = {
 };
 
 const supabase = getSupabaseBrowserClient();
-const PREFERENCES_TABLE = "user_preferences";
+const PREFERENCES_TABLE = "userPreferences";
 
 async function persistSignupPreferenceDefaults(
   userId: string,

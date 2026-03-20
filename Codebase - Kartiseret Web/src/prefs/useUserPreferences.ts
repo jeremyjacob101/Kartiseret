@@ -12,7 +12,7 @@ import {
 import { DEFAULT_SITE_COLOR, applySiteColor, initializeSiteColorTheme, siteColorPreferenceDefinition, type SiteColorOption, type SiteColor } from "./definitions/siteColor";
 import type { UserPreferenceDefinition } from "./definitions/shared";
 
-const PREFERENCES_TABLE = "user_preferences";
+const PREFERENCES_TABLE = "userPreferences";
 const supabase = getSupabaseBrowserClient();
 initializeSiteColorTheme();
 
