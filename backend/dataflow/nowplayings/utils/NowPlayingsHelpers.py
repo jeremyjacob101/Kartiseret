@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime
 
 
 class NowPlayingsHelpers:
@@ -67,72 +67,40 @@ class NowPlayingsHelpers:
         self.lbVotes = None
         self.en_poster = None
         self.en_trailer = None
+        self.genres = None
         self.backdrop = None
 
     def load_np_main_row(self, row: dict):
-        def clean_str(v):
-            return str(v) if v not in (None, "", "null") else ""
-
-        def clean_int(v):
-            try:
-                return int(v) if v not in (None, "", "null") else None
-            except:
-                return None
-
-        def clean_date(v):
-            if v in (None, "", "null"):
-                return None
-            if isinstance(v, date):
-                return v.isoformat()
-            try:
-                return date.fromisoformat(str(v)).isoformat()
-            except ValueError:
-                return None
-
-        self.english_title = clean_str(row.get("english_title"))
-        self.hebrew_title = clean_str(row.get("hebrew_title"))
-        self.date_of_showing = clean_date(row.get("date_of_showing"))
-        self.release_year = clean_int(row.get("release_year"))
-        self.directed_by = clean_str(row.get("directed_by"))
-        self.runtime = clean_int(row.get("runtime"))
+        self.english_title = self.clean_str(row.get("english_title"))
+        self.hebrew_title = self.clean_str(row.get("hebrew_title"))
+        self.date_of_showing = self.clean_date(row.get("date_of_showing"))
+        self.release_year = self.clean_int(row.get("release_year"))
+        self.directed_by = self.clean_str(row.get("directed_by"))
+        self.runtime = self.clean_int(row.get("runtime"))
 
     def load_update_final_movies_main_row(self, row: dict):
-        def clean_str(v):
-            return str(v) if v not in (None, "", "null") else ""
-
-        def clean_int(v):
-            try:
-                return int(v) if v not in (None, "", "null") else None
-            except:
-                return None
-
-        def clean_float(v):
-            try:
-                return float(v) if v not in (None, "", "null") else None
-            except:
-                return None
-
-        self.english_title = clean_str(row.get("english_title"))
-        self.release_year = clean_int(row.get("release_year"))
-        self.runtime = clean_int(row.get("runtime"))
-        self.popularity = clean_float(row.get("popularity"))
-        self.tmdb_id = clean_int(row.get("tmdb_id"))
-        self.tmdbRating = clean_int(row.get("tmdbRating"))
-        self.tmdbVotes = clean_int(row.get("tmdbVotes"))
-        self.imdb_id = clean_str(row.get("imdb_id"))
-        self.imdbRating = clean_float(row.get("imdbRating"))
-        self.imdbVotes = clean_int(row.get("imdbVotes"))
-        self.rt_id = clean_str(row.get("rt_id"))
-        self.rtAudienceRating = clean_int(row.get("rtAudienceRating"))
-        self.rtAudienceVotes = clean_int(row.get("rtAudienceVotes"))
-        self.rtCriticRating = clean_int(row.get("rtCriticRating"))
-        self.rtCriticVotes = clean_int(row.get("rtCriticVotes"))
-        self.lb_id = clean_str(row.get("lb_id"))
-        self.lbRating = clean_float(row.get("lbRating"))
-        self.lbVotes = clean_int(row.get("lbVotes"))
-        self.en_poster = clean_str(row.get("en_poster"))
-        self.en_trailer = clean_str(row.get("en_trailer"))
-        self.backdrop = clean_str(row.get("backdrop"))
+        self.english_title = self.clean_str(row.get("english_title"))
+        self.release_year = self.clean_int(row.get("release_year"))
+        self.runtime = self.clean_int(row.get("runtime"))
+        self.popularity = self.clean_float(row.get("popularity"))
+        self.tmdb_id = self.clean_int(row.get("tmdb_id"))
+        self.tmdbRating = self.clean_int(row.get("tmdbRating"))
+        self.tmdbVotes = self.clean_int(row.get("tmdbVotes"))
+        self.imdb_id = self.clean_str(row.get("imdb_id"))
+        self.imdbRating = self.clean_float(row.get("imdbRating"))
+        self.imdbVotes = self.clean_int(row.get("imdbVotes"))
+        self.rt_id = self.clean_str(row.get("rt_id"))
+        self.rtAudienceRating = self.clean_int(row.get("rtAudienceRating"))
+        self.rtAudienceVotes = self.clean_int(row.get("rtAudienceVotes"))
+        self.rtCriticRating = self.clean_int(row.get("rtCriticRating"))
+        self.rtCriticVotes = self.clean_int(row.get("rtCriticVotes"))
+        self.lb_id = self.clean_str(row.get("lb_id"))
+        self.lbRating = self.clean_float(row.get("lbRating"))
+        self.lbVotes = self.clean_int(row.get("lbVotes"))
+        self.en_poster = self.clean_str(row.get("en_poster"))
+        self.en_trailer = self.clean_str(row.get("en_trailer"))
+        self.genres = self.clean_array(row.get("genres"))
+        self.backdrop = self.clean_str(row.get("backdrop"))
 
     def reset_np_groupkey_row_state(self):
         self.potential_chosen_id = None
@@ -153,3 +121,44 @@ class NowPlayingsHelpers:
         self.runtime = meta.get("runtime")
         self.year_counts = meta.get("year_counts") or {}
         self.parsed_year = None
+
+    def per_thread_updating_extract_existing_values(self, row):
+        return {
+            "english_title": self.clean_str(row.get("english_title")),
+            "release_year": self.clean_int(row.get("release_year")),
+            "runtime": self.clean_int(row.get("runtime")),
+            "popularity": self.clean_float(row.get("popularity")),
+            "tmdb_id": self.clean_int(row.get("tmdb_id")),
+            "tmdbRating": self.clean_int(row.get("tmdbRating")),
+            "tmdbVotes": self.clean_int(row.get("tmdbVotes")),
+            "imdb_id": self.clean_str(row.get("imdb_id")),
+            "imdbRating": self.clean_float(row.get("imdbRating")),
+            "imdbVotes": self.clean_int(row.get("imdbVotes")),
+            "rt_id": self.clean_str(row.get("rt_id")),
+            "rtAudienceRating": self.clean_int(row.get("rtAudienceRating")),
+            "rtAudienceVotes": self.clean_int(row.get("rtAudienceVotes")),
+            "rtCriticRating": self.clean_int(row.get("rtCriticRating")),
+            "rtCriticVotes": self.clean_int(row.get("rtCriticVotes")),
+            "lb_id": self.clean_str(row.get("lb_id")),
+            "lbRating": self.clean_float(row.get("lbRating")),
+            "lbVotes": self.clean_int(row.get("lbVotes")),
+            "en_poster": self.clean_str(row.get("en_poster")),
+            "en_trailer": self.clean_str(row.get("en_trailer")),
+            "genres": self.clean_array(row.get("genres")),
+            "backdrop": self.clean_str(row.get("backdrop")),
+        }
+
+    def per_thread_updating_imdb_find_ratings_summary(self, obj):
+        if isinstance(obj, dict):
+            if "ratingsSummary" in obj and isinstance(obj["ratingsSummary"], dict):
+                return obj["ratingsSummary"]
+            for v in obj.values():
+                found = self._find_ratings_summary(v)
+                if found:
+                    return found
+        elif isinstance(obj, list):
+            for item in obj:
+                found = self._find_ratings_summary(item)
+                if found:
+                    return found
+        return None

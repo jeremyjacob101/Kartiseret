@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: NowPlayingsUpdate
+URL: https://www.imdb.com/title/tt32916440/
+Exception: InvalidSelectorException - Message: invalid selector: The result of the xpath expression "/html/body/script[3]/text()" is: [object Text]. It should be an element.
+Call Chain: runners.py:40 > runners.py:19 > BaseDataflow.py:36 > NowPlayingsUpdate.py:87 > ScrapingHelpers.py:19
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/280/NowPlayingsUpdate-ThreadPoolExecutor-0_0-20260320-145212.png
+CSV: 

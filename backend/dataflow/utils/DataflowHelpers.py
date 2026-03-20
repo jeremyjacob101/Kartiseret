@@ -1,5 +1,5 @@
 from datetime import datetime, date
-import re, unicodedata
+import re, unicodedata, json
 
 
 class DataflowHelpers:
@@ -59,3 +59,65 @@ class DataflowHelpers:
             func()
         except:
             pass
+
+    def clean_date(v):
+        if v in (None, "", "null"):
+            return None
+        if isinstance(v, date):
+            return v.isoformat()
+        try:
+            return date.fromisoformat(str(v)).isoformat()
+        except ValueError:
+            return None
+
+    def clean_str(self, v):
+        return str(v) if v not in (None, "", "null") else ""
+
+    def clean_int(self, v):
+        try:
+            return int(v) if v not in (None, "", "null") else None
+        except:
+            return None
+
+    def clean_float(self, v):
+        try:
+            return float(v) if v not in (None, "", "null") else None
+        except:
+            return None
+
+    def clean_array(self, v):
+        if v in (None, "", "null"):
+            return []
+
+        if isinstance(v, list):
+            out = []
+            for item in v:
+                if isinstance(item, dict):
+                    name = item.get("name")
+                    if name not in (None, "", "null"):
+                        out.append(str(name))
+                elif item not in (None, "", "null"):
+                    out.append(str(item))
+            return out
+
+        if isinstance(v, str):
+            s = v.strip()
+            if not s:
+                return []
+            try:
+                parsed = json.loads(s)
+                if isinstance(parsed, list):
+                    out = []
+                    for item in parsed:
+                        if isinstance(item, dict):
+                            name = item.get("name")
+                            if name not in (None, "", "null"):
+                                out.append(str(name))
+                        elif item not in (None, "", "null"):
+                            out.append(str(item))
+                    return out
+            except:
+                pass
+            return [s]
+
+        return []

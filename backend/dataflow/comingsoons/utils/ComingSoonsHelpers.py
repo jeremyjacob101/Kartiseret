@@ -1,4 +1,3 @@
-from datetime import date
 import re, unicodedata
 
 
@@ -52,31 +51,12 @@ class ComingSoonsHelpers:
         self.search_plans = []
 
     def load_soon_row(self, row: dict):
-        def clean_str(v):
-            return str(v) if v not in (None, "", "null") else ""
-
-        def clean_int(v):
-            try:
-                return int(v) if v not in (None, "", "null") else None
-            except:
-                return None
-
-        def clean_date(v):
-            if v in (None, "", "null"):
-                return None
-            if isinstance(v, date):
-                return v.isoformat()
-            try:
-                return date.fromisoformat(str(v)).isoformat()
-            except ValueError:
-                return None
-
-        self.english_title = clean_str(row.get("english_title"))
-        self.hebrew_title = clean_str(row.get("hebrew_title"))
-        self.release_date = clean_date(row.get("release_date"))
-        self.release_year = clean_int(row.get("release_year"))
-        self.directed_by = clean_str(row.get("directed_by"))
-        self.runtime = clean_int(row.get("runtime"))
+        self.english_title = self.clean_str(row.get("english_title"))
+        self.hebrew_title = self.clean_str(row.get("hebrew_title"))
+        self.release_date = self.clean_date(row.get("release_date"))
+        self.release_year = self.clean_int(row.get("release_year"))
+        self.directed_by = self.clean_str(row.get("directed_by"))
+        self.runtime = self.clean_int(row.get("runtime"))
 
     def canonicalize_title(self, title):
         if not title:
