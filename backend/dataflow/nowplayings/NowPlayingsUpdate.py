@@ -36,7 +36,7 @@ class NowPlayingsUpdate(BaseDataflow):
             r0, loc, session, lb_resolved, film_url = None, None, None, False, ""
             for attempt in range(10):
                 if attempt:
-                    time.sleep(2)
+                    time.sleep(0.5)
                 session = requests.Session()
                 try:
                     session.get("https://letterboxd.com/", headers=self.requests_headers, timeout=20)
