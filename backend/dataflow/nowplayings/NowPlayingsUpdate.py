@@ -119,75 +119,96 @@ class NowPlayingsUpdate(BaseDataflow):
                     new_row["imdbVotes"] = vote_count if vote_count is not None else existing["imdbVotes"]
 
         # Rotten Tomatoes
+        picked_url = None
         search_url = f"https://www.rottentomatoes.com/search?search={quote_plus(new_row['english_title'])}"
         try:
             search_html = requests.get(search_url, headers=self.requests_headers, timeout=20).text or ""
         except Exception:
             search_html = ""
 
-        rt_rows = re.findall(r"<search-page-media-row\b.*?>.*?</search-page-media-row>", search_html, flags=re.S | re.I)
-        picked_url = None
-        for rt_row in rt_rows:
-            y = re.search(r'release-year="(\d{4})"', rt_row, flags=re.I)
-            if not y:
-                continue
-            try:
-                yr = int(y.group(1))
-            except Exception:
-                continue
-            try:
-                target_year = int(new_row.get("release_year") or 0)
-            except Exception:
-                target_year = 0
-            if not target_year or abs(yr - target_year) > 1:
-                continue
+        rt_rows = re.findall(r"<search-page-media-row\b.*?>.*?</search-page-media-row>", search_html, flags=re.S | re.I)[:10]
+        target_year = int(new_row.get("release_year") or 0)
+        if target_year:
+            # First pass: first result within ±1 year
+            for rt_row in rt_rows:
+                y = re.search(r'release-year="(\d{4})"', rt_row, flags=re.I)
+                href = re.search(r'href="(https?://www\.rottentomatoes\.com/m/[^"]+)"', rt_row, flags=re.I)
+                if not y or not href:
+                    continue
+                try:
+                    row_year = int(y.group(1))
+                except Exception:
+                    continue
+                if abs(row_year - target_year) <= 1:
+                    picked_url = href.group(1)
+                    break
 
-            href = re.search(r'href="(https?://www\.rottentomatoes\.com/m/[^"]+)"', rt_row, flags=re.I)
-            if href:
-                picked_url = href.group(1)
-                m_path = re.search(r"rottentomatoes\.com(/m/[^/?#]+)", picked_url)
-                new_row["rt_id"] = m_path.group(1) if m_path else existing["rt_id"]
-                break
+            # Second pass: fallback to first result within ±2 years
+            if not picked_url:
+                for rt_row in rt_rows:
+                    y = re.search(r'release-year="(\d{4})"', rt_row, flags=re.I)
+                    href = re.search(r'href="(https?://www\.rottentomatoes\.com/m/[^"]+)"', rt_row, flags=re.I)
+                    if not y or not href:
+                        continue
+                    try:
+                        row_year = int(y.group(1))
+                    except Exception:
+                        continue
+                    if abs(row_year - target_year) <= 2:
+                        picked_url = href.group(1)
+                        break
+
+        fallback_rt_id = new_row.get("rt_id") or existing["rt_id"]
+        if not picked_url and fallback_rt_id:
+            picked_url = fallback_rt_id if fallback_rt_id.startswith("http") else f"https://www.rottentomatoes.com{fallback_rt_id}"
 
         if picked_url:
+            m_path = re.search(r"rottentomatoes\.com(/m/[^/?#]+)", picked_url)
+            new_row["rt_id"] = m_path.group(1) if m_path else existing["rt_id"]
             try:
                 html = requests.get(picked_url, headers={**self.requests_headers, "Referer": search_url}, timeout=20).text or ""
-            except:
-                search_html = ""
+            except Exception:
+                html = ""
 
-                m_critic_pct = re.search(r'<rt-text[^>]*slot="critics-score"[^>]*>\s*([0-9]{1,3})%\s*</rt-text>', html, flags=re.I)
-                m_aud_pct = re.search(r'<rt-text[^>]*slot="audience-score"[^>]*>\s*([0-9]{1,3})%\s*</rt-text>', html, flags=re.I)
-                m_critic_reviews = re.search(r'<rt-link[^>]*slot="critics-reviews"[^>]*>\s*([\d,]+)\s*Reviews\s*</rt-link>', html, flags=re.I)
-                m_aud_ratings = re.search(r'<rt-link[^>]*slot="audience-reviews"[^>]*>\s*([\d,]+\+?)\s*Ratings\s*</rt-link>', html, flags=re.I)
+            if html:
+                scorecard = {}
+                m_scorecard = re.search(r'<script[^>]*id="media-scorecard-json"[^>]*>\s*(\{.*?\})\s*</script>', html, flags=re.S | re.I)
+                if m_scorecard:
+                    try:
+                        scorecard = json.loads(m_scorecard.group(1))
+                    except Exception:
+                        scorecard = {}
 
-                new_row["rtCriticRating"] = int(m_critic_pct.group(1)) if m_critic_pct else self.rtCriticRating
-                new_row["rtAudienceRating"] = int(m_aud_pct.group(1)) if m_aud_pct else self.rtAudienceRating
-                new_row["rtCriticVotes"] = int(re.sub(r"[^\d]", "", (m_critic_reviews.group(1) or "").replace(",", "").replace("+", ""))) if m_critic_reviews and re.sub(r"[^\d]", "", (m_critic_reviews.group(1) or "").replace(",", "").replace("+", "")) else self.rtCriticVotes
-                new_row["rtAudienceVotes"] = int(re.sub(r"[^\d]", "", (m_aud_ratings.group(1) or "").replace(",", "").replace("+", ""))) if m_aud_ratings and re.sub(r"[^\d]", "", (m_aud_ratings.group(1) or "").replace(",", "").replace("+", "")) else self.rtAudienceVotes
+                overlay = scorecard.get("overlay") or {}
+                critics = scorecard.get("criticsScore") or overlay.get("criticsAll") or {}
+                audience = scorecard.get("audienceScore") or overlay.get("audienceVerified") or overlay.get("audienceAll") or {}
+                critic_rating = (lambda s: int(s) if s else None)(re.sub(r"[^\d]", "", str((critics.get("score") or critics.get("scorePercent") or ""))))
+                critic_votes = (lambda s: int(s) if s else None)(re.sub(r"[^\d]", "", str((critics.get("ratingCount") or critics.get("reviewCount") or ""))))
+                audience_rating = (lambda s: int(s) if s else None)(re.sub(r"[^\d]", "", str((audience.get("score") or audience.get("scorePercent") or ""))))
+                audience_votes = (lambda s: int(s) if s else None)(re.sub(r"[^\d]", "", str((audience.get("bandedRatingCount") or audience.get("ratingCount") or audience.get("reviewCount") or ""))))
+
+                new_row["rtCriticRating"] = critic_rating if critic_rating is not None else existing["rtCriticRating"]
+                new_row["rtCriticVotes"] = critic_votes if critic_votes is not None else existing["rtCriticVotes"]
+                new_row["rtAudienceRating"] = audience_rating if audience_rating is not None else existing["rtAudienceRating"]
+                new_row["rtAudienceVotes"] = audience_votes if audience_votes is not None else existing["rtAudienceVotes"]
 
         return new_row
 
     def logic(self):
         self.dedupeFinalMovies(self.MAIN_TABLE_NAME)
 
-        rows = list(self.main_table_rows)
-        updates = []
-
         self._imdb_driver_lock = threading.Lock()
-
         with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [executor.submit(self.process_row, row) for row in rows]
-
+            futures = [executor.submit(self.process_row, row) for row in list(self.main_table_rows)]
             for future in as_completed(futures):
                 try:
                     result = future.result()
                     if result:
-                        updates.append(result)
+                        self.updates.append(result)
                 except Exception:
                     pass
 
-        self.updates = updates
-
+        self.updates = self.updates
         if self.updates:
             self.upsertUpdates(self.MAIN_TABLE_NAME)
             self.dedupeFinalMovies(self.MAIN_TABLE_NAME)
