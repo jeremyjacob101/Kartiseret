@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: Unknown
+URL: ?
+Exception: APIError - {'message': "Could not find the table 'public.testSOONSmovies' in the schema cache", 'code': 'PGRST205', 'hint': "Perhaps you meant the table 'public.testSOONmovies'", 'details': None}
+Call Chain: runners.py:39 > runners.py:19 > BaseDataflow.py:30 > SupabaseTables.py:44 > SupabaseTables.py:16
+Selector: 
+Screenshot: 
+CSV: 
