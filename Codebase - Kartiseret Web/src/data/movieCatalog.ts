@@ -5,17 +5,24 @@ import {
   type AppLocation,
 } from "../prefs/definitions/locations";
 
-const TOP_NOW_PLAYING_MOVIE_COUNT = 10;
+const SCROLLER_PREVIEW_MOVIE_COUNT = 5;
 const SUPABASE_PAGE_SIZE = 1000;
 const MOVIES_TABLE_NAME = "testNPmovies";
-const MOVIE_PREVIEW_TABLE_NAME = "testNPmoviesPreview";
+const NOW_PLAYING_PREVIEW_TABLE_NAME = "testNPmoviesPreview";
 const COMING_SOON_TABLE_NAME = "testSOONmovies";
+const COMING_SOON_PREVIEW_TABLE_NAME = "testSOONmoviesPreview";
 const SHOWTIMES_TABLE_NAME = "testNPshowtimes";
-const MOVIE_PREVIEW_SELECT_COLUMNS = [
+const NOW_PLAYING_PREVIEW_SELECT_COLUMNS = [
   "tmdb_id",
   "english_title",
   "en_poster",
   "popularity",
+] as const;
+const COMING_SOON_PREVIEW_SELECT_COLUMNS = [
+  "tmdb_id",
+  "english_title",
+  "release_date",
+  "en_poster",
 ] as const;
 const MOVIE_SELECT_COLUMNS = [
   "tmdb_id",
@@ -116,6 +123,7 @@ export type MovieShowtimeDay = {
 export let movies: Movie[] = [];
 export let allNowPlayingMovies: Movie[] = [];
 export let comingSoonMovies: Movie[] = [];
+export let allComingSoonMovies: Movie[] = [];
 
 type MovieShowtimesByCity = Record<AppLocation, MovieShowtimeDay[]>;
 type MovieCatalogStatusSnapshot = {
@@ -123,6 +131,7 @@ type MovieCatalogStatusSnapshot = {
   nowPlayingDetailsReady: boolean;
   showtimesReady: boolean;
   comingSoonReady: boolean;
+  comingSoonDetailsReady: boolean;
   catalogReady: boolean;
 };
 
@@ -135,6 +144,7 @@ let movieCatalogStatusSnapshot: MovieCatalogStatusSnapshot = {
   nowPlayingDetailsReady: allNowPlayingMovies.length > 0,
   showtimesReady: isMovieCatalogLoaded,
   comingSoonReady: comingSoonMovies.length > 0,
+  comingSoonDetailsReady: allComingSoonMovies.length > 0,
   catalogReady: isMovieCatalogLoaded,
 };
 
@@ -154,6 +164,8 @@ function updateMovieCatalogStatus(
     candidateStatus.showtimesReady === movieCatalogStatusSnapshot.showtimesReady &&
     candidateStatus.comingSoonReady ===
       movieCatalogStatusSnapshot.comingSoonReady &&
+    candidateStatus.comingSoonDetailsReady ===
+      movieCatalogStatusSnapshot.comingSoonDetailsReady &&
     candidateStatus.catalogReady === movieCatalogStatusSnapshot.catalogReady
   ) {
     return;
@@ -434,32 +446,57 @@ function buildMovies(
     : normalizedMovies;
 }
 
-function mergePreviewMoviesWithDetails(
+function buildNowPlayingPreviewMovies(rows: SupabaseRow[]): Movie[] {
+  // Keep the preview data in 1,2,3,4,last order so the scroller's wraparound
+  // naturally renders it as last,1,2,3,4 without changing the intro behavior.
+  return buildMovies(rows, {
+    limit: SCROLLER_PREVIEW_MOVIE_COUNT,
+  });
+}
+
+function buildComingSoonPreviewMovies(rows: SupabaseRow[]): Movie[] {
+  // Keep the preview data in earliest,2nd,3rd,4th,latest-preview order so the
+  // scroller's wraparound naturally renders it as latest-preview, earliest...
+  return buildMovies(rows, {
+    limit: SCROLLER_PREVIEW_MOVIE_COUNT,
+    sortMode: "releaseDate",
+  });
+}
+
+function buildHomePreviewScrollerMovies(
   previewMovies: readonly Movie[],
   detailedMovies: readonly Movie[],
 ): Movie[] {
+  if (previewMovies.length === 0) {
+    return [...detailedMovies];
+  }
+
   const detailedMoviesByTmdbId = new Map(
     detailedMovies.map((movie) => [movie.tmdbId, movie] as const),
   );
-  const mergedMovies = previewMovies.map(
+  const trailingPreviewMovie = previewMovies.at(-1) ?? null;
+  const leadingPreviewMovies = trailingPreviewMovie
+    ? previewMovies.slice(0, -1)
+    : [...previewMovies];
+  const mergedLeadingPreviewMovies = leadingPreviewMovies.map(
     (movie) => detailedMoviesByTmdbId.get(movie.tmdbId) ?? movie,
   );
-  const mergedMovieIds = new Set(mergedMovies.map((movie) => movie.tmdbId));
+  const previewMovieIds = new Set(previewMovies.map((movie) => movie.tmdbId));
+  const restOfDetailedMovies = detailedMovies.filter(
+    (movie) => !previewMovieIds.has(movie.tmdbId),
+  );
+  const mergedTrailingPreviewMovie = trailingPreviewMovie
+    ? (detailedMoviesByTmdbId.get(trailingPreviewMovie.tmdbId) ??
+        trailingPreviewMovie)
+    : null;
 
-  for (const movie of detailedMovies) {
-    if (mergedMovies.length >= TOP_NOW_PLAYING_MOVIE_COUNT) {
-      break;
-    }
-
-    if (mergedMovieIds.has(movie.tmdbId)) {
-      continue;
-    }
-
-    mergedMovies.push(movie);
-    mergedMovieIds.add(movie.tmdbId);
-  }
-
-  return mergedMovies.slice(0, TOP_NOW_PLAYING_MOVIE_COUNT);
+  return mergedTrailingPreviewMovie
+    ? [
+        ...mergedLeadingPreviewMovies,
+        ...restOfDetailedMovies,
+        mergedTrailingPreviewMovie,
+      ]
+    : [...mergedLeadingPreviewMovies, ...restOfDetailedMovies];
 }
 
 function buildMovieShowtimes(
@@ -651,9 +688,17 @@ async function fetchMovieRows(): Promise<SupabaseRow[]> {
 
 async function fetchMoviePreviewRows(): Promise<SupabaseRow[]> {
   return fetchAllTableRows(
-    MOVIE_PREVIEW_TABLE_NAME,
-    MOVIE_PREVIEW_SELECT_COLUMNS,
+    NOW_PLAYING_PREVIEW_TABLE_NAME,
+    NOW_PLAYING_PREVIEW_SELECT_COLUMNS,
     ["tmdb_id"],
+  );
+}
+
+async function fetchComingSoonPreviewRows(): Promise<SupabaseRow[]> {
+  return fetchAllTableRows(
+    COMING_SOON_PREVIEW_TABLE_NAME,
+    COMING_SOON_PREVIEW_SELECT_COLUMNS,
+    ["release_date", "tmdb_id"],
   );
 }
 
@@ -694,25 +739,23 @@ export async function loadMovieCatalog(): Promise<void> {
   loadMovieCatalogPromise = (async () => {
     const previewRowsPromise = fetchMoviePreviewRows().catch((error) => {
       console.warn(
-        `Failed to load ${MOVIE_PREVIEW_TABLE_NAME} from Supabase.`,
+        `Failed to load ${NOW_PLAYING_PREVIEW_TABLE_NAME} from Supabase.`,
         error,
       );
       return [];
     });
-    const fullCatalogPromise = Promise.all([
-      fetchMovieRows(),
-      fetchAllTableRows(SHOWTIMES_TABLE_NAME, SHOWTIME_SELECT_COLUMNS, [
-        "tmdb_id",
-        "date_of_showing",
-        "cinema",
-        "showtime",
-      ]),
-      fetchComingSoonMovieRows(),
-    ]);
-    const previewRows = await previewRowsPromise;
-    const previewMovies = buildMovies(previewRows, {
-      limit: TOP_NOW_PLAYING_MOVIE_COUNT,
+    const comingSoonPreviewRowsPromise = fetchComingSoonPreviewRows().catch((
+      error,
+    ) => {
+      console.warn(
+        `Failed to load ${COMING_SOON_PREVIEW_TABLE_NAME} from Supabase.`,
+        error,
+      );
+      return [];
     });
+
+    const previewRows = await previewRowsPromise;
+    const previewMovies = buildNowPlayingPreviewMovies(previewRows);
 
     if (previewMovies.length > 0) {
       movies = previewMovies;
@@ -721,16 +764,33 @@ export async function loadMovieCatalog(): Promise<void> {
       });
     }
 
-    const [movieRows, showtimeRows, comingSoonRows] = await fullCatalogPromise;
+    const comingSoonPreviewRows = await comingSoonPreviewRowsPromise;
+    const previewComingSoonMovies =
+      buildComingSoonPreviewMovies(comingSoonPreviewRows);
+
+    if (previewComingSoonMovies.length > 0) {
+      comingSoonMovies = previewComingSoonMovies;
+      updateMovieCatalogStatus({
+        nowPlayingPreviewReady: movies.length > 0,
+        comingSoonReady: true,
+      });
+    }
+
+    const [movieRows, showtimeRows] = await Promise.all([
+      fetchMovieRows(),
+      fetchAllTableRows(SHOWTIMES_TABLE_NAME, SHOWTIME_SELECT_COLUMNS, [
+        "tmdb_id",
+        "date_of_showing",
+        "cinema",
+        "showtime",
+      ]),
+    ]);
 
     const nextAllNowPlayingMovies = buildMovies(movieRows);
     const nextMovies =
       previewMovies.length > 0
-        ? mergePreviewMoviesWithDetails(previewMovies, nextAllNowPlayingMovies)
-        : nextAllNowPlayingMovies.slice(0, TOP_NOW_PLAYING_MOVIE_COUNT);
-    const nextComingSoonMovies = buildMovies(comingSoonRows, {
-      sortMode: "releaseDate",
-    });
+        ? buildHomePreviewScrollerMovies(previewMovies, nextAllNowPlayingMovies)
+        : nextAllNowPlayingMovies;
 
     if (nextMovies.length === 0) {
       throw new Error(
@@ -738,38 +798,62 @@ export async function loadMovieCatalog(): Promise<void> {
       );
     }
 
+    movies = nextMovies;
+    allNowPlayingMovies = nextAllNowPlayingMovies;
+    movieShowtimesByTmdbId = buildMovieShowtimes(
+      showtimeRows,
+      nextAllNowPlayingMovies,
+    );
+    updateMovieCatalogStatus({
+      nowPlayingPreviewReady: nextMovies.length > 0,
+      nowPlayingDetailsReady: nextAllNowPlayingMovies.length > 0,
+      showtimesReady: true,
+      comingSoonReady: comingSoonMovies.length > 0,
+      comingSoonDetailsReady: allComingSoonMovies.length > 0,
+      catalogReady: false,
+    });
+
+    const comingSoonRows = await fetchComingSoonMovieRows();
+    const nextAllComingSoonMovies = buildMovies(comingSoonRows, {
+      sortMode: "releaseDate",
+    });
+    const nextComingSoonMovies =
+      previewComingSoonMovies.length > 0
+        ? buildHomePreviewScrollerMovies(
+            previewComingSoonMovies,
+            nextAllComingSoonMovies,
+          )
+        : nextAllComingSoonMovies;
+
     if (nextComingSoonMovies.length === 0) {
       throw new Error(
         `Supabase table ${COMING_SOON_TABLE_NAME} returned no movie rows.`,
       );
     }
 
-    movies = nextMovies;
-    allNowPlayingMovies = nextAllNowPlayingMovies;
     comingSoonMovies = nextComingSoonMovies;
-    movieShowtimesByTmdbId = buildMovieShowtimes(
-      showtimeRows,
-      nextAllNowPlayingMovies,
-    );
+    allComingSoonMovies = nextAllComingSoonMovies;
     isMovieCatalogLoaded = true;
     updateMovieCatalogStatus({
-      nowPlayingPreviewReady: nextMovies.length > 0,
-      nowPlayingDetailsReady: nextAllNowPlayingMovies.length > 0,
+      nowPlayingPreviewReady: movies.length > 0,
+      nowPlayingDetailsReady: allNowPlayingMovies.length > 0,
       showtimesReady: true,
       comingSoonReady: nextComingSoonMovies.length > 0,
+      comingSoonDetailsReady: nextAllComingSoonMovies.length > 0,
       catalogReady: true,
     });
   })()
     .catch((error) => {
       allNowPlayingMovies = [];
-      comingSoonMovies = [];
+      allComingSoonMovies = [];
       movieShowtimesByTmdbId = {};
       isMovieCatalogLoaded = false;
       updateMovieCatalogStatus({
         nowPlayingPreviewReady: movies.length > 0,
         nowPlayingDetailsReady: false,
         showtimesReady: false,
-        comingSoonReady: false,
+        comingSoonReady: comingSoonMovies.length > 0,
+        comingSoonDetailsReady: false,
         catalogReady: false,
       });
       throw error instanceof Error ? error : new Error(String(error));

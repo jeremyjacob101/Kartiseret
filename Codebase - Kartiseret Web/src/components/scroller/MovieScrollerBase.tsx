@@ -33,6 +33,7 @@ export type MovieScrollerBaseProps = {
   selectedItemIndex?: number | null;
   getCardClassName?: (state: MovieScrollerCardState) => string | undefined;
   getCardStyle?: (state: MovieScrollerCardState) => CSSProperties | undefined;
+  onIntroComplete?: () => void;
 };
 
 export type MovieScrollerCardState = {
@@ -126,6 +127,7 @@ export function MovieScrollerBase({
   selectedItemIndex = null,
   getCardClassName,
   getCardStyle,
+  onIntroComplete,
 }: MovieScrollerBaseProps) {
   const allMovies = movieItems ?? movies;
   const movieCount = allMovies.length;
@@ -136,6 +138,7 @@ export function MovieScrollerBase({
   const introDelayTimeoutRef = useRef<number | null>(null);
   const introCompleteTimeoutRef = useRef<number | null>(null);
   const introReadyTimeoutRef = useRef<number | null>(null);
+  const introCompleteNotifiedRef = useRef(false);
   const seenPosterSrcRef = useRef(new Set<string>());
   const imageLoadPromiseBySrcRef = useRef(new Map<string, Promise<void>>());
   const focusedScaleBoost = 0.15;
@@ -516,6 +519,15 @@ export function MovieScrollerBase({
       clearScheduledIntro();
     };
   }, [clearScheduledIntro]);
+
+  useEffect(() => {
+    if (introPhase !== "done" || introCompleteNotifiedRef.current) {
+      return;
+    }
+
+    introCompleteNotifiedRef.current = true;
+    onIntroComplete?.();
+  }, [introPhase, onIntroComplete]);
 
   useEffect(() => {
     for (let i = range.start; i <= range.end; i += 1) {

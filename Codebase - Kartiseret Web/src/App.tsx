@@ -7,7 +7,7 @@ import { TheaterMapDialog } from "./components/TheaterMapDialog";
 import { UserMenu } from "./components/UserMenu";
 import { UserPreferencesPage } from "./components/UserPreferencesPage";
 import { PosterGridPage } from "./components/PosterGridPage";
-import { allNowPlayingMovies, comingSoonMovies, getMovieCatalogStatusSnapshot, loadMovieCatalog, subscribeToMovieCatalog } from "./data/movieCatalog";
+import { allComingSoonMovies, allNowPlayingMovies, getMovieCatalogStatusSnapshot, loadMovieCatalog, subscribeToMovieCatalog } from "./data/movieCatalog";
 import { preloadTheaters } from "./data/theaters";
 import { UserPreferencesProvider } from "./prefs/UserPreferencesContext";
 import { useUserPreferencesContext } from "./prefs/useUserPreferences";
@@ -551,7 +551,7 @@ function AppShell() {
     {
       mode: "comingSoon" as const,
       label: "Coming Soon",
-      movies: catalogReady ? comingSoonMovies : [],
+      movies: catalogReady ? allComingSoonMovies : [],
     },
   ];
 
@@ -745,7 +745,7 @@ function AppShell() {
                 <PosterGridPage
                   kicker="Coming soon"
                   title="Coming Soon"
-                  movies={comingSoonMovies}
+                  movies={allComingSoonMovies}
                   onPosterSelect={(movie) => {
                     handleCatalogPosterSelect("comingSoon", movie.tmdbId);
                   }}
@@ -767,7 +767,7 @@ function AppShell() {
                   >
                     <MovieScroller
                       mode="comingSoon"
-                      movieItems={comingSoonMovies}
+                      movieItems={allComingSoonMovies}
                       jumpRequest={
                         catalogMovieJumpRequest?.mode === "comingSoon"
                           ? catalogMovieJumpRequest
