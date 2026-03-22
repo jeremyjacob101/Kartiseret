@@ -1958,7 +1958,9 @@ function MovieScrollerContent({
           detailActiveItemIndex,
           `steady-${detailActiveItemIndex}`,
           "is-current",
-          phase === "opening" ? isFocusPosterVisible : true,
+          phase === "opening" || phase === "closing"
+            ? isFocusPosterVisible
+            : true,
           true,
         ),
       ];

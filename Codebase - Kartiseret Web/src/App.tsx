@@ -7,7 +7,7 @@ import { TheaterMapDialog } from "./components/TheaterMapDialog";
 import { UserMenu } from "./components/UserMenu";
 import { UserPreferencesPage } from "./components/UserPreferencesPage";
 import { PosterGridPage } from "./components/PosterGridPage";
-import { allNowPlayingMovies, comingSoonMovies, loadMovieCatalog } from "./data/movieCatalog";
+import { allNowPlayingMovies, comingSoonMovies, getMovieCatalogStatusSnapshot, loadMovieCatalog, subscribeToMovieCatalog } from "./data/movieCatalog";
 import { preloadTheaters } from "./data/theaters";
 import { UserPreferencesProvider } from "./prefs/UserPreferencesContext";
 import { useUserPreferencesContext } from "./prefs/useUserPreferences";
@@ -137,11 +137,7 @@ function TopbarActions({
           aria-label="Settings"
           onClick={onSettingsClick}
         >
-          <Settings
-            size={20}
-            strokeWidth={2.75}
-            className="app-accent-icon"
-          />
+          <Settings size={20} strokeWidth={2.75} className="app-accent-icon" />
         </button>
       </div>
     </div>
@@ -150,9 +146,13 @@ function TopbarActions({
 
 function AppShell() {
   const { user, loading } = useUserPreferencesContext();
-  const [catalogReady, setCatalogReady] = useState(
-    () => allNowPlayingMovies.length > 0 && comingSoonMovies.length > 0,
+  const catalogStatus = useSyncExternalStore(
+    subscribeToMovieCatalog,
+    getMovieCatalogStatusSnapshot,
   );
+  const catalogReady = catalogStatus.catalogReady;
+  const nowPlayingPreviewReady = catalogStatus.nowPlayingPreviewReady;
+  const comingSoonReady = catalogStatus.comingSoonReady;
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const pathname = useSyncExternalStore(
     subscribeToPathname,
@@ -211,7 +211,6 @@ function AppShell() {
     loadMovieCatalog()
       .then(() => {
         if (isActive) {
-          setCatalogReady(true);
           setCatalogError(null);
         }
       })
@@ -428,7 +427,6 @@ function AppShell() {
 
     void loadMovieCatalog()
       .then(() => {
-        setCatalogReady(true);
         setCatalogError(null);
       })
       .catch((error: unknown) => {
@@ -804,7 +802,7 @@ function AppShell() {
               className="scroller-slot"
               style={{ minHeight: SCROLLER_SLOT_MIN_HEIGHT }}
             >
-              {catalogReady ? (
+              {nowPlayingPreviewReady ? (
                 <MovieScroller
                   mode="nowPlaying"
                   cardWidth={SCROLLER_CARD_WIDTH}
@@ -822,7 +820,7 @@ function AppShell() {
               className="scroller-slot"
               style={{ minHeight: SCROLLER_SLOT_MIN_HEIGHT }}
             >
-              {catalogReady ? (
+              {comingSoonReady ? (
                 <MovieScroller
                   mode="comingSoon"
                   cardWidth={SCROLLER_CARD_WIDTH}

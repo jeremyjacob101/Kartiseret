@@ -65,6 +65,7 @@ const INTRO_START_DELAY_MS = 64;
 const INTRO_DURATION_MS = 1120;
 const INTRO_STAGGER_STEP_MS = 72;
 const INTRO_MAX_STAGGER_MS = 320;
+const INTRO_IMAGE_READY_TIMEOUT_MS = 1200;
 const INTRO_OFFSCREEN_GUTTER_PX = 72;
 const INTRO_TARGET_CARD_COUNT = 5;
 const INTRO_LEADING_CARD_COUNT = 1;
@@ -134,7 +135,9 @@ export function MovieScrollerBase({
   const introCommitFrameRef = useRef<number | null>(null);
   const introDelayTimeoutRef = useRef<number | null>(null);
   const introCompleteTimeoutRef = useRef<number | null>(null);
+  const introReadyTimeoutRef = useRef<number | null>(null);
   const seenPosterSrcRef = useRef(new Set<string>());
+  const imageLoadPromiseBySrcRef = useRef(new Map<string, Promise<void>>());
   const focusedScaleBoost = 0.15;
   const maxCardHeight = Math.ceil(cardHeight * (1 + focusedScaleBoost));
 
@@ -323,6 +326,71 @@ export function MovieScrollerBase({
       window.clearTimeout(introCompleteTimeoutRef.current);
       introCompleteTimeoutRef.current = null;
     }
+
+    if (introReadyTimeoutRef.current !== null) {
+      window.clearTimeout(introReadyTimeoutRef.current);
+      introReadyTimeoutRef.current = null;
+    }
+  }, []);
+
+  const preloadImageSource = useCallback((
+    src: string,
+    fetchPriority: "high" | "auto" = "auto",
+  ): Promise<void> => {
+    const existingPromise = imageLoadPromiseBySrcRef.current.get(src);
+
+    if (existingPromise) {
+      return existingPromise;
+    }
+
+    const image = new Image();
+    image.decoding = "async";
+    image.fetchPriority = fetchPriority;
+
+    const imageLoadPromise = new Promise<void>((resolve) => {
+      let isResolved = false;
+      const resolveOnce = () => {
+        if (isResolved) {
+          return;
+        }
+
+        isResolved = true;
+        resolve();
+      };
+
+      image.onload = () => {
+        resolveOnce();
+      };
+      image.onerror = () => {
+        resolveOnce();
+      };
+      image.src = src;
+
+      if (image.complete) {
+        resolveOnce();
+      }
+    });
+
+    imageLoadPromiseBySrcRef.current.set(src, imageLoadPromise);
+
+    return imageLoadPromise;
+  }, []);
+
+  const startIntroAnimation = useCallback(() => {
+    introStartFrameRef.current = window.requestAnimationFrame(() => {
+      introStartFrameRef.current = null;
+      introCommitFrameRef.current = window.requestAnimationFrame(() => {
+        introCommitFrameRef.current = null;
+        introDelayTimeoutRef.current = window.setTimeout(() => {
+          setIntroPhase("animating");
+          introDelayTimeoutRef.current = null;
+          introCompleteTimeoutRef.current = window.setTimeout(() => {
+            setIntroPhase("done");
+            introCompleteTimeoutRef.current = null;
+          }, INTRO_DURATION_MS + INTRO_MAX_STAGGER_MS);
+        }, INTRO_START_DELAY_MS);
+      });
+    });
   }, []);
 
   useLayoutEffect(() => {
@@ -371,21 +439,79 @@ export function MovieScrollerBase({
       return;
     }
 
-    introStartFrameRef.current = window.requestAnimationFrame(() => {
-      introStartFrameRef.current = null;
-      introCommitFrameRef.current = window.requestAnimationFrame(() => {
-        introCommitFrameRef.current = null;
-        introDelayTimeoutRef.current = window.setTimeout(() => {
-          setIntroPhase("animating");
-          introDelayTimeoutRef.current = null;
-          introCompleteTimeoutRef.current = window.setTimeout(() => {
-            setIntroPhase("done");
-            introCompleteTimeoutRef.current = null;
-          }, INTRO_DURATION_MS + INTRO_MAX_STAGGER_MS);
-        }, INTRO_START_DELAY_MS);
-      });
-    });
+    let isActive = true;
+    const introAnimatedStart = clamp(
+      centeredAnchorIndex - INTRO_LEADING_CARD_COUNT,
+      0,
+      totalItems - 1,
+    );
+    const introAnimatedEnd = clamp(
+      introAnimatedStart + INTRO_TARGET_CARD_COUNT - 1,
+      0,
+      totalItems - 1,
+    );
+    const introAnimatedSources = new Set<string>();
 
+    for (let i = introAnimatedStart; i <= introAnimatedEnd; i += 1) {
+      const movie = allMovies[i % movieCount];
+
+      if (movie?.imageSrc) {
+        introAnimatedSources.add(movie.imageSrc);
+      }
+    }
+
+    const finishIntroSetup = () => {
+      if (!isActive || !shouldPlayIntroRef.current) {
+        return;
+      }
+
+      shouldPlayIntroRef.current = false;
+
+      if (introReadyTimeoutRef.current !== null) {
+        window.clearTimeout(introReadyTimeoutRef.current);
+        introReadyTimeoutRef.current = null;
+      }
+
+      clearScheduledIntro();
+      startIntroAnimation();
+    };
+
+    if (introAnimatedSources.size === 0) {
+      finishIntroSetup();
+    } else {
+      Promise.all(
+        [...introAnimatedSources].map((src) =>
+          preloadImageSource(src, "high")),
+      )
+        .then(() => {
+          finishIntroSetup();
+        })
+        .catch(() => {
+          finishIntroSetup();
+        });
+
+      introReadyTimeoutRef.current = window.setTimeout(() => {
+        finishIntroSetup();
+      }, INTRO_IMAGE_READY_TIMEOUT_MS);
+    }
+
+    return () => {
+      isActive = false;
+      if (shouldPlayIntroRef.current) {
+        clearScheduledIntro();
+      }
+    };
+  }, [
+    allMovies,
+    clearScheduledIntro,
+    centeredAnchorIndex,
+    movieCount,
+    preloadImageSource,
+    startIntroAnimation,
+    totalItems,
+  ]);
+
+  useEffect(() => {
     return () => {
       clearScheduledIntro();
     };
@@ -404,12 +530,10 @@ export function MovieScrollerBase({
         }
 
         seenPosterSrcRef.current.add(src);
-        const image = new Image();
-        image.decoding = "async";
-        image.src = src;
+        void preloadImageSource(src);
       }
     }
-  }, [allMovies, movieCount, range.start, range.end]);
+  }, [allMovies, movieCount, preloadImageSource, range.start, range.end]);
 
   const visibleStart = range.firstVisible;
   const visibleEnd = range.firstVisible + range.visibleCount - 1;
