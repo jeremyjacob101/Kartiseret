@@ -64,12 +64,14 @@ class SupabaseTables:
         if refresh:
             self.refreshAllTables(table_name)
 
-    def upsertUpdates(self, table_name: str, refresh: bool = True):
+    def upsertUpdates(self, table_name: str, refresh: bool = True, addRunIdCol: bool = True):
         if self.updates:
-            for row in self.updates:
-                if isinstance(row, dict) and "run_id" not in row:
-                    row["run_id"] = int(self.run_id)
+            if addRunIdCol:
+                for row in self.updates:
+                    if isinstance(row, dict) and "run_id" not in row:
+                        row["run_id"] = int(self.run_id)
             self.supabase.table(table_name).upsert(self.updates).execute()
+
         self.updates = []
         if refresh:
             self.refreshAllTables(table_name)

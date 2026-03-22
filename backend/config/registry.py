@@ -25,6 +25,7 @@ from backend.dataflow.comingsoons.ComingSoonsTmdb import ComingSoonsTmdb
 from backend.dataflow.nowplayings.NowPlayingsClean import NowPlayingsClean
 from backend.dataflow.nowplayings.NowPlayingsTmdb import NowPlayingsTmdb
 from backend.dataflow.nowplayings.NowPlayingsUpdate import NowPlayingsUpdate
+from backend.dataflow.nowplayings.NowPlayingsPreview import NowPlayingsPreview
 
 REGISTRY = {
     "allShowtimes": [
@@ -62,5 +63,6 @@ DATAFLOW_REGISTRY = {
         NowPlayingsClean,
         NowPlayingsTmdb,
         NowPlayingsUpdate,
+        NowPlayingsPreview,
     ],
 }
