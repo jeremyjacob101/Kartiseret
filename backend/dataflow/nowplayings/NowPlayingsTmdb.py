@@ -182,7 +182,7 @@ class NowPlayingsTmdb(BaseDataflow):
             res["runtime"] = data["runtime"] if data.get("runtime") is not None else res.get("runtime")
             res["popularity"] = data["popularity"] if data.get("popularity") is not None else res.get("popularity")
             res["imdb_id"] = external_ids.get("imdb_id") or res.get("imdb_id")
-            res["en_poster"] = "https://image.tmdb.org/t/p/w500" + data["poster_path"] if data.get("poster_path") else res.get("en_poster")
+            res["en_poster"] = "https://image.tmdb.org/t/p/w342" + data["poster_path"] if data.get("poster_path") else res.get("en_poster")
             res["backdrop"] = "https://image.tmdb.org/t/p/w1280" + data["backdrop_path"] if data.get("backdrop_path") else res.get("backdrop")
             res["genres"] = genres or res.get("genres")
             res["en_trailer"] = trailer.get("key") if trailer else res.get("en_trailer")
