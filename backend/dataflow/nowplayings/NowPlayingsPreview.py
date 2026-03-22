@@ -15,5 +15,5 @@ class NowPlayingsPreview(BaseDataflow):
 
         top_10 = sorted(self.main_table_rows, key=lambda row: self.clean_float(row.get("popularity")) or float("-inf"), reverse=True)[:10]
 
-        self.updates = [{"english_title": row.get("english_title"), "tmdb_id": row.get("tmdb_id"), "en_poster": row.get("en_poster")} for row in top_10 if row.get("tmdb_id") is not None and row.get("english_title")]
+        self.updates = [{"english_title": row.get("english_title"), "tmdb_id": row.get("tmdb_id"), "en_poster": row.get("en_poster"), "popularity": self.clean_float(row.get("popularity"))} for row in top_10 if row.get("tmdb_id") is not None and row.get("english_title")]
         self.upsertUpdates(self.MOVING_TO_TABLE_NAME, addRunIdCol=False)
