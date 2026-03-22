@@ -587,7 +587,7 @@ function AppShell() {
                 onClick={handleMoviesNavClick}
               >
                 <Film className="topnav-icon" aria-hidden="true" />
-                <span>Movies</span>
+                <span className="topnav-label">Movies</span>
               </button>
               <button
                 type="button"
@@ -600,7 +600,7 @@ function AppShell() {
                   className="topnav-icon topnav-icon--soon"
                   aria-hidden="true"
                 />
-                <span>Coming Soon</span>
+                <span className="topnav-label">Coming Soon</span>
               </button>
               <button
                 type="button"
@@ -610,7 +610,7 @@ function AppShell() {
                 onClick={handleAllShowtimesNavClick}
               >
                 <Clock8 className="topnav-icon" aria-hidden="true" />
-                <span>All Showtimes</span>
+                <span className="topnav-label">All Showtimes</span>
               </button>
             </nav>
             <TopbarActions

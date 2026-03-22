@@ -315,7 +315,7 @@ button {
   font-weight: 650;
 }
 
-.topnav-link span {
+.topnav-label {
   margin-bottom: -1.5px;
 }
 
@@ -2338,7 +2338,7 @@ span.topnav-icon {
   width: 100%;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 20px;
+  gap: 22px;
 }
 
 .poster-grid-page__tile {
