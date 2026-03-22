@@ -1,13 +1,11 @@
-import { StrictMode, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { StrictMode, Suspense, lazy, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
-import { Clock8, Film, Settings } from "lucide-react";
+import { Clock8, Film, MapPin, Settings } from "lucide-react";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
 import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "./components/MovieSearchMenu";
-import { TheaterMapDialog } from "./components/TheaterMapDialog";
 import { UserMenu } from "./components/UserMenu";
-import { UserPreferencesPage } from "./components/UserPreferencesPage";
-import { PosterGridPage } from "./components/PosterGridPage";
 import { allComingSoonMovies, allNowPlayingMovies, getMovieCatalogStatusSnapshot, loadMovieCatalog, subscribeToMovieCatalog } from "./data/movieCatalog";
+import { markComingSoonPreviewIntroStarted } from "./data/movieCatalog";
 import { preloadTheaters } from "./data/theaters";
 import { UserPreferencesProvider } from "./prefs/UserPreferencesContext";
 import { useUserPreferencesContext } from "./prefs/useUserPreferences";
@@ -20,6 +18,25 @@ const SCROLLER_MAX_WIDTH = 1100;
 const SCROLLER_SLOT_MIN_HEIGHT = 420;
 const TOPBAR_INTRO_DURATION_MS = 760;
 const FLOATING_TOPBAR_TRANSITION_MS = 620;
+
+const loadTheaterMapDialog = () => import("./components/TheaterMapDialog");
+const loadUserPreferencesPage = () => import("./components/UserPreferencesPage");
+const loadPosterGridPage = () => import("./components/PosterGridPage");
+
+const TheaterMapDialog = lazy(async () => {
+  const module = await loadTheaterMapDialog();
+  return { default: module.TheaterMapDialog };
+});
+
+const UserPreferencesPage = lazy(async () => {
+  const module = await loadUserPreferencesPage();
+  return { default: module.UserPreferencesPage };
+});
+
+const PosterGridPage = lazy(async () => {
+  const module = await loadPosterGridPage();
+  return { default: module.PosterGridPage };
+});
 
 type MovieSearchMode = "nowPlaying" | "comingSoon";
 type CatalogPageView = "grid" | "scroller";
@@ -40,6 +57,26 @@ type TopbarActionsProps = {
   onSelectResult: (result: MovieSearchResult) => void;
   onSettingsClick: () => void;
 };
+
+function LoadingMapButton() {
+  const { location } = useUserPreferencesContext();
+
+  return (
+    <div className="theater-map-trigger-shell">
+      <button
+        type="button"
+        className="location-menu-trigger theater-map-trigger"
+        aria-haspopup="dialog"
+        aria-expanded="false"
+        aria-label={`Open city selector. Current city: ${location}`}
+        aria-disabled="true"
+        disabled
+      >
+        <MapPin size={20} strokeWidth={2.75} className="app-accent-icon" />
+      </button>
+    </div>
+  );
+}
 
 function normalizePathname(pathname: string): AppPath {
   if (pathname === "/movies") {
@@ -113,7 +150,9 @@ function TopbarActions({
             : undefined
         }
       >
-        <TheaterMapDialog />
+        <Suspense fallback={<LoadingMapButton />}>
+          <TheaterMapDialog />
+        </Suspense>
       </div>
       <div
         className={
@@ -166,10 +205,13 @@ function AppShell() {
     useState<AppMovieJumpRequest | null>(null);
   const [moviesPageView, setMoviesPageView] = useState<CatalogPageView>("grid");
   const [soonsPageView, setSoonsPageView] = useState<CatalogPageView>("grid");
+  const [moviesGridRevealVersion, setMoviesGridRevealVersion] = useState(0);
+  const [soonsGridRevealVersion, setSoonsGridRevealVersion] = useState(0);
   const topbarShellRef = useRef<HTMLDivElement | null>(null);
   const floatingTopbarStateFrameRef = useRef<number | null>(null);
   const floatingTopbarEnterFrameRef = useRef<number | null>(null);
   const floatingTopbarExitTimeoutRef = useRef<number | null>(null);
+  const nonCriticalPreloadStartedRef = useRef(false);
 
   const navigate = useCallback((path: string, replace = false) => {
     const targetPath = normalizePathname(path);
@@ -196,10 +238,77 @@ function AppShell() {
   }, []);
 
   useEffect(() => {
+    if (pathname === "/movies" && moviesPageView === "grid") {
+      setMoviesGridRevealVersion((currentVersion) => currentVersion + 1);
+    }
+  }, [moviesPageView, pathname]);
+
+  useEffect(() => {
+    if (pathname === "/soons" && soonsPageView === "grid") {
+      setSoonsGridRevealVersion((currentVersion) => currentVersion + 1);
+    }
+  }, [pathname, soonsPageView]);
+
+  useEffect(() => {
     if (!loading && !user && pathname === "/user") {
       navigate("/", true);
     }
   }, [loading, navigate, pathname, user]);
+
+  useEffect(() => {
+    if (
+      pathname !== "/" ||
+      !nowPlayingPreviewReady ||
+      !comingSoonReady ||
+      nonCriticalPreloadStartedRef.current
+    ) {
+      return;
+    }
+
+    nonCriticalPreloadStartedRef.current = true;
+
+    let timeoutId: number | null = null;
+    let idleId: number | null = null;
+    const windowWithIdleCallbacks = window as Window & {
+      cancelIdleCallback?: (handle: number) => void;
+      requestIdleCallback?: (
+        callback: IdleRequestCallback,
+        options?: IdleRequestOptions,
+      ) => number;
+    };
+    const preloadNonCriticalExperience = () => {
+      void Promise.allSettled([
+        loadUserPreferencesPage(),
+        loadPosterGridPage(),
+      ]);
+    };
+
+    if (typeof windowWithIdleCallbacks.requestIdleCallback === "function") {
+      idleId = windowWithIdleCallbacks.requestIdleCallback(
+        () => {
+          preloadNonCriticalExperience();
+        },
+        { timeout: 900 },
+      );
+    } else {
+      timeoutId = window.setTimeout(() => {
+        preloadNonCriticalExperience();
+      }, 180);
+    }
+
+    return () => {
+      if (
+        idleId !== null &&
+        typeof windowWithIdleCallbacks.cancelIdleCallback === "function"
+      ) {
+        windowWithIdleCallbacks.cancelIdleCallback(idleId);
+      }
+
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [comingSoonReady, nowPlayingPreviewReady, pathname]);
 
   useEffect(() => {
     let isActive = true;
@@ -390,6 +499,7 @@ function AppShell() {
       ) => number;
     };
     const runPreload = () => {
+      void loadTheaterMapDialog();
       preloadTheaters();
     };
 
@@ -662,11 +772,13 @@ function AppShell() {
 
       <main className="app-main">
         {pathname === "/user" && user ? (
-          <UserPreferencesPage
-            onBackHome={() => {
-              navigate("/");
-            }}
-          />
+          <Suspense fallback={null}>
+            <UserPreferencesPage
+              onBackHome={() => {
+                navigate("/");
+              }}
+            />
+          </Suspense>
         ) : pathname === "/movies" ? (
           <section className="page-panel">
             {catalogError ? (
@@ -676,14 +788,18 @@ function AppShell() {
             ) : null}
             {catalogReady ? (
               moviesPageView === "grid" ? (
-                <PosterGridPage
-                  kicker="Movies"
-                  title="Movies"
-                  movies={showtimeCatalogMovies}
-                  onPosterSelect={(movie) => {
-                    handleCatalogPosterSelect("nowPlaying", movie.tmdbId);
-                  }}
-                />
+                <Suspense fallback={null}>
+                  <PosterGridPage
+                    key="movies-grid"
+                    kicker="Movies"
+                    title="Movies"
+                    movies={showtimeCatalogMovies}
+                    revealVersion={moviesGridRevealVersion}
+                    onPosterSelect={(movie) => {
+                      handleCatalogPosterSelect("nowPlaying", movie.tmdbId);
+                    }}
+                  />
+                </Suspense>
               ) : (
                 <section className="catalog-browser-page" aria-label="Movies">
                   <div className="section-heading catalog-browser-page__heading">
@@ -742,14 +858,18 @@ function AppShell() {
             ) : null}
             {catalogReady ? (
               soonsPageView === "grid" ? (
-                <PosterGridPage
-                  kicker="Coming soon"
-                  title="Coming Soon"
-                  movies={allComingSoonMovies}
-                  onPosterSelect={(movie) => {
-                    handleCatalogPosterSelect("comingSoon", movie.tmdbId);
-                  }}
-                />
+                <Suspense fallback={null}>
+                  <PosterGridPage
+                    key="soons-grid"
+                    kicker="Coming soon"
+                    title="Coming Soon"
+                    movies={allComingSoonMovies}
+                    revealVersion={soonsGridRevealVersion}
+                    onPosterSelect={(movie) => {
+                      handleCatalogPosterSelect("comingSoon", movie.tmdbId);
+                    }}
+                  />
+                </Suspense>
               ) : (
                 <section
                   className="catalog-browser-page"
@@ -827,6 +947,7 @@ function AppShell() {
                   cardHeight={SCROLLER_CARD_HEIGHT}
                   gap={SCROLLER_GAP}
                   maxWidth={SCROLLER_MAX_WIDTH}
+                  onIntroSetupStart={markComingSoonPreviewIntroStarted}
                 />
               ) : null}
             </div>

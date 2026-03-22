@@ -33,6 +33,7 @@ export type MovieScrollerBaseProps = {
   selectedItemIndex?: number | null;
   getCardClassName?: (state: MovieScrollerCardState) => string | undefined;
   getCardStyle?: (state: MovieScrollerCardState) => CSSProperties | undefined;
+  onIntroSetupStart?: () => void;
   onIntroComplete?: () => void;
 };
 
@@ -127,6 +128,7 @@ export function MovieScrollerBase({
   selectedItemIndex = null,
   getCardClassName,
   getCardStyle,
+  onIntroSetupStart,
   onIntroComplete,
 }: MovieScrollerBaseProps) {
   const allMovies = movieItems ?? movies;
@@ -139,6 +141,7 @@ export function MovieScrollerBase({
   const introCompleteTimeoutRef = useRef<number | null>(null);
   const introReadyTimeoutRef = useRef<number | null>(null);
   const introCompleteNotifiedRef = useRef(false);
+  const introSetupStartedRef = useRef(false);
   const seenPosterSrcRef = useRef(new Set<string>());
   const imageLoadPromiseBySrcRef = useRef(new Map<string, Promise<void>>());
   const focusedScaleBoost = 0.15;
@@ -442,6 +445,11 @@ export function MovieScrollerBase({
       return;
     }
 
+    if (!introSetupStartedRef.current) {
+      introSetupStartedRef.current = true;
+      onIntroSetupStart?.();
+    }
+
     let isActive = true;
     const introAnimatedStart = clamp(
       centeredAnchorIndex - INTRO_LEADING_CARD_COUNT,
@@ -512,6 +520,7 @@ export function MovieScrollerBase({
     preloadImageSource,
     startIntroAnimation,
     totalItems,
+    onIntroSetupStart,
   ]);
 
   useEffect(() => {

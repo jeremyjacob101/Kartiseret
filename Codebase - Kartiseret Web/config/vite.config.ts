@@ -15,6 +15,18 @@ function resolveEnvValue(...values: Array<string | undefined>): string {
   return "";
 }
 
+function resolveOrigin(value: string): string {
+  if (!value) {
+    return "";
+  }
+
+  try {
+    return new URL(value).origin;
+  } catch {
+    return "";
+  }
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const supabaseUrl = resolveEnvValue(
@@ -29,9 +41,43 @@ export default defineConfig(({ mode }) => {
     env.SUPABASE_PUBLISHABLE_KEY,
     env.VITE_SUPABASE_PUBLISHABLE_KEY,
   );
+  const supabaseOrigin = resolveOrigin(supabaseUrl);
 
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      {
+        name: "inject-supabase-resource-hints",
+        transformIndexHtml(html) {
+          if (!supabaseOrigin) {
+            return html;
+          }
+
+          return {
+            html,
+            tags: [
+              {
+                tag: "link",
+                attrs: {
+                  rel: "preconnect",
+                  href: supabaseOrigin,
+                  crossorigin: "",
+                },
+                injectTo: "head",
+              },
+              {
+                tag: "link",
+                attrs: {
+                  rel: "dns-prefetch",
+                  href: supabaseOrigin,
+                },
+                injectTo: "head",
+              },
+            ],
+          };
+        },
+      },
+    ],
     define: {
       __SUPABASE_URL__: JSON.stringify(supabaseUrl),
       __SUPABASE_PUBLISHABLE_KEY__: JSON.stringify(supabasePublishableKey),

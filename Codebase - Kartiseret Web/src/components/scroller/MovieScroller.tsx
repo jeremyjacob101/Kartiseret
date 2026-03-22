@@ -535,6 +535,7 @@ function MovieScrollerContent({
   gap = 16,
   maxWidth = "100%",
   className,
+  onIntroSetupStart,
 }: MovieScrollerContentProps) {
   const [renderedMovieItems, setRenderedMovieItems] = useState(movieItems);
   const [hasCollapsedIntroCompleted, setHasCollapsedIntroCompleted] =
@@ -2148,6 +2149,7 @@ function MovieScrollerContent({
           }
           getCardStyle={getCardStyle}
           className="movie-scroller-collapsed"
+          onIntroSetupStart={onIntroSetupStart}
           onIntroComplete={handleCollapsedIntroComplete}
         />
       </div>

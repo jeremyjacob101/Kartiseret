@@ -7,6 +7,7 @@ import {
 
 const SCROLLER_PREVIEW_MOVIE_COUNT = 5;
 const SUPABASE_PAGE_SIZE = 1000;
+const COMING_SOON_PREVIEW_INTRO_START_TIMEOUT_MS = 360;
 const MOVIES_TABLE_NAME = "testNPmovies";
 const NOW_PLAYING_PREVIEW_TABLE_NAME = "testNPmoviesPreview";
 const COMING_SOON_TABLE_NAME = "testSOONmovies";
@@ -138,7 +139,10 @@ type MovieCatalogStatusSnapshot = {
 let movieShowtimesByTmdbId: Record<string, MovieShowtimesByCity> = {};
 let isMovieCatalogLoaded = false;
 let loadMovieCatalogPromise: Promise<void> | null = null;
+const primedPreviewImageSources = new Set<string>();
 const movieCatalogListeners = new Set<() => void>();
+let comingSoonPreviewIntroStartWaiters: Array<() => void> = [];
+let hasComingSoonPreviewIntroStarted = false;
 let movieCatalogStatusSnapshot: MovieCatalogStatusSnapshot = {
   nowPlayingPreviewReady: movies.length > 0,
   nowPlayingDetailsReady: allNowPlayingMovies.length > 0,
@@ -189,6 +193,75 @@ export function subscribeToMovieCatalog(
 
 export function getMovieCatalogStatusSnapshot(): MovieCatalogStatusSnapshot {
   return movieCatalogStatusSnapshot;
+}
+
+export function markComingSoonPreviewIntroStarted(): void {
+  if (hasComingSoonPreviewIntroStarted) {
+    return;
+  }
+
+  hasComingSoonPreviewIntroStarted = true;
+
+  for (const resolve of comingSoonPreviewIntroStartWaiters) {
+    resolve();
+  }
+
+  comingSoonPreviewIntroStartWaiters = [];
+}
+
+function primePreviewMovieImages(selectedMovies: readonly Movie[]): void {
+  for (const movie of selectedMovies) {
+    const imageSrc = movie.imageSrc?.trim();
+
+    if (!imageSrc || primedPreviewImageSources.has(imageSrc)) {
+      continue;
+    }
+
+    primedPreviewImageSources.add(imageSrc);
+
+    const image = new Image();
+    image.decoding = "async";
+    image.fetchPriority = "high";
+    image.src = imageSrc;
+  }
+}
+
+async function yieldForPreviewScrollerRender(): Promise<void> {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 0);
+  });
+
+  await new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => {
+      resolve();
+    });
+  });
+}
+
+async function waitForComingSoonPreviewIntroStart(): Promise<void> {
+  if (typeof window === "undefined" || hasComingSoonPreviewIntroStarted) {
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    const timeoutId = window.setTimeout(() => {
+      comingSoonPreviewIntroStartWaiters = comingSoonPreviewIntroStartWaiters.filter(
+        (waiter) => waiter !== resolveWait,
+      );
+      resolve();
+    }, COMING_SOON_PREVIEW_INTRO_START_TIMEOUT_MS);
+
+    const resolveWait = () => {
+      window.clearTimeout(timeoutId);
+      resolve();
+    };
+
+    comingSoonPreviewIntroStartWaiters.push(resolveWait);
+  });
 }
 
 function stringifySupabaseValue(value: SupabaseValue | undefined): string {
@@ -737,6 +810,9 @@ export async function loadMovieCatalog(): Promise<void> {
   }
 
   loadMovieCatalogPromise = (async () => {
+    hasComingSoonPreviewIntroStarted = false;
+    comingSoonPreviewIntroStartWaiters = [];
+
     const previewRowsPromise = fetchMoviePreviewRows().catch((error) => {
       console.warn(
         `Failed to load ${NOW_PLAYING_PREVIEW_TABLE_NAME} from Supabase.`,
@@ -759,6 +835,7 @@ export async function loadMovieCatalog(): Promise<void> {
 
     if (previewMovies.length > 0) {
       movies = previewMovies;
+      primePreviewMovieImages(previewMovies);
       updateMovieCatalogStatus({
         nowPlayingPreviewReady: true,
       });
@@ -770,10 +847,19 @@ export async function loadMovieCatalog(): Promise<void> {
 
     if (previewComingSoonMovies.length > 0) {
       comingSoonMovies = previewComingSoonMovies;
+      primePreviewMovieImages(previewComingSoonMovies);
       updateMovieCatalogStatus({
         nowPlayingPreviewReady: movies.length > 0,
         comingSoonReady: true,
       });
+    }
+
+    if (previewMovies.length > 0 || previewComingSoonMovies.length > 0) {
+      await yieldForPreviewScrollerRender();
+    }
+
+    if (previewComingSoonMovies.length > 0) {
+      await waitForComingSoonPreviewIntroStart();
     }
 
     const [movieRows, showtimeRows] = await Promise.all([
