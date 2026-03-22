@@ -21,6 +21,7 @@ from backend.scraping.comingsoons.YPsoon import YPsoon
 
 from backend.dataflow.comingsoons.ComingSoonsClean import ComingSoonsClean
 from backend.dataflow.comingsoons.ComingSoonsTmdb import ComingSoonsTmdb
+from backend.dataflow.comingsoons.ComingSoonsPreview import ComingSoonsPreview
 
 from backend.dataflow.nowplayings.NowPlayingsClean import NowPlayingsClean
 from backend.dataflow.nowplayings.NowPlayingsTmdb import NowPlayingsTmdb
@@ -58,6 +59,7 @@ DATAFLOW_REGISTRY = {
     "comingSoonsData": [
         ComingSoonsClean,
         ComingSoonsTmdb,
+        ComingSoonsPreview,
     ],
     "nowPlayingData": [
         NowPlayingsClean,
