@@ -112,7 +112,7 @@
     0 0 0 1px rgba(255, 255, 255, 0.06);
   opacity: var(--movie-scroller-side-preview-rest-opacity);
   filter: saturate(0.8) brightness(0.86);
-  transform: translate3d(0, 24px, 0) scale(0.985);
+  transform: translate(0, 24px) scale(0.985);
   transition:
     transform 220ms ease,
     opacity 220ms ease,
@@ -132,7 +132,7 @@
 .movie-scroller-side-preview:focus-visible:not(.is-disabled) {
   opacity: var(--movie-scroller-side-preview-hover-opacity);
   filter: saturate(0.88) brightness(0.94);
-  transform: translate3d(0, 18px, 0) scale(1);
+  transform: translate(0, 18px) scale(1);
 }
 
 .movie-scroller-side-preview.is-disabled {
@@ -198,7 +198,7 @@
 .movie-scroller-detail-body {
   position: absolute;
   inset: 0;
-  transform: translate3d(0, 0, 0);
+  transform: translate(0, 0);
   opacity: 1;
 }
 
@@ -257,7 +257,7 @@
   object-fit: cover;
   opacity: 0.78;
   filter: blur(0.6px) saturate(1.03) brightness(0.6) contrast(1.02);
-  transform: translate3d(0, 0, 0) scale(1.035);
+  transform: translate(0, 0) scale(1.035);
   transform-origin: center top;
   will-change: transform, opacity;
 }
@@ -796,7 +796,7 @@
 .movie-scroller-detail-card .details-copy,
 .movie-scroller-detail-card .details-showtimes,
 .movie-scroller-close {
-  transform: translate3d(0, 0, 0);
+  transform: translate(0, 0);
   opacity: 1;
 }
 
@@ -1004,20 +1004,20 @@
   from {
     opacity: 0.18;
     filter: saturate(0.64) brightness(0.7);
-    transform: translate3d(var(--movie-scroller-side-preview-enter-x), 36px, 0) scale(0.955);
+    transform: translate(var(--movie-scroller-side-preview-enter-x), 36px) scale(0.955);
   }
 
   to {
     opacity: var(--movie-scroller-side-preview-rest-opacity);
     filter: saturate(0.8) brightness(0.86);
-    transform: translate3d(0, 24px, 0) scale(0.985);
+    transform: translate(0, 24px) scale(0.985);
   }
 }
 
 @keyframes movieScrollerBackdropIn {
   from {
     opacity: 0;
-    transform: translate3d(0, -82px, 0) scale(1.05);
+    transform: translate(0, -82px) scale(1.05);
   }
 
   12% {
@@ -1026,74 +1026,74 @@
 
   to {
     opacity: 0.78;
-    transform: translate3d(0, 0, 0) scale(1.035);
+    transform: translate(0, 0) scale(1.035);
   }
 }
 
 @keyframes movieScrollerBackdropOut {
   from {
     opacity: 0.78;
-    transform: translate3d(0, 0, 0) scale(1.035);
+    transform: translate(0, 0) scale(1.035);
   }
 
   to {
     opacity: 0;
-    transform: translate3d(0, -44px, 0) scale(1.02);
+    transform: translate(0, -44px) scale(1.02);
   }
 }
 
 @keyframes movieScrollerZipUp {
   from {
     opacity: 0;
-    transform: translate3d(0, 18vh, 0) scale(0.985);
+    transform: translate(0, 18vh) scale(0.985);
   }
 
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate(0, 0) scale(1);
   }
 }
 
 @keyframes movieScrollerSlideAway {
   from {
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate(0, 0) scale(1);
   }
 
   to {
     opacity: 0;
-    transform: translate3d(0, 36px, 0) scale(0.985);
+    transform: translate(0, 36px) scale(0.985);
   }
 }
 
 @keyframes movieScrollerFadeDown {
   from {
     opacity: 0;
-    transform: translate3d(0, -16px, 0);
+    transform: translate(0, -16px);
   }
 
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
+    transform: translate(0, 0);
   }
 }
 
 @keyframes movieScrollerFadeOut {
   from {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
+    transform: translate(0, 0);
   }
 
   to {
     opacity: 0;
-    transform: translate3d(0, -12px, 0);
+    transform: translate(0, -12px);
   }
 }
 
 @keyframes movieScrollerBodyEnterFromRight {
   from {
     opacity: 0;
-    transform: translate3d(88px, 0, 0);
+    transform: translate(88px, 0);
   }
 
   12% {
@@ -1102,14 +1102,14 @@
 
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
+    transform: translate(0, 0);
   }
 }
 
 @keyframes movieScrollerBodyEnterFromLeft {
   from {
     opacity: 0;
-    transform: translate3d(-88px, 0, 0);
+    transform: translate(-88px, 0);
   }
 
   12% {
@@ -1118,30 +1118,30 @@
 
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
+    transform: translate(0, 0);
   }
 }
 
 @keyframes movieScrollerBodyExitToLeft {
   from {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
+    transform: translate(0, 0);
   }
 
   to {
     opacity: 0;
-    transform: translate3d(-88px, 0, 0);
+    transform: translate(-88px, 0);
   }
 }
 
 @keyframes movieScrollerBodyExitToRight {
   from {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
+    transform: translate(0, 0);
   }
 
   to {
     opacity: 0;
-    transform: translate3d(88px, 0, 0);
+    transform: translate(88px, 0);
   }
 }

@@ -33,7 +33,6 @@ type PosterGridPageProps = {
   kicker: string;
   title: string;
   movies: readonly Movie[];
-  revealVersion: number;
   onPosterSelect: (movie: Movie) => void;
 };
 
@@ -41,12 +40,10 @@ export function PosterGridPage({
   kicker,
   title,
   movies,
-  revealVersion,
   onPosterSelect,
 }: PosterGridPageProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [columnCount, setColumnCount] = useState(1);
-  const [isRevealed, setIsRevealed] = useState(false);
   const posterEntries = useMemo(
     () =>
       movies.map((movie, index) => ({
@@ -70,7 +67,9 @@ export function PosterGridPage({
       );
     };
 
-    updateColumnCount();
+    const frameId = window.requestAnimationFrame(() => {
+      updateColumnCount();
+    });
 
     if (typeof ResizeObserver === "function") {
       const resizeObserver = new ResizeObserver(() => {
@@ -80,6 +79,7 @@ export function PosterGridPage({
       resizeObserver.observe(gridElement);
 
       return () => {
+        window.cancelAnimationFrame(frameId);
         resizeObserver.disconnect();
       };
     }
@@ -87,21 +87,10 @@ export function PosterGridPage({
     window.addEventListener("resize", updateColumnCount);
 
     return () => {
+      window.cancelAnimationFrame(frameId);
       window.removeEventListener("resize", updateColumnCount);
     };
   }, []);
-
-  useLayoutEffect(() => {
-    setIsRevealed(false);
-
-    const frameId = window.requestAnimationFrame(() => {
-      setIsRevealed(true);
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-    };
-  }, [revealVersion, title]);
 
   return (
     <section className="poster-grid-page" aria-label={title}>
@@ -114,12 +103,7 @@ export function PosterGridPage({
           <button
             key={movie.tmdbId}
             type="button"
-            className={[
-              "poster-grid-page__tile",
-              isRevealed ? "poster-grid-page__tile--revealed" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
+            className="poster-grid-page__tile"
             aria-label={`Open ${movie.title} in scroller view`}
             title={movie.title}
             style={

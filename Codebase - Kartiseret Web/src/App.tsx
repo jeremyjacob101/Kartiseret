@@ -4,8 +4,7 @@ import { Clock8, Film, MapPin, Settings } from "lucide-react";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
 import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "./components/MovieSearchMenu";
 import { UserMenu } from "./components/UserMenu";
-import { allComingSoonMovies, allNowPlayingMovies, getMovieCatalogStatusSnapshot, loadMovieCatalog, subscribeToMovieCatalog } from "./data/movieCatalog";
-import { markComingSoonPreviewIntroStarted } from "./data/movieCatalog";
+import { allComingSoonMovies, allNowPlayingMovies, getMovieCatalogStatusSnapshot, loadMovieCatalog, markComingSoonPreviewIntroCompleted, markComingSoonPreviewIntroStarted, subscribeToMovieCatalog } from "./data/movieCatalog";
 import { preloadTheaters } from "./data/theaters";
 import { UserPreferencesProvider } from "./prefs/UserPreferencesContext";
 import { useUserPreferencesContext } from "./prefs/useUserPreferences";
@@ -205,8 +204,6 @@ function AppShell() {
     useState<AppMovieJumpRequest | null>(null);
   const [moviesPageView, setMoviesPageView] = useState<CatalogPageView>("grid");
   const [soonsPageView, setSoonsPageView] = useState<CatalogPageView>("grid");
-  const [moviesGridRevealVersion, setMoviesGridRevealVersion] = useState(0);
-  const [soonsGridRevealVersion, setSoonsGridRevealVersion] = useState(0);
   const topbarShellRef = useRef<HTMLDivElement | null>(null);
   const floatingTopbarStateFrameRef = useRef<number | null>(null);
   const floatingTopbarEnterFrameRef = useRef<number | null>(null);
@@ -236,18 +233,6 @@ function AppShell() {
       window.clearTimeout(introTimeout);
     };
   }, []);
-
-  useEffect(() => {
-    if (pathname === "/movies" && moviesPageView === "grid") {
-      setMoviesGridRevealVersion((currentVersion) => currentVersion + 1);
-    }
-  }, [moviesPageView, pathname]);
-
-  useEffect(() => {
-    if (pathname === "/soons" && soonsPageView === "grid") {
-      setSoonsGridRevealVersion((currentVersion) => currentVersion + 1);
-    }
-  }, [pathname, soonsPageView]);
 
   useEffect(() => {
     if (!loading && !user && pathname === "/user") {
@@ -794,7 +779,6 @@ function AppShell() {
                     kicker="Movies"
                     title="Movies"
                     movies={showtimeCatalogMovies}
-                    revealVersion={moviesGridRevealVersion}
                     onPosterSelect={(movie) => {
                       handleCatalogPosterSelect("nowPlaying", movie.tmdbId);
                     }}
@@ -864,7 +848,6 @@ function AppShell() {
                     kicker="Coming soon"
                     title="Coming Soon"
                     movies={allComingSoonMovies}
-                    revealVersion={soonsGridRevealVersion}
                     onPosterSelect={(movie) => {
                       handleCatalogPosterSelect("comingSoon", movie.tmdbId);
                     }}
@@ -948,6 +931,7 @@ function AppShell() {
                   gap={SCROLLER_GAP}
                   maxWidth={SCROLLER_MAX_WIDTH}
                   onIntroSetupStart={markComingSoonPreviewIntroStarted}
+                  onIntroComplete={markComingSoonPreviewIntroCompleted}
                 />
               ) : null}
             </div>

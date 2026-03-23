@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type WheelEvent } from "react";
 import { X } from "lucide-react";
 import {
+  buildHomePreviewScrollerMovies,
   comingSoonMovies,
   getMovieCatalogStatusSnapshot,
   loadMovieCatalog,
@@ -49,6 +50,11 @@ type SwipeGesture = {
 type PendingExternalJump = {
   movieIndex: number;
   behavior: ScrollBehavior;
+  nonce: number;
+};
+
+type DeferredPreviewOpenRequest = {
+  tmdbId: string;
   nonce: number;
 };
 
@@ -536,6 +542,7 @@ function MovieScrollerContent({
   maxWidth = "100%",
   className,
   onIntroSetupStart,
+  onIntroComplete,
 }: MovieScrollerContentProps) {
   const [renderedMovieItems, setRenderedMovieItems] = useState(movieItems);
   const [hasCollapsedIntroCompleted, setHasCollapsedIntroCompleted] =
@@ -574,8 +581,8 @@ function MovieScrollerContent({
   const [detailShowtimeDate, setDetailShowtimeDate] = useState<string | null>(
     () => persistedDetailShowtimeDate,
   );
-  const [deferredPreviewOpenTmdbId, setDeferredPreviewOpenTmdbId] = useState<
-    string | null
+  const [deferredPreviewOpenRequest, setDeferredPreviewOpenRequest] = useState<
+    DeferredPreviewOpenRequest | null
   >(null);
 
   const shellRef = useRef<HTMLDivElement | null>(null);
@@ -597,6 +604,7 @@ function MovieScrollerContent({
   const pendingViewportBehaviorRef = useRef<ScrollBehavior | null>(null);
   const pendingExternalJumpRef = useRef<PendingExternalJump | null>(null);
   const handledExternalJumpNonceRef = useRef<number | null>(null);
+  const handledDeferredPreviewOpenNonceRef = useRef<number | null>(null);
   const collapsedOpenScrollLeftRef = useRef<number | null>(null);
   const collapsedOpenClientWidthRef = useRef<number | null>(null);
   const collapsedOpenAnchorItemIndexRef = useRef<number | null>(null);
@@ -694,22 +702,32 @@ function MovieScrollerContent({
       return;
     }
 
-    const isNowPlayingPreviewExpansion =
-      detailVariant === "nowPlaying" &&
+    const isCollapsedPreviewExpansion =
       phase === "collapsed" &&
       renderedMovieItems.length === 5 &&
       movieItems.length > renderedMovieItems.length;
 
-    if (isNowPlayingPreviewExpansion && !hasCollapsedIntroCompleted) {
+    if (isCollapsedPreviewExpansion && !hasCollapsedIntroCompleted) {
       return;
     }
 
-    applyRenderedMovieItems(movieItems, {
-      recenterCollapsedAnchor: isNowPlayingPreviewExpansion,
+    const nextRenderedMovieItems = isCollapsedPreviewExpansion
+      ? buildHomePreviewScrollerMovies(renderedMovieItems, movieItems)
+      : movieItems;
+
+    const frameId = window.requestAnimationFrame(() => {
+      applyRenderedMovieItems(nextRenderedMovieItems, {
+        recenterCollapsedAnchor: isCollapsedPreviewExpansion,
+      });
     });
+
+    return () => {
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+    };
   }, [
     applyRenderedMovieItems,
-    detailVariant,
     hasCollapsedIntroCompleted,
     movieItems,
     phase,
@@ -718,7 +736,8 @@ function MovieScrollerContent({
 
   const handleCollapsedIntroComplete = useCallback(() => {
     setHasCollapsedIntroCompleted(true);
-  }, []);
+    onIntroComplete?.();
+  }, [onIntroComplete]);
 
   const handleDetailShowtimeDateChange = useCallback((nextDate: string) => {
     persistedDetailShowtimeDate = nextDate;
@@ -1277,9 +1296,23 @@ function MovieScrollerContent({
           : catalogStatus.nowPlayingDetailsReady;
 
       if (!detailDataReady) {
-        setDeferredPreviewOpenTmdbId(movie.tmdbId);
+        const deferredRequest = {
+          tmdbId: movie.tmdbId,
+          nonce: Date.now(),
+        } satisfies DeferredPreviewOpenRequest;
+        setDeferredPreviewOpenRequest(deferredRequest);
         void loadMovieCatalog().catch(() => {
-          setDeferredPreviewOpenTmdbId(null);
+          if (
+            handledDeferredPreviewOpenNonceRef.current === deferredRequest.nonce
+          ) {
+            return;
+          }
+
+          setDeferredPreviewOpenRequest((currentRequest) =>
+            currentRequest?.nonce === deferredRequest.nonce
+              ? null
+              : currentRequest,
+          );
         });
         return;
       }
@@ -1772,15 +1805,16 @@ function MovieScrollerContent({
         : catalogStatus.nowPlayingDetailsReady;
 
     if (
-      !deferredPreviewOpenTmdbId ||
+      !deferredPreviewOpenRequest ||
       !detailDataReady ||
-      phase !== "collapsed"
+      phase !== "collapsed" ||
+      handledDeferredPreviewOpenNonceRef.current === deferredPreviewOpenRequest.nonce
     ) {
       return;
     }
 
     const movieIndex = renderedMovieItems.findIndex(
-      (movie) => movie.tmdbId === deferredPreviewOpenTmdbId,
+      (movie) => movie.tmdbId === deferredPreviewOpenRequest.tmdbId,
     );
 
     if (movieIndex === -1) {
@@ -1794,12 +1828,19 @@ function MovieScrollerContent({
     );
     const { sourceRect, sourceOpacity } = getCollapsedItemSource(itemIndex);
 
-    setDeferredPreviewOpenTmdbId(null);
-    beginCollapsedMovieOpen(itemIndex, sourceRect, sourceOpacity);
+    const frameId = window.requestAnimationFrame(() => {
+      handledDeferredPreviewOpenNonceRef.current =
+        deferredPreviewOpenRequest.nonce;
+      beginCollapsedMovieOpen(itemIndex, sourceRect, sourceOpacity);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
   }, [
     beginCollapsedMovieOpen,
     collapsedMiddleStartIndex,
-    deferredPreviewOpenTmdbId,
+    deferredPreviewOpenRequest,
     detailVariant,
     getCollapsedItemSource,
     movieCount,

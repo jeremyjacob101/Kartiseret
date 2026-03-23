@@ -8,6 +8,7 @@ import {
 const SCROLLER_PREVIEW_MOVIE_COUNT = 5;
 const SUPABASE_PAGE_SIZE = 1000;
 const COMING_SOON_PREVIEW_INTRO_START_TIMEOUT_MS = 360;
+const COMING_SOON_PREVIEW_INTRO_COMPLETE_TIMEOUT_MS = 1680;
 const MOVIES_TABLE_NAME = "testNPmovies";
 const NOW_PLAYING_PREVIEW_TABLE_NAME = "testNPmoviesPreview";
 const COMING_SOON_TABLE_NAME = "testSOONmovies";
@@ -142,7 +143,9 @@ let loadMovieCatalogPromise: Promise<void> | null = null;
 const primedPreviewImageSources = new Set<string>();
 const movieCatalogListeners = new Set<() => void>();
 let comingSoonPreviewIntroStartWaiters: Array<() => void> = [];
+let comingSoonPreviewIntroCompleteWaiters: Array<() => void> = [];
 let hasComingSoonPreviewIntroStarted = false;
+let hasComingSoonPreviewIntroCompleted = false;
 let movieCatalogStatusSnapshot: MovieCatalogStatusSnapshot = {
   nowPlayingPreviewReady: movies.length > 0,
   nowPlayingDetailsReady: allNowPlayingMovies.length > 0,
@@ -209,6 +212,20 @@ export function markComingSoonPreviewIntroStarted(): void {
   comingSoonPreviewIntroStartWaiters = [];
 }
 
+export function markComingSoonPreviewIntroCompleted(): void {
+  if (hasComingSoonPreviewIntroCompleted) {
+    return;
+  }
+
+  hasComingSoonPreviewIntroCompleted = true;
+
+  for (const resolve of comingSoonPreviewIntroCompleteWaiters) {
+    resolve();
+  }
+
+  comingSoonPreviewIntroCompleteWaiters = [];
+}
+
 function primePreviewMovieImages(selectedMovies: readonly Movie[]): void {
   for (const movie of selectedMovies) {
     const imageSrc = movie.imageSrc?.trim();
@@ -261,6 +278,29 @@ async function waitForComingSoonPreviewIntroStart(): Promise<void> {
     };
 
     comingSoonPreviewIntroStartWaiters.push(resolveWait);
+  });
+}
+
+async function waitForComingSoonPreviewIntroComplete(): Promise<void> {
+  if (typeof window === "undefined" || hasComingSoonPreviewIntroCompleted) {
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    const timeoutId = window.setTimeout(() => {
+      comingSoonPreviewIntroCompleteWaiters =
+        comingSoonPreviewIntroCompleteWaiters.filter(
+          (waiter) => waiter !== resolveWait,
+        );
+      resolve();
+    }, COMING_SOON_PREVIEW_INTRO_COMPLETE_TIMEOUT_MS);
+
+    const resolveWait = () => {
+      window.clearTimeout(timeoutId);
+      resolve();
+    };
+
+    comingSoonPreviewIntroCompleteWaiters.push(resolveWait);
   });
 }
 
@@ -536,7 +576,7 @@ function buildComingSoonPreviewMovies(rows: SupabaseRow[]): Movie[] {
   });
 }
 
-function buildHomePreviewScrollerMovies(
+export function buildHomePreviewScrollerMovies(
   previewMovies: readonly Movie[],
   detailedMovies: readonly Movie[],
 ): Movie[] {
@@ -811,7 +851,9 @@ export async function loadMovieCatalog(): Promise<void> {
 
   loadMovieCatalogPromise = (async () => {
     hasComingSoonPreviewIntroStarted = false;
+    hasComingSoonPreviewIntroCompleted = false;
     comingSoonPreviewIntroStartWaiters = [];
+    comingSoonPreviewIntroCompleteWaiters = [];
 
     const previewRowsPromise = fetchMoviePreviewRows().catch((error) => {
       console.warn(
@@ -915,6 +957,11 @@ export async function loadMovieCatalog(): Promise<void> {
       throw new Error(
         `Supabase table ${COMING_SOON_TABLE_NAME} returned no movie rows.`,
       );
+    }
+
+    if (previewComingSoonMovies.length > 0) {
+      await waitForComingSoonPreviewIntroComplete();
+      await yieldForPreviewScrollerRender();
     }
 
     comingSoonMovies = nextComingSoonMovies;

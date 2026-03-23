@@ -394,7 +394,7 @@ span.topnav-icon {
 .floating-topbar-item {
   pointer-events: auto;
   opacity: 0;
-  transform: translate3d(0, 12px, 0) scale(0.28);
+  transform: translate(0, 12px) scale(0.28);
   transition:
     opacity 220ms ease var(--floating-topbar-leave-delay, 0ms),
     transform 380ms cubic-bezier(0.18, 0.9, 0.24, 1) var(--floating-topbar-leave-delay, 0ms);
@@ -402,7 +402,7 @@ span.topnav-icon {
 
 .floating-topbar-stack.is-visible .floating-topbar-item {
   opacity: 1;
-  transform: translate3d(0, 0, 0) scale(1);
+  transform: translate(0, 0) scale(1);
   transition-delay: var(--floating-topbar-enter-delay, 0ms);
 }
 
@@ -2359,21 +2359,12 @@ span.topnav-icon {
   opacity: 0;
   transform: translateY(18px);
   will-change: opacity, transform;
+  animation: poster-grid-row-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(var(--poster-grid-row-index, 0) * 72ms);
   transition:
-    opacity 420ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 160ms ease,
-    filter 160ms ease;
-  transition-delay:
-    calc(var(--poster-grid-row-index, 0) * 72ms),
-    calc(var(--poster-grid-row-index, 0) * 72ms),
-    0ms,
-    0ms;
-}
-
-.poster-grid-page__tile--revealed {
-  opacity: 1;
-  transform: none;
+    filter 160ms ease,
+    transform 160ms ease;
 }
 
 .poster-grid-page__tile:hover {
@@ -2427,12 +2418,24 @@ span.topnav-icon {
   object-fit: cover;
 }
 
-@media (prefers-reduced-motion: reduce) {
+@keyframes poster-grid-row-enter {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
 
-  .poster-grid-page__tile,
-  .poster-grid-page__tile--revealed {
+  to {
     opacity: 1;
     transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .poster-grid-page__tile {
+    opacity: 1;
+    transform: none;
+    animation: none;
     transition: none;
   }
 }
