@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 
+import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { type Movie } from "../data/movieCatalog";
 
 const POSTER_GRID_MIN_COLUMN_WIDTH_FALLBACK = 150;
@@ -115,8 +116,9 @@ export function PosterGridPage({
               onPosterSelect(movie);
             }}
           >
-            <img
-              src={movie.imageSrc}
+            <MoviePosterArtwork
+              title={movie.title}
+              imageSrc={movie.imageSrc}
               alt={movie.title}
               loading="lazy"
               decoding="async"

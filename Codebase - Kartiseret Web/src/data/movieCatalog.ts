@@ -552,7 +552,7 @@ function buildMovies(
         popularity: parseNumberValue(row.popularity),
       };
     })
-    .filter((movie) => Boolean(movie.tmdbId && movie.title && movie.imageSrc));
+    .filter((movie) => Boolean(movie.tmdbId && movie.title));
 
   return typeof limit === "number"
     ? normalizedMovies.slice(0, limit)

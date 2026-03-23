@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Ref } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { fixedAppDateString, getMovieShowtimeDays, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
 import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
@@ -699,9 +700,10 @@ export function MovieDetailsContent({
     <>
       <div className="details-hero">
         <div className="details-poster-shell">
-          <img
+          <MoviePosterArtwork
             ref={posterRef}
-            src={movie.imageSrc}
+            title={movie.title}
+            imageSrc={movie.imageSrc}
             alt={movie.title}
             className={posterClassName}
             draggable={false}

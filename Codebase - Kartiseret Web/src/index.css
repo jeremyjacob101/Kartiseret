@@ -656,6 +656,42 @@ span.topnav-icon {
   min-width: 0;
 }
 
+.movie-poster-fallback {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  padding: 14% 11% 10%;
+  border: 3px solid color-mix(in srgb, var(--main-app-color) 60%, #000);
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--main-app-color) 10%, rgba(10, 8, 14, 0.94));
+  overflow: hidden;
+  user-select: none;
+}
+
+.movie-poster-fallback__title {
+  display: -webkit-box;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--main-app-color) 55%, #fff);
+  font-size: clamp(0.82rem, 0.58rem + 1vw, 1.34rem);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-transform: uppercase;
+  transform: translateY(-8%);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+}
+
+.movie-poster-fallback__title--compact {
+  font-size: clamp(0.48rem, 0.4rem + 0.3vw, 0.66rem);
+  letter-spacing: 0.03em;
+  -webkit-line-clamp: 4;
+}
+
 .movie-search-result-title {
   min-width: 0;
   font-size: 0.93rem;

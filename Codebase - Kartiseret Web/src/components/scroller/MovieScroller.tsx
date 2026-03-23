@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type WheelEvent } from "react";
 import { X } from "lucide-react";
+import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import {
   buildHomePreviewScrollerMovies,
   comingSoonMovies,
@@ -2223,8 +2224,9 @@ function MovieScrollerContent({
                     WebkitTapHighlightColor: "transparent",
                   }}
                 >
-                  <img
-                    src={previousPreviewMovie.imageSrc}
+                  <MoviePosterArtwork
+                    title={previousPreviewMovie.title}
+                    imageSrc={previousPreviewMovie.imageSrc}
                     alt={previousPreviewMovie.title}
                     className="movie-scroller-side-preview-image"
                     loading="eager"
@@ -2252,8 +2254,9 @@ function MovieScrollerContent({
                     WebkitTapHighlightColor: "transparent",
                   }}
                 >
-                  <img
-                    src={nextPreviewMovie.imageSrc}
+                  <MoviePosterArtwork
+                    title={nextPreviewMovie.title}
+                    imageSrc={nextPreviewMovie.imageSrc}
                     alt={nextPreviewMovie.title}
                     className="movie-scroller-side-preview-image"
                     loading="eager"

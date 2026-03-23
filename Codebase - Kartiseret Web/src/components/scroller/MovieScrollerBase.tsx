@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, type CSSProperties, type MouseEvent, useMemo, useRef, useState } from "react";
+import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { movies, type Movie } from "../../data/movieCatalog";
 import { getRepeatSetCount } from "./MovieScrollerShared";
 
@@ -732,20 +733,15 @@ export function MovieScrollerBase({
           ...cardStyle,
         }}
       >
-        <img
-          src={movie.imageSrc}
+        <MoviePosterArtwork
+          title={movie.title}
+          imageSrc={movie.imageSrc}
           alt={movie.title}
           loading={isVisible ? "eager" : "lazy"}
           fetchPriority={isVisible ? "high" : "auto"}
           decoding="async"
           draggable={false}
-          style={{
-            display: "block",
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            userSelect: "none",
-          }}
+          className="movie-scroller__card-media"
         />
       </div>
     );

@@ -1,5 +1,6 @@
 import { Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { type Movie } from "../data/movieCatalog";
 
 export type MovieSearchMode = "nowPlaying" | "comingSoon";
@@ -212,11 +213,12 @@ export function MovieSearchMenu({
                     handleResultSelect(result);
                   }}
                 >
-                  <img
-                    src={result.imageSrc}
+                  <MoviePosterArtwork
+                    title={result.title}
+                    imageSrc={result.imageSrc}
                     alt=""
-                    aria-hidden="true"
                     className="movie-search-result-image"
+                    fallbackTitleClassName="movie-poster-fallback__title--compact"
                     decoding="async"
                     loading="lazy"
                   />
