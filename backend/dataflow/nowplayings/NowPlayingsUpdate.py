@@ -208,7 +208,6 @@ class NowPlayingsUpdate(BaseDataflow):
                 except Exception:
                     pass
 
-        self.updates = self.updates
         if self.updates:
             self.upsertUpdates(self.MAIN_TABLE_NAME)
             self.dedupeFinalMovies(self.MAIN_TABLE_NAME)

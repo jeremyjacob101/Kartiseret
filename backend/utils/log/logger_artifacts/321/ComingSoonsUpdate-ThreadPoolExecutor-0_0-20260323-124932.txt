@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: ComingSoonsUpdate
+URL: data:,
+Exception: IndexError - list index out of range
+Call Chain: runners.py:40 > runners.py:19 > BaseDataflow.py:38 > InitializeBaseDataflow.py:37
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/321/ComingSoonsUpdate-ThreadPoolExecutor-0_0-20260323-124932.png
+CSV: 
