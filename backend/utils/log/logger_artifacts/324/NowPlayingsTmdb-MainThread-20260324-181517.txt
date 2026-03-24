@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: NowPlayingsTmdb
+URL: data:,
+Exception: TypeError - DataflowHelpers.clean_date() takes 1 positional argument but 2 were given
+Call Chain: runners.py:40 > runners.py:19 > BaseDataflow.py:37 > NowPlayingsTmdb.py:35 > NowPlayingsHelpers.py:76
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/324/NowPlayingsTmdb-MainThread-20260324-181517.png
+CSV: 
