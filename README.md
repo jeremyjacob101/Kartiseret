@@ -21,6 +21,10 @@
 > Kartiseret is built around a different question: what is playing, where can I watch it, and what should I open first?
 
 <p align="center">
+  <a href="https://www.seret.site/">Take me there →</a>
+</p>
+
+<p align="center">
   <img src="docs/images/ks1.gif" alt="Kartiseret demo" width="500">
 </p>
 
