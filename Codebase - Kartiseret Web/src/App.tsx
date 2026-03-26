@@ -682,7 +682,7 @@ function AppShell() {
                 onClick={handleMoviesNavClick}
               >
                 <Film className="topnav-icon" aria-hidden="true" />
-                <span className="topnav-label">Now Playing</span>
+                <span className="topnav-label">Movies</span>
               </button>
               <button
                 type="button"
@@ -789,7 +789,7 @@ function AppShell() {
                   <div className="section-heading catalog-browser-page__heading">
                     <div className="catalog-browser-page__heading-copy">
                       <p className="section-kicker">Movies</p>
-                      <h1 className="section-title">Now Playing</h1>
+                      <h1 className="section-title">Movies</h1>
                     </div>
                   </div>
                   <div

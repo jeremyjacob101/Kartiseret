@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
-import { appTodayDateString, getMovieShowtimeDays, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
+import { fixedAppDateString, getMovieShowtimeDays, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
 import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
 
@@ -47,7 +47,7 @@ const theaterThemes: Record<string, TheaterTheme> = {
     glow: "rgba(240, 106, 135, 0.32)",
     pillClassName: "details-time-pill--hot-cinema",
   },
-  MovieLand: {
+  Movieland: {
     accent: "#a80371",
     surface: "rgba(88, 0, 58, 0.12)",
     glow: "rgba(168, 3, 113, 0.3)",
@@ -152,7 +152,7 @@ function parseLocalDate(dateString: string): Date {
 
 function getShowtimeDateLabel(dateString: string): string {
   const showDate = parseLocalDate(dateString);
-  const today = parseLocalDate(appTodayDateString);
+  const today = parseLocalDate(fixedAppDateString);
   const dayOffset = Math.round(
     (showDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
   );
@@ -516,10 +516,7 @@ function cloneShowtimeDays(
     date: day.date,
     theaters: day.theaters.map((theater) => ({
       theater: theater.theater,
-      showtimes: theater.showtimes.map((showtime) => ({
-        time: showtime.time,
-        href: showtime.href,
-      })),
+      showtimes: [...theater.showtimes],
     })),
   }));
 }
@@ -859,45 +856,31 @@ export function MovieDetailsContent({
                           </div>
 
                           <div className="details-time-grid">
-                            {theater.showtimes.map((showtime) => {
-                              const pillClassName = [
-                                "details-time-pill",
-                                colors.pillClassName,
-                              ]
-                                .filter(Boolean)
-                                .join(" ");
-                              const pillStyle = colors.pillClassName
-                                ? undefined
-                                : {
-                                    color: colors.accent,
-                                    borderColor: colors.accent,
-                                    background:
-                                      colors.pillBackground ?? colors.surface,
-                                    boxShadow: `inset 0 0 0 1px ${colors.surface}`,
-                                  };
-
-                              return showtime.href ? (
-                                <a
-                                  key={`${theater.theater}-${day.date}-${showtime.time}`}
-                                  href={showtime.href}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className={pillClassName}
-                                  style={pillStyle}
-                                  aria-label={`Open ${movie.title} ${showtime.time} showtime at ${theater.theater}`}
-                                >
-                                  {showtime.time}
-                                </a>
-                              ) : (
-                                <span
-                                  key={`${theater.theater}-${day.date}-${showtime.time}`}
-                                  className={pillClassName}
-                                  style={pillStyle}
-                                >
-                                  {showtime.time}
-                                </span>
-                              );
-                            })}
+                            {theater.showtimes.map((time) => (
+                              <span
+                                key={`${theater.theater}-${day.date}-${time}`}
+                                className={[
+                                  "details-time-pill",
+                                  colors.pillClassName,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" ")}
+                                style={
+                                  colors.pillClassName
+                                    ? undefined
+                                    : {
+                                        color: colors.accent,
+                                        borderColor: colors.accent,
+                                        background:
+                                          colors.pillBackground ??
+                                          colors.surface,
+                                        boxShadow: `inset 0 0 0 1px ${colors.surface}`,
+                                      }
+                                }
+                              >
+                                {time}
+                              </span>
+                            ))}
                           </div>
                         </section>
                       );
