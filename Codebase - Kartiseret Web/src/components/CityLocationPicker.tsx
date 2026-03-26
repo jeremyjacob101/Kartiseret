@@ -172,7 +172,7 @@ const THEATER_DOT_COLORS: Record<string, string> = {
   "Lev Cinema": "#b50519",
   "Rav Hen": "#ab5306",
   "Hot Cinema": "#f06a87",
-  Movieland: "#a80371",
+  MovieLand: "#a80371",
   Cinematheque: "#31a26d",
 };
 
@@ -757,7 +757,7 @@ function normalizeTheaterChain(chain: string): string {
   const normalized = chain.trim().toLowerCase();
 
   if (normalized === "movieland" || normalized === "movie land") {
-    return "Movieland";
+    return "MovieLand";
   }
 
   if (normalized === "ravhen" || normalized === "rav hen") {
