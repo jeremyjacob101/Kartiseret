@@ -25,6 +25,8 @@ class HotCinema(BaseCinema):
             self.hebrew_hrefs.append(self.element(f"/html/body/div[2]/div[4]/div[2]/div/div/div[2]/div[{film_card}]/div/a").get_attribute("href"))
         for href in self.hebrew_hrefs:
             self.driver.get(href)
+            if self.is_forbidden_page():
+                continue
             self.sleep(0.2)
 
             raw_text = (self.element("/html/body/div[2]/div[4]/div[2]/div[1]/div[1]/div[2]/div[2]/div[2]/div[1]/div[2]").text or "").strip()
