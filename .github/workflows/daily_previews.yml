@@ -1,0 +1,113 @@
+name: Daily Previews
+
+on:
+  schedule:
+    - cron: "15 2 * * *"  # UTC, 15 minutes after daily_sweep
+  workflow_dispatch:
+    inputs:
+      args:
+        description: "Arguments to pass (optional)"
+        required: false
+        default: ""
+
+jobs:
+  refresh-previews:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: refresh-previews
+      cancel-in-progress: false
+    env:
+      TZ: Asia/Jerusalem
+      LOG_LEVEL: ERROR
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14.2"
+
+      - name: Setup Chrome (stable)
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Cache .venv
+        id: cache-venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-
+
+      - name: Create venv and install deps
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install --prefer-binary -r requirements.txt
+
+      - name: Detect Chrome version
+        id: chrome
+        shell: bash
+        run: |
+          set -e
+          if command -v google-chrome >/dev/null 2>&1; then
+            ver=$(google-chrome --version | awk '{print $3}')
+          elif command -v chromium-browser >/dev/null 2>&1; then
+            ver=$(chromium-browser --version | awk '{print $2}')
+          else
+            ver="unknown"
+          fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Selenium drivers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/selenium
+          key: selenium-${{ runner.os }}-${{ steps.chrome.outputs.version }}
+
+      - name: Run preview refresh
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -e
+          . .venv/bin/activate
+          export PYTHONPATH="${PYTHONPATH}:${{ github.workspace }}"
+          python backend/utils/supabase/run_daily_previews.py
+
+      - name: Read run id (.last_run_id)
+        id: runid
+        if: always()
+        shell: bash
+        run: |
+          rid="$(tr -d '[:space:]' < backend/utils/log/logger_artifacts/.last_run_id)"
+          echo "rid=$rid" >> "$GITHUB_OUTPUT"
+          echo "Run id: $rid"
+
+      - name: Upload run artifacts
+        if: always() && steps.runid.outputs.rid != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: logger_artifacts_run_${{ steps.runid.outputs.rid }}
+          path: backend/utils/log/logger_artifacts/${{ steps.runid.outputs.rid }}
+          if-no-files-found: ignore
+
+      - name: Mark run as warning
+        if: always()
+        shell: bash
+        run: |
+          rid="${{ steps.runid.outputs.rid }}"
+          f="backend/utils/log/logger_artifacts/${rid}/.job_ok"
+          if [ "$(tr -d '[:space:]' < "$f")" = "false" ]; then
+            echo "::warning::At least one exception occurred during the preview refresh (see artifact: logger_artifacts_run_${rid})."
+          fi
