@@ -68,6 +68,7 @@ const SHOWTIME_SELECT_COLUMNS = [
   "date_of_showing",
   "cinema",
   "showtime",
+  "english_href",
 ] as const;
 const THEATER_SORT_ORDER = [
   "MovieLand",
@@ -114,12 +115,17 @@ export type Movie = {
 
 export type TheaterShowtimes = {
   theater: string;
-  showtimes: string[];
+  showtimes: ShowtimeEntry[];
 };
 
 export type MovieShowtimeDay = {
   date: string;
   theaters: TheaterShowtimes[];
+};
+
+export type ShowtimeEntry = {
+  time: string;
+  href: string | null;
 };
 
 export let movies: Movie[] = [];
@@ -624,7 +630,7 @@ function buildMovieShowtimes(
   const selectedMovieIds = new Set(selectedMovies.map((movie) => movie.tmdbId));
   const groupedShowtimes = new Map<
     string,
-    Map<AppLocation, Map<string, Map<string, Set<string>>>>
+    Map<AppLocation, Map<string, Map<string, Map<string, string | null>>>>
   >();
 
   for (const row of rows) {
@@ -650,6 +656,8 @@ function buildMovieShowtimes(
 
     const theater = normalizeText(stringifySupabaseValue(row.cinema));
     const showtime = formatShowtime(stringifySupabaseValue(row.showtime));
+    const showtimeHref =
+      normalizeText(stringifySupabaseValue(row.english_href)) || null;
 
     if (!date || !theater || !showtime) {
       continue;
@@ -673,13 +681,14 @@ function buildMovieShowtimes(
       cityDates.set(date, theaterMap);
     }
 
-    let showtimeSet = theaterMap.get(theater);
-    if (!showtimeSet) {
-      showtimeSet = new Set();
-      theaterMap.set(theater, showtimeSet);
+    let theaterShowtimes = theaterMap.get(theater);
+    if (!theaterShowtimes) {
+      theaterShowtimes = new Map();
+      theaterMap.set(theater, theaterShowtimes);
     }
 
-    showtimeSet.add(showtime);
+    const existingHref = theaterShowtimes.get(showtime) ?? null;
+    theaterShowtimes.set(showtime, existingHref || showtimeHref);
   }
 
   const canonicalCities = new Set<string>(ALL_LOCATIONS);
@@ -705,10 +714,15 @@ function buildMovieShowtimes(
                 ? [...theaterMap.entries()]
                     .sort(([leftTheater], [rightTheater]) =>
                       compareTheaters(leftTheater, rightTheater))
-                    .map(([theater, showtimeSet]) => ({
+                    .map(([theater, theaterShowtimes]) => ({
                       theater,
-                      showtimes: [...showtimeSet].sort((leftTime, rightTime) =>
-                        leftTime.localeCompare(rightTime)),
+                      showtimes: [...theaterShowtimes.entries()]
+                        .sort(([leftTime], [rightTime]) =>
+                          leftTime.localeCompare(rightTime))
+                        .map(([time, href]) => ({
+                          time,
+                          href,
+                        })),
                     }))
                 : [],
             };

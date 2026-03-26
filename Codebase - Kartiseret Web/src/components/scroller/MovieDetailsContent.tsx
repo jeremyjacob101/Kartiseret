@@ -516,7 +516,10 @@ function cloneShowtimeDays(
     date: day.date,
     theaters: day.theaters.map((theater) => ({
       theater: theater.theater,
-      showtimes: [...theater.showtimes],
+      showtimes: theater.showtimes.map((showtime) => ({
+        time: showtime.time,
+        href: showtime.href,
+      })),
     })),
   }));
 }
@@ -856,31 +859,45 @@ export function MovieDetailsContent({
                           </div>
 
                           <div className="details-time-grid">
-                            {theater.showtimes.map((time) => (
-                              <span
-                                key={`${theater.theater}-${day.date}-${time}`}
-                                className={[
-                                  "details-time-pill",
-                                  colors.pillClassName,
-                                ]
-                                  .filter(Boolean)
-                                  .join(" ")}
-                                style={
-                                  colors.pillClassName
-                                    ? undefined
-                                    : {
-                                        color: colors.accent,
-                                        borderColor: colors.accent,
-                                        background:
-                                          colors.pillBackground ??
-                                          colors.surface,
-                                        boxShadow: `inset 0 0 0 1px ${colors.surface}`,
-                                      }
-                                }
-                              >
-                                {time}
-                              </span>
-                            ))}
+                            {theater.showtimes.map((showtime) => {
+                              const className = [
+                                "details-time-pill",
+                                colors.pillClassName,
+                              ]
+                                .filter(Boolean)
+                                .join(" ");
+                              const style = colors.pillClassName
+                                ? undefined
+                                : {
+                                    color: colors.accent,
+                                    borderColor: colors.accent,
+                                    background:
+                                      colors.pillBackground ?? colors.surface,
+                                    boxShadow: `inset 0 0 0 1px ${colors.surface}`,
+                                  };
+
+                              return showtime.href ? (
+                                <a
+                                  key={`${theater.theater}-${day.date}-${showtime.time}`}
+                                  href={showtime.href}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className={className}
+                                  style={style}
+                                  aria-label={`Open ${movie.title} ${showtime.time} showtime at ${theater.theater}`}
+                                >
+                                  {showtime.time}
+                                </a>
+                              ) : (
+                                <span
+                                  key={`${theater.theater}-${day.date}-${showtime.time}`}
+                                  className={className}
+                                  style={style}
+                                >
+                                  {showtime.time}
+                                </span>
+                              );
+                            })}
                           </div>
                         </section>
                       );
