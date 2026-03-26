@@ -47,7 +47,7 @@ const theaterThemes: Record<string, TheaterTheme> = {
     glow: "rgba(240, 106, 135, 0.32)",
     pillClassName: "details-time-pill--hot-cinema",
   },
-  Movieland: {
+  MovieLand: {
     accent: "#a80371",
     surface: "rgba(88, 0, 58, 0.12)",
     glow: "rgba(168, 3, 113, 0.3)",

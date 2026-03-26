@@ -70,7 +70,7 @@ const SHOWTIME_SELECT_COLUMNS = [
   "showtime",
 ] as const;
 const THEATER_SORT_ORDER = [
-  "Movieland",
+  "MovieLand",
   "Yes Planet",
   "Cinema City",
   "Lev Cinema",
