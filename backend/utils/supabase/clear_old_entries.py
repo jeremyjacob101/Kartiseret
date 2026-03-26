@@ -6,9 +6,9 @@ from datetime import date, timedelta
 from supabase import create_client
 import os
 
-SHOWTIMES_DAYS_BACK_FROM_TODAY_TO_REMOVE = 1
-MOVIES_DAYS_BACK_FROM_TODAY_TO_REMOVE = 30
-SOONS_DAYS_BACK_FROM_TODAY_TO_REMOVE = 7
+SHOWTIMES_DAYS_BACK_FROM_TODAY_TO_REMOVE = 0
+MOVIES_DAYS_BACK_FROM_TODAY_TO_REMOVE = 3
+SOONS_DAYS_BACK_FROM_TODAY_TO_REMOVE = 0
 
 
 def clear_showtimes(days, movies_days, soons_days):
