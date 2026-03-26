@@ -122,43 +122,17 @@ class NowPlayingsHelpers:
         self.year_counts = meta.get("year_counts") or {}
         self.parsed_year = None
 
-    def per_thread_updating_extract_existing_values(self, row):
-        return {
-            "english_title": self.clean_str(row.get("english_title")),
-            "release_year": self.clean_int(row.get("release_year")),
-            "runtime": self.clean_int(row.get("runtime")),
-            "popularity": self.clean_float(row.get("popularity")),
-            "tmdb_id": self.clean_int(row.get("tmdb_id")),
-            "tmdbRating": self.clean_int(row.get("tmdbRating")),
-            "tmdbVotes": self.clean_int(row.get("tmdbVotes")),
-            "imdb_id": self.clean_str(row.get("imdb_id")),
-            "imdbRating": self.clean_float(row.get("imdbRating")),
-            "imdbVotes": self.clean_int(row.get("imdbVotes")),
-            "rt_id": self.clean_str(row.get("rt_id")),
-            "rtAudienceRating": self.clean_int(row.get("rtAudienceRating")),
-            "rtAudienceVotes": self.clean_int(row.get("rtAudienceVotes")),
-            "rtCriticRating": self.clean_int(row.get("rtCriticRating")),
-            "rtCriticVotes": self.clean_int(row.get("rtCriticVotes")),
-            "lb_id": self.clean_str(row.get("lb_id")),
-            "lbRating": self.clean_float(row.get("lbRating")),
-            "lbVotes": self.clean_int(row.get("lbVotes")),
-            "en_poster": self.clean_str(row.get("en_poster")),
-            "en_trailer": self.clean_str(row.get("en_trailer")),
-            "genres": self.clean_array(row.get("genres")),
-            "backdrop": self.clean_str(row.get("backdrop")),
-        }
-
     def per_thread_updating_imdb_find_ratings_summary(self, obj):
         if isinstance(obj, dict):
             if "ratingsSummary" in obj and isinstance(obj["ratingsSummary"], dict):
                 return obj["ratingsSummary"]
             for v in obj.values():
-                found = self._find_ratings_summary(v)
+                found = self.per_thread_updating_imdb_find_ratings_summary(v)
                 if found:
                     return found
         elif isinstance(obj, list):
             for item in obj:
-                found = self._find_ratings_summary(item)
+                found = self.per_thread_updating_imdb_find_ratings_summary(item)
                 if found:
                     return found
         return None

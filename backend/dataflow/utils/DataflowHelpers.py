@@ -3,6 +3,7 @@ import re, unicodedata, json
 
 
 class DataflowHelpers:
+
     def dateToDate(self, v):
         if isinstance(v, date):
             return v
@@ -60,7 +61,7 @@ class DataflowHelpers:
         except:
             pass
 
-    def clean_date(v):
+    def clean_date(self, v):
         if v in (None, "", "null"):
             return None
         if isinstance(v, date):
@@ -121,3 +122,29 @@ class DataflowHelpers:
             return [s]
 
         return []
+
+    def per_thread_updating_extract_existing_values(self, row):
+        return {
+            "english_title": self.clean_str(row.get("english_title")),
+            "release_year": self.clean_int(row.get("release_year")),
+            "runtime": self.clean_int(row.get("runtime")),
+            "popularity": self.clean_float(row.get("popularity")),
+            "tmdb_id": self.clean_int(row.get("tmdb_id")),
+            "tmdbRating": self.clean_int(row.get("tmdbRating")),
+            "tmdbVotes": self.clean_int(row.get("tmdbVotes")),
+            "imdb_id": self.clean_str(row.get("imdb_id")),
+            "imdbRating": self.clean_float(row.get("imdbRating")),
+            "imdbVotes": self.clean_int(row.get("imdbVotes")),
+            "rt_id": self.clean_str(row.get("rt_id")),
+            "rtAudienceRating": self.clean_int(row.get("rtAudienceRating")),
+            "rtAudienceVotes": self.clean_int(row.get("rtAudienceVotes")),
+            "rtCriticRating": self.clean_int(row.get("rtCriticRating")),
+            "rtCriticVotes": self.clean_int(row.get("rtCriticVotes")),
+            "lb_id": self.clean_str(row.get("lb_id")),
+            "lbRating": self.clean_float(row.get("lbRating")),
+            "lbVotes": self.clean_int(row.get("lbVotes")),
+            "en_poster": self.clean_str(row.get("en_poster")),
+            "en_trailer": self.clean_str(row.get("en_trailer")),
+            "genres": self.clean_array(row.get("genres")),
+            "backdrop": self.clean_str(row.get("backdrop")),
+        }
