@@ -9,18 +9,12 @@ const SCROLLER_PREVIEW_MOVIE_COUNT = 5;
 const SUPABASE_PAGE_SIZE = 1000;
 const COMING_SOON_PREVIEW_INTRO_START_TIMEOUT_MS = 360;
 const COMING_SOON_PREVIEW_INTRO_COMPLETE_TIMEOUT_MS = 1680;
-
-const MOVIES_TABLE_NAME = "finalMovies";
-const NOW_PLAYING_PREVIEW_TABLE_NAME = "finalMoviesPreview";
-const COMING_SOON_TABLE_NAME = "finalSoons";
-const COMING_SOON_PREVIEW_TABLE_NAME = "finalSoonsPreview";
-const SHOWTIMES_TABLE_NAME = "finalShowtimes";
-
-// const MOVIES_TABLE_NAME = "testNPmovies";
-// const NOW_PLAYING_PREVIEW_TABLE_NAME = "testNPmoviesPreview";
-// const COMING_SOON_TABLE_NAME = "testSOONmovies";
-// const COMING_SOON_PREVIEW_TABLE_NAME = "testSOONmoviesPreview";
-// const SHOWTIMES_TABLE_NAME = "testNPshowtimes";
+const MOVIES_TABLE_NAME = "testNPmovies";
+const NOW_PLAYING_PREVIEW_TABLE_NAME = "testNPmoviesPreview";
+const COMING_SOON_TABLE_NAME = "testSOONmovies";
+const COMING_SOON_PREVIEW_TABLE_NAME = "testSOONmoviesPreview";
+const TESTING_SHOWTIMES_TABLE_NAME = "testNPshowtimes";
+const LIVE_SHOWTIMES_TABLE_NAME = "finalShowtimes";
 
 const NOW_PLAYING_PREVIEW_SELECT_COLUMNS = [
   "tmdb_id",
@@ -96,6 +90,9 @@ const TESTING_APP_DATE_STRING = "2026-03-02";
 
 export const defaultCity: AppLocation = DEFAULT_LOCATION;
 export const USE_TESTING_DATES = false;
+const SHOWTIMES_TABLE_NAME = USE_TESTING_DATES
+  ? TESTING_SHOWTIMES_TABLE_NAME
+  : LIVE_SHOWTIMES_TABLE_NAME;
 
 type SupabaseValue = string | number | boolean | null | string[];
 type SupabaseRow = Partial<Record<string, SupabaseValue>>;
@@ -921,42 +918,6 @@ async function fetchComingSoonMovieRows(): Promise<SupabaseRow[]> {
   }
 }
 
-async function fetchShowtimeRowsWithColumns(
-  selectColumns: readonly string[],
-): Promise<SupabaseRow[]> {
-  const supabase = getSupabaseBrowserClient();
-  const allRows: SupabaseRow[] = [];
-  let fromIndex = 0;
-
-  while (true) {
-    const { data, error } = await supabase
-      .from(SHOWTIMES_TABLE_NAME)
-      .select(selectColumns.join(","))
-      .gte("date_of_showing", appTodayDateString)
-      .lte("date_of_showing", showtimeWindowEndDateString)
-      .order("tmdb_id", { ascending: true })
-      .order("date_of_showing", { ascending: true })
-      .order("cinema", { ascending: true })
-      .order("showtime", { ascending: true })
-      .range(fromIndex, fromIndex + SUPABASE_PAGE_SIZE - 1);
-
-    if (error) {
-      throw new Error(
-        `Failed to load ${SHOWTIMES_TABLE_NAME} from Supabase: ${error.message}`,
-      );
-    }
-
-    const batchRows = (data ?? []) as unknown as SupabaseRow[];
-    allRows.push(...batchRows);
-
-    if (batchRows.length < SUPABASE_PAGE_SIZE) {
-      return allRows;
-    }
-
-    fromIndex += SUPABASE_PAGE_SIZE;
-  }
-}
-
 async function fetchShowtimeRows(): Promise<SupabaseRow[]> {
   const selectColumns = [
     ...SHOWTIME_SELECT_COLUMNS,
@@ -964,13 +925,23 @@ async function fetchShowtimeRows(): Promise<SupabaseRow[]> {
   ];
 
   try {
-    return await fetchShowtimeRowsWithColumns(selectColumns);
+    return await fetchAllTableRows(SHOWTIMES_TABLE_NAME, selectColumns, [
+      "tmdb_id",
+      "date_of_showing",
+      "cinema",
+      "showtime",
+    ]);
   } catch (error) {
     if (!isMissingOptionalColumnError(error, OPTIONAL_SHOWTIME_SELECT_COLUMNS)) {
       throw error;
     }
 
-    return fetchShowtimeRowsWithColumns(SHOWTIME_SELECT_COLUMNS);
+    return fetchAllTableRows(SHOWTIMES_TABLE_NAME, SHOWTIME_SELECT_COLUMNS, [
+      "tmdb_id",
+      "date_of_showing",
+      "cinema",
+      "showtime",
+    ]);
   }
 }
 
