@@ -83,7 +83,7 @@ jobs:
           set -e
           . .venv/bin/activate
           export PYTHONPATH="${PYTHONPATH}:${{ github.workspace }}"
-          python backend/utils/supabase/run_daily_previews.py
+          python backend/utils/supabase/update_previews.py
 
       - name: Read run id (.last_run_id)
         id: runid
