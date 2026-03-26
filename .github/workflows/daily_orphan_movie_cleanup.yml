@@ -1,0 +1,61 @@
+name: Daily Orphan Movie Cleanup
+
+on:
+  schedule:
+    - cron: "15 2 * * *"  # UTC, 15 minutes after daily_sweep
+  workflow_dispatch:
+    inputs:
+      args:
+        description: "Arguments to pass (optional)"
+        required: false
+        default: ""
+
+jobs:
+  clear-orphan-final-movies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: clear-orphan-final-movies
+      cancel-in-progress: false
+    env:
+      TZ: Asia/Jerusalem
+      LOG_LEVEL: ERROR
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14.2"
+
+      - name: Cache .venv
+        id: cache-venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-
+
+      - name: Create venv and install deps
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install --prefer-binary -r requirements.txt
+
+      - name: Run orphan movie cleanup
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -e
+          . .venv/bin/activate
+          export PYTHONPATH="${PYTHONPATH}:${{ github.workspace }}"
+          python backend/utils/supabase/clear_orphan_final_movies.py

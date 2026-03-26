@@ -2,7 +2,7 @@ name: Daily Previews
 
 on:
   schedule:
-    - cron: "15 2 * * *"  # UTC, 15 minutes after daily_sweep
+    - cron: "30 2 * * *"  # UTC, 30 minutes after daily_sweep
   workflow_dispatch:
     inputs:
       args:
