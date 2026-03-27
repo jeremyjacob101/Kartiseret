@@ -1,9 +1,8 @@
 import { StrictMode, Suspense, lazy, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
-import { Clock8, Film, MapPin, Settings } from "lucide-react";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
-import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "./components/MovieSearchMenu";
-import { UserMenu } from "./components/UserMenu";
+import { Navbar } from "./components/Navbar";
+import { type MovieSearchResult } from "./components/MovieSearchMenu";
 import { allComingSoonMovies, allNowPlayingMovies, getMovieCatalogStatusSnapshot, loadMovieCatalog, subscribeToMovieCatalog } from "./data/movieCatalog";
 import { preloadTheaters } from "./data/theaters";
 import { DeviceTypeProvider } from "./device";
@@ -16,17 +15,10 @@ const SCROLLER_CARD_HEIGHT = 330;
 const SCROLLER_GAP = 22;
 const SCROLLER_MAX_WIDTH = 1100;
 const SCROLLER_SLOT_MIN_HEIGHT = 420;
-const TOPBAR_INTRO_DURATION_MS = 760;
-const FLOATING_TOPBAR_TRANSITION_MS = 620;
-
-const loadTheaterMapDialog = () => import("./components/TheaterMapDialog");
-const loadUserPreferencesPage = () => import("./components/UserPreferencesPage");
+const preloadNavbarDependencies = () => import("./components/TheaterMapDialog");
+const loadUserPreferencesPage = () =>
+  import("./components/UserPreferencesPage");
 const loadPosterGridPage = () => import("./components/PosterGridPage");
-
-const TheaterMapDialog = lazy(async () => {
-  const module = await loadTheaterMapDialog();
-  return { default: module.TheaterMapDialog };
-});
 
 const UserPreferencesPage = lazy(async () => {
   const module = await loadUserPreferencesPage();
@@ -46,37 +38,6 @@ type AppMovieJumpRequest = MovieScrollerJumpRequest & {
 };
 
 type AppPath = "/" | "/movies" | "/showtimes" | "/soons" | "/user";
-
-type TopbarActionsProps = {
-  catalogReady: boolean;
-  currentPath: AppPath;
-  searchCollections: readonly MovieSearchCollection[];
-  variant?: "inline" | "floating";
-  onNavigate: (path: string) => void;
-  onSearchOpen: () => void;
-  onSelectResult: (result: MovieSearchResult) => void;
-  onSettingsClick: () => void;
-};
-
-function LoadingMapButton() {
-  const { location } = useUserPreferencesContext();
-
-  return (
-    <div className="theater-map-trigger-shell">
-      <button
-        type="button"
-        className="location-menu-trigger theater-map-trigger"
-        aria-haspopup="dialog"
-        aria-expanded="false"
-        aria-label={`Open city selector. Current city: ${location}`}
-        aria-disabled="true"
-        disabled
-      >
-        <MapPin size={20} strokeWidth={2.75} className="app-accent-icon" />
-      </button>
-    </div>
-  );
-}
 
 function normalizePathname(pathname: string): AppPath {
   if (pathname === "/movies") {
@@ -112,77 +73,6 @@ function getPathnameSnapshot(): AppPath {
   return normalizePathname(window.location.pathname);
 }
 
-function TopbarActions({
-  catalogReady,
-  currentPath,
-  searchCollections,
-  variant = "inline",
-  onNavigate,
-  onSearchOpen,
-  onSelectResult,
-  onSettingsClick,
-}: TopbarActionsProps) {
-  const isFloating = variant === "floating";
-  const containerClassName = isFloating
-    ? "floating-topbar-actions"
-    : "topbar-actions";
-
-  return (
-    <div className={containerClassName}>
-      <div
-        className={
-          isFloating
-            ? "floating-topbar-item floating-topbar-item--search"
-            : undefined
-        }
-      >
-        <MovieSearchMenu
-          collections={searchCollections}
-          loading={!catalogReady}
-          onOpen={onSearchOpen}
-          onSelectResult={onSelectResult}
-        />
-      </div>
-      <div
-        className={
-          isFloating
-            ? "floating-topbar-item floating-topbar-item--map"
-            : undefined
-        }
-      >
-        <Suspense fallback={<LoadingMapButton />}>
-          <TheaterMapDialog />
-        </Suspense>
-      </div>
-      <div
-        className={
-          isFloating
-            ? "floating-topbar-item floating-topbar-item--user"
-            : undefined
-        }
-      >
-        <UserMenu currentPath={currentPath} onNavigate={onNavigate} />
-      </div>
-      <div
-        className={
-          isFloating
-            ? "floating-topbar-item floating-topbar-item--settings"
-            : undefined
-        }
-      >
-        <button
-          type="button"
-          className="settings-button"
-          aria-label="Settings"
-          onClick={onSettingsClick}
-        >
-          <Settings size={20} strokeWidth={2.75} className="app-accent-icon" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function AppShell() {
   const { user, loading } = useUserPreferencesContext();
   const catalogStatus = useSyncExternalStore(
@@ -198,18 +88,10 @@ function AppShell() {
     subscribeToPathname,
     getPathnameSnapshot,
   );
-  const [showTopbarIntro, setShowTopbarIntro] = useState(true);
-  const [showFloatingTopbar, setShowFloatingTopbar] = useState(false);
-  const [renderFloatingTopbar, setRenderFloatingTopbar] = useState(false);
-  const [floatingTopbarVisible, setFloatingTopbarVisible] = useState(false);
   const [catalogMovieJumpRequest, setCatalogMovieJumpRequest] =
     useState<AppMovieJumpRequest | null>(null);
   const [moviesPageView, setMoviesPageView] = useState<CatalogPageView>("grid");
   const [soonsPageView, setSoonsPageView] = useState<CatalogPageView>("grid");
-  const topbarShellRef = useRef<HTMLDivElement | null>(null);
-  const floatingTopbarStateFrameRef = useRef<number | null>(null);
-  const floatingTopbarEnterFrameRef = useRef<number | null>(null);
-  const floatingTopbarExitTimeoutRef = useRef<number | null>(null);
   const nonCriticalPreloadStartedRef = useRef(false);
 
   const navigate = useCallback((path: string, replace = false) => {
@@ -224,16 +106,6 @@ function AppShell() {
 
       window.dispatchEvent(new Event("app:navigate"));
     }
-  }, []);
-
-  useEffect(() => {
-    const introTimeout = window.setTimeout(() => {
-      setShowTopbarIntro(false);
-    }, TOPBAR_INTRO_DURATION_MS);
-
-    return () => {
-      window.clearTimeout(introTimeout);
-    };
   }, []);
 
   useEffect(() => {
@@ -330,148 +202,6 @@ function AppShell() {
   }, [pathname]);
 
   useEffect(() => {
-    let frameId: number | null = null;
-
-    const updateFloatingTopbar = () => {
-      frameId = null;
-      const topbarBottom =
-        topbarShellRef.current?.getBoundingClientRect().bottom ?? 0;
-
-      setShowFloatingTopbar(topbarBottom <= 0);
-    };
-
-    const requestFloatingTopbarUpdate = () => {
-      if (frameId !== null) {
-        return;
-      }
-
-      frameId = window.requestAnimationFrame(updateFloatingTopbar);
-    };
-
-    updateFloatingTopbar();
-
-    window.addEventListener("scroll", requestFloatingTopbarUpdate, {
-      passive: true,
-    });
-    window.addEventListener("resize", requestFloatingTopbarUpdate);
-
-    return () => {
-      if (frameId !== null) {
-        window.cancelAnimationFrame(frameId);
-      }
-
-      window.removeEventListener("scroll", requestFloatingTopbarUpdate);
-      window.removeEventListener("resize", requestFloatingTopbarUpdate);
-    };
-  }, [pathname]);
-
-  useEffect(() => {
-    const clearFloatingTopbarTransitions = () => {
-      if (floatingTopbarStateFrameRef.current !== null) {
-        window.cancelAnimationFrame(floatingTopbarStateFrameRef.current);
-        floatingTopbarStateFrameRef.current = null;
-      }
-
-      if (floatingTopbarEnterFrameRef.current !== null) {
-        window.cancelAnimationFrame(floatingTopbarEnterFrameRef.current);
-        floatingTopbarEnterFrameRef.current = null;
-      }
-
-      if (floatingTopbarExitTimeoutRef.current !== null) {
-        window.clearTimeout(floatingTopbarExitTimeoutRef.current);
-        floatingTopbarExitTimeoutRef.current = null;
-      }
-    };
-
-    const scheduleFloatingTopbarStateUpdate = (callback: () => void) => {
-      if (floatingTopbarStateFrameRef.current !== null) {
-        window.cancelAnimationFrame(floatingTopbarStateFrameRef.current);
-      }
-
-      floatingTopbarStateFrameRef.current = window.requestAnimationFrame(() => {
-        floatingTopbarStateFrameRef.current = null;
-        callback();
-      });
-    };
-
-    if (showTopbarIntro) {
-      clearFloatingTopbarTransitions();
-      scheduleFloatingTopbarStateUpdate(() => {
-        setFloatingTopbarVisible(false);
-        setRenderFloatingTopbar(false);
-      });
-      return clearFloatingTopbarTransitions;
-    }
-
-    if (showFloatingTopbar) {
-      if (floatingTopbarExitTimeoutRef.current !== null) {
-        window.clearTimeout(floatingTopbarExitTimeoutRef.current);
-        floatingTopbarExitTimeoutRef.current = null;
-      }
-
-      if (!renderFloatingTopbar) {
-        scheduleFloatingTopbarStateUpdate(() => {
-          setRenderFloatingTopbar(true);
-          setFloatingTopbarVisible(false);
-          floatingTopbarEnterFrameRef.current = window.requestAnimationFrame(
-            () => {
-              floatingTopbarEnterFrameRef.current = null;
-              setFloatingTopbarVisible(true);
-            },
-          );
-        });
-        return clearFloatingTopbarTransitions;
-      }
-
-      scheduleFloatingTopbarStateUpdate(() => {
-        setFloatingTopbarVisible(true);
-      });
-      return clearFloatingTopbarTransitions;
-    }
-
-    if (floatingTopbarStateFrameRef.current !== null) {
-      window.cancelAnimationFrame(floatingTopbarStateFrameRef.current);
-      floatingTopbarStateFrameRef.current = null;
-    }
-
-    if (floatingTopbarEnterFrameRef.current !== null) {
-      window.cancelAnimationFrame(floatingTopbarEnterFrameRef.current);
-      floatingTopbarEnterFrameRef.current = null;
-    }
-
-    scheduleFloatingTopbarStateUpdate(() => {
-      setFloatingTopbarVisible(false);
-    });
-
-    if (!renderFloatingTopbar) {
-      return clearFloatingTopbarTransitions;
-    }
-
-    floatingTopbarExitTimeoutRef.current = window.setTimeout(() => {
-      floatingTopbarExitTimeoutRef.current = null;
-      setRenderFloatingTopbar(false);
-    }, FLOATING_TOPBAR_TRANSITION_MS);
-
-    return clearFloatingTopbarTransitions;
-  }, [renderFloatingTopbar, showFloatingTopbar, showTopbarIntro]);
-
-  useEffect(() => {
-    return () => {
-      if (floatingTopbarStateFrameRef.current !== null) {
-        window.cancelAnimationFrame(floatingTopbarStateFrameRef.current);
-      }
-
-      if (floatingTopbarEnterFrameRef.current !== null) {
-        window.cancelAnimationFrame(floatingTopbarEnterFrameRef.current);
-      }
-
-      if (floatingTopbarExitTimeoutRef.current !== null) {
-        window.clearTimeout(floatingTopbarExitTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
     if (!showtimesReady || pathname !== "/") {
       return;
     }
@@ -486,7 +216,7 @@ function AppShell() {
       ) => number;
     };
     const runPreload = () => {
-      void loadTheaterMapDialog();
+      void preloadNavbarDependencies();
       preloadTheaters();
     };
 
@@ -650,108 +380,19 @@ function AppShell() {
 
   return (
     <div className="app-shell">
-      <div className="topbar-shell" ref={topbarShellRef}>
-        <header className={`topbar${showTopbarIntro ? " is-intro" : ""}`}>
-          <div className="topbar-intro-mark" aria-hidden="true">
-            <span className="brand-mark brand-mark--intro" />
-          </div>
-          <div className="topbar-content">
-            <button
-              type="button"
-              className="brand brand-button"
-              aria-label="Go to top of home page"
-              onClick={handleFloatingHomeClick}
-            >
-              <span
-                className="brand-mark brand-mark--lockup"
-                aria-hidden="true"
-              />
-              <span className="brand-text" aria-hidden="true">
-                ARTISERET
-              </span>
-              <span className="visually-hidden">Kartiseret</span>
-            </button>
-            <nav className="topnav" aria-label="Primary">
-              <button
-                type="button"
-                className={`topnav-link topnav-button${
-                  pathname === "/movies" ? " topnav-link--active" : ""
-                }`}
-                onClick={handleMoviesNavClick}
-              >
-                <Film className="topnav-icon" aria-hidden="true" />
-                <span className="topnav-label">Now Playing</span>
-              </button>
-              <button
-                type="button"
-                className={`topnav-link topnav-button${
-                  pathname === "/soons" ? " topnav-link--active" : ""
-                }`}
-                onClick={handleSoonsNavClick}
-              >
-                <span
-                  className="topnav-icon topnav-icon--soon"
-                  aria-hidden="true"
-                />
-                <span className="topnav-label">Coming Soon</span>
-              </button>
-              <button
-                type="button"
-                className={`topnav-link topnav-button${
-                  pathname === "/showtimes" ? " topnav-link--active" : ""
-                }`}
-                onClick={handleAllShowtimesNavClick}
-              >
-                <Clock8 className="topnav-icon" aria-hidden="true" />
-                <span className="topnav-label">All Showtimes</span>
-              </button>
-            </nav>
-            <TopbarActions
-              catalogReady={catalogReady}
-              currentPath={pathname}
-              searchCollections={searchCollections}
-              onNavigate={navigate}
-              onSearchOpen={handleCatalogLoadRequest}
-              onSelectResult={handleMovieSearchSelect}
-              onSettingsClick={handleSettingsClick}
-            />
-          </div>
-        </header>
-      </div>
-
-      {renderFloatingTopbar ? (
-        <div
-          className={`floating-topbar-stack${
-            floatingTopbarVisible ? " is-visible" : ""
-          }`}
-          aria-label="Quick actions"
-          aria-hidden={!floatingTopbarVisible}
-        >
-          <TopbarActions
-            catalogReady={catalogReady}
-            currentPath={pathname}
-            searchCollections={searchCollections}
-            variant="floating"
-            onNavigate={navigate}
-            onSearchOpen={handleCatalogLoadRequest}
-            onSelectResult={handleMovieSearchSelect}
-            onSettingsClick={handleSettingsClick}
-          />
-          <div className="floating-topbar-item floating-topbar-item--home">
-            <button
-              type="button"
-              className="floating-home-button"
-              aria-label="Go to homepage"
-              onClick={handleFloatingHomeClick}
-            >
-              <span
-                className="brand-mark brand-mark--floating-home"
-                aria-hidden="true"
-              />
-            </button>
-          </div>
-        </div>
-      ) : null}
+      <Navbar
+        catalogReady={catalogReady}
+        currentPath={pathname}
+        searchCollections={searchCollections}
+        onAllShowtimesNavClick={handleAllShowtimesNavClick}
+        onHomeClick={handleFloatingHomeClick}
+        onMoviesNavClick={handleMoviesNavClick}
+        onNavigate={navigate}
+        onSearchOpen={handleCatalogLoadRequest}
+        onSelectResult={handleMovieSearchSelect}
+        onSettingsClick={handleSettingsClick}
+        onSoonsNavClick={handleSoonsNavClick}
+      />
 
       <main className="app-main">
         {pathname === "/user" && user ? (
@@ -930,30 +571,6 @@ function AppShell() {
                   maxWidth={SCROLLER_MAX_WIDTH}
                 />
               ) : null}
-            </div>
-            <div className="section-heading">
-              <p className="section-kicker">Placeholder</p>
-              <h1 className="section-title">Placeholder</h1>
-            </div>
-            <div className="section-heading">
-              <p className="section-kicker">Placeholder</p>
-              <h1 className="section-title">Placeholder</h1>
-            </div>
-            <div className="section-heading">
-              <p className="section-kicker">Placeholder</p>
-              <h1 className="section-title">Placeholder</h1>
-            </div>
-            <div className="section-heading">
-              <p className="section-kicker">Placeholder</p>
-              <h1 className="section-title">Placeholder</h1>
-            </div>
-            <div className="section-heading">
-              <p className="section-kicker">Placeholder</p>
-              <h1 className="section-title">Placeholder</h1>
-            </div>
-            <div className="section-heading">
-              <p className="section-kicker">Placeholder</p>
-              <h1 className="section-title">Placeholder</h1>
             </div>
             <div className="section-heading">
               <p className="section-kicker">Placeholder</p>

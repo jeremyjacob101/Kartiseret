@@ -1,9 +1,5 @@
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import {
-  ALL_LOCATIONS,
-  DEFAULT_LOCATION,
-  type AppLocation,
-} from "../prefs/definitions/locations";
+import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/definitions/locations";
 
 const USE_TESTING_TABLES = false;
 
@@ -188,9 +184,7 @@ function refreshMovieCatalogStatus(): void {
   });
 }
 
-export function subscribeToMovieCatalog(
-  onStoreChange: () => void,
-): () => void {
+export function subscribeToMovieCatalog(onStoreChange: () => void): () => void {
   movieCatalogListeners.add(onStoreChange);
 
   return () => {
@@ -336,9 +330,7 @@ function compareByReleaseDate(left: SupabaseRow, right: SupabaseRow): number {
 
   return normalizeTitle(
     stringifySupabaseValue(left.english_title),
-  ).localeCompare(
-    normalizeTitle(stringifySupabaseValue(right.english_title)),
-  );
+  ).localeCompare(normalizeTitle(stringifySupabaseValue(right.english_title)));
 }
 
 function formatShowtime(value: string): string {

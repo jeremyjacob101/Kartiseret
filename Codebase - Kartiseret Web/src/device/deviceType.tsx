@@ -1,9 +1,5 @@
 import { useEffect, type PropsWithChildren } from "react";
-import {
-  applyBootstrappedDeviceTypeToDocument,
-  DeviceTypeContext,
-  getDeviceInfo,
-} from "./useDeviceType";
+import { applyBootstrappedDeviceTypeToDocument, DeviceTypeContext, getDeviceInfo } from "./useDeviceType";
 
 export function DeviceTypeProvider({ children }: PropsWithChildren) {
   useEffect(() => {
