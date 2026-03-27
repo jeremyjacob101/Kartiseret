@@ -73,15 +73,15 @@ function NavbarActions({
 }: NavbarActionsProps) {
   const isFloating = variant === "floating";
   const containerClassName = isFloating
-    ? "floating-topbar-actions"
-    : "topbar-actions";
+    ? "floating-navbar-actions"
+    : "navbar-actions";
 
   return (
     <div className={containerClassName}>
       <div
         className={
           isFloating
-            ? "floating-topbar-item floating-topbar-item--search"
+            ? "floating-navbar-item floating-navbar-item--search"
             : undefined
         }
       >
@@ -95,7 +95,7 @@ function NavbarActions({
       <div
         className={
           isFloating
-            ? "floating-topbar-item floating-topbar-item--map"
+            ? "floating-navbar-item floating-navbar-item--map"
             : undefined
         }
       >
@@ -106,7 +106,7 @@ function NavbarActions({
       <div
         className={
           isFloating
-            ? "floating-topbar-item floating-topbar-item--user"
+            ? "floating-navbar-item floating-navbar-item--user"
             : undefined
         }
       >
@@ -115,7 +115,7 @@ function NavbarActions({
       <div
         className={
           isFloating
-            ? "floating-topbar-item floating-topbar-item--settings"
+            ? "floating-navbar-item floating-navbar-item--settings"
             : undefined
         }
       >
@@ -157,7 +157,7 @@ function MiniNavBar({
 }: MiniNavBarProps) {
   return (
     <div
-      className={`floating-topbar-stack${isVisible ? " is-visible" : ""}`}
+      className={`floating-navbar-stack${isVisible ? " is-visible" : ""}`}
       aria-label="Quick actions"
       aria-hidden={!isVisible}
     >
@@ -171,7 +171,7 @@ function MiniNavBar({
         onSelectResult={onSelectResult}
         onSettingsClick={onSettingsClick}
       />
-      <div className="floating-topbar-item floating-topbar-item--home">
+      <div className="floating-navbar-item floating-navbar-item--home">
         <button
           type="button"
           className="floating-home-button"
@@ -362,12 +362,12 @@ export function Navbar({
 
   return (
     <>
-      <div className="topbar-shell" ref={navbarShellRef}>
-        <header className={`topbar${showNavbarIntro ? " is-intro" : ""}`}>
-          <div className="topbar-intro-mark" aria-hidden="true">
+      <div className="navbar-shell" ref={navbarShellRef}>
+        <header className={`navbar${showNavbarIntro ? " is-intro" : ""}`}>
+          <div className="navbar-intro-mark" aria-hidden="true">
             <span className="brand-mark brand-mark--intro" />
           </div>
-          <div className="topbar-content">
+          <div className="navbar-content">
             <button
               type="button"
               className="brand brand-button"

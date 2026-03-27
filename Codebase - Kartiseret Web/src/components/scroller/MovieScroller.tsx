@@ -481,8 +481,8 @@ function isNavbarInteractiveTarget(target: EventTarget | null): boolean {
 
   return Boolean(
     target.closest(
-      ".topbar, " +
-        ".floating-topbar-stack, " +
+      ".navbar, " +
+        ".floating-navbar-stack, " +
         ".movie-search-panel, " +
         ".user-menu-panel, " +
         ".theater-map-backdrop, " +
