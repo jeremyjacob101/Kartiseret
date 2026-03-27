@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Ref } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type Ref } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
-import { fixedAppDateString, getMovieShowtimeDays, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
+import {
+  fixedAppDateString,
+  getMovieCatalogStatusSnapshot,
+  getMovieShowtimeDays,
+  subscribeToMovieCatalog,
+  type Movie,
+  type MovieShowtimeDay,
+} from "../../data/movieCatalog";
 import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
 
@@ -535,6 +542,10 @@ export function MovieDetailsContent({
   onPreferredShowtimeDateChange,
 }: MovieDetailsContentProps) {
   const { sources, location } = useUserPreferencesContext();
+  const showtimesReady = useSyncExternalStore(
+    subscribeToMovieCatalog,
+    () => getMovieCatalogStatusSnapshot().showtimesReady,
+  );
   const railRef = useRef<HTMLDivElement | null>(null);
   const railScrollFrameRef = useRef<number | null>(null);
   const visibleShowtimeDateRef = useRef<string | null>(null);
@@ -550,13 +561,16 @@ export function MovieDetailsContent({
     variant === "comingSoon" && movie.releaseDate
       ? formatReleaseDate(movie.releaseDate)
       : null;
-  const showtimeDays = useMemo(
-    () =>
-      variant === "nowPlaying"
-        ? cloneShowtimeDays(getMovieShowtimeDays(movie.tmdbId, location))
-        : EMPTY_SHOWTIME_DAYS,
-    [location, movie.tmdbId, variant],
-  );
+  const showtimeDays = useMemo(() => {
+    if (variant !== "nowPlaying") {
+      return EMPTY_SHOWTIME_DAYS;
+    }
+
+    // When showtimes finish loading after the panel opens, this keeps the
+    // cloned display data in sync with the catalog store update.
+    void showtimesReady;
+    return cloneShowtimeDays(getMovieShowtimeDays(movie.tmdbId, location));
+  }, [location, movie.tmdbId, showtimesReady, variant]);
   const metrics =
     variant === "nowPlaying" ? getMetricDisplays(movie, sources) : [];
   const trailerEmbedUrl = getTrailerEmbedUrl(movie.trailerKey);

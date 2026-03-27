@@ -4,7 +4,7 @@ import { Clock8, Film, MapPin, Settings } from "lucide-react";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
 import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "./components/MovieSearchMenu";
 import { UserMenu } from "./components/UserMenu";
-import { allComingSoonMovies, allNowPlayingMovies, getMovieCatalogStatusSnapshot, loadMovieCatalog, markComingSoonPreviewIntroCompleted, markComingSoonPreviewIntroStarted, subscribeToMovieCatalog } from "./data/movieCatalog";
+import { allComingSoonMovies, allNowPlayingMovies, getMovieCatalogStatusSnapshot, loadMovieCatalog, subscribeToMovieCatalog } from "./data/movieCatalog";
 import { preloadTheaters } from "./data/theaters";
 import { UserPreferencesProvider } from "./prefs/UserPreferencesContext";
 import { useUserPreferencesContext } from "./prefs/useUserPreferences";
@@ -189,8 +189,9 @@ function AppShell() {
     getMovieCatalogStatusSnapshot,
   );
   const catalogReady = catalogStatus.catalogReady;
-  const nowPlayingPreviewReady = catalogStatus.nowPlayingPreviewReady;
+  const nowPlayingReady = catalogStatus.nowPlayingReady;
   const comingSoonReady = catalogStatus.comingSoonReady;
+  const showtimesReady = catalogStatus.showtimesReady;
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const pathname = useSyncExternalStore(
     subscribeToPathname,
@@ -243,7 +244,7 @@ function AppShell() {
   useEffect(() => {
     if (
       pathname !== "/" ||
-      !nowPlayingPreviewReady ||
+      !nowPlayingReady ||
       !comingSoonReady ||
       nonCriticalPreloadStartedRef.current
     ) {
@@ -293,12 +294,12 @@ function AppShell() {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [comingSoonReady, nowPlayingPreviewReady, pathname]);
+  }, [comingSoonReady, nowPlayingReady, pathname]);
 
   useEffect(() => {
     let isActive = true;
 
-    if (catalogReady || pathname === "/user") {
+    if (pathname === "/user") {
       return;
     }
 
@@ -325,7 +326,7 @@ function AppShell() {
     return () => {
       isActive = false;
     };
-  }, [catalogReady, pathname]);
+  }, [pathname]);
 
   useEffect(() => {
     let frameId: number | null = null;
@@ -470,7 +471,7 @@ function AppShell() {
   }, []);
 
   useEffect(() => {
-    if (!catalogReady || pathname !== "/") {
+    if (!showtimesReady || pathname !== "/") {
       return;
     }
 
@@ -513,13 +514,9 @@ function AppShell() {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [catalogReady, pathname]);
+  }, [pathname, showtimesReady]);
 
   const handleCatalogLoadRequest = useCallback(() => {
-    if (catalogReady) {
-      return;
-    }
-
     void loadMovieCatalog()
       .then(() => {
         setCatalogError(null);
@@ -533,7 +530,7 @@ function AppShell() {
         console.error("Failed to load movie catalog from Supabase.", error);
         setCatalogError(message);
       });
-  }, [catalogReady]);
+  }, []);
 
   const handleSettingsClick = useCallback(() => {
     if (!user) {
@@ -905,7 +902,7 @@ function AppShell() {
               className="scroller-slot"
               style={{ minHeight: SCROLLER_SLOT_MIN_HEIGHT }}
             >
-              {nowPlayingPreviewReady ? (
+              {nowPlayingReady ? (
                 <MovieScroller
                   mode="nowPlaying"
                   cardWidth={SCROLLER_CARD_WIDTH}
@@ -930,8 +927,6 @@ function AppShell() {
                   cardHeight={SCROLLER_CARD_HEIGHT}
                   gap={SCROLLER_GAP}
                   maxWidth={SCROLLER_MAX_WIDTH}
-                  onIntroSetupStart={markComingSoonPreviewIntroStarted}
-                  onIntroComplete={markComingSoonPreviewIntroCompleted}
                 />
               ) : null}
             </div>

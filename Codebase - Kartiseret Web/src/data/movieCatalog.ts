@@ -7,46 +7,25 @@ import {
 
 const USE_TESTING_TABLES = false;
 
-const SCROLLER_PREVIEW_MOVIE_COUNT = 5;
 const SUPABASE_PAGE_SIZE = 1000;
-const COMING_SOON_PREVIEW_INTRO_START_TIMEOUT_MS = 360;
-const COMING_SOON_PREVIEW_INTRO_COMPLETE_TIMEOUT_MS = 1680;
 const APP_TIME_ZONE = "Asia/Jerusalem";
 const SHOWTIME_WINDOW_DAY_COUNT = 10;
 const TESTING_TABLE_NAMES = {
   movies: "testNPmovies",
-  nowPlayingPreview: "testNPmoviesPreview",
   comingSoon: "testSOONmovies",
-  comingSoonPreview: "testSOONmoviesPreview",
   showtimes: "testNPshowtimes",
 } as const;
 const LIVE_TABLE_NAMES = {
   movies: "finalMovies",
-  nowPlayingPreview: "finalMoviesPreview",
   comingSoon: "finalSoons",
-  comingSoonPreview: "finalSoonsPreview",
   showtimes: "finalShowtimes",
 } as const;
 const ACTIVE_TABLE_NAMES = USE_TESTING_TABLES
   ? TESTING_TABLE_NAMES
   : LIVE_TABLE_NAMES;
 const MOVIES_TABLE_NAME = ACTIVE_TABLE_NAMES.movies;
-const NOW_PLAYING_PREVIEW_TABLE_NAME = ACTIVE_TABLE_NAMES.nowPlayingPreview;
 const COMING_SOON_TABLE_NAME = ACTIVE_TABLE_NAMES.comingSoon;
-const COMING_SOON_PREVIEW_TABLE_NAME = ACTIVE_TABLE_NAMES.comingSoonPreview;
 const SHOWTIMES_TABLE_NAME = ACTIVE_TABLE_NAMES.showtimes;
-const NOW_PLAYING_PREVIEW_SELECT_COLUMNS = [
-  "tmdb_id",
-  "english_title",
-  "en_poster",
-  "popularity",
-] as const;
-const COMING_SOON_PREVIEW_SELECT_COLUMNS = [
-  "tmdb_id",
-  "english_title",
-  "release_date",
-  "en_poster",
-] as const;
 const MOVIE_SELECT_COLUMNS = [
   "tmdb_id",
   "english_title",
@@ -152,63 +131,58 @@ export type ShowtimeEntry = {
   href: string | null;
 };
 
+export type MovieCatalogStatusSnapshot = {
+  nowPlayingReady: boolean;
+  comingSoonReady: boolean;
+  showtimesReady: boolean;
+  catalogReady: boolean;
+};
+
 export let movies: Movie[] = [];
 export let allNowPlayingMovies: Movie[] = [];
 export let comingSoonMovies: Movie[] = [];
 export let allComingSoonMovies: Movie[] = [];
 
 type MovieShowtimesByCity = Record<AppLocation, MovieShowtimeDay[]>;
-type MovieCatalogStatusSnapshot = {
-  nowPlayingPreviewReady: boolean;
-  nowPlayingDetailsReady: boolean;
-  showtimesReady: boolean;
-  comingSoonReady: boolean;
-  comingSoonDetailsReady: boolean;
-  catalogReady: boolean;
-};
 
 let movieShowtimesByTmdbId: Record<string, MovieShowtimesByCity> = {};
-let isMovieCatalogLoaded = false;
+let nowPlayingLoaded = false;
+let comingSoonLoaded = false;
+let showtimesLoaded = false;
+let loadNowPlayingMoviesPromise: Promise<void> | null = null;
+let loadComingSoonMoviesPromise: Promise<void> | null = null;
+let loadShowtimesPromise: Promise<void> | null = null;
 let loadMovieCatalogPromise: Promise<void> | null = null;
-const primedPreviewImageSources = new Set<string>();
 const movieCatalogListeners = new Set<() => void>();
-let comingSoonPreviewIntroStartWaiters: Array<() => void> = [];
-let comingSoonPreviewIntroCompleteWaiters: Array<() => void> = [];
-let hasComingSoonPreviewIntroStarted = false;
-let hasComingSoonPreviewIntroCompleted = false;
 let movieCatalogStatusSnapshot: MovieCatalogStatusSnapshot = {
-  nowPlayingPreviewReady: movies.length > 0,
-  nowPlayingDetailsReady: allNowPlayingMovies.length > 0,
-  showtimesReady: isMovieCatalogLoaded,
-  comingSoonReady: comingSoonMovies.length > 0,
-  comingSoonDetailsReady: allComingSoonMovies.length > 0,
-  catalogReady: isMovieCatalogLoaded,
+  nowPlayingReady: false,
+  comingSoonReady: false,
+  showtimesReady: false,
+  catalogReady: false,
 };
 
-function updateMovieCatalogStatus(
-  nextStatus: Partial<MovieCatalogStatusSnapshot>,
-): void {
-  const candidateStatus = {
-    ...movieCatalogStatusSnapshot,
-    ...nextStatus,
+function refreshMovieCatalogStatus(): void {
+  const nextStatus: MovieCatalogStatusSnapshot = {
+    nowPlayingReady: nowPlayingLoaded && movies.length > 0,
+    comingSoonReady: comingSoonLoaded && comingSoonMovies.length > 0,
+    showtimesReady: showtimesLoaded,
+    catalogReady:
+      nowPlayingLoaded &&
+      movies.length > 0 &&
+      comingSoonLoaded &&
+      comingSoonMovies.length > 0,
   };
 
   if (
-    candidateStatus.nowPlayingPreviewReady ===
-      movieCatalogStatusSnapshot.nowPlayingPreviewReady &&
-    candidateStatus.nowPlayingDetailsReady ===
-      movieCatalogStatusSnapshot.nowPlayingDetailsReady &&
-    candidateStatus.showtimesReady === movieCatalogStatusSnapshot.showtimesReady &&
-    candidateStatus.comingSoonReady ===
-      movieCatalogStatusSnapshot.comingSoonReady &&
-    candidateStatus.comingSoonDetailsReady ===
-      movieCatalogStatusSnapshot.comingSoonDetailsReady &&
-    candidateStatus.catalogReady === movieCatalogStatusSnapshot.catalogReady
+    nextStatus.nowPlayingReady === movieCatalogStatusSnapshot.nowPlayingReady &&
+    nextStatus.comingSoonReady === movieCatalogStatusSnapshot.comingSoonReady &&
+    nextStatus.showtimesReady === movieCatalogStatusSnapshot.showtimesReady &&
+    nextStatus.catalogReady === movieCatalogStatusSnapshot.catalogReady
   ) {
     return;
   }
 
-  movieCatalogStatusSnapshot = candidateStatus;
+  movieCatalogStatusSnapshot = nextStatus;
   movieCatalogListeners.forEach((listener) => {
     listener();
   });
@@ -228,112 +202,6 @@ export function getMovieCatalogStatusSnapshot(): MovieCatalogStatusSnapshot {
   return movieCatalogStatusSnapshot;
 }
 
-export function markComingSoonPreviewIntroStarted(): void {
-  if (hasComingSoonPreviewIntroStarted) {
-    return;
-  }
-
-  hasComingSoonPreviewIntroStarted = true;
-
-  for (const resolve of comingSoonPreviewIntroStartWaiters) {
-    resolve();
-  }
-
-  comingSoonPreviewIntroStartWaiters = [];
-}
-
-export function markComingSoonPreviewIntroCompleted(): void {
-  if (hasComingSoonPreviewIntroCompleted) {
-    return;
-  }
-
-  hasComingSoonPreviewIntroCompleted = true;
-
-  for (const resolve of comingSoonPreviewIntroCompleteWaiters) {
-    resolve();
-  }
-
-  comingSoonPreviewIntroCompleteWaiters = [];
-}
-
-function primePreviewMovieImages(selectedMovies: readonly Movie[]): void {
-  for (const movie of selectedMovies) {
-    const imageSrc = movie.imageSrc?.trim();
-
-    if (!imageSrc || primedPreviewImageSources.has(imageSrc)) {
-      continue;
-    }
-
-    primedPreviewImageSources.add(imageSrc);
-
-    const image = new Image();
-    image.decoding = "async";
-    image.fetchPriority = "high";
-    image.src = imageSrc;
-  }
-}
-
-async function yieldForPreviewScrollerRender(): Promise<void> {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  await new Promise<void>((resolve) => {
-    window.setTimeout(resolve, 0);
-  });
-
-  await new Promise<void>((resolve) => {
-    window.requestAnimationFrame(() => {
-      resolve();
-    });
-  });
-}
-
-async function waitForComingSoonPreviewIntroStart(): Promise<void> {
-  if (typeof window === "undefined" || hasComingSoonPreviewIntroStarted) {
-    return;
-  }
-
-  await new Promise<void>((resolve) => {
-    const timeoutId = window.setTimeout(() => {
-      comingSoonPreviewIntroStartWaiters = comingSoonPreviewIntroStartWaiters.filter(
-        (waiter) => waiter !== resolveWait,
-      );
-      resolve();
-    }, COMING_SOON_PREVIEW_INTRO_START_TIMEOUT_MS);
-
-    const resolveWait = () => {
-      window.clearTimeout(timeoutId);
-      resolve();
-    };
-
-    comingSoonPreviewIntroStartWaiters.push(resolveWait);
-  });
-}
-
-async function waitForComingSoonPreviewIntroComplete(): Promise<void> {
-  if (typeof window === "undefined" || hasComingSoonPreviewIntroCompleted) {
-    return;
-  }
-
-  await new Promise<void>((resolve) => {
-    const timeoutId = window.setTimeout(() => {
-      comingSoonPreviewIntroCompleteWaiters =
-        comingSoonPreviewIntroCompleteWaiters.filter(
-          (waiter) => waiter !== resolveWait,
-        );
-      resolve();
-    }, COMING_SOON_PREVIEW_INTRO_COMPLETE_TIMEOUT_MS);
-
-    const resolveWait = () => {
-      window.clearTimeout(timeoutId);
-      resolve();
-    };
-
-    comingSoonPreviewIntroCompleteWaiters.push(resolveWait);
-  });
-}
-
 function stringifySupabaseValue(value: SupabaseValue | undefined): string {
   if (value == null) {
     return "";
@@ -350,7 +218,9 @@ function parseNumberValue(
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function parseOptionalNumberValue(value: SupabaseValue | undefined): number | null {
+function parseOptionalNumberValue(
+  value: SupabaseValue | undefined,
+): number | null {
   const normalizedValue = stringifySupabaseValue(value).trim();
 
   if (!normalizedValue) {
@@ -426,7 +296,7 @@ function parseGenres(value: SupabaseValue | undefined): string[] {
         return [...normalizedGenres];
       }
     } catch {
-      // Fall back to comma-splitting below for non-JSON array strings.
+      // Fall through to comma-splitting for non-JSON array strings.
     }
   }
 
@@ -549,15 +419,14 @@ function compareTheaters(left: string, right: string): number {
 }
 
 type BuildMoviesOptions = {
-  limit?: number;
   sortMode?: "popularity" | "releaseDate";
 };
 
 function buildMovies(
   rows: SupabaseRow[],
-  { limit, sortMode = "popularity" }: BuildMoviesOptions = {},
+  { sortMode = "popularity" }: BuildMoviesOptions = {},
 ): Movie[] {
-  const normalizedMovies = [...rows]
+  return [...rows]
     .sort((left, right) => {
       if (sortMode === "releaseDate") {
         return compareByReleaseDate(left, right);
@@ -608,63 +477,6 @@ function buildMovies(
       };
     })
     .filter((movie) => Boolean(movie.tmdbId && movie.title));
-
-  return typeof limit === "number"
-    ? normalizedMovies.slice(0, limit)
-    : normalizedMovies;
-}
-
-function buildNowPlayingPreviewMovies(rows: SupabaseRow[]): Movie[] {
-  // Keep the preview data in 1,2,3,4,last order so the scroller's wraparound
-  // naturally renders it as last,1,2,3,4 without changing the intro behavior.
-  return buildMovies(rows, {
-    limit: SCROLLER_PREVIEW_MOVIE_COUNT,
-  });
-}
-
-function buildComingSoonPreviewMovies(rows: SupabaseRow[]): Movie[] {
-  // Keep the preview data in earliest,2nd,3rd,4th,latest-preview order so the
-  // scroller's wraparound naturally renders it as latest-preview, earliest...
-  return buildMovies(rows, {
-    limit: SCROLLER_PREVIEW_MOVIE_COUNT,
-    sortMode: "releaseDate",
-  });
-}
-
-export function buildHomePreviewScrollerMovies(
-  previewMovies: readonly Movie[],
-  detailedMovies: readonly Movie[],
-): Movie[] {
-  if (previewMovies.length === 0) {
-    return [...detailedMovies];
-  }
-
-  const detailedMoviesByTmdbId = new Map(
-    detailedMovies.map((movie) => [movie.tmdbId, movie] as const),
-  );
-  const trailingPreviewMovie = previewMovies.at(-1) ?? null;
-  const leadingPreviewMovies = trailingPreviewMovie
-    ? previewMovies.slice(0, -1)
-    : [...previewMovies];
-  const mergedLeadingPreviewMovies = leadingPreviewMovies.map(
-    (movie) => detailedMoviesByTmdbId.get(movie.tmdbId) ?? movie,
-  );
-  const previewMovieIds = new Set(previewMovies.map((movie) => movie.tmdbId));
-  const restOfDetailedMovies = detailedMovies.filter(
-    (movie) => !previewMovieIds.has(movie.tmdbId),
-  );
-  const mergedTrailingPreviewMovie = trailingPreviewMovie
-    ? (detailedMoviesByTmdbId.get(trailingPreviewMovie.tmdbId) ??
-        trailingPreviewMovie)
-    : null;
-
-  return mergedTrailingPreviewMovie
-    ? [
-        ...mergedLeadingPreviewMovies,
-        ...restOfDetailedMovies,
-        mergedTrailingPreviewMovie,
-      ]
-    : [...mergedLeadingPreviewMovies, ...restOfDetailedMovies];
 }
 
 function buildMovieShowtimes(
@@ -862,22 +674,6 @@ async function fetchMovieRows(): Promise<SupabaseRow[]> {
   }
 }
 
-async function fetchMoviePreviewRows(): Promise<SupabaseRow[]> {
-  return fetchAllTableRows(
-    NOW_PLAYING_PREVIEW_TABLE_NAME,
-    NOW_PLAYING_PREVIEW_SELECT_COLUMNS,
-    ["tmdb_id"],
-  );
-}
-
-async function fetchComingSoonPreviewRows(): Promise<SupabaseRow[]> {
-  return fetchAllTableRows(
-    COMING_SOON_PREVIEW_TABLE_NAME,
-    COMING_SOON_PREVIEW_SELECT_COLUMNS,
-    ["release_date", "tmdb_id"],
-  );
-}
-
 async function fetchComingSoonMovieRows(): Promise<SupabaseRow[]> {
   const selectColumns = [
     ...COMING_SOON_SELECT_COLUMNS,
@@ -903,85 +699,18 @@ async function fetchComingSoonMovieRows(): Promise<SupabaseRow[]> {
   }
 }
 
-export async function loadMovieCatalog(): Promise<void> {
-  if (isMovieCatalogLoaded) {
+export async function loadNowPlayingMovies(): Promise<void> {
+  if (nowPlayingLoaded) {
     return;
   }
 
-  if (loadMovieCatalogPromise) {
-    return loadMovieCatalogPromise;
+  if (loadNowPlayingMoviesPromise) {
+    return loadNowPlayingMoviesPromise;
   }
 
-  loadMovieCatalogPromise = (async () => {
-    hasComingSoonPreviewIntroStarted = false;
-    hasComingSoonPreviewIntroCompleted = false;
-    comingSoonPreviewIntroStartWaiters = [];
-    comingSoonPreviewIntroCompleteWaiters = [];
-
-    const previewRowsPromise = fetchMoviePreviewRows().catch((error) => {
-      console.warn(
-        `Failed to load ${NOW_PLAYING_PREVIEW_TABLE_NAME} from Supabase.`,
-        error,
-      );
-      return [];
-    });
-    const comingSoonPreviewRowsPromise = fetchComingSoonPreviewRows().catch((
-      error,
-    ) => {
-      console.warn(
-        `Failed to load ${COMING_SOON_PREVIEW_TABLE_NAME} from Supabase.`,
-        error,
-      );
-      return [];
-    });
-
-    const previewRows = await previewRowsPromise;
-    const previewMovies = buildNowPlayingPreviewMovies(previewRows);
-
-    if (previewMovies.length > 0) {
-      movies = previewMovies;
-      primePreviewMovieImages(previewMovies);
-      updateMovieCatalogStatus({
-        nowPlayingPreviewReady: true,
-      });
-    }
-
-    const comingSoonPreviewRows = await comingSoonPreviewRowsPromise;
-    const previewComingSoonMovies =
-      buildComingSoonPreviewMovies(comingSoonPreviewRows);
-
-    if (previewComingSoonMovies.length > 0) {
-      comingSoonMovies = previewComingSoonMovies;
-      primePreviewMovieImages(previewComingSoonMovies);
-      updateMovieCatalogStatus({
-        nowPlayingPreviewReady: movies.length > 0,
-        comingSoonReady: true,
-      });
-    }
-
-    if (previewMovies.length > 0 || previewComingSoonMovies.length > 0) {
-      await yieldForPreviewScrollerRender();
-    }
-
-    if (previewComingSoonMovies.length > 0) {
-      await waitForComingSoonPreviewIntroStart();
-    }
-
-    const [movieRows, showtimeRows] = await Promise.all([
-      fetchMovieRows(),
-      fetchAllTableRows(SHOWTIMES_TABLE_NAME, SHOWTIME_SELECT_COLUMNS, [
-        "tmdb_id",
-        "date_of_showing",
-        "cinema",
-        "showtime",
-      ]),
-    ]);
-
-    const nextAllNowPlayingMovies = buildMovies(movieRows);
-    const nextMovies =
-      previewMovies.length > 0
-        ? buildHomePreviewScrollerMovies(previewMovies, nextAllNowPlayingMovies)
-        : nextAllNowPlayingMovies;
+  loadNowPlayingMoviesPromise = (async () => {
+    const movieRows = await fetchMovieRows();
+    const nextMovies = buildMovies(movieRows);
 
     if (nextMovies.length === 0) {
       throw new Error(
@@ -990,73 +719,127 @@ export async function loadMovieCatalog(): Promise<void> {
     }
 
     movies = nextMovies;
-    allNowPlayingMovies = nextAllNowPlayingMovies;
-    movieShowtimesByTmdbId = buildMovieShowtimes(
-      showtimeRows,
-      nextAllNowPlayingMovies,
-    );
-    updateMovieCatalogStatus({
-      nowPlayingPreviewReady: nextMovies.length > 0,
-      nowPlayingDetailsReady: nextAllNowPlayingMovies.length > 0,
-      showtimesReady: true,
-      comingSoonReady: comingSoonMovies.length > 0,
-      comingSoonDetailsReady: allComingSoonMovies.length > 0,
-      catalogReady: false,
+    allNowPlayingMovies = nextMovies;
+    nowPlayingLoaded = true;
+    refreshMovieCatalogStatus();
+  })()
+    .catch((error) => {
+      if (!nowPlayingLoaded) {
+        movies = [];
+        allNowPlayingMovies = [];
+      }
+
+      refreshMovieCatalogStatus();
+      throw error instanceof Error ? error : new Error(String(error));
+    })
+    .finally(() => {
+      loadNowPlayingMoviesPromise = null;
     });
 
+  return loadNowPlayingMoviesPromise;
+}
+
+export async function loadComingSoonMovies(): Promise<void> {
+  if (comingSoonLoaded) {
+    return;
+  }
+
+  if (loadComingSoonMoviesPromise) {
+    return loadComingSoonMoviesPromise;
+  }
+
+  loadComingSoonMoviesPromise = (async () => {
     const comingSoonRows = await fetchComingSoonMovieRows();
-    const nextAllComingSoonMovies = buildMovies(comingSoonRows, {
+    const nextMovies = buildMovies(comingSoonRows, {
       sortMode: "releaseDate",
     });
-    const nextComingSoonMovies =
-      previewComingSoonMovies.length > 0
-        ? buildHomePreviewScrollerMovies(
-            previewComingSoonMovies,
-            nextAllComingSoonMovies,
-          )
-        : nextAllComingSoonMovies;
 
-    if (nextComingSoonMovies.length === 0) {
+    if (nextMovies.length === 0) {
       throw new Error(
         `Supabase table ${COMING_SOON_TABLE_NAME} returned no movie rows.`,
       );
     }
 
-    if (previewComingSoonMovies.length > 0) {
-      await waitForComingSoonPreviewIntroComplete();
-      await yieldForPreviewScrollerRender();
-    }
-
-    comingSoonMovies = nextComingSoonMovies;
-    allComingSoonMovies = nextAllComingSoonMovies;
-    isMovieCatalogLoaded = true;
-    updateMovieCatalogStatus({
-      nowPlayingPreviewReady: movies.length > 0,
-      nowPlayingDetailsReady: allNowPlayingMovies.length > 0,
-      showtimesReady: true,
-      comingSoonReady: nextComingSoonMovies.length > 0,
-      comingSoonDetailsReady: nextAllComingSoonMovies.length > 0,
-      catalogReady: true,
-    });
+    comingSoonMovies = nextMovies;
+    allComingSoonMovies = nextMovies;
+    comingSoonLoaded = true;
+    refreshMovieCatalogStatus();
   })()
     .catch((error) => {
-      allNowPlayingMovies = [];
-      allComingSoonMovies = [];
-      movieShowtimesByTmdbId = {};
-      isMovieCatalogLoaded = false;
-      updateMovieCatalogStatus({
-        nowPlayingPreviewReady: movies.length > 0,
-        nowPlayingDetailsReady: false,
-        showtimesReady: false,
-        comingSoonReady: comingSoonMovies.length > 0,
-        comingSoonDetailsReady: false,
-        catalogReady: false,
-      });
+      if (!comingSoonLoaded) {
+        comingSoonMovies = [];
+        allComingSoonMovies = [];
+      }
+
+      refreshMovieCatalogStatus();
       throw error instanceof Error ? error : new Error(String(error));
     })
     .finally(() => {
-      loadMovieCatalogPromise = null;
+      loadComingSoonMoviesPromise = null;
     });
+
+  return loadComingSoonMoviesPromise;
+}
+
+export async function loadShowtimes(): Promise<void> {
+  if (showtimesLoaded) {
+    return;
+  }
+
+  if (loadShowtimesPromise) {
+    return loadShowtimesPromise;
+  }
+
+  loadShowtimesPromise = (async () => {
+    await loadNowPlayingMovies();
+    const showtimeRows = await fetchAllTableRows(
+      SHOWTIMES_TABLE_NAME,
+      SHOWTIME_SELECT_COLUMNS,
+      ["tmdb_id", "date_of_showing", "cinema", "showtime"],
+    );
+
+    movieShowtimesByTmdbId = buildMovieShowtimes(
+      showtimeRows,
+      allNowPlayingMovies,
+    );
+    showtimesLoaded = true;
+    refreshMovieCatalogStatus();
+  })()
+    .catch((error) => {
+      if (!showtimesLoaded) {
+        movieShowtimesByTmdbId = {};
+      }
+
+      refreshMovieCatalogStatus();
+      throw error instanceof Error ? error : new Error(String(error));
+    })
+    .finally(() => {
+      loadShowtimesPromise = null;
+    });
+
+  return loadShowtimesPromise;
+}
+
+export function ensureMovieShowtimesLoaded(): Promise<void> {
+  return loadShowtimes();
+}
+
+export async function loadMovieCatalog(): Promise<void> {
+  if (nowPlayingLoaded && comingSoonLoaded && showtimesLoaded) {
+    return;
+  }
+
+  if (loadMovieCatalogPromise) {
+    return loadMovieCatalogPromise;
+  }
+
+  loadMovieCatalogPromise = (async () => {
+    await loadNowPlayingMovies();
+    await loadComingSoonMovies();
+    await loadShowtimes();
+  })().finally(() => {
+    loadMovieCatalogPromise = null;
+  });
 
   return loadMovieCatalogPromise;
 }

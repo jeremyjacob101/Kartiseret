@@ -2,10 +2,8 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type 
 import { X } from "lucide-react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import {
-  buildHomePreviewScrollerMovies,
   comingSoonMovies,
-  getMovieCatalogStatusSnapshot,
-  loadMovieCatalog,
+  ensureMovieShowtimesLoaded,
   movies,
   type Movie,
 } from "../../data/movieCatalog";
@@ -51,11 +49,6 @@ type SwipeGesture = {
 type PendingExternalJump = {
   movieIndex: number;
   behavior: ScrollBehavior;
-  nonce: number;
-};
-
-type DeferredPreviewOpenRequest = {
-  tmdbId: string;
   nonce: number;
 };
 
@@ -424,16 +417,6 @@ function getCollapsedAnchorItemIndexFromScrollLeft(
   return clamp(centeredItemIndex, 0, Math.max(totalItems - 1, 0));
 }
 
-function getCenteredCollapsedItemIndexForMovieIndex(
-  movieIndex: number,
-  movieCount: number,
-  collapsedMiddleStartIndex: number,
-): number {
-  return movieIndex === movieCount - 1
-    ? collapsedMiddleStartIndex - 1
-    : collapsedMiddleStartIndex + movieIndex;
-}
-
 function getCollapsedMiddleStartIndex(
   movieCount: number,
   cardWidth: number,
@@ -542,13 +525,8 @@ function MovieScrollerContent({
   gap = 16,
   maxWidth = "100%",
   className,
-  onIntroSetupStart,
-  onIntroComplete,
 }: MovieScrollerContentProps) {
-  const [renderedMovieItems, setRenderedMovieItems] = useState(movieItems);
-  const [hasCollapsedIntroCompleted, setHasCollapsedIntroCompleted] =
-    useState(false);
-  const movieCount = renderedMovieItems.length;
+  const movieCount = movieItems.length;
   const collapsedRepeatSets = getRepeatSetCount(cardWidth + gap, movieCount);
   const collapsedMiddleStartIndex = getCollapsedMiddleStartIndex(
     movieCount,
@@ -582,9 +560,6 @@ function MovieScrollerContent({
   const [detailShowtimeDate, setDetailShowtimeDate] = useState<string | null>(
     () => persistedDetailShowtimeDate,
   );
-  const [deferredPreviewOpenRequest, setDeferredPreviewOpenRequest] = useState<
-    DeferredPreviewOpenRequest | null
-  >(null);
 
   const shellRef = useRef<HTMLDivElement | null>(null);
   const detailStageRef = useRef<HTMLDivElement | null>(null);
@@ -605,7 +580,6 @@ function MovieScrollerContent({
   const pendingViewportBehaviorRef = useRef<ScrollBehavior | null>(null);
   const pendingExternalJumpRef = useRef<PendingExternalJump | null>(null);
   const handledExternalJumpNonceRef = useRef<number | null>(null);
-  const handledDeferredPreviewOpenNonceRef = useRef<number | null>(null);
   const collapsedOpenScrollLeftRef = useRef<number | null>(null);
   const collapsedOpenClientWidthRef = useRef<number | null>(null);
   const collapsedOpenAnchorItemIndexRef = useRef<number | null>(null);
@@ -619,51 +593,6 @@ function MovieScrollerContent({
   const displayMovieIndex = mod(displayItemIndex, movieCount);
   const canNavigate =
     phase === "open" && detailTransition === null && movieCount > 1;
-
-  const applyRenderedMovieItems = useCallback(
-    (
-      nextMovieItems: readonly Movie[],
-      options: { recenterCollapsedAnchor?: boolean } = {},
-    ) => {
-      const { recenterCollapsedAnchor = false } = options;
-
-      setRenderedMovieItems((currentMovieItems) =>
-        currentMovieItems === nextMovieItems ? currentMovieItems : nextMovieItems,
-      );
-
-      if (!recenterCollapsedAnchor) {
-        return;
-      }
-
-      const nextCollapsedAnchorItemIndex = getCollapsedMiddleStartIndex(
-        nextMovieItems.length,
-        cardWidth,
-        gap,
-      );
-      const collapsedScroller = shellRef.current?.querySelector<HTMLElement>(
-        ".movie-scroller-collapsed",
-      );
-
-      setCollapsedAnchorItemIndex(nextCollapsedAnchorItemIndex);
-
-      if (collapsedScroller && collapsedScroller.clientWidth > 0) {
-        scrollRequestNonceRef.current += 1;
-        setCollapsedScrollRequest({
-          scrollLeft: getCollapsedScrollLeftForItem(
-            nextCollapsedAnchorItemIndex,
-            collapsedScroller.clientWidth,
-            cardWidth,
-            gap,
-          ),
-          nonce: scrollRequestNonceRef.current,
-        });
-        return;
-      }
-
-      setCollapsedScrollRequest(null);
-    },
-    [cardWidth, gap],
-  );
 
   const clearScheduledAnimation = useCallback(() => {
     if (animationFrameRef.current !== null) {
@@ -721,56 +650,19 @@ function MovieScrollerContent({
       currentRequest?.nonce === nonce ? null : currentRequest);
   }, []);
 
-  useLayoutEffect(() => {
-    if (movieItems === renderedMovieItems) {
-      return;
-    }
-
-    const isCollapsedPreviewExpansion =
-      phase === "collapsed" &&
-      renderedMovieItems.length === 5 &&
-      movieItems.length > renderedMovieItems.length;
-
-    if (isCollapsedPreviewExpansion && !hasCollapsedIntroCompleted) {
-      return;
-    }
-
-    const nextRenderedMovieItems = isCollapsedPreviewExpansion
-      ? buildHomePreviewScrollerMovies(renderedMovieItems, movieItems)
-      : movieItems;
-    let isCancelled = false;
-
-    queueMicrotask(() => {
-      if (isCancelled) {
-        return;
-      }
-
-      applyRenderedMovieItems(nextRenderedMovieItems, {
-        recenterCollapsedAnchor: isCollapsedPreviewExpansion,
-      });
-    });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [
-    applyRenderedMovieItems,
-    hasCollapsedIntroCompleted,
-    movieItems,
-    phase,
-    renderedMovieItems,
-  ]);
-
-  const handleCollapsedIntroComplete = useCallback(() => {
-    setHasCollapsedIntroCompleted(true);
-    onIntroComplete?.();
-  }, [onIntroComplete]);
-
   const handleDetailShowtimeDateChange = useCallback((nextDate: string) => {
     persistedDetailShowtimeDate = nextDate;
     setDetailShowtimeDate((current) =>
       current === nextDate ? current : nextDate);
   }, []);
+
+  const requestNowPlayingShowtimes = useCallback(() => {
+    if (detailVariant !== "nowPlaying") {
+      return;
+    }
+
+    void ensureMovieShowtimesLoaded().catch(() => {});
+  }, [detailVariant]);
 
   const measureDetailStage = useCallback(() => {
     const stage = detailStageRef.current;
@@ -1071,6 +963,8 @@ function MovieScrollerContent({
         return;
       }
 
+      requestNowPlayingShowtimes();
+
       const detailItemIndex = recenterCollapsedItemIndex(itemIndex);
 
       clearAllScheduledWork();
@@ -1098,6 +992,7 @@ function MovieScrollerContent({
       captureCollapsedViewportSnapshot,
       clearAllScheduledWork,
       phase,
+      requestNowPlayingShowtimes,
       recenterCollapsedItemIndex,
     ],
   );
@@ -1258,6 +1153,8 @@ function MovieScrollerContent({
 
   const openMovieDetailFromExternalRequest = useCallback(
     (movieIndex: number, behavior: ScrollBehavior = "auto") => {
+      requestNowPlayingShowtimes();
+
       const itemIndex = collapsedMiddleStartIndex + mod(movieIndex, movieCount);
       const scroller = getCollapsedScrollerElement();
       const viewportFallback =
@@ -1305,48 +1202,21 @@ function MovieScrollerContent({
       getCollapsedScrollerElement,
       maxWidth,
       movieCount,
+      requestNowPlayingShowtimes,
     ],
   );
 
   const handleSelectCollapsedMovie = useCallback<
     NonNullable<MovieScrollerProps["onSelectMovie"]>
   >(
-    (movie, sourceRect, itemIndex, sourceOpacity = 1) => {
+    (_movie, sourceRect, itemIndex, sourceOpacity = 1) => {
       if (itemIndex === undefined) {
-        return;
-      }
-
-      const catalogStatus = getMovieCatalogStatusSnapshot();
-      const detailDataReady =
-        detailVariant === "comingSoon"
-          ? catalogStatus.comingSoonDetailsReady
-          : catalogStatus.nowPlayingDetailsReady;
-
-      if (!detailDataReady) {
-        const deferredRequest = {
-          tmdbId: movie.tmdbId,
-          nonce: Date.now(),
-        } satisfies DeferredPreviewOpenRequest;
-        setDeferredPreviewOpenRequest(deferredRequest);
-        void loadMovieCatalog().catch(() => {
-          if (
-            handledDeferredPreviewOpenNonceRef.current === deferredRequest.nonce
-          ) {
-            return;
-          }
-
-          setDeferredPreviewOpenRequest((currentRequest) =>
-            currentRequest?.nonce === deferredRequest.nonce
-              ? null
-              : currentRequest,
-          );
-        });
         return;
       }
 
       beginCollapsedMovieOpen(itemIndex, sourceRect, sourceOpacity);
     },
-    [beginCollapsedMovieOpen, detailVariant],
+    [beginCollapsedMovieOpen],
   );
 
   const handleNavigateDetail = useCallback(
@@ -1825,62 +1695,11 @@ function MovieScrollerContent({
   ]);
 
   useEffect(() => {
-    const catalogStatus = getMovieCatalogStatusSnapshot();
-    const detailDataReady =
-      detailVariant === "comingSoon"
-        ? catalogStatus.comingSoonDetailsReady
-        : catalogStatus.nowPlayingDetailsReady;
-
-    if (
-      !deferredPreviewOpenRequest ||
-      !detailDataReady ||
-      phase !== "collapsed" ||
-      handledDeferredPreviewOpenNonceRef.current === deferredPreviewOpenRequest.nonce
-    ) {
-      return;
-    }
-
-    const movieIndex = renderedMovieItems.findIndex(
-      (movie) => movie.tmdbId === deferredPreviewOpenRequest.tmdbId,
-    );
-
-    if (movieIndex === -1) {
-      return;
-    }
-
-    const itemIndex = getCenteredCollapsedItemIndexForMovieIndex(
-      mod(movieIndex, movieCount),
-      movieCount,
-      collapsedMiddleStartIndex,
-    );
-    const { sourceRect, sourceOpacity } = getCollapsedItemSource(itemIndex);
-
-    const frameId = window.requestAnimationFrame(() => {
-      handledDeferredPreviewOpenNonceRef.current =
-        deferredPreviewOpenRequest.nonce;
-      beginCollapsedMovieOpen(itemIndex, sourceRect, sourceOpacity);
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-    };
-  }, [
-    beginCollapsedMovieOpen,
-    collapsedMiddleStartIndex,
-    deferredPreviewOpenRequest,
-    detailVariant,
-    getCollapsedItemSource,
-    movieCount,
-    renderedMovieItems,
-    phase,
-  ]);
-
-  useEffect(() => {
     if (!jumpRequest) {
       return;
     }
 
-    const movieIndex = renderedMovieItems.findIndex(
+    const movieIndex = movieItems.findIndex(
       (movie) => movie.tmdbId === jumpRequest.tmdbId,
     );
 
@@ -1926,8 +1745,8 @@ function MovieScrollerContent({
     handleRequestClose,
     jumpRequest,
     jumpOpenMode,
+    movieItems,
     openMovieDetailFromExternalRequest,
-    renderedMovieItems,
     openMovieFromExternalRequest,
     phase,
   ]);
@@ -2005,7 +1824,7 @@ function MovieScrollerContent({
     }
 
     preloadMovieIndexes.forEach((movieIndex) => {
-      const movie = renderedMovieItems[movieIndex];
+      const movie = movieItems[movieIndex];
       const imageSources = [movie.imageSrc, movie.backdropSrc].filter(
         Boolean,
       ) as string[];
@@ -2021,7 +1840,7 @@ function MovieScrollerContent({
         image.src = src;
       });
     });
-  }, [displayMovieIndex, isDetailMounted, movieCount, renderedMovieItems]);
+  }, [displayMovieIndex, isDetailMounted, movieCount, movieItems]);
 
   useEffect(() => {
     if (phase !== "open") {
@@ -2102,7 +1921,7 @@ function MovieScrollerContent({
     posterVisible: boolean,
     shouldAttachPosterRef: boolean,
   ) => {
-    const movie = renderedMovieItems[mod(itemIndex, movieCount)];
+    const movie = movieItems[mod(itemIndex, movieCount)];
     const shouldAnimateBackdrop =
       phase === "opening" || motionClassName.includes("is-entering");
 
@@ -2184,10 +2003,10 @@ function MovieScrollerContent({
         ),
       ];
 
-  const previousPreviewMovie =
-    renderedMovieItems[mod(displayMovieIndex - 1, movieCount)];
-  const nextPreviewMovie =
-    renderedMovieItems[mod(displayMovieIndex + 1, movieCount)];
+  const previousAdjacentMovie =
+    movieItems[mod(displayMovieIndex - 1, movieCount)];
+  const nextAdjacentMovie =
+    movieItems[mod(displayMovieIndex + 1, movieCount)];
 
   return (
     <div
@@ -2204,7 +2023,7 @@ function MovieScrollerContent({
         aria-hidden={isDetailMounted}
       >
         <MovieScrollerBase
-          movieItems={renderedMovieItems}
+          movieItems={movieItems}
           cardWidth={cardWidth}
           cardHeight={cardHeight}
           gap={gap}
@@ -2218,8 +2037,6 @@ function MovieScrollerContent({
           }
           getCardStyle={getCardStyle}
           className="movie-scroller-collapsed"
-          onIntroSetupStart={onIntroSetupStart}
-          onIntroComplete={handleCollapsedIntroComplete}
         />
       </div>
 
@@ -2252,9 +2069,9 @@ function MovieScrollerContent({
                   }}
                 >
                   <MoviePosterArtwork
-                    title={previousPreviewMovie.title}
-                    imageSrc={previousPreviewMovie.imageSrc}
-                    alt={previousPreviewMovie.title}
+                    title={previousAdjacentMovie.title}
+                    imageSrc={previousAdjacentMovie.imageSrc}
+                    alt={previousAdjacentMovie.title}
                     className="movie-scroller-side-preview-image"
                     loading="eager"
                     decoding="async"
@@ -2282,9 +2099,9 @@ function MovieScrollerContent({
                   }}
                 >
                   <MoviePosterArtwork
-                    title={nextPreviewMovie.title}
-                    imageSrc={nextPreviewMovie.imageSrc}
-                    alt={nextPreviewMovie.title}
+                    title={nextAdjacentMovie.title}
+                    imageSrc={nextAdjacentMovie.imageSrc}
+                    alt={nextAdjacentMovie.title}
                     className="movie-scroller-side-preview-image"
                     loading="eager"
                     decoding="async"
@@ -2300,7 +2117,7 @@ function MovieScrollerContent({
                 width: detailLayout.panelWidth,
                 height: detailLayout.panelHeight,
               }}
-              aria-label={`${renderedMovieItems[displayMovieIndex].title} details`}
+              aria-label={`${movieItems[displayMovieIndex].title} details`}
               onPointerDown={handleDetailPointerDown}
               onPointerUp={handleDetailPointerUp}
               onPointerCancel={clearSwipeGesture}
@@ -2308,7 +2125,7 @@ function MovieScrollerContent({
               <button
                 type="button"
                 className="movie-scroller-close"
-                aria-label={`Close ${renderedMovieItems[displayMovieIndex].title} details`}
+                aria-label={`Close ${movieItems[displayMovieIndex].title} details`}
                 onClick={handleExitDetail}
                 disabled={phase !== "open" || detailTransition !== null}
               >
@@ -2325,8 +2142,7 @@ function MovieScrollerContent({
         <img
           ref={ghostRef}
           src={
-            renderedMovieItems[mod(ghostTransition.itemIndex, movieCount)]
-              .imageSrc
+            movieItems[mod(ghostTransition.itemIndex, movieCount)].imageSrc
           }
           alt=""
           aria-hidden="true"
