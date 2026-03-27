@@ -7,6 +7,7 @@ import {
   movies,
   type Movie,
 } from "../../data/movieCatalog";
+import { useDeviceInfo } from "../../device";
 import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
 import { getRepeatSetCount } from "./MovieScrollerShared";
 import { MovieDetailsContent, type MovieDetailsVariant } from "./MovieDetailsContent";
@@ -90,13 +91,17 @@ const SCROLLER_CARD_SHADOW =
   "0 0 0 rgba(0, 0, 0, 0), 0 0 0 rgba(255, 255, 255, 0)";
 
 const POSTER_MOVE_DURATION_MS = 300;
+const MOBILE_POSTER_MOVE_DURATION_MS = 240;
 const POSTER_GHOST_OPACITY_DURATION_MS = 120;
 const POSTER_RETURN_OPACITY_DURATION_MS = 220;
 const FOCUS_POSTER_FADE_DURATION_MS = 180;
 const FOCUS_POSTER_REVEAL_DELAY_MS = 150;
+const MOBILE_FOCUS_POSTER_REVEAL_DELAY_MS = 170;
 const GHOST_FADE_OUT_DELAY_MS = 260;
+const MOBILE_GHOST_FADE_OUT_DELAY_MS = 170;
 const POSTER_HANDOFF_TOTAL_MS = 440;
 const POSTER_RETURN_SETTLE_DELAY_MS = POSTER_MOVE_DURATION_MS;
+const MOBILE_DETAIL_CHROME_REVEAL_DURATION_MS = 120;
 const FOCUS_STAGE_FADE_DURATION_MS = 260;
 const CLOSE_STAGE_FADE_DELAY_MS =
   POSTER_HANDOFF_TOTAL_MS - FOCUS_STAGE_FADE_DURATION_MS;
@@ -112,15 +117,20 @@ const EXTERNAL_JUMP_VIEWPORT_MIN_TOP_PX = 88;
 const EXTERNAL_JUMP_VIEWPORT_MAX_TOP_PX = 140;
 const EXTERNAL_JUMP_VIEWPORT_EDGE_PX = 72;
 
-const movieScrollerTimingStyle = {
-  "--movie-scroller-stage-fade-duration": `${FOCUS_STAGE_FADE_DURATION_MS}ms`,
-  "--movie-scroller-stage-close-delay": `${CLOSE_STAGE_FADE_DELAY_MS}ms`,
-  "--movie-scroller-focus-poster-fade-duration": `${FOCUS_POSTER_FADE_DURATION_MS}ms`,
-  "--movie-scroller-ghost-move-duration": `${POSTER_MOVE_DURATION_MS}ms`,
-  "--movie-scroller-ghost-opacity-duration": `${POSTER_GHOST_OPACITY_DURATION_MS}ms`,
-  "--movie-scroller-ghost-close-opacity-duration": `${POSTER_RETURN_OPACITY_DURATION_MS}ms`,
-  "--movie-scroller-detail-swap-duration": `${DETAIL_NAV_DURATION_MS}ms`,
-} as CSSProperties;
+function getMovieScrollerTimingStyle(
+  posterMoveDurationMs: number,
+): CSSProperties {
+  return {
+    "--movie-scroller-stage-fade-duration": `${FOCUS_STAGE_FADE_DURATION_MS}ms`,
+    "--movie-scroller-stage-close-delay": `${CLOSE_STAGE_FADE_DELAY_MS}ms`,
+    "--movie-scroller-focus-poster-fade-duration": `${FOCUS_POSTER_FADE_DURATION_MS}ms`,
+    "--movie-scroller-ghost-move-duration": `${posterMoveDurationMs}ms`,
+    "--movie-scroller-ghost-opacity-duration": `${POSTER_GHOST_OPACITY_DURATION_MS}ms`,
+    "--movie-scroller-ghost-close-opacity-duration": `${POSTER_RETURN_OPACITY_DURATION_MS}ms`,
+    "--movie-scroller-detail-swap-duration": `${DETAIL_NAV_DURATION_MS}ms`,
+    "--movie-scroller-mobile-chrome-reveal-duration": `${MOBILE_DETAIL_CHROME_REVEAL_DURATION_MS}ms`,
+  } as CSSProperties;
+}
 
 let persistedDetailShowtimeDate: string | null = null;
 
@@ -526,6 +536,7 @@ function MovieScrollerContent({
   maxWidth = "100%",
   className,
 }: MovieScrollerContentProps) {
+  const { isMobile } = useDeviceInfo();
   const movieCount = movieItems.length;
   const collapsedRepeatSets = getRepeatSetCount(cardWidth + gap, movieCount);
   const collapsedMiddleStartIndex = getCollapsedMiddleStartIndex(
@@ -551,6 +562,8 @@ function MovieScrollerContent({
   );
   const [detailClientWidth, setDetailClientWidth] = useState(0);
   const [isFocusPosterVisible, setIsFocusPosterVisible] = useState(false);
+  const [isMobileDetailChromeVisible, setIsMobileDetailChromeVisible] =
+    useState(false);
   const [showGhost, setShowGhost] = useState(false);
   const [isReturnHandoffReady, setIsReturnHandoffReady] = useState(false);
   const [ghostTransition, setGhostTransition] =
@@ -587,6 +600,26 @@ function MovieScrollerContent({
   const titleId = useId();
 
   const isDetailMounted = phase !== "collapsed";
+  const isMobileHandoff =
+    isMobile && (phase === "opening" || phase === "closing");
+  const posterMoveDurationMs = isMobile
+    ? MOBILE_POSTER_MOVE_DURATION_MS
+    : POSTER_MOVE_DURATION_MS;
+  const posterRevealDelayMs = isMobile
+    ? MOBILE_FOCUS_POSTER_REVEAL_DELAY_MS
+    : FOCUS_POSTER_REVEAL_DELAY_MS;
+  const ghostFadeOutDelayMs = isMobile
+    ? MOBILE_GHOST_FADE_OUT_DELAY_MS
+    : GHOST_FADE_OUT_DELAY_MS;
+  const posterHandoffTotalMs = isMobile
+    ? MOBILE_POSTER_MOVE_DURATION_MS
+    : POSTER_HANDOFF_TOTAL_MS;
+  const posterReturnSettleDelayMs = isMobile
+    ? MOBILE_POSTER_MOVE_DURATION_MS
+    : POSTER_RETURN_SETTLE_DELAY_MS;
+  const movieScrollerTimingStyle = getMovieScrollerTimingStyle(
+    posterMoveDurationMs,
+  );
   const detailLayout = getDetailLayout(detailClientWidth, maxWidth);
   const displayItemIndex =
     detailTransition?.toItemIndex ?? detailActiveItemIndex;
@@ -1005,6 +1038,7 @@ function MovieScrollerContent({
         sourceOpacity,
         targetOpacity: sourceOpacity,
       });
+      setIsMobileDetailChromeVisible(false);
       setIsFocusPosterVisible(false);
       setIsReturnHandoffReady(false);
       setShowGhost(true);
@@ -1087,6 +1121,7 @@ function MovieScrollerContent({
       setGhostTransition(null);
       setCollapsedScrollRequest(null);
       setCollapsedSelectedItemIndex(null);
+      setIsMobileDetailChromeVisible(false);
       setIsFocusPosterVisible(false);
       setIsReturnHandoffReady(false);
       setShowGhost(false);
@@ -1207,6 +1242,7 @@ function MovieScrollerContent({
       setDetailActiveItemIndex(itemIndex);
       setDetailTransition(null);
       setGhostTransition(null);
+      setIsMobileDetailChromeVisible(true);
       setIsFocusPosterVisible(true);
       setIsReturnHandoffReady(false);
       setShowGhost(false);
@@ -1324,6 +1360,7 @@ function MovieScrollerContent({
       sourceOpacity: 1,
       targetOpacity,
     });
+    setIsMobileDetailChromeVisible(false);
     setIsReturnHandoffReady(false);
     setShowGhost(true);
     setPhase("closing");
@@ -1502,96 +1539,143 @@ function MovieScrollerContent({
     applyGhostScrollerAppearance();
     ghost.style.opacity = `${ghostTransition.sourceOpacity}`;
 
-    animationFrameRef.current = window.requestAnimationFrame((startTime) => {
-      if (ghostRef.current) {
-        ghostRef.current.style.opacity = "1";
-      }
+    if (isMobile) {
+      window.scrollTo({
+        top: targetScrollTop,
+        behavior: "auto",
+      });
 
-      const animateOpening = (frameTime: number) => {
-        const linearProgress = clamp(
-          (frameTime - startTime) / POSTER_MOVE_DURATION_MS,
-          0,
-          1,
-        );
-        const scrollProgress = easeInOutCubic(linearProgress);
-        const ghostProgress = easeOutCubic(linearProgress);
-        const nextScrollTop = lerp(
-          initialScrollTop,
-          targetScrollTop,
-          scrollProgress,
-        );
+      animationFrameRef.current = window.requestAnimationFrame(() => {
+        animationFrameRef.current = window.requestAnimationFrame(() => {
+          const fixedTargetRect = toPosterSourceRect(
+            posterRef.current?.getBoundingClientRect(),
+            initialTargetRect,
+          );
 
-        window.scrollTo({
-          top: nextScrollTop,
-          behavior: "auto",
+          targetRectRef.current = fixedTargetRect;
+
+          if (ghostRef.current) {
+            ghostRef.current.style.opacity = "1";
+          }
+
+          applyGhostTransform(ghostTransition.sourceRect, fixedTargetRect);
+          applyGhostFocusAppearance();
+
+          posterRevealTimeoutRef.current = window.setTimeout(() => {
+            setIsFocusPosterVisible(true);
+          }, posterRevealDelayMs);
+
+          crossfadeTimeoutRef.current = window.setTimeout(() => {
+            if (ghostRef.current) {
+              ghostRef.current.style.opacity = "0";
+            }
+          }, ghostFadeOutDelayMs);
+
+          completeTimeoutRef.current = window.setTimeout(() => {
+            setPhase("open");
+            setShowGhost(false);
+            setIsMobileDetailChromeVisible(true);
+            completeTimeoutRef.current = null;
+          }, posterHandoffTotalMs);
+
+          animationFrameRef.current = null;
         });
-
-        const liveTargetRect = toPosterSourceRect(
-          posterRef.current?.getBoundingClientRect(),
-          targetRectRef.current ?? ghostTransition.sourceRect,
-        );
-
-        targetRectRef.current = liveTargetRect;
-        applyGhostTransform(ghostTransition.sourceRect, {
-          top: lerp(
-            ghostTransition.sourceRect.top,
-            liveTargetRect.top,
-            ghostProgress,
-          ),
-          left: lerp(
-            ghostTransition.sourceRect.left,
-            liveTargetRect.left,
-            ghostProgress,
-          ),
-          width: lerp(
-            ghostTransition.sourceRect.width,
-            liveTargetRect.width,
-            ghostProgress,
-          ),
-          height: lerp(
-            ghostTransition.sourceRect.height,
-            liveTargetRect.height,
-            ghostProgress,
-          ),
-        });
-        applyGhostOpeningAppearance(ghostProgress);
-
-        if (linearProgress < 1) {
-          animationFrameRef.current =
-            window.requestAnimationFrame(animateOpening);
-          return;
+      });
+    } else {
+      animationFrameRef.current = window.requestAnimationFrame((startTime) => {
+        if (ghostRef.current) {
+          ghostRef.current.style.opacity = "1";
         }
 
-        window.scrollTo({
-          top: targetScrollTop,
-          behavior: "auto",
-        });
+        const animateOpening = (frameTime: number) => {
+          const linearProgress = clamp(
+            (frameTime - startTime) / posterMoveDurationMs,
+            0,
+            1,
+          );
+          const scrollProgress = easeInOutCubic(linearProgress);
+          const ghostProgress = easeOutCubic(linearProgress);
+          const nextScrollTop = lerp(
+            initialScrollTop,
+            targetScrollTop,
+            scrollProgress,
+          );
 
-        if (targetRectRef.current) {
-          applyGhostTransform(ghostTransition.sourceRect, targetRectRef.current);
+          window.scrollTo({
+            top: nextScrollTop,
+            behavior: "auto",
+          });
+
+          const liveTargetRect = toPosterSourceRect(
+            posterRef.current?.getBoundingClientRect(),
+            targetRectRef.current ?? ghostTransition.sourceRect,
+          );
+
+          targetRectRef.current = liveTargetRect;
+          applyGhostTransform(ghostTransition.sourceRect, {
+            top: lerp(
+              ghostTransition.sourceRect.top,
+              liveTargetRect.top,
+              ghostProgress,
+            ),
+            left: lerp(
+              ghostTransition.sourceRect.left,
+              liveTargetRect.left,
+              ghostProgress,
+            ),
+            width: lerp(
+              ghostTransition.sourceRect.width,
+              liveTargetRect.width,
+              ghostProgress,
+            ),
+            height: lerp(
+              ghostTransition.sourceRect.height,
+              liveTargetRect.height,
+              ghostProgress,
+            ),
+          });
+          applyGhostOpeningAppearance(ghostProgress);
+
+          if (linearProgress < 1) {
+            animationFrameRef.current =
+              window.requestAnimationFrame(animateOpening);
+            return;
+          }
+
+          window.scrollTo({
+            top: targetScrollTop,
+            behavior: "auto",
+          });
+
+          if (targetRectRef.current) {
+            applyGhostTransform(
+              ghostTransition.sourceRect,
+              targetRectRef.current,
+            );
+          }
+          applyGhostFocusAppearance();
+          animationFrameRef.current = null;
+        };
+
+        animateOpening(startTime);
+      });
+
+      posterRevealTimeoutRef.current = window.setTimeout(() => {
+        setIsFocusPosterVisible(true);
+      }, posterRevealDelayMs);
+
+      crossfadeTimeoutRef.current = window.setTimeout(() => {
+        if (ghostRef.current) {
+          ghostRef.current.style.opacity = "0";
         }
-        applyGhostFocusAppearance();
-        animationFrameRef.current = null;
-      };
+      }, ghostFadeOutDelayMs);
 
-      animateOpening(startTime);
-    });
-
-    posterRevealTimeoutRef.current = window.setTimeout(() => {
-      setIsFocusPosterVisible(true);
-    }, FOCUS_POSTER_REVEAL_DELAY_MS);
-
-    crossfadeTimeoutRef.current = window.setTimeout(() => {
-      if (ghostRef.current) {
-        ghostRef.current.style.opacity = "0";
-      }
-    }, GHOST_FADE_OUT_DELAY_MS);
-
-    completeTimeoutRef.current = window.setTimeout(() => {
-      setPhase("open");
-      setShowGhost(false);
-      completeTimeoutRef.current = null;
-    }, POSTER_HANDOFF_TOTAL_MS);
+      completeTimeoutRef.current = window.setTimeout(() => {
+        setPhase("open");
+        setShowGhost(false);
+        completeTimeoutRef.current = null;
+      }, posterHandoffTotalMs);
+    }
 
     return () => {
       clearScheduledAnimation();
@@ -1604,9 +1688,14 @@ function MovieScrollerContent({
     applyGhostTransform,
     clearScheduledAnimation,
     ghostTransition,
+    ghostFadeOutDelayMs,
+    isMobile,
     maxWidth,
     measureDetailStage,
     phase,
+    posterHandoffTotalMs,
+    posterMoveDurationMs,
+    posterRevealDelayMs,
   ]);
 
   useLayoutEffect(() => {
@@ -1647,7 +1736,7 @@ function MovieScrollerContent({
           setIsReturnHandoffReady(true);
           setShowGhost(false);
           returnHandoffTimeoutRef.current = null;
-        }, POSTER_RETURN_SETTLE_DELAY_MS);
+        }, posterReturnSettleDelayMs);
       });
     });
 
@@ -1657,9 +1746,10 @@ function MovieScrollerContent({
       setGhostTransition(null);
       setDetailTransition(null);
       setShowGhost(false);
+      setIsMobileDetailChromeVisible(false);
       setPhase("collapsed");
       completeTimeoutRef.current = null;
-    }, POSTER_HANDOFF_TOTAL_MS);
+    }, posterHandoffTotalMs);
 
     return () => {
       clearScheduledAnimation();
@@ -1672,6 +1762,8 @@ function MovieScrollerContent({
     clearScheduledAnimation,
     ghostTransition,
     phase,
+    posterHandoffTotalMs,
+    posterReturnSettleDelayMs,
   ]);
 
   useEffect(() => {
@@ -1932,6 +2024,10 @@ function MovieScrollerContent({
     phase === "open" ? "is-open" : "",
     phase === "closing" ? "is-closing" : "",
     phase !== "collapsed" ? "is-detail-mode" : "",
+    isMobileHandoff ? "is-mobile-handoff" : "",
+    isMobile && isMobileDetailChromeVisible
+      ? "is-mobile-detail-chrome-visible"
+      : "",
     detailTransition ? "is-transitioning" : "",
     className,
   ]
@@ -2172,7 +2268,7 @@ function MovieScrollerContent({
           aria-hidden="true"
           className={`movie-scroller-poster-ghost${
             phase === "opening" ? " is-opening" : ""
-          }${phase === "opening" ? " is-scripted-opening" : ""}${
+          }${phase === "opening" && !isMobile ? " is-scripted-opening" : ""}${
             phase === "closing" ? " is-closing" : ""
           }`}
           style={{

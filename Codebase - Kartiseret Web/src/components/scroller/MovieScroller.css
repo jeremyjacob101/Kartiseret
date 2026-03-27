@@ -1000,6 +1000,61 @@ html[data-device-type="mobile"] .movie-scroller-detail-poster {
   backface-visibility: visible;
 }
 
+html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scroller-detail-backdrop-shell,
+html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scroller-detail-sheen,
+html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scroller-side-preview,
+html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .details-copy,
+html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .details-showtimes,
+html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scroller-close {
+  opacity: 0;
+  transition:
+    opacity var(--movie-scroller-mobile-chrome-reveal-duration, 120ms) ease;
+}
+
+html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scroller-side-preview,
+html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .details-copy,
+html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .details-showtimes,
+html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scroller-close {
+  pointer-events: none;
+}
+
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .movie-scroller-detail-backdrop-shell,
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .movie-scroller-detail-sheen,
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .details-copy,
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .details-showtimes,
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .movie-scroller-close {
+  opacity: 1;
+}
+
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .movie-scroller-side-preview {
+  opacity: var(--movie-scroller-side-preview-rest-opacity);
+}
+
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .movie-scroller-side-preview.is-disabled {
+  opacity: calc(var(--movie-scroller-side-preview-rest-opacity) * 0.9);
+}
+
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .movie-scroller-side-preview,
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .details-copy,
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .details-showtimes,
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .movie-scroller-close {
+  pointer-events: auto;
+}
+
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff.is-opening .movie-scroller-detail-layer,
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff.is-closing .movie-scroller-detail-layer {
+  animation: none;
+  opacity: 1;
+}
+
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff .movie-scroller-side-preview,
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff .movie-scroller-detail-backdrop,
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff .details-copy,
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff .details-showtimes,
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff .movie-scroller-close {
+  animation: none;
+}
+
 @keyframes movieScrollerStageIn {
   from {
     opacity: 0;
