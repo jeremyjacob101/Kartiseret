@@ -1,10 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Clock8, Film, MapPin, Settings } from "lucide-react";
-import {
-  MovieSearchMenu,
-  type MovieSearchCollection,
-  type MovieSearchResult,
-} from "./MovieSearchMenu";
+import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "./MovieSearchMenu";
 import { UserMenu } from "./UserMenu";
 import { useUserPreferencesContext } from "../prefs/useUserPreferences";
 

@@ -1,14 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import {
-  locationPreferenceDefinition,
-  type AppLocation,
-} from "./definitions/locations";
-import {
-  ratingSourcesPreferenceDefinition,
-  type RatingSource,
-} from "./definitions/ratingSources";
+import { locationPreferenceDefinition, type AppLocation } from "./definitions/locations";
+import { ratingSourcesPreferenceDefinition, type RatingSource } from "./definitions/ratingSources";
 import { DEFAULT_SITE_COLOR, applySiteColor, initializeSiteColorTheme, siteColorPreferenceDefinition, type SiteColorOption, type SiteColor } from "./definitions/siteColor";
 import type { UserPreferenceDefinition } from "./definitions/shared";
 
@@ -445,8 +439,7 @@ export function useUserPreferences(): UserPreferencesState {
       }
 
       const defaultPatch = buildMissingPreferenceDefaultsPatch(row);
-      const hasMissingPreferenceDefaults =
-        Object.keys(defaultPatch).length > 0;
+      const hasMissingPreferenceDefaults = Object.keys(defaultPatch).length > 0;
       let nextRow = row;
 
       if (hasMissingPreferenceDefaults) {

@@ -2,14 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
-import {
-  fixedAppDateString,
-  getMovieCatalogStatusSnapshot,
-  getMovieShowtimeDays,
-  subscribeToMovieCatalog,
-  type Movie,
-  type MovieShowtimeDay,
-} from "../../data/movieCatalog";
+import { fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeDays, subscribeToMovieCatalog, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
 import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
 

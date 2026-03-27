@@ -1,11 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { LogOut, User } from "lucide-react";
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import {
-  DEFAULT_LOCATION,
-  loadGuestLocation,
-  LOCATION_SIGNUP_METADATA_KEY,
-} from "../prefs/definitions/locations";
+import { DEFAULT_LOCATION, loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY } from "../prefs/definitions/locations";
 import { DEFAULT_RATING_SOURCES } from "../prefs/definitions/ratingSources";
 import { DEFAULT_SITE_COLOR } from "../prefs/definitions/siteColor";
 import { useUserPreferencesContext } from "../prefs/useUserPreferences";
@@ -23,17 +19,15 @@ async function persistSignupPreferenceDefaults(
   userId: string,
   location: string,
 ): Promise<string | null> {
-  const { error } = await supabase
-    .from(PREFERENCES_TABLE)
-    .upsert(
-      {
-        user_id: userId,
-        rating_sources: [...DEFAULT_RATING_SOURCES],
-        location,
-        site_color: DEFAULT_SITE_COLOR,
-      },
-      { onConflict: "user_id" },
-    );
+  const { error } = await supabase.from(PREFERENCES_TABLE).upsert(
+    {
+      user_id: userId,
+      rating_sources: [...DEFAULT_RATING_SOURCES],
+      location,
+      site_color: DEFAULT_SITE_COLOR,
+    },
+    { onConflict: "user_id" },
+  );
 
   return error?.message ?? null;
 }

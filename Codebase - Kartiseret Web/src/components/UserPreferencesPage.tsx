@@ -4,11 +4,7 @@ import { CityLocationPicker } from "./CityLocationPicker";
 import { useUserPreferencesContext } from "../prefs/useUserPreferences";
 import { type RatingSource } from "../prefs/definitions/ratingSources";
 import { type AppLocation } from "../prefs/definitions/locations";
-import {
-  getSiteColorLabel,
-  type SiteColor,
-  type SiteColorOption,
-} from "../prefs/definitions/siteColor";
+import { getSiteColorLabel, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
 
 const sourceLabelMap: Record<RatingSource, string> = {
   imdbRating: "IMDb",

@@ -1,10 +1,4 @@
-import {
-  type CSSProperties,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type CSSProperties, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { type Movie } from "../data/movieCatalog";
@@ -13,7 +7,9 @@ const POSTER_GRID_MIN_COLUMN_WIDTH_FALLBACK = 150;
 
 function resolvePosterGridColumnCount(gridElement: HTMLDivElement) {
   const computedStyle = window.getComputedStyle(gridElement);
-  const gapValue = Number.parseFloat(computedStyle.columnGap || computedStyle.gap || "0");
+  const gapValue = Number.parseFloat(
+    computedStyle.columnGap || computedStyle.gap || "0",
+  );
   const configuredMinColumnWidth = Number.parseFloat(
     computedStyle.getPropertyValue("--poster-grid-min-column-width"),
   );
@@ -27,7 +23,10 @@ function resolvePosterGridColumnCount(gridElement: HTMLDivElement) {
     return 1;
   }
 
-  return Math.max(1, Math.floor((gridWidth + gapValue) / (minimumColumnWidth + gapValue)));
+  return Math.max(
+    1,
+    Math.floor((gridWidth + gapValue) / (minimumColumnWidth + gapValue)),
+  );
 }
 
 type PosterGridPageProps = {
@@ -64,8 +63,9 @@ export function PosterGridPage({
     const updateColumnCount = () => {
       const nextColumnCount = resolvePosterGridColumnCount(gridElement);
       setColumnCount((currentColumnCount) =>
-        currentColumnCount === nextColumnCount ? currentColumnCount : nextColumnCount,
-      );
+        currentColumnCount === nextColumnCount
+          ? currentColumnCount
+          : nextColumnCount);
     };
 
     const frameId = window.requestAnimationFrame(() => {

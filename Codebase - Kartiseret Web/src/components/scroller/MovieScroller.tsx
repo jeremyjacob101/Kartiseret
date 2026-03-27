@@ -1,12 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type WheelEvent } from "react";
 import { X } from "lucide-react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
-import {
-  comingSoonMovies,
-  ensureMovieShowtimesLoaded,
-  movies,
-  type Movie,
-} from "../../data/movieCatalog";
+import { comingSoonMovies, ensureMovieShowtimesLoaded, movies, type Movie } from "../../data/movieCatalog";
 import { useDeviceInfo } from "../../device";
 import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
 import { getRepeatSetCount } from "./MovieScrollerShared";
@@ -617,9 +612,8 @@ function MovieScrollerContent({
   const posterReturnSettleDelayMs = isMobile
     ? MOBILE_POSTER_MOVE_DURATION_MS
     : POSTER_RETURN_SETTLE_DELAY_MS;
-  const movieScrollerTimingStyle = getMovieScrollerTimingStyle(
-    posterMoveDurationMs,
-  );
+  const movieScrollerTimingStyle =
+    getMovieScrollerTimingStyle(posterMoveDurationMs);
   const detailLayout = getDetailLayout(detailClientWidth, maxWidth);
   const displayItemIndex =
     detailTransition?.toItemIndex ?? detailActiveItemIndex;
@@ -2125,8 +2119,7 @@ function MovieScrollerContent({
 
   const previousAdjacentMovie =
     movieItems[mod(displayMovieIndex - 1, movieCount)];
-  const nextAdjacentMovie =
-    movieItems[mod(displayMovieIndex + 1, movieCount)];
+  const nextAdjacentMovie = movieItems[mod(displayMovieIndex + 1, movieCount)];
 
   return (
     <div
@@ -2261,9 +2254,7 @@ function MovieScrollerContent({
       {showGhost && ghostTransition ? (
         <img
           ref={ghostRef}
-          src={
-            movieItems[mod(ghostTransition.itemIndex, movieCount)].imageSrc
-          }
+          src={movieItems[mod(ghostTransition.itemIndex, movieCount)].imageSrc}
           alt=""
           aria-hidden="true"
           className={`movie-scroller-poster-ghost${
