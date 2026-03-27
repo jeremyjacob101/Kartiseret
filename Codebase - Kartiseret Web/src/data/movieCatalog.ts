@@ -5,15 +5,36 @@ import {
   type AppLocation,
 } from "../prefs/definitions/locations";
 
+const USE_TESTING_TABLES = false;
+
 const SCROLLER_PREVIEW_MOVIE_COUNT = 5;
 const SUPABASE_PAGE_SIZE = 1000;
 const COMING_SOON_PREVIEW_INTRO_START_TIMEOUT_MS = 360;
 const COMING_SOON_PREVIEW_INTRO_COMPLETE_TIMEOUT_MS = 1680;
-const MOVIES_TABLE_NAME = "testNPmovies";
-const NOW_PLAYING_PREVIEW_TABLE_NAME = "testNPmoviesPreview";
-const COMING_SOON_TABLE_NAME = "testSOONmovies";
-const COMING_SOON_PREVIEW_TABLE_NAME = "testSOONmoviesPreview";
-const SHOWTIMES_TABLE_NAME = "testNPshowtimes";
+const APP_TIME_ZONE = "Asia/Jerusalem";
+const SHOWTIME_WINDOW_DAY_COUNT = 10;
+const TESTING_TABLE_NAMES = {
+  movies: "testNPmovies",
+  nowPlayingPreview: "testNPmoviesPreview",
+  comingSoon: "testSOONmovies",
+  comingSoonPreview: "testSOONmoviesPreview",
+  showtimes: "testNPshowtimes",
+} as const;
+const LIVE_TABLE_NAMES = {
+  movies: "finalMovies",
+  nowPlayingPreview: "finalMoviesPreview",
+  comingSoon: "finalSoons",
+  comingSoonPreview: "finalSoonsPreview",
+  showtimes: "finalShowtimes",
+} as const;
+const ACTIVE_TABLE_NAMES = USE_TESTING_TABLES
+  ? TESTING_TABLE_NAMES
+  : LIVE_TABLE_NAMES;
+const MOVIES_TABLE_NAME = ACTIVE_TABLE_NAMES.movies;
+const NOW_PLAYING_PREVIEW_TABLE_NAME = ACTIVE_TABLE_NAMES.nowPlayingPreview;
+const COMING_SOON_TABLE_NAME = ACTIVE_TABLE_NAMES.comingSoon;
+const COMING_SOON_PREVIEW_TABLE_NAME = ACTIVE_TABLE_NAMES.comingSoonPreview;
+const SHOWTIMES_TABLE_NAME = ACTIVE_TABLE_NAMES.showtimes;
 const NOW_PLAYING_PREVIEW_SELECT_COLUMNS = [
   "tmdb_id",
   "english_title",
@@ -82,8 +103,11 @@ const THEATER_SORT_INDEX = new Map(
 );
 
 export const defaultCity: AppLocation = DEFAULT_LOCATION;
-export const fixedAppDateString = "2026-03-02";
-export const fixedShowtimeWindowEndDateString = "2026-03-11";
+export const fixedAppDateString = getCurrentDateStringInTimeZone(APP_TIME_ZONE);
+export const fixedShowtimeWindowEndDateString = addDaysToIsoDate(
+  fixedAppDateString,
+  SHOWTIME_WINDOW_DAY_COUNT - 1,
+);
 
 type SupabaseValue = string | number | boolean | null | string[];
 type SupabaseRow = Partial<Record<string, SupabaseValue>>;
@@ -466,6 +490,31 @@ function formatIsoDate(date: Date): string {
     String(date.getMonth() + 1).padStart(2, "0"),
     String(date.getDate()).padStart(2, "0"),
   ].join("-");
+}
+
+function getCurrentDateStringInTimeZone(timeZone: string): string {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+
+  if (!year || !month || !day) {
+    return formatIsoDate(new Date());
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysToIsoDate(dateString: string, daysToAdd: number): string {
+  const date = parseIsoDate(dateString);
+  date.setDate(date.getDate() + daysToAdd);
+  return formatIsoDate(date);
 }
 
 function buildDateRange(

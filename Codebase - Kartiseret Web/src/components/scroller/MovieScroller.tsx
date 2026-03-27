@@ -635,13 +635,31 @@ function MovieScrollerContent({
         return;
       }
 
-      setCollapsedAnchorItemIndex(
-        getCollapsedMiddleStartIndex(
-          nextMovieItems.length,
-          cardWidth,
-          gap,
-        ),
+      const nextCollapsedAnchorItemIndex = getCollapsedMiddleStartIndex(
+        nextMovieItems.length,
+        cardWidth,
+        gap,
       );
+      const collapsedScroller = shellRef.current?.querySelector<HTMLElement>(
+        ".movie-scroller-collapsed",
+      );
+
+      setCollapsedAnchorItemIndex(nextCollapsedAnchorItemIndex);
+
+      if (collapsedScroller && collapsedScroller.clientWidth > 0) {
+        scrollRequestNonceRef.current += 1;
+        setCollapsedScrollRequest({
+          scrollLeft: getCollapsedScrollLeftForItem(
+            nextCollapsedAnchorItemIndex,
+            collapsedScroller.clientWidth,
+            cardWidth,
+            gap,
+          ),
+          nonce: scrollRequestNonceRef.current,
+        });
+        return;
+      }
+
       setCollapsedScrollRequest(null);
     },
     [cardWidth, gap],
@@ -698,6 +716,11 @@ function MovieScrollerContent({
     clearScheduledExternalJump,
   ]);
 
+  const handleCollapsedScrollRequestApplied = useCallback((nonce: number) => {
+    setCollapsedScrollRequest((currentRequest) =>
+      currentRequest?.nonce === nonce ? null : currentRequest);
+  }, []);
+
   useLayoutEffect(() => {
     if (movieItems === renderedMovieItems) {
       return;
@@ -715,17 +738,20 @@ function MovieScrollerContent({
     const nextRenderedMovieItems = isCollapsedPreviewExpansion
       ? buildHomePreviewScrollerMovies(renderedMovieItems, movieItems)
       : movieItems;
+    let isCancelled = false;
 
-    const frameId = window.requestAnimationFrame(() => {
+    queueMicrotask(() => {
+      if (isCancelled) {
+        return;
+      }
+
       applyRenderedMovieItems(nextRenderedMovieItems, {
         recenterCollapsedAnchor: isCollapsedPreviewExpansion,
       });
     });
 
     return () => {
-      if (frameId !== null) {
-        window.cancelAnimationFrame(frameId);
-      }
+      isCancelled = true;
     };
   }, [
     applyRenderedMovieItems,
@@ -2185,6 +2211,7 @@ function MovieScrollerContent({
           maxWidth={maxWidth}
           anchorItemIndex={collapsedAnchorItemIndex}
           scrollRequest={collapsedScrollRequest}
+          onScrollRequestApplied={handleCollapsedScrollRequestApplied}
           onSelectMovie={handleSelectCollapsedMovie}
           selectedItemIndex={
             phase === "collapsed" ? null : collapsedSelectedItemIndex

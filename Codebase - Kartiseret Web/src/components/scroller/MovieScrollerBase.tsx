@@ -25,6 +25,7 @@ export type MovieScrollerBaseProps = {
   focusOffsetItemSpans?: number;
   anchorItemIndex?: number | null;
   scrollRequest?: MovieScrollerScrollRequest | null;
+  onScrollRequestApplied?: (nonce: number) => void;
   onSelectMovie?: (
     movie: Movie,
     sourceRect: PosterSourceRect,
@@ -115,6 +116,28 @@ function easeInQuad(value: number): number {
   return value ** 2;
 }
 
+function getCenteredScrollLeft(
+  anchorIndex: number,
+  clientWidth: number,
+  cardWidth: number,
+  itemSpan: number,
+  gap: number,
+  focusOffsetItemSpans: number,
+): number {
+  const targetFocusCenter = getFocusViewportCenter(
+    clientWidth,
+    cardWidth,
+    itemSpan,
+    gap,
+    focusOffsetItemSpans,
+  );
+
+  return Math.max(
+    0,
+    gap + anchorIndex * itemSpan - (targetFocusCenter - cardWidth / 2),
+  );
+}
+
 export function MovieScrollerBase({
   movieItems,
   cardWidth = 240,
@@ -125,6 +148,7 @@ export function MovieScrollerBase({
   focusOffsetItemSpans = 1,
   anchorItemIndex = null,
   scrollRequest = null,
+  onScrollRequestApplied,
   onSelectMovie,
   selectedItemIndex = null,
   getCardClassName,
@@ -203,15 +227,20 @@ export function MovieScrollerBase({
     gap,
     focusOffsetItemSpans,
   );
+  const centeredScrollLeft = getCenteredScrollLeft(
+    centeredAnchorIndex,
+    effectiveViewportWidth,
+    cardWidth,
+    itemSpan,
+    gap,
+    focusOffsetItemSpans,
+  );
   const effectiveScrollLeft =
-    viewport.clientWidth > 0
+    typeof scrollRequest?.scrollLeft === "number"
+      ? scrollRequest.scrollLeft
+      : viewport.clientWidth > 0
       ? viewport.scrollLeft
-      : Math.max(
-          0,
-          gap +
-            centeredAnchorIndex * itemSpan -
-            (focusViewportCenter - cardWidth / 2),
-        );
+      : centeredScrollLeft;
 
   const calculateRange = useCallback(
     (scrollLeft: number, clientWidth: number): WindowRange => {
@@ -235,6 +264,11 @@ export function MovieScrollerBase({
     },
     [gap, itemSpan, totalItems],
   );
+
+  const effectiveRange =
+    typeof scrollRequest?.scrollLeft === "number"
+      ? calculateRange(effectiveScrollLeft, effectiveViewportWidth)
+      : range;
 
   const updateWindowFromScroller = useCallback(() => {
     const scroller = scrollerRef.current;
@@ -273,20 +307,13 @@ export function MovieScrollerBase({
     if (!scroller) {
       return;
     }
-
-    const targetFocusCenter = getFocusViewportCenter(
+    const centeredScrollLeft = getCenteredScrollLeft(
+      centeredAnchorIndex,
       scroller.clientWidth,
       cardWidth,
       itemSpan,
       gap,
       focusOffsetItemSpans,
-    );
-
-    const centeredScrollLeft = Math.max(
-      0,
-      gap +
-        centeredAnchorIndex * itemSpan -
-        (targetFocusCenter - cardWidth / 2),
     );
 
     if (Math.abs(scroller.scrollLeft - centeredScrollLeft) > 0.5) {
@@ -419,7 +446,8 @@ export function MovieScrollerBase({
     }
 
     updateWindowFromScroller();
-  }, [scrollRequest, updateWindowFromScroller]);
+    onScrollRequestApplied?.(scrollRequest.nonce);
+  }, [onScrollRequestApplied, scrollRequest, updateWindowFromScroller]);
 
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -540,7 +568,7 @@ export function MovieScrollerBase({
   }, [introPhase, onIntroComplete]);
 
   useEffect(() => {
-    for (let i = range.start; i <= range.end; i += 1) {
+    for (let i = effectiveRange.start; i <= effectiveRange.end; i += 1) {
       const movie = allMovies[i % movieCount];
       const imageSources = [movie.imageSrc, movie.backdropSrc].filter(
         Boolean,
@@ -555,10 +583,16 @@ export function MovieScrollerBase({
         void preloadImageSource(src);
       }
     }
-  }, [allMovies, movieCount, preloadImageSource, range.start, range.end]);
+  }, [
+    allMovies,
+    effectiveRange.end,
+    effectiveRange.start,
+    movieCount,
+    preloadImageSource,
+  ]);
 
-  const visibleStart = range.firstVisible;
-  const visibleEnd = range.firstVisible + range.visibleCount - 1;
+  const visibleStart = effectiveRange.firstVisible;
+  const visibleEnd = effectiveRange.firstVisible + effectiveRange.visibleCount - 1;
   const focusTrackCenter = effectiveScrollLeft + focusViewportCenter;
   const fullOpacityRadius =
     effectiveViewportWidth > 0
@@ -605,11 +639,11 @@ export function MovieScrollerBase({
     Math.max(waveRadius * 1.72, itemSpan * 3.2),
   );
 
-  const cards = Array.from({ length: range.end - range.start + 1 }, (
+  const cards = Array.from({ length: effectiveRange.end - effectiveRange.start + 1 }, (
     _,
     offset,
   ) => {
-    const i = range.start + offset;
+    const i = effectiveRange.start + offset;
     const movie = allMovies[i % movieCount];
     const movieIndex = i % movieCount;
     const isVisible = i >= visibleStart && i <= visibleEnd;
@@ -691,7 +725,7 @@ export function MovieScrollerBase({
 
     return (
       <div
-        key={i}
+        key={`${i}:${movie.tmdbId}`}
         data-movie-scroller-item-index={i}
         data-movie-scroller-positional-opacity={opacity.toFixed(6)}
         onClick={handleSelectMovie}
