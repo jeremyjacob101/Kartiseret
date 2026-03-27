@@ -29,6 +29,11 @@
   --floating-topbar-home-size: 56px;
 }
 
+html {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
 .site-color-transitions-enabled {
   transition: --main-app-color 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
