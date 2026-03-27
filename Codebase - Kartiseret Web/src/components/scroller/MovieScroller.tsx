@@ -311,6 +311,7 @@ function getMaxWidthValue(maxWidth: number | string, fallback: number): number {
 function getDetailLayout(
   clientWidth: number,
   maxWidth: number | string,
+  isMobile: boolean,
 ): DetailLayout {
   const viewportFallback =
     typeof window === "undefined" ? 1440 : Math.max(window.innerWidth, 960);
@@ -329,29 +330,42 @@ function getDetailLayout(
   );
   const panelHeight = isCompact ? 706 : 756;
   const panelLeft = (safeClientWidth - panelWidth) / 2;
-  const previewWidth = clamp(
-    Math.min(
-      safeClientWidth * (isCompact ? 0.34 : 0.27),
-      panelWidth * (isCompact ? 0.46 : 0.4),
-    ),
-    isCompact ? 150 : 240,
-    isCompact ? 220 : 340,
-  );
+  const previewWidth = isMobile
+    ? clamp(
+        Math.max(safeClientWidth * 0.58, panelWidth * 0.74),
+        220,
+        320,
+      )
+    : clamp(
+        Math.min(
+          safeClientWidth * (isCompact ? 0.34 : 0.27),
+          panelWidth * (isCompact ? 0.46 : 0.4),
+        ),
+        isCompact ? 150 : 240,
+        isCompact ? 220 : 340,
+      );
   const previewHeight = Math.round(previewWidth * 1.5);
-  const previewOverlap = Math.min(
-    previewWidth * (isCompact ? 0.42 : 0.38),
-    isCompact ? 72 : 128,
-  );
-  const minLeftOverlap = Math.max(0, previewWidth - (panelLeft - stagePadding));
-  const minRightOverlap = Math.max(
-    0,
-    previewWidth - (safeClientWidth - stagePadding - (panelLeft + panelWidth)),
-  );
-  const previewLeft =
-    panelLeft - previewWidth + Math.max(previewOverlap, minLeftOverlap);
-  const previewRight =
-    panelLeft + panelWidth - Math.max(previewOverlap, minRightOverlap);
-  const previewTop = isCompact ? 126 : 118;
+  const previewOverlap = isMobile
+    ? clamp(previewWidth * 0.28, 64, 104)
+    : Math.min(previewWidth * (isCompact ? 0.42 : 0.38), isCompact ? 72 : 128);
+  const minLeftOverlap = isMobile
+    ? 0
+    : Math.max(0, previewWidth - (panelLeft - stagePadding));
+  const minRightOverlap = isMobile
+    ? 0
+    : Math.max(
+        0,
+        previewWidth - (safeClientWidth - stagePadding - (panelLeft + panelWidth)),
+      );
+  const appliedLeftOverlap = Math.max(previewOverlap, minLeftOverlap);
+  const appliedRightOverlap = Math.max(previewOverlap, minRightOverlap);
+  const previewLeft = isMobile
+    ? panelLeft - previewWidth + previewOverlap
+    : panelLeft - previewWidth + appliedLeftOverlap;
+  const previewRight = isMobile
+    ? panelLeft + panelWidth - previewOverlap
+    : panelLeft + panelWidth - appliedRightOverlap;
+  const previewTop = isMobile ? 92 : isCompact ? 126 : 118;
 
   return {
     panelWidth,
@@ -467,18 +481,12 @@ function isNavbarInteractiveTarget(target: EventTarget | null): boolean {
 
   return Boolean(
     target.closest(
-      ".topbar button, " +
-        ".topbar a, " +
-        ".topbar input, " +
-        ".topbar textarea, " +
-        ".topbar select, " +
-        ".topbar summary, " +
-        ".topbar [role='button'], " +
-        ".topbar [role='dialog'], " +
-        ".topbar [role='menu'], " +
-        ".topbar [role='menuitem'], " +
-        ".topbar [role='tab'], " +
-        ".topbar [role='tablist']",
+      ".topbar, " +
+        ".floating-topbar-stack, " +
+        ".movie-search-panel, " +
+        ".user-menu-panel, " +
+        ".theater-map-backdrop, " +
+        ".theater-map-dialog",
     ),
   );
 }
@@ -614,7 +622,7 @@ function MovieScrollerContent({
     : POSTER_RETURN_SETTLE_DELAY_MS;
   const movieScrollerTimingStyle =
     getMovieScrollerTimingStyle(posterMoveDurationMs);
-  const detailLayout = getDetailLayout(detailClientWidth, maxWidth);
+  const detailLayout = getDetailLayout(detailClientWidth, maxWidth, isMobile);
   const displayItemIndex =
     detailTransition?.toItemIndex ?? detailActiveItemIndex;
   const displayMovieIndex = mod(displayItemIndex, movieCount);
@@ -1058,6 +1066,7 @@ function MovieScrollerContent({
       const panelHeight = getDetailLayout(
         measureDetailStage(),
         maxWidth,
+        isMobile,
       ).panelHeight;
       const targetScrollTop = getViewportScrollTarget(
         shell.getBoundingClientRect().top,
@@ -1074,7 +1083,7 @@ function MovieScrollerContent({
         behavior,
       });
     },
-    [maxWidth, measureDetailStage],
+    [isMobile, maxWidth, measureDetailStage],
   );
 
   const finalizeExternalMovieOpen = useCallback(
@@ -1515,6 +1524,7 @@ function MovieScrollerContent({
     const openingPanelHeight = getDetailLayout(
       measureDetailStage(),
       maxWidth,
+      isMobile,
     ).panelHeight;
     const initialScrollTop = getPageScrollTop();
     const targetScrollTop = getViewportScrollTarget(

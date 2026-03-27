@@ -1415,6 +1415,19 @@ html[data-device-type="mobile"] .theater-map-dialog {
   height: min(90dvh, 920px);
 }
 
+html[data-device-type="mobile"] .theater-map-dialog .theater-map-panel {
+  --theater-map-bottom-overlay-clearance: 132px;
+}
+
+html[data-device-type="mobile"] .theater-map-dialog .theater-map-search-row--overlay {
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  gap: 10px;
+}
+
+html[data-device-type="mobile"] .theater-map-dialog .theater-map-search-field {
+  grid-column: 1 / -1;
+}
+
 html[data-device-type="mobile"] .theater-map-panel--embedded .theater-map-canvas-shell {
   min-height: min(90dvh, 920px);
 }

@@ -576,6 +576,80 @@ export function MovieDetailsContent({
     Boolean(trailerEmbedUrl) && openTrailerModalId === trailerModalId;
   const hasTrailerLaunch = variant === "nowPlaying" && Boolean(trailerEmbedUrl);
   const hasMetrics = metrics.length > 0;
+  const renderMetricsRow = (className?: string) => {
+    if (variant !== "nowPlaying" || (!hasTrailerLaunch && !hasMetrics)) {
+      return null;
+    }
+
+    return (
+      <div
+        className={["details-metrics-row", className].filter(Boolean).join(" ")}
+      >
+        {hasTrailerLaunch ? (
+          <button
+            type="button"
+            className="details-trailer-launch details-trailer-launch--metrics"
+            aria-label={`Watch ${movie.title} trailer`}
+            onClick={() => {
+              setOpenTrailerModalId(trailerModalId);
+            }}
+          >
+            <img
+              src="/logos/youtube.svg"
+              alt=""
+              className="details-trailer-launch-logo"
+              width={28}
+              height={20}
+              decoding="async"
+            />
+          </button>
+        ) : null}
+
+        {hasTrailerLaunch && hasMetrics ? (
+          <span className="details-metrics-divider" aria-hidden="true" />
+        ) : null}
+
+        {hasMetrics ? (
+          <div className="details-metrics">
+            {metrics.map((metric) => (
+              <div
+                key={metric.key}
+                className="details-metric"
+                aria-label={metric.ariaLabel}
+              >
+                <div className="details-metric-marker">
+                  {metric.href ? (
+                    <a
+                      href={metric.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="details-metric-link"
+                      aria-label={metric.linkAriaLabel}
+                    >
+                      <img
+                        src={metric.logoSrc}
+                        alt=""
+                        className={metric.logoClassName}
+                        decoding="async"
+                      />
+                    </a>
+                  ) : (
+                    <img
+                      src={metric.logoSrc}
+                      alt=""
+                      className={metric.logoClassName}
+                      decoding="async"
+                    />
+                  )}
+                </div>
+                <strong>{metric.value}</strong>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
 
   const reportVisibleShowtimeDate = useCallback(
     (nextDate: string | null) => {
@@ -709,15 +783,17 @@ export function MovieDetailsContent({
   return (
     <>
       <div className="details-hero">
-        <div className="details-poster-shell">
-          <MoviePosterArtwork
-            ref={posterRef}
-            title={movie.title}
-            imageSrc={movie.imageSrc}
-            alt={movie.title}
-            className={posterClassName}
-            draggable={false}
-          />
+        <div className="details-media-column">
+          <div className="details-poster-shell">
+            <MoviePosterArtwork
+              ref={posterRef}
+              title={movie.title}
+              imageSrc={movie.imageSrc}
+              alt={movie.title}
+              className={posterClassName}
+              draggable={false}
+            />
+          </div>
         </div>
 
         <div className="details-copy">
@@ -744,73 +820,10 @@ export function MovieDetailsContent({
             </p>
           ) : null}
 
-          {variant === "nowPlaying" && (hasTrailerLaunch || hasMetrics) ? (
-            <div className="details-metrics-row">
-              {hasTrailerLaunch ? (
-                <button
-                  type="button"
-                  className="details-trailer-launch details-trailer-launch--metrics"
-                  aria-label={`Watch ${movie.title} trailer`}
-                  onClick={() => {
-                    setOpenTrailerModalId(trailerModalId);
-                  }}
-                >
-                  <img
-                    src="/logos/youtube.svg"
-                    alt=""
-                    className="details-trailer-launch-logo"
-                    width={28}
-                    height={20}
-                    decoding="async"
-                  />
-                </button>
-              ) : null}
-
-              {hasTrailerLaunch && hasMetrics ? (
-                <span className="details-metrics-divider" aria-hidden="true" />
-              ) : null}
-
-              {hasMetrics ? (
-                <div className="details-metrics">
-                  {metrics.map((metric) => (
-                    <div
-                      key={metric.key}
-                      className="details-metric"
-                      aria-label={metric.ariaLabel}
-                    >
-                      <div className="details-metric-marker">
-                        {metric.href ? (
-                          <a
-                            href={metric.href}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="details-metric-link"
-                            aria-label={metric.linkAriaLabel}
-                          >
-                            <img
-                              src={metric.logoSrc}
-                              alt=""
-                              className={metric.logoClassName}
-                              decoding="async"
-                            />
-                          </a>
-                        ) : (
-                          <img
-                            src={metric.logoSrc}
-                            alt=""
-                            className={metric.logoClassName}
-                            decoding="async"
-                          />
-                        )}
-                      </div>
-                      <strong>{metric.value}</strong>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
+          {renderMetricsRow("details-metrics-row--copy")}
         </div>
+
+        {renderMetricsRow("details-metrics-row--mobile")}
       </div>
 
       {variant === "nowPlaying" ? (

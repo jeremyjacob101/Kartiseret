@@ -332,6 +332,13 @@
   margin-bottom: 22px;
 }
 
+.details-media-column {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  align-content: start;
+}
+
 .details-poster-shell {
   position: relative;
 }
@@ -430,6 +437,10 @@
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 12px;
+}
+
+.details-metrics-row--mobile {
+  display: none;
 }
 
 .details-trailer-launch--metrics {
@@ -809,6 +820,10 @@
   margin-bottom: 22px;
 }
 
+.movie-scroller-detail-card .details-media-column {
+  width: min(100%, 216px);
+}
+
 .movie-scroller-detail-card .details-poster-shell {
   width: min(100%, 216px);
   filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.34));
@@ -1000,9 +1015,132 @@ html[data-device-type="mobile"] .movie-scroller-detail-poster {
   backface-visibility: visible;
 }
 
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-hero {
+  grid-template-columns: minmax(92px, 30%) minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-media-column {
+  width: 100%;
+  gap: 10px;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-poster-shell,
+html[data-device-type="mobile"] .movie-scroller-detail-card .movie-scroller-detail-poster {
+  width: 100%;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .movie-scroller-detail-poster {
+  border-radius: 20px;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-copy {
+  align-self: start;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-eyebrow {
+  margin-bottom: 6px;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-title {
+  font-size: clamp(1.45rem, 6.4vw, 2.1rem);
+  line-height: 0.96;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-subtitle,
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-release-date {
+  margin-top: 8px;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-subtitle--meta-row {
+  gap: 6px;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--copy {
+  display: none;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 10px;
+  margin-top: 2px;
+  min-width: 0;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-trailer-launch--metrics {
+  min-width: 0;
+  padding: 0;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-trailer-launch-logo {
+  width: 24px;
+  height: 18px;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metrics-divider {
+  height: 38px;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metrics {
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric {
+  width: 42px;
+  height: auto;
+  flex: 0 0 42px;
+  min-width: 42px;
+  max-width: 42px;
+  min-height: 0;
+  max-height: none;
+  gap: 4px;
+  padding: 0;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric strong {
+  font-size: 0.74rem;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric-logo--imdb {
+  width: 30px;
+  height: 16px;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric-logo--rt-audience-bad,
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric-logo--rt-audience-hot,
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric-logo--rt-critic-hot,
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric-logo--letterboxd {
+  width: 24px;
+  height: 24px;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric-logo--rt-audience-good,
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric-logo--rt-critic-bad,
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric-logo--rt-critic-good {
+  width: 22px;
+  height: 22px;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric-logo--tmdb {
+  width: 30px;
+  height: 16px;
+}
+
 html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scroller-detail-backdrop-shell,
 html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scroller-detail-sheen,
 html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scroller-side-preview,
+html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .details-metrics-row--mobile,
 html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .details-copy,
 html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .details-showtimes,
 html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scroller-close {
@@ -1012,6 +1150,7 @@ html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scro
 }
 
 html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scroller-side-preview,
+html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .details-metrics-row--mobile,
 html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .details-copy,
 html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .details-showtimes,
 html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scroller-close {
@@ -1020,6 +1159,7 @@ html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scro
 
 html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .movie-scroller-detail-backdrop-shell,
 html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .movie-scroller-detail-sheen,
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .details-metrics-row--mobile,
 html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .details-copy,
 html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .details-showtimes,
 html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .movie-scroller-close {
@@ -1035,6 +1175,7 @@ html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-vi
 }
 
 html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .movie-scroller-side-preview,
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .details-metrics-row--mobile,
 html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .details-copy,
 html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .details-showtimes,
 html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .movie-scroller-close {
@@ -1049,6 +1190,7 @@ html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff.is-closi
 
 html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff .movie-scroller-side-preview,
 html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff .movie-scroller-detail-backdrop,
+html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff .details-metrics-row--mobile,
 html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff .details-copy,
 html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff .details-showtimes,
 html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff .movie-scroller-close {
