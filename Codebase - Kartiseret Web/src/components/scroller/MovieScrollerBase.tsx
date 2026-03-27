@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, type CSSProperties, type MouseEvent, useMemo, useRef, useState } from "react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { movies, type Movie } from "../../data/movieCatalog";
+import { useDeviceInfo } from "../../device";
 import { getRepeatSetCount } from "./MovieScrollerShared";
 
 export type PosterSourceRect = {
@@ -152,6 +153,7 @@ export function MovieScrollerBase({
   getCardClassName,
   getCardStyle,
 }: MovieScrollerBaseProps) {
+  const { isMobile } = useDeviceInfo();
   const allMovies = movieItems ?? movies;
   const movieCount = allMovies.length;
   const scrollerRef = useRef<HTMLElement | null>(null);
@@ -655,7 +657,10 @@ export function MovieScrollerBase({
     );
     const introTranslateX =
       isIntroPre && shouldAnimateIntroCard ? -introTravelDistance : 0;
-    const introOpacity = isIntroPre && shouldAnimateIntroCard ? 0 : opacity;
+    const renderedOpacity =
+      selectedItemIndex === null && isMobile ? 1 : opacity;
+    const introOpacity =
+      isIntroPre && shouldAnimateIntroCard ? 0 : renderedOpacity;
     const directionalWaveRadius =
       signedDistanceFromFocus < 0 ? leftWaveRadius : rightWaveRadius;
     const waveProgress =
@@ -694,7 +699,7 @@ export function MovieScrollerBase({
           height: rect.height,
         },
         i,
-        opacity,
+        renderedOpacity,
       );
     };
 
@@ -706,7 +711,7 @@ export function MovieScrollerBase({
       <div
         key={`${i}:${movie.tmdbId}`}
         data-movie-scroller-item-index={i}
-        data-movie-scroller-positional-opacity={opacity.toFixed(6)}
+        data-movie-scroller-positional-opacity={renderedOpacity.toFixed(6)}
         onClick={handleSelectMovie}
         className={["movie-scroller__card", cardClassName]
           .filter(Boolean)
@@ -740,8 +745,13 @@ export function MovieScrollerBase({
           transition: shouldAnimateIntroCard
             ? `transform ${INTRO_DURATION_MS}ms cubic-bezier(0.22, 0.86, 0.24, 1) ${introDelayMs}ms, ` +
               `opacity 540ms ease ${introDelayMs}ms`
-            : "transform 72ms cubic-bezier(0.22, 0.9, 0.34, 1), opacity 80ms linear",
-          willChange: "transform, opacity",
+            : selectedItemIndex === null && isMobile
+              ? "transform 72ms cubic-bezier(0.22, 0.9, 0.34, 1)"
+              : "transform 72ms cubic-bezier(0.22, 0.9, 0.34, 1), opacity 80ms linear",
+          willChange:
+            selectedItemIndex === null && isMobile
+              ? "transform"
+              : "transform, opacity",
           zIndex: Math.round(waveLift * 100),
           ...cardStyle,
         }}

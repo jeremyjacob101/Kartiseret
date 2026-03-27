@@ -788,7 +788,7 @@ function MovieScrollerContent({
     [cardHeight, cardWidth, gap],
   );
 
-  const applyRectToGhost = useCallback((rect: PosterSourceRect) => {
+  const applyGhostBaseRect = useCallback((rect: PosterSourceRect) => {
     const ghost = ghostRef.current;
     if (!ghost) {
       return;
@@ -798,6 +798,28 @@ function MovieScrollerContent({
     ghost.style.left = `${rect.left}px`;
     ghost.style.width = `${rect.width}px`;
     ghost.style.height = `${rect.height}px`;
+    ghost.style.transform = "translate(0px, 0px) scale(1, 1)";
+  }, []);
+
+  const applyGhostTransform = useCallback((
+    sourceRect: PosterSourceRect,
+    targetRect: PosterSourceRect,
+  ) => {
+    const ghost = ghostRef.current;
+    if (!ghost) {
+      return;
+    }
+
+    const safeWidth = Math.max(sourceRect.width, 1);
+    const safeHeight = Math.max(sourceRect.height, 1);
+    const translateX = targetRect.left - sourceRect.left;
+    const translateY = targetRect.top - sourceRect.top;
+    const scaleX = targetRect.width / safeWidth;
+    const scaleY = targetRect.height / safeHeight;
+
+    ghost.style.transform =
+      `translate(${translateX}px, ${translateY}px) ` +
+      `scale(${scaleX}, ${scaleY})`;
   }, []);
 
   const applyGhostScrollerAppearance = useCallback(() => {
@@ -1476,7 +1498,7 @@ function MovieScrollerContent({
 
     targetRectRef.current = initialTargetRect;
 
-    applyRectToGhost(ghostTransition.sourceRect);
+    applyGhostBaseRect(ghostTransition.sourceRect);
     applyGhostScrollerAppearance();
     ghost.style.opacity = `${ghostTransition.sourceOpacity}`;
 
@@ -1510,7 +1532,7 @@ function MovieScrollerContent({
         );
 
         targetRectRef.current = liveTargetRect;
-        applyRectToGhost({
+        applyGhostTransform(ghostTransition.sourceRect, {
           top: lerp(
             ghostTransition.sourceRect.top,
             liveTargetRect.top,
@@ -1546,7 +1568,7 @@ function MovieScrollerContent({
         });
 
         if (targetRectRef.current) {
-          applyRectToGhost(targetRectRef.current);
+          applyGhostTransform(ghostTransition.sourceRect, targetRectRef.current);
         }
         applyGhostFocusAppearance();
         animationFrameRef.current = null;
@@ -1575,10 +1597,11 @@ function MovieScrollerContent({
       clearScheduledAnimation();
     };
   }, [
+    applyGhostBaseRect,
     applyGhostFocusAppearance,
     applyGhostOpeningAppearance,
     applyGhostScrollerAppearance,
-    applyRectToGhost,
+    applyGhostTransform,
     clearScheduledAnimation,
     ghostTransition,
     maxWidth,
@@ -1604,7 +1627,7 @@ function MovieScrollerContent({
           }
         : ghostTransition.sourceRect);
 
-    applyRectToGhost(closeFromRect);
+    applyGhostBaseRect(closeFromRect);
     applyGhostFocusAppearance();
 
     if (ghostRef.current) {
@@ -1614,7 +1637,7 @@ function MovieScrollerContent({
     animationFrameRef.current = window.requestAnimationFrame(() => {
       animationFrameRef.current = window.requestAnimationFrame(() => {
         setIsFocusPosterVisible(false);
-        applyRectToGhost(ghostTransition.targetRect);
+        applyGhostTransform(closeFromRect, ghostTransition.targetRect);
         applyGhostScrollerAppearance();
         if (ghostRef.current) {
           ghostRef.current.style.opacity = `${ghostTransition.targetOpacity}`;
@@ -1642,9 +1665,10 @@ function MovieScrollerContent({
       clearScheduledAnimation();
     };
   }, [
+    applyGhostBaseRect,
     applyGhostFocusAppearance,
     applyGhostScrollerAppearance,
-    applyRectToGhost,
+    applyGhostTransform,
     clearScheduledAnimation,
     ghostTransition,
     phase,
@@ -2157,6 +2181,7 @@ function MovieScrollerContent({
             width: ghostTransition.sourceRect.width,
             height: ghostTransition.sourceRect.height,
             opacity: ghostTransition.sourceOpacity,
+            transform: "translate(0px, 0px) scale(1, 1)",
           }}
         />
       ) : null}

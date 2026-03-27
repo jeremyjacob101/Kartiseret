@@ -6,6 +6,7 @@ import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } f
 import { UserMenu } from "./components/UserMenu";
 import { allComingSoonMovies, allNowPlayingMovies, getMovieCatalogStatusSnapshot, loadMovieCatalog, subscribeToMovieCatalog } from "./data/movieCatalog";
 import { preloadTheaters } from "./data/theaters";
+import { DeviceTypeProvider } from "./device";
 import { UserPreferencesProvider } from "./prefs/UserPreferencesContext";
 import { useUserPreferencesContext } from "./prefs/useUserPreferences";
 import "./index.css";
@@ -971,9 +972,11 @@ function AppShell() {
 
 export default function App() {
   return (
-    <UserPreferencesProvider>
-      <AppShell />
-    </UserPreferencesProvider>
+    <DeviceTypeProvider>
+      <UserPreferencesProvider>
+        <AppShell />
+      </UserPreferencesProvider>
+    </DeviceTypeProvider>
   );
 }
 
