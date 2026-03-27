@@ -371,6 +371,49 @@ span.topnav-icon {
   gap: 10px;
 }
 
+html[data-device-type="mobile"] .topbar-content {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: 12px;
+  padding: 16px 14px;
+  text-align: center;
+}
+
+html[data-device-type="mobile"] .topbar-content>.brand,
+html[data-device-type="mobile"] .topbar-content>.topnav,
+html[data-device-type="mobile"] .topbar-content>.topbar-actions {
+  width: 100%;
+}
+
+html[data-device-type="mobile"] .brand {
+  justify-content: center;
+  font-size: 1.34rem;
+  letter-spacing: 0.06em;
+}
+
+html[data-device-type="mobile"] .brand-mark--lockup {
+  width: 1.72rem;
+}
+
+html[data-device-type="mobile"] .topnav {
+  justify-content: center;
+  gap: 14px;
+}
+
+html[data-device-type="mobile"] .topnav-link {
+  gap: 4px;
+  font-size: 0.84rem;
+}
+
+html[data-device-type="mobile"] .topnav-icon {
+  height: 17px;
+}
+
+html[data-device-type="mobile"] .topbar-actions {
+  justify-content: center;
+  gap: 12px;
+}
+
 .floating-topbar-stack {
   position: fixed;
   right: max(24px, calc(env(safe-area-inset-right) + 18px));

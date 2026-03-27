@@ -5,7 +5,7 @@ import { Navbar } from "./components/Navbar";
 import { type MovieSearchResult } from "./components/MovieSearchMenu";
 import { allComingSoonMovies, allNowPlayingMovies, getMovieCatalogStatusSnapshot, loadMovieCatalog, subscribeToMovieCatalog } from "./data/movieCatalog";
 import { preloadTheaters } from "./data/theaters";
-import { DeviceTypeProvider } from "./device";
+import { DeviceTypeProvider, useDeviceInfo } from "./device";
 import { UserPreferencesProvider } from "./prefs/UserPreferencesContext";
 import { useUserPreferencesContext } from "./prefs/useUserPreferences";
 import "./index.css";
@@ -15,6 +15,10 @@ const SCROLLER_CARD_HEIGHT = 330;
 const SCROLLER_GAP = 22;
 const SCROLLER_MAX_WIDTH = 1100;
 const SCROLLER_SLOT_MIN_HEIGHT = 420;
+const MOBILE_SCROLLER_CARD_WIDTH = 160;
+const MOBILE_SCROLLER_CARD_HEIGHT = 240;
+const MOBILE_SCROLLER_GAP = 18;
+const MOBILE_SCROLLER_SLOT_MIN_HEIGHT = 300;
 const preloadNavbarDependencies = () => import("./components/TheaterMapDialog");
 const loadUserPreferencesPage = () =>
   import("./components/UserPreferencesPage");
@@ -74,6 +78,7 @@ function getPathnameSnapshot(): AppPath {
 }
 
 function AppShell() {
+  const { isMobile } = useDeviceInfo();
   const { user, loading } = useUserPreferencesContext();
   const catalogStatus = useSyncExternalStore(
     subscribeToMovieCatalog,
@@ -93,6 +98,16 @@ function AppShell() {
   const [moviesPageView, setMoviesPageView] = useState<CatalogPageView>("grid");
   const [soonsPageView, setSoonsPageView] = useState<CatalogPageView>("grid");
   const nonCriticalPreloadStartedRef = useRef(false);
+  const scrollerCardWidth = isMobile
+    ? MOBILE_SCROLLER_CARD_WIDTH
+    : SCROLLER_CARD_WIDTH;
+  const scrollerCardHeight = isMobile
+    ? MOBILE_SCROLLER_CARD_HEIGHT
+    : SCROLLER_CARD_HEIGHT;
+  const scrollerGap = isMobile ? MOBILE_SCROLLER_GAP : SCROLLER_GAP;
+  const scrollerSlotMinHeight = isMobile
+    ? MOBILE_SCROLLER_SLOT_MIN_HEIGHT
+    : SCROLLER_SLOT_MIN_HEIGHT;
 
   const navigate = useCallback((path: string, replace = false) => {
     const targetPath = normalizePathname(path);
@@ -416,7 +431,7 @@ function AppShell() {
                   <PosterGridPage
                     key="movies-grid"
                     kicker="Movies"
-                    title="Movies"
+                    title="Now Playing"
                     movies={showtimeCatalogMovies}
                     onPosterSelect={(movie) => {
                       handleCatalogPosterSelect("nowPlaying", movie.tmdbId);
@@ -433,7 +448,7 @@ function AppShell() {
                   </div>
                   <div
                     className="scroller-slot"
-                    style={{ minHeight: SCROLLER_SLOT_MIN_HEIGHT }}
+                    style={{ minHeight: scrollerSlotMinHeight }}
                   >
                     <MovieScroller
                       mode="nowPlaying"
@@ -447,9 +462,9 @@ function AppShell() {
                       onExitDetail={() => {
                         resetCatalogPage("nowPlaying");
                       }}
-                      cardWidth={SCROLLER_CARD_WIDTH}
-                      cardHeight={SCROLLER_CARD_HEIGHT}
-                      gap={SCROLLER_GAP}
+                      cardWidth={scrollerCardWidth}
+                      cardHeight={scrollerCardHeight}
+                      gap={scrollerGap}
                       maxWidth={SCROLLER_MAX_WIDTH}
                     />
                   </div>
@@ -505,7 +520,7 @@ function AppShell() {
                   </div>
                   <div
                     className="scroller-slot"
-                    style={{ minHeight: SCROLLER_SLOT_MIN_HEIGHT }}
+                    style={{ minHeight: scrollerSlotMinHeight }}
                   >
                     <MovieScroller
                       mode="comingSoon"
@@ -519,9 +534,9 @@ function AppShell() {
                       onExitDetail={() => {
                         resetCatalogPage("comingSoon");
                       }}
-                      cardWidth={SCROLLER_CARD_WIDTH}
-                      cardHeight={SCROLLER_CARD_HEIGHT}
-                      gap={SCROLLER_GAP}
+                      cardWidth={scrollerCardWidth}
+                      cardHeight={scrollerCardHeight}
+                      gap={scrollerGap}
                       maxWidth={SCROLLER_MAX_WIDTH}
                     />
                   </div>
@@ -537,19 +552,19 @@ function AppShell() {
               </p>
             ) : null}
             <div className="section-heading">
-              <p className="section-kicker">Showtimes</p>
+              <p className="section-kicker">Movies</p>
               <h1 className="section-title">Now Playing</h1>
             </div>
             <div
               className="scroller-slot"
-              style={{ minHeight: SCROLLER_SLOT_MIN_HEIGHT }}
+              style={{ minHeight: scrollerSlotMinHeight }}
             >
               {nowPlayingReady ? (
                 <MovieScroller
                   mode="nowPlaying"
-                  cardWidth={SCROLLER_CARD_WIDTH}
-                  cardHeight={SCROLLER_CARD_HEIGHT}
-                  gap={SCROLLER_GAP}
+                  cardWidth={scrollerCardWidth}
+                  cardHeight={scrollerCardHeight}
+                  gap={scrollerGap}
                   maxWidth={SCROLLER_MAX_WIDTH}
                 />
               ) : null}
@@ -560,14 +575,14 @@ function AppShell() {
             </div>
             <div
               className="scroller-slot"
-              style={{ minHeight: SCROLLER_SLOT_MIN_HEIGHT }}
+              style={{ minHeight: scrollerSlotMinHeight }}
             >
               {comingSoonReady ? (
                 <MovieScroller
                   mode="comingSoon"
-                  cardWidth={SCROLLER_CARD_WIDTH}
-                  cardHeight={SCROLLER_CARD_HEIGHT}
-                  gap={SCROLLER_GAP}
+                  cardWidth={scrollerCardWidth}
+                  cardHeight={scrollerCardHeight}
+                  gap={scrollerGap}
                   maxWidth={SCROLLER_MAX_WIDTH}
                 />
               ) : null}
