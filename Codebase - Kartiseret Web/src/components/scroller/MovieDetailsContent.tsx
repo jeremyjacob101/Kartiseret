@@ -749,14 +749,14 @@ export function MovieDetailsContent({
             }}
           >
             <div
-              className="movie-trailer-modal__dialog"
+              className="movie-trailer-modal-dialog"
               role="dialog"
               aria-modal="true"
               aria-label={`${movie.title} trailer`}
             >
               <button
                 type="button"
-                className="movie-trailer-modal__close"
+                className="movie-trailer-modal-close"
                 aria-label="Close trailer"
                 onClick={() => {
                   setOpenTrailerModalId(null);
@@ -764,7 +764,7 @@ export function MovieDetailsContent({
               >
                 <X size={20} strokeWidth={2.6} />
               </button>
-              <div className="movie-trailer-modal__frame">
+              <div className="movie-trailer-modal-frame">
                 <iframe
                   src={`${trailerEmbedUrl}&autoplay=1`}
                   title={`${movie.title} trailer`}

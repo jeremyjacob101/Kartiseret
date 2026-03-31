@@ -95,16 +95,16 @@ export function PosterGridPage({
 
   return (
     <section className="poster-grid-page" aria-label={title}>
-      <div className="section-heading poster-grid-page__heading">
+      <div className="section-heading poster-grid-page-heading">
         <p className="section-kicker">{kicker}</p>
         <h1 className="section-title">{title}</h1>
       </div>
-      <div ref={gridRef} className="poster-grid-page__grid" aria-label={title}>
+      <div ref={gridRef} className="poster-grid-page-grid" aria-label={title}>
         {posterEntries.map(({ movie, rowIndex }) => (
           <button
             key={movie.tmdbId}
             type="button"
-            className="poster-grid-page__tile"
+            className="poster-grid-page-tile"
             aria-label={`Open ${movie.title} in scroller view`}
             title={movie.title}
             style={
@@ -122,7 +122,7 @@ export function PosterGridPage({
               alt={movie.title}
               loading="lazy"
               decoding="async"
-              className="poster-grid-page__image"
+              className="poster-grid-page-image"
             />
           </button>
         ))}

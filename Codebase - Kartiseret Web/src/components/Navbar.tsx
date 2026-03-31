@@ -1,11 +1,14 @@
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type RefObject, Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Clock8, Film, MapPin, Settings } from "lucide-react";
+import "./Navbar.css";
 import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "./MovieSearchMenu";
 import { UserMenu } from "./UserMenu";
 import { useUserPreferencesContext } from "../prefs/useUserPreferences";
 
 const NAVBAR_INTRO_DURATION_MS = 760;
 const MINI_NAVBAR_TRANSITION_MS = 620;
+const DESKTOP_MINI_NAVBAR_BREAKPOINT_PX = 800;
+const DEFAULT_FLOATING_NAVBAR_BOTTOM_PX = 24;
 
 const loadTheaterMapDialog = () => import("./TheaterMapDialog");
 
@@ -133,8 +136,10 @@ function NavbarActions({
 }
 
 type MiniNavBarProps = {
+  bottomOffset: number | null;
   catalogReady: boolean;
   currentPath: NavbarPath;
+  isOverBottomBar: boolean;
   isVisible: boolean;
   onHomeClick: () => void;
   onNavigate: (path: string) => void;
@@ -142,11 +147,14 @@ type MiniNavBarProps = {
   onSelectResult: (result: MovieSearchResult) => void;
   onSettingsClick: () => void;
   searchCollections: readonly MovieSearchCollection[];
+  stackRef: RefObject<HTMLDivElement | null>;
 };
 
 function MiniNavBar({
+  bottomOffset,
   catalogReady,
   currentPath,
+  isOverBottomBar,
   isVisible,
   onHomeClick,
   onNavigate,
@@ -154,12 +162,24 @@ function MiniNavBar({
   onSelectResult,
   onSettingsClick,
   searchCollections,
+  stackRef,
 }: MiniNavBarProps) {
+  const stackStyle =
+    bottomOffset === null
+      ? undefined
+      : ({
+          "--floating-navbar-dynamic-bottom": `${bottomOffset}px`,
+        } as CSSProperties);
+
   return (
     <div
-      className={`floating-navbar-stack${isVisible ? " is-visible" : ""}`}
+      ref={stackRef}
+      className={`floating-navbar-stack${isVisible ? " is-visible" : ""}${
+        isOverBottomBar ? " is-over-bottom-bar" : ""
+      }`}
       aria-label="Quick actions"
       aria-hidden={!isVisible}
+      style={stackStyle}
     >
       <NavbarActions
         catalogReady={catalogReady}
@@ -205,7 +225,12 @@ export function Navbar({
   const [showMiniNavBar, setShowMiniNavBar] = useState(false);
   const [renderMiniNavBar, setRenderMiniNavBar] = useState(false);
   const [miniNavBarVisible, setMiniNavBarVisible] = useState(false);
+  const [miniNavBarBottomOffset, setMiniNavBarBottomOffset] = useState<
+    number | null
+  >(null);
+  const [miniNavBarOverBottomBar, setMiniNavBarOverBottomBar] = useState(false);
   const navbarShellRef = useRef<HTMLDivElement | null>(null);
+  const floatingNavStackRef = useRef<HTMLDivElement | null>(null);
   const miniNavBarStateFrameRef = useRef<number | null>(null);
   const miniNavBarEnterFrameRef = useRef<number | null>(null);
   const miniNavBarExitTimeoutRef = useRef<number | null>(null);
@@ -222,13 +247,63 @@ export function Navbar({
 
   useEffect(() => {
     let frameId: number | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+
+    const resetMiniNavBarBottomBarState = () => {
+      setMiniNavBarOverBottomBar(false);
+      setMiniNavBarBottomOffset(null);
+    };
 
     const updateMiniNavBar = () => {
       frameId = null;
       const navbarBottom =
         navbarShellRef.current?.getBoundingClientRect().bottom ?? 0;
+      const shouldShowMiniNavBar = navbarBottom <= 0;
 
-      setShowMiniNavBar(navbarBottom <= 0);
+      setShowMiniNavBar(shouldShowMiniNavBar);
+
+      if (
+        showNavbarIntro ||
+        !shouldShowMiniNavBar ||
+        !renderMiniNavBar ||
+        window.innerWidth < DESKTOP_MINI_NAVBAR_BREAKPOINT_PX
+      ) {
+        resetMiniNavBarBottomBarState();
+        return;
+      }
+
+      const footerBar = document.querySelector(".bottom-bar");
+      const floatingStack = floatingNavStackRef.current;
+
+      if (!(footerBar instanceof HTMLElement) || floatingStack === null) {
+        resetMiniNavBarBottomBarState();
+        return;
+      }
+
+      const footerRect = footerBar.getBoundingClientRect();
+      const floatingStackRect = floatingStack.getBoundingClientRect();
+      const floatingStackHeight = floatingStackRect.height;
+      const defaultBottomEdge =
+        window.innerHeight - DEFAULT_FLOATING_NAVBAR_BOTTOM_PX;
+      const defaultTopEdge = defaultBottomEdge - floatingStackHeight;
+      const isOverBottomBar =
+        footerRect.top < defaultBottomEdge && footerRect.bottom > defaultTopEdge;
+
+      if (!isOverBottomBar) {
+        resetMiniNavBarBottomBarState();
+        return;
+      }
+
+      const centeredBottom =
+        window.innerHeight -
+        footerRect.top -
+        footerRect.height / 2 -
+        floatingStackHeight / 2;
+
+      setMiniNavBarOverBottomBar(true);
+      setMiniNavBarBottomOffset(
+        Math.max(DEFAULT_FLOATING_NAVBAR_BOTTOM_PX, Math.round(centeredBottom)),
+      );
     };
 
     const requestMiniNavBarUpdate = () => {
@@ -246,15 +321,33 @@ export function Navbar({
     });
     window.addEventListener("resize", requestMiniNavBarUpdate);
 
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        requestMiniNavBarUpdate();
+      });
+
+      const footerBar = document.querySelector(".bottom-bar");
+
+      if (footerBar instanceof HTMLElement) {
+        resizeObserver.observe(footerBar);
+      }
+
+      if (floatingNavStackRef.current !== null) {
+        resizeObserver.observe(floatingNavStackRef.current);
+      }
+    }
+
     return () => {
       if (frameId !== null) {
         window.cancelAnimationFrame(frameId);
       }
 
+      resizeObserver?.disconnect();
+
       window.removeEventListener("scroll", requestMiniNavBarUpdate);
       window.removeEventListener("resize", requestMiniNavBarUpdate);
     };
-  }, [currentPath]);
+  }, [currentPath, renderMiniNavBar, showNavbarIntro]);
 
   useEffect(() => {
     const clearMiniNavBarTransitions = () => {
@@ -433,8 +526,10 @@ export function Navbar({
 
       {renderMiniNavBar ? (
         <MiniNavBar
+          bottomOffset={miniNavBarBottomOffset}
           catalogReady={catalogReady}
           currentPath={currentPath}
+          isOverBottomBar={miniNavBarOverBottomBar}
           isVisible={miniNavBarVisible}
           onHomeClick={onHomeClick}
           onNavigate={onNavigate}
@@ -442,6 +537,7 @@ export function Navbar({
           onSelectResult={onSelectResult}
           onSettingsClick={onSettingsClick}
           searchCollections={searchCollections}
+          stackRef={floatingNavStackRef}
         />
       ) : null}
     </>

@@ -1,0 +1,129 @@
+:root {
+  --bottom-bar-offset: 18px;
+}
+
+.bottom-bar-shell {
+  width: min(100%, 1240px);
+  margin: 40px auto 0;
+}
+
+.bottom-bar {
+  position: relative;
+  width: 100%;
+  border: 2px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+  backdrop-filter: blur(22px);
+  overflow: hidden;
+}
+
+.bottom-bar-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 18px;
+}
+
+.bottom-bar-credit {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  color: var(--text-main);
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.bottom-bar-credit-divider {
+  color: color-mix(in srgb, var(--text-main) 48%, transparent);
+}
+
+.bottom-bar-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bottom-bar-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--text-main);
+  padding: 0 14px;
+  font-size: 0.98rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.bottom-bar-link:hover,
+.bottom-bar-link:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(45, 34, 58, 0.2);
+}
+
+.bottom-bar-link-icon {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  color: var(--main-app-color);
+  background-color: currentColor;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.bottom-bar-link-icon-github {
+  -webkit-mask-image: url("/logos/github.svg");
+  mask-image: url("/logos/github.svg");
+}
+
+.bottom-bar-link-icon-linkedin {
+  -webkit-mask-image: url("/logos/linkedin.svg");
+  mask-image: url("/logos/linkedin.svg");
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bottom-bar-link {
+    transition: none;
+  }
+}
+
+html[data-device-type="mobile"] .bottom-bar-shell {
+  margin-top: 32px;
+}
+
+html[data-device-type="mobile"] .bottom-bar-content {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: 14px;
+  padding: 16px 14px;
+  text-align: center;
+}
+
+html[data-device-type="mobile"] .bottom-bar-credit {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+html[data-device-type="mobile"] .bottom-bar-links {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+@media (max-width: 799px) {
+  :root {
+    --bottom-bar-offset: 164px;
+  }
+}

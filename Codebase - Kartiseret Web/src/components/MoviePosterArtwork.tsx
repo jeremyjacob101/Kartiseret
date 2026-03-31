@@ -59,7 +59,7 @@ export const MoviePosterArtwork = forwardRef<
       aria-hidden={isDecorative ? "true" : undefined}
     >
       <span
-        className={["movie-poster-fallback__title", fallbackTitleClassName]
+        className={["movie-poster-fallback-title", fallbackTitleClassName]
           .filter(Boolean)
           .join(" ")}
       >

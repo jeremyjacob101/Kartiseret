@@ -1,5 +1,6 @@
 import { StrictMode, Suspense, lazy, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
+import { BottomBar } from "./components/BottomBar";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
 import { Navbar } from "./components/Navbar";
 import { type MovieSearchResult } from "./components/MovieSearchMenu";
@@ -440,8 +441,8 @@ function AppShell() {
                 </Suspense>
               ) : (
                 <section className="catalog-browser-page" aria-label="Movies">
-                  <div className="section-heading catalog-browser-page__heading">
-                    <div className="catalog-browser-page__heading-copy">
+                  <div className="section-heading catalog-browser-page-heading">
+                    <div className="catalog-browser-page-heading-copy">
                       <p className="section-kicker">Movies</p>
                       <h1 className="section-title">Now Playing</h1>
                     </div>
@@ -478,11 +479,11 @@ function AppShell() {
               className="showtimes-placeholder"
               aria-label="All Showtimes"
             >
-              <div className="section-heading showtimes-placeholder__heading">
+              <div className="section-heading showtimes-placeholder-heading">
                 <p className="section-kicker">Showtimes</p>
                 <h1 className="section-title">All Showtimes</h1>
               </div>
-              <p className="showtimes-placeholder__note">
+              <p className="showtimes-placeholder-note">
                 Showtime route placeholder. Add the full listings logic here.
               </p>
             </section>
@@ -512,8 +513,8 @@ function AppShell() {
                   className="catalog-browser-page"
                   aria-label="Coming Soon"
                 >
-                  <div className="section-heading catalog-browser-page__heading">
-                    <div className="catalog-browser-page__heading-copy">
+                  <div className="section-heading catalog-browser-page-heading">
+                    <div className="catalog-browser-page-heading-copy">
                       <p className="section-kicker">Coming soon</p>
                       <h1 className="section-title">Coming Soon</h1>
                     </div>
@@ -598,6 +599,8 @@ function AppShell() {
           </section>
         )}
       </main>
+
+      <BottomBar />
     </div>
   );
 }

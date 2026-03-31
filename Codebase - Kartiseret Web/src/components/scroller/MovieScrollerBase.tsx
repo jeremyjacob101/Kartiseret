@@ -714,7 +714,7 @@ export function MovieScrollerBase({
           data-movie-scroller-item-index={i}
           data-movie-scroller-positional-opacity={renderedOpacity.toFixed(6)}
           onClick={handleSelectMovie}
-          className={["movie-scroller__card", cardClassName]
+          className={["movie-scroller-card", cardClassName]
             .filter(Boolean)
             .join(" ")}
           style={{
@@ -765,7 +765,7 @@ export function MovieScrollerBase({
             fetchPriority={isVisible ? "high" : "auto"}
             decoding="async"
             draggable={false}
-            className="movie-scroller__card-media"
+            className="movie-scroller-card-media"
           />
         </div>
       );

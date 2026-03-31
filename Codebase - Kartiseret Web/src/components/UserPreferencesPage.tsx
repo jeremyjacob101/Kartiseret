@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
+import "./UserPreferencesPage.css";
 import { CityLocationPicker } from "./CityLocationPicker";
 import { useUserPreferencesContext } from "../prefs/useUserPreferences";
 import { type RatingSource } from "../prefs/definitions/ratingSources";

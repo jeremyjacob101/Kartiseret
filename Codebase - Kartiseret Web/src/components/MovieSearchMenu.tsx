@@ -218,7 +218,7 @@ export function MovieSearchMenu({
                     imageSrc={result.imageSrc}
                     alt=""
                     className="movie-search-result-image"
-                    fallbackTitleClassName="movie-poster-fallback__title--compact"
+                    fallbackTitleClassName="movie-poster-fallback-title--compact"
                     decoding="async"
                     loading="lazy"
                   />

@@ -1,0 +1,276 @@
+.theater-map-panel--embedded {
+  gap: 14px;
+}
+
+.theater-map-panel--embedded .theater-map-canvas-shell {
+  min-height: 420px;
+}
+
+.theater-map-panel--embedded .theater-map-search-panel {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.prefs-page {
+  width: min(100%, 1100px);
+}
+
+.prefs-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 8px 16px 4px;
+}
+
+.prefs-page-back {
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 58%, transparent);
+  border-radius: 999px;
+  background: rgba(245, 239, 251, 0.12);
+  color: #efe3ff;
+  padding: 8px 14px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.prefs-page-card {
+  margin: 0 16px;
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 20%, transparent);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.prefs-location-card {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 18%, transparent);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--main-app-color) 12%, transparent), transparent 40%),
+    rgba(255, 255, 255, 0.03);
+}
+
+.prefs-location-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.prefs-location-title {
+  margin: 4px 0 0;
+  font-size: clamp(1.2rem, 2.4vw, 1.5rem);
+  line-height: 1.05;
+  color: #fff;
+}
+
+.prefs-location-note {
+  margin: 0;
+  max-width: 34ch;
+  color: rgba(233, 218, 255, 0.74);
+}
+
+.prefs-page-settings {
+  display: grid;
+  gap: 12px;
+}
+
+.prefs-setting {
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 22%, transparent);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.prefs-setting-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #f3ebff;
+  padding: 12px 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.prefs-setting-toggle:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.prefs-setting-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.prefs-setting-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(233, 218, 255, 0.72);
+}
+
+.prefs-setting-summary {
+  display: block;
+  min-width: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f4ebff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prefs-setting-chevron {
+  flex: none;
+  color: rgba(233, 218, 255, 0.84);
+  transition: transform 160ms ease;
+}
+
+.prefs-setting-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.prefs-setting-content {
+  border-top: 1px solid color-mix(in srgb, var(--main-app-color) 18%, transparent);
+  padding: 12px 14px 14px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.prefs-setting-content--static {
+  border-top: 0;
+}
+
+.prefs-setting-options {
+  display: grid;
+  gap: 8px;
+}
+
+.prefs-setting-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 20%, transparent);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #f3ebff;
+  font-size: 0.93rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.prefs-setting-option:hover {
+  border-color: color-mix(in srgb, var(--main-app-color) 56%, transparent);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.prefs-setting-option.is-selected {
+  border-color: color-mix(in srgb, var(--main-app-color) 76%, transparent);
+  background: color-mix(in srgb, var(--main-app-color) 16%, transparent);
+}
+
+.prefs-setting-option input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--main-app-color);
+}
+
+.prefs-color-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.prefs-color-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.prefs-color-note,
+.prefs-color-meta {
+  margin: 0;
+  color: rgba(233, 218, 255, 0.76);
+}
+
+.prefs-color-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.prefs-color-swatches {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.prefs-color-swatch {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  cursor: pointer;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 0 0 4px transparent,
+    0 8px 18px rgba(0, 0, 0, 0.2);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease;
+}
+
+.prefs-color-swatch:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.prefs-color-swatch.is-selected {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.84),
+    0 0 0 5px color-mix(in srgb, var(--main-app-color) 22%, transparent),
+    0 10px 22px rgba(0, 0, 0, 0.24);
+}
+
+.prefs-color-swatch:disabled,
+.prefs-color-reset:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.prefs-color-reset {
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 58%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--main-app-color) 14%, transparent);
+  color: #fff;
+  padding: 10px 14px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.prefs-page-feedback {
+  margin: 12px 16px 0;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.prefs-page-feedback--error {
+  color: rgba(255, 154, 191, 0.95);
+}
+
+html[data-device-type="mobile"] .theater-map-panel--embedded .theater-map-canvas-shell {
+  min-height: min(90dvh, 920px);
+}
