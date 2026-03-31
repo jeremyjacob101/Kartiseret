@@ -1,16 +1,16 @@
 import { type CSSProperties, type RefObject, Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Clock8, Film, MapPin, Settings } from "lucide-react";
 import "./Navbar.css";
-import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "./MovieSearchMenu";
-import { UserMenu } from "./UserMenu";
-import { useUserPreferencesContext } from "../prefs/useUserPreferences";
+import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "../MovieSearchMenu";
+import { UserMenu } from "../UserMenu";
+import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
 
 const NAVBAR_INTRO_DURATION_MS = 760;
 const MINI_NAVBAR_TRANSITION_MS = 620;
 const DESKTOP_MINI_NAVBAR_BREAKPOINT_PX = 800;
 const DEFAULT_FLOATING_NAVBAR_BOTTOM_PX = 24;
 
-const loadTheaterMapDialog = () => import("./TheaterMapDialog");
+const loadTheaterMapDialog = () => import("../TheaterMapDialog");
 
 const TheaterMapDialog = lazy(async () => {
   const module = await loadTheaterMapDialog();

@@ -4,7 +4,6 @@ import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { comingSoonMovies, ensureMovieShowtimesLoaded, movies, type Movie } from "../../data/movieCatalog";
 import { useDeviceInfo } from "../../device/useDeviceType";
 import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
-import { getRepeatSetCount } from "./MovieScrollerShared";
 import { MovieDetailsContent, type MovieDetailsVariant } from "./MovieDetailsContent";
 import "./MovieScroller.css";
 
@@ -78,6 +77,18 @@ const CARD_MOVE_DURATION_MS = 520;
 const CARD_OPACITY_DURATION_MS = 260;
 const CARD_STAGGER_STEP_MS = 16;
 const CARD_MAX_STAGGER_MS = 110;
+const TARGET_ITEMS_PER_SIDE = 280;
+const MIN_REPEAT_SETS = 5;
+
+function getRepeatSetCount(_itemSpan: number, movieCount: number): number {
+  const safeMovieCount = Math.max(movieCount, 1);
+  const setsPerSide = Math.max(
+    Math.ceil(TARGET_ITEMS_PER_SIDE / safeMovieCount),
+    Math.floor(MIN_REPEAT_SETS / 2),
+  );
+
+  return setsPerSide * 2 + 1;
+}
 const SCROLLER_CARD_RADIUS_PX = 14;
 const FOCUS_POSTER_RADIUS_PX = 28;
 const FOCUS_POSTER_SHADOW =

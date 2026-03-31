@@ -2,7 +2,6 @@ import { useCallback, useEffect, useLayoutEffect, type CSSProperties, type Mouse
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { movies, type Movie } from "../../data/movieCatalog";
 import { useDeviceInfo } from "../../device/useDeviceType";
-import { getRepeatSetCount } from "./MovieScrollerShared";
 
 export type PosterSourceRect = {
   top: number;
@@ -72,6 +71,18 @@ const INTRO_IMAGE_READY_TIMEOUT_MS = 1200;
 const INTRO_OFFSCREEN_GUTTER_PX = 72;
 const INTRO_TARGET_CARD_COUNT = 5;
 const INTRO_LEADING_CARD_COUNT = 1;
+const TARGET_ITEMS_PER_SIDE = 280;
+const MIN_REPEAT_SETS = 5;
+
+function getRepeatSetCount(_itemSpan: number, movieCount: number): number {
+  const safeMovieCount = Math.max(movieCount, 1);
+  const setsPerSide = Math.max(
+    Math.ceil(TARGET_ITEMS_PER_SIDE / safeMovieCount),
+    Math.floor(MIN_REPEAT_SETS / 2),
+  );
+
+  return setsPerSide * 2 + 1;
+}
 
 function getFocusViewportCenter(
   clientWidth: number,

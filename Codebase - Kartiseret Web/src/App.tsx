@@ -1,8 +1,8 @@
 import { StrictMode, Suspense, lazy, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
-import { BottomBar } from "./components/BottomBar";
+import { BottomBar } from "./components/bars/BottomBar";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
-import { Navbar } from "./components/Navbar";
+import { Navbar } from "./components/bars/Navbar";
 import { type MovieSearchResult } from "./components/MovieSearchMenu";
 import { allComingSoonMovies, allNowPlayingMovies, getMovieCatalogStatusSnapshot, loadMovieCatalog, subscribeToMovieCatalog } from "./data/movieCatalog";
 import { preloadTheaters } from "./data/theaters";
