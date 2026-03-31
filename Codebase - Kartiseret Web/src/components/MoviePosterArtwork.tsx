@@ -74,9 +74,9 @@ const LoadingFallbackPosterImage = forwardRef<
   },
   ref,
 ) {
-  const [imageStatus, setImageStatus] = useState<"loading" | "loaded" | "error">(
-    "loading",
-  );
+  const [imageStatus, setImageStatus] = useState<
+    "loading" | "loaded" | "error"
+  >("loading");
   const showFallback = imageStatus !== "loaded";
 
   const setImageNode = useCallback(
@@ -192,7 +192,9 @@ export const MoviePosterArtwork = forwardRef<
   return (
     <PosterFallback
       title={title}
-      fallbackClassName={[className, fallbackClassName].filter(Boolean).join(" ")}
+      fallbackClassName={[className, fallbackClassName]
+        .filter(Boolean)
+        .join(" ")}
       fallbackTitleClassName={fallbackTitleClassName}
       isDecorative={isDecorative}
     />
