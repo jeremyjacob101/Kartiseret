@@ -1,6 +1,7 @@
-import { type CSSProperties, type RefObject, Suspense, lazy, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Clock8, Film, MapPin, Settings } from "lucide-react";
 import "./Navbar.css";
+import { MiniNavBar } from "./MiniNavBar";
 import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "../MovieSearchMenu";
 import { UserMenu } from "../UserMenu";
 import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
@@ -135,79 +136,6 @@ function NavbarActions({
   );
 }
 
-type MiniNavBarProps = {
-  bottomOffset: number | null;
-  catalogReady: boolean;
-  currentPath: NavbarPath;
-  isOverBottomBar: boolean;
-  isVisible: boolean;
-  onHomeClick: () => void;
-  onNavigate: (path: string) => void;
-  onSearchOpen: () => void;
-  onSelectResult: (result: MovieSearchResult) => void;
-  onSettingsClick: () => void;
-  searchCollections: readonly MovieSearchCollection[];
-  stackRef: RefObject<HTMLDivElement | null>;
-};
-
-function MiniNavBar({
-  bottomOffset,
-  catalogReady,
-  currentPath,
-  isOverBottomBar,
-  isVisible,
-  onHomeClick,
-  onNavigate,
-  onSearchOpen,
-  onSelectResult,
-  onSettingsClick,
-  searchCollections,
-  stackRef,
-}: MiniNavBarProps) {
-  const stackStyle =
-    bottomOffset === null
-      ? undefined
-      : ({
-          "--floating-navbar-dynamic-bottom": `${bottomOffset}px`,
-        } as CSSProperties);
-
-  return (
-    <div
-      ref={stackRef}
-      className={`floating-navbar-stack${isVisible ? " is-visible" : ""}${
-        isOverBottomBar ? " is-over-bottom-bar" : ""
-      }`}
-      aria-label="Quick actions"
-      aria-hidden={!isVisible}
-      style={stackStyle}
-    >
-      <NavbarActions
-        catalogReady={catalogReady}
-        currentPath={currentPath}
-        searchCollections={searchCollections}
-        variant="floating"
-        onNavigate={onNavigate}
-        onSearchOpen={onSearchOpen}
-        onSelectResult={onSelectResult}
-        onSettingsClick={onSettingsClick}
-      />
-      <div className="floating-navbar-item floating-navbar-item--home">
-        <button
-          type="button"
-          className="floating-home-button"
-          aria-label="Go to homepage"
-          onClick={onHomeClick}
-        >
-          <span
-            className="brand-mark brand-mark--floating-home"
-            aria-hidden="true"
-          />
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export function Navbar({
   catalogReady,
   currentPath,
@@ -287,7 +215,8 @@ export function Navbar({
         window.innerHeight - DEFAULT_FLOATING_NAVBAR_BOTTOM_PX;
       const defaultTopEdge = defaultBottomEdge - floatingStackHeight;
       const isOverBottomBar =
-        footerRect.top < defaultBottomEdge && footerRect.bottom > defaultTopEdge;
+        footerRect.top < defaultBottomEdge &&
+        footerRect.bottom > defaultTopEdge;
 
       if (!isOverBottomBar) {
         resetMiniNavBarBottomBarState();
@@ -526,17 +455,22 @@ export function Navbar({
 
       {renderMiniNavBar ? (
         <MiniNavBar
+          actions={
+            <NavbarActions
+              catalogReady={catalogReady}
+              currentPath={currentPath}
+              searchCollections={searchCollections}
+              variant="floating"
+              onNavigate={onNavigate}
+              onSearchOpen={onSearchOpen}
+              onSelectResult={onSelectResult}
+              onSettingsClick={onSettingsClick}
+            />
+          }
           bottomOffset={miniNavBarBottomOffset}
-          catalogReady={catalogReady}
-          currentPath={currentPath}
           isOverBottomBar={miniNavBarOverBottomBar}
           isVisible={miniNavBarVisible}
           onHomeClick={onHomeClick}
-          onNavigate={onNavigate}
-          onSearchOpen={onSearchOpen}
-          onSelectResult={onSelectResult}
-          onSettingsClick={onSettingsClick}
-          searchCollections={searchCollections}
           stackRef={floatingNavStackRef}
         />
       ) : null}

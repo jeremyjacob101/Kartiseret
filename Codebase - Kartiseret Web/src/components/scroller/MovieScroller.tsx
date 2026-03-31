@@ -342,11 +342,7 @@ function getDetailLayout(
   const panelHeight = isCompact ? 706 : 756;
   const panelLeft = (safeClientWidth - panelWidth) / 2;
   const previewWidth = isMobile
-    ? clamp(
-        Math.max(safeClientWidth * 0.58, panelWidth * 0.74),
-        220,
-        320,
-      )
+    ? clamp(Math.max(safeClientWidth * 0.58, panelWidth * 0.74), 220, 320)
     : clamp(
         Math.min(
           safeClientWidth * (isCompact ? 0.34 : 0.27),
@@ -366,7 +362,8 @@ function getDetailLayout(
     ? 0
     : Math.max(
         0,
-        previewWidth - (safeClientWidth - stagePadding - (panelLeft + panelWidth)),
+        previewWidth -
+          (safeClientWidth - stagePadding - (panelLeft + panelWidth)),
       );
   const appliedLeftOverlap = Math.max(previewOverlap, minLeftOverlap);
   const appliedRightOverlap = Math.max(previewOverlap, minRightOverlap);
