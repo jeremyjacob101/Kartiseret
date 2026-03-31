@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type 
 import { X } from "lucide-react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { comingSoonMovies, ensureMovieShowtimesLoaded, movies, type Movie } from "../../data/movieCatalog";
-import { useDeviceInfo } from "../../device";
+import { useDeviceInfo } from "../../device/useDeviceType";
 import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
 import { getRepeatSetCount } from "./MovieScrollerShared";
 import { MovieDetailsContent, type MovieDetailsVariant } from "./MovieDetailsContent";

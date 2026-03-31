@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, type CSSProperties, type MouseEvent, useMemo, useRef, useState } from "react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { movies, type Movie } from "../../data/movieCatalog";
-import { useDeviceInfo } from "../../device";
+import { useDeviceInfo } from "../../device/useDeviceType";
 import { getRepeatSetCount } from "./MovieScrollerShared";
 
 export type PosterSourceRect = {
