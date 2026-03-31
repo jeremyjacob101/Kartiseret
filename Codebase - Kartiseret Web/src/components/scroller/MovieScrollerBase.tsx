@@ -776,6 +776,7 @@ export function MovieScrollerBase({
             fetchPriority={isVisible ? "high" : "auto"}
             decoding="async"
             draggable={false}
+            showFallbackWhileLoading
             className="movie-scroller-card-media"
           />
         </div>
