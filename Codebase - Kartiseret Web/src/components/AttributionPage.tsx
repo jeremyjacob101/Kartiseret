@@ -8,26 +8,70 @@ const theaterChainSources = [
   {
     name: "Yes Planet",
     href: "https://www.planetcinema.co.il/",
+    logoSrc: "/logos/theaters/yes-planet.png",
   },
   {
     name: "Cinema City",
     href: "https://www.cinema-city.co.il/",
+    logoSrc: "/logos/theaters/cinema-city.png",
   },
   {
     name: "Lev Cinema",
     href: "https://www.lev.co.il/",
+    logoSrc: "/logos/theaters/lev-cinema.png",
   },
   {
     name: "Rav Hen",
     href: "https://www.rav-hen.co.il/",
+    logoSrc: "/logos/theaters/rav-hen.png",
   },
   {
     name: "Hot Cinema",
     href: "https://www.hotcinema.co.il/",
+    logoSrc: "/logos/theaters/hot-cinema.ico",
   },
   {
     name: "MovieLand",
     href: "https://www.movieland.co.il/",
+    logoSrc: "/logos/theaters/movieland-favicon.ico",
+  },
+] as const;
+
+const cinemathequeSources = [
+  {
+    name: "Holon Cinematheque",
+    href: "https://www.cinemaholon.org.il/",
+    logoSrc: "/logos/theaters/holon-cinematheque.svg",
+  },
+  {
+    name: "Haifa Cinematheque",
+    href: "https://www.haifacin.co.il/#",
+    logoSrc: "/logos/theaters/haifa-cinematheque.svg",
+  },
+  {
+    name: "Jaffa Cinema",
+    href: "https://www.jaffacinema.com/",
+    logoSrc: "/logos/theaters/jaffa-cinema.png",
+  },
+  {
+    name: "Jerusalem Cinematheque",
+    href: "https://jer-cin.org.il/he",
+    logoSrc: "/logos/theaters/jerusalem-cinematheque.png",
+  },
+  {
+    name: "Herziliya Cinematheque",
+    href: "https://www.hcinema.org.il/",
+    logoSrc: "/logos/theaters/herzliya-cinematheque.webp",
+  },
+  {
+    name: "Tel Aviv Cinematheque",
+    href: "https://www.cinema.co.il/",
+    logoSrc: "/logos/theaters/tel-aviv-cinematheque.svg",
+  },
+  {
+    name: "Sam Spiegel Cinema",
+    href: "https://www.jsfs.co.il/",
+    logoSrc: "/logos/theaters/sam-spiegel.jpg",
   },
 ] as const;
 
@@ -130,7 +174,8 @@ export function AttributionPage({ onBackHome }: AttributionPageProps) {
             <p className="attribution-card-text">
               Showtime and venue information is compiled from publicly
               available information on official theater and venue websites. The
-              source groups currently reflected in the app include:
+              source groups currently reflected in the app include the theater
+              chains below:
             </p>
 
             <ul className="attribution-source-list">
@@ -142,31 +187,50 @@ export function AttributionPage({ onBackHome }: AttributionPageProps) {
                     target="_blank"
                     rel="noreferrer"
                   >
+                    <span
+                      className="attribution-source-logo-shell"
+                      aria-hidden="true"
+                    >
+                      <img
+                        className="attribution-source-logo"
+                        src={source.logoSrc}
+                        alt=""
+                      />
+                    </span>
                     {source.name}
                   </a>
                 </li>
               ))}
-              <li className="attribution-source-item attribution-source-item--text">
-                Participating cinematheque websites, including{" "}
-                <a
-                  className="attribution-source-link"
-                  href="https://www.cinema.co.il/en/"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Tel Aviv Cinematheque
-                </a>{" "}
-                and{" "}
-                <a
-                  className="attribution-source-link"
-                  href="https://jff.org.il/en/"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Jerusalem Cinematheque
-                </a>
-                .
-              </li>
+            </ul>
+
+            <p className="attribution-card-text attribution-card-text--compact">
+              Additional listings are compiled from publicly available
+              information on official cinematheque and cinema websites:
+            </p>
+
+            <ul className="attribution-source-list attribution-source-list--plain">
+              {cinemathequeSources.map((source) => (
+                <li key={source.name} className="attribution-source-item">
+                  <a
+                    className="attribution-source-link attribution-source-link--plain"
+                    href={source.href}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <span
+                      className="attribution-source-logo-shell"
+                      aria-hidden="true"
+                    >
+                      <img
+                        className="attribution-source-logo"
+                        src={source.logoSrc}
+                        alt=""
+                      />
+                    </span>
+                    {source.name}
+                  </a>
+                </li>
+              ))}
             </ul>
           </div>
         </section>
