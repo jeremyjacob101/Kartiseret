@@ -1,4 +1,4 @@
-import csv, json, pathlib, threading, time
+import csv, json, pathlib
 
 ARTIFACT_ROOT = pathlib.Path("backend/utils/log/logger_artifacts")
 
@@ -54,12 +54,10 @@ def formatAndWriteCsv(self, *, note: str = "gathering_info"):
         artifact_dir = ARTIFACT_ROOT / str(self.run_id)
         artifact_dir.mkdir(parents=True, exist_ok=True)
 
-        name = self.__class__.__name__
-        safe_prefix = str(name).replace(" ", "_")
-        ts = time.strftime("%Y%m%d-%H%M%S")
-        thread_name = threading.current_thread().name.replace(" ", "_")
-
-        csv_path = artifact_dir / f"{safe_prefix}-{thread_name}-{ts}-{note}.csv"
+        item_name = getattr(self, "_artifact_item_name", None) or self.__class__.__name__
+        attempt = getattr(self, "_artifact_attempt", None) or 1
+        cleaned_name = item_name.replace(" ", "_").strip()
+        csv_path = artifact_dir / f"{cleaned_name}-{attempt}.csv"
 
         header = list(columns)
         if not header:

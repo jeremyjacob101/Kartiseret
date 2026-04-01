@@ -1,4 +1,4 @@
-import logging, os, sys, traceback, pathlib, time, threading, re, signal
+import logging, os, sys, traceback, pathlib, re, signal
 
 ARTIFACT_ROOT = pathlib.Path("backend/utils/log/logger_artifacts")
 logger = logging.getLogger("sel")
@@ -19,12 +19,12 @@ def setup_logging() -> None:
     logging.basicConfig(level=logging.ERROR, format="%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s", handlers=[logging.StreamHandler(sys.stdout)], force=True)
     logger.setLevel(logging.ERROR)
 
-
-def artifactPrinting(obj, run_id):
+def artifactPrinting(obj, run_id, *, item_name: str | None = None, attempt: int | None = None):
     if SUPPRESS_ERRORS:
         return
 
-    name = obj.__class__.__name__ if obj else "Unknown"
+    name = item_name or (getattr(obj, "_artifact_item_name", None) if obj is not None else None) or (obj.__class__.__name__ if obj else "Unknown")
+    attempt_number = attempt or (getattr(obj, "_artifact_attempt", None) if obj is not None else None) or 1
     drv = getattr(obj, "driver", None) if obj is not None else None
 
     try:
@@ -56,13 +56,10 @@ def artifactPrinting(obj, run_id):
     match = re.search(r'"selector":\s*"([^"]+)"', cleaned_msg)
     selector = match.group(1) if match else None
 
-    safe_prefix = (name or "fail").replace(" ", "_")
-    thread_name = threading.current_thread().name.replace(" ", "_")
-    ts = time.strftime("%Y%m%d-%H%M%S")
-
     artifact_dir = ARTIFACT_ROOT / str(run_id)
     artifact_dir.mkdir(parents=True, exist_ok=True)
-    base = artifact_dir / f"{safe_prefix}-{thread_name}-{ts}"
+    cleaned_name = name.replace(" ", "_").strip()
+    base = artifact_dir / f"{cleaned_name}-{attempt_number}"
     png_path, txt_path = f"{base}.png", f"{base}.txt"
     screenshot_written = None
 

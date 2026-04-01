@@ -37,11 +37,13 @@ def runGroup(kind: str, key: str, run_id: int, *, classes_override: list[type] |
 
             try:
                 instance = spec.make_instance(cls, key, run_id)
+                instance._artifact_item_name = cls.__name__
+                instance._artifact_attempt = attempt
                 spec.run_instance(instance)
                 ok = True
             except Exception:
                 ok = False
-                artifactPrinting(instance, run_id)
+                artifactPrinting(instance, run_id, item_name=cls.__name__, attempt=attempt)
             finally:
                 spec.cleanup(instance)
 
