@@ -19,6 +19,7 @@ def setup_logging() -> None:
     logging.basicConfig(level=logging.ERROR, format="%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s", handlers=[logging.StreamHandler(sys.stdout)], force=True)
     logger.setLevel(logging.ERROR)
 
+
 def artifactPrinting(obj, run_id, *, item_name: str | None = None, attempt: int | None = None):
     if SUPPRESS_ERRORS:
         return
@@ -56,7 +57,7 @@ def artifactPrinting(obj, run_id, *, item_name: str | None = None, attempt: int 
     match = re.search(r'"selector":\s*"([^"]+)"', cleaned_msg)
     selector = match.group(1) if match else None
 
-    artifact_dir = ARTIFACT_ROOT / str(run_id)
+    artifact_dir = ARTIFACT_ROOT / str(run_id) / "unsuccessful"
     artifact_dir.mkdir(parents=True, exist_ok=True)
     cleaned_name = name.replace(" ", "_").strip()
     base = artifact_dir / f"{cleaned_name}-{attempt_number}"

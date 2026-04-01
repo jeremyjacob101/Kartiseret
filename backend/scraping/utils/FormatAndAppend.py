@@ -45,13 +45,13 @@ def _format_rows_from_gathering_info(self):
     return rows, active_columns
 
 
-def formatAndWriteCsv(self, *, note: str = "gathering_info"):
+def formatAndWriteCsv(self, successful: bool):
     try:
         rows, columns = _format_rows_from_gathering_info(self)
         if not rows:
             return None
 
-        artifact_dir = ARTIFACT_ROOT / str(self.run_id)
+        artifact_dir = ARTIFACT_ROOT / str(self.run_id) / ("successful" if successful else "unsuccessful")
         artifact_dir.mkdir(parents=True, exist_ok=True)
 
         item_name = getattr(self, "_artifact_item_name", None) or self.__class__.__name__
