@@ -1,6 +1,22 @@
+import { type MouseEvent } from "react";
 import "./BottomBar.css";
 
-export function BottomBar() {
+type BottomBarProps = {
+  onAttributionClick: () => void;
+};
+
+function shouldHandleClientNavigation(event: MouseEvent<HTMLAnchorElement>) {
+  return !(
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.altKey ||
+    event.ctrlKey ||
+    event.shiftKey
+  );
+}
+
+export function BottomBar({ onAttributionClick }: BottomBarProps) {
   return (
     <footer className="bottom-bar-shell">
       <div className="bottom-bar" aria-label="Site footer">
@@ -8,7 +24,21 @@ export function BottomBar() {
           <p className="bottom-bar-credit">
             <span className="bottom-bar-credit-line">©2026 Kartiseret</span>
           </p>
-          <div className="bottom-bar-links" aria-label="Social links">
+          <div className="bottom-bar-links" aria-label="Footer links">
+            <a
+              className="bottom-bar-link bottom-bar-link--text"
+              href="/attribution"
+              onClick={(event) => {
+                if (!shouldHandleClientNavigation(event)) {
+                  return;
+                }
+
+                event.preventDefault();
+                onAttributionClick();
+              }}
+            >
+              Attribution
+            </a>
             <a
               className="bottom-bar-link"
               href="https://github.com/jeremyjacob101/"

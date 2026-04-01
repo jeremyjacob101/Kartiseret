@@ -935,12 +935,18 @@ html[data-device-type="mobile"] .theater-map-dialog .theater-map-search-field {
   text-decoration: underline;
 }
 
+.theater-map-panel .maplibregl-ctrl-top-left {
+  top: 14px;
+  left: 14px;
+}
+
 .theater-map-panel .maplibregl-ctrl-top-right {
   top: 14px;
   right: 14px;
 }
 
 .theater-map-panel .maplibregl-control-container,
+.theater-map-panel .maplibregl-ctrl-top-left,
 .theater-map-panel .maplibregl-ctrl-top-right,
 .theater-map-panel .maplibregl-ctrl-bottom-right {
   z-index: 140;
@@ -1077,33 +1083,32 @@ html[data-device-type="mobile"] .theater-map-dialog .theater-map-search-field {
 
 .theater-map-panel .theater-map-attribution-control {
   display: flex;
-  flex-direction: row-reverse;
   align-items: center;
   margin: 0;
 }
 
-.theater-map-panel .maplibregl-ctrl-bottom-right .theater-map-attribution-control {
+.theater-map-panel .maplibregl-ctrl-top-left .theater-map-attribution-control {
   position: absolute;
-  right: 14px;
-  bottom: var(--theater-map-bottom-overlay-clearance);
+  left: 0;
+  top: 0;
   margin: 0;
 }
 
 .theater-map-panel .theater-map-attribution-button-shell {
   overflow: hidden;
-  margin-right: 10px;
+  margin-left: 0;
   border: 1px solid rgba(241, 236, 255, 0.82);
   border-radius: 999px;
   box-shadow: 0 14px 28px rgba(4, 6, 12, 0.24);
   position: relative;
-  z-index: 1;
+  z-index: 2;
 }
 
-.theater-map-panel .theater-map-attribution-button {
+.theater-map-panel .theater-map-attribution-button-shell .theater-map-attribution-button {
   display: grid;
   place-items: center;
-  width: 48px;
-  height: 48px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   border: 0;
   background-color: rgba(16, 20, 27, 0.94);
@@ -1111,9 +1116,13 @@ html[data-device-type="mobile"] .theater-map-dialog .theater-map-search-field {
   cursor: pointer;
 }
 
-.theater-map-panel .theater-map-attribution-button .theater-map-action-glyph svg {
-  width: 20px;
-  height: 20px;
+.theater-map-panel
+  .theater-map-attribution-button-shell
+  .theater-map-attribution-button
+  .theater-map-action-glyph
+  svg {
+  width: 18px;
+  height: 18px;
 }
 
 .theater-map-panel .theater-map-attribution-button:hover,
@@ -1127,10 +1136,10 @@ html[data-device-type="mobile"] .theater-map-dialog .theater-map-search-field {
   min-height: 36px;
   max-width: 0;
   overflow: hidden;
-  margin-right: -1px;
+  margin-left: -18px;
   border: 1px solid rgba(241, 236, 255, 0.82);
-  border-right: 0;
-  border-radius: 18px 0 0 18px;
+  border-left: 0;
+  border-radius: 0 18px 18px 0;
   background: rgba(16, 20, 27, 0.96);
   box-shadow: 0 14px 28px rgba(4, 6, 12, 0.24);
   color: rgba(243, 235, 255, 0.88);
@@ -1140,8 +1149,8 @@ html[data-device-type="mobile"] .theater-map-dialog .theater-map-search-field {
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
-  transform: translateX(8px);
-  transform-origin: right center;
+  transform: translateX(-8px);
+  transform-origin: left center;
   transition:
     max-width 220ms ease,
     opacity 180ms ease,
@@ -1151,7 +1160,7 @@ html[data-device-type="mobile"] .theater-map-dialog .theater-map-search-field {
 
 .theater-map-panel .theater-map-attribution-control.is-open .theater-map-attribution-panel {
   max-width: min(360px, calc(100vw - 92px));
-  padding: 0 14px 0 16px;
+  padding: 0 16px 0 30px;
   opacity: 1;
   pointer-events: auto;
   transform: translateX(0);

@@ -1,6 +1,7 @@
 import { StrictMode, Suspense, lazy, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
 import { BottomBar } from "./components/bars/BottomBar";
+import { AttributionPage } from "./components/AttributionPage";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
 import { Navbar } from "./components/bars/Navbar";
 import { type MovieSearchResult } from "./components/MovieSearchMenu";
@@ -43,7 +44,13 @@ type AppMovieJumpRequest = MovieScrollerJumpRequest & {
   mode: MovieSearchMode;
 };
 
-type AppPath = "/" | "/movies" | "/showtimes" | "/soons" | "/user";
+type AppPath =
+  | "/"
+  | "/movies"
+  | "/showtimes"
+  | "/soons"
+  | "/user"
+  | "/attribution";
 
 function normalizePathname(pathname: string): AppPath {
   if (pathname === "/movies") {
@@ -60,6 +67,10 @@ function normalizePathname(pathname: string): AppPath {
 
   if (pathname === "/user") {
     return "/user";
+  }
+
+  if (pathname === "/attribution") {
+    return "/attribution";
   }
 
   return "/";
@@ -189,7 +200,7 @@ function AppShell() {
   useEffect(() => {
     let isActive = true;
 
-    if (pathname === "/user") {
+    if (pathname === "/user" || pathname === "/attribution") {
       return;
     }
 
@@ -382,6 +393,10 @@ function AppShell() {
     });
   }, [navigate, pathname]);
 
+  const handleAttributionClick = useCallback(() => {
+    navigate("/attribution");
+  }, [navigate]);
+
   const searchCollections = [
     {
       mode: "nowPlaying" as const,
@@ -546,6 +561,14 @@ function AppShell() {
               )
             ) : null}
           </section>
+        ) : pathname === "/attribution" ? (
+          <section className="page-panel">
+            <AttributionPage
+              onBackHome={() => {
+                navigate("/");
+              }}
+            />
+          </section>
         ) : (
           <section className="scroller-panel" aria-label="Now Playing">
             {catalogError ? (
@@ -601,7 +624,7 @@ function AppShell() {
         )}
       </main>
 
-      <BottomBar />
+      <BottomBar onAttributionClick={handleAttributionClick} />
     </div>
   );
 }

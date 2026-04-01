@@ -272,6 +272,7 @@ const NAVIGATION_CONTROL_ICON = renderToStaticMarkup(
 );
 
 class TheaterMapAttributionControl implements IControl {
+  private closeTimeoutId?: number;
   private container?: HTMLDivElement;
   private button?: HTMLButtonElement;
   private isOpen = false;
@@ -328,7 +329,7 @@ class TheaterMapAttributionControl implements IControl {
     osmLink.href = "https://www.openstreetmap.org/copyright";
     osmLink.target = "_blank";
     osmLink.rel = "noopener noreferrer";
-    osmLink.textContent = "OpenStreetMap contributors";
+    osmLink.textContent = "OpenStreetMap";
 
     const separator = document.createElement("span");
     separator.className = "theater-map-attribution-separator";
@@ -346,7 +347,7 @@ class TheaterMapAttributionControl implements IControl {
     container.append(buttonShell, panel);
     this.container = container;
     this.button = button;
-    this.setOpen(false);
+    this.setOpen(true);
     document.addEventListener("mousedown", this.handleDocumentMouseDown);
     document.addEventListener("keydown", this.handleDocumentKeyDown);
 
@@ -354,6 +355,7 @@ class TheaterMapAttributionControl implements IControl {
   }
 
   onRemove() {
+    this.clearCloseTimeout();
     document.removeEventListener("mousedown", this.handleDocumentMouseDown);
     document.removeEventListener("keydown", this.handleDocumentKeyDown);
     this.container?.remove();
@@ -362,9 +364,23 @@ class TheaterMapAttributionControl implements IControl {
   }
 
   private setOpen(isOpen: boolean) {
+    this.clearCloseTimeout();
     this.isOpen = isOpen;
     this.container?.classList.toggle("is-open", isOpen);
     this.button?.setAttribute("aria-expanded", String(isOpen));
+
+    if (isOpen) {
+      this.closeTimeoutId = window.setTimeout(() => {
+        this.setOpen(false);
+      }, 5000);
+    }
+  }
+
+  private clearCloseTimeout() {
+    if (this.closeTimeoutId !== undefined) {
+      window.clearTimeout(this.closeTimeoutId);
+      this.closeTimeoutId = undefined;
+    }
   }
 }
 
@@ -1421,7 +1437,7 @@ export function CityLocationPicker({
     }
     map.addControl(new NavigationControl({ showCompass: false }), "top-right");
     map.addControl(mapActionControl, "top-right");
-    map.addControl(new TheaterMapAttributionControl(), "bottom-right");
+    map.addControl(new TheaterMapAttributionControl(), "top-left");
 
     function syncMarkerVisibility() {
       const zoom = map.getZoom();

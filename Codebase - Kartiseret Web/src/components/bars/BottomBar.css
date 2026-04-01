@@ -62,6 +62,10 @@
   transition: transform 140ms ease, box-shadow 140ms ease;
 }
 
+.bottom-bar-link--text {
+  background: transparent;
+}
+
 .bottom-bar-link:hover,
 .bottom-bar-link:focus-visible {
   transform: translateY(-1px);

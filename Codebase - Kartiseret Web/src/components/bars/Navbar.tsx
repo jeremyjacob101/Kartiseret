@@ -18,7 +18,13 @@ const TheaterMapDialog = lazy(async () => {
   return { default: module.TheaterMapDialog };
 });
 
-type NavbarPath = "/" | "/movies" | "/showtimes" | "/soons" | "/user";
+type NavbarPath =
+  | "/"
+  | "/movies"
+  | "/showtimes"
+  | "/soons"
+  | "/user"
+  | "/attribution";
 
 type NavbarActionsProps = {
   catalogReady: boolean;
