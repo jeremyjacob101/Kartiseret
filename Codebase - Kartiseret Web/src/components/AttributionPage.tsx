@@ -75,6 +75,34 @@ const cinemathequeSources = [
   },
 ] as const;
 
+const ratingSources = [
+  {
+    name: "IMDb",
+    href: "https://www.imdb.com/",
+    logoSrc: "/logos/imdb.svg",
+  },
+  {
+    name: "Rotten Tomatoes Audience",
+    href: "https://www.rottentomatoes.com/",
+    logoSrc: "/logos/rtAudienceGood.svg",
+  },
+  {
+    name: "Rotten Tomatoes Critics",
+    href: "https://www.rottentomatoes.com/",
+    logoSrc: "/logos/rtCriticGood.svg",
+  },
+  {
+    name: "Letterboxd",
+    href: "https://letterboxd.com/",
+    logoSrc: "/logos/letterboxd.svg",
+  },
+  {
+    name: "TMDb",
+    href: "https://www.themoviedb.org/",
+    logoSrc: "/logos/tmdb.svg",
+  },
+] as const;
+
 export function AttributionPage({ onBackHome }: AttributionPageProps) {
   return (
     <section className="attribution-page" aria-label="Attribution">
@@ -213,6 +241,45 @@ export function AttributionPage({ onBackHome }: AttributionPageProps) {
                 <li key={source.name} className="attribution-source-item">
                   <a
                     className="attribution-source-link attribution-source-link--plain"
+                    href={source.href}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <span
+                      className="attribution-source-logo-shell"
+                      aria-hidden="true"
+                    >
+                      <img
+                        className="attribution-source-logo"
+                        src={source.logoSrc}
+                        alt=""
+                      />
+                    </span>
+                    {source.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <section className="attribution-card attribution-card--sources">
+          <div className="attribution-card-copy">
+            <p className="attribution-card-kicker">Rating sources</p>
+            <h2 className="attribution-card-title">
+              Official rating and review websites
+            </h2>
+            <p className="attribution-card-text">
+              Rating information is compiled from publicly available
+              information on official rating and review websites. The source
+              groups currently reflected in the app include:
+            </p>
+
+            <ul className="attribution-source-list">
+              {ratingSources.map((source) => (
+                <li key={source.name} className="attribution-source-item">
+                  <a
+                    className="attribution-source-link"
                     href={source.href}
                     target="_blank"
                     rel="noreferrer"
