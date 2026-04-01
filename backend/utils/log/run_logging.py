@@ -104,6 +104,9 @@ class RunLogSession:
             self._successful = False
 
         if self.run_id is not None:
+            run_dir = ARTIFACT_ROOT / str(self.run_id)
+            run_dir.mkdir(parents=True, exist_ok=True)
+            (run_dir / ".job_ok").write_text("true" if self._successful else "false", encoding="utf-8")
             total_time = time.time() - self._start_time
             try:
                 sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
