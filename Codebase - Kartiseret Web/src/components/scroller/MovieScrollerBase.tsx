@@ -73,6 +73,7 @@ const INTRO_TARGET_CARD_COUNT = 5;
 const INTRO_LEADING_CARD_COUNT = 1;
 const TARGET_ITEMS_PER_SIDE = 280;
 const MIN_REPEAT_SETS = 5;
+const MOBILE_COLLAPSED_RIGHT_BIAS_PX = 135;
 
 function getRepeatSetCount(_itemSpan: number, movieCount: number): number {
   const safeMovieCount = Math.max(movieCount, 1);
@@ -90,11 +91,15 @@ function getFocusViewportCenter(
   itemSpan: number,
   gap: number,
   focusOffsetItemSpans: number,
+  additionalOffsetPx = 0,
 ): number {
   const safeFocusOffsetItemSpans = Number.isFinite(focusOffsetItemSpans)
     ? Math.max(focusOffsetItemSpans, 0)
     : 0;
-  const desiredCenter = clientWidth / 2 - itemSpan * safeFocusOffsetItemSpans;
+  const desiredCenter =
+    clientWidth / 2 -
+    itemSpan * safeFocusOffsetItemSpans +
+    additionalOffsetPx;
   const minimumCenter = gap + cardWidth / 2;
   const maximumCenter = Math.max(
     minimumCenter,
@@ -133,6 +138,7 @@ function getCenteredScrollLeft(
   itemSpan: number,
   gap: number,
   focusOffsetItemSpans: number,
+  additionalOffsetPx = 0,
 ): number {
   const targetFocusCenter = getFocusViewportCenter(
     clientWidth,
@@ -140,6 +146,7 @@ function getCenteredScrollLeft(
     itemSpan,
     gap,
     focusOffsetItemSpans,
+    additionalOffsetPx,
   );
 
   return Math.max(
@@ -227,12 +234,15 @@ export function MovieScrollerBase({
         );
   const effectiveViewportWidth =
     viewport.clientWidth || introFallbackViewportWidth;
+  const collapsedMobileRightBiasPx =
+    isMobile && selectedItemIndex === null ? MOBILE_COLLAPSED_RIGHT_BIAS_PX : 0;
   const focusViewportCenter = getFocusViewportCenter(
     effectiveViewportWidth,
     cardWidth,
     itemSpan,
     gap,
     focusOffsetItemSpans,
+    collapsedMobileRightBiasPx,
   );
   const centeredScrollLeft = getCenteredScrollLeft(
     centeredAnchorIndex,
@@ -241,6 +251,7 @@ export function MovieScrollerBase({
     itemSpan,
     gap,
     focusOffsetItemSpans,
+    collapsedMobileRightBiasPx,
   );
   const effectiveScrollLeft =
     typeof scrollRequest?.scrollLeft === "number"
@@ -321,6 +332,7 @@ export function MovieScrollerBase({
       itemSpan,
       gap,
       focusOffsetItemSpans,
+      collapsedMobileRightBiasPx,
     );
 
     if (Math.abs(scroller.scrollLeft - centeredScrollLeft) > 0.5) {
@@ -331,6 +343,7 @@ export function MovieScrollerBase({
   }, [
     cardWidth,
     centeredAnchorIndex,
+    collapsedMobileRightBiasPx,
     focusOffsetItemSpans,
     gap,
     itemSpan,

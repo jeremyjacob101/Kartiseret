@@ -21,7 +21,6 @@
   --border: var(--main-app-color);
   --text-main: #212121;
   --text-muted: #5d5469;
-  --footer-below-fold-offset: clamp(144px, 18vh, 196px);
 }
 
 html {
@@ -76,7 +75,7 @@ button {
   isolation: isolate;
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh + var(--footer-below-fold-offset));
+  min-height: 100vh;
   padding: 24px 28px 40px;
   background: var(--app-bg);
 }
@@ -1283,6 +1282,12 @@ html[data-device-type="mobile"] .theater-map-dialog .theater-map-search-field {
   margin: 28px auto 0;
 }
 
+html[data-device-type="mobile"] .app-shell {
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-bottom: 8px;
+}
+
 .scroller-panel {
   width: 100%;
   display: flex;
@@ -1452,8 +1457,4 @@ html[data-device-type="mobile"] .theater-map-dialog .theater-map-search-field {
     animation: none;
     transition: none;
   }
-}
-
-html[data-device-type="mobile"] {
-  --footer-below-fold-offset: clamp(176px, 24vh, 244px);
 }

@@ -549,17 +549,29 @@ html[data-device-type="mobile"] .brand-mark--lockup {
 }
 
 html[data-device-type="mobile"] .topnav {
-  justify-content: center;
-  gap: 14px;
+  width: 100%;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 html[data-device-type="mobile"] .topnav-link {
-  gap: 4px;
-  font-size: 0.84rem;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  font-size: 0.92rem;
+  text-align: left;
 }
 
 html[data-device-type="mobile"] .topnav-icon {
-  height: 17px;
+  height: 23px;
+}
+
+html[data-device-type="mobile"] .topnav-label {
+  margin-bottom: 0;
+  line-height: 1.18;
+  text-align: left;
 }
 
 html[data-device-type="mobile"] .navbar-actions {

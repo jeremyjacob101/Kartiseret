@@ -4,12 +4,14 @@ import "./Navbar.css";
 import { MiniNavBar } from "./MiniNavBar";
 import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "../MovieSearchMenu";
 import { UserMenu } from "../UserMenu";
+import { useDeviceInfo } from "../../device/useDeviceType";
 import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
 
 const NAVBAR_INTRO_DURATION_MS = 760;
 const MINI_NAVBAR_TRANSITION_MS = 620;
-const DESKTOP_MINI_NAVBAR_BREAKPOINT_PX = 800;
+const MOBILE_FLOATING_NAVBAR_BOTTOM_PX = 10;
 const DEFAULT_FLOATING_NAVBAR_BOTTOM_PX = 24;
+const FLOATING_NAVBAR_FOOTER_GAP_PX = 10;
 
 const loadTheaterMapDialog = () => import("../TheaterMapDialog");
 
@@ -155,6 +157,7 @@ export function Navbar({
   onSettingsClick,
   onSoonsNavClick,
 }: NavbarProps) {
+  const { isMobile } = useDeviceInfo();
   const [showNavbarIntro, setShowNavbarIntro] = useState(true);
   const [showMiniNavBar, setShowMiniNavBar] = useState(false);
   const [renderMiniNavBar, setRenderMiniNavBar] = useState(false);
@@ -188,19 +191,23 @@ export function Navbar({
       setMiniNavBarBottomOffset(null);
     };
 
+    const getDefaultFloatingNavbarBottomPx = () =>
+      isMobile
+        ? MOBILE_FLOATING_NAVBAR_BOTTOM_PX
+        : DEFAULT_FLOATING_NAVBAR_BOTTOM_PX;
+
     const updateMiniNavBar = () => {
       frameId = null;
       const navbarBottom =
         navbarShellRef.current?.getBoundingClientRect().bottom ?? 0;
-      const shouldShowMiniNavBar = navbarBottom <= 0;
+      const shouldShowMiniNavBar = isMobile || navbarBottom <= 0;
 
       setShowMiniNavBar(shouldShowMiniNavBar);
 
       if (
         showNavbarIntro ||
         !shouldShowMiniNavBar ||
-        !renderMiniNavBar ||
-        window.innerWidth < DESKTOP_MINI_NAVBAR_BREAKPOINT_PX
+        !renderMiniNavBar
       ) {
         resetMiniNavBarBottomBarState();
         return;
@@ -217,8 +224,9 @@ export function Navbar({
       const footerRect = footerBar.getBoundingClientRect();
       const floatingStackRect = floatingStack.getBoundingClientRect();
       const floatingStackHeight = floatingStackRect.height;
+      const defaultBottomPx = getDefaultFloatingNavbarBottomPx();
       const defaultBottomEdge =
-        window.innerHeight - DEFAULT_FLOATING_NAVBAR_BOTTOM_PX;
+        window.innerHeight - defaultBottomPx;
       const defaultTopEdge = defaultBottomEdge - floatingStackHeight;
       const isOverBottomBar =
         footerRect.top < defaultBottomEdge &&
@@ -229,15 +237,23 @@ export function Navbar({
         return;
       }
 
+      const footerTopDistanceFromViewportBottom =
+        window.innerHeight - footerRect.top;
       const centeredBottom =
         window.innerHeight -
         footerRect.top -
         footerRect.height / 2 -
         floatingStackHeight / 2;
+      const liftedBottom = Math.round(
+        footerTopDistanceFromViewportBottom + FLOATING_NAVBAR_FOOTER_GAP_PX,
+      );
+      const targetBottom = isMobile
+        ? liftedBottom
+        : Math.round(centeredBottom);
 
       setMiniNavBarOverBottomBar(true);
       setMiniNavBarBottomOffset(
-        Math.max(DEFAULT_FLOATING_NAVBAR_BOTTOM_PX, Math.round(centeredBottom)),
+        Math.max(defaultBottomPx, targetBottom),
       );
     };
 
@@ -282,7 +298,7 @@ export function Navbar({
       window.removeEventListener("scroll", requestMiniNavBarUpdate);
       window.removeEventListener("resize", requestMiniNavBarUpdate);
     };
-  }, [currentPath, renderMiniNavBar, showNavbarIntro]);
+  }, [currentPath, isMobile, renderMiniNavBar, showNavbarIntro]);
 
   useEffect(() => {
     const clearMiniNavBarTransitions = () => {
@@ -446,15 +462,17 @@ export function Navbar({
                 <span className="topnav-label">All Showtimes</span>
               </button>
             </nav>
-            <NavbarActions
-              catalogReady={catalogReady}
-              currentPath={currentPath}
-              searchCollections={searchCollections}
-              onNavigate={onNavigate}
-              onSearchOpen={onSearchOpen}
-              onSelectResult={onSelectResult}
-              onSettingsClick={onSettingsClick}
-            />
+            {isMobile ? null : (
+              <NavbarActions
+                catalogReady={catalogReady}
+                currentPath={currentPath}
+                searchCollections={searchCollections}
+                onNavigate={onNavigate}
+                onSearchOpen={onSearchOpen}
+                onSelectResult={onSelectResult}
+                onSettingsClick={onSettingsClick}
+              />
+            )}
           </div>
         </header>
       </div>
@@ -474,7 +492,7 @@ export function Navbar({
             />
           }
           bottomOffset={miniNavBarBottomOffset}
-          isOverBottomBar={miniNavBarOverBottomBar}
+          isOverBottomBar={miniNavBarOverBottomBar && !isMobile}
           isVisible={miniNavBarVisible}
           onHomeClick={onHomeClick}
           stackRef={floatingNavStackRef}
