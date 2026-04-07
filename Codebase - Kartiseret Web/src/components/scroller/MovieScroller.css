@@ -398,7 +398,7 @@
   content: "•";
   display: inline-block;
   margin-inline-end: 8px;
-  color: rgba(233, 226, 245, 94);
+  color: rgb(233, 226, 245 / 50);
 }
 
 .details-trailer-launch {

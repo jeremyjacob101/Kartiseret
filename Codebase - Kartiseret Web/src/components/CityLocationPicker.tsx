@@ -12,7 +12,12 @@ const CITY_START_BOUNDS: [[number, number], [number, number]] = [
   [34.48, 31.18],
   [35.34, 33.02],
 ];
+const CITY_START_BOUNDS_MOBILE: [[number, number], [number, number]] = [
+  [34.48, 31.06],
+  [35.34, 32.9],
+];
 const INITIAL_MAP_CENTER: [number, number] = [34.96, 32.15];
+const INITIAL_MAP_CENTER_MOBILE: [number, number] = [34.96, 32.03];
 const INITIAL_MAP_ZOOM = 2;
 const CITY_OPACITY_BASE = 0.01;
 const CITY_OPACITY_STEP = 0.085;
@@ -186,8 +191,20 @@ function getFitPadding() {
     : { top: 30, right: 28, bottom: 30, left: 28 };
 }
 
+function getStartBounds(): [[number, number], [number, number]] {
+  return window.innerWidth <= 720
+    ? CITY_START_BOUNDS_MOBILE
+    : CITY_START_BOUNDS;
+}
+
+function getInitialMapCenter(): [number, number] {
+  return window.innerWidth <= 720
+    ? INITIAL_MAP_CENTER_MOBILE
+    : INITIAL_MAP_CENTER;
+}
+
 function isMapAtStartingView(map: MapLibreMap) {
-  const overviewCamera = map.cameraForBounds(CITY_START_BOUNDS, {
+  const overviewCamera = map.cameraForBounds(getStartBounds(), {
     padding: getFitPadding(),
     maxZoom: 6.9,
   });
@@ -1152,7 +1169,7 @@ export function CityLocationPicker({
       return;
     }
 
-    map.fitBounds(CITY_START_BOUNDS, {
+    map.fitBounds(getStartBounds(), {
       padding: getFitPadding(),
       duration: options.animate === false ? 0 : (options.duration ?? 720),
       easing: (progress) => 1 - (1 - progress) ** 3,
@@ -1514,7 +1531,7 @@ export function CityLocationPicker({
     const map = new MapLibreMap({
       container: mapContainerRef.current,
       style: MAP_STYLE_URL,
-      center: INITIAL_MAP_CENTER,
+      center: getInitialMapCenter(),
       zoom: INITIAL_MAP_ZOOM,
       maxZoom: MAP_MAX_ZOOM,
       renderWorldCopies: false,
