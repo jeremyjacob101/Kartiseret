@@ -1,8 +1,8 @@
 name: Daily Sweep
 
 on:
-  schedule:
-    - cron: "0 2 * * *"  # UTC
+  # schedule:
+  #   - cron: "0 2 * * *"  # UTC
   workflow_dispatch:
     inputs:
       args:

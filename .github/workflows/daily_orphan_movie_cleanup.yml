@@ -1,8 +1,8 @@
 name: Daily Orphan Movie Cleanup
 
 on:
-  schedule:
-    - cron: "15 2 * * *"  # UTC, 15 minutes after daily_sweep
+  # schedule:
+  #   - cron: "15 2 * * *"  # UTC, 15 minutes after daily_sweep
   workflow_dispatch:
     inputs:
       args:

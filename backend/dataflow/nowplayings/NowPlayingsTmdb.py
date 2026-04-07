@@ -1,5 +1,6 @@
 from backend.dataflow.BaseDataflow import BaseDataflow
 from backend.utils.supabase.clear_orphan_final_movies import clear_orphan_final_movies
+from backend.utils.supabase.clear_old_entries import clear_old_entries
 from collections import defaultdict
 from datetime import date
 import requests
@@ -272,4 +273,6 @@ class NowPlayingsTmdb(BaseDataflow):
 
         self.upsertUpdates(self.MOVING_TO_TABLE_NAME_2)
         self.dedupeFinalMovies(self.MOVING_TO_TABLE_NAME_2)
+
+        clear_old_entries("nowplayings")
         clear_orphan_final_movies()

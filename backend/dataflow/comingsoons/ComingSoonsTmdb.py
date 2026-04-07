@@ -1,4 +1,5 @@
 from backend.dataflow.BaseDataflow import BaseDataflow
+from backend.utils.supabase.clear_old_entries import clear_old_entries
 from collections import defaultdict
 from datetime import date
 import requests
@@ -184,3 +185,5 @@ class ComingSoonsTmdb(BaseDataflow):
                 chunk = ids[i : i + 200]
                 self.supabase.table(self.MAIN_TABLE_NAME).update({"added": True}).in_("id", chunk).execute()
         self.dedupeFinalSoons(self.MOVING_TO_TABLE_NAME)
+
+        clear_old_entries("soons")
