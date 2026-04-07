@@ -548,10 +548,15 @@ function getShowtimeTechLabel(
   return strippedValue;
 }
 
-function isHebrewDub(dubLanguage: string | null | undefined): boolean {
-  const normalizedValue = dubLanguage?.trim().toLowerCase() ?? "";
-
-  return normalizedValue.includes("hebrew") || normalizedValue.includes("עברית");
+function getDubFlagSrc(dubLanguage: string | null | undefined): string | null {
+  switch (dubLanguage?.trim()) {
+    case "Hebrew":
+      return "/flags/israel.svg";
+    case "French":
+      return "/flags/france.svg";
+    default:
+      return null;
+  }
 }
 
 function getDubBadgeLabel(
@@ -933,7 +938,7 @@ export function MovieDetailsContent({
                               const showtimeTech = getShowtimeTechLabel(
                                 showtime.screeningTech,
                               );
-                              const hasHebrewDub = isHebrewDub(
+                              const dubFlagSrc = getDubFlagSrc(
                                 showtime.dubLanguage,
                               );
                               const dubBadgeLabel = getDubBadgeLabel(
@@ -948,7 +953,7 @@ export function MovieDetailsContent({
                                 showtimeTech
                                   ? "details-showtime-slot--with-tech"
                                   : null,
-                                hasHebrewDub
+                                dubFlagSrc
                                   ? "details-showtime-slot--with-flag"
                                   : null,
                               ]
@@ -1013,10 +1018,10 @@ export function MovieDetailsContent({
                                       className={showtimePillClassName}
                                       style={showtimeCardStyle}
                                     >
-                                      {hasHebrewDub && dubBadgeLabel ? (
+                                      {dubFlagSrc && dubBadgeLabel ? (
                                         <span className="details-time-pill-flag-shell">
                                           <img
-                                            src="/flags/israel.svg"
+                                            src={dubFlagSrc}
                                             alt=""
                                             className="details-time-pill-flag"
                                             width={17}
@@ -1066,10 +1071,10 @@ export function MovieDetailsContent({
                                       className={showtimePillClassName}
                                       style={showtimeCardStyle}
                                     >
-                                      {hasHebrewDub && dubBadgeLabel ? (
+                                      {dubFlagSrc && dubBadgeLabel ? (
                                         <span className="details-time-pill-flag-shell">
                                           <img
-                                            src="/flags/israel.svg"
+                                            src={dubFlagSrc}
                                             alt=""
                                             className="details-time-pill-flag"
                                             width={17}
