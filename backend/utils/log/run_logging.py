@@ -11,7 +11,9 @@ RUN_LOCK_MAX_MINUTES = 10
 def allocate_run_id() -> int:
     sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
 
-    if os.environ.get("JJ_INTEL_MAC_WEEKLY_RUN") == "true":
+    if os.environ.get("JJ_INTEL_MAC_DAILY_RUN") == "true":
+        run_from = "JJ_INTEL_MAC_DAILY_RUN"
+    elif os.environ.get("JJ_INTEL_MAC_WEEKLY_RUN") == "true":
         run_from = "JJ_INTEL_MAC_WEEKLY_RUN"
     elif os.environ.get("GITHUB_ACTIONS") == "true":
         run_from = "GITHUB_ACTIONS"

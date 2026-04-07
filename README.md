@@ -232,6 +232,7 @@ The browser app intentionally uses only the publishable key and never a service-
 - `.github/workflows/run_main.yml` runs the main backend pipeline manually in GitHub Actions and uploads run artifacts.
 - `.github/workflows/daily_sweep.yml` clears old showtimes and soon entries on a daily schedule.
 - `backend/config/cron/run_weekly.sh` is a local weekly shell runner that syncs the repo, runs the full job, commits artifacts/logs, and pushes them back to `main`.
+- `backend/config/cron/run_daily.sh` is a local daily shell runner that performs the same default headless run, writes separate daily logs, and pushes artifacts/logs back to `main`.
 
 ## Project Tour
 

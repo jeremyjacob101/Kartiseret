@@ -13,7 +13,7 @@ def main():
     with run_logging.RunLogSession() as run:
         if os.environ.get("GITHUB_ACTIONS") == "true":  # GH Actions Run
             run.run_groups(list(DEFAULT_PLAN), run_group_fn=runGroup)
-        elif os.environ.get("JJ_INTEL_MAC_WEEKLY_RUN") == "true":  # Weekly-Shell Run
+        elif os.environ.get("JJ_INTEL_MAC_DAILY_RUN") == "true" or os.environ.get("JJ_INTEL_MAC_WEEKLY_RUN") == "true":  # Weekly/Daily Shell Run
             run.run_groups(list(DEFAULT_PLAN), run_group_fn=runGroup)
         else:  # Present Local Run
             plan, header = choose_run_plan()

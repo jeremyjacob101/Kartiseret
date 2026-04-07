@@ -14,6 +14,7 @@ from backend.config.registry import REGISTRY, DATAFLOW_REGISTRY
 from backend.utils.log.artifact_logging import artifactPrinting
 
 DEFAULT_PLAN: list[tuple[str, str]] = [("cinema", "allSoons"), ("cinema", "allShowtimes"), ("dataflow", "comingSoonsData"), ("dataflow", "nowPlayingData")]
+RUNNING_NON_INTERACTIVE = os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("JJ_INTEL_MAC_DAILY_RUN") == "true" or os.environ.get("JJ_INTEL_MAC_WEEKLY_RUN") == "true"
 
 cinemaDictionary = {"registry": REGISTRY, "make_instance": lambda cls, key, run_id: cls(cinema_type=key, supabase_table_name=key, run_id=run_id), "run_instance": lambda inst: inst.scrape(), "cleanup": lambda instance: (instance.driver.quit() if instance and getattr(instance, "driver", None) else None), "count_label": "Threads", "mode": "parallel", "total_strategy": "max", "overall_task_name": "overall", "get_item_name": lambda cls: getattr(cls, "CINEMA_NAME", cls.__name__)}
 dataflowDictionary = {"registry": DATAFLOW_REGISTRY, "make_instance": lambda cls, _key, run_id: cls(run_id=run_id), "run_instance": lambda inst: inst.dataRun(), "cleanup": lambda instance: None, "count_label": "Dataflows", "mode": "sequential", "total_strategy": "sum", "overall_task_name": "dataflows", "get_item_name": lambda cls: cls.__name__}
@@ -68,7 +69,7 @@ def runGroup(kind: str, key: str, run_id: int, *, classes_override: list[type] |
                     ui.retry_item(item, attempt=attempt, started_at=started_at)
 
     # GITHUB ACTIONS LOGIC
-    if os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("JJ_INTEL_MAC_WEEKLY_RUN") == "true":
+    if RUNNING_NON_INTERACTIVE:
         results: list[RunResult] = []
         if spec.mode == "parallel":
             with ThreadPoolExecutor(max_workers=max(1, len(classes))) as ex:
@@ -88,7 +89,7 @@ def runGroup(kind: str, key: str, run_id: int, *, classes_override: list[type] |
         return all(result.ok for result in results)
 
     # LOCAL MACHINE LOGIC
-    if not os.environ.get("GITHUB_ACTIONS") == "true" and not os.environ.get("JJ_INTEL_MAC_WEEKLY_RUN") == "true":
+    if not RUNNING_NON_INTERACTIVE:
         FALLBACK = 60.0
         avg_by_name: dict[str, float] = {}
 
