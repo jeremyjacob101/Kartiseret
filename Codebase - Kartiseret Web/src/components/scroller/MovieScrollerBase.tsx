@@ -73,7 +73,7 @@ const INTRO_TARGET_CARD_COUNT = 5;
 const INTRO_LEADING_CARD_COUNT = 1;
 const TARGET_ITEMS_PER_SIDE = 280;
 const MIN_REPEAT_SETS = 5;
-const MOBILE_COLLAPSED_RIGHT_BIAS_PX = 135;
+const MOBILE_COLLAPSED_RIGHT_BIAS_PX = 125;
 
 function getRepeatSetCount(_itemSpan: number, movieCount: number): number {
   const safeMovieCount = Math.max(movieCount, 1);

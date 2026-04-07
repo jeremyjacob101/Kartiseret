@@ -1285,7 +1285,7 @@ html[data-device-type="mobile"] .theater-map-dialog .theater-map-search-field {
 html[data-device-type="mobile"] .app-shell {
   padding-left: 10px;
   padding-right: 10px;
-  padding-bottom: 8px;
+  padding-bottom: 10px;
 }
 
 .scroller-panel {
