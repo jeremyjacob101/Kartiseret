@@ -27,6 +27,7 @@ export const ALL_LOCATIONS = [
   "Rishon Letzion",
   "Tel Aviv",
   "Zichron Yaakov",
+  "Holon",
 ] as const;
 
 export type CanonicalAppLocation = (typeof ALL_LOCATIONS)[number];
