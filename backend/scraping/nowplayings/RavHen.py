@@ -35,14 +35,12 @@ class RavHen(BaseCinema):
             self.original_languages.append(str(self.element("#more-info > div > div:nth-child(2) > div.col-md-8.col-sm-6.col-xs-12 > dl > div:nth-child(6) > dd").text))
 
             rating = self.element("#more-info > div > div:nth-child(2) > div.col-md-8.col-sm-6.col-xs-12 > dl > div:nth-child(7) > dd").text
-            if rating:
-                self.ratings.append(str(rating))
+            self.ratings.append(str(rating) if rating else None)
 
             runtime = self.element("/html/body/div[5]/section[2]/div/div[2]/div[1]/div[1]/div[2]/p").text.strip()
             if runtime and runtime == "יעודכן בקרוב":
                 runtime = None
-            if runtime and (m := re.search(r"\d+", runtime)):
-                self.runtimes.append(int(m.group()))
+            self.runtimes.append(int(m.group()) if runtime and (m := re.search(r"\d+", runtime)) else None)
         name_to_idx = {str(name): i for i, name in enumerate(self.hebrew_titles)}
 
         self.click("#header-change-location", 1)
@@ -117,6 +115,7 @@ class RavHen(BaseCinema):
                                     self.original_language = self.original_languages[checking_film]
                                     self.release_year = self.release_years[checking_film]
                                     self.rating = self.ratings[checking_film]
+                                    self.runtime = self.runtimes[checking_film]
 
                                     self.english_title = self.english_titles[checking_film]
                                     self.hebrew_title = self.hebrew_titles[checking_film]

@@ -32,8 +32,13 @@ class CinemaCity(BaseCinema):
         for cinema_block in range(1, self.lenElements("#moviesContainer > div", "row mainThumbWrapper") + 1):
             for film_card in range(1, self.lenElements(f"/html/body/div[4]/div[3]/div[2]/div[1]/div[{cinema_block}]/div") + 1):
                 self.english_titles.append(self.element(f"/html/body/div[4]/div[3]/div[2]/div[1]/div[{cinema_block}]/div[{film_card}]/div/div/div[2]/div/p[1]").get_attribute("textContent"))
-                self.ratings.append(self.element(f"/html/body/div[4]/div[3]/div[2]/div[1]/div[{cinema_block}]/div[{film_card}]/div/div/div[2]/div/div[1]/p[4]/span").get_attribute("textContent"))
-                self.runtimes.append(self.element(f"/html/body/div[4]/div[3]/div[2]/div[1]/div[{cinema_block}]/div[{film_card}]/div/div/div[2]/div/div[1]/p[2]/span").get_attribute("textContent").strip())
+
+                rating = self.element(f"/html/body/div[4]/div[3]/div[2]/div[1]/div[{cinema_block}]/div[{film_card}]/div/div/div[2]/div/div[1]/p[4]/span").get_attribute("textContent")
+                self.ratings.append(str(rating).strip() if rating else None)
+
+                runtime = self.element(f"/html/body/div[4]/div[3]/div[2]/div[1]/div[{cinema_block}]/div[{film_card}]/div/div/div[2]/div/div[1]/p[2]/span").get_attribute("textContent").strip()
+                runtime = re.sub(r"\D", "", runtime)
+                self.runtimes.append(int(runtime) if runtime else None)
 
                 hebrew_title = self.element(f"/html/body/div[4]/div[3]/div[2]/div[1]/div[{cinema_block}]/div[{film_card}]/div/div/div[2]/div/h4").get_attribute("textContent")
                 self.hebrew_titles.append(hebrew_title)
@@ -62,8 +67,8 @@ class CinemaCity(BaseCinema):
                     if checking_film is None:
                         continue
 
-                    self.rating = str(self.ratings[checking_film]).strip()
-                    self.runtime = int(self.runtimes[checking_film])
+                    self.rating = self.ratings[checking_film]
+                    self.runtime = self.runtimes[checking_film]
 
                     self.english_title = str(self.english_titles[checking_film]).strip()
                     self.hebrew_title = str(self.hebrew_titles[checking_film]).strip()

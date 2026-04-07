@@ -44,12 +44,10 @@ class YesPlanet(BaseCinema):
             self.original_languages.append(original_language)
 
             rating = self.element("#more-info > div > div:nth-child(2) > div.col-md-8.col-sm-6.col-xs-12 > dl > div:nth-child(7) > dd").text
-            if rating:
-                self.ratings.append(str(rating))
+            self.ratings.append(str(rating) if rating else None)
 
             runtime = self.element("/html/body/div[5]/section[2]/div/div[2]/div[1]/div[1]/div[2]/p").text.strip()
-            if runtime and (m := re.search(r"\d+", runtime)):
-                self.runtimes.append(int(m.group()))
+            self.runtimes.append(int(m.group()) if runtime and (m := re.search(r"\d+", runtime)) else None)
         name_to_idx = {str(name).lower(): i for i, name in enumerate(self.english_titles)}
 
         self.click("#header-change-location", 1)
