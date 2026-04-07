@@ -572,7 +572,7 @@
   border: 1px solid rgba(217, 191, 255, 0.16);
   border-radius: 26px;
   background: rgba(8, 7, 11, 0.18);
-  overflow: hidden;
+  overflow: visible;
   touch-action: pan-x;
 }
 
@@ -822,10 +822,16 @@
   min-width: 0;
   width: var(--details-showtime-outer-width);
   height: var(--details-showtime-slot-height);
+  z-index: 0;
 }
 
 .details-showtime-slot--with-tech {
   height: var(--details-showtime-slot-height-with-tech);
+}
+
+.details-showtime-slot:hover,
+.details-showtime-slot:focus-within {
+  z-index: 80;
 }
 
 .details-time-card-shell {
@@ -849,6 +855,11 @@
   color: inherit;
   text-decoration: none;
   transition: transform 140ms ease;
+}
+
+.details-showtime-card:hover,
+.details-showtime-card:focus-visible {
+  z-index: 90;
 }
 
 .details-showtime-card--link {
@@ -949,7 +960,7 @@
   left: 50%;
   bottom: calc(100% + 0.3125rem);
   transform: translate(-50%, 0.1875rem);
-  z-index: 30;
+  z-index: 200;
   padding: 0.25rem 0.4375rem;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 0.5rem;
@@ -969,6 +980,62 @@
 }
 
 .details-time-pill-flag-shell:hover .details-time-pill-flag-tooltip {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.details-time-pill-type-shell {
+  position: absolute;
+  top: 0.1rem;
+  right: 0.3rem;
+  transform: translate(50%, -50%);
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.details-time-pill-type-icon {
+  width: 17px;
+  height: 13px;
+  padding: 1px;
+  border-radius: 999px;
+  /* For White background yellow filled star: */
+  /* background: #fff; */
+  /* color: #e0b12d; */
+  /* fill: currentColor; */
+  background: rgba(12, 11, 20, 0.9);
+  color: #f4efec;
+  box-shadow:
+    0 0 0 1px rgba(4, 4, 8, 0.92),
+    0 3px 7px rgba(0, 0, 0, 0.22);
+}
+
+.details-time-pill-type-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.3125rem);
+  transform: translate(-50%, 0.1875rem);
+  z-index: 200;
+  padding: 0.25rem 0.4375rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.5rem;
+  background: rgba(12, 11, 20, 0.94);
+  color: #f4efec;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.26);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.details-time-pill-type-shell:hover .details-time-pill-type-tooltip {
   opacity: 1;
   transform: translate(-50%, 0);
 }

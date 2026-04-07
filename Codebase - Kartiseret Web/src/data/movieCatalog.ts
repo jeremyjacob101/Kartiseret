@@ -131,6 +131,7 @@ export type ShowtimeEntry = {
   time: string;
   href: string | null;
   screeningTech: string | null;
+  screeningType: string | null;
   dubLanguage: string | null;
 };
 
@@ -518,8 +519,8 @@ function buildMovieShowtimes(
     const showtime = formatShowtime(stringifySupabaseValue(row.showtime));
     const showtimeHref =
       normalizeText(stringifySupabaseValue(row.english_href)) || null;
-    const screeningTech =
-      getFirstNormalizedText(row, ["screening_tech", "screening_type"]) || null;
+    const screeningTech = getFirstNormalizedText(row, ["screening_tech"]) || null;
+    const screeningType = getFirstNormalizedText(row, ["screening_type"]) || null;
     const dubLanguage = getFirstNormalizedText(row, ["dub_language"]) || null;
 
     if (!date || !theater || !showtime) {
@@ -553,6 +554,7 @@ function buildMovieShowtimes(
     const showtimeKey = [
       showtime,
       screeningTech?.toLowerCase() ?? "",
+      screeningType?.toLowerCase() ?? "",
       dubLanguage?.toLowerCase() ?? "",
     ].join("::");
     const existingEntry = theaterShowtimes.get(showtimeKey);
@@ -561,6 +563,7 @@ function buildMovieShowtimes(
       time: showtime,
       href: existingEntry?.href || showtimeHref,
       screeningTech: existingEntry?.screeningTech || screeningTech,
+      screeningType: existingEntry?.screeningType || screeningType,
       dubLanguage: existingEntry?.dubLanguage || dubLanguage,
     });
   }
@@ -595,6 +598,9 @@ function buildMovieShowtimes(
                           leftShowtime.time.localeCompare(rightShowtime.time) ||
                           (leftShowtime.screeningTech ?? "").localeCompare(
                             rightShowtime.screeningTech ?? "",
+                          ) ||
+                          (leftShowtime.screeningType ?? "").localeCompare(
+                            rightShowtime.screeningType ?? "",
                           ) ||
                           (leftShowtime.dubLanguage ?? "").localeCompare(
                             rightShowtime.dubLanguage ?? "",

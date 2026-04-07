@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type Ref } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { Star, X } from "lucide-react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeDays, subscribeToMovieCatalog, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
 import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
@@ -520,6 +520,7 @@ function cloneShowtimeDays(
         time: showtime.time,
         href: showtime.href,
         screeningTech: showtime.screeningTech,
+        screeningType: showtime.screeningType,
         dubLanguage: showtime.dubLanguage,
       })),
     })),
@@ -559,6 +560,18 @@ function getDubBadgeLabel(
   const normalizedValue = dubLanguage?.trim().replace(/\s+/g, " ") ?? "";
 
   return normalizedValue ? `${normalizedValue} Dub` : null;
+}
+
+function getScreeningTypeBadgeLabel(
+  screeningType: string | null | undefined,
+): string | null {
+  const normalizedValue = screeningType?.trim().replace(/\s+/g, " ") ?? "";
+
+  if (!normalizedValue || normalizedValue.toLowerCase() === "regular") {
+    return null;
+  }
+
+  return normalizedValue;
 }
 
 export function MovieDetailsContent({
@@ -926,6 +939,10 @@ export function MovieDetailsContent({
                               const dubBadgeLabel = getDubBadgeLabel(
                                 showtime.dubLanguage,
                               );
+                              const screeningTypeBadgeLabel =
+                                getScreeningTypeBadgeLabel(
+                                  showtime.screeningType,
+                                );
                               const showtimeSlotClassName = [
                                 "details-showtime-slot",
                                 showtimeTech
@@ -961,6 +978,7 @@ export function MovieDetailsContent({
                               const showtimeLabel = [
                                 `Open ${movie.title} ${showtime.time} showtime at ${theater.theater}`,
                                 showtimeTech,
+                                screeningTypeBadgeLabel,
                                 dubBadgeLabel,
                               ]
                                 .filter(Boolean)
@@ -970,6 +988,7 @@ export function MovieDetailsContent({
                                 day.date,
                                 showtime.time,
                                 showtime.screeningTech ?? "standard",
+                                showtime.screeningType ?? "regular",
                                 showtime.dubLanguage ?? "original",
                               ].join("-");
                               const showtimeCard = showtime.href ? (
@@ -1006,6 +1025,19 @@ export function MovieDetailsContent({
                                           />
                                           <span className="details-time-pill-flag-tooltip">
                                             {dubBadgeLabel}
+                                          </span>
+                                        </span>
+                                      ) : null}
+                                      {screeningTypeBadgeLabel ? (
+                                        <span className="details-time-pill-type-shell">
+                                          <Star
+                                            size={10}
+                                            strokeWidth={2.2}
+                                            className="details-time-pill-type-icon"
+                                            aria-hidden="true"
+                                          />
+                                          <span className="details-time-pill-type-tooltip">
+                                            {screeningTypeBadgeLabel}
                                           </span>
                                         </span>
                                       ) : null}
@@ -1046,6 +1078,19 @@ export function MovieDetailsContent({
                                           />
                                           <span className="details-time-pill-flag-tooltip">
                                             {dubBadgeLabel}
+                                          </span>
+                                        </span>
+                                      ) : null}
+                                      {screeningTypeBadgeLabel ? (
+                                        <span className="details-time-pill-type-shell">
+                                          <Star
+                                            size={10}
+                                            strokeWidth={2.2}
+                                            className="details-time-pill-type-icon"
+                                            aria-hidden="true"
+                                          />
+                                          <span className="details-time-pill-type-tooltip">
+                                            {screeningTypeBadgeLabel}
                                           </span>
                                         </span>
                                       ) : null}
