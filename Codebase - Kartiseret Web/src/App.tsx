@@ -608,14 +608,14 @@ function AppShell() {
                 />
               ) : null}
             </div>
-            <div className="section-heading">
+            {/* <div className="section-heading">
               <p className="section-kicker">Placeholder</p>
               <h1 className="section-title">Placeholder</h1>
             </div>
             <div className="section-heading">
               <p className="section-kicker">Placeholder</p>
               <h1 className="section-title">Placeholder</h1>
-            </div>
+            </div> */}
           </section>
         )}
       </main>
