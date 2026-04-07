@@ -18,7 +18,7 @@ class YesPlanet(BaseCinema):
         self.driver.get(self.URL)
         self.sleep(3)
 
-        for film_card in range(1, self.lenElements("/html/body/div[6]/section/div[2]/div/div/div/div[2]/div/div/div/div[1]/div")):
+        for film_card in range(1, self.lenElements("/html/body/div[6]/section/div[2]/div/div/div/div[2]/div/div/div/div[1]/div") + 1):
             href = str(self.element(f"/html/body/div[6]/section/div[2]/div/div/div/div[2]/div/div/div/div[1]/div[{film_card}]/a").get_attribute("href"))
             if href.endswith("s2r2"):
                 continue
