@@ -1,9 +1,5 @@
 import "./AttributionPage.css";
 
-type AttributionPageProps = {
-  onBackHome: () => void;
-};
-
 const theaterChainSources = [
   {
     name: "Yes Planet",
@@ -103,7 +99,28 @@ const ratingSources = [
   },
 ] as const;
 
-export function AttributionPage({ onBackHome }: AttributionPageProps) {
+const movieDataSources = [
+  {
+    name: "TMDb",
+    href: "https://www.themoviedb.org/",
+    logoSrc: "/logos/tmdb.svg",
+  },
+] as const;
+
+const mapDataSources = [
+  {
+    name: "CARTO",
+    href: "https://carto.com/",
+    logoSrc: "/logos/carto.svg",
+  },
+  {
+    name: "OpenStreetMap",
+    href: "https://www.openstreetmap.org/",
+    logoSrc: "/logos/openStreetMap.svg",
+  },
+] as const;
+
+export function AttributionPage() {
   return (
     <section className="attribution-page" aria-label="Attribution">
       <div className="attribution-page-header">
@@ -111,83 +128,83 @@ export function AttributionPage({ onBackHome }: AttributionPageProps) {
           <p className="section-kicker">Credits</p>
           <h1 className="section-title">Attribution</h1>
           <p className="attribution-page-intro">
-            Kartiseret uses third-party movie, map, and showtime data. This
-            page credits those sources and links back to the official providers.
+            Kartiseret uses third-party movie, map, and showtime data. This page
+            credits those sources and links back to the official providers.
           </p>
         </div>
-
-        <button
-          type="button"
-          className="attribution-page-back"
-          onClick={onBackHome}
-        >
-          Back to Home
-        </button>
       </div>
 
       <div className="attribution-page-sections">
-        <section className="attribution-card">
-          <div className="attribution-logo-panel" aria-hidden="true">
-            <img
-              className="attribution-logo attribution-logo--tmdb"
-              src="/logos/tmdb.svg"
-              alt=""
-            />
-          </div>
-
+        <section className="attribution-card attribution-card--sources">
           <div className="attribution-card-copy">
             <p className="attribution-card-kicker">Movie data</p>
             <h2 className="attribution-card-title">TMDb</h2>
             <p className="attribution-card-text">
-              This product uses the TMDB API but is not endorsed or certified
-              by TMDB.
+              This product uses the TMDB API, which has been made available to
+              this site through granted access to its publicly available data.
             </p>
-            <a
-              className="attribution-card-link"
-              href="https://www.themoviedb.org/"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Visit TMDb
-            </a>
+
+            <ul className="attribution-source-list attribution-source-list--plain">
+              {movieDataSources.map((source) => (
+                <li key={source.name} className="attribution-source-item">
+                  <a
+                    className="attribution-source-link attribution-source-link--plain"
+                    href={source.href}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <span
+                      className="attribution-source-logo-shell"
+                      aria-hidden="true"
+                    >
+                      <img
+                        className="attribution-source-logo"
+                        src={source.logoSrc}
+                        alt=""
+                      />
+                    </span>
+                    {source.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
 
-        <section className="attribution-card">
-          <div className="attribution-logo-panel" aria-hidden="true">
-            <img
-              className="attribution-logo attribution-logo--openstreetmap"
-              src="/logos/openStreetMap.svg"
-              alt=""
-            />
-          </div>
-
+        <section className="attribution-card attribution-card--sources">
           <div className="attribution-card-copy">
             <p className="attribution-card-kicker">Map data</p>
             <h2 className="attribution-card-title">CARTO and OpenStreetMap</h2>
             <p className="attribution-card-text">
-              The theater map uses CARTO basemaps and OpenStreetMap
-              contributor data. The map itself also keeps a compact attribution
-              control visible in the theater picker.
+              The theater map uses CARTO basemaps and OpenStreetMap contributor
+              data. The map itself also keeps a compact attribution control
+              visible in the theater picker.
             </p>
-            <div className="attribution-link-row">
-              <a
-                className="attribution-card-link"
-                href="https://carto.com/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                CARTO
-              </a>
-              <a
-                className="attribution-card-link"
-                href="https://www.openstreetmap.org/copyright"
-                target="_blank"
-                rel="noreferrer"
-              >
-                OpenStreetMap contributors
-              </a>
-            </div>
+
+            <ul className="attribution-source-list attribution-source-list--plain">
+              {mapDataSources.map((source) => (
+                <li key={source.name} className="attribution-source-item">
+                  <a
+                    className="attribution-source-link attribution-source-link--plain"
+                    href={source.href}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <span
+                      className="attribution-source-logo-shell"
+                      aria-hidden="true"
+                    >
+                      <img
+                        className="attribution-source-logo"
+                        src={source.logoSrc}
+                        alt=""
+                      />
+                    </span>
+                    {source.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
 
@@ -200,10 +217,10 @@ export function AttributionPage({ onBackHome }: AttributionPageProps) {
               Official Israeli theater websites
             </h2>
             <p className="attribution-card-text">
-              Showtime and venue information is compiled from publicly
-              available information on official theater and venue websites. The
-              source groups currently reflected in the app include the theater
-              chains below:
+              Showtime and venue information is compiled from publicly available
+              information on official theater and venue websites. The source
+              groups currently reflected in the app include the theater chains
+              below:
             </p>
 
             <ul className="attribution-source-list">
@@ -270,9 +287,9 @@ export function AttributionPage({ onBackHome }: AttributionPageProps) {
               Official rating and review websites
             </h2>
             <p className="attribution-card-text">
-              Rating information is compiled from publicly available
-              information on official rating and review websites. The source
-              groups currently reflected in the app include:
+              Rating information is compiled from publicly available information
+              on official rating and review websites. The source groups
+              currently reflected in the app include:
             </p>
 
             <ul className="attribution-source-list">
@@ -302,6 +319,14 @@ export function AttributionPage({ onBackHome }: AttributionPageProps) {
           </div>
         </section>
       </div>
+
+      <section className="attribution-disclaimer" aria-label="Disclaimer">
+        <p className="attribution-disclaimer-kicker">Disclaimer</p>
+        <p className="attribution-disclaimer-text">
+          Information shown throughout the app may be incomplete, outdated, or
+          incorrect, and can change without notice.
+        </p>
+      </section>
     </section>
   );
 }

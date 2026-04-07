@@ -184,10 +184,10 @@ button {
     width 420ms cubic-bezier(0.22, 1, 0.36, 1),
     height 420ms cubic-bezier(0.22, 1, 0.36, 1),
     border-radius 420ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 280ms ease,
-    border-width 280ms ease,
-    background-color 280ms ease,
-    box-shadow 280ms ease,
+    border-color 110ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-width 110ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 90ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 140ms cubic-bezier(0.16, 1, 0.3, 1),
     opacity 140ms ease;
   will-change: top, left, width, height;
 }
@@ -394,7 +394,7 @@ button {
 
 .theater-map-search-row {
   display: grid;
-  grid-template-columns: 48px 180px 48px minmax(0, 1fr);
+  grid-template-columns: 48px 180px minmax(0, 1fr);
   gap: 12px;
   align-items: stretch;
 }
@@ -531,16 +531,6 @@ button {
 .theater-map-city-list-option.is-selected {
   background: color-mix(in srgb, var(--main-app-color) 26%, transparent);
   color: #fff;
-}
-
-.theater-map-inline-map-indicator {
-  display: grid;
-  place-items: center;
-  opacity: 0;
-}
-
-.theater-map-inline-map-indicator.is-visible {
-  opacity: 1;
 }
 
 .theater-map-search-label {
@@ -737,7 +727,7 @@ html[data-device-type="mobile"] .theater-map-dialog .theater-map-panel {
 }
 
 html[data-device-type="mobile"] .theater-map-dialog .theater-map-search-row--overlay {
-  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  grid-template-columns: 48px minmax(0, 1fr);
   gap: 10px;
 }
 
@@ -968,6 +958,7 @@ html[data-device-type="mobile"] .theater-map-dialog .theater-map-search-field {
 
 .theater-map-panel .maplibregl-ctrl-group {
   overflow: hidden;
+  background: rgba(16, 20, 27, 0.94);
   border: 1px solid color-mix(in srgb, var(--main-app-color) 36%, transparent);
   border-radius: 22px;
   box-shadow: 0 14px 28px rgba(4, 6, 12, 0.24);
@@ -1024,6 +1015,12 @@ html[data-device-type="mobile"] .theater-map-dialog .theater-map-search-field {
   outline: none;
   appearance: none;
   -webkit-appearance: none;
+}
+
+.theater-map-panel .theater-map-action-button.is-hidden {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .theater-map-panel .theater-map-action-button[aria-disabled="true"] {
@@ -1097,7 +1094,7 @@ html[data-device-type="mobile"] .theater-map-dialog .theater-map-search-field {
 .theater-map-panel .theater-map-attribution-button-shell {
   overflow: hidden;
   margin-left: 0;
-  border: 1px solid rgba(241, 236, 255, 0.82);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 36%, transparent);
   border-radius: 999px;
   box-shadow: 0 14px 28px rgba(4, 6, 12, 0.24);
   position: relative;
@@ -1137,7 +1134,7 @@ html[data-device-type="mobile"] .theater-map-dialog .theater-map-search-field {
   max-width: 0;
   overflow: hidden;
   margin-left: -18px;
-  border: 1px solid rgba(241, 236, 255, 0.82);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 36%, transparent);
   border-left: 0;
   border-radius: 0 18px 18px 0;
   background: rgba(16, 20, 27, 0.96);

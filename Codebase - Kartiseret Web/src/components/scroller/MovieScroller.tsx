@@ -111,6 +111,7 @@ const MOBILE_DETAIL_CHROME_REVEAL_DURATION_MS = 120;
 const FOCUS_STAGE_FADE_DURATION_MS = 260;
 const CLOSE_STAGE_FADE_DELAY_MS =
   POSTER_HANDOFF_TOTAL_MS - FOCUS_STAGE_FADE_DURATION_MS;
+const SHELL_HEIGHT_TRANSITION_DURATION_MS = 340;
 const DETAIL_PRELOAD_RADIUS = 2;
 const DETAIL_EDGE_BUFFER_SETS = 1;
 const DETAIL_NAV_DURATION_MS = 360;
@@ -135,6 +136,7 @@ function getMovieScrollerTimingStyle(
     "--movie-scroller-ghost-close-opacity-duration": `${POSTER_RETURN_OPACITY_DURATION_MS}ms`,
     "--movie-scroller-detail-swap-duration": `${DETAIL_NAV_DURATION_MS}ms`,
     "--movie-scroller-mobile-chrome-reveal-duration": `${MOBILE_DETAIL_CHROME_REVEAL_DURATION_MS}ms`,
+    "--movie-scroller-shell-height-duration": `${SHELL_HEIGHT_TRANSITION_DURATION_MS}ms`,
   } as CSSProperties;
 }
 
@@ -212,6 +214,17 @@ function getViewportScrollTarget(
     currentScrollTop + shellTop - getTargetDetailViewportTop(panelHeight),
     0,
     getMaxPageScrollTop(),
+  );
+}
+
+function getShellViewportScrollTarget(
+  shell: HTMLElement,
+  panelHeight: number,
+): number {
+  return getViewportScrollTarget(
+    shell.getBoundingClientRect().top,
+    getPageScrollTop(),
+    panelHeight,
   );
 }
 
@@ -1076,11 +1089,7 @@ function MovieScrollerContent({
         maxWidth,
         isMobile,
       ).panelHeight;
-      const targetScrollTop = getViewportScrollTarget(
-        shell.getBoundingClientRect().top,
-        currentScrollTop,
-        panelHeight,
-      );
+      const targetScrollTop = getShellViewportScrollTarget(shell, panelHeight);
 
       if (Math.abs(targetScrollTop - currentScrollTop) <= 1) {
         return;
@@ -1535,11 +1544,12 @@ function MovieScrollerContent({
       isMobile,
     ).panelHeight;
     const initialScrollTop = getPageScrollTop();
-    const targetScrollTop = getViewportScrollTarget(
-      shell.getBoundingClientRect().top,
-      initialScrollTop,
-      openingPanelHeight,
+    const openingViewportDurationMs = Math.max(
+      posterMoveDurationMs,
+      SHELL_HEIGHT_TRANSITION_DURATION_MS,
     );
+    const getLiveTargetScrollTop = () =>
+      getShellViewportScrollTarget(shell, openingPanelHeight);
     const initialTargetRect = toPosterSourceRect(
       posterRef.current?.getBoundingClientRect(),
       ghostTransition.sourceRect,
@@ -1553,7 +1563,7 @@ function MovieScrollerContent({
 
     if (isMobile) {
       window.scrollTo({
-        top: targetScrollTop,
+        top: getLiveTargetScrollTop(),
         behavior: "auto",
       });
 
@@ -1565,6 +1575,11 @@ function MovieScrollerContent({
           );
 
           targetRectRef.current = fixedTargetRect;
+
+          window.scrollTo({
+            top: getLiveTargetScrollTop(),
+            behavior: "auto",
+          });
 
           if (ghostRef.current) {
             ghostRef.current.style.opacity = "1";
@@ -1600,16 +1615,22 @@ function MovieScrollerContent({
         }
 
         const animateOpening = (frameTime: number) => {
-          const linearProgress = clamp(
+          const posterLinearProgress = clamp(
             (frameTime - startTime) / posterMoveDurationMs,
             0,
             1,
           );
-          const scrollProgress = easeInOutCubic(linearProgress);
-          const ghostProgress = easeOutCubic(linearProgress);
+          const viewportLinearProgress = clamp(
+            (frameTime - startTime) / openingViewportDurationMs,
+            0,
+            1,
+          );
+          const scrollProgress = easeInOutCubic(viewportLinearProgress);
+          const ghostProgress = easeOutCubic(posterLinearProgress);
+          const liveTargetScrollTop = getLiveTargetScrollTop();
           const nextScrollTop = lerp(
             initialScrollTop,
-            targetScrollTop,
+            liveTargetScrollTop,
             scrollProgress,
           );
 
@@ -1648,14 +1669,14 @@ function MovieScrollerContent({
           });
           applyGhostOpeningAppearance(ghostProgress);
 
-          if (linearProgress < 1) {
+          if (posterLinearProgress < 1 || viewportLinearProgress < 1) {
             animationFrameRef.current =
               window.requestAnimationFrame(animateOpening);
             return;
           }
 
           window.scrollTo({
-            top: targetScrollTop,
+            top: getLiveTargetScrollTop(),
             behavior: "auto",
           });
 

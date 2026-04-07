@@ -41,7 +41,7 @@ export function TheaterMapDialog() {
   const [isClosing, setIsClosing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isDialogVisible, setIsDialogVisible] = useState(false);
-  const [showInlineMapIcon, setShowInlineMapIcon] = useState(false);
+  const [showMapPinButton, setShowMapPinButton] = useState(false);
   const [flyingMapIcon, setFlyingMapIcon] = useState<FlyingMapIconState | null>(
     null,
   );
@@ -98,7 +98,7 @@ export function TheaterMapDialog() {
     pendingFlightOriginRef.current = null;
     setMapIconAnchor(null);
     setFlyingMapIcon(null);
-    setShowInlineMapIcon(false);
+    setShowMapPinButton(false);
     setIsDialogVisible(false);
     setIsClosing(false);
     setIsOpen(false);
@@ -118,7 +118,7 @@ export function TheaterMapDialog() {
     );
 
     if (!originRect || !targetRect) {
-      setShowInlineMapIcon(false);
+      setShowMapPinButton(false);
       setIsDialogVisible(false);
       flightCleanupTimeoutRef.current = window.setTimeout(() => {
         finishCloseDialog();
@@ -133,7 +133,7 @@ export function TheaterMapDialog() {
 
     flightStartFrameRef.current = window.requestAnimationFrame(() => {
       setIsDialogVisible(false);
-      setShowInlineMapIcon(false);
+      setShowMapPinButton(false);
       flightEndFrameRef.current = window.requestAnimationFrame(() => {
         setFlyingMapIcon({
           arrived: false,
@@ -171,7 +171,7 @@ export function TheaterMapDialog() {
     if (!targetRect) {
       flightStartFrameRef.current = window.requestAnimationFrame(() => {
         setIsDialogVisible(true);
-        setShowInlineMapIcon(true);
+        setShowMapPinButton(true);
         pendingFlightOriginRef.current = null;
       });
       return;
@@ -180,7 +180,7 @@ export function TheaterMapDialog() {
     if (!originRect) {
       flightStartFrameRef.current = window.requestAnimationFrame(() => {
         setIsDialogVisible(true);
-        setShowInlineMapIcon(true);
+        setShowMapPinButton(true);
         pendingFlightOriginRef.current = null;
       });
       return;
@@ -206,7 +206,7 @@ export function TheaterMapDialog() {
 
     flightHandoffTimeoutRef.current = window.setTimeout(
       () => {
-        setShowInlineMapIcon(true);
+        setShowMapPinButton(true);
       },
       Math.max(0, OPEN_TRANSITION_MS - INLINE_ICON_HANDOFF_LEAD_MS),
     );
@@ -259,10 +259,10 @@ export function TheaterMapDialog() {
           <CityLocationPicker
             currentLocation={location}
             feedbackMessage={error ?? statusMessage}
-            mapIconAnchorRef={setMapIconAnchor}
+            mapPinAnchorRef={setMapIconAnchor}
             onPickLocation={handleLocationPick}
             onClose={handleCloseDialog}
-            showMapIcon={showInlineMapIcon}
+            showMapPinButton={showMapPinButton}
             syncing={syncing}
           />
         </div>
@@ -271,7 +271,7 @@ export function TheaterMapDialog() {
         <div
           className={`theater-map-fly-icon${
             flyingMapIcon.arrived ? " is-arrived" : ""
-          }${showInlineMapIcon ? " is-handoff" : ""}`}
+          }${showMapPinButton ? " is-handoff" : ""}`}
           style={{
             height: `${flyingMapIcon.rect.height}px`,
             left: `${flyingMapIcon.rect.left}px`,
@@ -305,7 +305,7 @@ export function TheaterMapDialog() {
           );
           setMapIconAnchor(null);
           setFlyingMapIcon(null);
-          setShowInlineMapIcon(false);
+          setShowMapPinButton(false);
           setIsClosing(false);
           setIsDialogVisible(false);
           setStatusMessage(null);

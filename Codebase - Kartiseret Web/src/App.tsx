@@ -563,11 +563,7 @@ function AppShell() {
           </section>
         ) : pathname === "/attribution" ? (
           <section className="page-panel">
-            <AttributionPage
-              onBackHome={() => {
-                navigate("/");
-              }}
-            />
+            <AttributionPage />
           </section>
         ) : (
           <section className="scroller-panel" aria-label="Now Playing">

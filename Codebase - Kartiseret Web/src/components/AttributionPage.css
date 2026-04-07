@@ -7,8 +7,6 @@
 .attribution-page-header {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
 }
 
 .attribution-page-heading {
@@ -17,36 +15,37 @@
 }
 
 .attribution-page-intro {
-  max-width: 64ch;
   margin: 0;
   color: rgba(233, 218, 255, 0.8);
   font-size: 1rem;
   line-height: 1.6;
 }
 
-.attribution-page-back {
-  flex: none;
-  min-height: 44px;
-  border: 2px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-strong);
-  color: var(--text-main);
-  padding: 0 16px;
-  font-size: 0.96rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: transform 140ms ease, box-shadow 140ms ease;
-}
-
-.attribution-page-back:hover,
-.attribution-page-back:focus-visible {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 24px rgba(45, 34, 58, 0.2);
-}
-
 .attribution-page-sections {
   display: grid;
   gap: 18px;
+}
+
+.attribution-disclaimer {
+  display: grid;
+  gap: 6px;
+  padding: 4px 2px 0;
+}
+
+.attribution-disclaimer-kicker {
+  margin: 0;
+  color: rgba(233, 218, 255, 0.62);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.attribution-disclaimer-text {
+  margin: 0;
+  color: rgba(233, 218, 255, 0.72);
+  font-size: 0.94rem;
+  line-height: 1.6;
 }
 
 .attribution-card {
@@ -88,7 +87,6 @@
 }
 
 .attribution-card-text {
-  max-width: 64ch;
   margin: 0;
   color: rgba(233, 218, 255, 0.82);
   line-height: 1.65;
@@ -98,71 +96,12 @@
   margin-top: 6px;
 }
 
-.attribution-link-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.attribution-card-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: fit-content;
-  min-height: 40px;
-  border: 1px solid color-mix(in srgb, var(--main-app-color) 24%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--main-app-color) 12%, transparent);
-  color: #f4edff;
-  padding: 0 14px;
-  font-size: 0.92rem;
-  font-weight: 700;
-  text-decoration: none;
-  transition:
-    transform 140ms ease,
-    border-color 140ms ease,
-    background-color 140ms ease,
-    box-shadow 140ms ease;
-}
-
-.attribution-card-link:hover,
-.attribution-card-link:focus-visible,
 .attribution-source-link:hover,
 .attribution-source-link:focus-visible {
   transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--main-app-color) 42%, transparent);
   background: color-mix(in srgb, var(--main-app-color) 18%, transparent);
   box-shadow: 0 12px 22px rgba(20, 14, 33, 0.18);
-}
-
-.attribution-logo-panel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 112px;
-  min-width: 112px;
-  min-height: 112px;
-  padding: 16px;
-  border: 1px solid color-mix(in srgb, var(--main-app-color) 20%, transparent);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.04);
-  box-sizing: border-box;
-}
-
-.attribution-logo {
-  display: block;
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
-}
-
-.attribution-logo--tmdb {
-  width: 72px;
-}
-
-.attribution-logo--openstreetmap {
-  width: 72px;
 }
 
 .attribution-source-list {
@@ -232,8 +171,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .attribution-page-back,
-  .attribution-card-link,
   .attribution-source-link {
     transition: none;
   }
@@ -248,25 +185,7 @@ html[data-device-type="mobile"] .attribution-card {
   display: grid;
 }
 
-html[data-device-type="mobile"] .attribution-page-back {
-  width: fit-content;
-}
-
 html[data-device-type="mobile"] .attribution-card {
   grid-template-columns: minmax(0, 1fr);
   padding: 20px;
-}
-
-html[data-device-type="mobile"] .attribution-logo-panel {
-  width: 96px;
-  min-width: 96px;
-  min-height: 96px;
-}
-
-html[data-device-type="mobile"] .attribution-logo--tmdb {
-  width: 60px;
-}
-
-html[data-device-type="mobile"] .attribution-logo--openstreetmap {
-  width: 60px;
 }

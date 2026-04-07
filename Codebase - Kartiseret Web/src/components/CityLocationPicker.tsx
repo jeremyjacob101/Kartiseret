@@ -1,7 +1,7 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Ban, Info, List, MapPin, Navigation, Search, X, Clapperboard, Locate } from "lucide-react";
+import { Ban, Clapperboard, Info, List, Locate, LocateFixed, MapPin, Search, X } from "lucide-react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { type IControl, LngLatBounds, Map as MapLibreMap, Marker, NavigationControl, Popup } from "maplibre-gl";
+import { type IControl, LngLat, LngLatBounds, Map as MapLibreMap, Marker, NavigationControl, Popup } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { loadTheaters, type Theater } from "../data/theaters";
 import { type AppLocation } from "../prefs/definitions/locations";
@@ -21,6 +21,10 @@ const SELECTED_CITY_Z_INDEX = "200";
 const SEARCH_RESULT_Z_INDEX_OFFSET = 1000;
 const PRIMARY_CITY_COLLISION_PADDING = { x: 18, y: 14 };
 const CITY_LABEL_NORTH_OFFSET = 0.00615;
+const OVERVIEW_CENTER_TOLERANCE = 0.00035;
+const OVERVIEW_ZOOM_TOLERANCE = 0.04;
+const OVERVIEW_BEARING_TOLERANCE = 0.01;
+const OVERVIEW_PITCH_TOLERANCE = 0.01;
 const MAP_MAX_ZOOM = 16.5;
 const SINGLE_CITY_FOCUS_ZOOM = 11.6;
 const ROAD_LABEL_KEYWORDS = [
@@ -159,10 +163,10 @@ export type CityLocationPickerProps = {
   className?: string;
   currentLocation: AppLocation;
   feedbackMessage?: string | null;
-  mapIconAnchorRef?: (element: HTMLButtonElement | null) => void;
+  mapPinAnchorRef?: (element: HTMLButtonElement | null) => void;
   onPickLocation: (location: AppLocation) => Promise<void>;
   onClose?: () => void;
-  showMapIcon?: boolean;
+  showMapPinButton?: boolean;
   syncing?: boolean;
 };
 
@@ -180,6 +184,31 @@ function getFitPadding() {
   return window.innerWidth <= 720
     ? { top: 24, right: 18, bottom: 24, left: 18 }
     : { top: 30, right: 28, bottom: 30, left: 28 };
+}
+
+function isMapAtStartingView(map: MapLibreMap) {
+  const overviewCamera = map.cameraForBounds(CITY_START_BOUNDS, {
+    padding: getFitPadding(),
+    maxZoom: 6.9,
+  });
+
+  if (!overviewCamera?.center || overviewCamera.zoom === undefined) {
+    return false;
+  }
+
+  const overviewCenter = LngLat.convert(overviewCamera.center);
+  const currentCenter = map.getCenter();
+
+  return (
+    Math.abs(currentCenter.lng - overviewCenter.lng) <=
+      OVERVIEW_CENTER_TOLERANCE &&
+    Math.abs(currentCenter.lat - overviewCenter.lat) <=
+      OVERVIEW_CENTER_TOLERANCE &&
+    Math.abs(map.getZoom() - overviewCamera.zoom) <= OVERVIEW_ZOOM_TOLERANCE &&
+    Math.abs(map.getBearing() - (overviewCamera.bearing ?? 0)) <=
+      OVERVIEW_BEARING_TOLERANCE &&
+    Math.abs(map.getPitch()) <= OVERVIEW_PITCH_TOLERANCE
+  );
 }
 
 function buildBounds(points: readonly [number, number][]): LngLatBounds | null {
@@ -252,8 +281,11 @@ const LOCATION_DISABLED_MESSAGE =
 const LOCATION_UNSUPPORTED_MESSAGE =
   "Location services are not available in this browser.";
 
-const RESET_CONTROL_ICON = renderToStaticMarkup(
+const OVERVIEW_CONTROL_ICON = renderToStaticMarkup(
   <Locate size={18} strokeWidth={2.5} />,
+);
+const FOCUS_SELECTED_CITY_CONTROL_ICON = renderToStaticMarkup(
+  <LocateFixed size={18} strokeWidth={2.5} />,
 );
 const THEATER_MARKER_ICON = renderToStaticMarkup(
   <Clapperboard size={16} strokeWidth={2.5} />,
@@ -267,8 +299,8 @@ const CLOSE_CONTROL_ICON = renderToStaticMarkup(
 const INFO_CONTROL_ICON = renderToStaticMarkup(
   <Info size={16} strokeWidth={3} />,
 );
-const NAVIGATION_CONTROL_ICON = renderToStaticMarkup(
-  <Navigation size={16} strokeWidth={3} />,
+const MAP_PIN_CONTROL_ICON = renderToStaticMarkup(
+  <MapPin size={16} strokeWidth={2.75} />,
 );
 
 class TheaterMapAttributionControl implements IControl {
@@ -326,7 +358,7 @@ class TheaterMapAttributionControl implements IControl {
     cartoLink.textContent = "CARTO";
 
     const osmLink = document.createElement("a");
-    osmLink.href = "https://www.openstreetmap.org/copyright";
+    osmLink.href = "https://www.openstreetmap.org/";
     osmLink.target = "_blank";
     osmLink.rel = "noopener noreferrer";
     osmLink.textContent = "OpenStreetMap";
@@ -424,24 +456,39 @@ class TheaterMapCloseControl implements IControl {
 
 class TheaterMapActionControl implements IControl {
   private container?: HTMLDivElement;
-  private locateButton?: HTMLButtonElement;
-  private locateGlyph?: HTMLSpanElement;
-  private locateTooltip?: HTMLDivElement;
+  private viewButton?: HTMLButtonElement;
+  private viewGlyph?: HTMLSpanElement;
+  private mapPinButton?: HTMLButtonElement;
+  private mapPinGlyph?: HTMLSpanElement;
+  private mapPinTooltip?: HTMLDivElement;
   private isLocatePending = false;
   private blockedLocateMessage: string | null;
+  private isOverview = false;
+  private selectedLocationLabel: string;
+  private showMapPinButton: boolean;
   private readonly options: {
     blockedLocateMessage: string | null;
-    onReset: () => void;
     onLocate: () => void;
+    onMapPinAnchorChange?: (element: HTMLButtonElement | null) => void;
+    onResetToOverview: () => void;
+    onZoomToSelectedCity: () => void;
+    selectedLocationLabel: string;
+    showMapPinButton: boolean;
   };
 
   constructor(options: {
     blockedLocateMessage: string | null;
-    onReset: () => void;
     onLocate: () => void;
+    onMapPinAnchorChange?: (element: HTMLButtonElement | null) => void;
+    onResetToOverview: () => void;
+    onZoomToSelectedCity: () => void;
+    selectedLocationLabel: string;
+    showMapPinButton: boolean;
   }) {
     this.options = options;
     this.blockedLocateMessage = options.blockedLocateMessage;
+    this.selectedLocationLabel = options.selectedLocationLabel;
+    this.showMapPinButton = options.showMapPinButton;
   }
 
   onAdd() {
@@ -452,26 +499,29 @@ class TheaterMapActionControl implements IControl {
     controlsGroup.className =
       "maplibregl-ctrl-group theater-map-action-controls";
 
-    const resetButton = document.createElement("button");
-    resetButton.type = "button";
-    resetButton.className =
-      "theater-map-action-button theater-map-action-button--reset";
-    resetButton.setAttribute("aria-label", "Reset map view");
-    resetButton.title = "Reset map view";
-    resetButton.addEventListener("click", this.options.onReset);
-    const resetIcon = document.createElement("span");
-    resetIcon.className =
-      "theater-map-action-glyph theater-map-action-glyph--reset";
-    resetIcon.setAttribute("aria-hidden", "true");
-    resetIcon.innerHTML = RESET_CONTROL_ICON;
-    resetButton.append(resetIcon);
+    const viewButton = document.createElement("button");
+    viewButton.type = "button";
+    viewButton.className =
+      "theater-map-action-button theater-map-action-button--view";
+    viewButton.addEventListener("click", () => {
+      if (this.isOverview) {
+        this.options.onZoomToSelectedCity();
+        return;
+      }
 
-    const locateButton = document.createElement("button");
-    locateButton.type = "button";
-    locateButton.className =
+      this.options.onResetToOverview();
+    });
+    const viewGlyph = document.createElement("span");
+    viewGlyph.className =
+      "theater-map-action-glyph theater-map-action-glyph--reset";
+    viewGlyph.setAttribute("aria-hidden", "true");
+    viewButton.append(viewGlyph);
+
+    const mapPinButton = document.createElement("button");
+    mapPinButton.type = "button";
+    mapPinButton.className =
       "theater-map-action-button theater-map-action-button--locate";
-    locateButton.setAttribute("aria-label", "Find nearest city to my location");
-    locateButton.addEventListener("click", (event) => {
+    mapPinButton.addEventListener("click", (event) => {
       if (this.blockedLocateMessage || this.isLocatePending) {
         event.preventDefault();
         event.stopPropagation();
@@ -480,93 +530,142 @@ class TheaterMapActionControl implements IControl {
 
       this.options.onLocate();
     });
-    const locateGlyph = document.createElement("span");
-    locateGlyph.className = "theater-map-action-glyph";
-    locateGlyph.setAttribute("aria-hidden", "true");
-    locateGlyph.innerHTML = NAVIGATION_CONTROL_ICON;
-    locateButton.append(locateGlyph);
+    const mapPinGlyph = document.createElement("span");
+    mapPinGlyph.className =
+      "theater-map-action-glyph theater-map-action-glyph--map-pin";
+    mapPinGlyph.setAttribute("aria-hidden", "true");
+    mapPinButton.append(mapPinGlyph);
 
-    const locateTooltip = document.createElement("div");
-    locateTooltip.className = "theater-map-action-tooltip";
-    locateTooltip.setAttribute("aria-hidden", "true");
+    const mapPinTooltip = document.createElement("div");
+    mapPinTooltip.className = "theater-map-action-tooltip";
+    mapPinTooltip.setAttribute("aria-hidden", "true");
 
     const toggleTooltip = (visible: boolean) => {
-      if (!this.blockedLocateMessage || !this.locateTooltip) {
+      if (!this.blockedLocateMessage || !this.mapPinTooltip) {
         return;
       }
 
-      this.locateTooltip.classList.toggle("is-visible", visible);
-      this.locateTooltip.setAttribute("aria-hidden", String(!visible));
+      this.mapPinTooltip.classList.toggle("is-visible", visible);
+      this.mapPinTooltip.setAttribute("aria-hidden", String(!visible));
     };
 
-    locateButton.addEventListener("mouseenter", () => {
+    mapPinButton.addEventListener("mouseenter", () => {
       toggleTooltip(true);
     });
-    locateButton.addEventListener("mouseleave", () => {
+    mapPinButton.addEventListener("mouseleave", () => {
       toggleTooltip(false);
     });
-    locateButton.addEventListener("focus", () => {
+    mapPinButton.addEventListener("focus", () => {
       toggleTooltip(true);
     });
-    locateButton.addEventListener("blur", () => {
+    mapPinButton.addEventListener("blur", () => {
       toggleTooltip(false);
     });
 
-    controlsGroup.append(resetButton, locateButton);
-    container.append(controlsGroup, locateTooltip);
+    controlsGroup.append(viewButton, mapPinButton);
+    container.append(controlsGroup, mapPinTooltip);
     this.container = container;
-    this.locateButton = locateButton;
-    this.locateGlyph = locateGlyph;
-    this.locateTooltip = locateTooltip;
-    this.syncLocateButton();
+    this.viewButton = viewButton;
+    this.viewGlyph = viewGlyph;
+    this.mapPinButton = mapPinButton;
+    this.mapPinGlyph = mapPinGlyph;
+    this.mapPinTooltip = mapPinTooltip;
+    this.syncViewButton();
+    this.syncMapPinButton();
+    this.options.onMapPinAnchorChange?.(mapPinButton);
 
     return container;
   }
 
   onRemove() {
+    this.options.onMapPinAnchorChange?.(null);
     this.container?.remove();
     this.container = undefined;
-    this.locateButton = undefined;
-    this.locateGlyph = undefined;
-    this.locateTooltip = undefined;
+    this.viewButton = undefined;
+    this.viewGlyph = undefined;
+    this.mapPinButton = undefined;
+    this.mapPinGlyph = undefined;
+    this.mapPinTooltip = undefined;
   }
 
   setLocatePending(isPending: boolean) {
     this.isLocatePending = isPending;
-    this.syncLocateButton();
+    this.syncMapPinButton();
   }
 
   setLocateBlocked(message: string | null) {
     this.blockedLocateMessage = message;
-    this.syncLocateButton();
+    this.syncMapPinButton();
   }
 
-  private syncLocateButton() {
-    if (!this.locateButton || !this.locateGlyph || !this.locateTooltip) {
+  setOverviewState(isOverview: boolean) {
+    this.isOverview = isOverview;
+    this.syncViewButton();
+  }
+
+  setSelectedLocation(locationLabel: string) {
+    this.selectedLocationLabel = locationLabel;
+    this.syncViewButton();
+  }
+
+  setMapPinVisible(isVisible: boolean) {
+    this.showMapPinButton = isVisible;
+    this.syncMapPinButton();
+  }
+
+  private syncViewButton() {
+    if (!this.viewButton || !this.viewGlyph) {
+      return;
+    }
+
+    const selectedLocationLabel =
+      this.selectedLocationLabel.trim() || "selected city";
+    const label = this.isOverview
+      ? `Zoom to ${selectedLocationLabel}`
+      : "Return to full map view";
+
+    this.viewGlyph.innerHTML = this.isOverview
+      ? FOCUS_SELECTED_CITY_CONTROL_ICON
+      : OVERVIEW_CONTROL_ICON;
+    this.viewButton.setAttribute("aria-label", label);
+    this.viewButton.title = label;
+  }
+
+  private syncMapPinButton() {
+    if (!this.mapPinButton || !this.mapPinGlyph || !this.mapPinTooltip) {
       return;
     }
 
     const isBlocked = this.blockedLocateMessage !== null;
-    this.locateButton.disabled = false;
-    this.locateButton.setAttribute("aria-busy", String(this.isLocatePending));
-    this.locateButton.setAttribute(
+    this.mapPinButton.disabled = false;
+    this.mapPinButton.classList.toggle("is-hidden", !this.showMapPinButton);
+    this.mapPinButton.setAttribute("aria-busy", String(this.isLocatePending));
+    this.mapPinButton.setAttribute(
       "aria-disabled",
-      String(isBlocked || this.isLocatePending),
+      String(!this.showMapPinButton || isBlocked || this.isLocatePending),
     );
-    this.locateGlyph.innerHTML = isBlocked
+    this.mapPinButton.setAttribute("aria-hidden", String(!this.showMapPinButton));
+    this.mapPinButton.setAttribute(
+      "aria-label",
+      this.isLocatePending
+        ? "Waiting for location access"
+        : "Find nearest city to my location",
+    );
+    this.mapPinButton.tabIndex = this.showMapPinButton ? 0 : -1;
+    this.mapPinGlyph.innerHTML = isBlocked
       ? BLOCKED_LOCATE_ICON
-      : NAVIGATION_CONTROL_ICON;
-    this.locateTooltip.textContent =
+      : MAP_PIN_CONTROL_ICON;
+    this.mapPinTooltip.textContent =
       this.blockedLocateMessage ?? LOCATION_DISABLED_MESSAGE;
-    this.locateTooltip.classList.remove("is-visible");
-    this.locateTooltip.setAttribute("aria-hidden", "true");
+    this.mapPinTooltip.classList.remove("is-visible");
+    this.mapPinTooltip.setAttribute("aria-hidden", "true");
 
-    if (isBlocked) {
-      this.locateButton.title = "";
+    if (!this.showMapPinButton || isBlocked) {
+      this.mapPinButton.title = "";
       return;
     }
 
-    this.locateButton.title = this.isLocatePending
+    this.mapPinButton.title = this.isLocatePending
       ? "Waiting for location access..."
       : "Find nearest city to my location";
   }
@@ -959,10 +1058,10 @@ function rectanglesOverlap(
 export function CityLocationPicker({
   className,
   currentLocation,
-  mapIconAnchorRef,
+  mapPinAnchorRef,
   onPickLocation,
   onClose,
-  showMapIcon = true,
+  showMapPinButton = true,
   syncing = false,
 }: CityLocationPickerProps) {
   const [query, setQuery] = useState("");
@@ -978,6 +1077,7 @@ export function CityLocationPicker({
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const mapActionControlRef = useRef<TheaterMapActionControl | null>(null);
+  const mapPinAnchorRefRef = useRef(mapPinAnchorRef);
   const locateBlockedMessageRef = useRef<string | null>(
     typeof navigator === "undefined" ||
       typeof navigator.geolocation === "undefined"
@@ -987,6 +1087,7 @@ export function CityLocationPicker({
   const onCloseRef = useRef(onClose);
   const currentLocationRef = useRef(currentLocation);
   const syncingRef = useRef(syncing);
+  const showMapPinButtonRef = useRef(showMapPinButton);
   const geolocationRequestRef = useRef(false);
   const cityLabelElementsRef = useRef(new Map<string, CityMarkerState>());
   const secondaryCityLabelElementsRef = useRef<SecondaryCityMarkerState[]>([]);
@@ -1306,6 +1407,19 @@ export function CityLocationPicker({
   }, [onClose]);
 
   useEffect(() => {
+    mapPinAnchorRefRef.current = mapPinAnchorRef;
+  }, [mapPinAnchorRef]);
+
+  useEffect(() => {
+    showMapPinButtonRef.current = showMapPinButton;
+    mapActionControlRef.current?.setMapPinVisible(showMapPinButton);
+  }, [showMapPinButton]);
+
+  useEffect(() => {
+    mapActionControlRef.current?.setSelectedLocation(displayedCurrentLocation);
+  }, [displayedCurrentLocation]);
+
+  useEffect(() => {
     if (!isCityListOpen) {
       return;
     }
@@ -1412,16 +1526,29 @@ export function CityLocationPicker({
     const theaterMarkers: TheaterMarkerState[] = [];
     const mapActionControl = new TheaterMapActionControl({
       blockedLocateMessage: locateBlockedMessageRef.current,
-      onReset: () => {
+      onLocate: handleLocateNearestCity,
+      onMapPinAnchorChange: (element) => {
+        mapPinAnchorRefRef.current?.(element);
+      },
+      onResetToOverview: () => {
         setMapControlMessage(null);
         fitStartingView();
       },
-      onLocate: handleLocateNearestCity,
+      onZoomToSelectedCity: () => {
+        setMapControlMessage(null);
+        focusLocation(currentLocationRef.current, {
+          clearSearch: searchQueryRef.current.length > 0,
+        });
+      },
+      selectedLocationLabel: currentLocationRef.current,
+      showMapPinButton: showMapPinButtonRef.current,
     });
     let visibilityFrame = 0;
 
     mapRef.current = map;
     mapActionControlRef.current = mapActionControl;
+    mapActionControl.setSelectedLocation(currentLocationRef.current);
+    mapActionControl.setMapPinVisible(showMapPinButtonRef.current);
     cityLabelElementsRef.current = labelElements;
     secondaryCityLabelElementsRef.current = secondaryLabelElements;
     cityMarkersRef.current = markers;
@@ -1443,6 +1570,7 @@ export function CityLocationPicker({
       const zoom = map.getZoom();
       const currentSelection = currentLocationRef.current;
       const searchQuery = searchQueryRef.current;
+      mapActionControl.setOverviewState(isMapAtStartingView(map));
       const searchActive = searchQuery.length > 0;
       const searchMatchCount = searchActive
         ? cityEntries.reduce(
@@ -1814,6 +1942,7 @@ export function CityLocationPicker({
     cityEntries,
     cityRevealConfig,
     fitStartingView,
+    focusLocation,
     handleLocateNearestCity,
     handleLocationSelect,
     theaters,
@@ -1891,24 +2020,6 @@ export function CityLocationPicker({
           <div className="theater-map-current-chip theater-map-current-chip--search">
             {displayedCurrentLocation}
           </div>
-
-          <button
-            type="button"
-            ref={mapIconAnchorRef}
-            className={`theater-map-search-action-button theater-map-inline-map-indicator${
-              showMapIcon ? " is-visible" : ""
-            }`}
-            aria-label={`Zoom to ${displayedCurrentLocation}`}
-            disabled={!showMapIcon}
-            tabIndex={showMapIcon ? 0 : -1}
-            onClick={() => {
-              focusLocation(currentLocationRef.current, {
-                clearSearch: searchQueryRef.current.length > 0,
-              });
-            }}
-          >
-            <MapPin size={20} strokeWidth={2.75} />
-          </button>
 
           <label className="theater-map-search-field">
             <div className="theater-map-search-input-shell">
