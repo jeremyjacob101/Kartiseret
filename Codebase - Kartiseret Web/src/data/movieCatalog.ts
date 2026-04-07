@@ -66,6 +66,11 @@ const SHOWTIME_SELECT_COLUMNS = [
   "showtime",
   "english_href",
 ] as const;
+const OPTIONAL_SHOWTIME_SELECT_COLUMNS = [
+  "screening_tech",
+  "screening_type",
+  "dub_language",
+] as const;
 const THEATER_SORT_ORDER = [
   "MovieLand",
   "Yes Planet",
@@ -125,6 +130,8 @@ export type MovieShowtimeDay = {
 export type ShowtimeEntry = {
   time: string;
   href: string | null;
+  screeningTech: string | null;
+  dubLanguage: string | null;
 };
 
 export type MovieCatalogStatusSnapshot = {
@@ -483,7 +490,7 @@ function buildMovieShowtimes(
   const selectedMovieIds = new Set(selectedMovies.map((movie) => movie.tmdbId));
   const groupedShowtimes = new Map<
     string,
-    Map<AppLocation, Map<string, Map<string, Map<string, string | null>>>>
+    Map<AppLocation, Map<string, Map<string, Map<string, ShowtimeEntry>>>>
   >();
 
   for (const row of rows) {
@@ -511,6 +518,9 @@ function buildMovieShowtimes(
     const showtime = formatShowtime(stringifySupabaseValue(row.showtime));
     const showtimeHref =
       normalizeText(stringifySupabaseValue(row.english_href)) || null;
+    const screeningTech =
+      getFirstNormalizedText(row, ["screening_tech", "screening_type"]) || null;
+    const dubLanguage = getFirstNormalizedText(row, ["dub_language"]) || null;
 
     if (!date || !theater || !showtime) {
       continue;
@@ -540,8 +550,19 @@ function buildMovieShowtimes(
       theaterMap.set(theater, theaterShowtimes);
     }
 
-    const existingHref = theaterShowtimes.get(showtime) ?? null;
-    theaterShowtimes.set(showtime, existingHref || showtimeHref);
+    const showtimeKey = [
+      showtime,
+      screeningTech?.toLowerCase() ?? "",
+      dubLanguage?.toLowerCase() ?? "",
+    ].join("::");
+    const existingEntry = theaterShowtimes.get(showtimeKey);
+
+    theaterShowtimes.set(showtimeKey, {
+      time: showtime,
+      href: existingEntry?.href || showtimeHref,
+      screeningTech: existingEntry?.screeningTech || screeningTech,
+      dubLanguage: existingEntry?.dubLanguage || dubLanguage,
+    });
   }
 
   const canonicalCities = new Set<string>(ALL_LOCATIONS);
@@ -569,13 +590,16 @@ function buildMovieShowtimes(
                       compareTheaters(leftTheater, rightTheater))
                     .map(([theater, theaterShowtimes]) => ({
                       theater,
-                      showtimes: [...theaterShowtimes.entries()]
-                        .sort(([leftTime], [rightTime]) =>
-                          leftTime.localeCompare(rightTime))
-                        .map(([time, href]) => ({
-                          time,
-                          href,
-                        })),
+                      showtimes: [...theaterShowtimes.values()].sort(
+                        (leftShowtime, rightShowtime) =>
+                          leftShowtime.time.localeCompare(rightShowtime.time) ||
+                          (leftShowtime.screeningTech ?? "").localeCompare(
+                            rightShowtime.screeningTech ?? "",
+                          ) ||
+                          (leftShowtime.dubLanguage ?? "").localeCompare(
+                            rightShowtime.dubLanguage ?? "",
+                          ),
+                      ),
                     }))
                 : [],
             };
@@ -691,6 +715,33 @@ async function fetchComingSoonMovieRows(): Promise<SupabaseRow[]> {
   }
 }
 
+async function fetchShowtimeRows(): Promise<SupabaseRow[]> {
+  const selectColumns = [
+    ...SHOWTIME_SELECT_COLUMNS,
+    ...OPTIONAL_SHOWTIME_SELECT_COLUMNS,
+  ];
+
+  try {
+    return await fetchAllTableRows(SHOWTIMES_TABLE_NAME, selectColumns, [
+      "tmdb_id",
+      "date_of_showing",
+      "cinema",
+      "showtime",
+    ]);
+  } catch (error) {
+    if (!isMissingOptionalColumnError(error, OPTIONAL_SHOWTIME_SELECT_COLUMNS)) {
+      throw error;
+    }
+
+    return fetchAllTableRows(SHOWTIMES_TABLE_NAME, SHOWTIME_SELECT_COLUMNS, [
+      "tmdb_id",
+      "date_of_showing",
+      "cinema",
+      "showtime",
+    ]);
+  }
+}
+
 export async function loadNowPlayingMovies(): Promise<void> {
   if (nowPlayingLoaded) {
     return;
@@ -784,11 +835,7 @@ export async function loadShowtimes(): Promise<void> {
 
   loadShowtimesPromise = (async () => {
     await loadNowPlayingMovies();
-    const showtimeRows = await fetchAllTableRows(
-      SHOWTIMES_TABLE_NAME,
-      SHOWTIME_SELECT_COLUMNS,
-      ["tmdb_id", "date_of_showing", "cinema", "showtime"],
-    );
+    const showtimeRows = await fetchShowtimeRows();
 
     movieShowtimesByTmdbId = buildMovieShowtimes(
       showtimeRows,

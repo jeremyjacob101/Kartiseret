@@ -519,9 +519,46 @@ function cloneShowtimeDays(
       showtimes: theater.showtimes.map((showtime) => ({
         time: showtime.time,
         href: showtime.href,
+        screeningTech: showtime.screeningTech,
+        dubLanguage: showtime.dubLanguage,
       })),
     })),
   }));
+}
+
+function getShowtimeTechLabel(
+  screeningTech: string | null | undefined,
+): string | null {
+  const normalizedValue = screeningTech?.trim().replace(/\s+/g, " ") ?? "";
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  const strippedValue = normalizedValue
+    .replace(/^2D\b[\s/-]*/i, "")
+    .trim();
+  const comparableValue = strippedValue.toUpperCase();
+
+  if (!strippedValue || comparableValue === "REGULAR") {
+    return null;
+  }
+
+  return strippedValue;
+}
+
+function isHebrewDub(dubLanguage: string | null | undefined): boolean {
+  const normalizedValue = dubLanguage?.trim().toLowerCase() ?? "";
+
+  return normalizedValue.includes("hebrew") || normalizedValue.includes("עברית");
+}
+
+function getDubBadgeLabel(
+  dubLanguage: string | null | undefined,
+): string | null {
+  const normalizedValue = dubLanguage?.trim().replace(/\s+/g, " ") ?? "";
+
+  return normalizedValue ? `${normalizedValue} Dub` : null;
 }
 
 export function MovieDetailsContent({
@@ -880,42 +917,153 @@ export function MovieDetailsContent({
 
                           <div className="details-time-grid">
                             {theater.showtimes.map((showtime) => {
-                              const className = [
+                              const showtimeTech = getShowtimeTechLabel(
+                                showtime.screeningTech,
+                              );
+                              const hasHebrewDub = isHebrewDub(
+                                showtime.dubLanguage,
+                              );
+                              const dubBadgeLabel = getDubBadgeLabel(
+                                showtime.dubLanguage,
+                              );
+                              const showtimeSlotClassName = [
+                                "details-showtime-slot",
+                                showtimeTech
+                                  ? "details-showtime-slot--with-tech"
+                                  : null,
+                                hasHebrewDub
+                                  ? "details-showtime-slot--with-flag"
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" ");
+                              const showtimeCardClassName = [
+                                "details-showtime-card",
+                                showtime.href
+                                  ? "details-showtime-card--link"
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" ");
+                              const showtimePillClassName = [
                                 "details-time-pill",
                                 colors.pillClassName,
                               ]
                                 .filter(Boolean)
                                 .join(" ");
-                              const style = colors.pillClassName
+                              const showtimeCardStyle = colors.pillClassName
                                 ? undefined
                                 : {
-                                    color: colors.accent,
-                                    borderColor: colors.accent,
                                     background:
-                                      colors.pillBackground ?? colors.surface,
-                                    boxShadow: `inset 0 0 0 1px ${colors.surface}`,
+                                      colors.pillBackground ??
+                                      `linear-gradient(180deg, color-mix(in srgb, ${colors.accent} 88%, white 12%), color-mix(in srgb, ${colors.accent} 72%, black 28%))`,
                                   };
-
-                              return showtime.href ? (
+                              const showtimeLabel = [
+                                `Open ${movie.title} ${showtime.time} showtime at ${theater.theater}`,
+                                showtimeTech,
+                                dubBadgeLabel,
+                              ]
+                                .filter(Boolean)
+                                .join(", ");
+                              const key = [
+                                theater.theater,
+                                day.date,
+                                showtime.time,
+                                showtime.screeningTech ?? "standard",
+                                showtime.dubLanguage ?? "original",
+                              ].join("-");
+                              const showtimeCard = showtime.href ? (
                                 <a
-                                  key={`${theater.theater}-${day.date}-${showtime.time}`}
                                   href={showtime.href}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className={className}
-                                  style={style}
-                                  aria-label={`Open ${movie.title} ${showtime.time} showtime at ${theater.theater}`}
+                                  className={showtimeCardClassName}
+                                  aria-label={showtimeLabel}
                                 >
-                                  {showtime.time}
+                                  {showtimeTech ? (
+                                    <span
+                                      className="details-showtime-tech"
+                                      aria-hidden="true"
+                                    >
+                                      {showtimeTech}
+                                    </span>
+                                  ) : null}
+
+                                  <div className="details-time-card-shell">
+                                    <span
+                                      className={showtimePillClassName}
+                                      style={showtimeCardStyle}
+                                    >
+                                      {hasHebrewDub && dubBadgeLabel ? (
+                                        <span className="details-time-pill-flag-shell">
+                                          <img
+                                            src="/flags/israel.svg"
+                                            alt=""
+                                            className="details-time-pill-flag"
+                                            width={17}
+                                            height={13}
+                                            decoding="async"
+                                          />
+                                          <span className="details-time-pill-flag-tooltip">
+                                            {dubBadgeLabel}
+                                          </span>
+                                        </span>
+                                      ) : null}
+                                      <span className="details-time-pill-label">
+                                        {showtime.time}
+                                      </span>
+                                    </span>
+                                  </div>
                                 </a>
                               ) : (
                                 <span
-                                  key={`${theater.theater}-${day.date}-${showtime.time}`}
-                                  className={className}
-                                  style={style}
+                                  className={showtimeCardClassName}
+                                  aria-label={showtimeLabel}
                                 >
-                                  {showtime.time}
+                                  {showtimeTech ? (
+                                    <span
+                                      className="details-showtime-tech"
+                                      aria-hidden="true"
+                                    >
+                                      {showtimeTech}
+                                    </span>
+                                  ) : null}
+
+                                  <div className="details-time-card-shell">
+                                    <span
+                                      className={showtimePillClassName}
+                                      style={showtimeCardStyle}
+                                    >
+                                      {hasHebrewDub && dubBadgeLabel ? (
+                                        <span className="details-time-pill-flag-shell">
+                                          <img
+                                            src="/flags/israel.svg"
+                                            alt=""
+                                            className="details-time-pill-flag"
+                                            width={17}
+                                            height={13}
+                                            decoding="async"
+                                          />
+                                          <span className="details-time-pill-flag-tooltip">
+                                            {dubBadgeLabel}
+                                          </span>
+                                        </span>
+                                      ) : null}
+                                      <span className="details-time-pill-label">
+                                        {showtime.time}
+                                      </span>
+                                    </span>
+                                  </div>
                                 </span>
+                              );
+
+                              return (
+                                <div
+                                  key={key}
+                                  className={showtimeSlotClassName}
+                                >
+                                  {showtimeCard}
+                                </div>
                               );
                             })}
                           </div>
