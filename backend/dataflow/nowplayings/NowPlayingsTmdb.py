@@ -1,4 +1,5 @@
 from backend.dataflow.BaseDataflow import BaseDataflow
+from backend.utils.supabase.clear_orphan_final_movies import clear_orphan_final_movies
 from collections import defaultdict
 from datetime import date
 import requests
@@ -15,25 +16,48 @@ class NowPlayingsTmdb(BaseDataflow):
         self.dedupeFinalShowtimes(self.MOVING_TO_TABLE_NAME)
         self.dedupeFinalMovies(self.MOVING_TO_TABLE_NAME_2)
 
+        # SKIP TOKENS
         for skip_row in self.helper_table_2_rows:
             skip_value = skip_row.get("name_or_tmdb_id").strip()
             self.skip_tokens.add(skip_value.lower())
             self.skip_tokens.add(self.normalizeTitle(skip_value).strip().lower())
 
+        # TMDB FIX OVERRIDES (title -> tmdb_id)
         for fix in self.helper_table_rows:
-            tmdb_id = fix.get("tmdb_id").strip()
+            tmdb_id = int(fix.get("tmdb_id").strip())
             title_fix = fix.get("title_fix").strip().lower()
-            if not tmdb_id or not title_fix:
-                continue
-            tmdb_id = int(tmdb_id)
             self.tmdb_fix_ids.add(tmdb_id)
             self.tmdb_fix_by_title[title_fix] = tmdb_id
             self.tryExceptPass(lambda: self.tmdb_fix_by_title.__setitem__(self.normalizeTitle(title_fix).strip().lower(), tmdb_id))
 
+        # LATEST RAW SNAPSHOT PER CINEMA
         for row in self.main_table_rows:
+            cinema = self.clean_str(row.get("cinema")).strip()
+            run_id = self.clean_int(row.get("run_id"))
+
+            current_latest = self.latest_run_id_by_cinema.get(cinema)
+            if current_latest is None or run_id > current_latest:
+                self.latest_run_id_by_cinema[cinema] = run_id
+                self.latest_rows_by_cinema[cinema] = [row]
+            elif current_latest == run_id:
+                self.latest_rows_by_cinema[cinema].append(row)
+
+        for rows in self.latest_rows_by_cinema.values():
+            if rows and all(row.get("added") is True for row in rows):
+                continue
+            self.latest_snapshot_rows.extend(rows)
+
+        # CURRENT FINALSHOWTIMES IDS PER CINEMA
+        for row in self.moving_to_table_rows:
+            cinema = self.clean_str(row.get("cinema")).strip()
+            row_id = row.get("id")
+            self.existing_final_ids_by_cinema[cinema].add(row_id)
+
+        # GROUP RAW ROWS FROM EACH CINEMA'S LATEST SNAPSHOT
+        for row in self.latest_snapshot_rows:
             self.reset_np_main_row_state()
             self.load_np_main_row(row)
-            if row.get("added") or (self.date_of_showing and self.dateToDate(self.date_of_showing) < date.today()):
+            if self.date_of_showing and self.dateToDate(self.date_of_showing) < date.today():
                 continue
 
             title_norm = self.normalizeTitle(self.english_title)
@@ -51,13 +75,13 @@ class NowPlayingsTmdb(BaseDataflow):
 
             self.release_year is not None and self.tryExceptPass(lambda: meta["year_counts"].__setitem__(self.release_year, meta["year_counts"].get(self.release_year, 0) + 1))
 
+        # RESOLVE TMDB FOR EACH GROUPED TITLE
         for key, rows in self.grouped_rows_by_key.items():
             self.reset_np_groupkey_row_state()
-            meta = self.meta_by_key.get(key) or {}
-            hebrew_title, directed_by, runtime, year_counts, parsed_year = meta.get("hebrew_title"), meta.get("directed_by"), meta.get("runtime"), meta.get("year_counts") or {}, None
+            self.load_np_groupkey_meta_row(key)
 
-            if year_counts:
-                parsed_year = self.tryExceptNone(lambda: max(year_counts.items(), key=lambda kv: kv[1])[0])
+            if self.year_counts:
+                self.parsed_year = self.tryExceptNone(lambda: max(self.year_counts.items(), key=lambda kv: kv[1])[0])
 
             title_counts = self.title_counts_by_key.get(key) or {}
             titles_sorted = sorted(title_counts.items(), key=lambda kv: kv[1], reverse=True)
@@ -80,12 +104,12 @@ class NowPlayingsTmdb(BaseDataflow):
                 self.potential_chosen_id = self.override_tmdb
                 if str(self.potential_chosen_id).lower() in self.skip_tokens:
                     continue
-                self.key_result[key] = {"tmdb_id": self.potential_chosen_id, "imdb_id": None, "hebrew_title": hebrew_title}
+                self.key_result[key] = {"tmdb_id": self.potential_chosen_id, "imdb_id": None, "hebrew_title": self.hebrew_title}
                 continue
 
             # 1) SEARCH TMDB AND COLLECT CANDIDATES
-            if parsed_year:
-                self.search_plans += [(24, 8, year) for year in (parsed_year, parsed_year - 1, parsed_year + 1)]
+            if self.parsed_year:
+                self.search_plans += [(24, 8, year) for year in (self.parsed_year, self.parsed_year - 1, self.parsed_year + 1)]
             self.search_plans.append((20, None, None))
             for max_total, max_plan, year in self.search_plans:
                 if len(self.candidates) >= max_total:
@@ -132,11 +156,11 @@ class NowPlayingsTmdb(BaseDataflow):
             # 4) FALLBACK FIRST/DIRECTOR/RUNTIME RANKING LOGIC
             if self.potential_chosen_id is None:
                 first = self.details.get(self.candidates[0])
-                if first and (self.normalizeTitle(first.get("title")) == self.normalizeTitle(representative_title)) and (not parsed_year or self.tryExceptNone(lambda: int((first.get("release_date") or "")[:4]) == parsed_year)):
+                if first and (self.normalizeTitle(first.get("title")) == self.normalizeTitle(representative_title)) and (not self.parsed_year or self.tryExceptNone(lambda: int((first.get("release_date") or "")[:4]) == self.parsed_year)):
                     self.potential_chosen_id = self.candidates[0]
 
-                if self.potential_chosen_id is None and directed_by:
-                    target = str(directed_by).lower()
+                if self.potential_chosen_id is None and self.directed_by:
+                    target = str(self.directed_by).lower()
                     for tmdb_id, movie_details in self.details.items():
                         crew = movie_details.get("credits", {}).get("crew", [])
                         directors = [crew_member["name"].lower() for crew_member in crew if crew_member.get("job") == "Director" and crew_member.get("name")]
@@ -144,9 +168,9 @@ class NowPlayingsTmdb(BaseDataflow):
                             self.potential_chosen_id = tmdb_id
                             break
 
-                if self.potential_chosen_id is None and runtime and hasattr(self, "fake_runtimes") and runtime not in self.fake_runtimes:
+                if self.potential_chosen_id is None and self.runtime and self.runtime not in self.fake_runtimes:
                     for tmdb_id, movie_details in self.details.items():
-                        if movie_details.get("runtime") == runtime:
+                        if movie_details.get("runtime") == self.runtime:
                             self.potential_chosen_id = tmdb_id
                             break
 
@@ -159,7 +183,7 @@ class NowPlayingsTmdb(BaseDataflow):
             chosen_details = self.details.get(self.potential_chosen_id) or {}
             chosen_imdb = (chosen_details.get("external_ids", {}) or {}).get("imdb_id")
 
-            self.key_result[key] = {"tmdb_id": self.potential_chosen_id, "imdb_id": chosen_imdb, "hebrew_title": hebrew_title}
+            self.key_result[key] = {"tmdb_id": self.potential_chosen_id, "imdb_id": chosen_imdb, "hebrew_title": self.hebrew_title}
 
         # 5) DEDUPE BY TMDB ID
         for key, res in self.key_result.items():
@@ -189,6 +213,8 @@ class NowPlayingsTmdb(BaseDataflow):
             res["release_year"] = data["release_date"][:4] if data.get("release_date") else res.get("release_year")
 
         tmdb_id_to_enriched = dict(self.movies_by_tmdb)
+
+        # BUILD FINALSHOWTIMES CANDIDATES
         for key, rows in self.grouped_rows_by_key.items():
             group_res = self.key_result.get(key)
             tmdb_id = (group_res or {}).get("tmdb_id")
@@ -206,17 +232,38 @@ class NowPlayingsTmdb(BaseDataflow):
                 for column in ("added", "cleaned", "release_year", "rating", "directed_by", "runtime"):
                     new_row.pop(column, None)
 
-                self.processed_ids.add(row["id"])
                 self.updates.append(new_row)
 
-        self.upsertUpdates(self.MOVING_TO_TABLE_NAME)
-        if self.processed_ids:
-            ids = list(self.processed_ids)
-            for i in range(0, len(ids), 200):
-                chunk = ids[i : i + 200]
-                self.supabase.table(self.MAIN_TABLE_NAME).update({"added": True}).in_("id", chunk).execute()
-        self.dedupeFinalShowtimes(self.MOVING_TO_TABLE_NAME)
+        for row in self.updates:
+            cinema = self.clean_str(row.get("cinema")).strip()
+            row_id = row.get("id")
 
+            self.updates_by_cinema[cinema].append(row)
+            self.new_final_ids_by_cinema[cinema].add(row_id)
+
+        # PUBLISH EACH CINEMA'S LATEST SNAPSHOT
+        for cinema, cinema_rows in self.updates_by_cinema.items():
+            if not cinema_rows:
+                continue
+
+            # UPSERT FINALSHOWTIMES FOR THIS CINEMA
+            self.updates = list(cinema_rows)
+            self.upsertUpdates(self.MOVING_TO_TABLE_NAME, refresh=False)
+
+            # MARK THIS CINEMA'S WHOLE RAW SNAPSHOT AS ADDED
+            raw_snapshot_ids = sorted(row["id"] for row in self.latest_rows_by_cinema[cinema])
+            if raw_snapshot_ids:
+                for i in range(0, len(raw_snapshot_ids), 200):
+                    self.supabase.table(self.MAIN_TABLE_NAME).update({"added": True}).in_("id", raw_snapshot_ids[i : i + 200]).execute()
+
+            # DELETE STALE FINALSHOWTIMES ROWS FOR THIS CINEMA
+            stale_final_ids = self.existing_final_ids_by_cinema.get(cinema, set()) - self.new_final_ids_by_cinema.get(cinema, set())
+            if stale_final_ids:
+                self.delete_these.extend(sorted(stale_final_ids))
+                self.deleteTheseRows(self.MOVING_TO_TABLE_NAME, refresh=False)
+
+        # UPSERT FINALMOVIES
+        self.dedupeFinalShowtimes(self.MOVING_TO_TABLE_NAME)
         for tmdb_id, res in tmdb_id_to_enriched.items():
             if not tmdb_id:
                 continue
@@ -225,3 +272,4 @@ class NowPlayingsTmdb(BaseDataflow):
 
         self.upsertUpdates(self.MOVING_TO_TABLE_NAME_2)
         self.dedupeFinalMovies(self.MOVING_TO_TABLE_NAME_2)
+        clear_orphan_final_movies()

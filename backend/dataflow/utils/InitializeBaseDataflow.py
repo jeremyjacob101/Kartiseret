@@ -86,4 +86,11 @@ class InitializeBaseDataflow:
         self.meta_by_key = {}
         self.key_result = {}
 
+        self.existing_final_ids_by_cinema = defaultdict(set)
+        self.new_final_ids_by_cinema = defaultdict(set)
+        self.latest_rows_by_cinema = defaultdict(list)
+        self.updates_by_cinema = defaultdict(list)
+        self.latest_run_id_by_cinema = {}
+        self.latest_snapshot_rows = []
+
         self.fake_runtimes = [0, 30, 40, 45, 60, 90, 100, 120, 130, 150, 180, 200, 240, 250, 300]
