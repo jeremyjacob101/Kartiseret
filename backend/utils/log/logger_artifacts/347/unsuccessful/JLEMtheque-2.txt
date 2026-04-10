@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: JLEMtheque
+URL: https://jer-cin.org.il/en/article/4284
+Exception: ElementClickInterceptedException - Message: element click intercepted: Element <a href="/he/article/4285" class="language-link lang-he-icon" xml:lang="he" title="החודש">...</a> is not clickable at point (1882, 25). Other element would receive the click: <div class="load-inner loading">...</div>
+Call Chain: runners.py:43 > runners.py:19 > BaseCinema.py:28 > JLEMtheque.py:19 > ScrapingHelpers.py:58
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/347/unsuccessful/JLEMtheque-2.png
+CSV: 
