@@ -24,6 +24,7 @@ type MovieSearchMenuProps = {
   collections: readonly MovieSearchCollection[];
   loading?: boolean;
   onOpen?: () => void;
+  panelDirection?: "down" | "up";
   onSelectResult: (result: MovieSearchResult) => void;
 };
 
@@ -68,6 +69,7 @@ export function MovieSearchMenu({
   collections,
   loading = false,
   onOpen,
+  panelDirection = "down",
   onSelectResult,
 }: MovieSearchMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -163,7 +165,10 @@ export function MovieSearchMenu({
   }
 
   return (
-    <div className="movie-search" ref={menuRef}>
+    <div
+      className={`movie-search movie-search--panel-${panelDirection}`}
+      ref={menuRef}
+    >
       <button
         type="button"
         className={`movie-search-trigger${isOpen ? " is-open" : ""}`}

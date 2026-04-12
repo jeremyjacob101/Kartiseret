@@ -145,12 +145,6 @@
   width: 24px;
 }
 
-.floating-navbar-stack .movie-search-panel {
-  top: 50%;
-  right: calc(100% + 14px);
-  transform: translateY(-50%);
-}
-
 html[data-device-type="mobile"] .floating-navbar-stack {
   --floating-navbar-size: 52px;
   --floating-navbar-default-bottom: 10px;

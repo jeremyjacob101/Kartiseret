@@ -61,9 +61,7 @@
 }
 
 .floating-navbar-stack .user-menu-panel {
-  top: 50%;
-  right: calc(100% + 14px);
-  transform: translateY(-50%);
+  width: min(340px, calc(100vw - 24px));
 }
 
 .user-menu-panel {
@@ -71,7 +69,7 @@
   top: calc(100% + 10px);
   right: 0;
   z-index: 180;
-  width: min(90vw, 320px);
+  width: min(320px, calc(100vw - 24px));
   padding: 14px;
   border: 1px solid rgba(129, 95, 170, 0.45);
   border-radius: 16px;
@@ -80,6 +78,14 @@
   box-shadow:
     0 24px 42px rgba(26, 20, 38, 0.28),
     0 1px 0 rgba(255, 255, 255, 0.85) inset;
+}
+
+.user-menu--panel-up .user-menu-panel {
+  top: auto;
+  right: auto;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .user-menu-header {
@@ -265,6 +271,15 @@
 
 .user-menu-feedback--error {
   color: rgba(146, 27, 67, 0.95);
+}
+
+html[data-device-type="mobile"] .user-menu-panel {
+  width: min(320px, calc(100vw - 20px));
+  padding: 12px;
+}
+
+html[data-device-type="mobile"] .user-menu--panel-up .user-menu-panel {
+  width: min(340px, calc(100vw - 20px));
 }
 
 @media (prefers-reduced-motion: reduce) {

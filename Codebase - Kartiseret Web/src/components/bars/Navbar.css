@@ -331,7 +331,7 @@ span.topnav-icon {
   top: calc(100% + 10px);
   right: 0;
   z-index: 180;
-  width: min(92vw, 400px);
+  width: min(400px, calc(100vw - 24px));
   padding: 14px;
   border: 1px solid rgba(129, 95, 170, 0.45);
   border-radius: 16px;
@@ -340,6 +340,15 @@ span.topnav-icon {
   box-shadow:
     0 24px 42px rgba(26, 20, 38, 0.28),
     0 1px 0 rgba(255, 255, 255, 0.85) inset;
+}
+
+.movie-search--panel-up .movie-search-panel {
+  top: auto;
+  right: auto;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(360px, calc(100vw - 24px));
 }
 
 .location-menu-panel {
@@ -577,6 +586,15 @@ html[data-device-type="mobile"] .topnav-label {
 html[data-device-type="mobile"] .navbar-actions {
   justify-content: center;
   gap: 12px;
+}
+
+html[data-device-type="mobile"] .movie-search-panel {
+  width: min(360px, calc(100vw - 20px));
+  padding: 12px;
+}
+
+html[data-device-type="mobile"] .movie-search--panel-up .movie-search-panel {
+  width: min(340px, calc(100vw - 20px));
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -10,6 +10,7 @@ import { useUserPreferencesContext } from "../prefs/useUserPreferences";
 type AuthMode = "login" | "signup";
 type UserMenuProps = {
   currentPath: string;
+  panelDirection?: "down" | "up";
   onNavigate: (path: string) => void;
 };
 
@@ -33,7 +34,11 @@ async function persistSignupPreferenceDefaults(
   return error?.message ?? null;
 }
 
-export function UserMenu({ currentPath, onNavigate }: UserMenuProps) {
+export function UserMenu({
+  currentPath,
+  panelDirection = "down",
+  onNavigate,
+}: UserMenuProps) {
   const { user } = useUserPreferencesContext();
   const [isOpen, setIsOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
@@ -169,7 +174,10 @@ export function UserMenu({ currentPath, onNavigate }: UserMenuProps) {
   }
 
   return (
-    <div className="user-menu" ref={menuRef}>
+    <div
+      className={`user-menu user-menu--panel-${panelDirection}`}
+      ref={menuRef}
+    >
       <button
         type="button"
         className={`user-menu-trigger${isOpen ? " is-open" : ""}`}

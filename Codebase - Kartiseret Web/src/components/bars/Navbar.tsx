@@ -101,6 +101,7 @@ function NavbarActions({
           collections={searchCollections}
           loading={!catalogReady}
           onOpen={onSearchOpen}
+          panelDirection={isFloating ? "up" : "down"}
           onSelectResult={onSelectResult}
         />
       </div>
@@ -122,7 +123,11 @@ function NavbarActions({
             : undefined
         }
       >
-        <UserMenu currentPath={currentPath} onNavigate={onNavigate} />
+        <UserMenu
+          currentPath={currentPath}
+          panelDirection={isFloating ? "up" : "down"}
+          onNavigate={onNavigate}
+        />
       </div>
       <div
         className={
