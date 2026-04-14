@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: YesPlanet
+URL: ?
+Exception: SessionNotCreatedException - Message: session not created
+Call Chain: runners.py:40 > runners.py:19 > BaseCinema.py:15 > InitializeBaseCinema.py:32
+Selector: 
+Screenshot: 
+CSV: 
