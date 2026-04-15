@@ -97,9 +97,7 @@ function getFocusViewportCenter(
     ? Math.max(focusOffsetItemSpans, 0)
     : 0;
   const desiredCenter =
-    clientWidth / 2 -
-    itemSpan * safeFocusOffsetItemSpans +
-    additionalOffsetPx;
+    clientWidth / 2 - itemSpan * safeFocusOffsetItemSpans + additionalOffsetPx;
   const minimumCenter = gap + cardWidth / 2;
   const maximumCenter = Math.max(
     minimumCenter,

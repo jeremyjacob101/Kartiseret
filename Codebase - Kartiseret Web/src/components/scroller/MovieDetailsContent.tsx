@@ -536,9 +536,7 @@ function getShowtimeTechLabel(
     return null;
   }
 
-  const strippedValue = normalizedValue
-    .replace(/^2D\b[\s/-]*/i, "")
-    .trim();
+  const strippedValue = normalizedValue.replace(/^2D\b[\s/-]*/i, "").trim();
   const comparableValue = strippedValue.toUpperCase();
 
   if (!strippedValue || comparableValue === "REGULAR") {

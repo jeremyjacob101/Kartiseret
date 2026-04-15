@@ -519,8 +519,10 @@ function buildMovieShowtimes(
     const showtime = formatShowtime(stringifySupabaseValue(row.showtime));
     const showtimeHref =
       normalizeText(stringifySupabaseValue(row.english_href)) || null;
-    const screeningTech = getFirstNormalizedText(row, ["screening_tech"]) || null;
-    const screeningType = getFirstNormalizedText(row, ["screening_type"]) || null;
+    const screeningTech =
+      getFirstNormalizedText(row, ["screening_tech"]) || null;
+    const screeningType =
+      getFirstNormalizedText(row, ["screening_type"]) || null;
     const dubLanguage = getFirstNormalizedText(row, ["dub_language"]) || null;
 
     if (!date || !theater || !showtime) {
@@ -735,7 +737,9 @@ async function fetchShowtimeRows(): Promise<SupabaseRow[]> {
       "showtime",
     ]);
   } catch (error) {
-    if (!isMissingOptionalColumnError(error, OPTIONAL_SHOWTIME_SELECT_COLUMNS)) {
+    if (
+      !isMissingOptionalColumnError(error, OPTIONAL_SHOWTIME_SELECT_COLUMNS)
+    ) {
       throw error;
     }
 

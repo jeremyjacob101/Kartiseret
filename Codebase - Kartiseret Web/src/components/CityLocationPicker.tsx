@@ -661,7 +661,10 @@ class TheaterMapActionControl implements IControl {
       "aria-disabled",
       String(!this.showMapPinButton || isBlocked || this.isLocatePending),
     );
-    this.mapPinButton.setAttribute("aria-hidden", String(!this.showMapPinButton));
+    this.mapPinButton.setAttribute(
+      "aria-hidden",
+      String(!this.showMapPinButton),
+    );
     this.mapPinButton.setAttribute(
       "aria-label",
       this.isLocatePending

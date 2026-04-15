@@ -209,11 +209,7 @@ export function Navbar({
 
       setShowMiniNavBar(shouldShowMiniNavBar);
 
-      if (
-        showNavbarIntro ||
-        !shouldShowMiniNavBar ||
-        !renderMiniNavBar
-      ) {
+      if (showNavbarIntro || !shouldShowMiniNavBar || !renderMiniNavBar) {
         resetMiniNavBarBottomBarState();
         return;
       }
@@ -230,8 +226,7 @@ export function Navbar({
       const floatingStackRect = floatingStack.getBoundingClientRect();
       const floatingStackHeight = floatingStackRect.height;
       const defaultBottomPx = getDefaultFloatingNavbarBottomPx();
-      const defaultBottomEdge =
-        window.innerHeight - defaultBottomPx;
+      const defaultBottomEdge = window.innerHeight - defaultBottomPx;
       const defaultTopEdge = defaultBottomEdge - floatingStackHeight;
       const isOverBottomBar =
         footerRect.top < defaultBottomEdge &&
@@ -252,14 +247,10 @@ export function Navbar({
       const liftedBottom = Math.round(
         footerTopDistanceFromViewportBottom + FLOATING_NAVBAR_FOOTER_GAP_PX,
       );
-      const targetBottom = isMobile
-        ? liftedBottom
-        : Math.round(centeredBottom);
+      const targetBottom = isMobile ? liftedBottom : Math.round(centeredBottom);
 
       setMiniNavBarOverBottomBar(true);
-      setMiniNavBarBottomOffset(
-        Math.max(defaultBottomPx, targetBottom),
-      );
+      setMiniNavBarBottomOffset(Math.max(defaultBottomPx, targetBottom));
     };
 
     const requestMiniNavBarUpdate = () => {
