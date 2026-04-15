@@ -355,8 +355,10 @@ function getMetricDisplay(
     case "imdbRating":
       return {
         key: "imdbRating",
-        value: movie.imdbRating.toFixed(1),
-        ariaLabel: `IMDb rating ${movie.imdbRating.toFixed(1)}`,
+        value: formatDecimalRating(movie.imdbRating),
+        ariaLabel: hasRating(movie.imdbRating)
+          ? `IMDb rating ${movie.imdbRating.toFixed(1)}`
+          : "IMDb rating unavailable",
         logoSrc: "/logos/imdb.svg",
         href: getImdbUrl(movie) ?? undefined,
         linkAriaLabel: `Open ${movie.title} on IMDb`,

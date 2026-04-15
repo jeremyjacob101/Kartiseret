@@ -103,7 +103,7 @@ export type Movie = {
   imageSrc: string;
   backdropSrc?: string;
   trailerKey?: string;
-  imdbRating: number;
+  imdbRating: number | null;
   lbId?: string;
   lbRating: number | null;
   lbVotes: number | null;
@@ -462,7 +462,7 @@ function buildMovies(
         imageSrc,
         backdropSrc,
         trailerKey: trailerKey || undefined,
-        imdbRating: parseNumberValue(row.imdbRating),
+        imdbRating: parseOptionalNumberValue(row.imdbRating),
         lbId: getFirstNormalizedText(row, ["lb_id"]) || undefined,
         lbRating: parseOptionalNumberValue(row.lbRating),
         lbVotes: parseOptionalNumberValue(row.lbVotes),
