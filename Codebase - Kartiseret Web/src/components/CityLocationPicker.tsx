@@ -1,7 +1,7 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Ban, Clapperboard, Info, List, Locate, LocateFixed, MapPin, Search, X } from "lucide-react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { type IControl, type Offset, LngLat, LngLatBounds, Map as MapLibreMap, Marker, NavigationControl, Popup } from "maplibre-gl";
+import { type IControl, type Offset, type PositionAnchor, LngLat, LngLatBounds, Map as MapLibreMap, Marker, NavigationControl, Popup } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { loadTheaters, type Theater } from "../data/theaters";
 import { type AppLocation } from "../prefs/definitions/locations";
@@ -31,6 +31,16 @@ const THEATER_POPUP_OFFSET_Y = 14;
 const THEATER_POPUP_MIN_WIDTH = 180;
 const THEATER_POPUP_MAX_WIDTH = 320;
 const PRIMARY_CITY_COLLISION_PADDING = { x: 18, y: 14 };
+const THEATER_POPUP_ANCHOR_CANDIDATES: readonly PositionAnchor[] = [
+  "top",
+  "right",
+  "left",
+  "bottom",
+  "top-right",
+  "top-left",
+  "bottom-right",
+  "bottom-left",
+];
 const THEATER_POPUP_OFFSET: Offset = {
   center: [0, 0],
   top: [0, THEATER_POPUP_OFFSET_Y],
@@ -171,6 +181,13 @@ type TheaterMarkerState = {
   element: HTMLButtonElement;
   location: string | null;
   popup: Popup;
+};
+
+type RectBounds = {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
 };
 
 type SecondaryCityMarkerState = {
@@ -887,6 +904,283 @@ function getTheaterPopupMaxWidth(map: MapLibreMap) {
       map.getContainer().clientWidth - THEATER_POPUP_EDGE_PADDING * 2,
     ),
   )}px`;
+}
+
+function parsePixelValue(value: string) {
+  return Number.parseFloat(value.replace("px", ""));
+}
+
+function getElementRectWithinMap(
+  element: HTMLElement,
+  mapRect: DOMRect,
+): RectBounds | null {
+  const rect = element.getBoundingClientRect();
+
+  if (rect.width <= 0 || rect.height <= 0) {
+    return null;
+  }
+
+  return {
+    left: rect.left - mapRect.left,
+    right: rect.right - mapRect.left,
+    top: rect.top - mapRect.top,
+    bottom: rect.bottom - mapRect.top,
+  };
+}
+
+function getRectOverlapArea(first: RectBounds, second: RectBounds) {
+  const overlapWidth =
+    Math.min(first.right, second.right) - Math.max(first.left, second.left);
+  const overlapHeight =
+    Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top);
+
+  if (overlapWidth <= 0 || overlapHeight <= 0) {
+    return 0;
+  }
+
+  return overlapWidth * overlapHeight;
+}
+
+function getTheaterPopupEstimatedSize(
+  title: string,
+  address: string,
+  maxWidth: number,
+) {
+  const horizontalPadding = 26;
+  const titleCharWidth = 11;
+  const bodyCharWidth = 9;
+  const desiredWidth = Math.max(
+    THEATER_POPUP_MIN_WIDTH,
+    Math.min(
+      THEATER_POPUP_MAX_WIDTH,
+      Math.max(title.length * titleCharWidth, address.length * bodyCharWidth) +
+        horizontalPadding,
+    ),
+  );
+  const width = Math.min(desiredWidth, maxWidth);
+  const contentWidth = Math.max(1, width - horizontalPadding);
+  const titleLines = Math.max(
+    1,
+    Math.ceil((title.length * titleCharWidth) / contentWidth),
+  );
+  const addressLines = Math.max(
+    1,
+    Math.ceil((address.length * bodyCharWidth) / contentWidth),
+  );
+  const height = 24 + titleLines * 20 + 6 + addressLines * 18;
+
+  return { width, height };
+}
+
+function getTheaterPopupRect(
+  point: { x: number; y: number },
+  size: { width: number; height: number },
+  anchor: PositionAnchor,
+): RectBounds {
+  switch (anchor) {
+    case "top":
+      return {
+        left: point.x - size.width / 2,
+        right: point.x + size.width / 2,
+        top: point.y + THEATER_POPUP_OFFSET_Y,
+        bottom: point.y + THEATER_POPUP_OFFSET_Y + size.height,
+      };
+    case "bottom":
+      return {
+        left: point.x - size.width / 2,
+        right: point.x + size.width / 2,
+        top: point.y - THEATER_POPUP_OFFSET_Y - size.height,
+        bottom: point.y - THEATER_POPUP_OFFSET_Y,
+      };
+    case "left":
+      return {
+        left: point.x + THEATER_POPUP_OFFSET_Y,
+        right: point.x + THEATER_POPUP_OFFSET_Y + size.width,
+        top: point.y - size.height / 2,
+        bottom: point.y + size.height / 2,
+      };
+    case "right":
+      return {
+        left: point.x - THEATER_POPUP_OFFSET_Y - size.width,
+        right: point.x - THEATER_POPUP_OFFSET_Y,
+        top: point.y - size.height / 2,
+        bottom: point.y + size.height / 2,
+      };
+    case "top-left":
+      return {
+        left: point.x,
+        right: point.x + size.width,
+        top: point.y + THEATER_POPUP_OFFSET_Y,
+        bottom: point.y + THEATER_POPUP_OFFSET_Y + size.height,
+      };
+    case "top-right":
+      return {
+        left: point.x - size.width,
+        right: point.x,
+        top: point.y + THEATER_POPUP_OFFSET_Y,
+        bottom: point.y + THEATER_POPUP_OFFSET_Y + size.height,
+      };
+    case "bottom-left":
+      return {
+        left: point.x,
+        right: point.x + size.width,
+        top: point.y - THEATER_POPUP_OFFSET_Y - size.height,
+        bottom: point.y - THEATER_POPUP_OFFSET_Y,
+      };
+    case "bottom-right":
+      return {
+        left: point.x - size.width,
+        right: point.x,
+        top: point.y - THEATER_POPUP_OFFSET_Y - size.height,
+        bottom: point.y - THEATER_POPUP_OFFSET_Y,
+      };
+    default:
+      return {
+        left: point.x - size.width / 2,
+        right: point.x + size.width / 2,
+        top: point.y + THEATER_POPUP_OFFSET_Y,
+        bottom: point.y + THEATER_POPUP_OFFSET_Y + size.height,
+      };
+  }
+}
+
+function getAutoTheaterPopupAnchor(
+  point: { x: number; y: number },
+  size: { width: number; height: number },
+  mapWidth: number,
+  mapHeight: number,
+): PositionAnchor {
+  const anchorParts: string[] = [];
+
+  if (
+    point.y + THEATER_POPUP_OFFSET_Y <
+    size.height + THEATER_POPUP_EDGE_PADDING
+  ) {
+    anchorParts.push("top");
+  } else if (
+    point.y >
+    mapHeight - size.height - THEATER_POPUP_EDGE_PADDING
+  ) {
+    anchorParts.push("bottom");
+  }
+
+  if (point.x < size.width / 2 + THEATER_POPUP_EDGE_PADDING) {
+    anchorParts.push("left");
+  } else if (
+    point.x >
+    mapWidth - size.width / 2 - THEATER_POPUP_EDGE_PADDING
+  ) {
+    anchorParts.push("right");
+  }
+
+  if (anchorParts.length === 0) {
+    return "bottom";
+  }
+
+  return anchorParts.join("-") as PositionAnchor;
+}
+
+function chooseTheaterPopupAnchor(options: {
+  address: string;
+  currentElement: HTMLButtonElement;
+  labelElements: Map<string, CityMarkerState>;
+  map: MapLibreMap;
+  secondaryLabelElements: readonly SecondaryCityMarkerState[];
+  theaterMarkers: readonly TheaterMarkerState[];
+  title: string;
+}): PositionAnchor | undefined {
+  const mapRect = options.map.getContainer().getBoundingClientRect();
+  const mapWidth = options.map.getContainer().clientWidth;
+  const mapHeight = options.map.getContainer().clientHeight;
+  const maxWidth = parsePixelValue(getTheaterPopupMaxWidth(options.map));
+  const popupSize = getTheaterPopupEstimatedSize(
+    options.title,
+    options.address,
+    maxWidth,
+  );
+  const point = options.map.project(
+    new LngLat(
+      Number(options.currentElement.dataset.lng),
+      Number(options.currentElement.dataset.lat),
+    ),
+  );
+  const obstacleRects: RectBounds[] = [];
+
+  for (const state of options.labelElements.values()) {
+    const rect = getElementRectWithinMap(state.element, mapRect);
+
+    if (rect) {
+      obstacleRects.push(rect);
+    }
+  }
+
+  for (const state of options.secondaryLabelElements) {
+    if (state.element.classList.contains("is-hidden")) {
+      continue;
+    }
+
+    const rect = getElementRectWithinMap(state.element, mapRect);
+
+    if (rect) {
+      obstacleRects.push(rect);
+    }
+  }
+
+  for (const theaterMarker of options.theaterMarkers) {
+    if (
+      theaterMarker.element === options.currentElement ||
+      !theaterMarker.element.classList.contains("is-visible")
+    ) {
+      continue;
+    }
+
+    const rect = getElementRectWithinMap(theaterMarker.element, mapRect);
+
+    if (rect) {
+      obstacleRects.push(rect);
+    }
+  }
+
+  const autoAnchor = getAutoTheaterPopupAnchor(
+    point,
+    popupSize,
+    mapWidth,
+    mapHeight,
+  );
+  let bestAnchor = autoAnchor;
+  let bestScore = Number.POSITIVE_INFINITY;
+  let autoScore = Number.POSITIVE_INFINITY;
+
+  for (const [index, anchor] of THEATER_POPUP_ANCHOR_CANDIDATES.entries()) {
+    const rect = getTheaterPopupRect(point, popupSize, anchor);
+    const overflowX =
+      Math.max(0, THEATER_POPUP_EDGE_PADDING - rect.left) +
+      Math.max(0, rect.right - (mapWidth - THEATER_POPUP_EDGE_PADDING));
+    const overflowY =
+      Math.max(0, THEATER_POPUP_EDGE_PADDING - rect.top) +
+      Math.max(0, rect.bottom - (mapHeight - THEATER_POPUP_EDGE_PADDING));
+    const overlapArea = obstacleRects.reduce(
+      (sum, obstacleRect) => sum + getRectOverlapArea(rect, obstacleRect),
+      0,
+    );
+    const score =
+      (overflowX + overflowY) * 10_000 + overlapArea + index * 100;
+
+    if (anchor === autoAnchor) {
+      autoScore = score;
+    }
+
+    if (score < bestScore) {
+      bestScore = score;
+      bestAnchor = anchor;
+    }
+  }
+
+  if (bestAnchor === autoAnchor || bestScore >= autoScore) {
+    return undefined;
+  }
+
+  return bestAnchor;
 }
 
 function configureBaseLabels(map: MapLibreMap) {
@@ -1877,6 +2171,8 @@ export function CityLocationPicker({
           "aria-label",
           `${getTheaterDisplayName(theater)}, ${theater.address}`,
         );
+        element.dataset.lng = String(theater.lng);
+        element.dataset.lat = String(theater.lat);
         const surface = document.createElement("span");
         surface.className = "theater-map-theater-dot-surface";
         surface.setAttribute("aria-hidden", "true");
@@ -1914,6 +2210,15 @@ export function CityLocationPicker({
 
           styleTheaterDot(element, true, true);
           popup.setMaxWidth(getTheaterPopupMaxWidth(map));
+          popup.options.anchor = chooseTheaterPopupAnchor({
+            address: theater.address,
+            currentElement: element,
+            labelElements,
+            map,
+            secondaryLabelElements,
+            theaterMarkers,
+            title: getTheaterDisplayName(theater),
+          });
           popup.setLngLat([theater.lng!, theater.lat!]).addTo(map);
         });
         element.addEventListener("mouseleave", () => {
@@ -1927,6 +2232,15 @@ export function CityLocationPicker({
 
           styleTheaterDot(element, true, true);
           popup.setMaxWidth(getTheaterPopupMaxWidth(map));
+          popup.options.anchor = chooseTheaterPopupAnchor({
+            address: theater.address,
+            currentElement: element,
+            labelElements,
+            map,
+            secondaryLabelElements,
+            theaterMarkers,
+            title: getTheaterDisplayName(theater),
+          });
           popup.setLngLat([theater.lng!, theater.lat!]).addTo(map);
         });
         element.addEventListener("blur", () => {
