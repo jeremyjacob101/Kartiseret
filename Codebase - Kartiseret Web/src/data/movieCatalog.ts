@@ -6,6 +6,7 @@ const USE_TESTING_TABLES = false;
 const SUPABASE_PAGE_SIZE = 1000;
 export const APP_TIME_ZONE = "Asia/Jerusalem";
 export const SHOWTIME_DAY_CUTOFF_MINUTES = 65;
+const SHOWTIME_GRACE_PERIOD_MINUTES = 15;
 const SHOWTIME_WINDOW_DAY_COUNT = 10;
 const TESTING_TABLE_NAMES = {
   movies: "testNPmovies",
@@ -89,6 +90,13 @@ export const fixedShowtimeWindowEndDateString = addDaysToIsoDate(
   fixedAppDateString,
   SHOWTIME_WINDOW_DAY_COUNT - 1,
 );
+const fixedCurrentDateTimeParts = getCurrentDateTimePartsInTimeZone(APP_TIME_ZONE);
+const fixedCurrentIsraelDateString = fixedCurrentDateTimeParts
+  ? `${fixedCurrentDateTimeParts.year}-${fixedCurrentDateTimeParts.month}-${fixedCurrentDateTimeParts.day}`
+  : fixedAppDateString;
+const fixedCurrentIsraelMinutesSinceMidnight = fixedCurrentDateTimeParts
+  ? fixedCurrentDateTimeParts.hour * 60 + fixedCurrentDateTimeParts.minute
+  : Number.NEGATIVE_INFINITY;
 
 type SupabaseValue = string | number | boolean | null | string[];
 type SupabaseRow = Partial<Record<string, SupabaseValue>>;
@@ -484,6 +492,34 @@ function compareShowtimeEntries(
   );
 }
 
+function shouldIncludeShowtime(
+  dateString: string,
+  showtime: string,
+): boolean {
+  const showtimeMinutes = parseShowtimeMinutes(showtime);
+
+  if (!Number.isFinite(showtimeMinutes)) {
+    return false;
+  }
+
+  const effectiveDateString = isPostMidnightCarryoverShowtime(showtime)
+    ? addDaysToIsoDate(dateString, 1)
+    : dateString;
+
+  if (effectiveDateString > fixedCurrentIsraelDateString) {
+    return true;
+  }
+
+  if (effectiveDateString < fixedCurrentIsraelDateString) {
+    return false;
+  }
+
+  return (
+    showtimeMinutes + SHOWTIME_GRACE_PERIOD_MINUTES >=
+    fixedCurrentIsraelMinutesSinceMidnight
+  );
+}
+
 function addDaysToIsoDate(dateString: string, daysToAdd: number): string {
   const date = parseIsoDate(dateString);
   date.setDate(date.getDate() + daysToAdd);
@@ -629,6 +665,10 @@ function buildMovieShowtimes(
     const dubLanguage = getFirstNormalizedText(row, ["dub_language"]) || null;
 
     if (!date || !theater || !showtime) {
+      continue;
+    }
+
+    if (!shouldIncludeShowtime(date, showtime)) {
       continue;
     }
 
