@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { createPortal } from "react-dom";
 import { Star, X } from "lucide-react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
-import { fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeDays, subscribeToMovieCatalog, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
+import { APP_TIME_ZONE, fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeDays, subscribeToMovieCatalog, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
 import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
 
@@ -72,6 +72,7 @@ const fallbackTheaterThemes: TheaterTheme[] = [
   },
 ];
 const showtimeDateFormatter = new Intl.DateTimeFormat(undefined, {
+  timeZone: APP_TIME_ZONE,
   weekday: "long",
   month: "long",
   day: "numeric",
@@ -150,9 +151,22 @@ function parseLocalDate(dateString: string): Date {
   return new Date(year, month - 1, day);
 }
 
+function parseShowtimeDate(dateString: string): Date {
+  const [year, month, day] = dateString
+    .split("-")
+    .map((value) => Number.parseInt(value, 10));
+
+  if (!year || !month || !day) {
+    return new Date(dateString);
+  }
+
+  // Noon UTC keeps the Israel calendar date stable across viewer timezones.
+  return new Date(Date.UTC(year, month - 1, day, 12));
+}
+
 function getShowtimeDateLabel(dateString: string): string {
-  const showDate = parseLocalDate(dateString);
-  const today = parseLocalDate(fixedAppDateString);
+  const showDate = parseShowtimeDate(dateString);
+  const today = parseShowtimeDate(fixedAppDateString);
   const dayOffset = Math.round(
     (showDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
   );
