@@ -1,20 +1,16 @@
 import { getSupabaseBrowserClient } from "../lib/supabase";
 
 type TheaterRow = {
-  city?: string | null;
   chain: string | null;
   address: string | null;
   location: string;
   theater_name: string | null;
-  city_alt_spellings?: string[] | string | null;
   latitude: number | string | null;
   longitude: number | string | null;
-  zoom_layer?: number | string | null;
   city_details?: CityRow | CityRow[] | null;
 };
 
 type CityRow = {
-  slug?: string | null;
   name?: string | null;
   alt_spellings?: string[] | string | null;
   zoom_layer?: number | string | null;
@@ -33,23 +29,14 @@ export type Theater = {
 };
 
 const THEATERS_TABLE_NAME = "theaters";
-const BASE_THEATER_SELECT_COLUMNS = [
+const CITY_NAME_JOIN_THEATER_SELECT_COLUMNS = [
   "chain",
   "address",
   "location",
   "theater_name",
   "latitude",
   "longitude",
-].join(", ");
-const LEGACY_THEATER_SELECT_COLUMNS = [
-  BASE_THEATER_SELECT_COLUMNS,
-  "city",
-  "city_alt_spellings",
-  "zoom_layer",
-].join(", ");
-const CITY_JOIN_THEATER_SELECT_COLUMNS = [
-  BASE_THEATER_SELECT_COLUMNS,
-  "city_details:cities!theaters_city_slug_fkey ( slug, name, alt_spellings, zoom_layer )",
+  "city_details:cities!theaters_city_name_fkey ( name, alt_spellings, zoom_layer )",
 ].join(", ");
 
 let cachedTheaters: Theater[] | null = null;
@@ -149,10 +136,8 @@ function getJoinedCity(row: TheaterRow): CityRow | null {
 function mapRowToTheater(row: TheaterRow): Theater {
   const location = normalizeText(row.location);
   const joinedCity = getJoinedCity(row);
-  const city = normalizeText(joinedCity?.name ?? row.city);
-  const cityAltSpellings = normalizeStringArray(
-    joinedCity?.alt_spellings ?? row.city_alt_spellings,
-  );
+  const city = normalizeText(joinedCity?.name);
+  const cityAltSpellings = normalizeStringArray(joinedCity?.alt_spellings);
 
   if (city && !cityAltSpellings.includes(city)) {
     cityAltSpellings.unshift(city);
@@ -167,59 +152,21 @@ function mapRowToTheater(row: TheaterRow): Theater {
     location,
     lat: normalizeOptionalNumber(row.latitude),
     lng: normalizeOptionalNumber(row.longitude),
-    zoomLayer: normalizeOptionalNumber(joinedCity?.zoom_layer ?? row.zoom_layer),
+    zoomLayer: normalizeOptionalNumber(joinedCity?.zoom_layer),
   };
-}
-
-function shouldFallbackToLegacyTheatersQuery(error: unknown): boolean {
-  if (!error || typeof error !== "object") {
-    return false;
-  }
-
-  const message =
-    "message" in error && typeof error.message === "string"
-      ? error.message
-      : "";
-  const details =
-    "details" in error && typeof error.details === "string" ? error.details : "";
-  const hint = "hint" in error && typeof error.hint === "string" ? error.hint : "";
-  const combinedText = `${message}\n${details}\n${hint}`.toLowerCase();
-
-  return (
-    combinedText.includes("cities") ||
-    combinedText.includes("theaters_city_slug_fkey") ||
-    combinedText.includes("city_slug")
-  );
 }
 
 async function fetchTheaterRows(): Promise<TheaterRow[]> {
   const supabase = getSupabaseBrowserClient();
-  const preferredResult = await supabase
+  const result = await supabase
     .from(THEATERS_TABLE_NAME)
-    .select(CITY_JOIN_THEATER_SELECT_COLUMNS);
+    .select(CITY_NAME_JOIN_THEATER_SELECT_COLUMNS);
 
-  if (!preferredResult.error) {
-    return (preferredResult.data ?? []) as unknown as TheaterRow[];
+  if (result.error) {
+    throw result.error;
   }
 
-  if (!shouldFallbackToLegacyTheatersQuery(preferredResult.error)) {
-    throw preferredResult.error;
-  }
-
-  console.warn(
-    "Falling back to legacy theater city fields because the normalized cities schema is not available yet.",
-    preferredResult.error,
-  );
-
-  const legacyResult = await supabase
-    .from(THEATERS_TABLE_NAME)
-    .select(LEGACY_THEATER_SELECT_COLUMNS);
-
-  if (legacyResult.error) {
-    throw legacyResult.error;
-  }
-
-  return (legacyResult.data ?? []) as unknown as TheaterRow[];
+  return (result.data ?? []) as unknown as TheaterRow[];
 }
 
 export function preloadTheaters(): void {
