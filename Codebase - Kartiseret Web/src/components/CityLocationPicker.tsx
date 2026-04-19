@@ -86,7 +86,6 @@ const SECONDARY_CITIES: ReadonlyArray<{
   { name: "Safed", center: [35.496, 32.964], minZoom: 9.95, priority: 54 },
   { name: "Tiberias", center: [35.533, 32.794], minZoom: 9.55, priority: 76 },
   { name: "Nazareth", center: [35.2972, 32.6996], minZoom: 9.45, priority: 78 },
-  { name: "Afula", center: [35.2892, 32.6091], minZoom: 9.7, priority: 58 },
   { name: "Hadera", center: [34.9197, 32.434], minZoom: 9.9, priority: 52 },
   { name: "Kfar Yona", center: [34.935, 32.3166], minZoom: 9.8, priority: 46 },
   { name: "Holon", center: [34.7792, 32.0158], minZoom: 9.85, priority: 60 },

@@ -1,6 +1,7 @@
 import type { UserPreferenceDefinition } from "./shared";
 
 export const ALL_LOCATIONS = [
+  "Afula",
   "Ashdod",
   "Ashkelon",
   "Ayalon",
