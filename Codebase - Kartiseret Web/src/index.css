@@ -885,7 +885,7 @@ html[data-device-type="mobile"] .theater-map-dialog .theater-map-search-field {
 }
 
 .theater-map-theater-popup-shell.maplibregl-popup {
-  z-index: 80;
+  z-index: 1500;
 }
 
 .theater-map-theater-popup-shell .maplibregl-popup-content {
@@ -903,19 +903,23 @@ html[data-device-type="mobile"] .theater-map-dialog .theater-map-search-field {
 .theater-map-theater-popup {
   display: grid;
   gap: 6px;
-  min-width: 220px;
+  width: max-content;
+  min-width: 0;
+  max-width: 100%;
   padding: 12px 13px;
 }
 
 .theater-map-theater-popup-title {
   color: #f5f0ff;
   font-size: 0.92rem;
+  overflow-wrap: anywhere;
 }
 
 .theater-map-theater-popup-link {
   color: rgba(208, 215, 227, 0.9);
   font-size: 0.84rem;
   text-decoration: none;
+  overflow-wrap: anywhere;
 }
 
 .theater-map-theater-popup-link:hover,

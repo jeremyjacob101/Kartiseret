@@ -1,7 +1,7 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Ban, Clapperboard, Info, List, Locate, LocateFixed, MapPin, Search, X } from "lucide-react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { type IControl, LngLat, LngLatBounds, Map as MapLibreMap, Marker, NavigationControl, Popup } from "maplibre-gl";
+import { type IControl, type Offset, LngLat, LngLatBounds, Map as MapLibreMap, Marker, NavigationControl, Popup } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { loadTheaters, type Theater } from "../data/theaters";
 import { type AppLocation } from "../prefs/definitions/locations";
@@ -24,7 +24,24 @@ const CITY_OPACITY_STEP = 0.085;
 const CITY_MAX_PRE_REVEAL_OPACITY = 0.9;
 const SELECTED_CITY_Z_INDEX = "200";
 const SEARCH_RESULT_Z_INDEX_OFFSET = 1000;
+const THEATER_MARKER_Z_INDEX = "10";
+const HOVERED_THEATER_MARKER_Z_INDEX = "1400";
+const THEATER_POPUP_EDGE_PADDING = 14;
+const THEATER_POPUP_OFFSET_Y = 14;
+const THEATER_POPUP_MIN_WIDTH = 180;
+const THEATER_POPUP_MAX_WIDTH = 320;
 const PRIMARY_CITY_COLLISION_PADDING = { x: 18, y: 14 };
+const THEATER_POPUP_OFFSET: Offset = {
+  center: [0, 0],
+  top: [0, THEATER_POPUP_OFFSET_Y],
+  "top-left": [0, THEATER_POPUP_OFFSET_Y],
+  "top-right": [0, THEATER_POPUP_OFFSET_Y],
+  bottom: [0, -THEATER_POPUP_OFFSET_Y],
+  "bottom-left": [0, -THEATER_POPUP_OFFSET_Y],
+  "bottom-right": [0, -THEATER_POPUP_OFFSET_Y],
+  left: [THEATER_POPUP_OFFSET_Y, 0],
+  right: [-THEATER_POPUP_OFFSET_Y, 0],
+};
 const CITY_LABEL_NORTH_OFFSET = 0.00615;
 const OVERVIEW_CENTER_TOLERANCE = 0.00035;
 const OVERVIEW_ZOOM_TOLERANCE = 0.04;
@@ -847,11 +864,29 @@ function styleSecondaryCityLabel(element: HTMLSpanElement, visible: boolean) {
   element.style.visibility = visible ? "visible" : "hidden";
 }
 
-function styleTheaterDot(element: HTMLButtonElement, visible: boolean) {
+function styleTheaterDot(
+  element: HTMLButtonElement,
+  visible: boolean,
+  hovered = false,
+) {
   element.classList.toggle("is-visible", visible);
+  element.classList.toggle("is-hovered", hovered);
   element.setAttribute("aria-hidden", String(!visible));
   element.tabIndex = visible ? 0 : -1;
   element.style.pointerEvents = visible ? "auto" : "none";
+  element.style.zIndex = hovered
+    ? HOVERED_THEATER_MARKER_Z_INDEX
+    : THEATER_MARKER_Z_INDEX;
+}
+
+function getTheaterPopupMaxWidth(map: MapLibreMap) {
+  return `${Math.max(
+    THEATER_POPUP_MIN_WIDTH,
+    Math.min(
+      THEATER_POPUP_MAX_WIDTH,
+      map.getContainer().clientWidth - THEATER_POPUP_EDGE_PADDING * 2,
+    ),
+  )}px`;
 }
 
 function configureBaseLabels(map: MapLibreMap) {
@@ -1713,7 +1748,11 @@ export function CityLocationPicker({
             cityRevealConfig,
           );
 
-        styleTheaterDot(theaterMarker.element, visible);
+        styleTheaterDot(
+          theaterMarker.element,
+          visible,
+          theaterMarker.element.matches(":hover, :focus-visible, :focus"),
+        );
 
         if (!visible) {
           theaterMarker.popup.remove();
@@ -1829,7 +1868,7 @@ export function CityLocationPicker({
         const element = document.createElement("button");
         element.type = "button";
         element.className = "theater-map-theater-dot";
-        element.style.zIndex = "10";
+        element.style.zIndex = THEATER_MARKER_Z_INDEX;
         element.style.setProperty(
           "--theater-dot-color",
           getTheaterDotColor(theater.chain),
@@ -1861,8 +1900,7 @@ export function CityLocationPicker({
         const popup = new Popup({
           closeButton: false,
           closeOnClick: false,
-          offset: 14,
-          anchor: "top",
+          offset: THEATER_POPUP_OFFSET,
           className: "theater-map-theater-popup-shell",
         }).setDOMContent(popupContent);
 
@@ -1874,9 +1912,12 @@ export function CityLocationPicker({
             return;
           }
 
+          styleTheaterDot(element, true, true);
+          popup.setMaxWidth(getTheaterPopupMaxWidth(map));
           popup.setLngLat([theater.lng!, theater.lat!]).addTo(map);
         });
         element.addEventListener("mouseleave", () => {
+          styleTheaterDot(element, canShowTheaterPopup(), false);
           popup.remove();
         });
         element.addEventListener("focus", () => {
@@ -1884,9 +1925,12 @@ export function CityLocationPicker({
             return;
           }
 
+          styleTheaterDot(element, true, true);
+          popup.setMaxWidth(getTheaterPopupMaxWidth(map));
           popup.setLngLat([theater.lng!, theater.lat!]).addTo(map);
         });
         element.addEventListener("blur", () => {
+          styleTheaterDot(element, canShowTheaterPopup(), false);
           popup.remove();
         });
         element.addEventListener("click", () => {
