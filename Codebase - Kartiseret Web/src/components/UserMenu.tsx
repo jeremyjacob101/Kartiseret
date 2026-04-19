@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { LogOut, User } from "lucide-react";
+import { useLocation, useNavigate } from "react-router";
 import "./UserMenu.css";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 import { DEFAULT_LOCATION, loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY } from "../prefs/definitions/locations";
@@ -9,9 +10,7 @@ import { useUserPreferencesContext } from "../prefs/useUserPreferences";
 
 type AuthMode = "login" | "signup";
 type UserMenuProps = {
-  currentPath: string;
   panelDirection?: "down" | "up";
-  onNavigate: (path: string) => void;
 };
 
 const supabase = getSupabaseBrowserClient();
@@ -34,11 +33,9 @@ async function persistSignupPreferenceDefaults(
   return error?.message ?? null;
 }
 
-export function UserMenu({
-  currentPath,
-  panelDirection = "down",
-  onNavigate,
-}: UserMenuProps) {
+export function UserMenu({ panelDirection = "down" }: UserMenuProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useUserPreferencesContext();
   const [isOpen, setIsOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
@@ -292,11 +289,11 @@ export function UserMenu({
                 type="button"
                 className="user-menu-nav-button"
                 onClick={() => {
-                  onNavigate(currentPath === "/user" ? "/" : "/user");
+                  navigate(location.pathname === "/user" ? "/" : "/user");
                   setIsOpen(false);
                 }}
               >
-                {currentPath === "/user"
+                {location.pathname === "/user"
                   ? "Back to Home"
                   : "Open User Preferences"}
               </button>

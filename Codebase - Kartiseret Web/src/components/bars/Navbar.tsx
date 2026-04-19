@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Clock8, Film, MapPin, Settings } from "lucide-react";
+import { useLocation } from "react-router";
 import "./Navbar.css";
 import { MiniNavBar } from "./MiniNavBar";
 import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "../MovieSearchMenu";
@@ -20,20 +21,10 @@ const TheaterMapDialog = lazy(async () => {
   return { default: module.TheaterMapDialog };
 });
 
-type NavbarPath =
-  | "/"
-  | "/movies"
-  | "/showtimes"
-  | "/soons"
-  | "/user"
-  | "/attribution";
-
 type NavbarActionsProps = {
   catalogReady: boolean;
-  currentPath: NavbarPath;
   searchCollections: readonly MovieSearchCollection[];
   variant?: "inline" | "floating";
-  onNavigate: (path: string) => void;
   onSearchOpen: () => void;
   onSelectResult: (result: MovieSearchResult) => void;
   onSettingsClick: () => void;
@@ -41,12 +32,10 @@ type NavbarActionsProps = {
 
 export type NavbarProps = {
   catalogReady: boolean;
-  currentPath: NavbarPath;
   searchCollections: readonly MovieSearchCollection[];
   onAllShowtimesNavClick: () => void;
   onHomeClick: () => void;
   onMoviesNavClick: () => void;
-  onNavigate: (path: string) => void;
   onSearchOpen: () => void;
   onSelectResult: (result: MovieSearchResult) => void;
   onSettingsClick: () => void;
@@ -75,10 +64,8 @@ function LoadingMapButton() {
 
 function NavbarActions({
   catalogReady,
-  currentPath,
   searchCollections,
   variant = "inline",
-  onNavigate,
   onSearchOpen,
   onSelectResult,
   onSettingsClick,
@@ -123,11 +110,7 @@ function NavbarActions({
             : undefined
         }
       >
-        <UserMenu
-          currentPath={currentPath}
-          panelDirection={isFloating ? "up" : "down"}
-          onNavigate={onNavigate}
-        />
+        <UserMenu panelDirection={isFloating ? "up" : "down"} />
       </div>
       <div
         className={
@@ -151,17 +134,16 @@ function NavbarActions({
 
 export function Navbar({
   catalogReady,
-  currentPath,
   searchCollections,
   onAllShowtimesNavClick,
   onHomeClick,
   onMoviesNavClick,
-  onNavigate,
   onSearchOpen,
   onSelectResult,
   onSettingsClick,
   onSoonsNavClick,
 }: NavbarProps) {
+  const location = useLocation();
   const { isMobile } = useDeviceInfo();
   const [showNavbarIntro, setShowNavbarIntro] = useState(true);
   const [showMiniNavBar, setShowMiniNavBar] = useState(false);
@@ -176,6 +158,7 @@ export function Navbar({
   const miniNavBarStateFrameRef = useRef<number | null>(null);
   const miniNavBarEnterFrameRef = useRef<number | null>(null);
   const miniNavBarExitTimeoutRef = useRef<number | null>(null);
+  const currentPath = location.pathname;
 
   useEffect(() => {
     const introTimeout = window.setTimeout(() => {
@@ -461,9 +444,7 @@ export function Navbar({
             {isMobile ? null : (
               <NavbarActions
                 catalogReady={catalogReady}
-                currentPath={currentPath}
                 searchCollections={searchCollections}
-                onNavigate={onNavigate}
                 onSearchOpen={onSearchOpen}
                 onSelectResult={onSelectResult}
                 onSettingsClick={onSettingsClick}
@@ -478,10 +459,8 @@ export function Navbar({
           actions={
             <NavbarActions
               catalogReady={catalogReady}
-              currentPath={currentPath}
               searchCollections={searchCollections}
               variant="floating"
-              onNavigate={onNavigate}
               onSearchOpen={onSearchOpen}
               onSelectResult={onSelectResult}
               onSettingsClick={onSettingsClick}

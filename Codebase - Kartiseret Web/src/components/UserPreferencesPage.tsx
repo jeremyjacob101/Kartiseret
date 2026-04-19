@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { Link } from "react-router";
 import "./UserPreferencesPage.css";
 import { CityLocationPicker } from "./CityLocationPicker";
 import { useUserPreferencesContext } from "../prefs/useUserPreferences";
@@ -14,10 +15,6 @@ const sourceLabelMap: Record<RatingSource, string> = {
   lbRating: "Letterboxd",
   tmdbRating: "TMDB",
 };
-type UserPreferencesPageProps = {
-  onBackHome: () => void;
-};
-
 function getSourcesSummary(sources: readonly RatingSource[]): string {
   if (sources.length === 0) {
     return "No sources selected";
@@ -49,7 +46,7 @@ function getVisibleSiteColors(
   ];
 }
 
-export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
+export function UserPreferencesPage() {
   const {
     user,
     sources,
@@ -107,9 +104,9 @@ export function UserPreferencesPage({ onBackHome }: UserPreferencesPageProps) {
           <p className="section-kicker">User</p>
           <h1 className="section-title">User Preferences</h1>
         </div>
-        <button type="button" className="prefs-page-back" onClick={onBackHome}>
+        <Link className="prefs-page-back" to="/">
           Back to Home
-        </button>
+        </Link>
       </div>
 
       <div className="prefs-page-card" aria-busy={syncing}>
