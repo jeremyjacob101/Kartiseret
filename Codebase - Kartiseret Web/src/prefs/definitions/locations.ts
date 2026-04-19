@@ -9,7 +9,7 @@ export const ALL_LOCATIONS = [
   "Carmiel",
   "Chadera",
   "Even Yehuda",
-  "Givataim",
+  "Givatayim",
   "Glilot",
   "Haifa",
   "Herziliya",
