@@ -90,7 +90,8 @@ export const fixedShowtimeWindowEndDateString = addDaysToIsoDate(
   fixedAppDateString,
   SHOWTIME_WINDOW_DAY_COUNT - 1,
 );
-const fixedCurrentDateTimeParts = getCurrentDateTimePartsInTimeZone(APP_TIME_ZONE);
+const fixedCurrentDateTimeParts =
+  getCurrentDateTimePartsInTimeZone(APP_TIME_ZONE);
 const fixedCurrentIsraelDateString = fixedCurrentDateTimeParts
   ? `${fixedCurrentDateTimeParts.year}-${fixedCurrentDateTimeParts.month}-${fixedCurrentDateTimeParts.day}`
   : fixedAppDateString;
@@ -492,10 +493,7 @@ function compareShowtimeEntries(
   );
 }
 
-function shouldIncludeShowtime(
-  dateString: string,
-  showtime: string,
-): boolean {
+function shouldIncludeShowtime(dateString: string, showtime: string): boolean {
   const showtimeMinutes = parseShowtimeMinutes(showtime);
 
   if (!Number.isFinite(showtimeMinutes)) {

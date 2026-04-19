@@ -1057,19 +1057,13 @@ function getAutoTheaterPopupAnchor(
     size.height + THEATER_POPUP_EDGE_PADDING
   ) {
     anchorParts.push("top");
-  } else if (
-    point.y >
-    mapHeight - size.height - THEATER_POPUP_EDGE_PADDING
-  ) {
+  } else if (point.y > mapHeight - size.height - THEATER_POPUP_EDGE_PADDING) {
     anchorParts.push("bottom");
   }
 
   if (point.x < size.width / 2 + THEATER_POPUP_EDGE_PADDING) {
     anchorParts.push("left");
-  } else if (
-    point.x >
-    mapWidth - size.width / 2 - THEATER_POPUP_EDGE_PADDING
-  ) {
+  } else if (point.x > mapWidth - size.width / 2 - THEATER_POPUP_EDGE_PADDING) {
     anchorParts.push("right");
   }
 
@@ -1163,8 +1157,7 @@ function chooseTheaterPopupAnchor(options: {
       (sum, obstacleRect) => sum + getRectOverlapArea(rect, obstacleRect),
       0,
     );
-    const score =
-      (overflowX + overflowY) * 10_000 + overlapArea + index * 100;
+    const score = (overflowX + overflowY) * 10_000 + overlapArea + index * 100;
 
     if (anchor === autoAnchor) {
       autoScore = score;
