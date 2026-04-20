@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type Ref } from "react";
 import { createPortal } from "react-dom";
-import { Star, X } from "lucide-react";
+import { Clock8, MapPin, MoveRight, Star, X } from "lucide-react";
+import { useNavigate } from "react-router";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
-import { APP_TIME_ZONE, fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeDays, subscribeToMovieCatalog, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
+import { APP_TIME_ZONE, fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeCities, getMovieShowtimeDays, subscribeToMovieCatalog, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
+import { loadCities, type City } from "../../data/theaters";
 import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
 
@@ -479,6 +481,23 @@ function getShowtimeTargetDate(
   return showtimeDays[0]?.date ?? null;
 }
 
+function getFirstShowtimeDate(
+  showtimeDays: readonly MovieShowtimeDay[],
+): string | null {
+  return showtimeDays.find((day) => day.theaters.length > 0)?.date ?? null;
+}
+
+function getScrollBehavior(): ScrollBehavior {
+  if (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  ) {
+    return "auto";
+  }
+
+  return "smooth";
+}
+
 function findShowtimePanel(
   rail: HTMLDivElement,
   date: string,
@@ -595,7 +614,9 @@ export function MovieDetailsContent({
   preferredShowtimeDate = null,
   onPreferredShowtimeDateChange,
 }: MovieDetailsContentProps) {
-  const { sources, location } = useUserPreferencesContext();
+  const navigate = useNavigate();
+  const { sources, location, setLocationPreference } =
+    useUserPreferencesContext();
   const showtimesReady = useSyncExternalStore(
     subscribeToMovieCatalog,
     () => getMovieCatalogStatusSnapshot().showtimesReady,
@@ -603,7 +624,14 @@ export function MovieDetailsContent({
   const railRef = useRef<HTMLDivElement | null>(null);
   const railScrollFrameRef = useRef<number | null>(null);
   const visibleShowtimeDateRef = useRef<string | null>(null);
+  const [cities, setCities] = useState<readonly City[]>([]);
   const [openTrailerModalId, setOpenTrailerModalId] = useState<string | null>(
+    null,
+  );
+  const [visibleShowtimeDate, setVisibleShowtimeDate] = useState<string | null>(
+    null,
+  );
+  const [pendingNearbyCity, setPendingNearbyCity] = useState<string | null>(
     null,
   );
   const infoParts = getMovieInfoParts(movie);
@@ -633,6 +661,69 @@ export function MovieDetailsContent({
     showtimeDays,
     preferredShowtimeDate,
   );
+  const cityByName = useMemo(
+    () => new Map(cities.map((city) => [city.name, city] as const)),
+    [cities],
+  );
+  const hasLoadedShowtimeWindow =
+    variant === "nowPlaying" && showtimesReady && showtimeDays.length > 0;
+  const firstCityShowtimeDate = hasLoadedShowtimeWindow
+    ? getFirstShowtimeDate(showtimeDays)
+    : null;
+  const hasAnyShowtimesInSelectedCity = firstCityShowtimeDate !== null;
+  const hasTodayShowtimes =
+    hasLoadedShowtimeWindow && showtimeDays[0]?.theaters.length > 0;
+  const shouldShowCityUnavailableState =
+    hasLoadedShowtimeWindow && !hasAnyShowtimesInSelectedCity;
+  const shouldShowSkipToShowingDayButton =
+    hasLoadedShowtimeWindow &&
+    !hasTodayShowtimes &&
+    firstCityShowtimeDate !== null &&
+    firstCityShowtimeDate !== fixedAppDateString;
+  const effectiveVisibleShowtimeDate = visibleShowtimeDate ?? targetShowtimeDate;
+  const shouldShowTodayReturnButton =
+    shouldShowSkipToShowingDayButton &&
+    effectiveVisibleShowtimeDate !== null &&
+    effectiveVisibleShowtimeDate !== fixedAppDateString &&
+    effectiveVisibleShowtimeDate >= firstCityShowtimeDate;
+  const showtimeJumpTargetDate = shouldShowTodayReturnButton
+    ? fixedAppDateString
+    : firstCityShowtimeDate;
+  const showtimeJumpButtonLabel = shouldShowTodayReturnButton
+    ? "BACK TO TODAY"
+    : "Skip to showing day";
+  const playingCities = useMemo(
+    () =>
+      hasLoadedShowtimeWindow ? [...getMovieShowtimeCities(movie.tmdbId)] : [],
+    [hasLoadedShowtimeWindow, movie.tmdbId],
+  );
+  const nearbyCityChoices = useMemo(() => {
+    if (!hasLoadedShowtimeWindow || playingCities.length === 0) {
+      return [];
+    }
+
+    const playingCitySet = new Set(playingCities);
+    const neighboringCityNames =
+      cityByName
+        .get(location)
+        ?.neighboringCities.filter(
+          (cityName) => cityName !== location && playingCitySet.has(cityName),
+        ) ?? [];
+    const fallbackCityNames = playingCities.filter((cityName) =>
+      cityName !== location);
+    const candidateCityNames =
+      neighboringCityNames.length > 0 ? neighboringCityNames : fallbackCityNames;
+
+    return [...new Set(candidateCityNames)].flatMap((cityName) => {
+      const firstShowtimeDate = getFirstShowtimeDate(
+        getMovieShowtimeDays(movie.tmdbId, cityName),
+      );
+
+      return firstShowtimeDate
+        ? [{ name: cityName, firstShowtimeDate }]
+        : [];
+    });
+  }, [cityByName, hasLoadedShowtimeWindow, location, movie.tmdbId, playingCities]);
   const isTrailerModalOpen =
     Boolean(trailerEmbedUrl) && openTrailerModalId === trailerModalId;
   const hasTrailerLaunch = variant === "nowPlaying" && Boolean(trailerEmbedUrl);
@@ -714,14 +805,53 @@ export function MovieDetailsContent({
 
   const reportVisibleShowtimeDate = useCallback(
     (nextDate: string | null) => {
-      if (!nextDate || visibleShowtimeDateRef.current === nextDate) {
+      if (visibleShowtimeDateRef.current === nextDate) {
         return;
       }
 
       visibleShowtimeDateRef.current = nextDate;
-      onPreferredShowtimeDateChange?.(nextDate);
+      setVisibleShowtimeDate(nextDate);
+
+      if (nextDate) {
+        onPreferredShowtimeDateChange?.(nextDate);
+      }
     },
     [onPreferredShowtimeDateChange],
+  );
+
+  const scrollRailToDate = useCallback(
+    (date: string) => {
+      const rail = railRef.current;
+
+      if (!rail) {
+        return;
+      }
+
+      const targetPanel = findShowtimePanel(rail, date);
+
+      if (!targetPanel) {
+        reportVisibleShowtimeDate(date);
+        return;
+      }
+
+      if (Math.abs(rail.scrollLeft - targetPanel.offsetLeft) <= 1) {
+        reportVisibleShowtimeDate(date);
+        return;
+      }
+
+      const behavior = getScrollBehavior();
+      rail.scrollTo({
+        left: targetPanel.offsetLeft,
+        behavior,
+      });
+
+      if (behavior === "auto") {
+        window.requestAnimationFrame(() => {
+          reportVisibleShowtimeDate(getNearestShowtimeDate(rail, showtimeDays));
+        });
+      }
+    },
+    [reportVisibleShowtimeDate, showtimeDays],
   );
 
   const handleRailScroll = useCallback(() => {
@@ -741,11 +871,49 @@ export function MovieDetailsContent({
     });
   }, [reportVisibleShowtimeDate, showtimeDays]);
 
+  const handleShowtimeJumpClick = useCallback(() => {
+    if (!showtimeJumpTargetDate) {
+      return;
+    }
+
+    scrollRailToDate(showtimeJumpTargetDate);
+  }, [scrollRailToDate, showtimeJumpTargetDate]);
+
+  const handleAllShowtimesClick = useCallback(() => {
+    navigate("/showtimes");
+  }, [navigate]);
+
+  const handleNearbyCityClick = useCallback(
+    async (cityName: string, nextShowtimeDate: string) => {
+      const previousDate =
+        visibleShowtimeDateRef.current ?? targetShowtimeDate ?? fixedAppDateString;
+
+      setPendingNearbyCity(cityName);
+      onPreferredShowtimeDateChange?.(nextShowtimeDate);
+
+      let didSave = false;
+
+      try {
+        didSave = await setLocationPreference(cityName);
+      } catch {
+        didSave = false;
+      } finally {
+        setPendingNearbyCity((current) =>
+          current === cityName ? null : current);
+      }
+
+      if (!didSave) {
+        onPreferredShowtimeDateChange?.(previousDate);
+      }
+    },
+    [onPreferredShowtimeDateChange, setLocationPreference, targetShowtimeDate],
+  );
+
   useLayoutEffect(() => {
     const rail = railRef.current;
 
     if (!rail || !targetShowtimeDate) {
-      visibleShowtimeDateRef.current = targetShowtimeDate;
+      reportVisibleShowtimeDate(targetShowtimeDate);
       return;
     }
 
@@ -755,7 +923,7 @@ export function MovieDetailsContent({
 
     const targetPanel = findShowtimePanel(rail, targetShowtimeDate);
     if (!targetPanel) {
-      visibleShowtimeDateRef.current = targetShowtimeDate;
+      reportVisibleShowtimeDate(targetShowtimeDate);
       return;
     }
 
@@ -763,8 +931,8 @@ export function MovieDetailsContent({
       rail.scrollLeft = targetPanel.offsetLeft;
     }
 
-    visibleShowtimeDateRef.current = targetShowtimeDate;
-  }, [movie.tmdbId, location, targetShowtimeDate]);
+    reportVisibleShowtimeDate(targetShowtimeDate);
+  }, [location, movie.tmdbId, reportVisibleShowtimeDate, targetShowtimeDate]);
 
   useEffect(() => {
     return () => {
@@ -774,6 +942,28 @@ export function MovieDetailsContent({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (variant !== "nowPlaying") {
+      return;
+    }
+
+    let isActive = true;
+
+    void loadCities()
+      .then((nextCities) => {
+        if (isActive) {
+          setCities(nextCities);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("Could not load city metadata for detail cards.", error);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [variant]);
 
   useEffect(() => {
     if (!isTrailerModalOpen) {
@@ -892,245 +1082,339 @@ export function MovieDetailsContent({
           className="details-showtimes"
           data-movie-scroller-swipe-ignore="true"
         >
-          <div
-            ref={railRef}
-            className="details-rail"
-            aria-label={`${movie.title} showtimes in ${location}`}
-            onScroll={handleRailScroll}
-          >
-            {showtimeDays.map((day) => (
-              <article
-                className="details-day-panel"
-                data-showtime-date={day.date}
-                key={day.date}
-              >
-                <div className="details-day-header">
-                  <div className="details-day-heading">
-                    <h3 className="details-day-title">{location}</h3>
-                    <p className="details-day-kicker details-day-kicker--inline">
-                      {getShowtimeDateLabel(day.date)}
+          {shouldShowCityUnavailableState ? (
+            <div
+              className="details-empty-state"
+              aria-label={`${movie.title} is not playing in ${location}`}
+            >
+              <div className="details-empty-state-panel">
+                <p className="details-empty-state-title">
+                  Movie not playing in {location}
+                </p>
+
+                <div className="details-empty-actions">
+                  <button
+                    type="button"
+                    className="details-empty-link"
+                    onClick={handleAllShowtimesClick}
+                  >
+                    <span className="details-empty-link-copy">
+                      <Clock8
+                        size={16}
+                        strokeWidth={2.1}
+                        className="details-empty-link-icon"
+                        aria-hidden="true"
+                      />
+                      <span>See all showtimes in {location}</span>
+                    </span>
+                    <MoveRight
+                      size={16}
+                      strokeWidth={2.2}
+                      className="details-empty-link-arrow"
+                      aria-hidden="true"
+                    />
+                  </button>
+
+                  <div
+                    className="details-empty-nearby"
+                    aria-busy={pendingNearbyCity ? "true" : undefined}
+                  >
+                    <p className="details-empty-link-heading">
+                      See where {movie.title} is playing near you
                     </p>
+
+                    {nearbyCityChoices.length > 0 ? (
+                      <div
+                        className="details-empty-city-list"
+                        aria-label={`Cities where ${movie.title} is playing`}
+                      >
+                        {nearbyCityChoices.map((city) => (
+                          <button
+                            key={city.name}
+                            type="button"
+                            className="details-empty-city-button"
+                            disabled={pendingNearbyCity !== null}
+                            onClick={() => {
+                              void handleNearbyCityClick(
+                                city.name,
+                                city.firstShowtimeDate,
+                              );
+                            }}
+                          >
+                            <MapPin
+                              size={14}
+                              strokeWidth={2.2}
+                              className="details-empty-city-icon"
+                              aria-hidden="true"
+                            />
+                            <span>
+                              {pendingNearbyCity === city.name
+                                ? `Switching to ${city.name}...`
+                                : city.name}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="details-empty-note">
+                        No scheduled showtimes in the current window.
+                      </p>
+                    )}
                   </div>
                 </div>
+              </div>
+            </div>
+          ) : (
+            <div
+              ref={railRef}
+              className="details-rail"
+              aria-label={`${movie.title} showtimes in ${location}`}
+              onScroll={handleRailScroll}
+            >
+              {showtimeDays.map((day) => (
+                <article
+                  className="details-day-panel"
+                  data-showtime-date={day.date}
+                  key={day.date}
+                >
+                  <div className="details-day-header">
+                    <div className="details-day-heading">
+                      <h3 className="details-day-title">{location}</h3>
+                      <p className="details-day-kicker details-day-kicker--inline">
+                        {getShowtimeDateLabel(day.date)}
+                      </p>
+                    </div>
 
-                {day.theaters.length === 0 ? (
-                  <p className="details-day-empty">No showtimes listed.</p>
-                ) : (
-                  <div className="details-theaters">
-                    {day.theaters.map((theater, theaterIndex) => {
-                      const colors = getTheaterTheme(
-                        theater.theater,
-                        theaterIndex,
-                      );
-
-                      return (
-                        <section
-                          className="details-theater"
-                          key={theater.theater}
-                        >
-                          <div className="details-theater-name">
-                            <span
-                              className="details-theater-dot"
-                              style={{
-                                backgroundColor: colors.accent,
-                                boxShadow: `0 0 18px ${colors.glow}`,
-                              }}
-                            />
-                            <span>{theater.theater}</span>
-                          </div>
-
-                          <div className="details-time-grid">
-                            {theater.showtimes.map((showtime) => {
-                              const showtimeTech = getShowtimeTechLabel(
-                                showtime.screeningTech,
-                              );
-                              const dubFlagSrc = getDubFlagSrc(
-                                showtime.dubLanguage,
-                              );
-                              const dubBadgeLabel = getDubBadgeLabel(
-                                showtime.dubLanguage,
-                              );
-                              const screeningTypeBadgeLabel =
-                                getScreeningTypeBadgeLabel(
-                                  showtime.screeningType,
-                                );
-                              const showtimeSlotClassName = [
-                                "details-showtime-slot",
-                                showtimeTech
-                                  ? "details-showtime-slot--with-tech"
-                                  : null,
-                                dubFlagSrc
-                                  ? "details-showtime-slot--with-flag"
-                                  : null,
-                              ]
-                                .filter(Boolean)
-                                .join(" ");
-                              const showtimeCardClassName = [
-                                "details-showtime-card",
-                                showtime.href
-                                  ? "details-showtime-card--link"
-                                  : null,
-                              ]
-                                .filter(Boolean)
-                                .join(" ");
-                              const showtimePillClassName = [
-                                "details-time-pill",
-                                colors.pillClassName,
-                              ]
-                                .filter(Boolean)
-                                .join(" ");
-                              const showtimeCardStyle = colors.pillClassName
-                                ? undefined
-                                : {
-                                    background:
-                                      colors.pillBackground ??
-                                      `linear-gradient(180deg, color-mix(in srgb, ${colors.accent} 88%, white 12%), color-mix(in srgb, ${colors.accent} 72%, black 28%))`,
-                                  };
-                              const showtimeLabel = [
-                                `Open ${movie.title} ${showtime.time} showtime at ${theater.theater}`,
-                                showtimeTech,
-                                screeningTypeBadgeLabel,
-                                dubBadgeLabel,
-                              ]
-                                .filter(Boolean)
-                                .join(", ");
-                              const key = [
-                                theater.theater,
-                                day.date,
-                                showtime.time,
-                                showtime.screeningTech,
-                                showtime.screeningType,
-                                showtime.dubLanguage ?? "original",
-                              ].join("-");
-                              const showtimeCard = showtime.href ? (
-                                <a
-                                  href={showtime.href}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className={showtimeCardClassName}
-                                  aria-label={showtimeLabel}
-                                >
-                                  {showtimeTech ? (
-                                    <span
-                                      className="details-showtime-tech"
-                                      aria-hidden="true"
-                                    >
-                                      {showtimeTech}
-                                    </span>
-                                  ) : null}
-
-                                  <div className="details-time-card-shell">
-                                    <span
-                                      className={showtimePillClassName}
-                                      style={showtimeCardStyle}
-                                    >
-                                      {dubFlagSrc && dubBadgeLabel ? (
-                                        <span className="details-time-pill-flag-shell">
-                                          <img
-                                            src={dubFlagSrc}
-                                            alt=""
-                                            className="details-time-pill-flag"
-                                            width={17}
-                                            height={13}
-                                            decoding="async"
-                                          />
-                                          <span className="details-time-pill-flag-tooltip">
-                                            {dubBadgeLabel}
-                                          </span>
-                                        </span>
-                                      ) : null}
-                                      {screeningTypeBadgeLabel ? (
-                                        <span className="details-time-pill-type-shell">
-                                          <Star
-                                            size={10}
-                                            strokeWidth={2.2}
-                                            className="details-time-pill-type-icon"
-                                            aria-hidden="true"
-                                          />
-                                          <span className="details-time-pill-type-tooltip">
-                                            {screeningTypeBadgeLabel}
-                                          </span>
-                                        </span>
-                                      ) : null}
-                                      <span className="details-time-pill-label">
-                                        {showtime.time}
-                                      </span>
-                                    </span>
-                                  </div>
-                                </a>
-                              ) : (
-                                <span
-                                  className={showtimeCardClassName}
-                                  aria-label={showtimeLabel}
-                                >
-                                  {showtimeTech ? (
-                                    <span
-                                      className="details-showtime-tech"
-                                      aria-hidden="true"
-                                    >
-                                      {showtimeTech}
-                                    </span>
-                                  ) : null}
-
-                                  <div className="details-time-card-shell">
-                                    <span
-                                      className={showtimePillClassName}
-                                      style={showtimeCardStyle}
-                                    >
-                                      {dubFlagSrc && dubBadgeLabel ? (
-                                        <span className="details-time-pill-flag-shell">
-                                          <img
-                                            src={dubFlagSrc}
-                                            alt=""
-                                            className="details-time-pill-flag"
-                                            width={17}
-                                            height={13}
-                                            decoding="async"
-                                          />
-                                          <span className="details-time-pill-flag-tooltip">
-                                            {dubBadgeLabel}
-                                          </span>
-                                        </span>
-                                      ) : null}
-                                      {screeningTypeBadgeLabel ? (
-                                        <span className="details-time-pill-type-shell">
-                                          <Star
-                                            size={10}
-                                            strokeWidth={2.2}
-                                            className="details-time-pill-type-icon"
-                                            aria-hidden="true"
-                                          />
-                                          <span className="details-time-pill-type-tooltip">
-                                            {screeningTypeBadgeLabel}
-                                          </span>
-                                        </span>
-                                      ) : null}
-                                      <span className="details-time-pill-label">
-                                        {showtime.time}
-                                      </span>
-                                    </span>
-                                  </div>
-                                </span>
-                              );
-
-                              return (
-                                <div
-                                  key={key}
-                                  className={showtimeSlotClassName}
-                                >
-                                  {showtimeCard}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </section>
-                      );
-                    })}
+                    {shouldShowSkipToShowingDayButton ? (
+                      <button
+                        type="button"
+                        className="details-day-jump-button"
+                        onClick={handleShowtimeJumpClick}
+                      >
+                        {showtimeJumpButtonLabel}
+                      </button>
+                    ) : null}
                   </div>
-                )}
-              </article>
-            ))}
-          </div>
+
+                  {day.theaters.length === 0 ? (
+                    <p className="details-day-empty">No showtimes listed.</p>
+                  ) : (
+                    <div className="details-theaters">
+                      {day.theaters.map((theater, theaterIndex) => {
+                        const colors = getTheaterTheme(
+                          theater.theater,
+                          theaterIndex,
+                        );
+
+                        return (
+                          <section
+                            className="details-theater"
+                            key={theater.theater}
+                          >
+                            <div className="details-theater-name">
+                              <span
+                                className="details-theater-dot"
+                                style={{
+                                  backgroundColor: colors.accent,
+                                  boxShadow: `0 0 18px ${colors.glow}`,
+                                }}
+                              />
+                              <span>{theater.theater}</span>
+                            </div>
+
+                            <div className="details-time-grid">
+                              {theater.showtimes.map((showtime) => {
+                                const showtimeTech = getShowtimeTechLabel(
+                                  showtime.screeningTech,
+                                );
+                                const dubFlagSrc = getDubFlagSrc(
+                                  showtime.dubLanguage,
+                                );
+                                const dubBadgeLabel = getDubBadgeLabel(
+                                  showtime.dubLanguage,
+                                );
+                                const screeningTypeBadgeLabel =
+                                  getScreeningTypeBadgeLabel(
+                                    showtime.screeningType,
+                                  );
+                                const showtimeSlotClassName = [
+                                  "details-showtime-slot",
+                                  showtimeTech
+                                    ? "details-showtime-slot--with-tech"
+                                    : null,
+                                  dubFlagSrc
+                                    ? "details-showtime-slot--with-flag"
+                                    : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" ");
+                                const showtimeCardClassName = [
+                                  "details-showtime-card",
+                                  showtime.href
+                                    ? "details-showtime-card--link"
+                                    : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" ");
+                                const showtimePillClassName = [
+                                  "details-time-pill",
+                                  colors.pillClassName,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" ");
+                                const showtimeCardStyle = colors.pillClassName
+                                  ? undefined
+                                  : {
+                                      background:
+                                        colors.pillBackground ??
+                                        `linear-gradient(180deg, color-mix(in srgb, ${colors.accent} 88%, white 12%), color-mix(in srgb, ${colors.accent} 72%, black 28%))`,
+                                    };
+                                const showtimeLabel = [
+                                  `Open ${movie.title} ${showtime.time} showtime at ${theater.theater}`,
+                                  showtimeTech,
+                                  screeningTypeBadgeLabel,
+                                  dubBadgeLabel,
+                                ]
+                                  .filter(Boolean)
+                                  .join(", ");
+                                const key = [
+                                  theater.theater,
+                                  day.date,
+                                  showtime.time,
+                                  showtime.screeningTech,
+                                  showtime.screeningType,
+                                  showtime.dubLanguage ?? "original",
+                                ].join("-");
+                                const showtimeCard = showtime.href ? (
+                                  <a
+                                    href={showtime.href}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className={showtimeCardClassName}
+                                    aria-label={showtimeLabel}
+                                  >
+                                    {showtimeTech ? (
+                                      <span
+                                        className="details-showtime-tech"
+                                        aria-hidden="true"
+                                      >
+                                        {showtimeTech}
+                                      </span>
+                                    ) : null}
+
+                                    <div className="details-time-card-shell">
+                                      <span
+                                        className={showtimePillClassName}
+                                        style={showtimeCardStyle}
+                                      >
+                                        {dubFlagSrc && dubBadgeLabel ? (
+                                          <span className="details-time-pill-flag-shell">
+                                            <img
+                                              src={dubFlagSrc}
+                                              alt=""
+                                              className="details-time-pill-flag"
+                                              width={17}
+                                              height={13}
+                                              decoding="async"
+                                            />
+                                            <span className="details-time-pill-flag-tooltip">
+                                              {dubBadgeLabel}
+                                            </span>
+                                          </span>
+                                        ) : null}
+                                        {screeningTypeBadgeLabel ? (
+                                          <span className="details-time-pill-type-shell">
+                                            <Star
+                                              size={10}
+                                              strokeWidth={2.2}
+                                              className="details-time-pill-type-icon"
+                                              aria-hidden="true"
+                                            />
+                                            <span className="details-time-pill-type-tooltip">
+                                              {screeningTypeBadgeLabel}
+                                            </span>
+                                          </span>
+                                        ) : null}
+                                        <span className="details-time-pill-label">
+                                          {showtime.time}
+                                        </span>
+                                      </span>
+                                    </div>
+                                  </a>
+                                ) : (
+                                  <span
+                                    className={showtimeCardClassName}
+                                    aria-label={showtimeLabel}
+                                  >
+                                    {showtimeTech ? (
+                                      <span
+                                        className="details-showtime-tech"
+                                        aria-hidden="true"
+                                      >
+                                        {showtimeTech}
+                                      </span>
+                                    ) : null}
+
+                                    <div className="details-time-card-shell">
+                                      <span
+                                        className={showtimePillClassName}
+                                        style={showtimeCardStyle}
+                                      >
+                                        {dubFlagSrc && dubBadgeLabel ? (
+                                          <span className="details-time-pill-flag-shell">
+                                            <img
+                                              src={dubFlagSrc}
+                                              alt=""
+                                              className="details-time-pill-flag"
+                                              width={17}
+                                              height={13}
+                                              decoding="async"
+                                            />
+                                            <span className="details-time-pill-flag-tooltip">
+                                              {dubBadgeLabel}
+                                            </span>
+                                          </span>
+                                        ) : null}
+                                        {screeningTypeBadgeLabel ? (
+                                          <span className="details-time-pill-type-shell">
+                                            <Star
+                                              size={10}
+                                              strokeWidth={2.2}
+                                              className="details-time-pill-type-icon"
+                                              aria-hidden="true"
+                                            />
+                                            <span className="details-time-pill-type-tooltip">
+                                              {screeningTypeBadgeLabel}
+                                            </span>
+                                          </span>
+                                        ) : null}
+                                        <span className="details-time-pill-label">
+                                          {showtime.time}
+                                        </span>
+                                      </span>
+                                    </div>
+                                  </span>
+                                );
+
+                                return (
+                                  <div
+                                    key={key}
+                                    className={showtimeSlotClassName}
+                                  >
+                                    {showtimeCard}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </section>
+                        );
+                      })}
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         <section

@@ -191,6 +191,7 @@ let loadComingSoonMoviesPromise: Promise<void> | null = null;
 let loadShowtimesPromise: Promise<void> | null = null;
 let loadMovieCatalogPromise: Promise<void> | null = null;
 const movieCatalogListeners = new Set<() => void>();
+const EMPTY_SHOWTIME_CITIES: readonly AppLocation[] = Object.freeze([]);
 let movieCatalogStatusSnapshot: MovieCatalogStatusSnapshot = {
   nowPlayingReady: false,
   comingSoonReady: false,
@@ -1022,4 +1023,20 @@ export function getMovieShowtimeDays(
   city: AppLocation = defaultCity,
 ): readonly MovieShowtimeDay[] {
   return movieShowtimesByTmdbId[tmdbId]?.[city] ?? [];
+}
+
+export function getMovieShowtimeCities(
+  tmdbId: string,
+): readonly AppLocation[] {
+  const cityShowtimes = movieShowtimesByTmdbId[tmdbId];
+
+  if (!cityShowtimes) {
+    return EMPTY_SHOWTIME_CITIES;
+  }
+
+  const cities = ALL_LOCATIONS.filter((city) =>
+    cityShowtimes[city]?.some((day) => day.theaters.length > 0),
+  );
+
+  return cities.length > 0 ? cities : EMPTY_SHOWTIME_CITIES;
 }

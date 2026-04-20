@@ -695,6 +695,175 @@
   color: rgba(233, 226, 245, 0.76);
 }
 
+.details-empty-state {
+  padding: 18px;
+}
+
+.details-empty-state-panel {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  border: 1px solid rgba(221, 194, 255, 0.14);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--main-app-color) 22%, transparent), transparent 54%),
+    rgba(11, 9, 20, 0.92);
+  box-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.details-empty-state-title {
+  margin: 0;
+  color: #f6f0ff;
+  font-size: 1.08rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+
+.details-empty-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  align-items: start;
+}
+
+.details-empty-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.7rem;
+  width: 100%;
+  max-width: calc(100% - 28px);
+  min-height: 52px;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(221, 194, 255, 0.16);
+  border-radius: 18px;
+  background: rgba(15, 12, 26, 0.82);
+  box-shadow:
+    0 16px 30px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  color: rgba(245, 239, 255, 0.94);
+  font: inherit;
+  font-size: 0.96rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    transform 140ms ease,
+    background 140ms ease,
+    border-color 140ms ease;
+  justify-self: start;
+}
+
+.details-empty-link-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.72rem;
+  min-width: 0;
+}
+
+.details-empty-link-icon {
+  flex: none;
+  color: rgba(221, 194, 255, 0.82);
+}
+
+.details-empty-link-arrow {
+  flex: none;
+  color: rgba(240, 232, 255, 0.78);
+  transition:
+    transform 140ms ease,
+    color 140ms ease;
+}
+
+.details-empty-link-heading {
+  margin: 0;
+  padding: 0;
+  color: rgba(245, 239, 255, 0.94);
+  font: inherit;
+  font-size: 0.96rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-align: left;
+}
+
+.details-empty-link:hover,
+.details-empty-link:focus-visible {
+  color: #fff;
+  transform: translateX(1px);
+  border-color: rgba(240, 232, 255, 0.32);
+  background: rgba(25, 20, 40, 0.94);
+}
+
+.details-empty-link:hover .details-empty-link-arrow,
+.details-empty-link:focus-visible .details-empty-link-arrow {
+  color: #fff;
+  transform: translateX(2px);
+}
+
+.details-empty-nearby {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  min-height: 100%;
+  padding-left: 24px;
+  border-left: 1px solid rgba(221, 194, 255, 0.22);
+}
+
+.details-empty-city-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.details-empty-city-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0.55rem 0.95rem;
+  border: 1px solid rgba(221, 194, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(18, 15, 31, 0.82);
+  color: #f6f0ff;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    background 140ms ease,
+    border-color 140ms ease,
+    opacity 140ms ease;
+}
+
+.details-empty-city-button:hover,
+.details-empty-city-button:focus-visible {
+  border-color: rgba(240, 232, 255, 0.38);
+  background: rgba(28, 23, 46, 0.94);
+  transform: translateY(-1px);
+}
+
+.details-empty-city-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+  transform: none;
+}
+
+.details-empty-city-icon {
+  flex: none;
+  color: rgba(221, 194, 255, 0.82);
+}
+
+.details-empty-note {
+  margin: 0;
+  color: rgba(233, 226, 245, 0.76);
+}
+
 .details-rail {
   display: flex;
   gap: 18px;
@@ -725,6 +894,34 @@
   gap: 16px;
   margin-bottom: 16px;
   margin-left: 6px;
+}
+
+.details-day-jump-button {
+  flex: none;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid rgba(221, 194, 255, 0.24);
+  border-radius: 999px;
+  background: rgba(18, 15, 31, 0.82);
+  color: #f6f0ff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow:
+    0 10px 18px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition:
+    transform 140ms ease,
+    background 140ms ease,
+    border-color 140ms ease;
+}
+
+.details-day-jump-button:hover,
+.details-day-jump-button:focus-visible {
+  border-color: rgba(240, 232, 255, 0.42);
+  background: rgba(28, 23, 46, 0.94);
+  transform: translateY(-1px);
 }
 
 .details-day-heading {
@@ -1281,6 +1478,11 @@ html[data-device-type="mobile"] .movie-scroller-detail-card .details-title {
   line-height: 0.96;
 }
 
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-jump-button {
+  padding: 0.48rem 0.72rem;
+  font-size: 0.73rem;
+}
+
 html[data-device-type="mobile"] .movie-scroller-detail-card .details-subtitle,
 html[data-device-type="mobile"] .movie-scroller-detail-card .details-release-date {
   margin-top: 8px;
@@ -1387,6 +1589,37 @@ html[data-device-type="mobile"] .movie-scroller-detail-card .details-time-pill {
   width: var(--details-showtime-pill-content-width);
   height: var(--details-showtime-pill-content-height);
   font-size: var(--details-showtime-pill-font-size);
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-empty-state {
+  padding: 16px;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-empty-state-panel {
+  padding: 20px;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-empty-actions {
+  grid-template-columns: 1fr;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-empty-link {
+  margin-bottom: 18px;
+  max-width: 100%;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-empty-nearby {
+  min-height: 0;
+  padding-top: 18px;
+  padding-left: 0;
+  border-left: 0;
+  border-top: 1px solid rgba(221, 194, 255, 0.22);
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-empty-link,
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-empty-link-heading,
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-empty-city-button {
+  font-size: 0.88rem;
 }
 
 html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scroller-detail-backdrop-shell,
