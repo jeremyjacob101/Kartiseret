@@ -100,7 +100,29 @@ const fixedCurrentIsraelMinutesSinceMidnight = fixedCurrentDateTimeParts
   : Number.NEGATIVE_INFINITY;
 
 type SupabaseValue = string | number | boolean | null | string[];
-type SupabaseRow = Partial<Record<string, SupabaseValue>>;
+type SupabaseRow = Record<string, SupabaseValue | undefined>;
+
+// Production tables always populate these columns, so downstream consumers do
+// not need to model them as nullable.
+type MovieRow = SupabaseRow & {
+  tmdb_id: string;
+  english_title: string;
+  release_date?: string | null;
+};
+
+type ComingSoonMovieRow = MovieRow & {
+  release_date: string;
+};
+
+type ShowtimeRow = SupabaseRow & {
+  tmdb_id: string;
+  screening_city: string;
+  date_of_showing: string;
+  cinema: string;
+  showtime: string;
+  screening_tech: string;
+  screening_type: string;
+};
 
 export type Movie = {
   tmdbId: string;
@@ -140,8 +162,8 @@ export type MovieShowtimeDay = {
 export type ShowtimeEntry = {
   time: string;
   href: string | null;
-  screeningTech: string | null;
-  screeningType: string | null;
+  screeningTech: string;
+  screeningType: string;
   dubLanguage: string | null;
 };
 
@@ -326,29 +348,16 @@ function getReleaseYearFromDate(releaseDate: string | undefined): number {
   return Number.parseInt(year, 10) || 0;
 }
 
-function compareByReleaseDate(left: SupabaseRow, right: SupabaseRow): number {
-  const leftReleaseDate = getFirstNormalizedText(left, ["release_date"]);
-  const rightReleaseDate = getFirstNormalizedText(right, ["release_date"]);
-
-  if (
-    leftReleaseDate &&
-    rightReleaseDate &&
-    leftReleaseDate !== rightReleaseDate
-  ) {
-    return leftReleaseDate.localeCompare(rightReleaseDate);
-  }
-
-  if (leftReleaseDate) {
-    return -1;
-  }
-
-  if (rightReleaseDate) {
-    return 1;
-  }
-
-  return normalizeTitle(
-    stringifySupabaseValue(left.english_title),
-  ).localeCompare(normalizeTitle(stringifySupabaseValue(right.english_title)));
+function compareByReleaseDate(
+  left: ComingSoonMovieRow,
+  right: ComingSoonMovieRow,
+): number {
+  return (
+    left.release_date.localeCompare(right.release_date) ||
+    normalizeTitle(left.english_title).localeCompare(
+      normalizeTitle(right.english_title),
+    )
+  );
 }
 
 function formatShowtime(value: string): string {
@@ -481,12 +490,8 @@ function compareShowtimeEntries(
   return (
     leftMinutes - rightMinutes ||
     leftShowtime.time.localeCompare(rightShowtime.time) ||
-    (leftShowtime.screeningTech ?? "").localeCompare(
-      rightShowtime.screeningTech ?? "",
-    ) ||
-    (leftShowtime.screeningType ?? "").localeCompare(
-      rightShowtime.screeningType ?? "",
-    ) ||
+    leftShowtime.screeningTech.localeCompare(rightShowtime.screeningTech) ||
+    leftShowtime.screeningType.localeCompare(rightShowtime.screeningType) ||
     (leftShowtime.dubLanguage ?? "").localeCompare(
       rightShowtime.dubLanguage ?? "",
     )
@@ -560,13 +565,16 @@ type BuildMoviesOptions = {
 };
 
 function buildMovies(
-  rows: SupabaseRow[],
+  rows: MovieRow[],
   { sortMode = "popularity" }: BuildMoviesOptions = {},
 ): Movie[] {
   return [...rows]
     .sort((left, right) => {
       if (sortMode === "releaseDate") {
-        return compareByReleaseDate(left, right);
+        return compareByReleaseDate(
+          left as ComingSoonMovieRow,
+          right as ComingSoonMovieRow,
+        );
       }
 
       return (
@@ -583,16 +591,15 @@ function buildMovies(
         getFirstNormalizedText(row, ["backdrop", "en_poster", "poster"]) ||
         imageSrc;
       const trailerKey = getFirstNormalizedText(row, ["en_trailer"]);
-      const releaseDate =
-        getFirstNormalizedText(row, ["release_date"]) || undefined;
+      const releaseDate = normalizeText(row.release_date ?? "") || undefined;
       const parsedReleaseYear =
         Number.parseInt(stringifySupabaseValue(row.release_year), 10) || 0;
 
       return {
-        tmdbId: normalizeText(stringifySupabaseValue(row.tmdb_id)),
+        tmdbId: normalizeText(row.tmdb_id),
         imdbId: getFirstNormalizedText(row, ["imdb_id"]) || undefined,
         rtId: getFirstNormalizedText(row, ["rt_id"]) || undefined,
-        title: normalizeTitle(stringifySupabaseValue(row.english_title)),
+        title: normalizeTitle(row.english_title),
         year: parsedReleaseYear || getReleaseYearFromDate(releaseDate),
         releaseDate,
         genres: parseGenres(row.genres),
@@ -612,12 +619,11 @@ function buildMovies(
         runtime: Number.parseInt(stringifySupabaseValue(row.runtime), 10) || 0,
         popularity: parseNumberValue(row.popularity),
       };
-    })
-    .filter((movie) => Boolean(movie.tmdbId && movie.title));
+    });
 }
 
 function buildMovieShowtimes(
-  rows: SupabaseRow[],
+  rows: ShowtimeRow[],
   selectedMovies: readonly Movie[],
 ): Record<string, MovieShowtimesByCity> {
   const showtimeWindowDates = buildDateRange(
@@ -632,39 +638,32 @@ function buildMovieShowtimes(
   >();
 
   for (const row of rows) {
-    const tmdbId = normalizeText(stringifySupabaseValue(row.tmdb_id));
+    const tmdbId = normalizeText(row.tmdb_id);
 
     if (!selectedMovieIds.has(tmdbId)) {
       continue;
     }
 
-    const city = normalizeText(stringifySupabaseValue(row.screening_city));
+    const city = normalizeText(row.screening_city);
 
     if (!supportedCities.has(city)) {
       continue;
     }
 
     const normalizedCity = city as AppLocation;
-    supportedCities.add(normalizedCity);
-    const date = normalizeText(stringifySupabaseValue(row.date_of_showing));
+    const date = normalizeText(row.date_of_showing);
 
     if (date < fixedAppDateString || date > fixedShowtimeWindowEndDateString) {
       continue;
     }
 
-    const theater = normalizeText(stringifySupabaseValue(row.cinema));
-    const showtime = formatShowtime(stringifySupabaseValue(row.showtime));
+    const theater = normalizeText(row.cinema);
+    const showtime = formatShowtime(row.showtime);
     const showtimeHref =
       normalizeText(stringifySupabaseValue(row.english_href)) || null;
-    const screeningTech =
-      getFirstNormalizedText(row, ["screening_tech"]) || null;
-    const screeningType =
-      getFirstNormalizedText(row, ["screening_type"]) || null;
+    const screeningTech = normalizeText(row.screening_tech);
+    const screeningType = normalizeText(row.screening_type);
     const dubLanguage = getFirstNormalizedText(row, ["dub_language"]) || null;
-
-    if (!date || !theater || !showtime) {
-      continue;
-    }
 
     if (!shouldIncludeShowtime(date, showtime)) {
       continue;
@@ -696,28 +695,22 @@ function buildMovieShowtimes(
 
     const showtimeKey = [
       showtime,
-      screeningTech?.toLowerCase() ?? "",
-      screeningType?.toLowerCase() ?? "",
+      screeningTech.toLowerCase(),
+      screeningType.toLowerCase(),
       dubLanguage?.toLowerCase() ?? "",
     ].join("::");
     const existingEntry = theaterShowtimes.get(showtimeKey);
 
     theaterShowtimes.set(showtimeKey, {
       time: showtime,
-      href: existingEntry?.href || showtimeHref,
-      screeningTech: existingEntry?.screeningTech || screeningTech,
-      screeningType: existingEntry?.screeningType || screeningType,
-      dubLanguage: existingEntry?.dubLanguage || dubLanguage,
+      href: existingEntry?.href ?? showtimeHref,
+      screeningTech: existingEntry?.screeningTech ?? screeningTech,
+      screeningType: existingEntry?.screeningType ?? screeningType,
+      dubLanguage: existingEntry?.dubLanguage ?? dubLanguage,
     });
   }
 
-  const canonicalCities = new Set<string>(ALL_LOCATIONS);
-  const orderedCities = [
-    ...ALL_LOCATIONS,
-    ...[...supportedCities]
-      .filter((city) => !canonicalCities.has(city))
-      .sort((left, right) => left.localeCompare(right)),
-  ];
+  const orderedCities = ALL_LOCATIONS;
 
   return Object.fromEntries(
     selectedMovies.map((movie) => {
@@ -753,13 +746,13 @@ function buildMovieShowtimes(
   );
 }
 
-async function fetchAllTableRows(
+async function fetchAllTableRows<Row extends SupabaseRow>(
   tableName: string,
   selectColumns: readonly string[],
   orderColumns: readonly string[],
-): Promise<SupabaseRow[]> {
+): Promise<Row[]> {
   const supabase = getSupabaseBrowserClient();
-  const allRows: SupabaseRow[] = [];
+  const allRows: Row[] = [];
   let fromIndex = 0;
 
   while (true) {
@@ -780,7 +773,7 @@ async function fetchAllTableRows(
       );
     }
 
-    const batchRows = (data ?? []) as unknown as SupabaseRow[];
+    const batchRows = (data ?? []) as unknown as Row[];
     allRows.push(...batchRows);
 
     if (batchRows.length < SUPABASE_PAGE_SIZE) {
@@ -808,14 +801,14 @@ function isMissingOptionalColumnError(
   );
 }
 
-async function fetchMovieRows(): Promise<SupabaseRow[]> {
+async function fetchMovieRows(): Promise<MovieRow[]> {
   const selectColumns = [
     ...MOVIE_SELECT_COLUMNS,
     ...OPTIONAL_MOVIE_SELECT_COLUMNS,
   ];
 
   try {
-    return await fetchAllTableRows(MOVIES_TABLE_NAME, selectColumns, [
+    return await fetchAllTableRows<MovieRow>(MOVIES_TABLE_NAME, selectColumns, [
       "tmdb_id",
     ]);
   } catch (error) {
@@ -823,22 +816,26 @@ async function fetchMovieRows(): Promise<SupabaseRow[]> {
       throw error;
     }
 
-    return fetchAllTableRows(MOVIES_TABLE_NAME, MOVIE_SELECT_COLUMNS, [
-      "tmdb_id",
-    ]);
+    return fetchAllTableRows<MovieRow>(
+      MOVIES_TABLE_NAME,
+      MOVIE_SELECT_COLUMNS,
+      ["tmdb_id"],
+    );
   }
 }
 
-async function fetchComingSoonMovieRows(): Promise<SupabaseRow[]> {
+async function fetchComingSoonMovieRows(): Promise<ComingSoonMovieRow[]> {
   const selectColumns = [
     ...COMING_SOON_SELECT_COLUMNS,
     ...OPTIONAL_COMING_SOON_SELECT_COLUMNS,
   ];
 
   try {
-    return await fetchAllTableRows(COMING_SOON_TABLE_NAME, selectColumns, [
-      "tmdb_id",
-    ]);
+    return await fetchAllTableRows<ComingSoonMovieRow>(
+      COMING_SOON_TABLE_NAME,
+      selectColumns,
+      ["tmdb_id"],
+    );
   } catch (error) {
     if (
       !isMissingOptionalColumnError(error, OPTIONAL_COMING_SOON_SELECT_COLUMNS)
@@ -846,7 +843,7 @@ async function fetchComingSoonMovieRows(): Promise<SupabaseRow[]> {
       throw error;
     }
 
-    return fetchAllTableRows(
+    return fetchAllTableRows<ComingSoonMovieRow>(
       COMING_SOON_TABLE_NAME,
       COMING_SOON_SELECT_COLUMNS,
       ["tmdb_id"],
@@ -854,19 +851,18 @@ async function fetchComingSoonMovieRows(): Promise<SupabaseRow[]> {
   }
 }
 
-async function fetchShowtimeRows(): Promise<SupabaseRow[]> {
+async function fetchShowtimeRows(): Promise<ShowtimeRow[]> {
   const selectColumns = [
     ...SHOWTIME_SELECT_COLUMNS,
     ...OPTIONAL_SHOWTIME_SELECT_COLUMNS,
   ];
 
   try {
-    return await fetchAllTableRows(SHOWTIMES_TABLE_NAME, selectColumns, [
-      "tmdb_id",
-      "date_of_showing",
-      "cinema",
-      "showtime",
-    ]);
+    return await fetchAllTableRows<ShowtimeRow>(
+      SHOWTIMES_TABLE_NAME,
+      selectColumns,
+      ["tmdb_id", "date_of_showing", "cinema", "showtime"],
+    );
   } catch (error) {
     if (
       !isMissingOptionalColumnError(error, OPTIONAL_SHOWTIME_SELECT_COLUMNS)
@@ -874,12 +870,11 @@ async function fetchShowtimeRows(): Promise<SupabaseRow[]> {
       throw error;
     }
 
-    return fetchAllTableRows(SHOWTIMES_TABLE_NAME, SHOWTIME_SELECT_COLUMNS, [
-      "tmdb_id",
-      "date_of_showing",
-      "cinema",
-      "showtime",
-    ]);
+    return fetchAllTableRows<ShowtimeRow>(
+      SHOWTIMES_TABLE_NAME,
+      SHOWTIME_SELECT_COLUMNS,
+      ["tmdb_id", "date_of_showing", "cinema", "showtime"],
+    );
   }
 }
 
@@ -998,10 +993,6 @@ export async function loadShowtimes(): Promise<void> {
     });
 
   return loadShowtimesPromise;
-}
-
-export function ensureMovieShowtimesLoaded(): Promise<void> {
-  return loadShowtimes();
 }
 
 export async function loadMovieCatalog(): Promise<void> {

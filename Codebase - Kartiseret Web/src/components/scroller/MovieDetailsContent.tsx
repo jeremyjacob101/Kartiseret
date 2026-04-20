@@ -265,12 +265,8 @@ function getLetterboxdUrl(movie: Movie): string | null {
   return toPathUrl("https://letterboxd.com", movie.lbId);
 }
 
-function getTmdbUrl(movie: Movie): string | null {
-  const tmdbId = movie.tmdbId?.trim();
-
-  if (!tmdbId) {
-    return null;
-  }
+function getTmdbUrl(movie: Movie): string {
+  const tmdbId = movie.tmdbId.trim();
 
   if (isAbsoluteUrl(tmdbId)) {
     return tmdbId;
@@ -440,7 +436,7 @@ function getMetricDisplay(
           ? `TMDB rating ${movie.tmdbRating.toFixed(1)}`
           : "TMDB rating unavailable",
         logoSrc: "/logos/tmdb.svg",
-        href: getTmdbUrl(movie) ?? undefined,
+        href: getTmdbUrl(movie),
         linkAriaLabel: `Open ${movie.title} on TMDB`,
         logoClassName: "details-metric-logo details-metric-logo--tmdb",
       };
@@ -543,10 +539,8 @@ function cloneShowtimeDays(
   }));
 }
 
-function getShowtimeTechLabel(
-  screeningTech: string | null | undefined,
-): string | null {
-  const normalizedValue = screeningTech?.trim().replace(/\s+/g, " ") ?? "";
+function getShowtimeTechLabel(screeningTech: string): string | null {
+  const normalizedValue = screeningTech.trim().replace(/\s+/g, " ");
 
   if (!normalizedValue) {
     return null;
@@ -581,10 +575,8 @@ function getDubBadgeLabel(
   return normalizedValue ? `${normalizedValue} Dub` : null;
 }
 
-function getScreeningTypeBadgeLabel(
-  screeningType: string | null | undefined,
-): string | null {
-  const normalizedValue = screeningType?.trim().replace(/\s+/g, " ") ?? "";
+function getScreeningTypeBadgeLabel(screeningType: string): string | null {
+  const normalizedValue = screeningType.trim().replace(/\s+/g, " ");
 
   if (!normalizedValue || normalizedValue.toLowerCase() === "regular") {
     return null;
@@ -1006,8 +998,8 @@ export function MovieDetailsContent({
                                 theater.theater,
                                 day.date,
                                 showtime.time,
-                                showtime.screeningTech ?? "standard",
-                                showtime.screeningType ?? "regular",
+                                showtime.screeningTech,
+                                showtime.screeningType,
                                 showtime.dubLanguage ?? "original",
                               ].join("-");
                               const showtimeCard = showtime.href ? (

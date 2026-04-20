@@ -179,7 +179,7 @@ type CityMarkerState = {
 type TheaterMarkerState = {
   marker: Marker;
   element: HTMLButtonElement;
-  location: string | null;
+  location: string;
   popup: Popup;
 };
 
@@ -734,8 +734,7 @@ function buildCityEntries(theaters: readonly Theater[]): CityEntry[] {
 
   return [...theatersByCity.entries()]
     .sort(([leftLocation], [rightLocation]) =>
-      leftLocation.localeCompare(rightLocation),
-    )
+      leftLocation.localeCompare(rightLocation))
     .map(([location, cityTheaters]) => {
       const firstTheater = cityTheaters[0];
       const cityLatitude = firstTheater.city.latitude;
@@ -751,10 +750,11 @@ function buildCityEntries(theaters: readonly Theater[]): CityEntry[] {
               .flatMap((theater) => theater.city.altSpellings)
               .concat(location),
           ),
-        ]
-          .map(normalizeCitySearchQuery),
+        ].map(normalizeCitySearchQuery),
         theaterCount: cityTheaters.length,
-        chains: [...new Set(cityTheaters.map((theater) => theater.chain))].sort(),
+        chains: [
+          ...new Set(cityTheaters.map((theater) => theater.chain)),
+        ].sort(),
         zoomLayer: firstTheater.city.zoomLayer,
       };
     });
@@ -763,8 +763,9 @@ function buildCityEntries(theaters: readonly Theater[]): CityEntry[] {
 function buildCityRevealConfig(
   entries: readonly CityEntry[],
 ): CityRevealConfig {
-  const revealLayers = Array.from(new Set(entries.map((entry) => entry.zoomLayer)))
-    .sort((left, right) => left - right);
+  const revealLayers = Array.from(
+    new Set(entries.map((entry) => entry.zoomLayer)),
+  ).sort((left, right) => left - right);
   const opacityLayers = revealLayers.filter((zoom) => zoom > 0);
   const fallbackRevealZoom = revealLayers.at(-1) ?? 0;
 
@@ -1177,26 +1178,6 @@ function normalizeTheaterChain(chain: string): string {
   return chain;
 }
 
-function getTheaterDotColor(chain: string): string {
-  return THEATER_DOT_COLORS[normalizeTheaterChain(chain)] ?? "#8c96a6";
-}
-
-function getTheaterDisplayName(theater: Theater): string {
-  if (theater.theaterName) {
-    return theater.theaterName;
-  }
-
-  if (theater.address && !/\d/.test(theater.address)) {
-    return theater.address;
-  }
-
-  return `${theater.chain} ${theater.city.name}`.trim();
-}
-
-function getCityMinZoom(entry: CityEntry): number {
-  return entry.zoomLayer;
-}
-
 function getCityMarkerZIndex(
   revealZoom: number,
   revealConfig: CityRevealConfig,
@@ -1280,7 +1261,7 @@ function isCityLabelRevealed(
 }
 
 function getCityPriority(entry: CityEntry): number {
-  const revealZoom = getCityMinZoom(entry);
+  const revealZoom = entry.zoomLayer;
   return (20 - revealZoom) * 10 + entry.theaterCount;
 }
 
@@ -1966,9 +1947,7 @@ export function CityLocationPicker({
       }
 
       for (const theaterMarker of theaterMarkers) {
-        const cityState = theaterMarker.location
-          ? labelElements.get(theaterMarker.location)
-          : undefined;
+        const cityState = labelElements.get(theaterMarker.location);
         const active = theaterMarker.location === currentSelection;
         const visible =
           cityState !== undefined &&
@@ -2009,7 +1988,7 @@ export function CityLocationPicker({
       configureBaseLabels(map);
 
       for (const entry of cityEntries) {
-        const revealZoom = getCityMinZoom(entry);
+        const revealZoom = entry.zoomLayer;
         const active = entry.location === currentLocationRef.current;
         const element = document.createElement("button");
         element.type = "button";
@@ -2098,11 +2077,11 @@ export function CityLocationPicker({
         element.style.zIndex = THEATER_MARKER_Z_INDEX;
         element.style.setProperty(
           "--theater-dot-color",
-          getTheaterDotColor(theater.chain),
+          THEATER_DOT_COLORS[normalizeTheaterChain(theater.chain)] ?? "#8c96a6",
         );
         element.setAttribute(
           "aria-label",
-          `${getTheaterDisplayName(theater)}, ${theater.address}`,
+          `${theater.theaterName}, ${theater.address}`,
         );
         element.dataset.lng = String(theater.lng);
         element.dataset.lat = String(theater.lat);
@@ -2118,7 +2097,7 @@ export function CityLocationPicker({
 
         const title = document.createElement("strong");
         title.className = "theater-map-theater-popup-title";
-        title.textContent = getTheaterDisplayName(theater);
+        title.textContent = theater.theaterName;
         popupContent.appendChild(title);
 
         const address = document.createElement("span");
@@ -2150,9 +2129,9 @@ export function CityLocationPicker({
             map,
             secondaryLabelElements,
             theaterMarkers,
-            title: getTheaterDisplayName(theater),
+            title: theater.theaterName,
           });
-          popup.setLngLat([theater.lng!, theater.lat!]).addTo(map);
+          popup.setLngLat([theater.lng, theater.lat]).addTo(map);
         });
         element.addEventListener("mouseleave", () => {
           styleTheaterDot(element, canShowTheaterPopup(), false);
@@ -2172,9 +2151,9 @@ export function CityLocationPicker({
             map,
             secondaryLabelElements,
             theaterMarkers,
-            title: getTheaterDisplayName(theater),
+            title: theater.theaterName,
           });
-          popup.setLngLat([theater.lng!, theater.lat!]).addTo(map);
+          popup.setLngLat([theater.lng, theater.lat]).addTo(map);
         });
         element.addEventListener("blur", () => {
           styleTheaterDot(element, canShowTheaterPopup(), false);

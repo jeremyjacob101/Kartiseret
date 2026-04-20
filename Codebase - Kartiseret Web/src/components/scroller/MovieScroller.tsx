@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type WheelEvent } from "react";
 import { X } from "lucide-react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
-import { comingSoonMovies, ensureMovieShowtimesLoaded, movies, type Movie } from "../../data/movieCatalog";
+import { comingSoonMovies, loadShowtimes, movies, type Movie } from "../../data/movieCatalog";
 import { useDeviceInfo } from "../../device/useDeviceType";
 import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
 import { MovieDetailsContent, type MovieDetailsVariant } from "./MovieDetailsContent";
@@ -717,7 +717,7 @@ function MovieScrollerContent({
       return;
     }
 
-    void ensureMovieShowtimesLoaded().catch(() => {});
+    void loadShowtimes().catch(() => {});
   }, [detailVariant]);
 
   const measureDetailStage = useCallback(() => {

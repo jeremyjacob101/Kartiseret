@@ -69,8 +69,7 @@ function compareTheaters(left: Theater, right: Theater): number {
 function mapRowToTheater(row: TheaterRow): Theater {
   const cityName = row.city_details.name.trim().replace(/\s+/g, " ");
   const cityAltSpellings = row.city_details.alt_spellings.map((value) =>
-    value.trim().replace(/\s+/g, " "),
-  );
+    value.trim().replace(/\s+/g, " "));
 
   if (!cityAltSpellings.includes(cityName)) {
     cityAltSpellings.unshift(cityName);
