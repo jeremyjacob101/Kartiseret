@@ -13,6 +13,7 @@ const MINI_NAVBAR_TRANSITION_MS = 620;
 const MOBILE_FLOATING_NAVBAR_BOTTOM_PX = 10;
 const DEFAULT_FLOATING_NAVBAR_BOTTOM_PX = 24;
 const FLOATING_NAVBAR_FOOTER_GAP_PX = 10;
+const MOBILE_MINI_NAVBAR_SCROLL_THRESHOLD_PX = 6;
 
 const loadTheaterMapDialog = () => import("../TheaterMapDialog");
 
@@ -20,6 +21,10 @@ const TheaterMapDialog = lazy(async () => {
   const module = await loadTheaterMapDialog();
   return { default: module.TheaterMapDialog };
 });
+
+function getWindowScrollY(): number {
+  return Math.max(0, window.scrollY || window.pageYOffset || 0);
+}
 
 type NavbarActionsProps = {
   catalogReady: boolean;
@@ -158,6 +163,9 @@ export function Navbar({
   const miniNavBarStateFrameRef = useRef<number | null>(null);
   const miniNavBarEnterFrameRef = useRef<number | null>(null);
   const miniNavBarExitTimeoutRef = useRef<number | null>(null);
+  const showMiniNavBarRef = useRef(showMiniNavBar);
+  const mobileLastScrollYRef = useRef(0);
+  const mobileScrollDeltaRef = useRef(0);
   const currentPath = location.pathname;
 
   useEffect(() => {
@@ -169,6 +177,29 @@ export function Navbar({
       window.clearTimeout(introTimeout);
     };
   }, []);
+
+  useEffect(() => {
+    showMiniNavBarRef.current = showMiniNavBar;
+  }, [showMiniNavBar]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      mobileScrollDeltaRef.current = 0;
+      mobileLastScrollYRef.current = 0;
+      return;
+    }
+
+    mobileLastScrollYRef.current = getWindowScrollY();
+    mobileScrollDeltaRef.current = 0;
+    showMiniNavBarRef.current = true;
+    const frameId = window.requestAnimationFrame(() => {
+      setShowMiniNavBar(true);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [currentPath, isMobile]);
 
   useEffect(() => {
     let frameId: number | null = null;
@@ -188,9 +219,46 @@ export function Navbar({
       frameId = null;
       const navbarBottom =
         navbarShellRef.current?.getBoundingClientRect().bottom ?? 0;
-      const shouldShowMiniNavBar = isMobile || navbarBottom <= 0;
+      let shouldShowMiniNavBar = showMiniNavBarRef.current;
 
-      setShowMiniNavBar(shouldShowMiniNavBar);
+      if (isMobile) {
+        const currentScrollY = getWindowScrollY();
+        const scrollDelta = currentScrollY - mobileLastScrollYRef.current;
+
+        if (scrollDelta !== 0) {
+          const scrollDirection = Math.sign(scrollDelta);
+          const accumulatedDirection = Math.sign(mobileScrollDeltaRef.current);
+
+          mobileScrollDeltaRef.current =
+            mobileScrollDeltaRef.current === 0 ||
+            scrollDirection === accumulatedDirection
+              ? mobileScrollDeltaRef.current + scrollDelta
+              : scrollDelta;
+
+          if (
+            mobileScrollDeltaRef.current >=
+            MOBILE_MINI_NAVBAR_SCROLL_THRESHOLD_PX
+          ) {
+            shouldShowMiniNavBar = false;
+            mobileScrollDeltaRef.current = 0;
+          } else if (
+            mobileScrollDeltaRef.current <=
+            -MOBILE_MINI_NAVBAR_SCROLL_THRESHOLD_PX
+          ) {
+            shouldShowMiniNavBar = true;
+            mobileScrollDeltaRef.current = 0;
+          }
+        }
+
+        mobileLastScrollYRef.current = currentScrollY;
+      } else {
+        shouldShowMiniNavBar = navbarBottom <= 0;
+      }
+
+      if (showMiniNavBarRef.current !== shouldShowMiniNavBar) {
+        showMiniNavBarRef.current = shouldShowMiniNavBar;
+        setShowMiniNavBar(shouldShowMiniNavBar);
+      }
 
       if (showNavbarIntro || !shouldShowMiniNavBar || !renderMiniNavBar) {
         resetMiniNavBarBottomBarState();
