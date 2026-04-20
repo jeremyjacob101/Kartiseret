@@ -159,7 +159,7 @@ type CityEntry = {
   searchTerms: string[];
   theaterCount: number;
   chains: string[];
-  zoomLayer: number | null;
+  zoomLayer: number;
 };
 
 type CityRevealConfig = {
@@ -723,98 +723,48 @@ class TheaterMapActionControl implements IControl {
       : "Find nearest city to my location";
   }
 }
-
 function buildCityEntries(theaters: readonly Theater[]): CityEntry[] {
   const theatersByCity = new Map<string, Theater[]>();
 
   for (const theater of theaters) {
-    if (!theater.city) {
-      continue;
-    }
-
-    const cityTheaters = theatersByCity.get(theater.city) ?? [];
+    const cityTheaters = theatersByCity.get(theater.city.name) ?? [];
     cityTheaters.push(theater);
-    theatersByCity.set(theater.city, cityTheaters);
+    theatersByCity.set(theater.city.name, cityTheaters);
   }
 
   return [...theatersByCity.entries()]
     .sort(([leftLocation], [rightLocation]) =>
-      leftLocation.localeCompare(rightLocation))
+      leftLocation.localeCompare(rightLocation),
+    )
     .map(([location, cityTheaters]) => {
-      const points = cityTheaters.flatMap((theater) =>
-        theater.lat !== null && theater.lng !== null
-          ? ([[theater.lng, theater.lat]] as [number, number][])
-          : []);
-
-      if (points.length === 0) {
-        return null;
-      }
-
-      const center = points.reduce(
-        (accumulator, [lng, lat]) => [
-          accumulator[0] + lng / points.length,
-          accumulator[1] + lat / points.length,
-        ],
-        [0, 0],
-      ) as [number, number];
+      const firstTheater = cityTheaters[0];
+      const cityLatitude = firstTheater.city.latitude;
+      const cityLongitude = firstTheater.city.longitude;
 
       return {
         location,
-        center,
-        labelCenter: [center[0], center[1] + CITY_LABEL_NORTH_OFFSET],
+        center: [cityLongitude, cityLatitude - CITY_LABEL_NORTH_OFFSET],
+        labelCenter: [cityLongitude, cityLatitude],
         searchTerms: [
           ...new Set(
             cityTheaters
-              .flatMap((theater) => theater.cityAltSpellings)
+              .flatMap((theater) => theater.city.altSpellings)
               .concat(location),
           ),
         ]
-          .map(normalizeCitySearchQuery)
-          .filter(Boolean),
+          .map(normalizeCitySearchQuery),
         theaterCount: cityTheaters.length,
-        chains: [
-          ...new Set(cityTheaters.map((theater) => theater.chain)),
-        ].sort(),
-        zoomLayer: resolveCityZoomLayer(location, cityTheaters),
+        chains: [...new Set(cityTheaters.map((theater) => theater.chain))].sort(),
+        zoomLayer: firstTheater.city.zoomLayer,
       };
-    })
-    .filter((entry): entry is CityEntry => entry !== null);
-}
-
-function resolveCityZoomLayer(
-  location: string,
-  cityTheaters: readonly Theater[],
-): number | null {
-  const zoomLayers = [
-    ...new Set(
-      cityTheaters.flatMap((theater) =>
-        typeof theater.zoomLayer === "number" ? [theater.zoomLayer] : []),
-    ),
-  ].sort((left, right) => left - right);
-
-  if (zoomLayers.length === 0) {
-    return null;
-  }
-
-  if (zoomLayers.length > 1) {
-    console.warn(
-      `City ${location} has inconsistent zoom_layer values in theaters; using the earliest reveal layer.`,
-      zoomLayers,
-    );
-  }
-
-  return zoomLayers[0];
+    });
 }
 
 function buildCityRevealConfig(
   entries: readonly CityEntry[],
 ): CityRevealConfig {
-  const revealLayers = Array.from(
-    new Set(
-      entries.flatMap((entry) =>
-        typeof entry.zoomLayer === "number" ? [entry.zoomLayer] : []),
-    ),
-  ).sort((left, right) => left - right);
+  const revealLayers = Array.from(new Set(entries.map((entry) => entry.zoomLayer)))
+    .sort((left, right) => left - right);
   const opacityLayers = revealLayers.filter((zoom) => zoom > 0);
   const fallbackRevealZoom = revealLayers.at(-1) ?? 0;
 
@@ -1240,14 +1190,11 @@ function getTheaterDisplayName(theater: Theater): string {
     return theater.address;
   }
 
-  return `${theater.chain} ${theater.city}`.trim();
+  return `${theater.chain} ${theater.city.name}`.trim();
 }
 
-function getCityMinZoom(
-  entry: CityEntry,
-  revealConfig: CityRevealConfig,
-): number {
-  return entry.zoomLayer ?? revealConfig.fallbackRevealZoom;
+function getCityMinZoom(entry: CityEntry): number {
+  return entry.zoomLayer;
 }
 
 function getCityMarkerZIndex(
@@ -1332,11 +1279,8 @@ function isCityLabelRevealed(
   return zoom >= getEffectiveCityRevealZoom(revealZoom, revealConfig);
 }
 
-function getCityPriority(
-  entry: CityEntry,
-  revealConfig: CityRevealConfig,
-): number {
-  const revealZoom = getCityMinZoom(entry, revealConfig);
+function getCityPriority(entry: CityEntry): number {
+  const revealZoom = getCityMinZoom(entry);
   return (20 - revealZoom) * 10 + entry.theaterCount;
 }
 
@@ -2065,7 +2009,7 @@ export function CityLocationPicker({
       configureBaseLabels(map);
 
       for (const entry of cityEntries) {
-        const revealZoom = getCityMinZoom(entry, cityRevealConfig);
+        const revealZoom = getCityMinZoom(entry);
         const active = entry.location === currentLocationRef.current;
         const element = document.createElement("button");
         element.type = "button";
@@ -2107,7 +2051,7 @@ export function CityLocationPicker({
           element,
           surface,
           center: entry.labelCenter,
-          priority: getCityPriority(entry, cityRevealConfig),
+          priority: getCityPriority(entry),
           minZoom: revealZoom,
         });
         element.dataset.city = entry.location;
@@ -2148,10 +2092,6 @@ export function CityLocationPicker({
       }
 
       for (const theater of theaters) {
-        if (theater.lat === null || theater.lng === null) {
-          continue;
-        }
-
         const element = document.createElement("button");
         element.type = "button";
         element.className = "theater-map-theater-dot";
@@ -2258,7 +2198,7 @@ export function CityLocationPicker({
         theaterMarkers.push({
           marker,
           element,
-          location: theater.city || null,
+          location: theater.city.name,
           popup,
         });
       }

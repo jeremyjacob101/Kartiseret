@@ -1,31 +1,39 @@
 import { getSupabaseBrowserClient } from "../lib/supabase";
 
 type TheaterRow = {
-  chain: string | null;
-  address: string | null;
+  chain: string;
+  address: string;
   location: string;
-  theater_name: string | null;
-  latitude: number | string | null;
-  longitude: number | string | null;
-  city_details?: CityRow | CityRow[] | null;
+  theater_name: string;
+  latitude: number;
+  longitude: number;
+  city_details: CityRow;
 };
 
 type CityRow = {
-  name?: string | null;
-  alt_spellings?: string[] | string | null;
-  zoom_layer?: number | string | null;
+  name: string;
+  alt_spellings: string[];
+  latitude: number;
+  longitude: number;
+  zoom_layer: number;
+};
+
+export type City = {
+  name: string;
+  altSpellings: string[];
+  latitude: number;
+  longitude: number;
+  zoomLayer: number;
 };
 
 export type Theater = {
-  city: string;
+  city: City;
   chain: string;
   address: string;
   theaterName: string;
-  cityAltSpellings: string[];
   location: string;
-  lat: number | null;
-  lng: number | null;
-  zoomLayer: number | null;
+  lat: number;
+  lng: number;
 };
 
 const THEATERS_TABLE_NAME = "theaters";
@@ -36,18 +44,14 @@ const CITY_NAME_JOIN_THEATER_SELECT_COLUMNS = [
   "theater_name",
   "latitude",
   "longitude",
-  "city_details:cities!theaters_city_name_fkey ( name, alt_spellings, zoom_layer )",
+  "city_details:cities!theaters_city_name_fkey ( name, alt_spellings, latitude, longitude, zoom_layer )",
 ].join(", ");
 
 let cachedTheaters: Theater[] | null = null;
 let loadTheatersPromise: Promise<Theater[]> | null = null;
 
-function normalizeText(value: string | null | undefined): string {
-  return value?.trim().replace(/\s+/g, " ") ?? "";
-}
-
 function compareTheaters(left: Theater, right: Theater): number {
-  const cityComparison = left.city.localeCompare(right.city);
+  const cityComparison = left.city.name.localeCompare(right.city.name);
 
   if (cityComparison !== 0) {
     return cityComparison;
@@ -62,97 +66,30 @@ function compareTheaters(left: Theater, right: Theater): number {
   return left.address.localeCompare(right.address);
 }
 
-function normalizeOptionalNumber(
-  value: number | string | null | undefined,
-): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalized = value.trim();
-
-  if (!normalized) {
-    return null;
-  }
-
-  const parsed = Number.parseFloat(normalized);
-
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function normalizeStringArray(
-  value: string[] | string | null | undefined,
-): string[] {
-  const normalizeValues = (values: readonly string[]) => [
-    ...new Set(values.map(normalizeText).filter(Boolean)),
-  ];
-
-  if (Array.isArray(value)) {
-    return normalizeValues(value);
-  }
-
-  if (typeof value !== "string") {
-    return [];
-  }
-
-  const trimmedValue = value.trim();
-
-  if (!trimmedValue) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(trimmedValue) as unknown;
-
-    if (Array.isArray(parsed)) {
-      return normalizeValues(
-        parsed.filter((entry): entry is string => typeof entry === "string"),
-      );
-    }
-  } catch {
-    // Fall through to a permissive text split.
-  }
-
-  return normalizeValues(
-    trimmedValue
-      .replace(/^[{[]|[}\]]$/g, "")
-      .split(",")
-      .map((entry) => entry.replace(/^"+|"+$/g, "")),
-  );
-}
-
-function getJoinedCity(row: TheaterRow): CityRow | null {
-  if (Array.isArray(row.city_details)) {
-    return row.city_details[0] ?? null;
-  }
-
-  return row.city_details ?? null;
-}
-
 function mapRowToTheater(row: TheaterRow): Theater {
-  const location = normalizeText(row.location);
-  const joinedCity = getJoinedCity(row);
-  const city = normalizeText(joinedCity?.name);
-  const cityAltSpellings = normalizeStringArray(joinedCity?.alt_spellings);
+  const cityName = row.city_details.name.trim().replace(/\s+/g, " ");
+  const cityAltSpellings = row.city_details.alt_spellings.map((value) =>
+    value.trim().replace(/\s+/g, " "),
+  );
 
-  if (city && !cityAltSpellings.includes(city)) {
-    cityAltSpellings.unshift(city);
+  if (!cityAltSpellings.includes(cityName)) {
+    cityAltSpellings.unshift(cityName);
   }
 
   return {
-    city,
-    chain: normalizeText(row.chain),
-    address: normalizeText(row.address),
-    theaterName: normalizeText(row.theater_name),
-    cityAltSpellings,
-    location,
-    lat: normalizeOptionalNumber(row.latitude),
-    lng: normalizeOptionalNumber(row.longitude),
-    zoomLayer: normalizeOptionalNumber(joinedCity?.zoom_layer),
+    city: {
+      name: cityName,
+      altSpellings: cityAltSpellings,
+      latitude: row.city_details.latitude,
+      longitude: row.city_details.longitude,
+      zoomLayer: row.city_details.zoom_layer,
+    },
+    chain: row.chain.trim().replace(/\s+/g, " "),
+    address: row.address.trim().replace(/\s+/g, " "),
+    theaterName: row.theater_name.trim().replace(/\s+/g, " "),
+    location: row.location.trim().replace(/\s+/g, " "),
+    lat: row.latitude,
+    lng: row.longitude,
   };
 }
 
@@ -166,7 +103,7 @@ async function fetchTheaterRows(): Promise<TheaterRow[]> {
     throw result.error;
   }
 
-  return (result.data ?? []) as unknown as TheaterRow[];
+  return result.data as unknown as TheaterRow[];
 }
 
 export function preloadTheaters(): void {
