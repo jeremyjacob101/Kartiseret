@@ -103,9 +103,10 @@ type SupabaseValue = string | number | boolean | null | string[];
 type SupabaseRow = Record<string, SupabaseValue | undefined>;
 
 // Production tables always populate these columns, so downstream consumers do
-// not need to model them as nullable.
+// not need to model them as nullable. Some fields like tmdb_id may still arrive
+// as numbers from Supabase, so we normalize them through stringify helpers.
 type MovieRow = SupabaseRow & {
-  tmdb_id: string;
+  tmdb_id: string | number;
   english_title: string;
   release_date?: string | null;
 };
@@ -115,7 +116,7 @@ type ComingSoonMovieRow = MovieRow & {
 };
 
 type ShowtimeRow = SupabaseRow & {
-  tmdb_id: string;
+  tmdb_id: string | number;
   screening_city: string;
   date_of_showing: string;
   cinema: string;
@@ -591,15 +592,16 @@ function buildMovies(
         getFirstNormalizedText(row, ["backdrop", "en_poster", "poster"]) ||
         imageSrc;
       const trailerKey = getFirstNormalizedText(row, ["en_trailer"]);
-      const releaseDate = normalizeText(row.release_date ?? "") || undefined;
+      const releaseDate =
+        normalizeText(stringifySupabaseValue(row.release_date)) || undefined;
       const parsedReleaseYear =
         Number.parseInt(stringifySupabaseValue(row.release_year), 10) || 0;
 
       return {
-        tmdbId: normalizeText(row.tmdb_id),
+        tmdbId: normalizeText(stringifySupabaseValue(row.tmdb_id)),
         imdbId: getFirstNormalizedText(row, ["imdb_id"]) || undefined,
         rtId: getFirstNormalizedText(row, ["rt_id"]) || undefined,
-        title: normalizeTitle(row.english_title),
+        title: normalizeTitle(stringifySupabaseValue(row.english_title)),
         year: parsedReleaseYear || getReleaseYearFromDate(releaseDate),
         releaseDate,
         genres: parseGenres(row.genres),
@@ -638,7 +640,7 @@ function buildMovieShowtimes(
   >();
 
   for (const row of rows) {
-    const tmdbId = normalizeText(row.tmdb_id);
+    const tmdbId = normalizeText(stringifySupabaseValue(row.tmdb_id));
 
     if (!selectedMovieIds.has(tmdbId)) {
       continue;
