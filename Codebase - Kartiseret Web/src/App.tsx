@@ -7,7 +7,7 @@ import { AttributionPage } from "./components/AttributionPage";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
 import { Navbar } from "./components/bars/Navbar";
 import { type MovieSearchResult } from "./components/MovieSearchMenu";
-import { allComingSoonMovies, allNowPlayingMovies, getMovieCatalogStatusSnapshot, loadMovieCatalog, subscribeToMovieCatalog, type Movie } from "./data/movieCatalog";
+import { allComingSoonMovies, allNowPlayingMovies, getMovieCatalogStatusSnapshot, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, subscribeToMovieCatalog, type Movie } from "./data/movieCatalog";
 import { preloadTheaters } from "./data/theaters";
 import { DeviceTypeProvider } from "./device/deviceType";
 import { useDeviceInfo } from "./device/useDeviceType";
@@ -28,6 +28,7 @@ const preloadNavbarDependencies = () => import("./components/TheaterMapDialog");
 const loadUserPreferencesPage = () =>
   import("./components/UserPreferencesPage");
 const loadPosterGridPage = () => import("./components/PosterGridPage");
+const loadAllShowtimesPage = () => import("./components/AllShowtimesPage");
 
 const UserPreferencesPage = lazy(async () => {
   const module = await loadUserPreferencesPage();
@@ -37,6 +38,11 @@ const UserPreferencesPage = lazy(async () => {
 const PosterGridPage = lazy(async () => {
   const module = await loadPosterGridPage();
   return { default: module.PosterGridPage };
+});
+
+const AllShowtimesPage = lazy(async () => {
+  const module = await loadAllShowtimesPage();
+  return { default: module.AllShowtimesPage };
 });
 
 type MovieSearchMode = "nowPlaying" | "comingSoon";
@@ -192,18 +198,21 @@ function HomeRoute({
   );
 }
 
-function ShowtimesRoute() {
+function ShowtimesRoute({
+  catalogError,
+  showtimesReady,
+}: {
+  catalogError: string | null;
+  showtimesReady: boolean;
+}) {
   return (
     <section className="page-panel">
-      <section className="showtimes-placeholder" aria-label="All Showtimes">
-        <div className="section-heading showtimes-placeholder-heading">
-          <p className="section-kicker">Showtimes</p>
-          <h1 className="section-title">All Showtimes</h1>
-        </div>
-        <p className="showtimes-placeholder-note">
-          Showtime route placeholder. Add the full listings logic here.
-        </p>
-      </section>
+      <CatalogErrorNote message={catalogError} />
+      {showtimesReady ? (
+        <Suspense fallback={null}>
+          <AllShowtimesPage />
+        </Suspense>
+      ) : null}
     </section>
   );
 }
@@ -315,7 +324,16 @@ export function App() {
       return;
     }
 
-    loadMovieCatalog()
+    const catalogLoadPromise =
+      pathname === "/showtimes"
+        ? Promise.all([
+            loadNowPlayingMovies(),
+            loadComingSoonMovies(),
+            loadShowtimes(),
+          ])
+        : Promise.all([loadNowPlayingMovies(), loadComingSoonMovies()]);
+
+    catalogLoadPromise
       .then(() => {
         if (isActive) {
           setCatalogError(null);
@@ -339,6 +357,58 @@ export function App() {
       isActive = false;
     };
   }, [pathname]);
+
+  useEffect(() => {
+    if (
+      pathname === "/showtimes" ||
+      pathname === "/user" ||
+      pathname === "/attribution" ||
+      !nowPlayingReady ||
+      !comingSoonReady ||
+      showtimesReady
+    ) {
+      return;
+    }
+
+    let timeoutId: number | null = null;
+    let idleId: number | null = null;
+    const windowWithIdleCallbacks = window as Window & {
+      cancelIdleCallback?: (handle: number) => void;
+      requestIdleCallback?: (
+        callback: IdleRequestCallback,
+        options?: IdleRequestOptions,
+      ) => number;
+    };
+    const requestShowtimes = () => {
+      void loadShowtimes().catch(() => {});
+    };
+
+    if (typeof windowWithIdleCallbacks.requestIdleCallback === "function") {
+      idleId = windowWithIdleCallbacks.requestIdleCallback(
+        () => {
+          requestShowtimes();
+        },
+        { timeout: 1500 },
+      );
+    } else {
+      timeoutId = window.setTimeout(() => {
+        requestShowtimes();
+      }, 500);
+    }
+
+    return () => {
+      if (
+        idleId !== null &&
+        typeof windowWithIdleCallbacks.cancelIdleCallback === "function"
+      ) {
+        windowWithIdleCallbacks.cancelIdleCallback(idleId);
+      }
+
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [comingSoonReady, nowPlayingReady, pathname, showtimesReady]);
 
   useEffect(() => {
     if (!showtimesReady || pathname !== "/") {
@@ -387,7 +457,7 @@ export function App() {
   }, [pathname, showtimesReady]);
 
   const handleCatalogLoadRequest = useCallback(() => {
-    void loadMovieCatalog()
+    void Promise.all([loadNowPlayingMovies(), loadComingSoonMovies()])
       .then(() => {
         setCatalogError(null);
       })
@@ -566,7 +636,15 @@ export function App() {
               </section>
             }
           />
-          <Route path="/showtimes" element={<ShowtimesRoute />} />
+          <Route
+            path="/showtimes"
+            element={
+              <ShowtimesRoute
+                catalogError={catalogError}
+                showtimesReady={showtimesReady}
+              />
+            }
+          />
           <Route
             path="/soons"
             element={

@@ -80,7 +80,9 @@ function compareTheaters(left: Theater, right: Theater): number {
 function mapRowToTheater(row: TheaterRow): Theater {
   const cityName = normalizeText(row.city_details.name);
   const cityAltSpellings = [
-    ...new Set(row.city_details.alt_spellings.map(normalizeText).filter(Boolean)),
+    ...new Set(
+      row.city_details.alt_spellings.map(normalizeText).filter(Boolean),
+    ),
   ];
   const neighboringCities = [
     ...new Set(

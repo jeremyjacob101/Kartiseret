@@ -1,0 +1,46 @@
+.showtime-theaters .details-showtime-card:hover,
+.showtime-theaters .details-showtime-card:focus-visible {
+  transform: translateY(-1px);
+}
+
+.showtime-theaters .details-showtime-card:hover .details-time-pill,
+.showtime-theaters .details-showtime-card:focus-visible .details-time-pill {
+  filter: brightness(1.04);
+  box-shadow:
+    0 7px 14px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.showtime-theaters .details-showtime-card:hover .details-showtime-tech,
+.showtime-theaters .details-showtime-card:focus-visible .details-showtime-tech {
+  filter: brightness(1.05);
+}
+
+.showtime-theaters .details-showtime-card:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 3px;
+}
+
+.showtime-theaters .details-time-pill--yes-planet {
+  background: linear-gradient(to left, #d9710f, #b05806);
+}
+
+.showtime-theaters .details-time-pill--cinema-city {
+  background: linear-gradient(to right, #186bdf, #084cab);
+}
+
+.showtime-theaters .details-time-pill--lev-cinema {
+  background: linear-gradient(to right, #b50519, #5e030d);
+}
+
+.showtime-theaters .details-time-pill--rav-hen {
+  background: linear-gradient(to right, #0d06da, #ab5306);
+}
+
+.showtime-theaters .details-time-pill--hot-cinema {
+  background: linear-gradient(to left, #f06a87, #c13043);
+}
+
+.showtime-theaters .details-time-pill--movieland {
+  background: linear-gradient(to right, #58003a, #a80371);
+}

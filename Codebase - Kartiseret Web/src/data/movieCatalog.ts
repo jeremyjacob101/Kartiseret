@@ -7,7 +7,9 @@ const SUPABASE_PAGE_SIZE = 1000;
 export const APP_TIME_ZONE = "Asia/Jerusalem";
 export const SHOWTIME_DAY_CUTOFF_MINUTES = 65;
 const SHOWTIME_GRACE_PERIOD_MINUTES = 15;
-const SHOWTIME_WINDOW_DAY_COUNT = 10;
+export const INITIAL_SHOWTIME_WINDOW_DAY_COUNT = 5;
+export const SHOWTIME_WINDOW_DAY_COUNT = 180;
+export const SHOWTIME_PREFETCH_CHUNK_DAY_COUNT = 15;
 const TESTING_TABLE_NAMES = {
   movies: "testNPmovies",
   comingSoon: "testSOONmovies",
@@ -86,10 +88,6 @@ const THEATER_SORT_INDEX = new Map(
 
 export const defaultCity: AppLocation = DEFAULT_LOCATION;
 export const fixedAppDateString = getCurrentAppDateString(APP_TIME_ZONE);
-export const fixedShowtimeWindowEndDateString = addDaysToIsoDate(
-  fixedAppDateString,
-  SHOWTIME_WINDOW_DAY_COUNT - 1,
-);
 const fixedCurrentDateTimeParts =
   getCurrentDateTimePartsInTimeZone(APP_TIME_ZONE);
 const fixedCurrentIsraelDateString = fixedCurrentDateTimeParts
@@ -173,6 +171,7 @@ export type MovieCatalogStatusSnapshot = {
   comingSoonReady: boolean;
   showtimesReady: boolean;
   catalogReady: boolean;
+  showtimesVersion: number;
 };
 
 export let movies: Movie[] = [];
@@ -186,10 +185,13 @@ let movieShowtimesByTmdbId: Record<string, MovieShowtimesByCity> = {};
 let nowPlayingLoaded = false;
 let comingSoonLoaded = false;
 let showtimesLoaded = false;
+let showtimesVersion = 0;
 let loadNowPlayingMoviesPromise: Promise<void> | null = null;
 let loadComingSoonMoviesPromise: Promise<void> | null = null;
 let loadShowtimesPromise: Promise<void> | null = null;
 let loadMovieCatalogPromise: Promise<void> | null = null;
+let loadedShowtimeWindowDayCount = 0;
+const cachedShowtimeRowsByKey = new Map<string, ShowtimeRow>();
 const movieCatalogListeners = new Set<() => void>();
 const EMPTY_SHOWTIME_CITIES: readonly AppLocation[] = Object.freeze([]);
 let movieCatalogStatusSnapshot: MovieCatalogStatusSnapshot = {
@@ -197,6 +199,7 @@ let movieCatalogStatusSnapshot: MovieCatalogStatusSnapshot = {
   comingSoonReady: false,
   showtimesReady: false,
   catalogReady: false,
+  showtimesVersion: 0,
 };
 
 function refreshMovieCatalogStatus(): void {
@@ -209,13 +212,15 @@ function refreshMovieCatalogStatus(): void {
       movies.length > 0 &&
       comingSoonLoaded &&
       comingSoonMovies.length > 0,
+    showtimesVersion,
   };
 
   if (
     nextStatus.nowPlayingReady === movieCatalogStatusSnapshot.nowPlayingReady &&
     nextStatus.comingSoonReady === movieCatalogStatusSnapshot.comingSoonReady &&
     nextStatus.showtimesReady === movieCatalogStatusSnapshot.showtimesReady &&
-    nextStatus.catalogReady === movieCatalogStatusSnapshot.catalogReady
+    nextStatus.catalogReady === movieCatalogStatusSnapshot.catalogReady &&
+    nextStatus.showtimesVersion === movieCatalogStatusSnapshot.showtimesVersion
   ) {
     return;
   }
@@ -628,10 +633,11 @@ function buildMovies(
 function buildMovieShowtimes(
   rows: ShowtimeRow[],
   selectedMovies: readonly Movie[],
+  windowEndDateString: string,
 ): Record<string, MovieShowtimesByCity> {
   const showtimeWindowDates = buildDateRange(
     fixedAppDateString,
-    fixedShowtimeWindowEndDateString,
+    windowEndDateString,
   );
   const supportedCities = new Set<string>(ALL_LOCATIONS);
   const selectedMovieIds = new Set(selectedMovies.map((movie) => movie.tmdbId));
@@ -656,7 +662,7 @@ function buildMovieShowtimes(
     const normalizedCity = city as AppLocation;
     const date = normalizeText(row.date_of_showing);
 
-    if (date < fixedAppDateString || date > fixedShowtimeWindowEndDateString) {
+    if (date < fixedAppDateString || date > windowEndDateString) {
       continue;
     }
 
@@ -804,6 +810,37 @@ function isMissingOptionalColumnError(
   );
 }
 
+function getShowtimeWindowEndDateString(dayCount: number): string {
+  return addDaysToIsoDate(fixedAppDateString, dayCount - 1);
+}
+
+function clampShowtimeWindowDayCount(dayCount: number): number {
+  const normalizedDayCount = Math.floor(dayCount);
+
+  if (!Number.isFinite(normalizedDayCount)) {
+    return INITIAL_SHOWTIME_WINDOW_DAY_COUNT;
+  }
+
+  return Math.max(
+    INITIAL_SHOWTIME_WINDOW_DAY_COUNT,
+    Math.min(SHOWTIME_WINDOW_DAY_COUNT, normalizedDayCount),
+  );
+}
+
+function getCachedShowtimeRowKey(row: ShowtimeRow): string {
+  return [
+    normalizeText(stringifySupabaseValue(row.tmdb_id)),
+    normalizeText(row.screening_city),
+    normalizeText(row.date_of_showing),
+    normalizeText(row.cinema),
+    normalizeText(row.showtime),
+    normalizeText(row.screening_tech),
+    normalizeText(row.screening_type),
+    getFirstNormalizedText(row, ["dub_language"]) || "original",
+    normalizeText(stringifySupabaseValue(row.english_href)) || "none",
+  ].join("::");
+}
+
 async function fetchMovieRows(): Promise<MovieRow[]> {
   const selectColumns = [
     ...MOVIE_SELECT_COLUMNS,
@@ -854,18 +891,61 @@ async function fetchComingSoonMovieRows(): Promise<ComingSoonMovieRow[]> {
   }
 }
 
-async function fetchShowtimeRows(): Promise<ShowtimeRow[]> {
+async function fetchShowtimeRowsForDateRange(
+  startDateString: string,
+  endDateString: string,
+): Promise<ShowtimeRow[]> {
+  if (startDateString > endDateString) {
+    return [];
+  }
+
   const selectColumns = [
     ...SHOWTIME_SELECT_COLUMNS,
     ...OPTIONAL_SHOWTIME_SELECT_COLUMNS,
   ];
 
+  const fetchRange = async (
+    requestedColumns: readonly string[],
+  ): Promise<ShowtimeRow[]> => {
+    const supabase = getSupabaseBrowserClient();
+    const allRows: ShowtimeRow[] = [];
+    let fromIndex = 0;
+
+    while (true) {
+      let query = supabase
+        .from(SHOWTIMES_TABLE_NAME)
+        .select(requestedColumns.join(","))
+        .gte("date_of_showing", startDateString)
+        .lte("date_of_showing", endDateString)
+        .range(fromIndex, fromIndex + SUPABASE_PAGE_SIZE - 1);
+
+      query = query
+        .order("tmdb_id", { ascending: true })
+        .order("date_of_showing", { ascending: true })
+        .order("cinema", { ascending: true })
+        .order("showtime", { ascending: true });
+
+      const { data, error } = await query;
+
+      if (error) {
+        throw new Error(
+          `Failed to load ${SHOWTIMES_TABLE_NAME} from Supabase: ${error.message}`,
+        );
+      }
+
+      const batchRows = (data ?? []) as unknown as ShowtimeRow[];
+      allRows.push(...batchRows);
+
+      if (batchRows.length < SUPABASE_PAGE_SIZE) {
+        return allRows;
+      }
+
+      fromIndex += SUPABASE_PAGE_SIZE;
+    }
+  };
+
   try {
-    return await fetchAllTableRows<ShowtimeRow>(
-      SHOWTIMES_TABLE_NAME,
-      selectColumns,
-      ["tmdb_id", "date_of_showing", "cinema", "showtime"],
-    );
+    return await fetchRange(selectColumns);
   } catch (error) {
     if (
       !isMissingOptionalColumnError(error, OPTIONAL_SHOWTIME_SELECT_COLUMNS)
@@ -873,11 +953,7 @@ async function fetchShowtimeRows(): Promise<ShowtimeRow[]> {
       throw error;
     }
 
-    return fetchAllTableRows<ShowtimeRow>(
-      SHOWTIMES_TABLE_NAME,
-      SHOWTIME_SELECT_COLUMNS,
-      ["tmdb_id", "date_of_showing", "cinema", "showtime"],
-    );
+    return fetchRange(SHOWTIME_SELECT_COLUMNS);
   }
 }
 
@@ -964,28 +1040,55 @@ export async function loadComingSoonMovies(): Promise<void> {
 }
 
 export async function loadShowtimes(): Promise<void> {
-  if (showtimesLoaded) {
+  return ensureShowtimeWindowLoaded(INITIAL_SHOWTIME_WINDOW_DAY_COUNT);
+}
+
+async function ensureShowtimeWindowLoaded(dayCount: number): Promise<void> {
+  const targetDayCount = clampShowtimeWindowDayCount(dayCount);
+
+  if (loadedShowtimeWindowDayCount >= targetDayCount) {
     return;
   }
 
   if (loadShowtimesPromise) {
-    return loadShowtimesPromise;
+    await loadShowtimesPromise;
+
+    if (loadedShowtimeWindowDayCount >= targetDayCount) {
+      return;
+    }
   }
 
   loadShowtimesPromise = (async () => {
     await loadNowPlayingMovies();
-    const showtimeRows = await fetchShowtimeRows();
+    const nextStartDateString =
+      loadedShowtimeWindowDayCount > 0
+        ? addDaysToIsoDate(fixedAppDateString, loadedShowtimeWindowDayCount)
+        : fixedAppDateString;
+    const nextEndDateString = getShowtimeWindowEndDateString(targetDayCount);
+    const showtimeRows = await fetchShowtimeRowsForDateRange(
+      nextStartDateString,
+      nextEndDateString,
+    );
+
+    for (const row of showtimeRows) {
+      cachedShowtimeRowsByKey.set(getCachedShowtimeRowKey(row), row);
+    }
 
     movieShowtimesByTmdbId = buildMovieShowtimes(
-      showtimeRows,
+      [...cachedShowtimeRowsByKey.values()],
       allNowPlayingMovies,
+      nextEndDateString,
     );
+    loadedShowtimeWindowDayCount = targetDayCount;
     showtimesLoaded = true;
+    showtimesVersion += 1;
     refreshMovieCatalogStatus();
   })()
     .catch((error) => {
       if (!showtimesLoaded) {
         movieShowtimesByTmdbId = {};
+        loadedShowtimeWindowDayCount = 0;
+        cachedShowtimeRowsByKey.clear();
       }
 
       refreshMovieCatalogStatus();
@@ -996,6 +1099,12 @@ export async function loadShowtimes(): Promise<void> {
     });
 
   return loadShowtimesPromise;
+}
+
+export async function loadAdditionalShowtimeDays(
+  dayCount: number,
+): Promise<void> {
+  return ensureShowtimeWindowLoaded(dayCount);
 }
 
 export async function loadMovieCatalog(): Promise<void> {
@@ -1025,9 +1134,7 @@ export function getMovieShowtimeDays(
   return movieShowtimesByTmdbId[tmdbId]?.[city] ?? [];
 }
 
-export function getMovieShowtimeCities(
-  tmdbId: string,
-): readonly AppLocation[] {
+export function getMovieShowtimeCities(tmdbId: string): readonly AppLocation[] {
   const cityShowtimes = movieShowtimesByTmdbId[tmdbId];
 
   if (!cityShowtimes) {
@@ -1035,8 +1142,7 @@ export function getMovieShowtimeCities(
   }
 
   const cities = ALL_LOCATIONS.filter((city) =>
-    cityShowtimes[city]?.some((day) => day.theaters.length > 0),
-  );
+    cityShowtimes[city]?.some((day) => day.theaters.length > 0));
 
   return cities.length > 0 ? cities : EMPTY_SHOWTIME_CITIES;
 }
