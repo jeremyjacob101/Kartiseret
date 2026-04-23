@@ -250,6 +250,8 @@ export function App() {
     useState<AppMovieJumpRequest | null>(null);
   const [moviesPageView, setMoviesPageView] = useState<CatalogPageView>("grid");
   const [soonsPageView, setSoonsPageView] = useState<CatalogPageView>("grid");
+  const [miniNavPortalTarget, setMiniNavPortalTarget] =
+    useState<HTMLDivElement | null>(null);
   const nonCriticalPreloadStartedRef = useRef(false);
   const scrollerCardWidth = isMobile
     ? MOBILE_SCROLLER_CARD_WIDTH
@@ -426,6 +428,7 @@ export function App() {
     };
     const runPreload = () => {
       void preloadNavbarDependencies();
+      void loadAllShowtimesPage();
       preloadTheaters();
     };
 
@@ -582,6 +585,7 @@ export function App() {
     <div className="app-shell">
       <Navbar
         catalogReady={catalogReady}
+        miniNavPortalTarget={miniNavPortalTarget}
         searchCollections={searchCollections}
         onAllShowtimesNavClick={handleAllShowtimesNavClick}
         onHomeClick={handleFloatingHomeClick}
@@ -686,6 +690,7 @@ export function App() {
         </Routes>
       </main>
 
+      <div ref={setMiniNavPortalTarget} />
       <BottomBar />
     </div>
   );

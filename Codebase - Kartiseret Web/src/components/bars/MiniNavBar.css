@@ -10,7 +10,7 @@
   bottom: max(24px, calc(env(safe-area-inset-bottom) + var(--floating-navbar-dynamic-bottom, var(--floating-navbar-default-bottom))));
   z-index: 140;
   display: flex;
-  flex-direction: row-reverse;
+  flex-direction: row;
   align-items: center;
   gap: 14px;
   pointer-events: none;
@@ -25,7 +25,7 @@
 
 .floating-navbar-actions {
   display: flex;
-  flex-direction: row-reverse;
+  flex-direction: row;
   align-items: center;
   gap: 14px;
 }
@@ -101,9 +101,12 @@
 
 .floating-navbar-stack .movie-search-trigger:hover,
 .floating-navbar-stack .movie-search-trigger.is-open,
+.floating-navbar-stack .movie-search-trigger:focus-visible,
 .floating-navbar-stack .location-menu-trigger:hover,
 .floating-navbar-stack .location-menu-trigger.is-open,
+.floating-navbar-stack .location-menu-trigger:focus-visible,
 .floating-navbar-stack .settings-button:hover,
+.floating-navbar-stack .settings-button:focus-visible,
 .floating-home-button:hover,
 .floating-home-button:focus-visible {
   transform: translateY(-2px) scale(1.03);
@@ -114,14 +117,25 @@
 
 .floating-navbar-stack.is-over-bottom-bar .movie-search-trigger:hover,
 .floating-navbar-stack.is-over-bottom-bar .movie-search-trigger.is-open,
+.floating-navbar-stack.is-over-bottom-bar .movie-search-trigger:focus-visible,
 .floating-navbar-stack.is-over-bottom-bar .location-menu-trigger:hover,
 .floating-navbar-stack.is-over-bottom-bar .location-menu-trigger.is-open,
+.floating-navbar-stack.is-over-bottom-bar .location-menu-trigger:focus-visible,
 .floating-navbar-stack.is-over-bottom-bar .settings-button:hover,
+.floating-navbar-stack.is-over-bottom-bar .settings-button:focus-visible,
 .floating-navbar-stack.is-over-bottom-bar .floating-home-button:hover,
 .floating-navbar-stack.is-over-bottom-bar .floating-home-button:focus-visible {
   box-shadow:
     0 24px 36px rgba(22, 16, 30, 0.42),
     0 0 0 1px color-mix(in srgb, var(--surface-strong) 44%, transparent) inset;
+}
+
+.floating-navbar-stack .movie-search-trigger:focus-visible,
+.floating-navbar-stack .location-menu-trigger:focus-visible,
+.floating-navbar-stack .settings-button:focus-visible,
+.floating-navbar-stack .floating-home-button:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.92);
+  outline-offset: 3px;
 }
 
 .floating-home-button {

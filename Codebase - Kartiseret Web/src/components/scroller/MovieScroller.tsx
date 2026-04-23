@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type WheelEvent } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type WheelEvent } from "react";
 import { X } from "lucide-react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { comingSoonMovies, loadShowtimes, movies, type Movie } from "../../data/movieCatalog";
@@ -1339,6 +1339,25 @@ function MovieScrollerContent({
     ],
   );
 
+  const handleSidePreviewKeyDown = useCallback(
+    (
+      event: ReactKeyboardEvent<HTMLDivElement>,
+      direction: NavigationDirection,
+    ) => {
+      if (
+        !canNavigate ||
+        event.repeat ||
+        (event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar")
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      handleNavigateDetail(direction);
+    },
+    [canNavigate, handleNavigateDetail],
+  );
+
   const handleRequestClose = useCallback(() => {
     if (phase !== "open" || detailTransition) {
       return;
@@ -2212,6 +2231,13 @@ function MovieScrollerContent({
 
                     handleNavigateDetail(-1);
                   }}
+                  onKeyDown={(event) => {
+                    handleSidePreviewKeyDown(event, -1);
+                  }}
+                  role="button"
+                  tabIndex={canNavigate ? 0 : -1}
+                  aria-disabled={!canNavigate}
+                  aria-label={`Show previous movie: ${previousAdjacentMovie.title}`}
                   style={{
                     top: detailLayout.previewTop,
                     left: detailLayout.previewLeft,
@@ -2242,6 +2268,13 @@ function MovieScrollerContent({
 
                     handleNavigateDetail(1);
                   }}
+                  onKeyDown={(event) => {
+                    handleSidePreviewKeyDown(event, 1);
+                  }}
+                  role="button"
+                  tabIndex={canNavigate ? 0 : -1}
+                  aria-disabled={!canNavigate}
+                  aria-label={`Show next movie: ${nextAdjacentMovie.title}`}
                   style={{
                     top: detailLayout.previewTop,
                     left: detailLayout.previewRight,

@@ -11,6 +11,7 @@ import { useUserPreferencesContext } from "../prefs/useUserPreferences";
 type AuthMode = "login" | "signup";
 type UserMenuProps = {
   panelDirection?: "down" | "up";
+  triggerTabIndex?: number;
 };
 
 const supabase = getSupabaseBrowserClient();
@@ -33,7 +34,10 @@ async function persistSignupPreferenceDefaults(
   return error?.message ?? null;
 }
 
-export function UserMenu({ panelDirection = "down" }: UserMenuProps) {
+export function UserMenu({
+  panelDirection = "down",
+  triggerTabIndex,
+}: UserMenuProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useUserPreferencesContext();
@@ -178,6 +182,7 @@ export function UserMenu({ panelDirection = "down" }: UserMenuProps) {
       <button
         type="button"
         className={`user-menu-trigger${isOpen ? " is-open" : ""}`}
+        tabIndex={triggerTabIndex}
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-label={user ? `Signed in as ${user.email}` : "Sign up or log in"}

@@ -48,6 +48,11 @@
   will-change: transform, opacity, filter;
 }
 
+.movie-scroller-collapsed .movie-scroller-card:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.92);
+  outline-offset: 3px;
+}
+
 .movie-scroller-collapsed .movie-scroller-card-media {
   display: block;
   width: 100%;
@@ -134,6 +139,11 @@
   opacity: var(--movie-scroller-side-preview-hover-opacity);
   filter: saturate(0.88) brightness(0.94);
   transform: translate(0, 18px) scale(1);
+}
+
+.movie-scroller-side-preview:focus-visible:not(.is-disabled) {
+  outline: 2px solid rgba(255, 255, 255, 0.92);
+  outline-offset: 3px;
 }
 
 .movie-scroller-side-preview.is-disabled {

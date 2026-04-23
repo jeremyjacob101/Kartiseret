@@ -30,6 +30,7 @@ type NavbarActionsProps = {
   catalogReady: boolean;
   searchCollections: readonly MovieSearchCollection[];
   variant?: "inline" | "floating";
+  triggerTabIndex?: number;
   onSearchOpen: () => void;
   onSelectResult: (result: MovieSearchResult) => void;
   onSettingsClick: () => void;
@@ -37,6 +38,7 @@ type NavbarActionsProps = {
 
 export type NavbarProps = {
   catalogReady: boolean;
+  miniNavPortalTarget?: HTMLDivElement | null;
   searchCollections: readonly MovieSearchCollection[];
   onAllShowtimesNavClick: () => void;
   onHomeClick: () => void;
@@ -71,6 +73,7 @@ function NavbarActions({
   catalogReady,
   searchCollections,
   variant = "inline",
+  triggerTabIndex,
   onSearchOpen,
   onSelectResult,
   onSettingsClick,
@@ -79,66 +82,84 @@ function NavbarActions({
   const containerClassName = isFloating
     ? "floating-navbar-actions"
     : "navbar-actions";
+  const searchAction = (
+    <div
+      className={
+        isFloating
+          ? "floating-navbar-item floating-navbar-item--search"
+          : undefined
+      }
+    >
+      <MovieSearchMenu
+        collections={searchCollections}
+        loading={!catalogReady}
+        onOpen={onSearchOpen}
+        panelDirection={isFloating ? "up" : "down"}
+        triggerTabIndex={triggerTabIndex}
+        onSelectResult={onSelectResult}
+      />
+    </div>
+  );
+  const mapAction = (
+    <div
+      className={
+        isFloating
+          ? "floating-navbar-item floating-navbar-item--map"
+          : undefined
+      }
+    >
+      <Suspense fallback={<LoadingMapButton />}>
+        <TheaterMapDialog triggerTabIndex={triggerTabIndex} />
+      </Suspense>
+    </div>
+  );
+  const userAction = (
+    <div
+      className={
+        isFloating
+          ? "floating-navbar-item floating-navbar-item--user"
+          : undefined
+      }
+    >
+      <UserMenu
+        panelDirection={isFloating ? "up" : "down"}
+        triggerTabIndex={triggerTabIndex}
+      />
+    </div>
+  );
+  const settingsAction = (
+    <div
+      className={
+        isFloating
+          ? "floating-navbar-item floating-navbar-item--settings"
+          : undefined
+      }
+    >
+      <button
+        type="button"
+        className="settings-button"
+        tabIndex={triggerTabIndex}
+        aria-label="Settings"
+        onClick={onSettingsClick}
+      >
+        <Settings size={20} strokeWidth={2.75} className="app-accent-icon" />
+      </button>
+    </div>
+  );
 
   return (
     <div className={containerClassName}>
-      <div
-        className={
-          isFloating
-            ? "floating-navbar-item floating-navbar-item--search"
-            : undefined
-        }
-      >
-        <MovieSearchMenu
-          collections={searchCollections}
-          loading={!catalogReady}
-          onOpen={onSearchOpen}
-          panelDirection={isFloating ? "up" : "down"}
-          onSelectResult={onSelectResult}
-        />
-      </div>
-      <div
-        className={
-          isFloating
-            ? "floating-navbar-item floating-navbar-item--map"
-            : undefined
-        }
-      >
-        <Suspense fallback={<LoadingMapButton />}>
-          <TheaterMapDialog />
-        </Suspense>
-      </div>
-      <div
-        className={
-          isFloating
-            ? "floating-navbar-item floating-navbar-item--user"
-            : undefined
-        }
-      >
-        <UserMenu panelDirection={isFloating ? "up" : "down"} />
-      </div>
-      <div
-        className={
-          isFloating
-            ? "floating-navbar-item floating-navbar-item--settings"
-            : undefined
-        }
-      >
-        <button
-          type="button"
-          className="settings-button"
-          aria-label="Settings"
-          onClick={onSettingsClick}
-        >
-          <Settings size={20} strokeWidth={2.75} className="app-accent-icon" />
-        </button>
-      </div>
+      {isFloating ? settingsAction : searchAction}
+      {isFloating ? userAction : mapAction}
+      {isFloating ? mapAction : userAction}
+      {isFloating ? searchAction : settingsAction}
     </div>
   );
 }
 
 export function Navbar({
   catalogReady,
+  miniNavPortalTarget,
   searchCollections,
   onAllShowtimesNavClick,
   onHomeClick,
@@ -529,6 +550,7 @@ export function Navbar({
               catalogReady={catalogReady}
               searchCollections={searchCollections}
               variant="floating"
+              triggerTabIndex={miniNavBarVisible ? 0 : -1}
               onSearchOpen={onSearchOpen}
               onSelectResult={onSelectResult}
               onSettingsClick={onSettingsClick}
@@ -536,6 +558,7 @@ export function Navbar({
           }
           bottomOffset={miniNavBarBottomOffset}
           isOverBottomBar={miniNavBarOverBottomBar && !isMobile}
+          portalTarget={miniNavPortalTarget}
           isVisible={miniNavBarVisible}
           onHomeClick={onHomeClick}
           stackRef={floatingNavStackRef}

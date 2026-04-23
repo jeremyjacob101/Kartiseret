@@ -25,6 +25,7 @@ type MovieSearchMenuProps = {
   loading?: boolean;
   onOpen?: () => void;
   panelDirection?: "down" | "up";
+  triggerTabIndex?: number;
   onSelectResult: (result: MovieSearchResult) => void;
 };
 
@@ -70,6 +71,7 @@ export function MovieSearchMenu({
   loading = false,
   onOpen,
   panelDirection = "down",
+  triggerTabIndex,
   onSelectResult,
 }: MovieSearchMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -172,6 +174,7 @@ export function MovieSearchMenu({
       <button
         type="button"
         className={`movie-search-trigger${isOpen ? " is-open" : ""}`}
+        tabIndex={triggerTabIndex}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         aria-label="Search movies"

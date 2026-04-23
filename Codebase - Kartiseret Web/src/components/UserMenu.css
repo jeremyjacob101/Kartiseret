@@ -46,7 +46,8 @@
 }
 
 .floating-navbar-stack .user-menu-trigger:hover,
-.floating-navbar-stack .user-menu-trigger.is-open {
+.floating-navbar-stack .user-menu-trigger.is-open,
+.floating-navbar-stack .user-menu-trigger:focus-visible {
   transform: translateY(-2px) scale(1.03);
   box-shadow:
     0 22px 34px rgba(22, 16, 30, 0.38),
@@ -54,10 +55,16 @@
 }
 
 .floating-navbar-stack.is-over-bottom-bar .user-menu-trigger:hover,
-.floating-navbar-stack.is-over-bottom-bar .user-menu-trigger.is-open {
+.floating-navbar-stack.is-over-bottom-bar .user-menu-trigger.is-open,
+.floating-navbar-stack.is-over-bottom-bar .user-menu-trigger:focus-visible {
   box-shadow:
     0 24px 36px rgba(22, 16, 30, 0.42),
     0 0 0 1px color-mix(in srgb, var(--surface-strong) 44%, transparent) inset;
+}
+
+.floating-navbar-stack .user-menu-trigger:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.92);
+  outline-offset: 3px;
 }
 
 .floating-navbar-stack .user-menu-panel {

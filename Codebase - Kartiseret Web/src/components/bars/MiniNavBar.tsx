@@ -1,4 +1,5 @@
 import { type CSSProperties, type ReactNode, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import "./MiniNavBar.css";
 
 type MiniNavBarProps = {
@@ -7,6 +8,7 @@ type MiniNavBarProps = {
   isOverBottomBar: boolean;
   isVisible: boolean;
   onHomeClick: () => void;
+  portalTarget?: HTMLDivElement | null;
   stackRef: RefObject<HTMLDivElement | null>;
 };
 
@@ -16,6 +18,7 @@ export function MiniNavBar({
   isOverBottomBar,
   isVisible,
   onHomeClick,
+  portalTarget,
   stackRef,
 }: MiniNavBarProps) {
   const stackStyle =
@@ -25,7 +28,7 @@ export function MiniNavBar({
           "--floating-navbar-dynamic-bottom": `${bottomOffset}px`,
         } as CSSProperties);
 
-  return (
+  const content = (
     <div
       ref={stackRef}
       className={`floating-navbar-stack${isVisible ? " is-visible" : ""}${
@@ -35,11 +38,11 @@ export function MiniNavBar({
       aria-hidden={!isVisible}
       style={stackStyle}
     >
-      {actions}
       <div className="floating-navbar-item floating-navbar-item--home">
         <button
           type="button"
           className="floating-home-button"
+          tabIndex={isVisible ? 0 : -1}
           aria-label="Go to homepage"
           onClick={onHomeClick}
         >
@@ -49,6 +52,13 @@ export function MiniNavBar({
           />
         </button>
       </div>
+      {actions}
     </div>
   );
+
+  if (typeof document === "undefined" || !portalTarget) {
+    return content;
+  }
+
+  return createPortal(content, portalTarget);
 }

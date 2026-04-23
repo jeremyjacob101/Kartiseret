@@ -34,7 +34,11 @@ function toFlightRect(rect?: DOMRect | null): FlightRect | null {
   };
 }
 
-export function TheaterMapDialog() {
+export function TheaterMapDialog({
+  triggerTabIndex,
+}: {
+  triggerTabIndex?: number;
+}) {
   const { location, syncing, setLocationPreference, error } =
     useUserPreferencesContext();
   const [isOpen, setIsOpen] = useState(false);
@@ -294,6 +298,7 @@ export function TheaterMapDialog() {
         className={`location-menu-trigger theater-map-trigger${
           isOpen && !isClosing ? " is-open" : ""
         }`}
+        tabIndex={triggerTabIndex}
         aria-haspopup="dialog"
         aria-expanded={isOpen && !isClosing}
         aria-label={`Open city selector. Current city: ${location}`}

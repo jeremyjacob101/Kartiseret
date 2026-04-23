@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, type CSSProperties, type MouseEvent, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, type CSSProperties, type KeyboardEvent, type MouseEvent, useMemo, useRef, useState } from "react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { movies, type Movie } from "../../data/movieCatalog";
 import { useDeviceInfo } from "../../device/useDeviceType";
@@ -710,6 +710,11 @@ export function MovieScrollerBase({
       };
       const cardClassName = getCardClassName?.(cardState);
       const cardStyle = getCardStyle?.(cardState);
+      const isKeyboardInteractive =
+        Boolean(onSelectMovie) &&
+        introInteractive &&
+        selectedItemIndex === null;
+      const isTabbable = isKeyboardInteractive && isVisible;
       const activateMovie = (target: HTMLDivElement) => {
         const rect = target.getBoundingClientRect();
 
@@ -730,12 +735,33 @@ export function MovieScrollerBase({
         activateMovie(event.currentTarget);
       };
 
+      const handleCardKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+        if (
+          !isKeyboardInteractive ||
+          event.repeat ||
+          (event.key !== "Enter" &&
+            event.key !== " " &&
+            event.key !== "Spacebar")
+        ) {
+          return;
+        }
+
+        event.preventDefault();
+        activateMovie(event.currentTarget);
+      };
+
       return (
         <div
           key={`${i}:${movie.tmdbId}`}
           data-movie-scroller-item-index={i}
           data-movie-scroller-positional-opacity={renderedOpacity.toFixed(6)}
           onClick={handleSelectMovie}
+          onKeyDown={handleCardKeyDown}
+          role={isKeyboardInteractive ? "button" : undefined}
+          tabIndex={isTabbable ? 0 : undefined}
+          aria-label={
+            isKeyboardInteractive ? `Open ${movie.title} details` : undefined
+          }
           className={["movie-scroller-card", cardClassName]
             .filter(Boolean)
             .join(" ")}
