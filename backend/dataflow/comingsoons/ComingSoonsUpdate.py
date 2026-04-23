@@ -22,7 +22,7 @@ class ComingSoonsUpdate(BaseDataflow):
         except:
             data = ""
 
-        genres = [genre["name"] for genre in (data.get("genres") or []) if genre.get("name")] if isinstance(data, dict) else []
+        genres = ["Sci-Fi" if genre["name"] == "Science Fiction" else genre["name"] for genre in (data.get("genres") or []) if genre.get("name")][:3] if isinstance(data, dict) else []
         trailer = (next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Trailer" and v.get("site") == "YouTube" and v.get("key") and v.get("iso_639_1") == "en"), None) or next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Teaser" and v.get("site") == "YouTube" and v.get("key") and v.get("iso_639_1") == "en"), None) or next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Trailer" and v.get("site") == "YouTube" and v.get("key")), None) or next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Teaser" and v.get("site") == "YouTube" and v.get("key")), None)) if isinstance(data, dict) else None
 
         new_row["english_title"] = data["title"].strip() if isinstance(data, dict) and data.get("title") else existing["english_title"]
