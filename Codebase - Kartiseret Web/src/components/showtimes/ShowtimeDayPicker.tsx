@@ -19,7 +19,7 @@ type DayPickerEntry = {
 };
 
 const DESKTOP_VISIBLE_DAY_COUNT = 7;
-const MOBILE_VISIBLE_DAY_COUNT = 5;
+const MOBILE_VISIBLE_DAY_COUNT = 4;
 
 const weekdayEyebrowFormatter = new Intl.DateTimeFormat(undefined, {
   weekday: "long",
@@ -112,9 +112,10 @@ export function ShowtimeDayPicker({
   const visibleDayCount = isMobile
     ? MOBILE_VISIBLE_DAY_COUNT
     : DESKTOP_VISIBLE_DAY_COUNT;
+  const selectedDayOffset = isMobile ? 1 : Math.floor(visibleDayCount / 2);
   const visibleDayRadius = Math.floor(visibleDayCount / 2);
   const resolvedLeadingDisabledDayCount =
-    leadingDisabledDayCount ?? visibleDayRadius;
+    leadingDisabledDayCount ?? (isMobile ? 1 : visibleDayRadius);
   const entries = useMemo(
     () =>
       buildDayPickerEntries(
@@ -144,12 +145,12 @@ export function ShowtimeDayPicker({
     const maxStartIndex = Math.max(0, entries.length - visibleDayCount);
     const startIndex = Math.max(
       0,
-      Math.min(selectedIndex - visibleDayRadius, maxStartIndex),
+      Math.min(selectedIndex - selectedDayOffset, maxStartIndex),
     );
     const endIndex = Math.min(entries.length, startIndex + visibleDayCount);
 
     return entries.slice(startIndex, endIndex);
-  }, [entries, selectedIndex, visibleDayCount, visibleDayRadius]);
+  }, [entries, selectedDayOffset, selectedIndex, visibleDayCount]);
 
   if (visibleEntries.length === 0) {
     return null;

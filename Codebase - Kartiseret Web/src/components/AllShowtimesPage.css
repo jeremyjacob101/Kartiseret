@@ -9,7 +9,7 @@
   margin-left: 0;
   margin-right: 0;
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 18px;
 }
@@ -58,6 +58,13 @@
   padding: 18px 0;
 }
 
+.all-showtimes-day-picker-shell.details-showtimes,
+.all-showtimes-browser.details-showtimes {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .all-showtimes-day-picker-scroll {
   margin: 0;
 }
@@ -90,8 +97,8 @@
 
 .all-showtimes-movie-row {
   display: grid;
-  grid-template-columns: minmax(360px, 460px) minmax(0, 1fr);
-  gap: 28px;
+  grid-template-columns: minmax(380px, 480px) minmax(0, 510px);
+  gap: 24px;
   padding: 20px;
   border: 1px solid rgba(221, 194, 255, 0.14);
   border-radius: 24px;
@@ -249,12 +256,16 @@
 }
 
 html[data-device-type="mobile"] .all-showtimes-page-heading {
-  flex-direction: column;
-  align-items: flex-start;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 12px;
 }
 
 html[data-device-type="mobile"] .all-showtimes-page-city {
-  align-self: flex-end;
+  margin-left: auto;
+  align-self: auto;
+  margin-bottom: 0;
 }
 
 html[data-device-type="mobile"] .all-showtimes-browser {
@@ -265,16 +276,22 @@ html[data-device-type="mobile"] .all-showtimes-day-picker-shell {
   padding: 14px 0;
 }
 
+html[data-device-type="mobile"] .all-showtimes-day-panel {
+  padding: 8px;
+}
+
 html[data-device-type="mobile"] .all-showtimes-movie-row {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
-  padding: 18px;
+  min-width: 0;
+  padding: 18px 16px;
   contain-intrinsic-size: 460px;
 }
 
 html[data-device-type="mobile"] .all-showtimes-movie-summary {
   grid-template-columns: 97px minmax(0, 1fr);
   gap: 14px;
+  align-items: start;
 }
 
 html[data-device-type="mobile"] .all-showtimes-poster-shell {
@@ -289,6 +306,11 @@ html[data-device-type="mobile"]
 
 html[data-device-type="mobile"] .all-showtimes-copy .details-subtitle {
   font-size: 0.9rem;
+}
+
+html[data-device-type="mobile"] .all-showtimes-copy {
+  justify-content: flex-start;
+  padding-bottom: 0;
 }
 
 html[data-device-type="mobile"] .all-showtimes-metrics-row {
