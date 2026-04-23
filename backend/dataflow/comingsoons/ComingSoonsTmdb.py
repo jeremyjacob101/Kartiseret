@@ -164,7 +164,7 @@ class ComingSoonsTmdb(BaseDataflow):
             external_ids = data.get("external_ids") or {}
             new_row = dict(row)
 
-            genres = [genre["name"] for genre in (data.get("genres") or []) if genre.get("name")]
+            genres = ["Sci-Fi" if genre["name"] == "Science Fiction" else genre["name"] for genre in (data.get("genres") or []) if genre.get("name")][:3]
             trailer = next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Trailer" and v.get("site") == "YouTube" and v.get("key") and v.get("iso_639_1") == "en"), None) or next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Teaser" and v.get("site") == "YouTube" and v.get("key") and v.get("iso_639_1") == "en"), None)
 
             new_row["english_title"] = data["title"].strip() if data.get("title") else new_row.get("english_title")
