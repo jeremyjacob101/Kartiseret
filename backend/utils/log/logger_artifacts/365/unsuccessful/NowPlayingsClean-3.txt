@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: NowPlayingsClean
+URL: data:,
+Exception: APIError - {'message': 'ON CONFLICT DO UPDATE command cannot affect row a second time', 'code': '21000', 'hint': 'Ensure that no rows proposed for insertion within the same command have duplicate constrained values.', 'details': None}
+Call Chain: runners.py:43 > runners.py:20 > BaseDataflow.py:37 > NowPlayingsClean.py:21 > SupabaseTables.py:73
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/365/unsuccessful/NowPlayingsClean-3.png
+CSV: 
