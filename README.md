@@ -144,21 +144,11 @@ Within that plan, the backend currently does the following:
 - `allShowtimes`
 - `allSoons`
 
-**Backend final / enriched tables**
+**Final / enriched tables**
 
 - `finalShowtimes`
 - `finalMovies`
 - `finalSoons`
-- `finalMoviesPreview`
-- `finalSoonsPreview`
-
-**Frontend tables currently expected**
-
-- `testNPmovies`
-- `testNPmoviesPreview`
-- `testNPshowtimes`
-- `testSOONmovies`
-- `testSOONmoviesPreview`
 - `theaters`
 - `userPreferences`
 
@@ -169,7 +159,7 @@ Within that plan, the backend currently does the following:
 - `utilRunLogs`
 - `utilAvgTime`
 
-This repo includes generic Supabase table utilities in `backend/utils/supabase/supabase_tables.py`, but the exact mapping between the backend's `final*` tables and the frontend's current `test*` tables is not hard-coded in this checkout. If both layers are wired together directly, that contract needs to stay aligned.
+This repo includes generic Supabase table utilities in `backend/utils/supabase/supabase_tables.py`.
 
 </details>
 
@@ -271,10 +261,6 @@ The browser app intentionally uses only the publishable key and never a service-
 
 - This workspace does not currently include the React frontend source, only the backend pipeline and repo automation.
 - The frontend is tightly coupled to its Supabase table names and column assumptions.
-- The current frontend hard-codes its "today" anchor to March 2, 2026 and its showtime window end to March 11, 2026 instead of using the real current date.
-- `/showtimes` is still a placeholder page.
-- The homepage still has placeholder sections after the two primary scrollers.
-- Routing on the frontend is manual rather than handled by a routing library.
 - No automated tests are configured in this repo right now.
 - Scrapers depend on third-party cinema DOMs, so upstream site changes can break individual sources without warning.
 

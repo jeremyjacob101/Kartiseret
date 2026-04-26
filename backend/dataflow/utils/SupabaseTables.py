@@ -4,22 +4,42 @@ import re
 
 
 class SupabaseTables:
+    PRIMARY_KEY_BY_TABLE = {
+        "finalMovies": "tmdb_id",
+        "finalSoons": "tmdb_id",
+        "tableFixes": "title_fix",
+        "tableSkips": "name_or_tmdb_id",
+    }
+
+    def primaryKeyForTable(self, table_name: str) -> str:
+        return self.PRIMARY_KEY_BY_TABLE.get(table_name, "id")
+
     def selectAll(self, table: str, select: str = "*", batch_size: int = 200) -> list[dict]:
         if not table:
             return []
 
         all_rows: list[dict] = []
         start = 0
+        order_col = self.primaryKeyForTable(table)
 
         while True:
             end = start + batch_size - 1
-            rows = self.supabase.table(table).select(select).range(start, end).execute().data or []
+            rows = self.supabase.table(table).select(select).order(order_col).range(start, end).execute().data or []
             all_rows.extend(rows)
             if len(rows) < batch_size:
                 break
             start += batch_size
 
         return all_rows
+
+    def dedupeUpdatesForUpsert(self, table_name: str) -> None:
+        primary_key = self.primaryKeyForTable(table_name)
+        deduped_rows: dict[Any, dict] = {}
+
+        for row in self.updates:
+            deduped_rows[row[primary_key]] = row
+
+        self.updates = list(deduped_rows.values())
 
     def refreshAllTables(self, table_name: str | None = None):
         table_to_attr: dict[str, str] = {
@@ -70,6 +90,7 @@ class SupabaseTables:
                 for row in self.updates:
                     if isinstance(row, dict) and "run_id" not in row:
                         row["run_id"] = int(self.run_id)
+            self.dedupeUpdatesForUpsert(table_name)
             self.supabase.table(table_name).upsert(self.updates).execute()
 
         self.updates = []
