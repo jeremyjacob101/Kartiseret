@@ -1,31 +1,17 @@
 import { getSupabaseBrowserClient } from "../lib/supabase";
 import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/definitions/locations";
 
-const USE_TESTING_TABLES = false;
-
 const SUPABASE_PAGE_SIZE = 1000;
 export const APP_TIME_ZONE = "Asia/Jerusalem";
 export const SHOWTIME_DAY_CUTOFF_MINUTES = 65;
 const SHOWTIME_GRACE_PERIOD_MINUTES = 15;
 export const INITIAL_SHOWTIME_WINDOW_DAY_COUNT = 5;
 export const SHOWTIME_WINDOW_DAY_COUNT = 180;
-export const SHOWTIME_PREFETCH_CHUNK_DAY_COUNT = 15;
-const TESTING_TABLE_NAMES = {
-  movies: "testNPmovies",
-  comingSoon: "testSOONmovies",
-  showtimes: "testNPshowtimes",
-} as const;
-const LIVE_TABLE_NAMES = {
-  movies: "finalMovies",
-  comingSoon: "finalSoons",
-  showtimes: "finalShowtimes",
-} as const;
-const ACTIVE_TABLE_NAMES = USE_TESTING_TABLES
-  ? TESTING_TABLE_NAMES
-  : LIVE_TABLE_NAMES;
-const MOVIES_TABLE_NAME = ACTIVE_TABLE_NAMES.movies;
-const COMING_SOON_TABLE_NAME = ACTIVE_TABLE_NAMES.comingSoon;
-const SHOWTIMES_TABLE_NAME = ACTIVE_TABLE_NAMES.showtimes;
+
+
+const MOVIES_TABLE_NAME = "finalMovies";
+const COMING_SOON_TABLE_NAME = "finalSoons";
+const SHOWTIMES_TABLE_NAME = "finalShowtimes";
 const MOVIE_SELECT_COLUMNS = [
   "tmdb_id",
   "english_title",
