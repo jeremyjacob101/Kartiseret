@@ -1,0 +1,51 @@
+==== cron run start: 2026-04-27T04:00:00+0300 ====
+From github.com:jeremyjacob101/Kartiseret
+ * branch            main       -> FETCH_HEAD
+   d7b4794..4f95934  main       -> origin/main
+Already on 'main'
+M	backend/config/cron/cron_daily.log
+Your branch is behind 'origin/main' by 1 commit, and can be fast-forwarded.
+  (use "git pull" to update your local branch)
+HEAD is now at 4f95934 [+] fix dedupe error
+
+--------------------
+
+CCsoon: 00m48s
+LCsoon: 01m20s
+YPsoon: 01m31s
+MLsoon: 01m47s
+HCsoon: 02m21s
+
+--------------------
+
+
+--------------------
+
+LevCinema: 04m24s
+RavHen: 06m21s
+MovieLand: 07m32s
+HotCinema: 12m20s
+YesPlanet: 14m36s
+CinemaCity: 18m50s
+
+--------------------
+
+
+--------------------
+
+ComingSoonsClean: 00m04s
+ComingSoonsTmdb: 00m13s
+ComingSoonsUpdate: 00m05s
+
+--------------------
+
+
+--------------------
+
+NowPlayingsClean: 02m24s
+NowPlayingsTmdb: 06m07s
+NowPlayingsUpdate: 02m14s
+
+--------------------
+
+==== cron run end: 2026-04-27T04:32:29+0300 ====
