@@ -5,7 +5,9 @@ import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { TheaterMapDialog } from "./TheaterMapDialog";
 import { ShowtimeDayPicker } from "./showtimes/ShowtimeDayPicker";
 import { MovieMetricsRow, MovieTrailerModal, ShowtimeTheaters } from "./showtimes/ShowtimeShared";
+import { ShowtimeFilterMenu } from "./showtimes/ShowtimeFilterMenu";
 import { getMetricDisplays, getMovieInfoParts, getShowtimeDateLabel, getShowtimeTargetDate, getTrailerEmbedUrl } from "./showtimes/showtimeUtils";
+import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, getShowtimeFiltersSnapshot, saveShowtimeFilters, subscribeToShowtimeFilters, updateShowtimeFilterState, type ShowtimeFilterOptions, type ShowtimeFilterSelections } from "./showtimes/showtimeFilters";
 import { type RatingSource } from "../prefs/definitions/ratingSources";
 import { useUserPreferencesContext } from "../prefs/useUserPreferences";
 import "./AllShowtimesPage.css";
@@ -153,10 +155,94 @@ export function AllShowtimesPage() {
     dayPanels,
     selectedShowtimeDate ?? fixedAppDateString,
   );
-  const selectedDayPanel =
-    dayPanels.find((day) => day.date === resolvedShowtimeDate) ??
-    dayPanels[0] ??
-    null;
+  const selectedDayPanel = useMemo(
+    () =>
+      dayPanels.find((day) => day.date === resolvedShowtimeDate) ??
+      dayPanels[0] ??
+      null,
+    [dayPanels, resolvedShowtimeDate],
+  );
+  const showtimeFilterState = useSyncExternalStore(
+    subscribeToShowtimeFilters,
+    getShowtimeFiltersSnapshot,
+    getShowtimeFiltersSnapshot,
+  );
+  const allLoadedTheaters = useMemo(
+    () =>
+      dayPanels.flatMap((day) =>
+        day.movies.flatMap(({ theaters }) => theaters)),
+    [dayPanels],
+  );
+  const showtimeFilterOptions = useMemo<ShowtimeFilterOptions>(() => {
+    if (allLoadedTheaters.length === 0) {
+      return {
+        showType: [],
+        screeningTech: [],
+        dubLanguage: ["Hebrew", "French"],
+      };
+    }
+
+    return getShowtimeFilterOptions(allLoadedTheaters);
+  }, [allLoadedTheaters]);
+  const showtimeFilterSelections = useMemo<ShowtimeFilterSelections>(
+    () =>
+      buildShowtimeFilterSelections(showtimeFilterOptions, showtimeFilterState),
+    [showtimeFilterOptions, showtimeFilterState],
+  );
+  const filteredSelectedDayPanel = useMemo(
+    () =>
+      selectedDayPanel
+        ? {
+            ...selectedDayPanel,
+            movies: selectedDayPanel.movies.flatMap(({ movie, theaters }) => {
+              const filteredTheaters = filterTheatersBySelections(
+                theaters,
+                showtimeFilterSelections,
+              );
+
+              return filteredTheaters.length > 0
+                ? [{ movie, theaters: filteredTheaters }]
+                : [];
+            }),
+          }
+        : null,
+    [selectedDayPanel, showtimeFilterSelections],
+  );
+  const hasFilteredOutAllSelectedDayMovies =
+    selectedDayPanel !== null &&
+    selectedDayPanel.movies.length > 0 &&
+    filteredSelectedDayPanel !== null &&
+    filteredSelectedDayPanel.movies.length === 0;
+  const handleShowtimeFilterToggle = useCallback(
+    (
+      group: keyof ShowtimeFilterOptions,
+      value: string,
+    ) => {
+      const nextSelections: Record<keyof ShowtimeFilterOptions, Set<string>> = {
+        showType: new Set(showtimeFilterSelections.showType),
+        screeningTech: new Set(showtimeFilterSelections.screeningTech),
+        dubLanguage: new Set(showtimeFilterSelections.dubLanguage),
+      };
+      const groupSet = nextSelections[group];
+      const checked = groupSet.has(value);
+
+      if (checked) {
+        groupSet.delete(value);
+      } else {
+        groupSet.add(value);
+      }
+
+      const nextState = updateShowtimeFilterState(
+        showtimeFilterState,
+        showtimeFilterOptions,
+        nextSelections,
+      );
+      saveShowtimeFilters(nextState);
+    },
+    [showtimeFilterOptions, showtimeFilterSelections, showtimeFilterState],
+  );
+  const effectiveSelectedDayPanel =
+    filteredSelectedDayPanel ?? selectedDayPanel;
   const openTrailerMovie = useMemo(
     () =>
       openTrailerMovieId
@@ -327,25 +413,37 @@ export function AllShowtimesPage() {
             setSelectedShowtimeDate(date);
           }}
         />
+        <ShowtimeFilterMenu
+          className="all-showtimes-day-picker-filter"
+          options={showtimeFilterOptions}
+          selections={showtimeFilterSelections}
+          onToggleOption={handleShowtimeFilterToggle}
+        />
       </div>
 
       <section
         className="details-showtimes all-showtimes-browser"
         aria-label={`All showtimes in ${location}`}
       >
-        {selectedDayPanel ? (
+        {effectiveSelectedDayPanel ? (
           <article
             className="details-day-panel all-showtimes-day-panel"
-            data-showtime-date={selectedDayPanel.date}
+            data-showtime-date={effectiveSelectedDayPanel.date}
           >
-            {selectedDayPanel.movies.length === 0 ? (
+            {effectiveSelectedDayPanel.movies.length === 0 ? (
               <div
                 className="details-empty-state all-showtimes-empty-state"
-                aria-label={`No showtimes on ${getShowtimeDateLabel(selectedDayPanel.date)} in ${location}`}
+                aria-label={
+                  hasFilteredOutAllSelectedDayMovies
+                    ? `No ${location} showtimes match current filters on ${getShowtimeDateLabel(effectiveSelectedDayPanel.date)}`
+                    : `No showtimes on ${getShowtimeDateLabel(effectiveSelectedDayPanel.date)} in ${location}`
+                }
               >
                 <div className="details-empty-state-panel">
                   <p className="details-empty-state-title">
-                    No showtimes on this day in {location}
+                    {hasFilteredOutAllSelectedDayMovies
+                      ? `No ${location} showtimes match the active filters`
+                      : `No showtimes on this day in ${location}`}
                   </p>
 
                   <div className="details-empty-actions all-showtimes-empty-actions">
@@ -354,13 +452,15 @@ export function AllShowtimesPage() {
                       aria-busy={pendingNearbyCity ? "true" : undefined}
                     >
                       <p className="details-empty-link-heading">
-                        See showtimes in a nearby city
+                        {hasFilteredOutAllSelectedDayMovies
+                          ? "Try nearby city showtimes"
+                          : "See showtimes in a nearby city"}
                       </p>
 
                       {nearbyCityChoices.length > 0 ? (
                         <div
                           className="details-empty-city-list"
-                          aria-label={`Nearby cities with showtimes on ${getShowtimeDateLabel(selectedDayPanel.date)}`}
+                          aria-label={`Nearby cities with showtimes on ${getShowtimeDateLabel(effectiveSelectedDayPanel.date)}`}
                         >
                           {nearbyCityChoices.map((city) => (
                             <button
@@ -397,9 +497,9 @@ export function AllShowtimesPage() {
               </div>
             ) : (
               <div className="all-showtimes-movie-list">
-                {selectedDayPanel.movies.map(({ movie, theaters }) => (
+                {effectiveSelectedDayPanel.movies.map(({ movie, theaters }) => (
                   <ShowtimesMovieRow
-                    key={`${selectedDayPanel.date}-${movie.tmdbId}`}
+                    key={`${effectiveSelectedDayPanel.date}-${movie.tmdbId}`}
                     movie={movie}
                     theaters={theaters}
                     sources={sources}

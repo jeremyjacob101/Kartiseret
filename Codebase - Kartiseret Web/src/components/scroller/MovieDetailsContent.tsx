@@ -9,6 +9,8 @@ import { loadCities, type City } from "../../data/theaters";
 import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
 import { ShowtimeDayPicker } from "../showtimes/ShowtimeDayPicker";
+import { ShowtimeFilterMenu } from "../showtimes/ShowtimeFilterMenu";
+import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, getShowtimeFiltersSnapshot, saveShowtimeFilters, subscribeToShowtimeFilters, updateShowtimeFilterState, type ShowtimeFilterOptions, type ShowtimeFilterSelections } from "../showtimes/showtimeFilters";
 
 type TheaterTheme = {
   accent: string;
@@ -680,6 +682,79 @@ export function MovieDetailsContent({
     showtimeDays.find((day) => day.date === effectiveVisibleShowtimeDate) ??
     showtimeDays[0] ??
     null;
+  const showtimeFilterState = useSyncExternalStore(
+    subscribeToShowtimeFilters,
+    getShowtimeFiltersSnapshot,
+    getShowtimeFiltersSnapshot,
+  );
+  const allLoadedTheaters = useMemo(
+    () => showtimeDays.flatMap((day) => day.theaters),
+    [showtimeDays],
+  );
+  const showtimeFilterOptions = useMemo<ShowtimeFilterOptions>(
+    () =>
+      allLoadedTheaters.length > 0
+        ? getShowtimeFilterOptions(allLoadedTheaters)
+        : {
+            showType: [],
+            screeningTech: [],
+            dubLanguage: ["Hebrew", "French"],
+          },
+    [allLoadedTheaters],
+  );
+  const showtimeFilterSelections = useMemo<ShowtimeFilterSelections>(
+    () =>
+      buildShowtimeFilterSelections(showtimeFilterOptions, showtimeFilterState),
+    [showtimeFilterOptions, showtimeFilterState],
+  );
+  const filteredSelectedShowtimeDay = useMemo(
+    () =>
+      selectedShowtimeDay
+        ? {
+            ...selectedShowtimeDay,
+            theaters: filterTheatersBySelections(
+              selectedShowtimeDay.theaters,
+              showtimeFilterSelections,
+            ),
+          }
+        : null,
+    [selectedShowtimeDay, showtimeFilterSelections],
+  );
+  const hasFilteredOutAllSelectedShowtimes =
+    selectedShowtimeDay !== null &&
+    selectedShowtimeDay.theaters.length > 0 &&
+    filteredSelectedShowtimeDay !== null &&
+    filteredSelectedShowtimeDay.theaters.length === 0;
+  const handleShowtimeFilterToggle = useCallback(
+    (
+      group: keyof ShowtimeFilterOptions,
+      value: string,
+    ) => {
+      const nextSelections: Record<keyof ShowtimeFilterOptions, Set<string>> = {
+        showType: new Set(showtimeFilterSelections.showType),
+        screeningTech: new Set(showtimeFilterSelections.screeningTech),
+        dubLanguage: new Set(showtimeFilterSelections.dubLanguage),
+      };
+      const groupSet = nextSelections[group];
+      const checked = groupSet.has(value);
+
+      if (checked) {
+        groupSet.delete(value);
+      } else {
+        groupSet.add(value);
+      }
+
+      const nextState = updateShowtimeFilterState(
+        showtimeFilterState,
+        showtimeFilterOptions,
+        nextSelections,
+      );
+      saveShowtimeFilters(nextState);
+    },
+    [showtimeFilterOptions, showtimeFilterSelections, showtimeFilterState],
+  );
+  const effectiveSelectedShowtimeDay =
+    filteredSelectedShowtimeDay ?? selectedShowtimeDay;
   const shouldShowTodayReturnButton =
     shouldShowSkipToShowingDayButton &&
     effectiveVisibleShowtimeDate !== null &&
@@ -1188,6 +1263,12 @@ export function MovieDetailsContent({
                   scrollRailToDate(date);
                 }}
               />
+              <ShowtimeFilterMenu
+                className="details-day-picker-filter"
+                options={showtimeFilterOptions}
+                selections={showtimeFilterSelections}
+                onToggleOption={handleShowtimeFilterToggle}
+              />
             </div>
           ) : null}
 
@@ -1198,11 +1279,11 @@ export function MovieDetailsContent({
               className="details-rail"
               aria-label={`${movie.title} showtimes in ${location}`}
             >
-              {selectedShowtimeDay ? (
+              {effectiveSelectedShowtimeDay ? (
                 <article
                   className="details-day-panel"
-                  data-showtime-date={selectedShowtimeDay.date}
-                  key={selectedShowtimeDay.date}
+                  data-showtime-date={effectiveSelectedShowtimeDay.date}
+                  key={effectiveSelectedShowtimeDay.date}
                 >
                   <>
                     {shouldShowSkipToShowingDayButton ? (
@@ -1217,13 +1298,15 @@ export function MovieDetailsContent({
                       </div>
                     ) : null}
 
-                    {selectedShowtimeDay.theaters.length === 0 ? (
+                    {effectiveSelectedShowtimeDay.theaters.length === 0 ? (
                       renderNoShowtimesState(
-                        `No showtimes on ${getShowtimeDateLabel(selectedShowtimeDay.date)} in ${location}`,
+                        hasFilteredOutAllSelectedShowtimes
+                          ? `No showtimes match current filters on ${getShowtimeDateLabel(effectiveSelectedShowtimeDay.date)} in ${location}`
+                          : `No showtimes on ${getShowtimeDateLabel(effectiveSelectedShowtimeDay.date)} in ${location}`,
                       )
                     ) : (
                       <div className="details-theaters">
-                        {selectedShowtimeDay.theaters.map((
+                        {effectiveSelectedShowtimeDay.theaters.map((
                           theater,
                           theaterIndex,
                         ) => {
@@ -1305,7 +1388,7 @@ export function MovieDetailsContent({
                                     .join(", ");
                                   const key = [
                                     theater.theater,
-                                    selectedShowtimeDay.date,
+                                    effectiveSelectedShowtimeDay.date,
                                     showtime.time,
                                     showtime.screeningTech,
                                     showtime.screeningType,

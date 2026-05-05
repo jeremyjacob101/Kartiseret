@@ -506,6 +506,8 @@ function isNavbarInteractiveTarget(target: EventTarget | null): boolean {
         ".floating-navbar-stack, " +
         ".movie-search-panel, " +
         ".user-menu-panel, " +
+        ".showtime-filter-panel, " +
+        ".showtime-filter-trigger, " +
         ".theater-map-backdrop, " +
         ".theater-map-dialog",
     ),

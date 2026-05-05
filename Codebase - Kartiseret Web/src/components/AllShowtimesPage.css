@@ -45,6 +45,11 @@
   box-shadow: none;
 }
 
+.all-showtimes-day-picker-filter {
+  grid-column: 3;
+  justify-self: end;
+}
+
 .all-showtimes-page-city.city-map-trigger.theater-map-trigger--labeled:hover,
 .all-showtimes-page-city.city-map-trigger.theater-map-trigger--labeled.is-open,
 .all-showtimes-page-city.city-map-trigger.theater-map-trigger--labeled:focus-visible {
@@ -250,6 +255,10 @@ html[data-device-type="mobile"] .all-showtimes-browser {
 
 html[data-device-type="mobile"] .all-showtimes-day-picker-shell {
   padding: 14px 0;
+}
+
+html[data-device-type="mobile"] .all-showtimes-day-picker-filter {
+  margin-right: 14px;
 }
 
 html[data-device-type="mobile"] .all-showtimes-day-panel {

@@ -609,6 +609,15 @@
   align-items: center;
 }
 
+.details-day-picker-filter {
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+}
+
 .details-day-picker-city.city-map-trigger.theater-map-trigger--labeled:hover,
 .details-day-picker-city.city-map-trigger.theater-map-trigger--labeled.is-open,
 .details-day-picker-city.city-map-trigger.theater-map-trigger--labeled:focus-visible {
@@ -1655,6 +1664,10 @@ html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-
 html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-city {
   left: 14px;
   font-size: 0.9rem;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-filter {
+  right: 14px;
 }
 
 html[data-device-type="mobile"] .movie-scroller-detail-content {
