@@ -9,6 +9,7 @@ import { getMetricDisplays, getMovieInfoParts, getShowtimeDateLabel, getShowtime
 import { type RatingSource } from "../prefs/definitions/ratingSources";
 import { useUserPreferencesContext } from "../prefs/useUserPreferences";
 import "./AllShowtimesPage.css";
+import { MapPin } from "lucide-react";
 
 type ShowtimesMovieRowProps = {
   movie: Movie;
