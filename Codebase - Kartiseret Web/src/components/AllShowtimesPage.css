@@ -4,31 +4,9 @@
 }
 
 .all-showtimes-page-city {
+  flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
-  flex: none;
-  padding: 0.8rem 1rem;
-  border: 1px solid rgba(217, 191, 255, 0.2);
-  border-radius: 999px;
-  background:
-    radial-gradient(
-      circle at top,
-      color-mix(in srgb, var(--main-app-color) 18%, transparent),
-      transparent 60%
-    ),
-    rgba(13, 11, 22, 0.88);
-  box-shadow:
-    0 18px 32px rgba(0, 0, 0, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  color: #f6f0ff;
-  font-size: 0.96rem;
-  font-weight: 650;
-  line-height: 1;
-}
-
-.all-showtimes-page-city-icon {
-  color: rgba(221, 194, 255, 0.84);
 }
 
 .all-showtimes-browser {
@@ -64,6 +42,15 @@
 .all-showtimes-page-city {
   grid-column: 1;
   justify-self: start;
+  box-shadow: none;
+}
+
+.all-showtimes-page-city.city-map-trigger.theater-map-trigger--labeled:hover,
+.all-showtimes-page-city.city-map-trigger.theater-map-trigger--labeled.is-open,
+.all-showtimes-page-city.city-map-trigger.theater-map-trigger--labeled:focus-visible {
+  border-color: var(--border);
+  background: rgba(20, 16, 33, 0.88);
+  box-shadow: none;
 }
 
 .all-showtimes-day-panel {
@@ -254,7 +241,6 @@
 
 html[data-device-type="mobile"] .all-showtimes-page-city {
   margin-left: 0;
-  padding: 0.72rem 0.92rem;
   font-size: 0.9rem;
 }
 

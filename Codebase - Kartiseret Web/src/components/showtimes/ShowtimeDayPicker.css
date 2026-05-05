@@ -152,8 +152,8 @@ html[data-device-type="mobile"] .showtime-day-picker-scroll {
 }
 
 html[data-device-type="mobile"] .showtime-day-button {
-  width: min(76px, calc((100% - 24px) / 4));
-  min-width: min(76px, calc((100% - 24px) / 4));
+  width: min(72px, calc((100% - 34px) / 5));
+  min-width: min(72px, calc((100% - 34px) / 5));
   min-height: 78px;
   padding: 0.56rem 0.42rem 0.42rem;
 }

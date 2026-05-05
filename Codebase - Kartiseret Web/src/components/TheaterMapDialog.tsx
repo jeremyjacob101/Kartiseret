@@ -35,8 +35,12 @@ function toFlightRect(rect?: DOMRect | null): FlightRect | null {
 }
 
 export function TheaterMapDialog({
+  className,
+  triggerLabel,
   triggerTabIndex,
 }: {
+  className?: string;
+  triggerLabel?: string;
   triggerTabIndex?: number;
 }) {
   const { location, syncing, setLocationPreference, error } =
@@ -53,6 +57,7 @@ export function TheaterMapDialog({
     null,
   );
   const triggerButtonRef = useRef<HTMLButtonElement | null>(null);
+  const triggerFlightOriginRef = useRef<HTMLSpanElement | null>(null);
   const pendingFlightOriginRef = useRef<FlightRect | null>(null);
   const openAnimationStartedRef = useRef(false);
   const flightStartFrameRef = useRef<number | null>(null);
@@ -118,7 +123,9 @@ export function TheaterMapDialog({
 
     const originRect = toFlightRect(mapIconAnchor?.getBoundingClientRect());
     const targetRect = toFlightRect(
-      triggerButtonRef.current?.getBoundingClientRect(),
+      (
+        triggerFlightOriginRef.current ?? triggerButtonRef.current
+      )?.getBoundingClientRect(),
     );
 
     if (!originRect || !targetRect) {
@@ -295,9 +302,15 @@ export function TheaterMapDialog({
       <button
         ref={triggerButtonRef}
         type="button"
-        className={`location-menu-trigger theater-map-trigger${
-          isOpen && !isClosing ? " is-open" : ""
-        }`}
+        className={[
+          triggerLabel
+            ? "theater-map-trigger theater-map-trigger--labeled"
+            : "location-menu-trigger theater-map-trigger",
+          className,
+          isOpen && !isClosing ? "is-open" : null,
+        ]
+          .filter(Boolean)
+          .join(" ")}
         tabIndex={triggerTabIndex}
         aria-haspopup="dialog"
         aria-expanded={isOpen && !isClosing}
@@ -306,7 +319,9 @@ export function TheaterMapDialog({
           clearPinFlightAnimation();
           openAnimationStartedRef.current = false;
           pendingFlightOriginRef.current = toFlightRect(
-            triggerButtonRef.current?.getBoundingClientRect(),
+            (
+              triggerFlightOriginRef.current ?? triggerButtonRef.current
+            )?.getBoundingClientRect(),
           );
           setMapIconAnchor(null);
           setFlyingMapIcon(null);
@@ -317,7 +332,21 @@ export function TheaterMapDialog({
           setIsOpen(true);
         }}
       >
-        <MapPin size={20} strokeWidth={2.75} className="app-accent-icon" />
+        {triggerLabel ? (
+          <>
+            <span
+              ref={triggerFlightOriginRef}
+              className="theater-map-trigger-icon"
+            >
+              <MapPin size={20} strokeWidth={2.75} className="app-accent-icon" />
+            </span>
+            <span className="theater-map-trigger-label">{triggerLabel}</span>
+          </>
+        ) : (
+          <span ref={triggerFlightOriginRef} className="theater-map-trigger-icon">
+            <MapPin size={20} strokeWidth={2.75} className="app-accent-icon" />
+          </span>
+        )}
       </button>
       {dialog ? createPortal(dialog, document.body) : null}
     </div>

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Clock8, MapPin, MoveRight, Star, X } from "lucide-react";
 import { Link } from "react-router";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
+import { TheaterMapDialog } from "../TheaterMapDialog";
 import { APP_TIME_ZONE, fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeCities, getMovieShowtimeDays, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, subscribeToMovieCatalog, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
 import { loadCities, type City } from "../../data/theaters";
 import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
@@ -1173,11 +1174,16 @@ export function MovieDetailsContent({
         >
           {shouldShowDayPicker ? (
             <div className="details-day-picker-shell">
+              <TheaterMapDialog
+                className="details-day-picker-city city-map-trigger"
+                triggerLabel={location}
+              />
               <ShowtimeDayPicker
                 ariaLabel={`Choose ${movie.title} showtime day`}
                 dates={showtimeDays.map((day) => day.date)}
                 selectedDate={effectiveVisibleShowtimeDate}
                 disabledBeforeDate={fixedAppDateString}
+                visibleDayCount={5}
                 onSelect={(date) => {
                   scrollRailToDate(date);
                 }}
@@ -1199,12 +1205,8 @@ export function MovieDetailsContent({
                   key={selectedShowtimeDay.date}
                 >
                   <>
-                    <div className="details-day-header">
-                      <div className="details-day-heading">
-                        <h3 className="details-day-title">{location}</h3>
-                      </div>
-
-                      {shouldShowSkipToShowingDayButton ? (
+                    {shouldShowSkipToShowingDayButton ? (
+                      <div className="details-day-header">
                         <button
                           type="button"
                           className="details-day-jump-button"
@@ -1212,8 +1214,8 @@ export function MovieDetailsContent({
                         >
                           {showtimeJumpButtonLabel}
                         </button>
-                      ) : null}
-                    </div>
+                      </div>
+                    ) : null}
 
                     {selectedShowtimeDay.theaters.length === 0 ? (
                       renderNoShowtimesState(

@@ -197,7 +197,6 @@
     0 30px 72px rgba(0, 0, 0, 0.34),
     0 0 0 1px rgba(255, 255, 255, 0.06);
   transform: translateX(-50%);
-  touch-action: pan-y;
 }
 
 .movie-scroller-detail-stack {
@@ -324,10 +323,18 @@
 .movie-scroller-detail-content {
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  padding: 26px;
+  min-height: 100%;
+  padding: 0;
   overflow-y: auto;
   scrollbar-width: none;
+}
+
+.movie-scroller-detail-content > .details-showtimes {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .movie-scroller-detail-content::-webkit-scrollbar {
@@ -340,6 +347,7 @@
   grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
   align-items: end;
   gap: 24px;
+  padding: 26px 26px 22px;
   margin-bottom: 22px;
 }
 
@@ -580,15 +588,40 @@
 }
 
 .details-showtimes {
-  border: 1px solid rgba(217, 191, 255, 0.16);
   border-radius: 26px;
   background: rgba(8, 7, 11, 0.18);
   overflow: visible;
-  touch-action: pan-x;
 }
 
 .details-day-picker-shell {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   padding: 8px 18px 0;
+}
+
+.details-day-picker-city {
+  position: absolute;
+  left: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+}
+
+.details-day-picker-city.city-map-trigger.theater-map-trigger--labeled:hover,
+.details-day-picker-city.city-map-trigger.theater-map-trigger--labeled.is-open,
+.details-day-picker-city.city-map-trigger.theater-map-trigger--labeled:focus-visible {
+  border-color: var(--border);
+  background: rgba(20, 16, 33, 0.88);
+  box-shadow: none;
+  transform: translateY(calc(-50% - 1px));
+}
+
+.details-day-picker-shell .showtime-day-picker-shell {
+  width: fit-content;
+  max-width: 100%;
 }
 
 .details-day-picker-shell + .details-rail {
@@ -597,7 +630,6 @@
 
 .details-showtimes--trailer {
   padding: 18px;
-  touch-action: auto;
 }
 
 .details-showtime-empty {
@@ -892,7 +924,6 @@
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   overscroll-behavior-x: contain;
-  touch-action: pan-x;
 }
 
 .details-rail::-webkit-scrollbar {
@@ -923,10 +954,9 @@
 .details-day-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 16px;
   margin-bottom: 16px;
-  margin-left: 6px;
 }
 
 .details-day-jump-button {
@@ -995,7 +1025,6 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
-  margin-left: 6px;
 }
 
 .details-theater {
@@ -1230,12 +1259,8 @@
   height: 13px;
   padding: 1px;
   border-radius: 999px;
-  /* For White background yellow filled star: */
-  /* background: #fff; */
-  /* color: #e0b12d; */
-  /* fill: currentColor; */
   background: rgba(12, 11, 20, 0.9);
-  color: #f4efec;
+  color: var(--main-app-color);
   box-shadow:
     0 0 0 1px rgba(4, 4, 8, 0.92),
     0 3px 7px rgba(0, 0, 0, 0.22);
@@ -1626,6 +1651,20 @@ html[data-device-type="mobile"] .movie-scroller-detail-card .details-time-pill {
 
 html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-shell {
   padding: 14px 14px 0;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-city {
+  left: 14px;
+  font-size: 0.9rem;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-content {
+  min-height: 100%;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-content > .details-showtimes {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 html[data-device-type="mobile"] .movie-scroller-detail-card .details-empty-state {

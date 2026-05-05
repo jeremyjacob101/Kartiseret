@@ -1514,6 +1514,7 @@ export function CityLocationPicker({
       currentLocationRef.current = nextLocation;
       scheduleVisibilitySyncRef.current?.();
       fitLocations([nextLocation]);
+      onCloseRef.current?.();
 
       try {
         await onPickLocation(nextLocation);

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { MapPin } from "lucide-react";
 import { allNowPlayingMovies, fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeDays, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, subscribeToMovieCatalog, type Movie, type TheaterShowtimes } from "../data/movieCatalog";
 import { loadCities, type City } from "../data/theaters";
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
+import { TheaterMapDialog } from "./TheaterMapDialog";
 import { ShowtimeDayPicker } from "./showtimes/ShowtimeDayPicker";
 import { MovieMetricsRow, MovieTrailerModal, ShowtimeTheaters } from "./showtimes/ShowtimeShared";
 import { getMetricDisplays, getMovieInfoParts, getShowtimeDateLabel, getShowtimeTargetDate, getTrailerEmbedUrl } from "./showtimes/showtimeUtils";
@@ -312,18 +312,10 @@ export function AllShowtimesPage() {
         className="details-showtimes all-showtimes-day-picker-shell"
         aria-label="Showtime day picker"
       >
-        <div
-          className="all-showtimes-page-city"
-          aria-label={`Selected city: ${location}`}
-        >
-          <MapPin
-            size={16}
-            strokeWidth={2.35}
-            className="all-showtimes-page-city-icon"
-            aria-hidden="true"
-          />
-          <span>{location}</span>
-        </div>
+        <TheaterMapDialog
+          className="all-showtimes-page-city city-map-trigger"
+          triggerLabel={location}
+        />
         <ShowtimeDayPicker
           className="all-showtimes-day-picker-scroll"
           ariaLabel="Choose showtime day"

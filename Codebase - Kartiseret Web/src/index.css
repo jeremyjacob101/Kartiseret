@@ -210,6 +210,68 @@ button {
   stroke: currentColor;
 }
 
+.theater-map-trigger-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.theater-map-trigger-label {
+  display: block;
+  white-space: nowrap;
+}
+
+.theater-map-trigger--labeled {
+  display: inline-flex;
+  align-items: center;
+}
+
+.city-map-trigger.theater-map-trigger--labeled {
+  gap: 0.5rem;
+  padding: 0.66rem 1.08rem 0.66rem 0.92rem;
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  background: rgba(20, 16, 33, 0.88);
+  color: #f6f0ff;
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.city-map-trigger.theater-map-trigger--labeled .theater-map-trigger-icon {
+  width: 26px;
+  height: 26px;
+  color: var(--main-app-color);
+}
+
+.city-map-trigger.theater-map-trigger--labeled .theater-map-trigger-label {
+  color: #f6f0ff;
+  text-shadow: 0 4px 16px rgba(10, 8, 14, 0.26);
+}
+
+.city-map-trigger.theater-map-trigger--labeled:hover,
+.city-map-trigger.theater-map-trigger--labeled.is-open,
+.city-map-trigger.theater-map-trigger--labeled:focus-visible {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--main-app-color) 62%, #d9c9ff);
+  background: rgba(24, 18, 39, 0.95);
+  box-shadow:
+    0 18px 32px rgba(10, 8, 14, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+html[data-device-type="mobile"] .city-map-trigger.theater-map-trigger--labeled {
+  gap: 0.62rem;
+  padding: 0.56rem 0.94rem 0.56rem 0.8rem;
+  font-size: 0.9rem;
+}
+
 .theater-map-dialog-header {
   display: flex;
   align-items: flex-start;

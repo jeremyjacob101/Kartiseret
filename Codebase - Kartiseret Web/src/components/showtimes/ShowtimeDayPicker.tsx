@@ -11,6 +11,7 @@ type ShowtimeDayPickerProps = {
   className?: string;
   disabledBeforeDate?: string | null;
   leadingDisabledDayCount?: number;
+  visibleDayCount?: number;
 };
 
 type DayPickerEntry = {
@@ -19,7 +20,7 @@ type DayPickerEntry = {
 };
 
 const DESKTOP_VISIBLE_DAY_COUNT = 7;
-const MOBILE_VISIBLE_DAY_COUNT = 4;
+const MOBILE_VISIBLE_DAY_COUNT = 5;
 const CENTER_SELECTED_DAY_DELAY_MS = 230;
 
 const weekdayEyebrowFormatter = new Intl.DateTimeFormat(undefined, {
@@ -108,15 +109,19 @@ export function ShowtimeDayPicker({
   className,
   disabledBeforeDate = null,
   leadingDisabledDayCount,
+  visibleDayCount,
 }: ShowtimeDayPickerProps) {
   const { isMobile } = useDeviceInfo();
-  const visibleDayCount = isMobile
-    ? MOBILE_VISIBLE_DAY_COUNT
-    : DESKTOP_VISIBLE_DAY_COUNT;
-  const selectedDayOffset = isMobile ? 1 : Math.floor(visibleDayCount / 2);
-  const visibleDayRadius = Math.floor(visibleDayCount / 2);
+  const resolvedVisibleDayCount =
+    visibleDayCount && visibleDayCount > 0
+      ? visibleDayCount
+      : isMobile
+        ? MOBILE_VISIBLE_DAY_COUNT
+        : DESKTOP_VISIBLE_DAY_COUNT;
+  const selectedDayOffset = Math.floor(resolvedVisibleDayCount / 2);
+  const visibleDayRadius = Math.floor(resolvedVisibleDayCount / 2);
   const resolvedLeadingDisabledDayCount =
-    leadingDisabledDayCount ?? (isMobile ? 1 : visibleDayRadius);
+    leadingDisabledDayCount ?? visibleDayRadius;
   const entries = useMemo(
     () =>
       buildDayPickerEntries(
@@ -163,15 +168,18 @@ export function ShowtimeDayPicker({
       return [];
     }
 
-    const maxStartIndex = Math.max(0, entries.length - visibleDayCount);
+    const maxStartIndex = Math.max(0, entries.length - resolvedVisibleDayCount);
     const startIndex = Math.max(
       0,
       Math.min(centeredIndex - selectedDayOffset, maxStartIndex),
     );
-    const endIndex = Math.min(entries.length, startIndex + visibleDayCount);
+    const endIndex = Math.min(
+      entries.length,
+      startIndex + resolvedVisibleDayCount,
+    );
 
     return entries.slice(startIndex, endIndex);
-  }, [centeredIndex, entries, selectedDayOffset, visibleDayCount]);
+  }, [centeredIndex, entries, resolvedVisibleDayCount, selectedDayOffset]);
 
   useEffect(() => {
     if (!selectedEntry) {
