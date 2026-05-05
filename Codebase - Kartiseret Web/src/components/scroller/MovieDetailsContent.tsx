@@ -339,6 +339,10 @@ function formatDecimalRating(value: number | null | undefined): string {
   return hasRating(value) ? value.toFixed(1) : "—";
 }
 
+function formatTmdbRating(value: number | null | undefined): string {
+  return hasRating(value) ? Number(value.toFixed(1)).toString() : "—";
+}
+
 // RT's full "hot" badges also depend on fields this app does not store
 // (for example Top Critics / verified-release buckets), so we use the
 // available score plus conservative theatrical vote thresholds here.
@@ -476,9 +480,9 @@ function getMetricDisplay(
     case "tmdbRating":
       return {
         key: "tmdbRating",
-        value: formatDecimalRating(movie.tmdbRating),
+        value: formatTmdbRating(movie.tmdbRating),
         ariaLabel: hasRating(movie.tmdbRating)
-          ? `TMDB rating ${movie.tmdbRating.toFixed(1)}`
+          ? `TMDB rating ${formatTmdbRating(movie.tmdbRating)}`
           : "TMDB rating unavailable",
         logoSrc: "/logos/tmdb.svg",
         href: getTmdbUrl(movie),

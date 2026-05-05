@@ -97,7 +97,7 @@
 
 .all-showtimes-movie-row {
   display: grid;
-  grid-template-columns: minmax(380px, 480px) minmax(0, 510px);
+  grid-template-columns: minmax(380px, 500px) minmax(0, 510px);
   gap: 24px;
   padding: 20px;
   border: 1px solid rgba(221, 194, 255, 0.14);
