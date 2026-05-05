@@ -58,11 +58,9 @@ type CatalogRouteProps = {
   cardWidth: number;
   gap: number;
   jumpMode: MovieSearchMode;
-  kicker: string;
   movies: readonly Movie[];
   onExitDetail: () => void;
   onPosterSelect: (tmdbId: string) => void;
-  title: string;
   view: CatalogPageView;
   scrollerSlotMinHeight: number;
 };
@@ -95,19 +93,18 @@ function CatalogRoute({
   cardWidth,
   gap,
   jumpMode,
-  kicker,
   movies,
   onExitDetail,
   onPosterSelect,
-  title,
   view,
   scrollerSlotMinHeight,
 }: CatalogRouteProps) {
+  const routeLabel = jumpMode === "nowPlaying" ? "Now Playing" : "Coming Soon";
+
   return view === "grid" ? (
     <Suspense fallback={null}>
       <PosterGridPage
-        kicker={kicker}
-        title={title}
+        title={routeLabel}
         movies={movies}
         onPosterSelect={(movie) => {
           onPosterSelect(movie.tmdbId);
@@ -115,13 +112,7 @@ function CatalogRoute({
       />
     </Suspense>
   ) : (
-    <section className="catalog-browser-page" aria-label={title}>
-      <div className="section-heading catalog-browser-page-heading">
-        <div className="catalog-browser-page-heading-copy">
-          <p className="section-kicker">{kicker}</p>
-          <h1 className="section-title">{title}</h1>
-        </div>
-      </div>
+    <section className="catalog-browser-page" aria-label={routeLabel}>
       <div
         className="scroller-slot"
         style={{ minHeight: scrollerSlotMinHeight }}
@@ -624,7 +615,6 @@ export function App() {
                     cardWidth={scrollerCardWidth}
                     gap={scrollerGap}
                     jumpMode="nowPlaying"
-                    kicker="Movies"
                     movies={allNowPlayingMovies}
                     onExitDetail={() => {
                       resetCatalogPage("nowPlaying");
@@ -632,7 +622,6 @@ export function App() {
                     onPosterSelect={(tmdbId) => {
                       openCatalogMovie("nowPlaying", tmdbId);
                     }}
-                    title="Now Playing"
                     view={moviesPageView}
                     scrollerSlotMinHeight={scrollerSlotMinHeight}
                   />
@@ -661,7 +650,6 @@ export function App() {
                     cardWidth={scrollerCardWidth}
                     gap={scrollerGap}
                     jumpMode="comingSoon"
-                    kicker="To Be Released"
                     movies={allComingSoonMovies}
                     onExitDetail={() => {
                       resetCatalogPage("comingSoon");
@@ -669,7 +657,6 @@ export function App() {
                     onPosterSelect={(tmdbId) => {
                       openCatalogMovie("comingSoon", tmdbId);
                     }}
-                    title="Coming Soon"
                     view={soonsPageView}
                     scrollerSlotMinHeight={scrollerSlotMinHeight}
                   />

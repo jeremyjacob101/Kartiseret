@@ -309,11 +309,6 @@ export function AllShowtimesPage() {
   return (
     <section className="all-showtimes-page" aria-label="All Showtimes">
       <div className="section-heading all-showtimes-page-heading">
-        <div className="all-showtimes-page-heading-copy">
-          <p className="section-kicker">Showtimes</p>
-          <h1 className="section-title">All Showtimes</h1>
-        </div>
-
         <div
           className="all-showtimes-page-city"
           aria-label={`Selected city: ${location}`}

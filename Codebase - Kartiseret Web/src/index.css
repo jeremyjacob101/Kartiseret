@@ -1409,14 +1409,6 @@ html[data-device-type="mobile"] .app-shell {
   gap: 24px;
 }
 
-.catalog-browser-page-heading {
-  width: 100%;
-}
-
-.catalog-browser-page-heading-copy {
-  min-width: 0;
-}
-
 .showtimes-placeholder {
   width: min(100%, 1000px);
   display: grid;

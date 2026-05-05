@@ -21,10 +21,10 @@
   display: flex;
   justify-content: center;
   align-items: stretch;
-  gap: 12px;
+  gap: 4px;
   width: 100%;
   min-width: 0;
-  padding-bottom: 6px;
+  padding-bottom: 2px;
 }
 
 .showtime-day-button {

@@ -13,10 +13,6 @@
   gap: 18px;
 }
 
-.all-showtimes-page-heading-copy {
-  min-width: 0;
-}
-
 .all-showtimes-page-city {
   display: inline-flex;
   align-items: center;

@@ -30,14 +30,12 @@ function resolvePosterGridColumnCount(gridElement: HTMLDivElement) {
 }
 
 type PosterGridPageProps = {
-  kicker: string;
   title: string;
   movies: readonly Movie[];
   onPosterSelect: (movie: Movie) => void;
 };
 
 export function PosterGridPage({
-  kicker,
   title,
   movies,
   onPosterSelect,
@@ -95,10 +93,6 @@ export function PosterGridPage({
 
   return (
     <section className="poster-grid-page" aria-label={title}>
-      <div className="section-heading poster-grid-page-heading">
-        <p className="section-kicker">{kicker}</p>
-        <h1 className="section-title">{title}</h1>
-      </div>
       <div ref={gridRef} className="poster-grid-page-grid" aria-label={title}>
         {posterEntries.map(({ movie, rowIndex }) => (
           <button

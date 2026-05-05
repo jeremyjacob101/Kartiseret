@@ -1,11 +1,4 @@
-import {
-  type CSSProperties,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useDeviceInfo } from "../../device/useDeviceType";
 import { getShowtimeDateLabel } from "./showtimeUtils";
 import "./ShowtimeDayPicker.css";
@@ -150,6 +143,7 @@ export function ShowtimeDayPicker({
   );
   const pickerRef = useRef<HTMLDivElement | null>(null);
   const buttonRefs = useRef(new Map<string, HTMLButtonElement>());
+  const indicatorFrameRef = useRef<number | null>(null);
   const [indicatorStyle, setIndicatorStyle] = useState<{
     centerX: number;
     width: number;
@@ -183,18 +177,24 @@ export function ShowtimeDayPicker({
     if (!selectedEntry) {
       return;
     }
+    const selectedDate = selectedEntry.date;
 
     const isSelectedVisible = visibleEntries.some(
-      (entry) => entry.date === selectedEntry.date,
+      (entry) => entry.date === selectedDate,
     );
 
     if (!isSelectedVisible) {
-      setCenteredDate(selectedEntry.date);
-      return;
+      const frameId = window.requestAnimationFrame(() => {
+        setCenteredDate(selectedDate);
+      });
+
+      return () => {
+        window.cancelAnimationFrame(frameId);
+      };
     }
 
     const timeoutId = window.setTimeout(() => {
-      setCenteredDate(selectedEntry.date);
+      setCenteredDate(selectedDate);
     }, CENTER_SELECTED_DAY_DELAY_MS);
 
     return () => {
@@ -203,14 +203,17 @@ export function ShowtimeDayPicker({
   }, [selectedEntry, visibleEntries]);
 
   useEffect(() => {
-    if (
-      centeredDate &&
-      entries.some((entry) => entry.date === centeredDate)
-    ) {
+    if (centeredDate && entries.some((entry) => entry.date === centeredDate)) {
       return;
     }
 
-    setCenteredDate(selectedEntry?.date ?? dates[0] ?? null);
+    const frameId = window.requestAnimationFrame(() => {
+      setCenteredDate(selectedEntry?.date ?? dates[0] ?? null);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
   }, [centeredDate, dates, entries, selectedEntry]);
 
   useLayoutEffect(() => {
@@ -220,20 +223,25 @@ export function ShowtimeDayPicker({
       : null;
 
     if (!picker || !selectedButton) {
-      setIndicatorStyle((current) =>
-        current.isVisible ? { ...current, isVisible: false } : current,
-      );
-      return;
+      indicatorFrameRef.current = window.requestAnimationFrame(() => {
+        setIndicatorStyle((current) =>
+          current.isVisible ? { ...current, isVisible: false } : current);
+        indicatorFrameRef.current = null;
+      });
+
+      return () => {
+        if (indicatorFrameRef.current !== null) {
+          window.cancelAnimationFrame(indicatorFrameRef.current);
+          indicatorFrameRef.current = null;
+        }
+      };
     }
 
     const updateIndicator = () => {
       const pickerRect = picker.getBoundingClientRect();
       const buttonRect = selectedButton.getBoundingClientRect();
-      const rawIndicatorWidth = Math.min(58, buttonRect.width * 0.66);
-      const indicatorWidth = Math.max(
-        2,
-        Math.round(rawIndicatorWidth / 2) * 2,
-      );
+      const rawIndicatorWidth = Math.min(48, buttonRect.width * 0.66);
+      const indicatorWidth = Math.max(2, Math.round(rawIndicatorWidth / 2) * 2);
       const indicatorCenterX = Math.round(
         buttonRect.left - pickerRect.left + buttonRect.width / 2,
       );
@@ -245,13 +253,20 @@ export function ShowtimeDayPicker({
       });
     };
 
-    updateIndicator();
+    indicatorFrameRef.current = window.requestAnimationFrame(() => {
+      updateIndicator();
+      indicatorFrameRef.current = null;
+    });
 
     const resizeObserver = new ResizeObserver(updateIndicator);
     resizeObserver.observe(picker);
     resizeObserver.observe(selectedButton);
 
     return () => {
+      if (indicatorFrameRef.current !== null) {
+        window.cancelAnimationFrame(indicatorFrameRef.current);
+        indicatorFrameRef.current = null;
+      }
       resizeObserver.disconnect();
     };
   }, [selectedEntry, visibleEntries]);
