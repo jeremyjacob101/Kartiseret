@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ListFilter } from "lucide-react";
+import { Armchair, Languages, ListFilter, TvMinimal } from "lucide-react";
 import { type ShowtimeFilterOptions, type ShowtimeFilterSelections } from "./showtimeFilters";
 import "./ShowtimeFilterMenu.css";
 
@@ -11,15 +11,16 @@ type ShowtimeFilterMenuProps = {
   options: ShowtimeFilterOptions;
   selections: ShowtimeFilterSelections;
   onToggleOption: (group: FilterGroup, value: string) => void;
+  onToggleGroup: (group: FilterGroup) => void;
 };
 
 const FILTER_GROUP_COPY: Array<{
   group: FilterGroup;
-  label: string;
+  icon: typeof Armchair;
 }> = [
-  { group: "showType", label: "Show type" },
-  { group: "screeningTech", label: "Screening tech" },
-  { group: "dubLanguage", label: "Dub language" },
+  { group: "showType", icon: Armchair },
+  { group: "screeningTech", icon: TvMinimal },
+  { group: "dubLanguage", icon: Languages },
 ];
 
 export function ShowtimeFilterMenu({
@@ -27,6 +28,7 @@ export function ShowtimeFilterMenu({
   options,
   selections,
   onToggleOption,
+  onToggleGroup,
 }: ShowtimeFilterMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [panelStyle, setPanelStyle] = useState<{
@@ -94,7 +96,8 @@ export function ShowtimeFilterMenu({
         return;
       }
 
-      const clickedInsideTriggerShell = menuRef.current?.contains(target) ?? false;
+      const clickedInsideTriggerShell =
+        menuRef.current?.contains(target) ?? false;
       const clickedInsidePanel = panelRef.current?.contains(target) ?? false;
 
       if (!clickedInsideTriggerShell && !clickedInsidePanel) {
@@ -137,65 +140,85 @@ export function ShowtimeFilterMenu({
         }}
       >
         <span className="theater-map-trigger-icon">
-          <ListFilter size={20} strokeWidth={2.75} className="app-accent-icon" />
+          <ListFilter
+            size={20}
+            strokeWidth={2.75}
+            className="app-accent-icon"
+          />
         </span>
       </button>
 
       {isOpen && panelStyle && typeof document !== "undefined"
         ? createPortal(
-        <div
-          ref={panelRef}
-          id={panelId}
-          className="showtime-filter-panel"
-          role="dialog"
-          aria-label="Showtime filters"
-          style={{
-            top: `${panelStyle.top}px`,
-            left: `${panelStyle.left}px`,
-            width: `${panelStyle.width}px`,
-          }}
-        >
-          {FILTER_GROUP_COPY.map(({ group, label }) => {
-            const groupOptions = options[group];
-            const selectedValues = selections[group];
+            <div
+              ref={panelRef}
+              id={panelId}
+              className="showtime-filter-panel"
+              role="dialog"
+              aria-label="Showtime filters"
+              style={{
+                top: `${panelStyle.top}px`,
+                left: `${panelStyle.left}px`,
+                width: `${panelStyle.width}px`,
+              }}
+            >
+              {FILTER_GROUP_COPY.map(({ group, icon: GroupIcon }) => {
+                const groupOptions = options[group];
+                const selectedValues = selections[group];
+                const allSelected =
+                  groupOptions.length > 0 &&
+                  groupOptions.every((value) => selectedValues.has(value));
 
-            if (groupOptions.length === 0) {
-              return null;
-            }
+                if (groupOptions.length === 0) {
+                  return null;
+                }
 
-            return (
-              <section
-                key={group}
-                className="showtime-filter-group"
-                aria-label={`${label} filters`}
-              >
-                <p className="showtime-filter-group-title">{label}</p>
-
-                <div className="showtime-filter-options">
-                  {groupOptions.map((value) => {
-                    const checked = selectedValues.has(value);
-
-                    return (
+                return (
+                  <section
+                    key={group}
+                    className="showtime-filter-group"
+                    aria-label={`${group} filters`}
+                  >
+                    <div className="showtime-filter-options">
                       <button
-                        key={`${group}-${value}`}
                         type="button"
-                        className={`showtime-filter-option${checked ? " is-selected" : ""}`}
-                        aria-pressed={checked}
+                        className={`showtime-filter-group-icon${allSelected ? " is-selected" : ""}`}
+                        aria-label={
+                          allSelected
+                            ? `Unselect all ${group} filters`
+                            : `Select all ${group} filters`
+                        }
+                        aria-pressed={allSelected}
                         onClick={() => {
-                          onToggleOption(group, value);
+                          onToggleGroup(group);
                         }}
                       >
-                        <span>{value}</span>
+                        <GroupIcon size={17} strokeWidth={2.3} />
                       </button>
-                    );
-                  })}
-                </div>
-              </section>
-            );
-          })}
-        </div>,
-        document.body,
-      )
+                      {groupOptions.map((value) => {
+                        const checked = selectedValues.has(value);
+
+                        return (
+                          <button
+                            key={`${group}-${value}`}
+                            type="button"
+                            className={`showtime-filter-option${checked ? " is-selected" : ""}`}
+                            aria-pressed={checked}
+                            onClick={() => {
+                              onToggleOption(group, value);
+                            }}
+                          >
+                            <span>{value}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>,
+            document.body,
+          )
         : null}
     </div>
   );

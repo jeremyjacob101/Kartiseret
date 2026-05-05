@@ -9,7 +9,6 @@ const SHOW_TYPE_OPTIONS = [
   "Regular",
   "VIP",
   "VIP Light",
-  "VIP Business",
   "Upgrade",
   "Prime",
   "Lounge",
@@ -64,7 +63,9 @@ function normalizeText(value: string | null | undefined): string {
   return value?.trim().replace(COLLAPSE_WHITESPACE, " ") ?? "";
 }
 
-function copyUncheckedGroups(unchecked?: Partial<SavedUncheckedGroups>): SavedUncheckedGroups {
+function copyUncheckedGroups(
+  unchecked?: Partial<SavedUncheckedGroups>,
+): SavedUncheckedGroups {
   return {
     showType: [...(unchecked?.showType ?? [])],
     screeningTech: [...(unchecked?.screeningTech ?? [])],
@@ -73,9 +74,9 @@ function copyUncheckedGroups(unchecked?: Partial<SavedUncheckedGroups>): SavedUn
 }
 
 function normalizeUniqueList(values: readonly string[]): string[] {
-  return [...new Set(values.map((value) => normalizeText(value)).filter(Boolean))].sort((left, right) =>
-    left.localeCompare(right),
-  );
+  return [
+    ...new Set(values.map((value) => normalizeText(value)).filter(Boolean)),
+  ].sort((left, right) => left.localeCompare(right));
 }
 
 function normalizeFilterState(value: unknown): ShowtimeFilterState | null {
@@ -98,13 +99,25 @@ function normalizeFilterState(value: unknown): ShowtimeFilterState | null {
     version: 1,
     unchecked: {
       showType: Array.isArray(uncheckedGroups?.showType)
-        ? normalizeUniqueList(uncheckedGroups.showType.filter((entry): entry is string => typeof entry === "string"))
+        ? normalizeUniqueList(
+            uncheckedGroups.showType.filter(
+              (entry): entry is string => typeof entry === "string",
+            ),
+          )
         : [],
       screeningTech: Array.isArray(uncheckedGroups?.screeningTech)
-        ? normalizeUniqueList(uncheckedGroups.screeningTech.filter((entry): entry is string => typeof entry === "string"))
+        ? normalizeUniqueList(
+            uncheckedGroups.screeningTech.filter(
+              (entry): entry is string => typeof entry === "string",
+            ),
+          )
         : [],
       dubLanguage: Array.isArray(uncheckedGroups?.dubLanguage)
-        ? normalizeUniqueList(uncheckedGroups.dubLanguage.filter((entry): entry is string => typeof entry === "string"))
+        ? normalizeUniqueList(
+            uncheckedGroups.dubLanguage.filter(
+              (entry): entry is string => typeof entry === "string",
+            ),
+          )
         : [],
     },
   };
@@ -179,7 +192,6 @@ function getShowTypeTokens(raw: string): string[] {
   }
 
   if (wordSet.has("BUSINESS")) {
-    tokens.add("VIP Business");
     tokens.add("VIP");
   }
 
@@ -269,7 +281,9 @@ function normalizeDubLanguage(raw: string | null | undefined): string | null {
   return normalizedRaw;
 }
 
-export function getCanonicalShowtimeMeta(showtime: ShowtimeEntry): CanonicalShowtimeMeta {
+export function getCanonicalShowtimeMeta(
+  showtime: ShowtimeEntry,
+): CanonicalShowtimeMeta {
   return {
     showTypeTokens: getShowTypeTokens(showtime.screeningType),
     screeningTechTokens: getScreeningTechTokens(showtime.screeningTech),
@@ -305,7 +319,8 @@ export function getShowtimeFilterOptions(
 
   return {
     showType: [...showTypeSet].sort((left, right) => left.localeCompare(right)),
-    screeningTech: [...screeningTechSet].sort((left, right) => left.localeCompare(right)),
+    screeningTech: [...screeningTechSet].sort((left, right) =>
+      left.localeCompare(right)),
     dubLanguage: [...FIXED_DUB_LANGUAGES],
   };
 }
@@ -316,7 +331,10 @@ export function buildShowtimeFilterSelections(
 ): ShowtimeFilterSelections {
   const unchecked = state?.unchecked ?? DEFAULT_SAVED_UNCHECKED;
 
-  const toSelectedSet = (groupOptions: readonly string[], uncheckedValues: readonly string[]): Set<string> => {
+  const toSelectedSet = (
+    groupOptions: readonly string[],
+    uncheckedValues: readonly string[],
+  ): Set<string> => {
     const uncheckedSet = new Set(uncheckedValues);
 
     return new Set(groupOptions.filter((option) => !uncheckedSet.has(option)));
@@ -324,7 +342,10 @@ export function buildShowtimeFilterSelections(
 
   return {
     showType: toSelectedSet(options.showType, unchecked.showType),
-    screeningTech: toSelectedSet(options.screeningTech, unchecked.screeningTech),
+    screeningTech: toSelectedSet(
+      options.screeningTech,
+      unchecked.screeningTech,
+    ),
     dubLanguage: toSelectedSet(options.dubLanguage, unchecked.dubLanguage),
   };
 }
@@ -349,7 +370,9 @@ function isShowtimeAllowed(
 
   if (
     canonicalMeta.dubLanguage &&
-    FIXED_DUB_LANGUAGES.includes(canonicalMeta.dubLanguage as (typeof FIXED_DUB_LANGUAGES)[number]) &&
+    FIXED_DUB_LANGUAGES.includes(
+      canonicalMeta.dubLanguage as (typeof FIXED_DUB_LANGUAGES)[number],
+    ) &&
     !selections.dubLanguage.has(canonicalMeta.dubLanguage)
   ) {
     return false;
@@ -364,8 +387,7 @@ export function filterTheatersBySelections(
 ): TheaterShowtimes[] {
   return theaters.flatMap((theater) => {
     const filteredShowtimes = theater.showtimes.filter((showtime) =>
-      isShowtimeAllowed(showtime, selections),
-    );
+      isShowtimeAllowed(showtime, selections));
 
     return filteredShowtimes.length > 0
       ? [
@@ -406,7 +428,11 @@ export function updateShowtimeFilterState(
   return {
     version: 1,
     unchecked: {
-      showType: nextUncheckedForGroup("showType", options.showType, nextSelections.showType),
+      showType: nextUncheckedForGroup(
+        "showType",
+        options.showType,
+        nextSelections.showType,
+      ),
       screeningTech: nextUncheckedForGroup(
         "screeningTech",
         options.screeningTech,
@@ -476,7 +502,10 @@ export function subscribeToShowtimeFilters(listener: () => void): () => void {
   };
 
   window.addEventListener("storage", handleStorage);
-  window.addEventListener(SHOWTIME_FILTERS_EVENT_NAME, handleCustomUpdate as EventListener);
+  window.addEventListener(
+    SHOWTIME_FILTERS_EVENT_NAME,
+    handleCustomUpdate as EventListener,
+  );
 
   return () => {
     window.removeEventListener("storage", handleStorage);

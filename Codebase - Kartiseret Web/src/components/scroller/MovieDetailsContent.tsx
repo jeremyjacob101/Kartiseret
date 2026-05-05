@@ -726,10 +726,7 @@ export function MovieDetailsContent({
     filteredSelectedShowtimeDay !== null &&
     filteredSelectedShowtimeDay.theaters.length === 0;
   const handleShowtimeFilterToggle = useCallback(
-    (
-      group: keyof ShowtimeFilterOptions,
-      value: string,
-    ) => {
+    (group: keyof ShowtimeFilterOptions, value: string) => {
       const nextSelections: Record<keyof ShowtimeFilterOptions, Set<string>> = {
         showType: new Set(showtimeFilterSelections.showType),
         screeningTech: new Set(showtimeFilterSelections.screeningTech),
@@ -743,6 +740,32 @@ export function MovieDetailsContent({
       } else {
         groupSet.add(value);
       }
+
+      const nextState = updateShowtimeFilterState(
+        showtimeFilterState,
+        showtimeFilterOptions,
+        nextSelections,
+      );
+      saveShowtimeFilters(nextState);
+    },
+    [showtimeFilterOptions, showtimeFilterSelections, showtimeFilterState],
+  );
+  const handleShowtimeFilterGroupToggle = useCallback(
+    (group: keyof ShowtimeFilterOptions) => {
+      const groupOptions = showtimeFilterOptions[group];
+      const currentSelected = showtimeFilterSelections[group];
+      const areAllSelected =
+        groupOptions.length > 0 &&
+        groupOptions.every((value) => currentSelected.has(value));
+      const nextSelections: Record<keyof ShowtimeFilterOptions, Set<string>> = {
+        showType: new Set(showtimeFilterSelections.showType),
+        screeningTech: new Set(showtimeFilterSelections.screeningTech),
+        dubLanguage: new Set(showtimeFilterSelections.dubLanguage),
+      };
+
+      nextSelections[group] = areAllSelected
+        ? new Set()
+        : new Set(groupOptions);
 
       const nextState = updateShowtimeFilterState(
         showtimeFilterState,
@@ -1268,6 +1291,7 @@ export function MovieDetailsContent({
                 options={showtimeFilterOptions}
                 selections={showtimeFilterSelections}
                 onToggleOption={handleShowtimeFilterToggle}
+                onToggleGroup={handleShowtimeFilterGroupToggle}
               />
             </div>
           ) : null}

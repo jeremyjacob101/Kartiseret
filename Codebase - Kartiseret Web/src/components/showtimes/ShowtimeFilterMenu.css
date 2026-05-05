@@ -61,20 +61,35 @@
   padding-top: 12px;
 }
 
-.showtime-filter-group-title {
-  margin: 0;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(233, 218, 255, 0.72);
-}
-
 .showtime-filter-options {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 8px;
+}
+
+.showtime-filter-group-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  min-height: 34px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 35%, transparent);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--main-app-color);
+  cursor: pointer;
+}
+
+.showtime-filter-group-icon:hover,
+.showtime-filter-group-icon:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: color-mix(in srgb, var(--main-app-color) 62%, transparent);
+}
+
+.showtime-filter-group-icon.is-selected {
+  background: color-mix(in srgb, var(--main-app-color) 16%, transparent);
+  border-color: color-mix(in srgb, var(--main-app-color) 74%, transparent);
 }
 
 .showtime-filter-option {
