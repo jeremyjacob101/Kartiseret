@@ -3,16 +3,6 @@
   display: grid;
 }
 
-.all-showtimes-page-heading {
-  width: 100%;
-  margin-left: 0;
-  margin-right: 0;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 18px;
-}
-
 .all-showtimes-page-city {
   display: inline-flex;
   align-items: center;
@@ -50,6 +40,9 @@
 
 .all-showtimes-day-picker-shell {
   width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
 .all-showtimes-day-picker-shell.details-showtimes,
@@ -61,6 +54,8 @@
 
 .all-showtimes-day-picker-scroll {
   margin: 0;
+  flex: 1;
+  min-width: 0;
 }
 
 .all-showtimes-day-panel {
@@ -249,17 +244,10 @@
   color: #f4efff;
 }
 
-html[data-device-type="mobile"] .all-showtimes-page-heading {
-  flex-wrap: nowrap;
-  align-items: flex-end;
-  justify-content: flex-start;
-  gap: 12px;
-}
-
 html[data-device-type="mobile"] .all-showtimes-page-city {
-  margin-left: auto;
-  align-self: auto;
-  margin-bottom: 0;
+  margin-left: 0;
+  padding: 0.72rem 0.92rem;
+  font-size: 0.9rem;
 }
 
 html[data-device-type="mobile"] .all-showtimes-browser {

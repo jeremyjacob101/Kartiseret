@@ -308,7 +308,10 @@ export function AllShowtimesPage() {
 
   return (
     <section className="all-showtimes-page" aria-label="All Showtimes">
-      <div className="section-heading all-showtimes-page-heading">
+      <div
+        className="details-showtimes all-showtimes-day-picker-shell"
+        aria-label="Showtime day picker"
+      >
         <div
           className="all-showtimes-page-city"
           aria-label={`Selected city: ${location}`}
@@ -321,12 +324,6 @@ export function AllShowtimesPage() {
           />
           <span>{location}</span>
         </div>
-      </div>
-
-      <div
-        className="details-showtimes all-showtimes-day-picker-shell"
-        aria-label="Showtime day picker"
-      >
         <ShowtimeDayPicker
           className="all-showtimes-day-picker-scroll"
           ariaLabel="Choose showtime day"
