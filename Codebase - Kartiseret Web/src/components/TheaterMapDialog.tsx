@@ -338,12 +338,19 @@ export function TheaterMapDialog({
               ref={triggerFlightOriginRef}
               className="theater-map-trigger-icon"
             >
-              <MapPin size={20} strokeWidth={2.75} className="app-accent-icon" />
+              <MapPin
+                size={20}
+                strokeWidth={2.75}
+                className="app-accent-icon"
+              />
             </span>
             <span className="theater-map-trigger-label">{triggerLabel}</span>
           </>
         ) : (
-          <span ref={triggerFlightOriginRef} className="theater-map-trigger-icon">
+          <span
+            ref={triggerFlightOriginRef}
+            className="theater-map-trigger-icon"
+          >
             <MapPin size={20} strokeWidth={2.75} className="app-accent-icon" />
           </span>
         )}
