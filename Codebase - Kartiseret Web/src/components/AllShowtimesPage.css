@@ -40,7 +40,8 @@
 
 .all-showtimes-day-picker-shell {
   width: 100%;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 14px;
 }
@@ -54,8 +55,13 @@
 
 .all-showtimes-day-picker-scroll {
   margin: 0;
-  flex: 1;
-  min-width: 0;
+  grid-column: 2;
+  justify-self: center;
+}
+
+.all-showtimes-page-city {
+  grid-column: 1;
+  justify-self: start;
 }
 
 .all-showtimes-day-panel {
@@ -108,7 +114,7 @@
 .all-showtimes-movie-summary {
   display: grid;
   grid-template-columns: 124px minmax(0, 1fr);
-  gap: 20px;
+  gap: 16px;
   align-items: end;
   min-width: 0;
   align-self: start;
