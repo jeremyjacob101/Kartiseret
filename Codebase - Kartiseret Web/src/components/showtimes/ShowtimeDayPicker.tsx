@@ -1,4 +1,11 @@
-import { useMemo } from "react";
+import {
+  type CSSProperties,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useDeviceInfo } from "../../device/useDeviceType";
 import { getShowtimeDateLabel } from "./showtimeUtils";
 import "./ShowtimeDayPicker.css";
@@ -20,6 +27,7 @@ type DayPickerEntry = {
 
 const DESKTOP_VISIBLE_DAY_COUNT = 7;
 const MOBILE_VISIBLE_DAY_COUNT = 4;
+const CENTER_SELECTED_DAY_DELAY_MS = 230;
 
 const weekdayEyebrowFormatter = new Intl.DateTimeFormat(undefined, {
   weekday: "long",
@@ -136,25 +144,126 @@ export function ShowtimeDayPicker({
 
     return entries.findIndex((entry) => entry.date === dates[0]);
   }, [dates, entries, selectedDate]);
+  const selectedEntry = selectedIndex >= 0 ? entries[selectedIndex] : null;
+  const [centeredDate, setCenteredDate] = useState<string | null>(
+    selectedEntry?.date ?? dates[0] ?? null,
+  );
+  const pickerRef = useRef<HTMLDivElement | null>(null);
+  const buttonRefs = useRef(new Map<string, HTMLButtonElement>());
+  const [indicatorStyle, setIndicatorStyle] = useState<{
+    centerX: number;
+    width: number;
+    isVisible: boolean;
+  }>({ centerX: 0, width: 0, isVisible: false });
+
+  const centeredIndex = useMemo(() => {
+    const candidateIndex = entries.findIndex(
+      (entry) => entry.date === centeredDate,
+    );
+
+    return candidateIndex >= 0 ? candidateIndex : selectedIndex;
+  }, [centeredDate, entries, selectedIndex]);
 
   const visibleEntries = useMemo(() => {
-    if (entries.length === 0 || selectedIndex < 0) {
+    if (entries.length === 0 || centeredIndex < 0) {
       return [];
     }
 
     const maxStartIndex = Math.max(0, entries.length - visibleDayCount);
     const startIndex = Math.max(
       0,
-      Math.min(selectedIndex - selectedDayOffset, maxStartIndex),
+      Math.min(centeredIndex - selectedDayOffset, maxStartIndex),
     );
     const endIndex = Math.min(entries.length, startIndex + visibleDayCount);
 
     return entries.slice(startIndex, endIndex);
-  }, [entries, selectedDayOffset, selectedIndex, visibleDayCount]);
+  }, [centeredIndex, entries, selectedDayOffset, visibleDayCount]);
+
+  useEffect(() => {
+    if (!selectedEntry) {
+      return;
+    }
+
+    const isSelectedVisible = visibleEntries.some(
+      (entry) => entry.date === selectedEntry.date,
+    );
+
+    if (!isSelectedVisible) {
+      setCenteredDate(selectedEntry.date);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setCenteredDate(selectedEntry.date);
+    }, CENTER_SELECTED_DAY_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [selectedEntry, visibleEntries]);
+
+  useEffect(() => {
+    if (
+      centeredDate &&
+      entries.some((entry) => entry.date === centeredDate)
+    ) {
+      return;
+    }
+
+    setCenteredDate(selectedEntry?.date ?? dates[0] ?? null);
+  }, [centeredDate, dates, entries, selectedEntry]);
+
+  useLayoutEffect(() => {
+    const picker = pickerRef.current;
+    const selectedButton = selectedEntry
+      ? buttonRefs.current.get(selectedEntry.date)
+      : null;
+
+    if (!picker || !selectedButton) {
+      setIndicatorStyle((current) =>
+        current.isVisible ? { ...current, isVisible: false } : current,
+      );
+      return;
+    }
+
+    const updateIndicator = () => {
+      const pickerRect = picker.getBoundingClientRect();
+      const buttonRect = selectedButton.getBoundingClientRect();
+      const rawIndicatorWidth = Math.min(58, buttonRect.width * 0.66);
+      const indicatorWidth = Math.max(
+        2,
+        Math.round(rawIndicatorWidth / 2) * 2,
+      );
+      const indicatorCenterX = Math.round(
+        buttonRect.left - pickerRect.left + buttonRect.width / 2,
+      );
+
+      setIndicatorStyle({
+        centerX: indicatorCenterX,
+        width: indicatorWidth,
+        isVisible: true,
+      });
+    };
+
+    updateIndicator();
+
+    const resizeObserver = new ResizeObserver(updateIndicator);
+    resizeObserver.observe(picker);
+    resizeObserver.observe(selectedButton);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [selectedEntry, visibleEntries]);
 
   if (visibleEntries.length === 0) {
     return null;
   }
+
+  const indicatorCssVars = {
+    "--showtime-day-indicator-center": `${indicatorStyle.centerX}px`,
+    "--showtime-day-indicator-width": `${indicatorStyle.width}px`,
+  } as CSSProperties;
 
   return (
     <div
@@ -164,13 +273,33 @@ export function ShowtimeDayPicker({
       aria-label={ariaLabel}
     >
       <div className="showtime-day-picker-scroll">
-        <div className="showtime-day-picker">
+        <div className="showtime-day-picker" ref={pickerRef}>
+          <span
+            className={[
+              "showtime-day-picker-indicator",
+              indicatorStyle.isVisible
+                ? "showtime-day-picker-indicator--visible"
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            style={indicatorCssVars}
+            aria-hidden="true"
+          />
           {visibleEntries.map((entry) => {
-            const isSelected = entry.date === entries[selectedIndex]?.date;
+            const isSelected = entry.date === selectedEntry?.date;
 
             return (
               <button
                 key={entry.date}
+                ref={(button) => {
+                  if (button) {
+                    buttonRefs.current.set(entry.date, button);
+                    return;
+                  }
+
+                  buttonRefs.current.delete(entry.date);
+                }}
                 type="button"
                 className={[
                   "showtime-day-button",

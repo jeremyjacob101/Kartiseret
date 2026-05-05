@@ -177,7 +177,7 @@ function HomeRoute({
         ) : null}
       </div>
       <div className="section-heading">
-        <p className="section-kicker">Coming soon</p>
+        <p className="section-kicker">To Be Released</p>
         <h1 className="section-title">Coming Soon</h1>
       </div>
       <div
@@ -661,7 +661,7 @@ export function App() {
                     cardWidth={scrollerCardWidth}
                     gap={scrollerGap}
                     jumpMode="comingSoon"
-                    kicker="Coming soon"
+                    kicker="To Be Released"
                     movies={allComingSoonMovies}
                     onExitDetail={() => {
                       resetCatalogPage("comingSoon");
