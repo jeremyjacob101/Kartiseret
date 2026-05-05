@@ -1286,6 +1286,10 @@ html[data-device-type="mobile"] .theater-map-dialog .theater-map-search-field {
   margin: 28px auto 0;
 }
 
+.app-main.app-main--showtimes {
+  margin-top: 15px;
+}
+
 html[data-device-type="mobile"] .app-shell {
   padding-left: 10px;
   padding-right: 10px;

@@ -587,7 +587,14 @@ export function App() {
         onSoonsNavClick={handleSoonsNavClick}
       />
 
-      <main className="app-main">
+      <main
+        className={[
+          "app-main",
+          pathname === "/showtimes" ? "app-main--showtimes" : null,
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
         <Routes>
           <Route
             path="/"
