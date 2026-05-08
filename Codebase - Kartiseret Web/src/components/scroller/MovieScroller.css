@@ -1658,16 +1658,45 @@ html[data-device-type="mobile"] .movie-scroller-detail-card .details-time-pill {
 }
 
 html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  row-gap: 10px;
+  column-gap: 12px;
   padding: 14px 14px 0;
 }
 
 html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-city {
-  left: 14px;
+  position: static;
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: start;
+  left: auto;
+  top: auto;
+  transform: none;
   font-size: 0.9rem;
 }
 
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-city.city-map-trigger.theater-map-trigger--labeled:hover,
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-city.city-map-trigger.theater-map-trigger--labeled.is-open,
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-city.city-map-trigger.theater-map-trigger--labeled:focus-visible {
+  transform: none;
+}
+
 html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-filter {
-  right: 14px;
+  position: static;
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+  right: auto;
+  top: auto;
+  transform: none;
+}
+
+html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-shell .showtime-day-picker-shell {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  justify-self: center;
 }
 
 html[data-device-type="mobile"] .movie-scroller-detail-content {
