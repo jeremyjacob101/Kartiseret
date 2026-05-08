@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Armchair, Languages, ListFilter, TvMinimal } from "lucide-react";
 import { type ShowtimeFilterOptions, type ShowtimeFilterSelections } from "./showtimeFilters";
@@ -39,10 +39,7 @@ export function ShowtimeFilterMenu({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const panelId = useMemo(
-    () => `showtime-filter-panel-${Math.random().toString(36).slice(2, 10)}`,
-    [],
-  );
+  const panelId = useId();
 
   useLayoutEffect(() => {
     if (!isOpen) {
