@@ -129,21 +129,43 @@ async def _subscribe_forever(event_queue: "queue.Queue[str]", stop_event: thread
                         return str(data.get("type"))
                 return "unknown"
 
-            def on_movies_change(payload: Any) -> None:
+            def _payload_requests_solo_update(payload: Any) -> bool:
+                if not isinstance(payload, dict):
+                    return False
+                data = payload.get("data")
+                if not isinstance(data, dict):
+                    return False
+                record = data.get("record")
+                if not isinstance(record, dict):
+                    return False
+
+                value = record.get("solo_update")
+                if isinstance(value, str):
+                    return value.strip().lower() in {"1", "true", "yes", "on"}
+                return value is True
+
+            def _queue_if_solo_update(table_name: str, payload: Any) -> None:
+                event_type = _extract_event_type(payload)
+                if not _payload_requests_solo_update(payload):
+                    logger.info(
+                        "Realtime change ignored on %s (event=%s, solo_update is not true)",
+                        table_name,
+                        event_type,
+                    )
+                    return
+
                 logger.info(
-                    "Realtime change observed on %s (event=%s)",
-                    TABLE_FINAL_MOVIES,
-                    _extract_event_type(payload),
+                    "Realtime change observed on %s (event=%s, solo_update=true)",
+                    table_name,
+                    event_type,
                 )
-                event_queue.put(TABLE_FINAL_MOVIES)
+                event_queue.put(table_name)
+
+            def on_movies_change(payload: Any) -> None:
+                _queue_if_solo_update(TABLE_FINAL_MOVIES, payload)
 
             def on_soons_change(payload: Any) -> None:
-                logger.info(
-                    "Realtime change observed on %s (event=%s)",
-                    TABLE_FINAL_SOONS,
-                    _extract_event_type(payload),
-                )
-                event_queue.put(TABLE_FINAL_SOONS)
+                _queue_if_solo_update(TABLE_FINAL_SOONS, payload)
 
             def on_subscribe_status(status: Any, err: Any) -> None:
                 logger.info("Realtime subscribe status: %s (err=%s)", status, err)
