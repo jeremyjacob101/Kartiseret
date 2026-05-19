@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from supabase import create_client
 import os
 
-ALL_SHOWTIMES_CUTOFF_DAYS_AGO = 16
+ALL_SHOWTIMES_CUTOFF_DAYS_AGO = 5
 ALL_SOONS_CUTOFF_DAYS_AGO = 31
 FINAL_SHOWTIMES_CUTOFF_DAYS_AGO = 1
 FINAL_SOONS_CUTOFF_DAYS_AGO = 0

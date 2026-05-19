@@ -7,6 +7,7 @@ class SupabaseTables:
     PRIMARY_KEY_BY_TABLE = {
         "finalMovies": "tmdb_id",
         "finalSoons": "id",
+        "allShowtimes": "id",
         "tableFixes": "title_fix",
         "tableSkips": "name_or_tmdb_id",
     }
