@@ -50,6 +50,7 @@ type QueuedPreferenceSaves = Partial<{
 
 export type UserPreferencesState = {
   user: User | null;
+  isAdmin: boolean;
   preferences: UserPreferences;
   preferenceOptions: UserPreferenceOptions;
   sources: RatingSource[];
@@ -80,6 +81,7 @@ const fallbackSavePreference: SavePreference = async () => false;
 
 const fallbackValue: UserPreferencesContextValue = {
   user: null,
+  isAdmin: false,
   preferences: defaultPreferences,
   preferenceOptions,
   sources: defaultPreferences.ratingSources,
@@ -308,6 +310,7 @@ function buildMissingPreferenceDefaultsPatch(
 
 export function useUserPreferences(): UserPreferencesState {
   const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferences>(() =>
     getBootstrappedPreferences());
   const [loading, setLoading] = useState(true);
@@ -336,6 +339,40 @@ export function useUserPreferences(): UserPreferencesState {
 
   useEffect(() => {
     activeUserIdRef.current = userId;
+  }, [userId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAdminState() {
+      if (!userId) {
+        setIsAdmin(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("admin_users")
+        .select("user_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (cancelled) {
+        return;
+      }
+
+      if (error) {
+        setIsAdmin(false);
+        return;
+      }
+
+      setIsAdmin(Boolean(data));
+    }
+
+    void loadAdminState();
+
+    return () => {
+      cancelled = true;
+    };
   }, [userId]);
 
   useEffect(() => {
@@ -638,6 +675,7 @@ export function useUserPreferences(): UserPreferencesState {
 
   return {
     user,
+    isAdmin,
     preferences,
     preferenceOptions,
     sources: preferences.ratingSources,

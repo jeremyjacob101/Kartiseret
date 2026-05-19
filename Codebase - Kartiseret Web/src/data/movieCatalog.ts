@@ -18,6 +18,7 @@ const MOVIE_SELECT_COLUMNS = [
   "release_year",
   "genres",
   "en_poster",
+  "alt_options",
   "en_trailer",
   "backdrop",
   "imdbRating",
@@ -44,6 +45,7 @@ const COMING_SOON_SELECT_COLUMNS = [
   "release_date",
   "genres",
   "en_poster",
+  "alt_options",
   "backdrop",
   "en_trailer",
 ] as const;
@@ -83,7 +85,7 @@ const fixedCurrentIsraelMinutesSinceMidnight = fixedCurrentDateTimeParts
   ? fixedCurrentDateTimeParts.hour * 60 + fixedCurrentDateTimeParts.minute
   : Number.NEGATIVE_INFINITY;
 
-type SupabaseValue = string | number | boolean | null | string[];
+type SupabaseValue = unknown;
 type SupabaseRow = Record<string, SupabaseValue | undefined>;
 
 // Production tables always populate these columns, so downstream consumers do
@@ -132,7 +134,17 @@ export type Movie = {
   rtAudienceVotes: number | null;
   runtime: number;
   popularity: number;
+  altOptions: MovieAltOption[];
 };
+
+export type MovieAltOption = {
+  tmdbId: string;
+  title: string;
+  year: number | null;
+  posterUrl: string | null;
+};
+
+type CatalogMode = "nowPlaying" | "comingSoon";
 
 export type TheaterShowtimes = {
   theater: string;
@@ -234,7 +246,11 @@ function stringifySupabaseValue(value: SupabaseValue | undefined): string {
     return "";
   }
 
-  return Array.isArray(value) ? JSON.stringify(value) : String(value);
+  return typeof value === "string"
+    ? value
+    : Array.isArray(value)
+      ? JSON.stringify(value)
+      : String(value);
 }
 
 function parseNumberValue(
@@ -339,6 +355,39 @@ function getReleaseYearFromDate(releaseDate: string | undefined): number {
 
   const [year] = releaseDate.split("-");
   return Number.parseInt(year, 10) || 0;
+}
+
+function parseAltOptions(value: SupabaseValue | undefined): MovieAltOption[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const options: MovieAltOption[] = [];
+
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+
+    const row = entry as Record<string, unknown>;
+    const tmdbId = normalizeText(String(row.tmdb ?? "")).trim();
+    const title = normalizeTitle(String(row.title ?? "")).trim();
+    const yearNumber = Number.parseInt(String(row.year ?? ""), 10);
+    const posterUrl = normalizeText(String(row.poster_url ?? "")).trim();
+
+    if (!tmdbId || !title) {
+      continue;
+    }
+
+    options.push({
+      tmdbId,
+      title,
+      year: Number.isFinite(yearNumber) ? yearNumber : null,
+      posterUrl: posterUrl || null,
+    });
+  }
+
+  return options.slice(0, 10);
 }
 
 function compareByReleaseDate(
@@ -612,6 +661,7 @@ function buildMovies(
         rtAudienceVotes: parseOptionalNumberValue(row.rtAudienceVotes),
         runtime: Number.parseInt(stringifySupabaseValue(row.runtime), 10) || 0,
         popularity: parseNumberValue(row.popularity),
+        altOptions: parseAltOptions(row.alt_options),
       };
     });
 }
@@ -1111,6 +1161,136 @@ export async function loadMovieCatalog(): Promise<void> {
   });
 
   return loadMovieCatalogPromise;
+}
+
+export async function reloadNowPlayingMovies(): Promise<void> {
+  nowPlayingLoaded = false;
+  movies = [];
+  allNowPlayingMovies = [];
+  refreshMovieCatalogStatus();
+  await loadNowPlayingMovies();
+}
+
+export async function reloadComingSoonMovies(): Promise<void> {
+  comingSoonLoaded = false;
+  comingSoonMovies = [];
+  allComingSoonMovies = [];
+  refreshMovieCatalogStatus();
+  await loadComingSoonMovies();
+}
+
+type AdminMovieEditPayload = {
+  mode: CatalogMode;
+  currentTmdbId: string;
+  selectedTmdbId: string;
+  selectedTitle?: string | null;
+  selectedYear?: number | null;
+  selectedPosterUrl?: string | null;
+  isManualEntry: boolean;
+};
+
+export async function applyAdminMovieEdit(
+  payload: AdminMovieEditPayload,
+): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  const tableName =
+    payload.mode === "nowPlaying" ? MOVIES_TABLE_NAME : COMING_SOON_TABLE_NAME;
+  const normalizedCurrentTmdbId = normalizeText(payload.currentTmdbId);
+  const normalizedSelectedTmdbId = normalizeText(payload.selectedTmdbId);
+
+  if (!normalizedCurrentTmdbId || !normalizedSelectedTmdbId) {
+    throw new Error("Missing TMDB id for admin movie update.");
+  }
+
+  if (normalizedCurrentTmdbId === normalizedSelectedTmdbId) {
+    return;
+  }
+
+  const { data: existingTarget, error: existingTargetError } = await supabase
+    .from(tableName)
+    .select("tmdb_id")
+    .eq("tmdb_id", normalizedSelectedTmdbId)
+    .maybeSingle();
+
+  if (existingTargetError) {
+    throw new Error(existingTargetError.message);
+  }
+
+  if (existingTarget) {
+    if (payload.mode === "nowPlaying") {
+      const { error: showtimesUpdateError } = await supabase
+        .from(SHOWTIMES_TABLE_NAME)
+        .update({ tmdb_id: normalizedSelectedTmdbId })
+        .eq("tmdb_id", normalizedCurrentTmdbId);
+
+      if (showtimesUpdateError) {
+        throw new Error(showtimesUpdateError.message);
+      }
+    }
+
+    const { error: deleteError } = await supabase
+      .from(tableName)
+      .delete()
+      .eq("tmdb_id", normalizedCurrentTmdbId);
+
+    if (deleteError) {
+      throw new Error(deleteError.message);
+    }
+
+    return;
+  }
+
+  const updatePayload: Record<string, unknown> = {
+    tmdb_id: normalizedSelectedTmdbId,
+    solo_update: true,
+    english_title: "",
+    release_year: null,
+    en_poster: "",
+    backdrop: "",
+    en_trailer: "",
+    genres: [],
+  };
+
+  if (payload.mode === "nowPlaying") {
+    updatePayload.imdb_id = null;
+    updatePayload.imdbRating = null;
+    updatePayload.imdbVotes = null;
+    updatePayload.rt_id = null;
+    updatePayload.rtCriticRating = null;
+    updatePayload.rtCriticVotes = null;
+    updatePayload.rtAudienceRating = null;
+    updatePayload.rtAudienceVotes = null;
+    updatePayload.lb_id = null;
+    updatePayload.lbRating = null;
+    updatePayload.lbVotes = null;
+    updatePayload.tmdbRating = null;
+    updatePayload.tmdbVotes = null;
+    updatePayload.runtime = null;
+    updatePayload.popularity = null;
+  } else {
+    updatePayload.release_date = null;
+    updatePayload.runtime = null;
+  }
+
+  const { error } = await supabase
+    .from(tableName)
+    .update(updatePayload)
+    .eq("tmdb_id", normalizedCurrentTmdbId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (payload.mode === "nowPlaying") {
+    const { error: showtimesUpdateError } = await supabase
+      .from(SHOWTIMES_TABLE_NAME)
+      .update({ tmdb_id: normalizedSelectedTmdbId })
+      .eq("tmdb_id", normalizedCurrentTmdbId);
+
+    if (showtimesUpdateError) {
+      throw new Error(showtimesUpdateError.message);
+    }
+  }
 }
 
 export function getMovieShowtimeDays(

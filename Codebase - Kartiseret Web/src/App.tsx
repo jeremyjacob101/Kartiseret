@@ -7,7 +7,7 @@ import { AttributionPage } from "./components/AttributionPage";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
 import { Navbar } from "./components/bars/Navbar";
 import { type MovieSearchResult } from "./components/MovieSearchMenu";
-import { allComingSoonMovies, allNowPlayingMovies, getMovieCatalogStatusSnapshot, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, subscribeToMovieCatalog, type Movie } from "./data/movieCatalog";
+import { allComingSoonMovies, allNowPlayingMovies, applyAdminMovieEdit, getMovieCatalogStatusSnapshot, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, reloadComingSoonMovies, reloadNowPlayingMovies, subscribeToMovieCatalog, type Movie } from "./data/movieCatalog";
 import { preloadTheaters } from "./data/theaters";
 import { DeviceTypeProvider } from "./device/deviceType";
 import { useDeviceInfo } from "./device/useDeviceType";
@@ -61,7 +61,18 @@ type CatalogRouteProps = {
   movies: readonly Movie[];
   onExitDetail: () => void;
   onPosterSelect: (tmdbId: string) => void;
+  isAdmin: boolean;
   view: CatalogPageView;
+  onAdminSaveEdit: (payload: {
+    mode: MovieSearchMode;
+    currentTmdbId: string;
+    selectedTmdbId: string;
+    selectedTitle?: string | null;
+    selectedYear?: number | null;
+    selectedPosterUrl?: string | null;
+    isManualEntry: boolean;
+  }) => Promise<void>;
+  onRefreshRequested: (mode: MovieSearchMode) => Promise<void>;
   scrollerSlotMinHeight: number;
 };
 
@@ -96,7 +107,10 @@ function CatalogRoute({
   movies,
   onExitDetail,
   onPosterSelect,
+  isAdmin,
   view,
+  onAdminSaveEdit,
+  onRefreshRequested,
   scrollerSlotMinHeight,
 }: CatalogRouteProps) {
   const routeLabel = jumpMode === "nowPlaying" ? "Now Playing" : "Coming Soon";
@@ -108,6 +122,13 @@ function CatalogRoute({
         movies={movies}
         onPosterSelect={(movie) => {
           onPosterSelect(movie.tmdbId);
+        }}
+        isAdmin={isAdmin}
+        onAdminSaveEdit={async (payload) => {
+          await onAdminSaveEdit({ mode: jumpMode, ...payload });
+        }}
+        onRefreshRequested={async () => {
+          await onRefreshRequested(jumpMode);
         }}
       />
     </Suspense>
@@ -226,7 +247,7 @@ export function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isMobile } = useDeviceInfo();
-  const { user, loading } = useUserPreferencesContext();
+  const { user, loading, isAdmin } = useUserPreferencesContext();
   const catalogStatus = useSyncExternalStore(
     subscribeToMovieCatalog,
     getMovieCatalogStatusSnapshot,
@@ -466,6 +487,33 @@ export function App() {
       });
   }, []);
 
+  const handleAdminSaveEdit = useCallback(
+    async (payload: {
+      mode: MovieSearchMode;
+      currentTmdbId: string;
+      selectedTmdbId: string;
+      selectedTitle?: string | null;
+      selectedYear?: number | null;
+      selectedPosterUrl?: string | null;
+      isManualEntry: boolean;
+    }) => {
+      await applyAdminMovieEdit(payload);
+    },
+    [],
+  );
+
+  const handleAdminRefreshRequested = useCallback(
+    async (mode: MovieSearchMode) => {
+      if (mode === "nowPlaying") {
+        await reloadNowPlayingMovies();
+        return;
+      }
+
+      await reloadComingSoonMovies();
+    },
+    [],
+  );
+
   const handleSettingsClick = useCallback(() => {
     if (!user || loading) {
       return;
@@ -629,7 +677,10 @@ export function App() {
                     onPosterSelect={(tmdbId) => {
                       openCatalogMovie("nowPlaying", tmdbId);
                     }}
+                    isAdmin={isAdmin}
                     view={moviesPageView}
+                    onAdminSaveEdit={handleAdminSaveEdit}
+                    onRefreshRequested={handleAdminRefreshRequested}
                     scrollerSlotMinHeight={scrollerSlotMinHeight}
                   />
                 ) : null}
@@ -664,7 +715,10 @@ export function App() {
                     onPosterSelect={(tmdbId) => {
                       openCatalogMovie("comingSoon", tmdbId);
                     }}
+                    isAdmin={isAdmin}
                     view={soonsPageView}
+                    onAdminSaveEdit={handleAdminSaveEdit}
+                    onRefreshRequested={handleAdminRefreshRequested}
                     scrollerSlotMinHeight={scrollerSlotMinHeight}
                   />
                 ) : null}
