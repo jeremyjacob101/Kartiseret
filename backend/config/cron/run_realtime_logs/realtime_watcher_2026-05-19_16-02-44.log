@@ -1,5 +1,0 @@
-[2026-05-19T16:02:44+0300] Launching realtime watcher process...
-2026-05-19 16:02:46,005 ERROR client.py:158 Connection attempt failed: [Errno 8] nodename nor servname provided, or not known
-2026-05-19 16:02:47,009 ERROR client.py:158 Connection attempt failed: [Errno 8] nodename nor servname provided, or not known
-2026-05-19 16:02:51,014 ERROR client.py:158 Connection attempt failed: [Errno 8] nodename nor servname provided, or not known
-2026-05-19 16:03:07,017 ERROR client.py:158 Connection attempt failed: [Errno 8] nodename nor servname provided, or not known
