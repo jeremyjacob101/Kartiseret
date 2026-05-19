@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: NowPlayingsUpdate
+URL: https://www.imdb.com/title/tt39763576/
+Exception: APIError - {'message': 'column utilAvgTime.avg_time_None does not exist', 'code': '42703', 'hint': None, 'details': None}
+Call Chain: runners.py:43 > runners.py:20 > BaseDataflow.py:38 > InitializeBaseDataflow.py:36
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/412/unsuccessful/NowPlayingsUpdate-1.png
+CSV: 
