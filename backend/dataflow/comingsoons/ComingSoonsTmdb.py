@@ -11,6 +11,32 @@ class ComingSoonsTmdb(BaseDataflow):
     HELPER_TABLE_NAME = "tableFixes"
     HELPER_TABLE_NAME_2 = "tableSkips"
 
+    def _build_alt_options(self, chosen_tmdb_id):
+        alt_options = []
+        for tmdb_id in self.candidates:
+            if not tmdb_id or tmdb_id == chosen_tmdb_id:
+                continue
+            details = self.details.get(tmdb_id) or {}
+            if not details.get("id"):
+                continue
+
+            release_date = (details.get("release_date") or "").strip()
+            release_year = release_date[:4] if len(release_date) >= 4 else None
+            poster_path = details.get("poster_path")
+            poster_url = f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else None
+
+            alt_options.append(
+                {
+                    "tmdb": tmdb_id,
+                    "title": details.get("title"),
+                    "year": release_year,
+                    "poster_url": poster_url,
+                }
+            )
+            if len(alt_options) >= 10:
+                break
+        return alt_options
+
     def logic(self):
         self.dedupeAllSoons(self.MAIN_TABLE_NAME)
         self.dedupeFinalSoons(self.MOVING_TO_TABLE_NAME)
@@ -46,7 +72,7 @@ class ComingSoonsTmdb(BaseDataflow):
                 if str(override_tmdb).lower() in self.skip_tokens:
                     continue
                 self.potential_chosen_id = override_tmdb
-                self.non_deduplicated_updates.append({"old_uuid": row.get("id"), "run_id": row.get("run_id"), "english_title": self.english_title, "hebrew_title": self.hebrew_title, "release_date": self.release_date, "tmdb_id": override_tmdb, "imdb_id": None})
+                self.non_deduplicated_updates.append({"old_uuid": row.get("id"), "run_id": row.get("run_id"), "english_title": self.english_title, "hebrew_title": self.hebrew_title, "release_date": self.release_date, "tmdb_id": override_tmdb, "imdb_id": None, "alt_options": []})
                 self.processed_ids.add(row.get("id"))
                 continue
 
@@ -128,8 +154,9 @@ class ComingSoonsTmdb(BaseDataflow):
 
             chosen_details = self.details.get(self.potential_chosen_id) or {}
             chosen_imdb = (chosen_details.get("external_ids", {}) or {}).get("imdb_id")
+            alt_options = self._build_alt_options(self.potential_chosen_id)
 
-            self.non_deduplicated_updates.append({"old_uuid": row.get("id"), "run_id": row.get("run_id"), "english_title": self.english_title, "hebrew_title": self.hebrew_title, "release_date": self.release_date, "tmdb_id": self.potential_chosen_id, "imdb_id": chosen_imdb})
+            self.non_deduplicated_updates.append({"old_uuid": row.get("id"), "run_id": row.get("run_id"), "english_title": self.english_title, "hebrew_title": self.hebrew_title, "release_date": self.release_date, "tmdb_id": self.potential_chosen_id, "imdb_id": chosen_imdb, "alt_options": alt_options})
             self.processed_ids.add(row.get("id"))
 
         # 5) DEDUPE BY TMDB ID
@@ -175,6 +202,7 @@ class ComingSoonsTmdb(BaseDataflow):
             new_row["genres"] = genres or new_row.get("genres")
             new_row["en_trailer"] = trailer.get("key") if trailer else new_row.get("en_trailer")
             new_row["release_year"] = data["release_date"][:4] if data.get("release_date") else new_row.get("release_year")
+            new_row["alt_options"] = new_row.get("alt_options") or []
 
             self.updates.append(new_row)
 

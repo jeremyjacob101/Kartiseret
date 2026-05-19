@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: CinemaCity
+URL: ?
+Exception: InvalidSessionIdException - 13  dyld                                0x0000000181163e00 start + 6992
+Call Chain: runners.py:43 > runners.py:19 > BaseCinema.py:28 > CinemaCity.py:127 > ScrapingHelpers.py:19
+Selector: 
+Screenshot: 
+CSV: backend/utils/log/logger_artifacts/409/unsuccessful/CinemaCity-1.csv

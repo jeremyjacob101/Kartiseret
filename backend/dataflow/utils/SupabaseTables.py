@@ -218,7 +218,7 @@ class SupabaseTables:
         return ("fallback", self._norm_text(row.get("english_title")), str(row.get("release_date") or ""))
 
     def _soon_prefer_key(self, row: dict):
-        rich_cols = ["tmdb_id", "imdb_id", "english_title", "hebrew_title", "release_date", "release_year", "en_poster", "backdrop", "en_trailer", "genres"]
+        rich_cols = ["tmdb_id", "imdb_id", "english_title", "hebrew_title", "release_date", "release_year", "en_poster", "backdrop", "en_trailer", "genres", "alt_options"]
         return (
             1 if row.get("added") is True else 0,
             1 if self._has_value(row.get("tmdb_id")) else 0,
@@ -248,7 +248,7 @@ class SupabaseTables:
         )
 
     def _movie_prefer_key(self, row: dict):
-        rich_cols = ["tmdb_id", "imdb_id", "english_title", "release_year", "runtime", "en_poster", "backdrop", "en_trailer", "genres", "imdbRating", "imdbVotes", "rt_id", "rtAudienceRating", "rtAudienceVotes", "rtCriticRating", "rtCriticVotes", "lb_id", "lbRating", "lbVotes", "tmdbRating", "tmdbVotes"]
+        rich_cols = ["tmdb_id", "imdb_id", "english_title", "release_year", "runtime", "en_poster", "backdrop", "en_trailer", "genres", "alt_options", "imdbRating", "imdbVotes", "rt_id", "rtAudienceRating", "rtAudienceVotes", "rtCriticRating", "rtCriticVotes", "lb_id", "lbRating", "lbVotes", "tmdbRating", "tmdbVotes"]
         return (
             1 if row.get("added") is True else 0,
             1 if self._has_value(row.get("tmdb_id")) else 0,

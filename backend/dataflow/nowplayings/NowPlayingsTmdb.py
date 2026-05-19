@@ -13,6 +13,32 @@ class NowPlayingsTmdb(BaseDataflow):
     HELPER_TABLE_NAME = "tableFixes"
     HELPER_TABLE_NAME_2 = "tableSkips"
 
+    def _build_alt_options(self, chosen_tmdb_id):
+        alt_options = []
+        for tmdb_id in self.candidates:
+            if not tmdb_id or tmdb_id == chosen_tmdb_id:
+                continue
+            details = self.details.get(tmdb_id) or {}
+            if not details.get("id"):
+                continue
+
+            release_date = (details.get("release_date") or "").strip()
+            release_year = release_date[:4] if len(release_date) >= 4 else None
+            poster_path = details.get("poster_path")
+            poster_url = f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else None
+
+            alt_options.append(
+                {
+                    "tmdb": tmdb_id,
+                    "title": details.get("title"),
+                    "year": release_year,
+                    "poster_url": poster_url,
+                }
+            )
+            if len(alt_options) >= 10:
+                break
+        return alt_options
+
     def logic(self):
         self.dedupeFinalShowtimes(self.MOVING_TO_TABLE_NAME)
         self.dedupeFinalMovies(self.MOVING_TO_TABLE_NAME_2)
@@ -105,7 +131,7 @@ class NowPlayingsTmdb(BaseDataflow):
                 self.potential_chosen_id = self.override_tmdb
                 if str(self.potential_chosen_id).lower() in self.skip_tokens:
                     continue
-                self.key_result[key] = {"tmdb_id": self.potential_chosen_id, "imdb_id": None, "hebrew_title": self.hebrew_title}
+                self.key_result[key] = {"tmdb_id": self.potential_chosen_id, "imdb_id": None, "hebrew_title": self.hebrew_title, "alt_options": []}
                 continue
 
             # 1) SEARCH TMDB AND COLLECT CANDIDATES
@@ -183,8 +209,9 @@ class NowPlayingsTmdb(BaseDataflow):
 
             chosen_details = self.details.get(self.potential_chosen_id) or {}
             chosen_imdb = (chosen_details.get("external_ids", {}) or {}).get("imdb_id")
+            alt_options = self._build_alt_options(self.potential_chosen_id)
 
-            self.key_result[key] = {"tmdb_id": self.potential_chosen_id, "imdb_id": chosen_imdb, "hebrew_title": self.hebrew_title}
+            self.key_result[key] = {"tmdb_id": self.potential_chosen_id, "imdb_id": chosen_imdb, "hebrew_title": self.hebrew_title, "alt_options": alt_options}
 
         # 5) DEDUPE BY TMDB ID
         for key, res in self.key_result.items():
@@ -212,6 +239,7 @@ class NowPlayingsTmdb(BaseDataflow):
             res["genres"] = genres or res.get("genres")
             res["en_trailer"] = trailer.get("key") if trailer else res.get("en_trailer")
             res["release_year"] = data["release_date"][:4] if data.get("release_date") else res.get("release_year")
+            res["alt_options"] = res.get("alt_options") or []
 
         tmdb_id_to_enriched = dict(self.movies_by_tmdb)
 
@@ -269,7 +297,7 @@ class NowPlayingsTmdb(BaseDataflow):
             if not tmdb_id:
                 continue
             imdb_id = res.get("imdb_id") or None
-            self.updates.append({"tmdb_id": tmdb_id, "english_title": res.get("english_title"), "runtime": res.get("runtime"), "popularity": res.get("popularity"), "imdb_id": imdb_id, "genres": res.get("genres"), "en_poster": res.get("en_poster"), "en_trailer": res.get("en_trailer"), "backdrop": res.get("backdrop"), "release_year": res.get("release_year")})
+            self.updates.append({"tmdb_id": tmdb_id, "english_title": res.get("english_title"), "runtime": res.get("runtime"), "popularity": res.get("popularity"), "imdb_id": imdb_id, "genres": res.get("genres"), "en_poster": res.get("en_poster"), "en_trailer": res.get("en_trailer"), "backdrop": res.get("backdrop"), "release_year": res.get("release_year"), "alt_options": res.get("alt_options") or []})
 
         self.upsertUpdates(self.MOVING_TO_TABLE_NAME_2)
         self.dedupeFinalMovies(self.MOVING_TO_TABLE_NAME_2)
