@@ -4,8 +4,8 @@ import os, time, pathlib
 
 ARTIFACT_ROOT = pathlib.Path("backend/utils/log/logger_artifacts")
 CURRENT_RUN_ID: int | None = None
-RUN_LOCK_SLEEP_SECONDS = 60
-RUN_LOCK_MAX_MINUTES = 10
+RUN_LOCK_SLEEP_SECONDS = int(os.environ.get("RUN_LOCK_SLEEP_SECONDS", "600"))
+RUN_LOCK_MAX_WAIT_SECONDS = int(os.environ.get("RUN_LOCK_MAX_WAIT_SECONDS", "10800"))
 
 
 def allocate_run_id() -> int:
@@ -23,7 +23,8 @@ def allocate_run_id() -> int:
     else:
         run_from = os.environ.get("RUNNER_MACHINE") or "unknown"
 
-    for _ in range(RUN_LOCK_MAX_MINUTES):
+    attempts = max(1, RUN_LOCK_MAX_WAIT_SECONDS // RUN_LOCK_SLEEP_SECONDS)
+    for _ in range(attempts):
         rows = sb.table("utilRunLogs").select("run_id").eq("running_now", True).limit(1).execute().data
         if not rows:
             break
