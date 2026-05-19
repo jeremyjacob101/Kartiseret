@@ -44,7 +44,7 @@ while true; do
   echo "[$start_ts] Launching realtime watcher process..." | tee -a "$LOG_FILE"
 
   set +e
-  "$PYTHON" -u -m backend.config.realtime_watcher 2>&1 | tee -a "$LOG_FILE"
+  "$PYTHON" -u -m backend.config.realtime.realtime_watcher 2>&1 | tee -a "$LOG_FILE"
   exit_code=${PIPESTATUS[0]}
   set -e
 

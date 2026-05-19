@@ -1,0 +1,375 @@
+[2026-05-19T15:57:49+0300] Launching realtime watcher process...
+2026-05-19 15:57:50,495 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:57:53,501 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:57:56,504 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:57:59,507 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:58:02,510 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:58:05,513 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:58:08,516 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:58:11,519 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:58:14,522 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:58:17,525 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:58:20,527 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:58:23,530 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:58:26,533 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:58:29,536 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:58:32,538 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:58:35,542 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:58:38,544 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:58:41,546 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:58:44,550 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:58:47,553 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:58:50,555 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL
+2026-05-19 15:58:53,557 ERROR realtime_watcher.py:139 Realtime subscription loop error (Invalid URL). Reconnecting in 3.0s...
+Traceback (most recent call last):
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 100, in _subscribe_forever
+    client = await create_async_client(url, key)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 373, in create_client
+    return await AsyncClient.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+        supabase_url=supabase_url, supabase_key=supabase_key, options=options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 105, in create
+    client = cls(supabase_url, supabase_key, options)
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/supabase/_async/client.py", line 63, in __init__
+    raise SupabaseException("Invalid URL")
+supabase._async.client.SupabaseException: Invalid URL

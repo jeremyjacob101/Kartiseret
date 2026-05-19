@@ -1,0 +1,8 @@
+[2026-05-19T15:55:39+0300] Launching realtime watcher process...
+2026-05-19 15:57:50,355 ERROR base_events.py:1865 Task was destroyed but it is pending!
+task: <Task pending name='Task-6' coro=<AsyncPush.start_timeout.<locals>.timeout() done, defined at /Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/realtime/_async/push.py:108> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+2026-05-19 15:57:50,355 ERROR base_events.py:1865 Task was destroyed but it is pending!
+task: <Task pending name='Task-7' coro=<AsyncPush.start_timeout.<locals>.timeout() done, defined at /Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/.venv/lib/python3.13/site-packages/realtime/_async/push.py:108> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Stop signal received. Exiting watcher supervisor loop.
+[2026-05-19T15:57:50+0300] Watcher exited with code 0
+Watcher supervisor stopped.
