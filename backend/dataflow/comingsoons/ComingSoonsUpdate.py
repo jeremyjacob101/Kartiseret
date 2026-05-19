@@ -34,13 +34,16 @@ class ComingSoonsUpdate(BaseDataflow):
         new_row["en_poster"] = "https://image.tmdb.org/t/p/w342" + data["poster_path"] if isinstance(data, dict) and data.get("poster_path") else existing["en_poster"]
         new_row["backdrop"] = "https://image.tmdb.org/t/p/w1280" + data["backdrop_path"] if isinstance(data, dict) and data.get("backdrop_path") else existing["backdrop"]
 
-        return new_row
+        return self.apply_solo_update_postprocess(new_row)
 
     def logic(self):
         self.dedupeFinalSoons(self.MAIN_TABLE_NAME)
+        target_rows = self.rows_for_update()
+        if not target_rows:
+            return
 
         with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [executor.submit(self.process_row, row) for row in list(self.main_table_rows)]
+            futures = [executor.submit(self.process_row, row) for row in target_rows]
             for future in as_completed(futures):
                 try:
                     result = future.result()

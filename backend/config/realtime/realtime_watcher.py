@@ -28,6 +28,7 @@ SUPPORTED_TABLES = {TABLE_FINAL_MOVIES, TABLE_FINAL_SOONS}
 DEBOUNCE_SECONDS = float(os.environ.get("REALTIME_DEBOUNCE_SECONDS", "8"))
 RECONNECT_SECONDS = float(os.environ.get("REALTIME_RECONNECT_SECONDS", "3"))
 LOG_LEVEL = os.environ.get("REALTIME_LOG_LEVEL", "INFO").upper()
+SOLO_UPDATE_ENV_KEY = "SOLO_UPDATE_ONLY"
 
 
 def _configure_logging() -> None:
@@ -47,8 +48,16 @@ def _run_single_update(table_name: str) -> bool:
         logging.warning("Unknown table trigger ignored: %s", table_name)
         return False
 
-    with RunLogSession() as run:
-        return run.run_groups(plan, run_group_fn=runGroup)
+    previous_mode = os.environ.get(SOLO_UPDATE_ENV_KEY)
+    os.environ[SOLO_UPDATE_ENV_KEY] = "true"
+    try:
+        with RunLogSession() as run:
+            return run.run_groups(plan, run_group_fn=runGroup)
+    finally:
+        if previous_mode is None:
+            os.environ.pop(SOLO_UPDATE_ENV_KEY, None)
+        else:
+            os.environ[SOLO_UPDATE_ENV_KEY] = previous_mode
 
 
 def _worker_loop(event_queue: "queue.Queue[str]", stop_event: threading.Event) -> None:

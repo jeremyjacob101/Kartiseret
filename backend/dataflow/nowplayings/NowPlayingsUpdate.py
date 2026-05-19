@@ -192,14 +192,17 @@ class NowPlayingsUpdate(BaseDataflow):
                 new_row["rtAudienceRating"] = audience_rating if audience_rating is not None else existing["rtAudienceRating"]
                 new_row["rtAudienceVotes"] = audience_votes if audience_votes is not None else existing["rtAudienceVotes"]
 
-        return new_row
+        return self.apply_solo_update_postprocess(new_row)
 
     def logic(self):
         self.dedupeFinalMovies(self.MAIN_TABLE_NAME)
+        target_rows = self.rows_for_update()
+        if not target_rows:
+            return
 
         self._imdb_driver_lock = threading.Lock()
         with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [executor.submit(self.process_row, row) for row in list(self.main_table_rows)]
+            futures = [executor.submit(self.process_row, row) for row in target_rows]
             for future in as_completed(futures):
                 try:
                     result = future.result()
