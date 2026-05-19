@@ -198,7 +198,7 @@ export RUNNER_MACHINE="local"
 python -m backend.config.runner
 ```
 
-Local runs open an interactive Rich terminal menu so you can choose a full run or a narrower subset of scrapers/dataflows. In GitHub Actions and weekly shell runs, the default plan runs headlessly.
+Local runs open an interactive Rich terminal menu, so you can choose a full run or a narrower subset of scrapers/dataflows. In GitHub Actions and weekly shell runs, the default plan runs headlessly.
 
 Cleanup expired data:
 
