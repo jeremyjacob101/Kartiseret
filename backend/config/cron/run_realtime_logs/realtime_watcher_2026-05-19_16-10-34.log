@@ -1,0 +1,28 @@
+[2026-05-19T16:10:34+0300] Launching realtime watcher process...
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 12, in <module>
+    from dotenv import load_dotenv
+ModuleNotFoundError: No module named 'dotenv'
+[2026-05-19T16:10:34+0300] Watcher exited with code 1
+Restarting in 5s...
+[2026-05-19T16:10:39+0300] Launching realtime watcher process...
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 12, in <module>
+    from dotenv import load_dotenv
+ModuleNotFoundError: No module named 'dotenv'
+[2026-05-19T16:10:39+0300] Watcher exited with code 1
+Restarting in 10s...
+[2026-05-19T16:10:50+0300] Launching realtime watcher process...
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 12, in <module>
+    from dotenv import load_dotenv
+ModuleNotFoundError: No module named 'dotenv'
+[2026-05-19T16:10:50+0300] Watcher exited with code 1
+Restarting in 20s...
+Stop signal received. Exiting watcher supervisor loop.

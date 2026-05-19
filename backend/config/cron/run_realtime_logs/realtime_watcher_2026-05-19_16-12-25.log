@@ -1,0 +1,58 @@
+[2026-05-19T16:12:25+0300] Launching realtime watcher process...
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 15, in <module>
+    from backend.config.runners import runGroup
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/runners.py", line 13, in <module>
+    from backend.config.registry import REGISTRY, DATAFLOW_REGISTRY
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/registry.py", line 1, in <module>
+    from backend.scraping.nowplayings.CinemaCity import CinemaCity
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/scraping/nowplayings/CinemaCity.py", line 1, in <module>
+    from backend.scraping.BaseCinema import BaseCinema
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/scraping/BaseCinema.py", line 1, in <module>
+    from backend.scraping.utils.InitializeBaseCinema import InitializeBaseCinema, build_chrome, setUpSupabase, navigate, logSuccessfulRun
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/scraping/utils/InitializeBaseCinema.py", line 2, in <module>
+    from selenium import webdriver
+ModuleNotFoundError: No module named 'selenium'
+[2026-05-19T16:12:26+0300] Watcher exited with code 1
+Restarting in 5s...
+[2026-05-19T16:12:31+0300] Launching realtime watcher process...
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 15, in <module>
+    from backend.config.runners import runGroup
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/runners.py", line 13, in <module>
+    from backend.config.registry import REGISTRY, DATAFLOW_REGISTRY
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/registry.py", line 1, in <module>
+    from backend.scraping.nowplayings.CinemaCity import CinemaCity
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/scraping/nowplayings/CinemaCity.py", line 1, in <module>
+    from backend.scraping.BaseCinema import BaseCinema
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/scraping/BaseCinema.py", line 1, in <module>
+    from backend.scraping.utils.InitializeBaseCinema import InitializeBaseCinema, build_chrome, setUpSupabase, navigate, logSuccessfulRun
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/scraping/utils/InitializeBaseCinema.py", line 2, in <module>
+    from selenium import webdriver
+ModuleNotFoundError: No module named 'selenium'
+[2026-05-19T16:12:32+0300] Watcher exited with code 1
+Restarting in 10s...
+[2026-05-19T16:12:42+0300] Launching realtime watcher process...
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 15, in <module>
+    from backend.config.runners import runGroup
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/runners.py", line 13, in <module>
+    from backend.config.registry import REGISTRY, DATAFLOW_REGISTRY
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/registry.py", line 1, in <module>
+    from backend.scraping.nowplayings.CinemaCity import CinemaCity
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/scraping/nowplayings/CinemaCity.py", line 1, in <module>
+    from backend.scraping.BaseCinema import BaseCinema
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/scraping/BaseCinema.py", line 1, in <module>
+    from backend.scraping.utils.InitializeBaseCinema import InitializeBaseCinema, build_chrome, setUpSupabase, navigate, logSuccessfulRun
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/scraping/utils/InitializeBaseCinema.py", line 2, in <module>
+    from selenium import webdriver
+ModuleNotFoundError: No module named 'selenium'
+[2026-05-19T16:12:43+0300] Watcher exited with code 1
+Restarting in 20s...
+Stop signal received. Exiting watcher supervisor loop.

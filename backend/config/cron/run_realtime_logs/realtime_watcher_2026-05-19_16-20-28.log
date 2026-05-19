@@ -1,0 +1,4 @@
+[2026-05-19T16:20:28+0300] Launching realtime watcher process...
+Stop signal received. Exiting watcher supervisor loop.
+[2026-05-19T16:21:13+0300] Watcher exited with code 0
+Watcher supervisor stopped.

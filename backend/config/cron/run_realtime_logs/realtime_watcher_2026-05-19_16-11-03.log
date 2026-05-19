@@ -1,0 +1,28 @@
+[2026-05-19T16:11:03+0300] Launching realtime watcher process...
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 13, in <module>
+    from supabase import create_async_client
+ModuleNotFoundError: No module named 'supabase'
+[2026-05-19T16:11:03+0300] Watcher exited with code 1
+Restarting in 5s...
+[2026-05-19T16:11:08+0300] Launching realtime watcher process...
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 13, in <module>
+    from supabase import create_async_client
+ModuleNotFoundError: No module named 'supabase'
+[2026-05-19T16:11:08+0300] Watcher exited with code 1
+Restarting in 10s...
+[2026-05-19T16:11:19+0300] Launching realtime watcher process...
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/realtime/realtime_watcher.py", line 13, in <module>
+    from supabase import create_async_client
+ModuleNotFoundError: No module named 'supabase'
+[2026-05-19T16:11:19+0300] Watcher exited with code 1
+Restarting in 20s...
+Stop signal received. Exiting watcher supervisor loop.
