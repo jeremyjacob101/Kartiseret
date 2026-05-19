@@ -1,0 +1,44 @@
+==== cron run start: 2026-05-19T18:00:00+0300 ====
+From github.com:jeremyjacob101/Kartiseret
+ * branch            main       -> FETCH_HEAD
+Already on 'main'
+M	backend/config/cron/cron_weekly.log
+M	backend/utils/log/logger_artifacts/.last_run_id
+Your branch is up to date with 'origin/main'.
+HEAD is now at c09ad15 [test]
+Removing backend/utils/log/logger_artifacts/419/
+Removing backend/utils/log/logger_artifacts/420/
+Removing backend/utils/log/logger_artifacts/421/
+
+--------------------
+
+CCsoon: 00m55s
+YPsoon: 01m26s
+LCsoon: 01m34s
+MLsoon: 02m07s
+HCsoon: 02m58s
+
+--------------------
+
+
+--------------------
+
+CinemaCity: 07m20s
+LevCinema: 07m55s
+RavHen: 11m24s
+MovieLand: 13m27s
+HotCinema: 18m12s
+YesPlanet: 23m57s
+
+--------------------
+
+
+--------------------
+
+ComingSoonsClean: 00m05s
+ComingSoonsTmdb: 00m05s
+ComingSoonsUpdate: 00m06s
+
+--------------------
+
+/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025/backend/config/cron/run_weekly.sh: line 22: 65899 Terminated: 15          "$PYTHON" -u -m backend.config.runner "$@"
