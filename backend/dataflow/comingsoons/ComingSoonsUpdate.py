@@ -9,8 +9,8 @@ class ComingSoonsUpdate(BaseDataflow):
     MAIN_TABLE_NAME = "finalSoons"
 
     def process_row(self, row):
-        new_row = dict(row)
-        existing = self.per_thread_updating_extract_existing_values(row)
+        new_row = self.updating_output_row(row)
+        existing = self.updating_existing_values(row)
 
         tmdb_id = existing["tmdb_id"]
         if not tmdb_id:
@@ -26,6 +26,7 @@ class ComingSoonsUpdate(BaseDataflow):
         trailer = (next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Trailer" and v.get("site") == "YouTube" and v.get("key") and v.get("iso_639_1") == "en"), None) or next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Teaser" and v.get("site") == "YouTube" and v.get("key") and v.get("iso_639_1") == "en"), None) or next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Trailer" and v.get("site") == "YouTube" and v.get("key")), None) or next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Teaser" and v.get("site") == "YouTube" and v.get("key")), None)) if isinstance(data, dict) else None
 
         new_row["english_title"] = data["title"].strip() if isinstance(data, dict) and data.get("title") else existing["english_title"]
+        new_row["release_date"] = data["release_date"] if isinstance(data, dict) and data.get("release_date") else new_row.get("release_date")
         new_row["release_year"] = data["release_date"][:4] if isinstance(data, dict) and data.get("release_date") else existing["release_year"]
         new_row["runtime"] = data["runtime"] if isinstance(data, dict) and data.get("runtime") is not None else existing["runtime"]
         new_row["genres"] = genres or existing["genres"]

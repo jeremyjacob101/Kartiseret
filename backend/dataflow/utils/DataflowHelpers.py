@@ -148,3 +148,65 @@ class DataflowHelpers:
             "genres": self.clean_array(row.get("genres")),
             "backdrop": self.clean_str(row.get("backdrop")),
         }
+
+    def solo_update_empty_values(self, tmdb_id, row=None):
+        movie_values = {
+            "english_title": "",
+            "release_year": None,
+            "runtime": None,
+            "popularity": None,
+            "tmdb_id": tmdb_id,
+            "tmdbRating": None,
+            "tmdbVotes": None,
+            "imdb_id": "",
+            "imdbRating": None,
+            "imdbVotes": None,
+            "rt_id": "",
+            "rtAudienceRating": None,
+            "rtAudienceVotes": None,
+            "rtCriticRating": None,
+            "rtCriticVotes": None,
+            "lb_id": "",
+            "lbRating": None,
+            "lbVotes": None,
+            "en_poster": "",
+            "en_trailer": "",
+            "genres": [],
+            "backdrop": "",
+            "alt_options": [],
+        }
+
+        if getattr(self, "MAIN_TABLE_NAME", "") != "finalSoons":
+            return movie_values
+
+        row = row if isinstance(row, dict) else {}
+        return {
+            "id": row.get("id"),
+            "english_title": "",
+            "hebrew_title": "",
+            "release_date": self.clean_date(row.get("release_date")),
+            "release_year": None,
+            "runtime": None,
+            "tmdb_id": tmdb_id,
+            "imdb_id": "",
+            "en_poster": "",
+            "en_trailer": "",
+            "genres": [],
+            "backdrop": "",
+            "alt_options": [],
+        }
+
+    def updating_existing_values(self, row):
+        existing = self.per_thread_updating_extract_existing_values(row)
+        if not getattr(self, "solo_update_only", False):
+            return existing
+        return self.solo_update_empty_values(existing["tmdb_id"], row)
+
+    def updating_output_row(self, row):
+        if not getattr(self, "solo_update_only", False):
+            return dict(row)
+
+        tmdb_id = self.clean_int(row.get("tmdb_id"))
+        new_row = self.solo_update_empty_values(tmdb_id, row)
+        new_row["solo_update"] = False
+        return new_row

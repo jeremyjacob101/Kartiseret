@@ -13,8 +13,8 @@ class NowPlayingsUpdate(BaseDataflow):
     MAIN_TABLE_NAME = "finalMovies"
 
     def process_row(self, row):
-        new_row = dict(row)
-        existing = self.per_thread_updating_extract_existing_values(row)
+        new_row = self.updating_output_row(row)
+        existing = self.updating_existing_values(row)
 
         tmdb_id = existing["tmdb_id"]
         if not tmdb_id:
@@ -24,7 +24,9 @@ class NowPlayingsUpdate(BaseDataflow):
         try:
             data = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}", params={"api_key": self.TMDB_API_KEY, "append_to_response": "external_ids,videos"}, timeout=10).json()
         except:
-            data = ""
+            data = {}
+
+        data = data if isinstance(data, dict) else {}
 
         genres = ["Sci-Fi" if genre["name"] == "Science Fiction" else genre["name"] for genre in (data.get("genres") or []) if genre.get("name")][:3]
         trailer = next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Trailer" and v.get("site") == "YouTube" and v.get("key") and v.get("iso_639_1") == "en"), None) or next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Teaser" and v.get("site") == "YouTube" and v.get("key") and v.get("iso_639_1") == "en"), None)

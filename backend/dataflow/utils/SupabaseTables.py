@@ -6,7 +6,7 @@ import re
 class SupabaseTables:
     PRIMARY_KEY_BY_TABLE = {
         "finalMovies": "tmdb_id",
-        "finalSoons": "tmdb_id",
+        "finalSoons": "id",
         "tableFixes": "title_fix",
         "tableSkips": "name_or_tmdb_id",
     }
