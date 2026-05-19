@@ -34,6 +34,7 @@ def _configure_logging() -> None:
     logging.basicConfig(
         level=getattr(logging, LOG_LEVEL, logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s | %(message)s",
+        force=True,
     )
 
 
@@ -101,27 +102,40 @@ async def _subscribe_forever(event_queue: "queue.Queue[str]", stop_event: thread
             channel_name = f"realtime-watcher-{int(time.time())}"
             channel = client.channel(channel_name)
 
+            def _extract_event_type(payload: Any) -> str:
+                if isinstance(payload, dict):
+                    if "eventType" in payload:
+                        return str(payload.get("eventType"))
+                    data = payload.get("data")
+                    if isinstance(data, dict) and "type" in data:
+                        return str(data.get("type"))
+                return "unknown"
+
             def on_movies_change(payload: Any) -> None:
-                logging.getLogger("realtime_watcher.listener").info(
+                logger.info(
                     "Realtime change observed on %s (event=%s)",
                     TABLE_FINAL_MOVIES,
-                    payload.get("eventType"),
+                    _extract_event_type(payload),
                 )
                 event_queue.put(TABLE_FINAL_MOVIES)
 
             def on_soons_change(payload: Any) -> None:
-                logging.getLogger("realtime_watcher.listener").info(
+                logger.info(
                     "Realtime change observed on %s (event=%s)",
                     TABLE_FINAL_SOONS,
-                    payload.get("eventType"),
+                    _extract_event_type(payload),
                 )
                 event_queue.put(TABLE_FINAL_SOONS)
 
-            channel.on_postgres_changes("*", on_movies_change, table=TABLE_FINAL_MOVIES, schema="public")
-            channel.on_postgres_changes("*", on_soons_change, table=TABLE_FINAL_SOONS, schema="public")
+            def on_subscribe_status(status: Any, err: Any) -> None:
+                logger.info("Realtime subscribe status: %s (err=%s)", status, err)
+
+            for event in ("UPDATE", "INSERT", "DELETE"):
+                channel.on_postgres_changes(event, on_movies_change, table=TABLE_FINAL_MOVIES, schema="public")
+                channel.on_postgres_changes(event, on_soons_change, table=TABLE_FINAL_SOONS, schema="public")
 
             await client.realtime.connect()
-            await channel.subscribe()
+            await channel.subscribe(on_subscribe_status)
             logger.info(
                 "Subscribed to realtime changes for public.%s and public.%s",
                 TABLE_FINAL_MOVIES,
@@ -159,8 +173,8 @@ async def _subscribe_forever(event_queue: "queue.Queue[str]", stop_event: thread
 
 
 def main() -> None:
-    _configure_logging()
     artifact_logging.setup_logging()
+    _configure_logging()
 
     event_queue: "queue.Queue[str]" = queue.Queue()
     stop_event = threading.Event()
