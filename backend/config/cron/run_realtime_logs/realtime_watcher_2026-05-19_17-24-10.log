@@ -1648,3 +1648,12 @@ postgrest.exceptions.APIError: {'message': 'duplicate key value violates unique 
 2026-05-19 17:42:57,801 DEBUG websockets.client | < TEXT '{"ref":null,"event":"phx_reply","payload":{"sta...:{}},"topic":"phoenix"}' [90 bytes]
 2026-05-19 17:42:57,801 DEBUG realtime._async.client | receive: '{"ref":null,"event":"phx_reply","payload":{"status":"ok","response":{}},"topic":"phoenix"}'
 2026-05-19 17:42:57,801 DEBUG realtime._async.client | parsed message as ReplyMessage(event=<ChannelEvents.reply: 'phx_reply'>, topic='phoenix', payload=SuccessReplyMessage(status='ok', response=ReplyPostgresChanges(postgres_changes=None)), ref=None)
+2026-05-19 17:43:12,724 DEBUG websockets.client | > PING 'ď\x15;' [text, 4 bytes]
+2026-05-19 17:43:12,724 DEBUG websockets.client | % sent keepalive ping
+2026-05-19 17:43:12,798 DEBUG websockets.client | < PONG 'ď\x15;' [text, 4 bytes]
+2026-05-19 17:43:12,798 DEBUG websockets.client | % received keepalive pong
+2026-05-19 17:43:22,729 DEBUG realtime._async.client | send: {"event":"heartbeat","payload":{},"topic":"phoenix","ref":null,"join_ref":null}
+2026-05-19 17:43:22,729 DEBUG websockets.client | > TEXT '{"event":"heartbeat","payload":{},"topic":"phoe...":null,"join_ref":null}' [79 bytes]
+2026-05-19 17:43:22,804 DEBUG websockets.client | < TEXT '{"ref":null,"event":"phx_reply","payload":{"sta...:{}},"topic":"phoenix"}' [90 bytes]
+2026-05-19 17:43:22,804 DEBUG realtime._async.client | receive: '{"ref":null,"event":"phx_reply","payload":{"status":"ok","response":{}},"topic":"phoenix"}'
+2026-05-19 17:43:22,805 DEBUG realtime._async.client | parsed message as ReplyMessage(event=<ChannelEvents.reply: 'phx_reply'>, topic='phoenix', payload=SuccessReplyMessage(status='ok', response=ReplyPostgresChanges(postgres_changes=None)), ref=None)

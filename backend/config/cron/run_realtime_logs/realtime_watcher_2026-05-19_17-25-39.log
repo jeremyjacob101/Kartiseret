@@ -8051,3 +8051,12 @@ WAITING ON UTILRUNLOGS TO NOT HAVE TRUE RUNNING ENTRY
 2026-05-19 17:43:01,035 DEBUG websockets.client | % sent keepalive ping
 2026-05-19 17:43:01,149 DEBUG websockets.client | < PONG 5a 72 f3 29 [binary, 4 bytes]
 2026-05-19 17:43:01,149 DEBUG websockets.client | % received keepalive pong
+2026-05-19 17:43:11,032 DEBUG realtime._async.client | send: {"event":"heartbeat","payload":{},"topic":"phoenix","ref":null,"join_ref":null}
+2026-05-19 17:43:11,032 DEBUG websockets.client | > TEXT '{"event":"heartbeat","payload":{},"topic":"phoe...":null,"join_ref":null}' [79 bytes]
+2026-05-19 17:43:11,105 DEBUG websockets.client | < TEXT '{"ref":null,"event":"phx_reply","payload":{"sta...:{}},"topic":"phoenix"}' [90 bytes]
+2026-05-19 17:43:11,105 DEBUG realtime._async.client | receive: '{"ref":null,"event":"phx_reply","payload":{"status":"ok","response":{}},"topic":"phoenix"}'
+2026-05-19 17:43:11,105 DEBUG realtime._async.client | parsed message as ReplyMessage(event=<ChannelEvents.reply: 'phx_reply'>, topic='phoenix', payload=SuccessReplyMessage(status='ok', response=ReplyPostgresChanges(postgres_changes=None)), ref=None)
+2026-05-19 17:43:21,035 DEBUG websockets.client | > PING 9f 42 26 63 [binary, 4 bytes]
+2026-05-19 17:43:21,035 DEBUG websockets.client | % sent keepalive ping
+2026-05-19 17:43:21,115 DEBUG websockets.client | < PONG 9f 42 26 63 [binary, 4 bytes]
+2026-05-19 17:43:21,116 DEBUG websockets.client | % received keepalive pong
