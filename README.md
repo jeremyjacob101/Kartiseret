@@ -225,6 +225,7 @@ The browser app intentionally uses only the publishable key and never a service-
 - `backend/config/cron/run_daily.sh` is a local daily shell runner that performs the same default headless run, writes separate daily logs, and pushes artifacts/logs back to `main`.
 - `backend/config/cron/run_realtime_watcher.sh` runs a local realtime listener for `finalMovies` and `finalSoons`.
   - watcher-triggered update runs use `solo_update` mode (`SOLO_UPDATE_ONLY=true`) and process only rows where `solo_update = true`, then reset `solo_update` back to `false` on processed rows.
+  - watcher-triggered runs write `utilRunLogs.run_from` as `np_solo_update` (for `finalMovies`) or `cs_solo_update` (for `finalSoons`).
   - regular daily/weekly/manual runs are unchanged and still process full tables.
 
 ## Project Tour

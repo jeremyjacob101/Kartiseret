@@ -29,6 +29,7 @@ DEBOUNCE_SECONDS = float(os.environ.get("REALTIME_DEBOUNCE_SECONDS", "8"))
 RECONNECT_SECONDS = float(os.environ.get("REALTIME_RECONNECT_SECONDS", "3"))
 LOG_LEVEL = os.environ.get("REALTIME_LOG_LEVEL", "INFO").upper()
 SOLO_UPDATE_ENV_KEY = "SOLO_UPDATE_ONLY"
+RUN_FROM_OVERRIDE_ENV_KEY = "RUN_FROM_OVERRIDE"
 
 
 def _configure_logging() -> None:
@@ -42,14 +43,18 @@ def _configure_logging() -> None:
 def _run_single_update(table_name: str) -> bool:
     if table_name == TABLE_FINAL_MOVIES:
         plan = [("dataflow", "nowPlayingData", [NowPlayingsUpdate])]
+        run_from_override = "np_solo_update"
     elif table_name == TABLE_FINAL_SOONS:
         plan = [("dataflow", "comingSoonsData", [ComingSoonsUpdate])]
+        run_from_override = "cs_solo_update"
     else:
         logging.warning("Unknown table trigger ignored: %s", table_name)
         return False
 
     previous_mode = os.environ.get(SOLO_UPDATE_ENV_KEY)
+    previous_run_from = os.environ.get(RUN_FROM_OVERRIDE_ENV_KEY)
     os.environ[SOLO_UPDATE_ENV_KEY] = "true"
+    os.environ[RUN_FROM_OVERRIDE_ENV_KEY] = run_from_override
     try:
         with RunLogSession() as run:
             return run.run_groups(plan, run_group_fn=runGroup)
@@ -58,6 +63,10 @@ def _run_single_update(table_name: str) -> bool:
             os.environ.pop(SOLO_UPDATE_ENV_KEY, None)
         else:
             os.environ[SOLO_UPDATE_ENV_KEY] = previous_mode
+        if previous_run_from is None:
+            os.environ.pop(RUN_FROM_OVERRIDE_ENV_KEY, None)
+        else:
+            os.environ[RUN_FROM_OVERRIDE_ENV_KEY] = previous_run_from
 
 
 def _worker_loop(event_queue: "queue.Queue[str]", stop_event: threading.Event) -> None:

@@ -11,7 +11,10 @@ RUN_LOCK_MAX_MINUTES = 10
 def allocate_run_id() -> int:
     sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
 
-    if os.environ.get("JJ_INTEL_MAC_DAILY_RUN") == "true":
+    run_from_override = (os.environ.get("RUN_FROM_OVERRIDE") or "").strip()
+    if run_from_override:
+        run_from = run_from_override
+    elif os.environ.get("JJ_INTEL_MAC_DAILY_RUN") == "true":
         run_from = "JJ_INTEL_MAC_DAILY_RUN"
     elif os.environ.get("JJ_INTEL_MAC_WEEKLY_RUN") == "true":
         run_from = "JJ_INTEL_MAC_WEEKLY_RUN"

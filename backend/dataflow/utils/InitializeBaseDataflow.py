@@ -4,7 +4,6 @@ from selenium import webdriver
 import time, os
 
 runningGithubActions = os.environ.get("GITHUB_ACTIONS") == "true"
-RUNNER_MACHINE = os.environ.get("RUNNER_MACHINE")
 
 
 def setUpSupabase(self):
@@ -29,18 +28,28 @@ def build_chrome(headless: bool = True):
     return webdriver.Chrome(options=options)
 
 def logSuccessfulRun(self) -> None:
-    if not runningGithubActions:
-        duration_seconds = time.perf_counter() - self.startTime
-        avg_time_col, num_runs_col = "avg_time_" + str(RUNNER_MACHINE), "num_runs_" + str(RUNNER_MACHINE)
+    if runningGithubActions:
+        return
 
-        resp = self.supabase.table("utilAvgTime").select(f"{avg_time_col},{num_runs_col}").eq("name", self.__class__.__name__).limit(1).execute()
-        row = resp.data[0]
-        old_avg = float(row.get(avg_time_col) or 0.0)
-        n = int(row.get(num_runs_col) or 0)
-        new_avg = (old_avg * n + float(duration_seconds)) / (n + 1)
-        update_payload = {avg_time_col: float(new_avg), num_runs_col: n + 1}
+    # Solo-update watcher runs intentionally skip utilAvgTime machine stats.
+    if str(os.environ.get("SOLO_UPDATE_ONLY", "")).strip().lower() in {"1", "true", "yes", "on"}:
+        return
 
-        self.supabase.table("utilAvgTime").update(update_payload).eq("name", self.__class__.__name__).eq(num_runs_col, n).execute()
+    runner_machine = os.environ.get("RUNNER_MACHINE")
+    if not runner_machine:
+        return
+
+    duration_seconds = time.perf_counter() - self.startTime
+    avg_time_col, num_runs_col = "avg_time_" + str(runner_machine), "num_runs_" + str(runner_machine)
+
+    resp = self.supabase.table("utilAvgTime").select(f"{avg_time_col},{num_runs_col}").eq("name", self.__class__.__name__).limit(1).execute()
+    row = resp.data[0]
+    old_avg = float(row.get(avg_time_col) or 0.0)
+    n = int(row.get(num_runs_col) or 0)
+    new_avg = (old_avg * n + float(duration_seconds)) / (n + 1)
+    update_payload = {avg_time_col: float(new_avg), num_runs_col: n + 1}
+
+    self.supabase.table("utilAvgTime").update(update_payload).eq("name", self.__class__.__name__).eq(num_runs_col, n).execute()
 
 
 class InitializeBaseDataflow:
