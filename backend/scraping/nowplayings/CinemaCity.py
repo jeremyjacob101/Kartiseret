@@ -30,17 +30,17 @@ class CinemaCity(BaseCinema):
                 break
 
         for cinema_block in range(1, self.lenElements("#moviesContainer > div", "row mainThumbWrapper") + 1):
-            for film_card in range(1, self.lenElements(f"/html/body/div[4]/div[3]/div[2]/div[1]/div[{cinema_block}]/div") + 1):
-                self.english_titles.append(self.element(f"/html/body/div[4]/div[3]/div[2]/div[1]/div[{cinema_block}]/div[{film_card}]/div/div/div[2]/div/p[1]").get_attribute("textContent"))
+            for film_card in range(1, self.lenElements(f"/html/body/div[4]/div[4]/div[2]/div[1]/div[{cinema_block}]/div") + 1):
+                self.english_titles.append(self.element(f"/html/body/div[4]/div[4]/div[2]/div[1]/div[{cinema_block}]/div[{film_card}]/div/div/div[2]/div/p[1]").get_attribute("textContent"))
 
-                rating = self.element(f"/html/body/div[4]/div[3]/div[2]/div[1]/div[{cinema_block}]/div[{film_card}]/div/div/div[2]/div/div[1]/p[4]/span").get_attribute("textContent")
+                rating = self.element(f"/html/body/div[4]/div[4]/div[2]/div[1]/div[{cinema_block}]/div[{film_card}]/div/div/div[2]/div/div[1]/p[4]/span").get_attribute("textContent")
                 self.ratings.append(str(rating).strip() if rating else None)
 
-                runtime = self.element(f"/html/body/div[4]/div[3]/div[2]/div[1]/div[{cinema_block}]/div[{film_card}]/div/div/div[2]/div/div[1]/p[2]/span").get_attribute("textContent").strip()
+                runtime = self.element(f"/html/body/div[4]/div[4]/div[2]/div[1]/div[{cinema_block}]/div[{film_card}]/div/div/div[2]/div/div[1]/p[2]/span").get_attribute("textContent").strip()
                 runtime = re.sub(r"\D", "", runtime)
                 self.runtimes.append(int(runtime) if runtime else None)
 
-                hebrew_title = self.element(f"/html/body/div[4]/div[3]/div[2]/div[1]/div[{cinema_block}]/div[{film_card}]/div/div/div[2]/div/h4").get_attribute("textContent")
+                hebrew_title = self.element(f"/html/body/div[4]/div[4]/div[2]/div[1]/div[{cinema_block}]/div[{film_card}]/div/div/div[2]/div/h4").get_attribute("textContent")
                 self.hebrew_titles.append(hebrew_title)
 
         name_to_idx = {str(name): i for i, name in enumerate(self.hebrew_titles)}
