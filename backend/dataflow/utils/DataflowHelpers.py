@@ -210,3 +210,38 @@ class DataflowHelpers:
         new_row = self.solo_update_empty_values(tmdb_id, row)
         new_row["solo_update"] = False
         return new_row
+
+    def buildTmdbFixMaps(self, fix_rows: list[dict]):
+        tmdb_fix_ids = set()
+        tmdb_fix_by_title = {}
+        tmdb_fix_alias_by_tmdb = {}
+
+        for fix in fix_rows or []:
+            if not isinstance(fix, dict):
+                continue
+
+            desired_tmdb_id = self.clean_int(fix.get("tmdb_id"))
+            title_fix = self.clean_str(fix.get("title_fix")).strip()
+            if not desired_tmdb_id or not title_fix:
+                continue
+
+            tmdb_fix_ids.add(desired_tmdb_id)
+
+            title_raw = title_fix.lower()
+            tmdb_fix_by_title[title_raw] = desired_tmdb_id
+
+            title_norm = self.normalizeTitle(title_fix).strip().lower()
+            if title_norm:
+                tmdb_fix_by_title[title_norm] = desired_tmdb_id
+
+            source_tmdb_id = self.clean_int(title_fix)
+            if source_tmdb_id:
+                tmdb_fix_alias_by_tmdb[source_tmdb_id] = desired_tmdb_id
+
+        return tmdb_fix_ids, tmdb_fix_by_title, tmdb_fix_alias_by_tmdb
+
+    def tmdbFixAliasForTmdbId(self, tmdb_id, tmdb_fix_alias_by_tmdb: dict):
+        source_tmdb_id = self.clean_int(tmdb_id)
+        if not source_tmdb_id:
+            return None
+        return tmdb_fix_alias_by_tmdb.get(source_tmdb_id)

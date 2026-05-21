@@ -88,6 +88,7 @@ class InitializeBaseDataflow:
         self.date_of_showing = None
         self.tmdb_fix_by_title = {}
         self.tmdb_fix_ids = set()
+        self.tmdb_fix_alias_by_tmdb = {}
         self.override_tmdb = None
         self.movies_by_tmdb = {}
         self.parsed_year = None

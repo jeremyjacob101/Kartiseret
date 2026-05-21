@@ -49,13 +49,7 @@ class NowPlayingsTmdb(BaseDataflow):
             self.skip_tokens.add(skip_value.lower())
             self.skip_tokens.add(self.normalizeTitle(skip_value).strip().lower())
 
-        # TMDB FIX OVERRIDES (title -> tmdb_id)
-        for fix in self.helper_table_rows:
-            tmdb_id = int(fix.get("tmdb_id").strip())
-            title_fix = fix.get("title_fix").strip().lower()
-            self.tmdb_fix_ids.add(tmdb_id)
-            self.tmdb_fix_by_title[title_fix] = tmdb_id
-            self.tryExceptPass(lambda: self.tmdb_fix_by_title.__setitem__(self.normalizeTitle(title_fix).strip().lower(), tmdb_id))
+        self.tmdb_fix_ids, self.tmdb_fix_by_title, self.tmdb_fix_alias_by_tmdb = self.buildTmdbFixMaps(self.helper_table_rows)
 
         # LATEST RAW SNAPSHOT PER CINEMA
         for row in self.main_table_rows:
@@ -176,6 +170,7 @@ class NowPlayingsTmdb(BaseDataflow):
 
             # 3) TMDb FIX TABLE HARD MATCH (fast set membership)
             for tmdb_id in self.details.keys():
+                tmdb_id = self.clean_int(tmdb_id)
                 if tmdb_id in self.tmdb_fix_ids:
                     self.potential_chosen_id = tmdb_id
                     break
@@ -206,6 +201,11 @@ class NowPlayingsTmdb(BaseDataflow):
 
             if not self.potential_chosen_id or str(self.potential_chosen_id).lower() in self.skip_tokens:
                 continue
+
+            if alias_tmdb := self.tmdbFixAliasForTmdbId(self.potential_chosen_id, self.tmdb_fix_alias_by_tmdb):
+                if str(alias_tmdb).lower() in self.skip_tokens:
+                    continue
+                self.potential_chosen_id = alias_tmdb
 
             chosen_details = self.details.get(self.potential_chosen_id) or {}
             chosen_imdb = (chosen_details.get("external_ids", {}) or {}).get("imdb_id")

@@ -8,7 +8,7 @@ class SupabaseTables:
         "finalMovies": "tmdb_id",
         "finalSoons": "id",
         "allShowtimes": "id",
-        "tableFixes": "title_fix",
+        "tableFixes": "id",
         "tableSkips": "name_or_tmdb_id",
     }
 

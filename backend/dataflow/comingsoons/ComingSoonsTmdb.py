@@ -46,16 +46,7 @@ class ComingSoonsTmdb(BaseDataflow):
             self.skip_tokens.add(skip_value.lower())
             self.skip_tokens.add(self.normalizeTitle(skip_value).strip().lower())
 
-        tmdb_fix_ids, tmdb_fix_by_title = set(), {}
-        for fix in self.helper_table_rows:
-            tmdb_id = fix.get("tmdb_id").strip()
-            title_fix = fix.get("title_fix").strip().lower()
-            if not tmdb_id or not title_fix:
-                continue
-            tmdb_id = int(tmdb_id)
-            tmdb_fix_ids.add(tmdb_id)
-            tmdb_fix_by_title[title_fix] = tmdb_id
-            self.tryExceptPass(lambda: tmdb_fix_by_title.__setitem__(self.normalizeTitle(title_fix).strip().lower(), tmdb_id))
+        tmdb_fix_ids, tmdb_fix_by_title, tmdb_fix_alias_by_tmdb = self.buildTmdbFixMaps(self.helper_table_rows)
 
         for row in self.main_table_rows:
             self.reset_soon_row_state()
@@ -118,9 +109,10 @@ class ComingSoonsTmdb(BaseDataflow):
                 continue
 
             # 3) TMDb FIX TABLE HARD MATCH (fast set membership)
-            for tmdb_id, movie_details in self.details.items():
-                if int(tmdb_id) in tmdb_fix_ids:
-                    self.potential_chosen_id = int(tmdb_id)
+            for tmdb_id in self.details.keys():
+                tmdb_id = self.clean_int(tmdb_id)
+                if tmdb_id in tmdb_fix_ids:
+                    self.potential_chosen_id = tmdb_id
                     break
 
             # 4) FALLBACK FIRST/DIRECTOR/RUNTIME RANKING LOGIC
@@ -151,6 +143,11 @@ class ComingSoonsTmdb(BaseDataflow):
 
             if not self.potential_chosen_id or str(self.potential_chosen_id).lower() in self.skip_tokens:
                 continue
+
+            if alias_tmdb := self.tmdbFixAliasForTmdbId(self.potential_chosen_id, tmdb_fix_alias_by_tmdb):
+                if str(alias_tmdb).lower() in self.skip_tokens:
+                    continue
+                self.potential_chosen_id = alias_tmdb
 
             chosen_details = self.details.get(self.potential_chosen_id) or {}
             chosen_imdb = (chosen_details.get("external_ids", {}) or {}).get("imdb_id")
