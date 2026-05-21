@@ -12,8 +12,15 @@ class SupabaseTables:
         "tableSkips": "name_or_tmdb_id",
     }
 
+    UPSERT_DEDUPE_KEY_BY_TABLE = {
+        "finalSoons": "tmdb_id",
+    }
+
     def primaryKeyForTable(self, table_name: str) -> str:
         return self.PRIMARY_KEY_BY_TABLE.get(table_name, "id")
+
+    def upsertDedupeKeyForTable(self, table_name: str) -> str:
+        return self.UPSERT_DEDUPE_KEY_BY_TABLE.get(table_name, self.primaryKeyForTable(table_name))
 
     def selectAll(self, table: str, select: str = "*", batch_size: int = 200) -> list[dict]:
         if not table:
@@ -35,10 +42,15 @@ class SupabaseTables:
 
     def dedupeUpdatesForUpsert(self, table_name: str) -> None:
         primary_key = self.primaryKeyForTable(table_name)
+        dedupe_key = self.upsertDedupeKeyForTable(table_name)
+        key_cols = [dedupe_key] + ([] if dedupe_key == primary_key else [primary_key])
         deduped_rows: dict[Any, dict] = {}
 
         for row in self.updates:
-            deduped_rows[row[primary_key]] = row
+            row_key = next(((col, row.get(col)) for col in key_cols if isinstance(row, dict) and self._has_value(row.get(col))), None)
+            if row_key is None:
+                raise ValueError(f"Cannot dedupe updates for {table_name}: row is missing usable key columns {key_cols}")
+            deduped_rows[row_key] = row
 
         self.updates = list(deduped_rows.values())
 
