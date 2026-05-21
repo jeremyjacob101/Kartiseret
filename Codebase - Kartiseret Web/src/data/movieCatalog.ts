@@ -1206,6 +1206,17 @@ export async function applyAdminMovieEdit(
     return;
   }
 
+  const { error: tableFixInsertError } = await supabase
+    .from("tableFixes")
+    .insert({
+      tmdb_id: normalizedSelectedTmdbId,
+      title_fix: normalizedCurrentTmdbId,
+    });
+
+  if (tableFixInsertError) {
+    throw new Error(tableFixInsertError.message);
+  }
+
   const { data: existingTarget, error: existingTargetError } = await supabase
     .from(tableName)
     .select("tmdb_id")
