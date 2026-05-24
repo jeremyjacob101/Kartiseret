@@ -20,7 +20,6 @@ from backend.dataflow.nowplayings.NowPlayingsUpdate import NowPlayingsUpdate
 from backend.utils.log import artifact_logging
 from backend.utils.log.run_logging import RunLogSession
 
-
 load_dotenv()
 
 TABLE_FINAL_MOVIES = "finalMovies"
@@ -38,21 +37,14 @@ REALTIME_GIT_SSH_KEY = os.environ.get("REALTIME_GIT_SSH_KEY", "").strip()
 
 
 def _configure_logging() -> None:
-    logging.basicConfig(
-        level=getattr(logging, LOG_LEVEL, logging.INFO),
-        format="%(asctime)s %(levelname)s %(name)s | %(message)s",
-        force=True,
-    )
+    logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO), format="%(asctime)s %(levelname)s %(name)s | %(message)s", force=True)
 
 
 def _run_cmd(args: list[str], *, cwd: pathlib.Path, logger: logging.Logger) -> subprocess.CompletedProcess[str]:
     logger.debug("Running command: %s", " ".join(args))
     env = os.environ.copy()
     if "GIT_SSH_COMMAND" not in env and REALTIME_GIT_SSH_KEY:
-        env["GIT_SSH_COMMAND"] = (
-            f"ssh -i {REALTIME_GIT_SSH_KEY} "
-            "-o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
-        )
+        env["GIT_SSH_COMMAND"] = f"ssh -i {REALTIME_GIT_SSH_KEY} " "-o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
     return subprocess.run(args, cwd=str(cwd), env=env, text=True, capture_output=True, check=False)
 
 
@@ -163,11 +155,7 @@ def _worker_loop(event_queue: "queue.Queue[str]", stop_event: threading.Event) -
             table_name = event_queue.get(timeout=timeout)
             if table_name in SUPPORTED_TABLES:
                 pending_deadlines[table_name] = time.time() + DEBOUNCE_SECONDS
-                logger.info(
-                    "Event queued for %s (debounce %.1fs)",
-                    table_name,
-                    DEBOUNCE_SECONDS,
-                )
+                logger.info("Event queued for %s (debounce %.1fs)", table_name, DEBOUNCE_SECONDS)
             else:
                 logger.warning("Unsupported event table ignored: %s", table_name)
         except queue.Empty:
@@ -227,18 +215,10 @@ async def _subscribe_forever(event_queue: "queue.Queue[str]", stop_event: thread
             def _queue_if_solo_update(table_name: str, payload: Any) -> None:
                 event_type = _extract_event_type(payload)
                 if not _payload_requests_solo_update(payload):
-                    logger.info(
-                        "Realtime change ignored on %s (event=%s, solo_update is not true)",
-                        table_name,
-                        event_type,
-                    )
+                    logger.info("Realtime change ignored on %s (event=%s, solo_update is not true)", table_name, event_type)
                     return
 
-                logger.info(
-                    "Realtime change observed on %s (event=%s, solo_update=true)",
-                    table_name,
-                    event_type,
-                )
+                logger.info("Realtime change observed on %s (event=%s, solo_update=true)", table_name, event_type)
                 event_queue.put(table_name)
 
             def on_movies_change(payload: Any) -> None:
@@ -256,11 +236,7 @@ async def _subscribe_forever(event_queue: "queue.Queue[str]", stop_event: thread
 
             await client.realtime.connect()
             await channel.subscribe(on_subscribe_status)
-            logger.info(
-                "Subscribed to realtime changes for public.%s and public.%s",
-                TABLE_FINAL_MOVIES,
-                TABLE_FINAL_SOONS,
-            )
+            logger.info("Subscribed to realtime changes for public.%s and public.%s", TABLE_FINAL_MOVIES, TABLE_FINAL_SOONS)
 
             while not stop_event.is_set():
                 if not client.realtime.is_connected:
@@ -270,11 +246,7 @@ async def _subscribe_forever(event_queue: "queue.Queue[str]", stop_event: thread
         except asyncio.CancelledError:
             raise
         except BaseException as exc:
-            logger.exception(
-                "Realtime subscription loop error (%s). Reconnecting in %.1fs...",
-                exc,
-                RECONNECT_SECONDS,
-            )
+            logger.exception("Realtime subscription loop error (%s). Reconnecting in %.1fs...", exc, RECONNECT_SECONDS)
             await asyncio.sleep(RECONNECT_SECONDS)
         finally:
             try:
