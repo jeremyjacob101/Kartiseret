@@ -179,7 +179,7 @@ Environment variables:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `TMDB_API_KEY`
-- `RUNNER_MACHINE` optional, but useful for local timing stats
+- `RUNNER_MACHINE` optional, but useful for local timing statistics
 
 Setup and run:
 
