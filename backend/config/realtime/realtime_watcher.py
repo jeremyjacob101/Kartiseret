@@ -34,6 +34,7 @@ SOLO_UPDATE_ENV_KEY = "SOLO_UPDATE_ONLY"
 RUN_FROM_OVERRIDE_ENV_KEY = "RUN_FROM_OVERRIDE"
 REALTIME_GIT_SYNC = str(os.environ.get("REALTIME_GIT_SYNC", "true")).strip().lower() in {"1", "true", "yes", "on"}
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[3]
+REALTIME_GIT_SSH_KEY = os.environ.get("REALTIME_GIT_SSH_KEY", "").strip()
 
 
 def _configure_logging() -> None:
@@ -46,7 +47,13 @@ def _configure_logging() -> None:
 
 def _run_cmd(args: list[str], *, cwd: pathlib.Path, logger: logging.Logger) -> subprocess.CompletedProcess[str]:
     logger.debug("Running command: %s", " ".join(args))
-    return subprocess.run(args, cwd=str(cwd), text=True, capture_output=True, check=False)
+    env = os.environ.copy()
+    if "GIT_SSH_COMMAND" not in env and REALTIME_GIT_SSH_KEY:
+        env["GIT_SSH_COMMAND"] = (
+            f"ssh -i {REALTIME_GIT_SSH_KEY} "
+            "-o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+        )
+    return subprocess.run(args, cwd=str(cwd), env=env, text=True, capture_output=True, check=False)
 
 
 def _git_sync_before_update(logger: logging.Logger) -> bool:
@@ -125,11 +132,12 @@ def _run_single_update(table_name: str) -> bool:
     os.environ[RUN_FROM_OVERRIDE_ENV_KEY] = run_from_override
     try:
         if not _git_sync_before_update(logger):
-            return False
+            logger.error("Continuing %s solo update even though pre-run git sync failed", table_name)
         with RunLogSession() as run:
             ok = run.run_groups(plan, run_group_fn=runGroup)
-        git_ok = _git_sync_after_update(logger, table_name) if ok else True
-        return ok and git_ok
+        if ok and not _git_sync_after_update(logger, table_name):
+            logger.error("Post-run git sync failed after successful %s solo update", table_name)
+        return ok
     finally:
         if previous_mode is None:
             os.environ.pop(SOLO_UPDATE_ENV_KEY, None)
