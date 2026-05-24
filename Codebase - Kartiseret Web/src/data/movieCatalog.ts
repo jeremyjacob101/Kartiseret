@@ -16,6 +16,7 @@ const MOVIE_SELECT_COLUMNS = [
   "tmdb_id",
   "english_title",
   "release_year",
+  "solo_update",
   "genres",
   "en_poster",
   "alt_options",
@@ -42,6 +43,7 @@ const COMING_SOON_SELECT_COLUMNS = [
   "tmdb_id",
   "english_title",
   "release_year",
+  "solo_update",
   "release_date",
   "genres",
   "en_poster",
@@ -272,6 +274,31 @@ function parseOptionalNumberValue(
 
   const parsed = Number.parseFloat(normalizedValue);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseBooleanValue(
+  value: SupabaseValue | undefined,
+  fallback = false,
+): boolean {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  const normalized = normalizeText(stringifySupabaseValue(value)).toLowerCase();
+
+  if (!normalized) {
+    return fallback;
+  }
+
+  if (normalized === "true" || normalized === "t" || normalized === "1") {
+    return true;
+  }
+
+  if (normalized === "false" || normalized === "f" || normalized === "0") {
+    return false;
+  }
+
+  return fallback;
 }
 
 function normalizeText(value: string): string {
@@ -611,6 +638,7 @@ function buildMovies(
   { sortMode = "popularity" }: BuildMoviesOptions = {},
 ): Movie[] {
   return [...rows]
+    .filter((row) => !parseBooleanValue(row.solo_update))
     .sort((left, right) => {
       if (sortMode === "releaseDate") {
         return compareByReleaseDate(
