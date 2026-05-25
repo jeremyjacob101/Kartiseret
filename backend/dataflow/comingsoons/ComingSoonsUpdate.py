@@ -26,8 +26,13 @@ class ComingSoonsUpdate(BaseDataflow):
         trailer = (next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Trailer" and v.get("site") == "YouTube" and v.get("key") and v.get("iso_639_1") == "en"), None) or next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Teaser" and v.get("site") == "YouTube" and v.get("key") and v.get("iso_639_1") == "en"), None) or next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Trailer" and v.get("site") == "YouTube" and v.get("key")), None) or next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Teaser" and v.get("site") == "YouTube" and v.get("key")), None)) if isinstance(data, dict) else None
 
         new_row["english_title"] = data["title"].strip() if isinstance(data, dict) and data.get("title") else existing["english_title"]
-        new_row["release_date"] = data["release_date"] if isinstance(data, dict) and data.get("release_date") else new_row.get("release_date")
-        new_row["release_year"] = data["release_date"][:4] if isinstance(data, dict) and data.get("release_date") else existing["release_year"]
+        # Keep source/cinema release_date for coming-soons. TMDB release dates can
+        # be historical first-release dates and should not replace local schedule dates.
+        source_release_date = new_row.get("release_date")
+        if source_release_date:
+            new_row["release_year"] = str(source_release_date)[:4]
+        else:
+            new_row["release_year"] = data["release_date"][:4] if isinstance(data, dict) and data.get("release_date") else existing["release_year"]
         new_row["runtime"] = data["runtime"] if isinstance(data, dict) and data.get("runtime") is not None else existing["runtime"]
         new_row["genres"] = genres or existing["genres"]
         new_row["imdb_id"] = data.get("external_ids", {}).get("imdb_id") if isinstance(data, dict) and data.get("external_ids", {}).get("imdb_id") else existing["imdb_id"]

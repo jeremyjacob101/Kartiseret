@@ -1,0 +1,262 @@
+- - -
+DATAFLOW SUMMARY
+- - -
+Name: ComingSoonsTmdb
+Run ID: 448
+Attempt: 1
+Result: SUCCESS
+Started (UTC): 2026-05-25T12:56:42.827403+00:00
+Finished (UTC): 2026-05-25T12:57:24.306472+00:00
+Duration Seconds: 41.4791
+Generated At (UTC): 2026-05-25T12:57:24.306585+00:00
+
+SUMMARY COUNTS
+- dropped: 7
+- mapped: 25
+- merged: 8
+- skipped: 134
+
+STAGE BREAKDOWN
+- dedupe|merged|deduped_into_tmdb: 8
+- enrich|mapped|enriched: 8
+- row_filter|skipped|already_added: 75
+- row_filter|skipped|past_release_date: 58
+- row_filter|skipped|skip_token: 1
+- tmdb_choice|mapped|fallback_first_candidate: 2
+- tmdb_choice|mapped|title_first_match: 12
+- tmdb_choice|mapped|tmdb_fix_override: 1
+- tmdb_search|dropped|no_candidates: 7
+- write|mapped|marked_added: 1
+- write|mapped|upserted: 1
+
+COMING SOONS DETAILS
+- [mapped] write | title= | key=allSoons | reason=marked_added | tmdb=
+- [mapped] write | title= | key=finalSoons | reason=upserted | tmdb=
+- [skipped] row_filter | title=2026 | key=6dbd80d5-4079-4265-887a-77acf9976eb7 | reason=skip_token | tmdb=
+- [skipped] row_filter | title=40 | key=171b0a72-4314-496f-95e5-c7c8ab2a3eaf | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=a brief affair | key=01d25c60-ce26-4d7f-8afb-c334cca1ce72 | reason=already_added | tmdb= x2
+- [skipped] row_filter | title=a nice indian boy | key=07ad4b84-decf-439b-9133-fe1519d80ccc | reason=already_added | tmdb=
+- [skipped] row_filter | title=abba | key=356ab610-3ab4-4416-b3f6-2577877c34b0 | reason=already_added | tmdb=
+- [skipped] row_filter | title=adhd | key=780d28ff-6bca-4491-84af-763bb50d3642 | reason=already_added | tmdb=
+- [skipped] row_filter | title=american hina | key=e2289ddf-b56b-4dc8-8e3b-089974b1d88d | reason=already_added | tmdb=
+- [dropped] tmdb_search | title=animel farm | key=4b9a863e-17af-43fb-bd57-2326e2951fa3 | reason=no_candidates | tmdb=
+- [skipped] row_filter | title=avengers doomsday | key=58ec6b69-fb08-4048-9d31-b41c1c1699a1 | reason=already_added | tmdb=
+- [skipped] row_filter | title=backrooms | key=38087ee5-c932-48cc-a0f0-edf4ab1e0d1a | reason=already_added | tmdb=
+- [skipped] row_filter | title=bambi the reckoning | key=4c6ffd08-bcf3-4754-9107-e3ec914ba962 | reason=already_added | tmdb=
+- [skipped] row_filter | title=bear clow camp | key=9525a0a7-9fbd-49ff-b112-10826c254f74 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=billie eilish 3d live tour hit me hard | key=2d856f86-0484-4d94-b126-c2a037156a3c | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=billie eilish hit me hard and soft the tour 3d | key=41bc27fb-ffd4-4061-91c3-fbf51502b4f4 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=billie eilish hit me hard and soft the tour liv | key=2ec4a2c4-a334-47a1-8a51-06ee7b05a14b | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=billie eilish hit me hard and soft the tour live in 3d | key=7aa30df2-1758-43d6-8971-8843e798bf35 | reason=past_release_date | tmdb= x2
+- [skipped] row_filter | title=bohemian rhapsody | key=e1ea2849-a08a-44fd-8765-ce1ba7da2216 | reason=already_added | tmdb=
+- [skipped] row_filter | title=cetait mieux demain | key=ca5095e8-9777-4599-af25-d2928e31125d | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=classic | key=8c7d722e-5d21-44cb-a5fd-cb6f659d1db3 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=clayface | key=fbb6f09d-5fda-49f6-84dd-62c3ed648b93 | reason=already_added | tmdb=
+- [skipped] row_filter | title=colours of time | key=96b65a1c-1ba2-4f83-9f1c-6a39d515599d | reason=already_added | tmdb=
+- [skipped] row_filter | title=colours of time | key=db3c87e4-d9b3-442e-b6a3-f28b9191f513 | reason=past_release_date | tmdb= x2
+- [skipped] row_filter | title=cuz youre ugly | key=7c793424-2004-449e-8818-39d1e32c4856 | reason=already_added | tmdb=
+- [skipped] row_filter | title=digger | key=28a92a82-1fbf-4aab-97e1-a8658f9f1baf | reason=already_added | tmdb=
+- [skipped] row_filter | title=disclosure day | key=3913556a-5028-4fa5-abea-6df16db49179 | reason=already_added | tmdb=
+- [skipped] row_filter | title=dune part three | key=6eedee8b-d0e7-4bc6-8528-7a9ebd84c821 | reason=already_added | tmdb=
+- [skipped] row_filter | title=eden | key=0cab406a-447c-4fec-b649-0af6fd101d42 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=end of oak street | key=b10558c2-2582-44ae-a820-b9882c30d182 | reason=already_added | tmdb=
+- [skipped] row_filter | title=evil dead burn | key=293851f6-53b6-4f59-8f23-f6e751672a38 | reason=already_added | tmdb=
+- [mapped] enrich | title=Fafner: Heaven and Earth | key=73db4fc4-93c3-424b-ae75-4e74127c5ec0 | reason=enriched | tmdb=137502
+- [skipped] row_filter | title=fantasy life | key=7cd134b8-825c-41b1-a927-b4d3d11e1334 | reason=already_added | tmdb=
+- [skipped] row_filter | title=focker in law | key=b3e9e30a-7890-4b96-8f65-2fa1875b9c90 | reason=already_added | tmdb=
+- [skipped] row_filter | title=forgotten island | key=9b0a4325-b44e-4100-a0dc-c5a15cf267f7 | reason=already_added | tmdb=
+- [skipped] row_filter | title=four letters of love | key=bfd53e38-80cb-40ab-8d91-5bf9110cd1a2 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=four love letters | key=1bb00fc8-fbb3-4af4-a3ba-b398aa5c1e67 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=grease | key=860aac4e-35e6-45c7-8873-0127162d2612 | reason=past_release_date | tmdb=
+- [merged] dedupe | title=heaven and earth | key=73db4fc4-93c3-424b-ae75-4e74127c5ec0 | reason=deduped_into_tmdb | tmdb=137502
+- [mapped] tmdb_choice | title=heaven and earth | key=73db4fc4-93c3-424b-ae75-4e74127c5ec0 | reason=fallback_first_candidate | tmdb=137502 x2
+- [skipped] row_filter | title=hokum | key=eabf4661-e2c3-4c21-bffe-13e5e40e55c1 | reason=already_added | tmdb=
+- [skipped] row_filter | title=how to make a killing | key=56f1a70d-38d4-4cb4-bb33-5a664588d89c | reason=already_added | tmdb=
+- [merged] dedupe | title=i swear | key=84073fcb-390b-4de2-a09c-4fa10e81b718 | reason=deduped_into_tmdb | tmdb=1317149
+- [mapped] enrich | title=I Swear | key=84073fcb-390b-4de2-a09c-4fa10e81b718 | reason=enriched | tmdb=1317149
+- [skipped] row_filter | title=i swear | key=1bf48eb9-cf54-460f-bbc5-9ca368a35dc8 | reason=already_added | tmdb=
+- [mapped] tmdb_choice | title=i swear | key=84073fcb-390b-4de2-a09c-4fa10e81b718 | reason=title_first_match | tmdb=1317149 x2
+- [skipped] row_filter | title=in the grey | key=63d0e1e2-6f64-4577-a983-bdc8468c3241 | reason=already_added | tmdb=
+- [skipped] row_filter | title=insidious out of the further | key=8e3498aa-3692-4cf1-910e-f06205f5d543 | reason=already_added | tmdb=
+- [dropped] tmdb_search | title=investment generation | key=f52048eb-95fe-4d24-b306-fb5ba8bd3443 | reason=no_candidates | tmdb=
+- [skipped] row_filter | title=iron maiden burning ambition | key=017fcfed-ef37-42f4-97a8-acf6b518793d | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=jackass best and last | key=dd521a94-330e-4017-9f29-c2db3ccf4601 | reason=already_added | tmdb=
+- [skipped] row_filter | title=jerry maguire | key=3b181e05-6499-427d-b87a-bb3813d91121 | reason=already_added | tmdb=
+- [skipped] row_filter | title=june and john | key=5702cc47-8448-4ec7-9a99-ea95fe89aca2 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=just an illusion | key=421c3e53-90ad-4082-94a1-f97bcee00835 | reason=already_added | tmdb=
+- [skipped] row_filter | title=just an illusion | key=7c6cbbeb-0020-47a2-8299-4781f967eb78 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=kidnapped | key=856bcd32-0f0a-4ba4-930a-f4846ca25210 | reason=already_added | tmdb=
+- [dropped] tmdb_search | title=kidnapped aka rapito | key=755cc7a7-a762-4909-b4c6-3094f8e7bfcd | reason=no_candidates | tmdb=
+- [skipped] row_filter | title=kpop demon hunters singalong | key=07cb4ed7-0599-40f9-8b4d-434ddf1caeb6 | reason=already_added | tmdb=
+- [dropped] tmdb_search | title=kupa rashit | key=0638cc56-a6ab-4e58-ac90-77542a0652c7 | reason=no_candidates | tmdb=
+- [skipped] row_filter | title=la femme nikita | key=72f64445-5082-4068-9f4c-2131287f3b57 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=la grazia | key=c48d2585-7352-4274-9199-e0e619cdb125 | reason=already_added | tmdb= x2
+- [skipped] row_filter | title=late shift | key=c0512c78-d581-4143-80fd-1d663bc42581 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=let it rain | key=25c516ef-038a-45f7-91da-cdfd5bf007d8 | reason=already_added | tmdb=
+- [skipped] row_filter | title=masters of the universe | key=1f1ecb9a-dadd-4efc-83f9-e333322bba75 | reason=already_added | tmdb=
+- [skipped] row_filter | title=minions monsters | key=7b6838de-cadd-492e-8423-efec7eff8005 | reason=already_added | tmdb=
+- [skipped] row_filter | title=moana | key=91b191a5-63ff-4cb1-8dd4-d960aa577690 | reason=already_added | tmdb=
+- [skipped] row_filter | title=moana live action | key=8c9fa8d5-69f8-408d-8832-20a699b0fa3d | reason=already_added | tmdb= x2
+- [skipped] row_filter | title=mortal kombat ii | key=5dd2ffde-9777-43b1-b8a2-9a8e8eaeee63 | reason=past_release_date | tmdb= x2
+- [skipped] row_filter | title=mother mary | key=33764e47-1cb9-460b-ac03-d2fb9197b363 | reason=past_release_date | tmdb=
+- [dropped] tmdb_search | title=movieretro | key=0c248872-b643-4cf4-bed9-d58f243e90f4 | reason=no_candidates | tmdb= x2
+- [skipped] row_filter | title=my friend eva | key=51232ca8-7ed8-42b3-8a1d-3873c50d54b2 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=night of the hunted | key=bc190853-ec48-4457-9f1a-1a45104fc97a | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=nino | key=cec091bd-d5d0-4c5f-868c-b33fc6ca67cd | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=nirvanna the band the show the movie | key=c40e288f-7ccb-4cb5-8e0a-92a760346429 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=no signal | key=f8f42f69-73d8-4aab-b3b8-b6da07f87453 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=not without hope | key=b990eff0-71d9-4492-94fd-05f62be61b07 | reason=already_added | tmdb=
+- [merged] dedupe | title=obsession | key=51c545a9-1786-427e-b01f-1266450171b2 | reason=deduped_into_tmdb | tmdb=1339713
+- [mapped] enrich | title=Obsession | key=51c545a9-1786-427e-b01f-1266450171b2 | reason=enriched | tmdb=1339713
+- [mapped] tmdb_choice | title=obsession | key=51c545a9-1786-427e-b01f-1266450171b2 | reason=tmdb_fix_override | tmdb=1339713
+- [skipped] row_filter | title=one night only | key=d0f9c44b-55ad-4c3b-96ce-d21d269b2692 | reason=already_added | tmdb=
+- [skipped] row_filter | title=passenger | key=45af6a53-fad3-47bf-a7b3-7ebfa3a29f01 | reason=already_added | tmdb=
+- [skipped] row_filter | title=pirates of the caribbean the curse of the black p | key=5fe71a5c-038d-4c61-92ae-faaad4010d5f | reason=already_added | tmdb=
+- [merged] dedupe | title=practical magic 2 | key=c9a21c23-d7a3-4fac-84db-49af181d105c | reason=deduped_into_tmdb | tmdb=1302904
+- [mapped] enrich | title=Practical Magic 2 | key=c9a21c23-d7a3-4fac-84db-49af181d105c | reason=enriched | tmdb=1302904
+- [mapped] tmdb_choice | title=practical magic 2 | key=c9a21c23-d7a3-4fac-84db-49af181d105c | reason=title_first_match | tmdb=1302904 x2
+- [merged] dedupe | title=primavera | key=acd61898-3a86-49f7-8948-e67879d75962 | reason=deduped_into_tmdb | tmdb=1365683
+- [mapped] enrich | title=Primavera | key=acd61898-3a86-49f7-8948-e67879d75962 | reason=enriched | tmdb=1365683
+- [mapped] tmdb_choice | title=primavera | key=acd61898-3a86-49f7-8948-e67879d75962 | reason=title_first_match | tmdb=1365683 x2
+- [skipped] row_filter | title=pulp fiction | key=3fd83d9a-350d-4e2f-a5a7-e43b7c85e570 | reason=already_added | tmdb=
+- [skipped] row_filter | title=rapito | key=ad8739ca-943e-4cd5-91ae-ae1727ce4c24 | reason=already_added | tmdb=
+- [skipped] row_filter | title=resident evil | key=d4ee5e73-dc73-499f-bca0-ffacce2350d9 | reason=already_added | tmdb=
+- [skipped] row_filter | title=saltiz | key=4019d680-7709-468f-9fe6-f233c9225646 | reason=already_added | tmdb= x3
+- [skipped] row_filter | title=scary movie | key=a3154e3d-715f-44f6-95d6-c2d3064da117 | reason=already_added | tmdb=
+- [skipped] row_filter | title=seestarz | key=b2ddf12c-bebe-4483-aa46-91e5adb21299 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=shell | key=b833678c-f2bd-4346-a65b-ab4b3c87d99e | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=single light | key=af57f414-e468-4faa-81f4-e225626d3f6b | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=sitaare zameen par | key=8f5d7ef3-42af-4a44-86a6-cfedb8c99fce | reason=already_added | tmdb=
+- [skipped] row_filter | title=slumdog millionaire | key=f15e91ed-efc4-4041-89a7-16e4a288bb3e | reason=already_added | tmdb=
+- [skipped] row_filter | title=sonic the hedgehog 4 | key=ff86d96d-6cfd-422e-a3a6-23ac9008e14b | reason=already_added | tmdb=
+- [skipped] row_filter | title=spider man brand new day | key=1ed4c0ae-c88d-488e-9873-7d40a47e15ad | reason=already_added | tmdb=
+- [skipped] row_filter | title=spiked | key=0f8e4987-eb78-4a09-a5a7-7ac5320fa216 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=star wars the mandalorian and grogu | key=2c102164-643f-4e4b-afa4-eb3c37ecd1d0 | reason=already_added | tmdb= x2
+- [skipped] row_filter | title=stolen girl | key=349605ed-b25f-4075-a362-b85918f6f64a | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=street fighter | key=8ddaec57-dc51-4e56-be21-acb83f26b5c1 | reason=already_added | tmdb=
+- [skipped] row_filter | title=supergirl | key=1723b620-6385-49ab-8543-c0ccad945291 | reason=already_added | tmdb=
+- [skipped] row_filter | title=tel aviv beirut | key=42d6e769-3ff7-4057-bcdf-195e6451c33a | reason=already_added | tmdb=
+- [skipped] row_filter | title=that time i got reincarnated as a slime | key=fc2a96a7-c466-479a-bba6-c42a7d54244c | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=that time i got reincarnated as a slime tears of the azure sea | key=7cac348b-f31a-469f-9023-c2b0430b17e3 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=that time i got reincarnated as a slime the movie tears of the azure sea | key=3940c023-8706-460d-b23a-b7d9decf386c | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=the adventures of priscilla queen of the desert | key=9d935ad1-49e0-4de6-96e9-53d0a83fa282 | reason=already_added | tmdb=
+- [skipped] row_filter | title=the bad boy and me 2 | key=0865e6b8-6cd0-4045-8a1b-968ac891acb1 | reason=past_release_date | tmdb=
+- [merged] dedupe | title=the cat in the hat | key=cb39162e-c70a-4db7-8bef-c185d42b34a8 | reason=deduped_into_tmdb | tmdb=1117898
+- [mapped] enrich | title=The Cat in the Hat | key=cb39162e-c70a-4db7-8bef-c185d42b34a8 | reason=enriched | tmdb=1117898
+- [mapped] tmdb_choice | title=the cat in the hat | key=cb39162e-c70a-4db7-8bef-c185d42b34a8 | reason=title_first_match | tmdb=1117898 x2
+- [skipped] row_filter | title=the choral | key=6a49c58f-9ac2-4c62-9e60-ca458e7237d3 | reason=past_release_date | tmdb= x2
+- [skipped] row_filter | title=the christophers | key=dc97fe7b-c387-4c7b-8208-18e24e2c7ac2 | reason=already_added | tmdb=
+- [skipped] row_filter | title=the devil wears prada 2 | key=0acaabbd-1ed4-4d29-abaf-a95876bb20f1 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=the dog stars | key=38a6bee3-f7f5-4ff9-b278-d0ba620b9481 | reason=already_added | tmdb=
+- [merged] dedupe | title=the fifth element | key=4ff3e53f-71f6-4712-ab8d-4a2d7895e6a6 | reason=deduped_into_tmdb | tmdb=18
+- [mapped] enrich | title=The Fifth Element | key=4ff3e53f-71f6-4712-ab8d-4a2d7895e6a6 | reason=enriched | tmdb=18
+- [mapped] tmdb_choice | title=the fifth element | key=4ff3e53f-71f6-4712-ab8d-4a2d7895e6a6 | reason=title_first_match | tmdb=18 x2
+- [merged] dedupe | title=the great lillian hall | key=d33eb3ad-0f14-43c1-8a8c-fa692e508871 | reason=deduped_into_tmdb | tmdb=800513
+- [mapped] enrich | title=The Great Lillian Hall | key=d33eb3ad-0f14-43c1-8a8c-fa692e508871 | reason=enriched | tmdb=800513
+- [mapped] tmdb_choice | title=the great lillian hall | key=d33eb3ad-0f14-43c1-8a8c-fa692e508871 | reason=title_first_match | tmdb=800513 x2
+- [skipped] row_filter | title=the hunger games sunrise on the reaping | key=1cbea631-6817-4f48-b919-28872f9ae990 | reason=already_added | tmdb=
+- [skipped] row_filter | title=the invite | key=b451db5d-5828-4944-8da5-468aa4ca8ddb | reason=already_added | tmdb=
+- [skipped] row_filter | title=the last whale singer | key=da64a88a-de7d-45b3-937e-68b2d558cc9b | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=the mandalorian and grogu | key=fc0d12bc-4c32-4219-aa8e-a7d5ac5c22cd | reason=already_added | tmdb=
+- [skipped] row_filter | title=the mandalorian grogu | key=981e45b9-2cb6-44e5-84d0-2999597d6208 | reason=already_added | tmdb=
+- [skipped] row_filter | title=the mood board | key=8c45518a-b8d1-4f30-b2a0-db234e097186 | reason=past_release_date | tmdb= x2
+- [skipped] row_filter | title=the odyssey | key=3fcd83d9-3272-4d13-bc42-12221cde99bc | reason=already_added | tmdb=
+- [skipped] row_filter | title=the sheep detectives | key=857fcf5b-63b3-47bf-9cbb-f933d38d85b7 | reason=already_added | tmdb=
+- [skipped] row_filter | title=the sheep detectives | key=556cade4-f67a-4dfe-90cb-d726914c3657 | reason=past_release_date | tmdb= x2
+- [skipped] row_filter | title=the tasters | key=f2364a91-6384-410e-a21d-21b3927b1757 | reason=already_added | tmdb=
+- [skipped] row_filter | title=the whale | key=5a4a09b7-3299-4a9b-abc2-06efeabd5dc7 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=three men and vilma | key=dc54698b-b66a-4b0e-8efd-da4779e75bc3 | reason=already_added | tmdb=
+- [skipped] row_filter | title=top gun | key=11460e72-8219-4536-a780-b0ea912c4175 | reason=past_release_date | tmdb= x3
+- [skipped] row_filter | title=top gun 1986 | key=b6cf08b1-7223-4d35-9221-6e9dc542e7e8 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=top gun 40th anniversary | key=fe75babc-4db0-4311-a575-982b5ea3ca0a | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=top gun double feature | key=600cee7a-5533-449e-971c-f2f257579fec | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=top gun maverick | key=0ea03664-28fe-4468-86a8-6fbf759ccce7 | reason=past_release_date | tmdb= x4
+- [skipped] row_filter | title=toy story 5 | key=b3cbdebd-39e7-4250-b8ad-c2f1edabd84b | reason=already_added | tmdb=
+- [skipped] row_filter | title=tuner | key=0310f610-f53e-4667-bd39-f000cda0fef7 | reason=already_added | tmdb=
+- [skipped] row_filter | title=underwater speculations | key=0881d864-75fc-41cd-8dad-9687a3a220a5 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=verity | key=e0fe2fbc-29dc-4a60-ad87-000cf7bd7b76 | reason=already_added | tmdb=
+- [skipped] row_filter | title=wild horse nine | key=d06998f9-a108-46d2-9d14-0a3a7df05b42 | reason=already_added | tmdb=
+- [skipped] row_filter | title=wonder | key=a5027a91-a08f-4a05-85b7-f6071b1fed3b | reason=already_added | tmdb=
+- [dropped] tmdb_search | title=worldcup2026 | key=bb6f44bf-f345-432d-acc6-fb2d42d73f9a | reason=no_candidates | tmdb=
+- [skipped] row_filter | title=xxx return of xander cage | key=db62a25b-5444-4e55-9b29-80185c3e3b6b | reason=past_release_date | tmdb=
+
+NOW PLAYING GROUP DETAILS
+- (none)
+
+UNRESOLVED / DROPPED ITEMS
+- past_release_date | iron maiden burning ambition | row_id=017fcfed-ef37-42f4-97a8-acf6b518793d
+- no_candidates | kupa rashit | row_id=0638cc56-a6ab-4e58-ac90-77542a0652c7
+- past_release_date | the bad boy and me 2 | row_id=0865e6b8-6cd0-4045-8a1b-968ac891acb1
+- past_release_date | underwater speculations | row_id=0881d864-75fc-41cd-8dad-9687a3a220a5
+- past_release_date | the devil wears prada 2 | row_id=0acaabbd-1ed4-4d29-abaf-a95876bb20f1
+- no_candidates | movieretro | row_id=0c248872-b643-4cf4-bed9-d58f243e90f4
+- past_release_date | eden | row_id=0cab406a-447c-4fec-b649-0af6fd101d42
+- past_release_date | top gun maverick | row_id=0ea03664-28fe-4468-86a8-6fbf759ccce7
+- past_release_date | spiked | row_id=0f8e4987-eb78-4a09-a5a7-7ac5320fa216
+- past_release_date | top gun | row_id=11460e72-8219-4536-a780-b0ea912c4175
+- past_release_date | 40 | row_id=171b0a72-4314-496f-95e5-c7c8ab2a3eaf
+- past_release_date | top gun maverick | row_id=178e4b2e-bf1a-4101-a859-6faaa8036d29
+- past_release_date | four love letters | row_id=1bb00fc8-fbb3-4af4-a3ba-b398aa5c1e67
+- past_release_date | top gun | row_id=2835b62b-e028-4858-a943-8d8f679fab32
+- past_release_date | billie eilish 3d live tour hit me hard | row_id=2d856f86-0484-4d94-b126-c2a037156a3c
+- past_release_date | billie eilish hit me hard and soft the tour liv | row_id=2ec4a2c4-a334-47a1-8a51-06ee7b05a14b
+- past_release_date | mother mary | row_id=33764e47-1cb9-460b-ac03-d2fb9197b363
+- past_release_date | stolen girl | row_id=349605ed-b25f-4075-a362-b85918f6f64a
+- past_release_date | that time i got reincarnated as a slime the movie tears of the azure sea | row_id=3940c023-8706-460d-b23a-b7d9decf386c
+- past_release_date | billie eilish hit me hard and soft the tour 3d | row_id=41bc27fb-ffd4-4061-91c3-fbf51502b4f4
+- no_candidates | animel farm | row_id=4b9a863e-17af-43fb-bd57-2326e2951fa3
+- past_release_date | my friend eva | row_id=51232ca8-7ed8-42b3-8a1d-3873c50d54b2
+- past_release_date | the sheep detectives | row_id=556cade4-f67a-4dfe-90cb-d726914c3657
+- past_release_date | june and john | row_id=5702cc47-8448-4ec7-9a99-ea95fe89aca2
+- past_release_date | the whale | row_id=5a4a09b7-3299-4a9b-abc2-06efeabd5dc7
+- past_release_date | mortal kombat ii | row_id=5dd2ffde-9777-43b1-b8a2-9a8e8eaeee63
+- past_release_date | top gun double feature | row_id=600cee7a-5533-449e-971c-f2f257579fec
+- past_release_date | the choral | row_id=6a49c58f-9ac2-4c62-9e60-ca458e7237d3
+- skip_token | 2026 | row_id=6dbd80d5-4079-4265-887a-77acf9976eb7
+- past_release_date | la femme nikita | row_id=72f64445-5082-4068-9f4c-2131287f3b57
+- no_candidates | kidnapped aka rapito | row_id=755cc7a7-a762-4909-b4c6-3094f8e7bfcd
+- past_release_date | billie eilish hit me hard and soft the tour live in 3d | row_id=7aa30df2-1758-43d6-8971-8843e798bf35
+- past_release_date | just an illusion | row_id=7c6cbbeb-0020-47a2-8299-4781f967eb78
+- past_release_date | that time i got reincarnated as a slime tears of the azure sea | row_id=7cac348b-f31a-469f-9023-c2b0430b17e3
+- past_release_date | grease | row_id=860aac4e-35e6-45c7-8873-0127162d2612
+- past_release_date | the mood board | row_id=8c45518a-b8d1-4f30-b2a0-db234e097186
+- past_release_date | classic | row_id=8c7d722e-5d21-44cb-a5fd-cb6f659d1db3
+- past_release_date | bear clow camp | row_id=9525a0a7-9fbd-49ff-b112-10826c254f74
+- past_release_date | the choral | row_id=9ad0e651-3668-49e4-8542-8668bc682428
+- past_release_date | single light | row_id=af57f414-e468-4faa-81f4-e225626d3f6b
+- past_release_date | seestarz | row_id=b2ddf12c-bebe-4483-aa46-91e5adb21299
+- past_release_date | top gun | row_id=b3007a09-1a6a-46f9-b89c-1764308f03f4
+- past_release_date | top gun 1986 | row_id=b6cf08b1-7223-4d35-9221-6e9dc542e7e8
+- past_release_date | shell | row_id=b833678c-f2bd-4346-a65b-ab4b3c87d99e
+- no_candidates | worldcup2026 | row_id=bb6f44bf-f345-432d-acc6-fb2d42d73f9a
+- past_release_date | night of the hunted | row_id=bc190853-ec48-4457-9f1a-1a45104fc97a
+- past_release_date | four letters of love | row_id=bfd53e38-80cb-40ab-8d91-5bf9110cd1a2
+- past_release_date | late shift | row_id=c0512c78-d581-4143-80fd-1d663bc42581
+- past_release_date | nirvanna the band the show the movie | row_id=c40e288f-7ccb-4cb5-8e0a-92a760346429
+- past_release_date | the mood board | row_id=c7c3a4f1-d6bd-4a14-82a7-c707a3263e24
+- past_release_date | the sheep detectives | row_id=c8e76e04-eb33-4e4a-a086-7c511b437e18
+- past_release_date | cetait mieux demain | row_id=ca5095e8-9777-4599-af25-d2928e31125d
+- past_release_date | nino | row_id=cec091bd-d5d0-4c5f-868c-b33fc6ca67cd
+- past_release_date | the last whale singer | row_id=da64a88a-de7d-45b3-937e-68b2d558cc9b
+- past_release_date | colours of time | row_id=db3c87e4-d9b3-442e-b6a3-f28b9191f513
+- past_release_date | xxx return of xander cage | row_id=db62a25b-5444-4e55-9b29-80185c3e3b6b
+- past_release_date | mortal kombat ii | row_id=e7c07bfb-adc3-4f93-8e91-0b4287148e4a
+- past_release_date | top gun maverick | row_id=f29b0609-083c-4b61-a6db-51feac50ca29
+- past_release_date | billie eilish hit me hard and soft the tour live in 3d | row_id=f3ab3d4c-4152-4de9-8589-3d1c4c8bdf45
+- no_candidates | investment generation | row_id=f52048eb-95fe-4d24-b306-fb5ba8bd3443
+- no_candidates | movieretro | row_id=f7980ee6-ad15-4e46-8c28-92bb809db8e8
+- past_release_date | no signal | row_id=f8f42f69-73d8-4aab-b3b8-b6da07f87453
+- past_release_date | top gun maverick | row_id=f9315a21-27fa-4080-a6d5-31af2cc57c63
+- past_release_date | that time i got reincarnated as a slime | row_id=fc2a96a7-c466-479a-bba6-c42a7d54244c
+- past_release_date | top gun 40th anniversary | row_id=fe75babc-4db0-4311-a575-982b5ea3ca0a
+- past_release_date | colours of time | row_id=ff70e7be-8321-4e90-a532-56942a5ebd60
+
+WRITE/DEDUPE ACTIONS
+- dedupeAllSoons(allSoons)
+- dedupeFinalSoons(finalSoons)
+- upsertUpdates(finalSoons) rows=8
+- mark_added(allSoons) rows=8
+- dedupeFinalSoons(finalSoons)
+
+NOTES
+- (none)
