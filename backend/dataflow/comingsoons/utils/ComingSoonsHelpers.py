@@ -1,30 +1,57 @@
+from datetime import date
 import re, unicodedata
 
 
 class ComingSoonsHelpers:
-    def comingSoonsSortKey(self, row):
-        d_key = self.dateToDate(row.get("release_date"))
+    def _soon_release_date_or_min(self, row: dict):
+        try:
+            raw = row.get("release_date") if isinstance(row, dict) else None
+            return self.dateToDate(raw) if raw else date.min
+        except Exception:
+            return date.min
+
+    def _soon_created_at_timestamp(self, row: dict) -> float:
+        try:
+            raw = row.get("created_at") if isinstance(row, dict) else None
+            if not raw:
+                return float("-inf")
+            return self.datetimeToDatetime(raw).timestamp()
+        except Exception:
+            return float("-inf")
+
+    def comingSoonsFreshnessPreferKey(self, row: dict):
+        # Prefer rows whose release date has not passed yet. Then prefer the latest
+        # release date to handle source-side pushbacks (e.g. 2026-05-14 -> 2026-05-28).
+        d_key = self._soon_release_date_or_min(row)
+        is_upcoming = 1 if d_key >= date.today() else 0
         runtime = row.get("runtime")
         good_runtime = (runtime is not None) and (runtime not in getattr(self, "fake_runtimes", set()))
         has_release_year = bool(row.get("release_year"))
         has_directed_by = bool((row.get("directed_by") or "").strip())
+        run_id = self.clean_int(row.get("run_id")) if isinstance(row, dict) else None
 
         return (
+            is_upcoming,
             d_key,
-            0 if has_directed_by else 1,
-            0 if good_runtime else 1,
-            0 if has_release_year else 1,
+            1 if has_directed_by else 0,
+            1 if good_runtime else 0,
+            1 if has_release_year else 0,
+            run_id if run_id is not None else -1,
+            self._soon_created_at_timestamp(row),
         )
 
+    def choosePreferredComingSoonRow(self, rows: list[dict]) -> dict:
+        return max(rows, key=self.comingSoonsFreshnessPreferKey)
+
     def comingSoonsFinalDedupeSortKey(self, row):
-        d_key = self.dateToDate(row.get("release_date"))
+        d_key = self._soon_release_date_or_min(row)
 
         heb = (row.get("hebrew_title") or "").strip()
         has_hebrew = bool(heb) and heb.lower() != "null"
 
         return (
             d_key,
-            0 if has_hebrew else 1,
+            1 if has_hebrew else 0,
         )
 
     def comingSoonsFinalDedupeSortKey2(self, row: dict):

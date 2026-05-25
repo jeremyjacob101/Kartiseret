@@ -199,7 +199,7 @@ class ComingSoonsTmdb(BaseDataflow):
                 grouped[tmdb_id].append(r)
 
         for tmdb_id, rows in grouped.items():
-            rows_sorted = sorted(rows, key=self.comingSoonsFinalDedupeSortKey)
+            rows_sorted = sorted(rows, key=self.comingSoonsFreshnessPreferKey, reverse=True)
             best = rows_sorted[0]
             self.trace_event("dedupe", "merged", "deduped_into_tmdb", key=str(best.get("old_uuid") or ""), payload={"title": best.get("english_title"), "title_norm": self.normalizeTitle(best.get("english_title") or ""), "chosen_tmdb": tmdb_id})
 

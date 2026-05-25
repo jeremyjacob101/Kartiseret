@@ -32,7 +32,7 @@ class ComingSoonsClean(BaseDataflow):
         for _, rows in groups.items():
             if len(rows) <= 1:
                 continue
-            winner = min(rows, key=self.comingSoonsSortKey)
+            winner = self.choosePreferredComingSoonRow(rows)
             winner_id = winner[self.PRIMARY_KEY]
 
             for r in rows:
