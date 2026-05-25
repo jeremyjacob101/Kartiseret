@@ -187,6 +187,7 @@ class DataflowHelpers:
             "release_date": self.clean_date(row.get("release_date")),
             "release_year": None,
             "runtime": None,
+            "popularity": None,
             "tmdb_id": tmdb_id,
             "imdb_id": "",
             "en_poster": "",

@@ -34,6 +34,7 @@ class ComingSoonsUpdate(BaseDataflow):
         else:
             new_row["release_year"] = data["release_date"][:4] if isinstance(data, dict) and data.get("release_date") else existing["release_year"]
         new_row["runtime"] = data["runtime"] if isinstance(data, dict) and data.get("runtime") is not None else existing["runtime"]
+        new_row["popularity"] = data["popularity"] if isinstance(data, dict) and data.get("popularity") is not None else existing["popularity"]
         new_row["genres"] = genres or existing["genres"]
         new_row["imdb_id"] = data.get("external_ids", {}).get("imdb_id") if isinstance(data, dict) and data.get("external_ids", {}).get("imdb_id") else existing["imdb_id"]
         new_row["en_trailer"] = trailer.get("key") if trailer else existing["en_trailer"]
