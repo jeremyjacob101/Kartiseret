@@ -51,7 +51,7 @@ const COMING_SOON_SELECT_COLUMNS = [
   "backdrop",
   "en_trailer",
 ] as const;
-const OPTIONAL_COMING_SOON_SELECT_COLUMNS = ["runtime"] as const;
+const OPTIONAL_COMING_SOON_SELECT_COLUMNS = ["runtime", "popularity"] as const;
 const SHOWTIME_SELECT_COLUMNS = [
   "tmdb_id",
   "screening_city",
@@ -423,6 +423,7 @@ function compareByReleaseDate(
 ): number {
   return (
     left.release_date.localeCompare(right.release_date) ||
+    parseNumberValue(right.popularity) - parseNumberValue(left.popularity) ||
     normalizeTitle(left.english_title).localeCompare(
       normalizeTitle(right.english_title),
     )
