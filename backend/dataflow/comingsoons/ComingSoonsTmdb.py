@@ -40,6 +40,8 @@ class ComingSoonsTmdb(BaseDataflow):
     def logic(self):
         self.dedupeAllSoons(self.MAIN_TABLE_NAME)
         self.dedupeFinalSoons(self.MOVING_TO_TABLE_NAME)
+        self.trace_write_action(f"dedupeAllSoons({self.MAIN_TABLE_NAME})")
+        self.trace_write_action(f"dedupeFinalSoons({self.MOVING_TO_TABLE_NAME})")
 
         for skip_row in self.helper_table_2_rows:
             skip_value = skip_row.get("name_or_tmdb_id").strip()
@@ -51,19 +53,31 @@ class ComingSoonsTmdb(BaseDataflow):
         for row in self.main_table_rows:
             self.reset_soon_row_state()
             self.load_soon_row(row)
-            if row.get("added") or (self.release_date and self.dateToDate(self.release_date) < date.today()):
+            title_norm = self.normalizeTitle(self.english_title)
+
+            if row.get("added"):
+                self.trace_event("row_filter", "skipped", "already_added", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
+                continue
+
+            if self.release_date and self.dateToDate(self.release_date) < date.today():
+                self.trace_event("row_filter", "skipped", "past_release_date", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
+                self.trace_unresolved(f"past_release_date | {self.english_title} | row_id={row.get('id')}")
                 continue
 
             title_raw = (self.english_title or "").strip().lower()
-            title_norm = self.normalizeTitle(self.english_title)
             if title_raw in self.skip_tokens or title_norm in self.skip_tokens:
+                self.trace_event("row_filter", "skipped", "skip_token", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
+                self.trace_unresolved(f"skip_token | {self.english_title} | row_id={row.get('id')}")
                 continue
 
             if override_tmdb := (tmdb_fix_by_title.get(title_raw) or tmdb_fix_by_title.get(title_norm)):
                 if str(override_tmdb).lower() in self.skip_tokens:
+                    self.trace_event("tmdb_choice", "skipped", "skip_token", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": override_tmdb})
+                    self.trace_unresolved(f"skip_token_on_override | {self.english_title} | tmdb={override_tmdb}")
                     continue
                 self.potential_chosen_id = override_tmdb
                 self.non_deduplicated_updates.append({"old_uuid": row.get("id"), "run_id": row.get("run_id"), "english_title": self.english_title, "hebrew_title": self.hebrew_title, "release_date": self.release_date, "tmdb_id": override_tmdb, "imdb_id": None, "alt_options": []})
+                self.trace_event("tmdb_choice", "mapped", "tmdb_fix_override", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": override_tmdb})
                 self.processed_ids.add(row.get("id"))
                 continue
 
@@ -99,6 +113,8 @@ class ComingSoonsTmdb(BaseDataflow):
                     page += 1
 
             if not self.candidates:
+                self.trace_event("tmdb_search", "dropped", "no_candidates", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
+                self.trace_unresolved(f"no_candidates | {self.english_title} | row_id={row.get('id')}")
                 continue
 
             # 2) FETCH FULL DETAILS (external_ids + credits)
@@ -106,13 +122,18 @@ class ComingSoonsTmdb(BaseDataflow):
                 self.tryExceptPass(lambda: (resp := requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}", params={"api_key": self.TMDB_API_KEY, "append_to_response": "external_ids,credits"}, timeout=10).json()) and resp.get("id") and self.details.update({tmdb_id: resp}))
 
             if not self.details:
+                self.trace_event("tmdb_search", "dropped", "no_details", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
+                self.trace_unresolved(f"no_details | {self.english_title} | row_id={row.get('id')}")
                 continue
 
             # 3) TMDb FIX TABLE HARD MATCH (fast set membership)
+            chosen_path = None
             for tmdb_id in self.details.keys():
                 tmdb_id = self.clean_int(tmdb_id)
                 if tmdb_id in tmdb_fix_ids:
                     self.potential_chosen_id = tmdb_id
+                    chosen_path = "tmdb_fix_id_match"
+                    self.trace_event("tmdb_choice", "mapped", "tmdb_fix_id_match", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": tmdb_id})
                     break
 
             # 4) FALLBACK FIRST/DIRECTOR/RUNTIME RANKING LOGIC
@@ -120,6 +141,8 @@ class ComingSoonsTmdb(BaseDataflow):
                 first = self.details.get(self.candidates[0])
                 if first and (self.normalizeTitle(first.get("title")) == self.normalizeTitle(self.english_title)) and self.release_year and self.tryExceptNone(lambda: int((first.get("release_date") or "")[:4]) == self.release_year):
                     self.potential_chosen_id = self.candidates[0]
+                    chosen_path = "title_first_match"
+                    self.trace_event("tmdb_choice", "mapped", "title_first_match", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": self.potential_chosen_id})
 
                 # Director match
                 if self.potential_chosen_id is None and self.directed_by:
@@ -129,6 +152,8 @@ class ComingSoonsTmdb(BaseDataflow):
                         directors = [crew_member["name"].lower() for crew_member in crew if crew_member.get("job") == "Director" and crew_member.get("name")]
                         if target in directors:
                             self.potential_chosen_id = tmdb_id
+                            chosen_path = "director_match"
+                            self.trace_event("tmdb_choice", "mapped", "director_match", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": self.potential_chosen_id})
                             break
 
                 # Runtime match
@@ -136,24 +161,35 @@ class ComingSoonsTmdb(BaseDataflow):
                     for tmdb_id, movie_details in self.details.items():
                         if movie_details.get("runtime") == self.runtime:
                             self.potential_chosen_id = tmdb_id
+                            chosen_path = "runtime_match"
+                            self.trace_event("tmdb_choice", "mapped", "runtime_match", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": self.potential_chosen_id})
                             break
 
                 if self.potential_chosen_id is None:
                     self.potential_chosen_id = self.candidates[0]
+                    chosen_path = "fallback_first_candidate"
+                    self.trace_event("tmdb_choice", "mapped", "fallback_first_candidate", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": self.potential_chosen_id})
 
             if not self.potential_chosen_id or str(self.potential_chosen_id).lower() in self.skip_tokens:
+                self.trace_event("tmdb_choice", "dropped", "chosen_skipped_or_missing", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": self.potential_chosen_id})
+                self.trace_unresolved(f"chosen_skipped_or_missing | {self.english_title} | tmdb={self.potential_chosen_id}")
                 continue
 
             if alias_tmdb := self.tmdbFixAliasForTmdbId(self.potential_chosen_id, tmdb_fix_alias_by_tmdb):
                 if str(alias_tmdb).lower() in self.skip_tokens:
+                    self.trace_event("tmdb_choice", "dropped", "skip_token", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": alias_tmdb})
+                    self.trace_unresolved(f"skip_token_on_alias | {self.english_title} | tmdb={alias_tmdb}")
                     continue
                 self.potential_chosen_id = alias_tmdb
+                chosen_path = "alias_remap"
+                self.trace_event("tmdb_choice", "mapped", "alias_remap", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": alias_tmdb})
 
             chosen_details = self.details.get(self.potential_chosen_id) or {}
             chosen_imdb = (chosen_details.get("external_ids", {}) or {}).get("imdb_id")
             alt_options = self._build_alt_options(self.potential_chosen_id)
 
             self.non_deduplicated_updates.append({"old_uuid": row.get("id"), "run_id": row.get("run_id"), "english_title": self.english_title, "hebrew_title": self.hebrew_title, "release_date": self.release_date, "tmdb_id": self.potential_chosen_id, "imdb_id": chosen_imdb, "alt_options": alt_options})
+            self.trace_event("tmdb_choice", "mapped", chosen_path or "mapped", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": self.potential_chosen_id})
             self.processed_ids.add(row.get("id"))
 
         # 5) DEDUPE BY TMDB ID
@@ -165,6 +201,7 @@ class ComingSoonsTmdb(BaseDataflow):
         for tmdb_id, rows in grouped.items():
             rows_sorted = sorted(rows, key=self.comingSoonsFinalDedupeSortKey)
             best = rows_sorted[0]
+            self.trace_event("dedupe", "merged", "deduped_into_tmdb", key=str(best.get("old_uuid") or ""), payload={"title": best.get("english_title"), "title_norm": self.normalizeTitle(best.get("english_title") or ""), "chosen_tmdb": tmdb_id})
 
             if (best.get("hebrew_title") or "").strip() in ("", "null"):
                 for candidate_row in rows_sorted:
@@ -182,8 +219,12 @@ class ComingSoonsTmdb(BaseDataflow):
             try:
                 data = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}", params={"api_key": self.TMDB_API_KEY, "append_to_response": "external_ids,videos"}, timeout=10).json()
             except:
+                self.trace_event("enrich", "dropped", "no_details", key=str(row.get("old_uuid") or ""), payload={"title": row.get("english_title"), "title_norm": self.normalizeTitle(row.get("english_title") or ""), "chosen_tmdb": tmdb_id})
+                self.trace_unresolved(f"enrich_fetch_failed | {row.get('english_title')} | tmdb={tmdb_id}")
                 continue
             if not isinstance(data, dict) or not data.get("id"):
+                self.trace_event("enrich", "dropped", "no_details", key=str(row.get("old_uuid") or ""), payload={"title": row.get("english_title"), "title_norm": self.normalizeTitle(row.get("english_title") or ""), "chosen_tmdb": tmdb_id})
+                self.trace_unresolved(f"enrich_invalid_details | {row.get('english_title')} | tmdb={tmdb_id}")
                 continue
             external_ids = data.get("external_ids") or {}
             new_row = dict(row)
@@ -202,13 +243,20 @@ class ComingSoonsTmdb(BaseDataflow):
             new_row["alt_options"] = new_row.get("alt_options") or []
 
             self.updates.append(new_row)
+            self.trace_event("enrich", "mapped", "enriched", key=str(new_row.get("old_uuid") or ""), payload={"title": new_row.get("english_title"), "title_norm": self.normalizeTitle(new_row.get("english_title") or ""), "chosen_tmdb": tmdb_id})
 
+        pre_upsert_count = len(self.updates)
         self.upsertUpdates(self.MOVING_TO_TABLE_NAME)
+        self.trace_event("write", "mapped", "upserted", key=self.MOVING_TO_TABLE_NAME, payload={"title": "", "title_norm": "", "chosen_tmdb": ""})
+        self.trace_write_action(f"upsertUpdates({self.MOVING_TO_TABLE_NAME}) rows={pre_upsert_count}")
         if self.processed_ids:
             ids = list(self.processed_ids)
             for i in range(0, len(ids), 200):
                 chunk = ids[i : i + 200]
                 self.supabase.table(self.MAIN_TABLE_NAME).update({"added": True}).in_("id", chunk).execute()
+            self.trace_event("write", "mapped", "marked_added", key=self.MAIN_TABLE_NAME, payload={"title": "", "title_norm": "", "chosen_tmdb": ""})
+            self.trace_write_action(f"mark_added({self.MAIN_TABLE_NAME}) rows={len(ids)}")
         self.dedupeFinalSoons(self.MOVING_TO_TABLE_NAME)
+        self.trace_write_action(f"dedupeFinalSoons({self.MOVING_TO_TABLE_NAME})")
 
         clear_old_entries("soons")

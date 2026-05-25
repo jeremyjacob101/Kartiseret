@@ -42,6 +42,8 @@ class NowPlayingsTmdb(BaseDataflow):
     def logic(self):
         self.dedupeFinalShowtimes(self.MOVING_TO_TABLE_NAME)
         self.dedupeFinalMovies(self.MOVING_TO_TABLE_NAME_2)
+        self.trace_write_action(f"dedupeFinalShowtimes({self.MOVING_TO_TABLE_NAME})")
+        self.trace_write_action(f"dedupeFinalMovies({self.MOVING_TO_TABLE_NAME_2})")
 
         # SKIP TOKENS
         for skip_row in self.helper_table_2_rows:
@@ -100,6 +102,7 @@ class NowPlayingsTmdb(BaseDataflow):
         for key, rows in self.grouped_rows_by_key.items():
             self.reset_np_groupkey_row_state()
             self.load_np_groupkey_meta_row(key)
+            row_count = len(rows)
 
             if self.year_counts:
                 self.parsed_year = self.tryExceptNone(lambda: max(self.year_counts.items(), key=lambda kv: kv[1])[0])
@@ -108,6 +111,8 @@ class NowPlayingsTmdb(BaseDataflow):
             titles_sorted = sorted(title_counts.items(), key=lambda kv: kv[1], reverse=True)
             candidate_titles = [title for title, _ in titles_sorted if not self.titleIsSkipped(title, self.skip_tokens)]
             if not candidate_titles:
+                self.trace_event("group_filter", "dropped", "skip_token", key=key, payload={"key": key, "row_count": row_count, "representative_title": "", "parsed_year": self.parsed_year, "candidate_count": 0, "chosen_tmdb": "", "chosen_path": ""})
+                self.trace_unresolved(f"skip_token | group={key} | rows={row_count}")
                 continue
             representative_title = candidate_titles[0]
 
@@ -124,8 +129,11 @@ class NowPlayingsTmdb(BaseDataflow):
             if self.override_tmdb:
                 self.potential_chosen_id = self.override_tmdb
                 if str(self.potential_chosen_id).lower() in self.skip_tokens:
+                    self.trace_event("tmdb_choice", "dropped", "skip_token", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": 0, "chosen_tmdb": self.potential_chosen_id, "chosen_path": "tmdb_fix_override"})
+                    self.trace_unresolved(f"skip_token_on_override | group={key} | title={representative_title}")
                     continue
                 self.key_result[key] = {"tmdb_id": self.potential_chosen_id, "imdb_id": None, "hebrew_title": self.hebrew_title, "alt_options": []}
+                self.trace_event("tmdb_choice", "mapped", "tmdb_fix_override", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": 0, "chosen_tmdb": self.potential_chosen_id, "chosen_path": "tmdb_fix_override"})
                 continue
 
             # 1) SEARCH TMDB AND COLLECT CANDIDATES
@@ -160,19 +168,25 @@ class NowPlayingsTmdb(BaseDataflow):
                     page += 1
 
             if not self.candidates:
+                self.trace_event("tmdb_search", "dropped", "no_candidates", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": 0, "chosen_tmdb": "", "chosen_path": ""})
+                self.trace_unresolved(f"no_candidates | group={key} | title={representative_title}")
                 continue
 
             # 2) FETCH FULL DETAILS (external_ids + credits)
             for tmdb_id in self.candidates:
                 self.tryExceptPass(lambda: (resp := requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}", params={"api_key": self.TMDB_API_KEY, "append_to_response": "external_ids,credits"}, timeout=10).json()) and resp.get("id") and self.details.update({tmdb_id: resp}))
             if not self.details:
+                self.trace_event("tmdb_search", "dropped", "no_details", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": len(self.candidates), "chosen_tmdb": "", "chosen_path": ""})
+                self.trace_unresolved(f"no_details | group={key} | title={representative_title}")
                 continue
 
             # 3) TMDb FIX TABLE HARD MATCH (fast set membership)
+            chosen_path = None
             for tmdb_id in self.details.keys():
                 tmdb_id = self.clean_int(tmdb_id)
                 if tmdb_id in self.tmdb_fix_ids:
                     self.potential_chosen_id = tmdb_id
+                    chosen_path = "tmdb_fix_id_match"
                     break
 
             # 4) FALLBACK FIRST/DIRECTOR/RUNTIME RANKING LOGIC
@@ -180,6 +194,7 @@ class NowPlayingsTmdb(BaseDataflow):
                 first = self.details.get(self.candidates[0])
                 if first and (self.normalizeTitle(first.get("title")) == self.normalizeTitle(representative_title)) and (not self.parsed_year or self.tryExceptNone(lambda: int((first.get("release_date") or "")[:4]) == self.parsed_year)):
                     self.potential_chosen_id = self.candidates[0]
+                    chosen_path = "title_first_match"
 
                 if self.potential_chosen_id is None and self.directed_by:
                     target = str(self.directed_by).lower()
@@ -188,43 +203,55 @@ class NowPlayingsTmdb(BaseDataflow):
                         directors = [crew_member["name"].lower() for crew_member in crew if crew_member.get("job") == "Director" and crew_member.get("name")]
                         if target in directors:
                             self.potential_chosen_id = tmdb_id
+                            chosen_path = "director_match"
                             break
 
                 if self.potential_chosen_id is None and self.runtime and self.runtime not in self.fake_runtimes:
                     for tmdb_id, movie_details in self.details.items():
                         if movie_details.get("runtime") == self.runtime:
                             self.potential_chosen_id = tmdb_id
+                            chosen_path = "runtime_match"
                             break
 
                 if self.potential_chosen_id is None:
                     self.potential_chosen_id = self.candidates[0]
+                    chosen_path = "fallback_first_candidate"
 
             if not self.potential_chosen_id or str(self.potential_chosen_id).lower() in self.skip_tokens:
+                self.trace_event("tmdb_choice", "dropped", "chosen_skipped_or_missing", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": len(self.candidates), "chosen_tmdb": self.potential_chosen_id, "chosen_path": chosen_path or ""})
+                self.trace_unresolved(f"chosen_skipped_or_missing | group={key} | title={representative_title}")
                 continue
 
             if alias_tmdb := self.tmdbFixAliasForTmdbId(self.potential_chosen_id, self.tmdb_fix_alias_by_tmdb):
                 if str(alias_tmdb).lower() in self.skip_tokens:
+                    self.trace_event("tmdb_choice", "dropped", "skip_token", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": len(self.candidates), "chosen_tmdb": alias_tmdb, "chosen_path": "alias_remap"})
+                    self.trace_unresolved(f"skip_token_on_alias | group={key} | title={representative_title}")
                     continue
                 self.potential_chosen_id = alias_tmdb
+                chosen_path = "alias_remap"
 
             chosen_details = self.details.get(self.potential_chosen_id) or {}
             chosen_imdb = (chosen_details.get("external_ids", {}) or {}).get("imdb_id")
             alt_options = self._build_alt_options(self.potential_chosen_id)
 
             self.key_result[key] = {"tmdb_id": self.potential_chosen_id, "imdb_id": chosen_imdb, "hebrew_title": self.hebrew_title, "alt_options": alt_options}
+            self.trace_event("tmdb_choice", "mapped", chosen_path or "mapped", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": len(self.candidates), "chosen_tmdb": self.potential_chosen_id, "chosen_path": chosen_path or "mapped"})
 
         # 5) DEDUPE BY TMDB ID
         for key, res in self.key_result.items():
             if (tmdb_id := res.get("tmdb_id")) and tmdb_id not in self.movies_by_tmdb:
                 self.movies_by_tmdb[tmdb_id] = res
+                self.trace_event("dedupe", "merged", "deduped_into_tmdb", key=key, payload={"key": key, "row_count": len(self.grouped_rows_by_key.get(key) or []), "representative_title": "", "parsed_year": None, "candidate_count": 0, "chosen_tmdb": tmdb_id, "chosen_path": "deduped_into_tmdb"})
 
         # 6) ENRICH TITLE + POSTER + IMDB_ID + GENRES
         for tmdb_id, res in self.movies_by_tmdb.items():
             try:
                 data = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}", params={"api_key": self.TMDB_API_KEY, "append_to_response": "external_ids,videos"}, timeout=10).json()
             except:
+                self.trace_unresolved(f"enrich_fetch_failed | tmdb={tmdb_id}")
                 continue
             if not isinstance(data, dict) or not data.get("id"):
+                self.trace_unresolved(f"enrich_invalid_details | tmdb={tmdb_id}")
                 continue
             external_ids = data.get("external_ids") or {}
             genres = ["Sci-Fi" if genre["name"] == "Science Fiction" else genre["name"] for genre in (data.get("genres") or []) if genre.get("name")][:3]
@@ -278,29 +305,39 @@ class NowPlayingsTmdb(BaseDataflow):
             # UPSERT FINALSHOWTIMES FOR THIS CINEMA
             self.updates = list(cinema_rows)
             self.upsertUpdates(self.MOVING_TO_TABLE_NAME, refresh=False)
+            self.trace_event("write", "mapped", "upserted", key=cinema, payload={"key": cinema, "row_count": len(cinema_rows), "representative_title": "", "parsed_year": None, "candidate_count": 0, "chosen_tmdb": "", "chosen_path": "publish_by_cinema"})
+            self.trace_write_action(f"upsertUpdates({self.MOVING_TO_TABLE_NAME}) cinema={cinema} rows={len(cinema_rows)}")
 
             # MARK THIS CINEMA'S WHOLE RAW SNAPSHOT AS ADDED
             raw_snapshot_ids = sorted(row["id"] for row in self.latest_rows_by_cinema[cinema])
             if raw_snapshot_ids:
                 for i in range(0, len(raw_snapshot_ids), 200):
                     self.supabase.table(self.MAIN_TABLE_NAME).update({"added": True}).in_("id", raw_snapshot_ids[i : i + 200]).execute()
+                self.trace_event("write", "mapped", "marked_added", key=cinema, payload={"key": cinema, "row_count": len(raw_snapshot_ids), "representative_title": "", "parsed_year": None, "candidate_count": 0, "chosen_tmdb": "", "chosen_path": "publish_by_cinema"})
+                self.trace_write_action(f"mark_added({self.MAIN_TABLE_NAME}) cinema={cinema} rows={len(raw_snapshot_ids)}")
 
             # DELETE STALE FINALSHOWTIMES ROWS FOR THIS CINEMA
             stale_final_ids = self.existing_final_ids_by_cinema.get(cinema, set()) - self.new_final_ids_by_cinema.get(cinema, set())
             if stale_final_ids:
                 self.delete_these.extend(sorted(stale_final_ids))
                 self.deleteTheseRows(self.MOVING_TO_TABLE_NAME, refresh=False)
+                self.trace_write_action(f"delete_stale({self.MOVING_TO_TABLE_NAME}) cinema={cinema} rows={len(stale_final_ids)}")
 
         # UPSERT FINALMOVIES
         self.dedupeFinalShowtimes(self.MOVING_TO_TABLE_NAME)
+        self.trace_write_action(f"dedupeFinalShowtimes({self.MOVING_TO_TABLE_NAME})")
         for tmdb_id, res in tmdb_id_to_enriched.items():
             if not tmdb_id:
                 continue
             imdb_id = res.get("imdb_id") or None
             self.updates.append({"tmdb_id": tmdb_id, "english_title": res.get("english_title"), "runtime": res.get("runtime"), "popularity": res.get("popularity"), "imdb_id": imdb_id, "genres": res.get("genres"), "en_poster": res.get("en_poster"), "en_trailer": res.get("en_trailer"), "backdrop": res.get("backdrop"), "release_year": res.get("release_year"), "alt_options": res.get("alt_options") or []})
 
+        final_movies_upsert_count = len(self.updates)
         self.upsertUpdates(self.MOVING_TO_TABLE_NAME_2)
+        self.trace_event("write", "mapped", "upserted", key=self.MOVING_TO_TABLE_NAME_2, payload={"key": self.MOVING_TO_TABLE_NAME_2, "row_count": final_movies_upsert_count, "representative_title": "", "parsed_year": None, "candidate_count": 0, "chosen_tmdb": "", "chosen_path": "final_movies"})
+        self.trace_write_action(f"upsertUpdates({self.MOVING_TO_TABLE_NAME_2}) rows={final_movies_upsert_count}")
         self.dedupeFinalMovies(self.MOVING_TO_TABLE_NAME_2)
+        self.trace_write_action(f"dedupeFinalMovies({self.MOVING_TO_TABLE_NAME_2})")
 
         clear_old_entries("nowplayings")
         clear_orphan_final_movies()

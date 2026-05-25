@@ -1,5 +1,6 @@
 from backend.dataflow.utils.SupabaseTables import SupabaseTables
 from backend.dataflow.utils.DataflowHelpers import DataflowHelpers
+from backend.dataflow.utils.DataflowSummaryHelpers import DataflowSummaryHelpers
 from backend.scraping.utils.ScrapingHelpers import ScrapingHelpers
 from backend.scraping.utils.InitializeBaseCinema import build_chrome
 from backend.dataflow.utils.InitializeBaseDataflow import InitializeBaseDataflow, setUpSupabase, setUpTmdb, logSuccessfulRun
@@ -8,7 +9,7 @@ from backend.dataflow.nowplayings.utils.NowPlayingsHelpers import NowPlayingsHel
 import os
 
 
-class BaseDataflow(InitializeBaseDataflow, DataflowHelpers, SupabaseTables, ComingSoonsHelpers, NowPlayingsHelpers, ScrapingHelpers):
+class BaseDataflow(InitializeBaseDataflow, DataflowSummaryHelpers, DataflowHelpers, SupabaseTables, ComingSoonsHelpers, NowPlayingsHelpers, ScrapingHelpers):
     MAIN_TABLE_NAME: str = ""
     DUPLICATE_TABLE_NAME: str = ""
     MOVING_TO_TABLE_NAME: str = ""
@@ -49,5 +50,7 @@ class BaseDataflow(InitializeBaseDataflow, DataflowHelpers, SupabaseTables, Comi
         try:
             self.logic()
             logSuccessfulRun(self)
+            self.flush_summary(successful=True)
         except Exception:
+            self.flush_summary(successful=False)
             raise
