@@ -1,0 +1,51 @@
+==== cron run start: 2026-05-26T04:00:00+0300 ====
+From github.com:jeremyjacob101/Kartiseret
+ * branch            main       -> FETCH_HEAD
+   2a288cb..86c21ab  main       -> origin/main
+Already on 'main'
+M	backend/config/cron/cron_daily.log
+Your branch is behind 'origin/main' by 6 commits, and can be fast-forwarded.
+  (use "git pull" to update your local branch)
+HEAD is now at 86c21ab [+] popularity field in finalSoons
+
+--------------------
+
+CCsoon: 00m44s
+YPsoon: 01m04s
+LCsoon: 01m33s
+MLsoon: 01m50s
+HCsoon: 02m27s
+
+--------------------
+
+
+--------------------
+
+LevCinema: 04m52s
+MovieLand: 06m43s
+RavHen: 07m51s
+HotCinema: 13m22s
+CinemaCity: 14m07s
+YesPlanet: 18m35s
+
+--------------------
+
+
+--------------------
+
+ComingSoonsClean: 00m04s
+ComingSoonsTmdb: 00m08s
+ComingSoonsUpdate: 00m06s
+
+--------------------
+
+
+--------------------
+
+NowPlayingsClean: 03m45s
+NowPlayingsTmdb: 07m21s
+NowPlayingsUpdate: 03m15s
+
+--------------------
+
+==== cron run end: 2026-05-26T04:35:55+0300 ====
