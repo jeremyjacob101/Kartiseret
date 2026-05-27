@@ -1,0 +1,49 @@
+==== cron run start: 2026-05-26T18:00:00+0300 ====
+From github.com:jeremyjacob101/Kartiseret
+ * branch            main       -> FETCH_HEAD
+Already on 'main'
+M	backend/config/cron/cron_weekly.log
+Your branch is up to date with 'origin/main'.
+HEAD is now at ddd2e82 [D-RUN] daily artifacts and log 2026-05-26_04-35-55
+
+--------------------
+
+CCsoon: 00m43s
+YPsoon: 01m03s
+MLsoon: 01m51s
+LCsoon: 01m52s
+HCsoon: 02m32s
+
+--------------------
+
+
+--------------------
+
+LevCinema: 05m42s
+RavHen: 09m03s
+MovieLand: 12m10s
+HotCinema: 15m42s
+YesPlanet: 20m20s
+CinemaCity: 47m19s
+
+--------------------
+
+
+--------------------
+
+ComingSoonsClean: 00m04s
+ComingSoonsTmdb: 00m25s
+ComingSoonsUpdate: 00m07s
+
+--------------------
+
+
+--------------------
+
+NowPlayingsClean: 01m30s
+NowPlayingsTmdb: 07m06s
+NowPlayingsUpdate: 03m17s
+
+--------------------
+
+==== cron run end: 2026-05-26T19:02:30+0300 ====
