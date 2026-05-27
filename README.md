@@ -268,6 +268,12 @@ The browser app intentionally uses only the publishable key and never a service-
 - No automated tests are configured in this repo right now.
 - Scrapers depend on third-party cinema DOMs, so upstream site changes can break individual sources without warning.
 
+## Links
+
+- Netlify: https://subtle-malabi-cb16ed.netlify.app/
+- Localhost: http://localhost:5173/
+- Localhost Mobile: http://10.100.102.11:5173/
+
 ## Assets For This README
 
 Place your PNGs here:
