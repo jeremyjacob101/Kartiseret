@@ -487,32 +487,28 @@ export function App() {
       });
   }, []);
 
-  const handleAdminSaveEdit = useCallback(
-    async (payload: {
-      mode: MovieSearchMode;
-      currentTmdbId: string;
-      selectedTmdbId: string;
-      selectedTitle?: string | null;
-      selectedYear?: number | null;
-      selectedPosterUrl?: string | null;
-      isManualEntry: boolean;
-    }) => {
-      await applyAdminMovieEdit(payload);
-    },
-    [],
-  );
+  const handleAdminSaveEdit = useCallback(async (payload: {
+    mode: MovieSearchMode;
+    currentTmdbId: string;
+    selectedTmdbId: string;
+    selectedTitle?: string | null;
+    selectedYear?: number | null;
+    selectedPosterUrl?: string | null;
+    isManualEntry: boolean;
+  }) => {
+    await applyAdminMovieEdit(payload);
+  }, []);
 
-  const handleAdminRefreshRequested = useCallback(
-    async (mode: MovieSearchMode) => {
-      if (mode === "nowPlaying") {
-        await reloadNowPlayingMovies();
-        return;
-      }
+  const handleAdminRefreshRequested = useCallback(async (
+    mode: MovieSearchMode,
+  ) => {
+    if (mode === "nowPlaying") {
+      await reloadNowPlayingMovies();
+      return;
+    }
 
-      await reloadComingSoonMovies();
-    },
-    [],
-  );
+    await reloadComingSoonMovies();
+  }, []);
 
   const handleSettingsClick = useCallback(() => {
     if (!user || loading) {

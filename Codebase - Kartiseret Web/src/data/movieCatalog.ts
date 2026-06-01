@@ -1248,7 +1248,7 @@ export async function applyAdminMovieEdit(
 
   const { data: existingTarget, error: existingTargetError } = await supabase
     .from(tableName)
-    .select("tmdb_id")
+    .select("tmdb_id, english_title")
     .eq("tmdb_id", normalizedSelectedTmdbId)
     .maybeSingle();
 
@@ -1256,11 +1256,23 @@ export async function applyAdminMovieEdit(
     throw new Error(existingTargetError.message);
   }
 
+  const selectedTitle = normalizeTitle(
+    payload.selectedTitle ??
+      (existingTarget
+        ? stringifySupabaseValue(
+            (existingTarget as SupabaseRow).english_title as SupabaseValue,
+          )
+        : ""),
+  );
+
   if (existingTarget) {
     if (payload.mode === "nowPlaying") {
       const { error: showtimesUpdateError } = await supabase
         .from(SHOWTIMES_TABLE_NAME)
-        .update({ tmdb_id: normalizedSelectedTmdbId })
+        .update({
+          tmdb_id: normalizedSelectedTmdbId,
+          english_title: selectedTitle,
+        })
         .eq("tmdb_id", normalizedCurrentTmdbId);
 
       if (showtimesUpdateError) {
@@ -1324,7 +1336,10 @@ export async function applyAdminMovieEdit(
   if (payload.mode === "nowPlaying") {
     const { error: showtimesUpdateError } = await supabase
       .from(SHOWTIMES_TABLE_NAME)
-      .update({ tmdb_id: normalizedSelectedTmdbId })
+      .update({
+        tmdb_id: normalizedSelectedTmdbId,
+        english_title: selectedTitle,
+      })
       .eq("tmdb_id", normalizedCurrentTmdbId);
 
     if (showtimesUpdateError) {
