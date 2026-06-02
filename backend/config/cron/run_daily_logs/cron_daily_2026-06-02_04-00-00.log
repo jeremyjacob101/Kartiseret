@@ -1,0 +1,49 @@
+==== cron run start: 2026-06-02T04:00:00+0300 ====
+From github.com:jeremyjacob101/Kartiseret
+ * branch            main       -> FETCH_HEAD
+Already on 'main'
+M	backend/config/cron/cron_daily.log
+Your branch is up to date with 'origin/main'.
+HEAD is now at 0f73902 [RT-SOLO] finalMovies update 2026-06-01_12-57-51
+
+--------------------
+
+CCsoon: 00m45s
+YPsoon: 01m53s
+LCsoon: 02m04s
+MLsoon: 02m09s
+HCsoon: 02m54s
+
+--------------------
+
+
+--------------------
+
+LevCinema: 05m43s
+MovieLand: 09m18s
+RavHen: 09m39s
+HotCinema: 13m54s
+CinemaCity: 14m45s
+YesPlanet: 23m03s
+
+--------------------
+
+
+--------------------
+
+ComingSoonsClean: 00m06s
+ComingSoonsTmdb: 00m19s
+ComingSoonsUpdate: 00m06s
+
+--------------------
+
+
+--------------------
+
+NowPlayingsClean: 00m57s
+NowPlayingsTmdb: 06m40s
+NowPlayingsUpdate: 03m38s
+
+--------------------
+
+==== cron run end: 2026-06-02T04:37:55+0300 ====
