@@ -1,0 +1,260 @@
+- - -
+DATAFLOW SUMMARY
+- - -
+Name: NowPlayingsTmdb
+Run ID: 467
+Attempt: 1
+Result: SUCCESS
+Started (UTC): 2026-06-05T01:40:44.320286+00:00
+Finished (UTC): 2026-06-05T01:47:28.774565+00:00
+Duration Seconds: 404.4543
+Generated At (UTC): 2026-06-05T01:47:28.774769+00:00
+
+SUMMARY COUNTS
+- dropped: 10
+- mapped: 99
+- merged: 78
+
+STAGE BREAKDOWN
+- dedupe|merged|deduped_into_tmdb: 78
+- tmdb_choice|mapped|director_match: 4
+- tmdb_choice|mapped|fallback_first_candidate: 11
+- tmdb_choice|mapped|runtime_match: 8
+- tmdb_choice|mapped|title_first_match: 59
+- tmdb_choice|mapped|tmdb_fix_id_match: 2
+- tmdb_choice|mapped|tmdb_fix_override: 2
+- tmdb_search|dropped|no_candidates: 10
+- write|mapped|marked_added: 6
+- write|mapped|upserted: 7
+
+COMING SOONS DETAILS
+- (none)
+
+NOW PLAYING GROUP DETAILS
+- key=backrooms | status=mapped | reason=title_first_match | rep_title=backrooms | rows=597 | parsed_year=2026 | candidates=16 | chosen_tmdb=1083381 | path=title_first_match
+- key=jerry maguire | status=mapped | reason=title_first_match | rep_title=jerry maguire | rows=27 | parsed_year=1996 | candidates=1 | chosen_tmdb=9390 | path=title_first_match
+- key=mandalorian and grogu | status=mapped | reason=title_first_match | rep_title=the mandalorian and grogu | rows=291 | parsed_year=2026 | candidates=1 | chosen_tmdb=1228710 | path=title_first_match
+- key=obsession | status=mapped | reason=tmdb_fix_override | rep_title=obsession | rows=709 | parsed_year=2026 | candidates=0 | chosen_tmdb=1339713 | path=tmdb_fix_override
+- key=masters of the universe | status=mapped | reason=title_first_match | rep_title=masters of the universe | rows=998 | parsed_year=2026 | candidates=11 | chosen_tmdb=454639 | path=title_first_match
+- key=michael | status=mapped | reason=title_first_match | rep_title=michael | rows=595 | parsed_year=2026 | candidates=20 | chosen_tmdb=936075 | path=title_first_match
+- key=saltiz | status=mapped | reason=runtime_match | rep_title=saltiz | rows=185 | parsed_year=2026 | candidates=1 | chosen_tmdb=1696940 | path=runtime_match
+- key=disclosure day | status=mapped | reason=title_first_match | rep_title=disclosure day | rows=441 | parsed_year=2026 | candidates=3 | chosen_tmdb=1275779 | path=title_first_match
+- key=devil wears prada 2 | status=mapped | reason=tmdb_fix_override | rep_title=the devil wears prada 2 | rows=498 | parsed_year=2026 | candidates=0 | chosen_tmdb=1314481 | path=tmdb_fix_override
+- key=fantasy life | status=mapped | reason=director_match | rep_title=fantasy life | rows=78 | parsed_year=2025 | candidates=5 | chosen_tmdb=1421977 | path=director_match
+- key=scary movie | status=mapped | reason=title_first_match | rep_title=scary movie | rows=632 | parsed_year=2026 | candidates=20 | chosen_tmdb=1273221 | path=title_first_match
+- key=not without hope | status=mapped | reason=title_first_match | rep_title=not without hope | rows=184 | parsed_year=2025 | candidates=1 | chosen_tmdb=339849 | path=title_first_match
+- key=mortal kombat ii | status=mapped | reason=title_first_match | rep_title=mortal kombat ii | rows=86 | parsed_year=2026 | candidates=3 | chosen_tmdb=931285 | path=title_first_match
+- key=grease | status=mapped | reason=title_first_match | rep_title=grease | rows=10 | parsed_year=1978 | candidates=20 | chosen_tmdb=621 | path=title_first_match
+- key=super mario galaxy | status=mapped | reason=fallback_first_candidate | rep_title=super mario galaxy | rows=323 | parsed_year=2026 | candidates=1 | chosen_tmdb=1226863 | path=fallback_first_candidate
+- key=no signal | status=mapped | reason=title_first_match | rep_title=no signal | rows=18 | parsed_year=2025 | candidates=20 | chosen_tmdb=1284787 | path=title_first_match
+- key=colours of time | status=mapped | reason=title_first_match | rep_title=colours of time | rows=221 | parsed_year=2025 | candidates=2 | chosen_tmdb=1235304 | path=title_first_match
+- key=great lillian hall | status=mapped | reason=title_first_match | rep_title=the great lillian hall | rows=437 | parsed_year=2024 | candidates=1 | chosen_tmdb=800513 | path=title_first_match
+- key=spiked | status=mapped | reason=title_first_match | rep_title=spiked | rows=107 | parsed_year=2025 | candidates=9 | chosen_tmdb=1470334 | path=title_first_match
+- key=animal farm | status=mapped | reason=title_first_match | rep_title=animal farm | rows=343 | parsed_year=2026 | candidates=16 | chosen_tmdb=539745 | path=title_first_match
+- key=hotel transylvania | status=mapped | reason=title_first_match | rep_title=hotel transylvania | rows=18 | parsed_year=2012 | candidates=9 | chosen_tmdb=76492 | path=title_first_match
+- key=lior duvdevani | status=dropped | reason=no_candidates | rep_title=lior duvdevani | rows=1 | parsed_year=2024 | candidates=0 | chosen_tmdb= | path=
+- key=four love letters | status=mapped | reason=fallback_first_candidate | rep_title=four love letters | rows=17 | parsed_year=2026 | candidates=1 | chosen_tmdb=1293244 | path=fallback_first_candidate
+- key=reminders of him | status=mapped | reason=title_first_match | rep_title=reminders of him | rows=48 | parsed_year=2026 | candidates=1 | chosen_tmdb=1367642 | path=title_first_match
+- key=late shift | status=mapped | reason=title_first_match | rep_title=late shift | rows=21 | parsed_year=2025 | candidates=4 | chosen_tmdb=1356670 | path=title_first_match
+- key=in the grey | status=mapped | reason=title_first_match | rep_title=in the grey | rows=257 | parsed_year=2026 | candidates=20 | chosen_tmdb=1122573 | path=title_first_match
+- key=sheep detectives | status=mapped | reason=title_first_match | rep_title=the sheep detectives | rows=249 | parsed_year=2026 | candidates=1 | chosen_tmdb=1301421 | path=title_first_match
+- key=david | status=mapped | reason=title_first_match | rep_title=david | rows=60 | parsed_year=2025 | candidates=24 | chosen_tmdb=1167307 | path=title_first_match
+- key=bear clow camp | status=dropped | reason=no_candidates | rep_title=the bear clow camp | rows=160 | parsed_year=2025 | candidates=0 | chosen_tmdb= | path=
+- key=two women | status=mapped | reason=title_first_match | rep_title=two women | rows=5 | parsed_year=2025 | candidates=20 | chosen_tmdb=1073588 | path=title_first_match
+- key=nino | status=mapped | reason=title_first_match | rep_title=nino | rows=8 | parsed_year=2025 | candidates=24 | chosen_tmdb=1313229 | path=title_first_match
+- key=adventures of priscilla queen of the desert | status=mapped | reason=title_first_match | rep_title=the adventures of priscilla queen of the desert | rows=5 | parsed_year=1994 | candidates=1 | chosen_tmdb=2759 | path=title_first_match
+- key=passanger | status=mapped | reason=fallback_first_candidate | rep_title=passanger | rows=29 | parsed_year=2026 | candidates=1 | chosen_tmdb=1637792 | path=fallback_first_candidate
+- key=hot cinema | status=dropped | reason=no_candidates | rep_title=hot cinema | rows=4 | parsed_year= | candidates=0 | chosen_tmdb= | path=
+- key=substance | status=mapped | reason=title_first_match | rep_title=the substance | rows=1 | parsed_year=2024 | candidates=13 | chosen_tmdb=933260 | path=title_first_match
+- key=last whale singer | status=mapped | reason=fallback_first_candidate | rep_title=the last whale singer | rows=109 | parsed_year=2025 | candidates=2 | chosen_tmdb=677558 | path=fallback_first_candidate
+- key=eden | status=mapped | reason=tmdb_fix_id_match | rep_title=eden | rows=9 | parsed_year=2024 | candidates=24 | chosen_tmdb=1042834 | path=tmdb_fix_id_match
+- key=leave one day | status=mapped | reason=title_first_match | rep_title=leave one day | rows=7 | parsed_year=2025 | candidates=1 | chosen_tmdb=1277884 | path=title_first_match
+- key=choral | status=mapped | reason=title_first_match | rep_title=the choral | rows=56 | parsed_year=2025 | candidates=11 | chosen_tmdb=1262815 | path=title_first_match
+- key=five baloons | status=dropped | reason=no_candidates | rep_title=five baloons | rows=2 | parsed_year= | candidates=0 | chosen_tmdb= | path=
+- key=bohemian rhapsody | status=mapped | reason=title_first_match | rep_title=bohemian rhapsody | rows=11 | parsed_year=2018 | candidates=6 | chosen_tmdb=424694 | path=title_first_match
+- key=muhamad naama | status=dropped | reason=no_candidates | rep_title=muhamad naama | rows=2 | parsed_year=2024 | candidates=0 | chosen_tmdb= | path=
+- key=comedy bar daniel cohen | status=dropped | reason=no_candidates | rep_title=comedy bar daniel cohen | rows=3 | parsed_year=2024 | candidates=0 | chosen_tmdb= | path=
+- key=freuds last session | status=mapped | reason=title_first_match | rep_title=freuds last session | rows=4 | parsed_year=2023 | candidates=1 | chosen_tmdb=1025491 | path=title_first_match
+- key=project hail mary | status=mapped | reason=title_first_match | rep_title=project hail mary | rows=56 | parsed_year=2026 | candidates=1 | chosen_tmdb=687163 | path=title_first_match
+- key=abba | status=mapped | reason=title_first_match | rep_title=abba | rows=1 | parsed_year= | candidates=20 | chosen_tmdb=1309201 | path=title_first_match
+- key=hoppers | status=mapped | reason=title_first_match | rep_title=hoppers | rows=142 | parsed_year=2026 | candidates=16 | chosen_tmdb=1327819 | path=title_first_match
+- key=wonder | status=mapped | reason=runtime_match | rep_title=wonder | rows=1 | parsed_year=2017 | candidates=24 | chosen_tmdb=406997 | path=runtime_match
+- key=fifth element | status=mapped | reason=title_first_match | rep_title=the fifth element | rows=9 | parsed_year=1997 | candidates=2 | chosen_tmdb=18 | path=title_first_match
+- key=goat | status=mapped | reason=title_first_match | rep_title=goat | rows=61 | parsed_year=2026 | candidates=20 | chosen_tmdb=1297842 | path=title_first_match
+- key=hokum | status=mapped | reason=title_first_match | rep_title=hokum | rows=33 | parsed_year=2026 | candidates=6 | chosen_tmdb=1430077 | path=title_first_match
+- key=pretty woman | status=mapped | reason=title_first_match | rep_title=pretty woman | rows=2 | parsed_year=1990 | candidates=12 | chosen_tmdb=114 | path=title_first_match
+- key=tuner | status=mapped | reason=tmdb_fix_id_match | rep_title=tuner | rows=1 | parsed_year=2025 | candidates=17 | chosen_tmdb=1340206 | path=tmdb_fix_id_match
+- key=shell | status=mapped | reason=title_first_match | rep_title=shell | rows=15 | parsed_year=2024 | candidates=24 | chosen_tmdb=1365490 | path=title_first_match
+- key=american hina | status=mapped | reason=fallback_first_candidate | rep_title=american hina | rows=1 | parsed_year=2026 | candidates=1 | chosen_tmdb=1683714 | path=fallback_first_candidate
+- key=bad boy and me 2 | status=mapped | reason=director_match | rep_title=the bad boy and me 2 | rows=9 | parsed_year=2025 | candidates=2 | chosen_tmdb=1429520 | path=director_match
+- key=pulp fiction | status=mapped | reason=title_first_match | rep_title=pulp fiction | rows=1 | parsed_year=1994 | candidates=7 | chosen_tmdb=680 | path=title_first_match
+- key=normal | status=mapped | reason=fallback_first_candidate | rep_title=normal | rows=6 | parsed_year=2025 | candidates=24 | chosen_tmdb=1285728 | path=fallback_first_candidate
+- key=pirates of the caribbean the curse of the black p | status=mapped | reason=runtime_match | rep_title=pirates of the caribbean the curse of the black p | rows=1 | parsed_year=2003 | candidates=3 | chosen_tmdb=22 | path=runtime_match
+- key=stolen girl | status=mapped | reason=title_first_match | rep_title=stolen girl | rows=170 | parsed_year=2025 | candidates=2 | chosen_tmdb=1280450 | path=title_first_match
+- key=forrest gump | status=mapped | reason=title_first_match | rep_title=forrest gump | rows=1 | parsed_year=1994 | candidates=2 | chosen_tmdb=13 | path=title_first_match
+- key=passenger | status=mapped | reason=title_first_match | rep_title=passenger | rows=109 | parsed_year=2026 | candidates=20 | chosen_tmdb=1368314 | path=title_first_match
+- key=mandalorian grogu | status=mapped | reason=runtime_match | rep_title=the mandalorian grogu | rows=44 | parsed_year= | candidates=1 | chosen_tmdb=1228710 | path=runtime_match
+- key=la grazia | status=mapped | reason=title_first_match | rep_title=la grazia | rows=171 | parsed_year=2025 | candidates=12 | chosen_tmdb=1397364 | path=title_first_match
+- key=ilanot | status=mapped | reason=runtime_match | rep_title=ilanot | rows=18 | parsed_year=2026 | candidates=1 | chosen_tmdb=1663161 | path=runtime_match
+- key=four letters of love | status=mapped | reason=director_match | rep_title=four letters of love | rows=46 | parsed_year=2024 | candidates=1 | chosen_tmdb=1293244 | path=director_match
+- key=shelter | status=mapped | reason=title_first_match | rep_title=shelter | rows=5 | parsed_year= | candidates=20 | chosen_tmdb=1290821 | path=title_first_match
+- key=drama | status=mapped | reason=title_first_match | rep_title=the drama | rows=6 | parsed_year= | candidates=20 | chosen_tmdb=1325734 | path=title_first_match
+- key=kpop demon hunters sing along | status=mapped | reason=runtime_match | rep_title=kpop demon hunters sing along | rows=16 | parsed_year= | candidates=1 | chosen_tmdb=803796 | path=runtime_match
+- key=investment generation | status=dropped | reason=no_candidates | rep_title=investment generation | rows=1 | parsed_year= | candidates=0 | chosen_tmdb= | path=
+- key=kidnapped | status=mapped | reason=title_first_match | rep_title=kidnapped | rows=17 | parsed_year= | candidates=20 | chosen_tmdb=801112 | path=title_first_match
+- key=my friend eva | status=mapped | reason=title_first_match | rep_title=my friend eva | rows=25 | parsed_year=2025 | candidates=1 | chosen_tmdb=1297953 | path=title_first_match
+- key=subservience | status=mapped | reason=title_first_match | rep_title=subservience | rows=2 | parsed_year= | candidates=2 | chosen_tmdb=1064028 | path=title_first_match
+- key=spongebob movie search for squarepants | status=mapped | reason=title_first_match | rep_title=the spongebob movie search for squarepants | rows=4 | parsed_year=2025 | candidates=1 | chosen_tmdb=991494 | path=title_first_match
+- key=jungle beat 2 the past | status=mapped | reason=title_first_match | rep_title=jungle beat 2 the past | rows=1 | parsed_year=2025 | candidates=1 | chosen_tmdb=1453180 | path=title_first_match
+- key=animel farm | status=dropped | reason=no_candidates | rep_title=animel farm | rows=140 | parsed_year=2025 | candidates=0 | chosen_tmdb= | path=
+- key=kidnapped aka rapito | status=dropped | reason=no_candidates | rep_title=kidnapped aka rapito | rows=39 | parsed_year=2023 | candidates=0 | chosen_tmdb= | path=
+- key=tel aviv beirut | status=mapped | reason=fallback_first_candidate | rep_title=tel aviv beirut | rows=29 | parsed_year=2026 | candidates=1 | chosen_tmdb=1030210 | path=fallback_first_candidate
+- key=zootopia 2 | status=mapped | reason=title_first_match | rep_title=zootopia 2 | rows=9 | parsed_year=2025 | candidates=1 | chosen_tmdb=1084242 | path=title_first_match
+- key=night of the hunted | status=mapped | reason=title_first_match | rep_title=night of the hunted | rows=6 | parsed_year=2023 | candidates=3 | chosen_tmdb=1160003 | path=title_first_match
+- key=fleak | status=mapped | reason=title_first_match | rep_title=fleak | rows=4 | parsed_year=2025 | candidates=1 | chosen_tmdb=680770 | path=title_first_match
+- key=mother mary | status=mapped | reason=title_first_match | rep_title=mother mary | rows=4 | parsed_year=2026 | candidates=16 | chosen_tmdb=1102883 | path=title_first_match
+- key=june and john | status=mapped | reason=title_first_match | rep_title=june and john | rows=2 | parsed_year=2025 | candidates=2 | chosen_tmdb=1216571 | path=title_first_match
+- key=kpop demon hunters | status=mapped | reason=title_first_match | rep_title=kpop demon hunters | rows=6 | parsed_year=2025 | candidates=4 | chosen_tmdb=803796 | path=title_first_match
+- key=madly | status=mapped | reason=title_first_match | rep_title=madly | rows=1 | parsed_year=2025 | candidates=20 | chosen_tmdb=1500272 | path=title_first_match
+- key=nirvanna the band the show the movie | status=mapped | reason=director_match | rep_title=nirvanna the band the show the movie | rows=1 | parsed_year=2025 | candidates=1 | chosen_tmdb=1154538 | path=director_match
+- key=star wars the mandalorian and grogu | status=mapped | reason=fallback_first_candidate | rep_title=star wars the mandalorian and grogu | rows=21 | parsed_year=2026 | candidates=1 | chosen_tmdb=1228710 | path=fallback_first_candidate
+- key=kpop demon hunters singalong | status=mapped | reason=runtime_match | rep_title=kpop demon hunters singalong | rows=10 | parsed_year=2025 | candidates=1 | chosen_tmdb=803796 | path=runtime_match
+- key=super mario galaxy movie | status=mapped | reason=fallback_first_candidate | rep_title=super mario galaxy movie | rows=59 | parsed_year=2026 | candidates=1 | chosen_tmdb=1226863 | path=fallback_first_candidate
+- key=ya pas de reseau | status=mapped | reason=fallback_first_candidate | rep_title=ya pas de reseau | rows=4 | parsed_year= | candidates=1 | chosen_tmdb=1284787 | path=fallback_first_candidate
+- key=movieretro | status=dropped | reason=no_candidates | rep_title=movieretro | rows=10 | parsed_year=1984 | candidates=0 | chosen_tmdb= | path=
+- key=rapito | status=mapped | reason=runtime_match | rep_title=rapito | rows=7 | parsed_year=2023 | candidates=14 | chosen_tmdb=801112 | path=runtime_match
+- key=classic | status=mapped | reason=fallback_first_candidate | rep_title=classic | rows=1 | parsed_year=2024 | candidates=24 | chosen_tmdb=1411480 | path=fallback_first_candidate
+- key=five seconds | status=mapped | reason=title_first_match | rep_title=five seconds | rows=16 | parsed_year=2025 | candidates=20 | chosen_tmdb=1368519 | path=title_first_match
+- key=i swear | status=mapped | reason=title_first_match | rep_title=i swear | rows=12 | parsed_year=2025 | candidates=20 | chosen_tmdb=1317149 | path=title_first_match
+- key=nice indian boy | status=mapped | reason=title_first_match | rep_title=a nice indian boy | rows=1 | parsed_year=2025 | candidates=1 | chosen_tmdb=1128614 | path=title_first_match
+- key=backrooms | status=merged | reason=deduped_into_tmdb | rep_title= | rows=597 | parsed_year= | candidates=0 | chosen_tmdb=1083381 | path=deduped_into_tmdb
+- key=jerry maguire | status=merged | reason=deduped_into_tmdb | rep_title= | rows=27 | parsed_year= | candidates=0 | chosen_tmdb=9390 | path=deduped_into_tmdb
+- key=mandalorian and grogu | status=merged | reason=deduped_into_tmdb | rep_title= | rows=291 | parsed_year= | candidates=0 | chosen_tmdb=1228710 | path=deduped_into_tmdb
+- key=obsession | status=merged | reason=deduped_into_tmdb | rep_title= | rows=709 | parsed_year= | candidates=0 | chosen_tmdb=1339713 | path=deduped_into_tmdb
+- key=masters of the universe | status=merged | reason=deduped_into_tmdb | rep_title= | rows=998 | parsed_year= | candidates=0 | chosen_tmdb=454639 | path=deduped_into_tmdb
+- key=michael | status=merged | reason=deduped_into_tmdb | rep_title= | rows=595 | parsed_year= | candidates=0 | chosen_tmdb=936075 | path=deduped_into_tmdb
+- key=saltiz | status=merged | reason=deduped_into_tmdb | rep_title= | rows=185 | parsed_year= | candidates=0 | chosen_tmdb=1696940 | path=deduped_into_tmdb
+- key=disclosure day | status=merged | reason=deduped_into_tmdb | rep_title= | rows=441 | parsed_year= | candidates=0 | chosen_tmdb=1275779 | path=deduped_into_tmdb
+- key=devil wears prada 2 | status=merged | reason=deduped_into_tmdb | rep_title= | rows=498 | parsed_year= | candidates=0 | chosen_tmdb=1314481 | path=deduped_into_tmdb
+- key=fantasy life | status=merged | reason=deduped_into_tmdb | rep_title= | rows=78 | parsed_year= | candidates=0 | chosen_tmdb=1421977 | path=deduped_into_tmdb
+- key=scary movie | status=merged | reason=deduped_into_tmdb | rep_title= | rows=632 | parsed_year= | candidates=0 | chosen_tmdb=1273221 | path=deduped_into_tmdb
+- key=not without hope | status=merged | reason=deduped_into_tmdb | rep_title= | rows=184 | parsed_year= | candidates=0 | chosen_tmdb=339849 | path=deduped_into_tmdb
+- key=mortal kombat ii | status=merged | reason=deduped_into_tmdb | rep_title= | rows=86 | parsed_year= | candidates=0 | chosen_tmdb=931285 | path=deduped_into_tmdb
+- key=grease | status=merged | reason=deduped_into_tmdb | rep_title= | rows=10 | parsed_year= | candidates=0 | chosen_tmdb=621 | path=deduped_into_tmdb
+- key=super mario galaxy | status=merged | reason=deduped_into_tmdb | rep_title= | rows=323 | parsed_year= | candidates=0 | chosen_tmdb=1226863 | path=deduped_into_tmdb
+- key=no signal | status=merged | reason=deduped_into_tmdb | rep_title= | rows=18 | parsed_year= | candidates=0 | chosen_tmdb=1284787 | path=deduped_into_tmdb
+- key=colours of time | status=merged | reason=deduped_into_tmdb | rep_title= | rows=221 | parsed_year= | candidates=0 | chosen_tmdb=1235304 | path=deduped_into_tmdb
+- key=great lillian hall | status=merged | reason=deduped_into_tmdb | rep_title= | rows=437 | parsed_year= | candidates=0 | chosen_tmdb=800513 | path=deduped_into_tmdb
+- key=spiked | status=merged | reason=deduped_into_tmdb | rep_title= | rows=107 | parsed_year= | candidates=0 | chosen_tmdb=1470334 | path=deduped_into_tmdb
+- key=animal farm | status=merged | reason=deduped_into_tmdb | rep_title= | rows=343 | parsed_year= | candidates=0 | chosen_tmdb=539745 | path=deduped_into_tmdb
+- key=hotel transylvania | status=merged | reason=deduped_into_tmdb | rep_title= | rows=18 | parsed_year= | candidates=0 | chosen_tmdb=76492 | path=deduped_into_tmdb
+- key=four love letters | status=merged | reason=deduped_into_tmdb | rep_title= | rows=17 | parsed_year= | candidates=0 | chosen_tmdb=1293244 | path=deduped_into_tmdb
+- key=reminders of him | status=merged | reason=deduped_into_tmdb | rep_title= | rows=48 | parsed_year= | candidates=0 | chosen_tmdb=1367642 | path=deduped_into_tmdb
+- key=late shift | status=merged | reason=deduped_into_tmdb | rep_title= | rows=21 | parsed_year= | candidates=0 | chosen_tmdb=1356670 | path=deduped_into_tmdb
+- key=in the grey | status=merged | reason=deduped_into_tmdb | rep_title= | rows=257 | parsed_year= | candidates=0 | chosen_tmdb=1122573 | path=deduped_into_tmdb
+- key=sheep detectives | status=merged | reason=deduped_into_tmdb | rep_title= | rows=249 | parsed_year= | candidates=0 | chosen_tmdb=1301421 | path=deduped_into_tmdb
+- key=david | status=merged | reason=deduped_into_tmdb | rep_title= | rows=60 | parsed_year= | candidates=0 | chosen_tmdb=1167307 | path=deduped_into_tmdb
+- key=two women | status=merged | reason=deduped_into_tmdb | rep_title= | rows=5 | parsed_year= | candidates=0 | chosen_tmdb=1073588 | path=deduped_into_tmdb
+- key=nino | status=merged | reason=deduped_into_tmdb | rep_title= | rows=8 | parsed_year= | candidates=0 | chosen_tmdb=1313229 | path=deduped_into_tmdb
+- key=adventures of priscilla queen of the desert | status=merged | reason=deduped_into_tmdb | rep_title= | rows=5 | parsed_year= | candidates=0 | chosen_tmdb=2759 | path=deduped_into_tmdb
+- key=passanger | status=merged | reason=deduped_into_tmdb | rep_title= | rows=29 | parsed_year= | candidates=0 | chosen_tmdb=1637792 | path=deduped_into_tmdb
+- key=substance | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=933260 | path=deduped_into_tmdb
+- key=last whale singer | status=merged | reason=deduped_into_tmdb | rep_title= | rows=109 | parsed_year= | candidates=0 | chosen_tmdb=677558 | path=deduped_into_tmdb
+- key=eden | status=merged | reason=deduped_into_tmdb | rep_title= | rows=9 | parsed_year= | candidates=0 | chosen_tmdb=1042834 | path=deduped_into_tmdb
+- key=leave one day | status=merged | reason=deduped_into_tmdb | rep_title= | rows=7 | parsed_year= | candidates=0 | chosen_tmdb=1277884 | path=deduped_into_tmdb
+- key=choral | status=merged | reason=deduped_into_tmdb | rep_title= | rows=56 | parsed_year= | candidates=0 | chosen_tmdb=1262815 | path=deduped_into_tmdb
+- key=bohemian rhapsody | status=merged | reason=deduped_into_tmdb | rep_title= | rows=11 | parsed_year= | candidates=0 | chosen_tmdb=424694 | path=deduped_into_tmdb
+- key=freuds last session | status=merged | reason=deduped_into_tmdb | rep_title= | rows=4 | parsed_year= | candidates=0 | chosen_tmdb=1025491 | path=deduped_into_tmdb
+- key=project hail mary | status=merged | reason=deduped_into_tmdb | rep_title= | rows=56 | parsed_year= | candidates=0 | chosen_tmdb=687163 | path=deduped_into_tmdb
+- key=abba | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1309201 | path=deduped_into_tmdb
+- key=hoppers | status=merged | reason=deduped_into_tmdb | rep_title= | rows=142 | parsed_year= | candidates=0 | chosen_tmdb=1327819 | path=deduped_into_tmdb
+- key=wonder | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=406997 | path=deduped_into_tmdb
+- key=fifth element | status=merged | reason=deduped_into_tmdb | rep_title= | rows=9 | parsed_year= | candidates=0 | chosen_tmdb=18 | path=deduped_into_tmdb
+- key=goat | status=merged | reason=deduped_into_tmdb | rep_title= | rows=61 | parsed_year= | candidates=0 | chosen_tmdb=1297842 | path=deduped_into_tmdb
+- key=hokum | status=merged | reason=deduped_into_tmdb | rep_title= | rows=33 | parsed_year= | candidates=0 | chosen_tmdb=1430077 | path=deduped_into_tmdb
+- key=pretty woman | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=114 | path=deduped_into_tmdb
+- key=tuner | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1340206 | path=deduped_into_tmdb
+- key=shell | status=merged | reason=deduped_into_tmdb | rep_title= | rows=15 | parsed_year= | candidates=0 | chosen_tmdb=1365490 | path=deduped_into_tmdb
+- key=american hina | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1683714 | path=deduped_into_tmdb
+- key=bad boy and me 2 | status=merged | reason=deduped_into_tmdb | rep_title= | rows=9 | parsed_year= | candidates=0 | chosen_tmdb=1429520 | path=deduped_into_tmdb
+- key=pulp fiction | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=680 | path=deduped_into_tmdb
+- key=normal | status=merged | reason=deduped_into_tmdb | rep_title= | rows=6 | parsed_year= | candidates=0 | chosen_tmdb=1285728 | path=deduped_into_tmdb
+- key=pirates of the caribbean the curse of the black p | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=22 | path=deduped_into_tmdb
+- key=stolen girl | status=merged | reason=deduped_into_tmdb | rep_title= | rows=170 | parsed_year= | candidates=0 | chosen_tmdb=1280450 | path=deduped_into_tmdb
+- key=forrest gump | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=13 | path=deduped_into_tmdb
+- key=passenger | status=merged | reason=deduped_into_tmdb | rep_title= | rows=109 | parsed_year= | candidates=0 | chosen_tmdb=1368314 | path=deduped_into_tmdb
+- key=la grazia | status=merged | reason=deduped_into_tmdb | rep_title= | rows=171 | parsed_year= | candidates=0 | chosen_tmdb=1397364 | path=deduped_into_tmdb
+- key=ilanot | status=merged | reason=deduped_into_tmdb | rep_title= | rows=18 | parsed_year= | candidates=0 | chosen_tmdb=1663161 | path=deduped_into_tmdb
+- key=shelter | status=merged | reason=deduped_into_tmdb | rep_title= | rows=5 | parsed_year= | candidates=0 | chosen_tmdb=1290821 | path=deduped_into_tmdb
+- key=drama | status=merged | reason=deduped_into_tmdb | rep_title= | rows=6 | parsed_year= | candidates=0 | chosen_tmdb=1325734 | path=deduped_into_tmdb
+- key=kpop demon hunters sing along | status=merged | reason=deduped_into_tmdb | rep_title= | rows=16 | parsed_year= | candidates=0 | chosen_tmdb=803796 | path=deduped_into_tmdb
+- key=kidnapped | status=merged | reason=deduped_into_tmdb | rep_title= | rows=17 | parsed_year= | candidates=0 | chosen_tmdb=801112 | path=deduped_into_tmdb
+- key=my friend eva | status=merged | reason=deduped_into_tmdb | rep_title= | rows=25 | parsed_year= | candidates=0 | chosen_tmdb=1297953 | path=deduped_into_tmdb
+- key=subservience | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1064028 | path=deduped_into_tmdb
+- key=spongebob movie search for squarepants | status=merged | reason=deduped_into_tmdb | rep_title= | rows=4 | parsed_year= | candidates=0 | chosen_tmdb=991494 | path=deduped_into_tmdb
+- key=jungle beat 2 the past | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1453180 | path=deduped_into_tmdb
+- key=tel aviv beirut | status=merged | reason=deduped_into_tmdb | rep_title= | rows=29 | parsed_year= | candidates=0 | chosen_tmdb=1030210 | path=deduped_into_tmdb
+- key=zootopia 2 | status=merged | reason=deduped_into_tmdb | rep_title= | rows=9 | parsed_year= | candidates=0 | chosen_tmdb=1084242 | path=deduped_into_tmdb
+- key=night of the hunted | status=merged | reason=deduped_into_tmdb | rep_title= | rows=6 | parsed_year= | candidates=0 | chosen_tmdb=1160003 | path=deduped_into_tmdb
+- key=fleak | status=merged | reason=deduped_into_tmdb | rep_title= | rows=4 | parsed_year= | candidates=0 | chosen_tmdb=680770 | path=deduped_into_tmdb
+- key=mother mary | status=merged | reason=deduped_into_tmdb | rep_title= | rows=4 | parsed_year= | candidates=0 | chosen_tmdb=1102883 | path=deduped_into_tmdb
+- key=june and john | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1216571 | path=deduped_into_tmdb
+- key=madly | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1500272 | path=deduped_into_tmdb
+- key=nirvanna the band the show the movie | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1154538 | path=deduped_into_tmdb
+- key=classic | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1411480 | path=deduped_into_tmdb
+- key=five seconds | status=merged | reason=deduped_into_tmdb | rep_title= | rows=16 | parsed_year= | candidates=0 | chosen_tmdb=1368519 | path=deduped_into_tmdb
+- key=i swear | status=merged | reason=deduped_into_tmdb | rep_title= | rows=12 | parsed_year= | candidates=0 | chosen_tmdb=1317149 | path=deduped_into_tmdb
+- key=nice indian boy | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1128614 | path=deduped_into_tmdb
+- key=Hot Cinema | status=mapped | reason=upserted | rep_title= | rows=2241 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_by_cinema
+- key=Hot Cinema | status=mapped | reason=marked_added | rep_title= | rows=2290 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_by_cinema
+- key=Cinema City | status=mapped | reason=upserted | rep_title= | rows=2752 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_by_cinema
+- key=Cinema City | status=mapped | reason=marked_added | rep_title= | rows=2837 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_by_cinema
+- key=Yes Planet | status=mapped | reason=upserted | rep_title= | rows=2348 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_by_cinema
+- key=Yes Planet | status=mapped | reason=marked_added | rep_title= | rows=2532 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_by_cinema
+- key=MovieLand | status=mapped | reason=upserted | rep_title= | rows=855 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_by_cinema
+- key=MovieLand | status=mapped | reason=marked_added | rep_title= | rows=924 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_by_cinema
+- key=Lev Cinema | status=mapped | reason=upserted | rep_title= | rows=402 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_by_cinema
+- key=Lev Cinema | status=mapped | reason=marked_added | rep_title= | rows=402 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_by_cinema
+- key=Rav Hen | status=mapped | reason=upserted | rep_title= | rows=263 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_by_cinema
+- key=Rav Hen | status=mapped | reason=marked_added | rep_title= | rows=294 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_by_cinema
+- key=finalMovies | status=mapped | reason=upserted | rep_title= | rows=78 | parsed_year= | candidates=0 | chosen_tmdb= | path=final_movies
+
+UNRESOLVED / DROPPED ITEMS
+- no_candidates | group=lior duvdevani | title=lior duvdevani
+- no_candidates | group=bear clow camp | title=the bear clow camp
+- no_candidates | group=hot cinema | title=hot cinema
+- no_candidates | group=five baloons | title=five baloons
+- no_candidates | group=muhamad naama | title=muhamad naama
+- no_candidates | group=comedy bar daniel cohen | title=comedy bar daniel cohen
+- no_candidates | group=investment generation | title=investment generation
+- no_candidates | group=animel farm | title=animel farm
+- no_candidates | group=kidnapped aka rapito | title=kidnapped aka rapito
+- no_candidates | group=movieretro | title=movieretro
+
+WRITE/DEDUPE ACTIONS
+- dedupeFinalShowtimes(finalShowtimes)
+- dedupeFinalMovies(finalMovies)
+- upsertUpdates(finalShowtimes) cinema=Hot Cinema rows=2241
+- mark_added(allShowtimes) cinema=Hot Cinema rows=2290
+- delete_stale(finalShowtimes) cinema=Hot Cinema rows=2543
+- upsertUpdates(finalShowtimes) cinema=Cinema City rows=2752
+- mark_added(allShowtimes) cinema=Cinema City rows=2837
+- delete_stale(finalShowtimes) cinema=Cinema City rows=3031
+- upsertUpdates(finalShowtimes) cinema=Yes Planet rows=2348
+- mark_added(allShowtimes) cinema=Yes Planet rows=2532
+- delete_stale(finalShowtimes) cinema=Yes Planet rows=2721
+- upsertUpdates(finalShowtimes) cinema=MovieLand rows=855
+- mark_added(allShowtimes) cinema=MovieLand rows=924
+- delete_stale(finalShowtimes) cinema=MovieLand rows=997
+- upsertUpdates(finalShowtimes) cinema=Lev Cinema rows=402
+- mark_added(allShowtimes) cinema=Lev Cinema rows=402
+- delete_stale(finalShowtimes) cinema=Lev Cinema rows=230
+- upsertUpdates(finalShowtimes) cinema=Rav Hen rows=263
+- mark_added(allShowtimes) cinema=Rav Hen rows=294
+- delete_stale(finalShowtimes) cinema=Rav Hen rows=298
+- dedupeFinalShowtimes(finalShowtimes)
+- upsertUpdates(finalMovies) rows=78
+- dedupeFinalMovies(finalMovies)
+
+NOTES
+- (none)
