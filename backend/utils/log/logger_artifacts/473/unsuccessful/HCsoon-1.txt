@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: HCsoon
+URL: https://hotcinema.co.il/movie/3727/%D7%9E%D7%95%D7%A4%D7%A2-%D7%A7%D7%99%D7%A5-%D7%AA%D7%9C%D7%AA%D7%9C%D7%99%D7%AA-%D7%95%D7%96%D7%95%D7%A7%D7%95
+Exception: ReadTimeoutError - HTTPConnectionPool(host='localhost', port=59391): Read timed out. (read timeout=120)
+Call Chain: runners.py:43 > runners.py:19 > BaseCinema.py:28 > HCsoon.py:27
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/473/unsuccessful/HCsoon-1.png
+CSV: backend/utils/log/logger_artifacts/473/unsuccessful/HCsoon-1.csv
