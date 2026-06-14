@@ -20,13 +20,17 @@ class YesPlanet(BaseCinema):
 
         for film_card in range(1, self.lenElements("/html/body/div[6]/section/div[2]/div/div/div/div[2]/div/div/div/div[1]/div") + 1):
             href = str(self.element(f"/html/body/div[6]/section/div[2]/div/div/div/div[2]/div/div/div/div[1]/div[{film_card}]/a").get_attribute("href"))
+            english_title = str(self.element(f"/html/body/div[6]/section/div[2]/div/div/div/div[2]/div/div/div/div[1]/div[{film_card}]/a/p").text)
             if href.endswith("s2r2") or href.endswith("d2r1"):
+                print(f"RUSSIAN: {english_title}", flush=True)
                 continue
 
             self.english_hrefs.append(href)
             self.english_titles.append(str(self.element(f"/html/body/div[6]/section/div[2]/div/div/div/div[2]/div/div/div/div[1]/div[{film_card}]/a/p").text))
         for href in self.english_hrefs:
             self.driver.get(href)
+            print("\n", flush=True)
+            print(href, flush=True)
             self.sleep(0.1)
 
             self.hebrew_titles.append(str(self.element("#more-info > div > div:nth-child(2) > div.col-md-8.col-sm-6.col-xs-12 > dl > div:nth-child(1) > dd").text))
@@ -108,7 +112,13 @@ class YesPlanet(BaseCinema):
                                 continue
 
                             for showtype in range(1, self.lenElements(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div") + 1):
-                                self.dub_language = "Hebrew" if "DUB" in self.element(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div[{showtype}]/div/ul[2]").get_attribute("innerText") else None
+                                # self.dub_language = "Hebrew" if "DUB" in self.element(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div[{showtype}]/div/ul[2]").get_attribute("innerText") else None
+                                dub_stuff = self.element(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div[{showtype}]/div/ul[2]").get_attribute("innerText")
+                                if "RU" in dub_stuff:
+                                    continue
+                                else:
+                                    self.dub_language = "Hebrew" if "DUB" in dub_stuff else None
+
                                 self.screening_type = str(self.element(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div[{showtype}]/div/ul[1]").get_attribute("innerText"))
                                 self.screening_tech = self.screening_type
 
@@ -126,4 +136,9 @@ class YesPlanet(BaseCinema):
                                     self.english_title = self.english_titles[checking_film]
                                     self.hebrew_title = self.hebrew_titles[checking_film]
 
+                                    if self.dub_language is not None:
+                                        print(self.english_title, flush=True)
+                                        print(self.dub_language, flush=True)
+
                                     self.appendToGatheringInfo()
+        self.sleep()

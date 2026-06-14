@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: YesPlanet
+URL: https://www.planetcinema.co.il/films/marianas-room/8147s2r#/buy-tickets-by-film?in-cinema=1070&at=2026-06-17&for-movie=8147s2r&view-mode=list
+Exception: TimeoutException - Message: 
+Call Chain: runners.py:43 > runners.py:19 > BaseCinema.py:28 > YesPlanet.py:72 > ScrapingHelpers.py:19
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/482/unsuccessful/YesPlanet-2.png
+CSV: 
