@@ -11,6 +11,7 @@ class ScrapedFixes:
             "JAP": "Japanese",
             "DAN": "Danish",
             "RU": "Russian",
+            "IT": "Italian",
             "אנגלית": "English",
             "עברית": "Hebrew",
             "דנית": "Danish",
