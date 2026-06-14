@@ -91,6 +91,8 @@ class HotCinema(BaseCinema):
                                 self.hebrew_title = self.hebrew_title.split("מדובב לצרפתית", 1)[0].strip()
                             if "מדובב לרוסית" in self.hebrew_title:
                                 continue
+                            if "מדובב לערבית" in self.hebrew_title:
+                                continue
 
                             if self.hebrew_title.endswith(" אנגלית"):
                                 self.hebrew_title = self.hebrew_title.removesuffix(" אנגלית").strip()
