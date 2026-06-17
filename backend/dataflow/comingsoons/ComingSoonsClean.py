@@ -4,12 +4,17 @@ from collections import defaultdict
 
 class ComingSoonsClean(BaseDataflow):
     MAIN_TABLE_NAME = "allSoons"
+    HELPER_TABLE_NAME = "tableFixes"
 
     def logic(self):
         self.dedupeAllSoons(self.MAIN_TABLE_NAME)
+        _, tmdb_fix_by_title, _ = self.buildTmdbFixMaps(self.helper_table_rows)
 
         for row in self.main_table_rows:
             if row.get("cleaned") is True:
+                continue
+            if self.tmdbFixForTitle(row.get("english_title"), tmdb_fix_by_title):
+                self.updates.append({"id": row["id"], "cleaned": True})
                 continue
             row["english_title"] = self.normalizeTitle(row.get("english_title") or "")
             row["hebrew_title"] = (row.get("hebrew_title") or "").lower()

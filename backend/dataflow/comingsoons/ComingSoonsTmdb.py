@@ -44,9 +44,12 @@ class ComingSoonsTmdb(BaseDataflow):
         self.trace_write_action(f"dedupeFinalSoons({self.MOVING_TO_TABLE_NAME})")
 
         for skip_row in self.helper_table_2_rows:
-            skip_value = skip_row.get("name_or_tmdb_id").strip()
-            self.skip_tokens.add(skip_value.lower())
-            self.skip_tokens.add(self.normalizeTitle(skip_value).strip().lower())
+            skip_value = self.clean_str(skip_row.get("name_or_tmdb_id")).strip()
+            if skip_value:
+                self.skip_tokens.add(skip_value.lower())
+            skip_norm = self.normalizeTitle(skip_value).strip().lower()
+            if skip_norm:
+                self.skip_tokens.add(skip_norm)
 
         tmdb_fix_ids, tmdb_fix_by_title, tmdb_fix_alias_by_tmdb = self.buildTmdbFixMaps(self.helper_table_rows)
 
@@ -70,7 +73,7 @@ class ComingSoonsTmdb(BaseDataflow):
                 self.trace_unresolved(f"skip_token | {self.english_title} | row_id={row.get('id')}")
                 continue
 
-            if override_tmdb := (tmdb_fix_by_title.get(title_raw) or tmdb_fix_by_title.get(title_norm)):
+            if override_tmdb := self.tmdbFixForTitle(self.english_title, tmdb_fix_by_title):
                 if str(override_tmdb).lower() in self.skip_tokens:
                     self.trace_event("tmdb_choice", "skipped", "skip_token", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": override_tmdb})
                     self.trace_unresolved(f"skip_token_on_override | {self.english_title} | tmdb={override_tmdb}")

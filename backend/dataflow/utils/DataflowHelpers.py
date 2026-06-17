@@ -214,7 +214,7 @@ class DataflowHelpers:
 
     def buildTmdbFixMaps(self, fix_rows: list[dict]):
         tmdb_fix_ids = set()
-        tmdb_fix_by_title = {}
+        tmdb_fix_by_title = {"exact": {}, "lower": {}, "normalized": {}}
         tmdb_fix_alias_by_tmdb = {}
 
         for fix in fix_rows or []:
@@ -228,18 +228,40 @@ class DataflowHelpers:
 
             tmdb_fix_ids.add(desired_tmdb_id)
 
-            title_raw = title_fix.lower()
-            tmdb_fix_by_title[title_raw] = desired_tmdb_id
+            tmdb_fix_by_title["exact"][title_fix] = desired_tmdb_id
+            tmdb_fix_by_title["lower"][title_fix.lower()] = desired_tmdb_id
 
             title_norm = self.normalizeTitle(title_fix).strip().lower()
             if title_norm:
-                tmdb_fix_by_title[title_norm] = desired_tmdb_id
+                tmdb_fix_by_title["normalized"][title_norm] = desired_tmdb_id
 
             source_tmdb_id = self.clean_int(title_fix)
             if source_tmdb_id:
                 tmdb_fix_alias_by_tmdb[source_tmdb_id] = desired_tmdb_id
 
         return tmdb_fix_ids, tmdb_fix_by_title, tmdb_fix_alias_by_tmdb
+
+    def tmdbFixForTitle(self, title, tmdb_fix_by_title: dict):
+        title_exact = self.clean_str(title).strip()
+        if not title_exact:
+            return None
+
+        exact_map = (tmdb_fix_by_title or {}).get("exact") or {}
+        lower_map = (tmdb_fix_by_title or {}).get("lower") or {}
+        normalized_map = (tmdb_fix_by_title or {}).get("normalized") or {}
+
+        if title_exact in exact_map:
+            return exact_map[title_exact]
+
+        title_lower = title_exact.lower()
+        if title_lower in lower_map:
+            return lower_map[title_lower]
+
+        title_norm = self.normalizeTitle(title_exact).strip().lower()
+        if title_norm in normalized_map:
+            return normalized_map[title_norm]
+
+        return None
 
     def tmdbFixAliasForTmdbId(self, tmdb_id, tmdb_fix_alias_by_tmdb: dict):
         source_tmdb_id = self.clean_int(tmdb_id)

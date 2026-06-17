@@ -27,14 +27,7 @@ class NowPlayingsTmdb(BaseDataflow):
             poster_path = details.get("poster_path")
             poster_url = f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else None
 
-            alt_options.append(
-                {
-                    "tmdb": tmdb_id,
-                    "title": details.get("title"),
-                    "year": release_year,
-                    "poster_url": poster_url,
-                }
-            )
+            alt_options.append({"tmdb": tmdb_id, "title": details.get("title"), "year": release_year, "poster_url": poster_url})
             if len(alt_options) >= 10:
                 break
         return alt_options
@@ -47,9 +40,12 @@ class NowPlayingsTmdb(BaseDataflow):
 
         # SKIP TOKENS
         for skip_row in self.helper_table_2_rows:
-            skip_value = skip_row.get("name_or_tmdb_id").strip()
-            self.skip_tokens.add(skip_value.lower())
-            self.skip_tokens.add(self.normalizeTitle(skip_value).strip().lower())
+            skip_value = self.clean_str(skip_row.get("name_or_tmdb_id")).strip()
+            if skip_value:
+                self.skip_tokens.add(skip_value.lower())
+            skip_norm = self.normalizeTitle(skip_value).strip().lower()
+            if skip_norm:
+                self.skip_tokens.add(skip_norm)
 
         self.tmdb_fix_ids, self.tmdb_fix_by_title, self.tmdb_fix_alias_by_tmdb = self.buildTmdbFixMaps(self.helper_table_rows)
 
@@ -83,13 +79,19 @@ class NowPlayingsTmdb(BaseDataflow):
             if self.date_of_showing and self.dateToDate(self.date_of_showing) < date.today():
                 continue
 
-            title_norm = self.normalizeTitle(self.english_title)
-            key = self.nowPlayingsGroupKey(title_norm)
-            if not (title_norm and key):
-                continue
+            override_tmdb = self.tmdbFixForTitle(self.english_title, self.tmdb_fix_by_title)
+            if override_tmdb:
+                title_for_count = self.clean_str(self.english_title).strip()
+                key = f"tmdb_fix:{override_tmdb}"
+            else:
+                title_norm = self.normalizeTitle(self.english_title)
+                key = self.nowPlayingsGroupKey(title_norm)
+                title_for_count = title_norm
+                if not (title_norm and key):
+                    continue
 
             self.grouped_rows_by_key[key].append(row)
-            self.title_counts_by_key[key][title_norm] += 1
+            self.title_counts_by_key[key][title_for_count] += 1
 
             meta = self.meta_by_key.setdefault(key, {"hebrew_title": self.hebrew_title, "directed_by": self.directed_by, "runtime": self.runtime, "year_counts": defaultdict(int)})
             meta["hebrew_title"] = meta.get("hebrew_title") if meta.get("hebrew_title") or not self.hebrew_title else self.hebrew_title
@@ -109,6 +111,17 @@ class NowPlayingsTmdb(BaseDataflow):
 
             title_counts = self.title_counts_by_key.get(key) or {}
             titles_sorted = sorted(title_counts.items(), key=lambda kv: kv[1], reverse=True)
+            representative_title = titles_sorted[0][0] if titles_sorted else ""
+            if key.startswith("tmdb_fix:"):
+                self.potential_chosen_id = self.clean_int(key.split(":", 1)[1])
+                if str(self.potential_chosen_id).lower() in self.skip_tokens:
+                    self.trace_event("tmdb_choice", "dropped", "skip_token", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": 0, "chosen_tmdb": self.potential_chosen_id, "chosen_path": "tmdb_fix_override"})
+                    self.trace_unresolved(f"skip_token_on_override | group={key} | title={representative_title}")
+                    continue
+                self.key_result[key] = {"tmdb_id": self.potential_chosen_id, "imdb_id": None, "hebrew_title": self.hebrew_title, "alt_options": []}
+                self.trace_event("tmdb_choice", "mapped", "tmdb_fix_override", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": 0, "chosen_tmdb": self.potential_chosen_id, "chosen_path": "tmdb_fix_override"})
+                continue
+
             candidate_titles = [title for title, _ in titles_sorted if not self.titleIsSkipped(title, self.skip_tokens)]
             if not candidate_titles:
                 self.trace_event("group_filter", "dropped", "skip_token", key=key, payload={"key": key, "row_count": row_count, "representative_title": "", "parsed_year": self.parsed_year, "candidate_count": 0, "chosen_tmdb": "", "chosen_path": ""})
@@ -118,12 +131,7 @@ class NowPlayingsTmdb(BaseDataflow):
 
             # TMDB FIX OVERRIDE (title -> tmdb_id)
             for title in candidate_titles:
-                title_raw = (title or "").strip().lower()
-                try:
-                    title_norm = self.normalizeTitle(title or "").strip().lower()
-                except:
-                    title_norm = title_raw
-                self.override_tmdb = self.tmdb_fix_by_title.get(title_raw) or self.tmdb_fix_by_title.get(title_norm)
+                self.override_tmdb = self.tmdbFixForTitle(title, self.tmdb_fix_by_title)
                 if self.override_tmdb:
                     break
             if self.override_tmdb:
