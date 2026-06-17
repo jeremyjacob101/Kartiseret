@@ -1,0 +1,36 @@
+- - -
+DATAFLOW SUMMARY
+- - -
+Name: NowPlayingsTmdb
+Run ID: 493
+Attempt: 1
+Result: SUCCESS
+Started (UTC): 2026-06-17T06:21:37.444018+00:00
+Finished (UTC): 2026-06-17T06:22:45.530881+00:00
+Duration Seconds: 68.0869
+Generated At (UTC): 2026-06-17T06:22:45.531103+00:00
+
+SUMMARY COUNTS
+- mapped: 1
+
+STAGE BREAKDOWN
+- write|mapped|upserted: 1
+
+COMING SOONS DETAILS
+- (none)
+
+NOW PLAYING GROUP DETAILS
+- key=finalMovies | status=mapped | reason=upserted | rep_title= | rows=0 | parsed_year= | candidates=0 | chosen_tmdb= | path=final_movies
+
+UNRESOLVED / DROPPED ITEMS
+- (none)
+
+WRITE/DEDUPE ACTIONS
+- dedupeFinalShowtimes(finalShowtimes)
+- dedupeFinalMovies(finalMovies)
+- dedupeFinalShowtimes(finalShowtimes)
+- upsertUpdates(finalMovies) rows=0
+- dedupeFinalMovies(finalMovies)
+
+NOTES
+- (none)
