@@ -1,6 +1,12 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Armchair, Languages, ListFilter, TvMinimal } from "lucide-react";
+import {
+  Armchair,
+  Glasses,
+  Languages,
+  ListFilter,
+  TvMinimal,
+} from "lucide-react";
 import { type ShowtimeFilterOptions, type ShowtimeFilterSelections } from "./showtimeFilters";
 import "./ShowtimeFilterMenu.css";
 
@@ -19,6 +25,7 @@ const FILTER_GROUP_COPY: Array<{
   icon: typeof Armchair;
 }> = [
   { group: "showType", icon: Armchair },
+  { group: "screenFormat", icon: Glasses },
   { group: "screeningTech", icon: TvMinimal },
   { group: "dubLanguage", icon: Languages },
 ];

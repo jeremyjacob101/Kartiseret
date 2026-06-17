@@ -13,9 +13,9 @@ const SHOW_TYPE_OPTIONS = [
   "Prime",
   "Lounge",
 ] as const;
+const SCREEN_FORMAT_OPTIONS = ["2D", "3D"] as const;
 const SCREENING_TECH_OPTIONS = [
-  "2D",
-  "3D",
+  "Standard",
   "HFR",
   "IMAX",
   "Atmos",
@@ -24,35 +24,43 @@ const SCREENING_TECH_OPTIONS = [
   "4DX",
 ] as const;
 
-type FilterGroup = "showType" | "screeningTech" | "dubLanguage";
+type FilterGroup =
+  | "showType"
+  | "screenFormat"
+  | "screeningTech"
+  | "dubLanguage";
 
 type SavedUncheckedGroups = Record<FilterGroup, string[]>;
 
 const DEFAULT_SAVED_UNCHECKED: SavedUncheckedGroups = {
   showType: [],
+  screenFormat: [],
   screeningTech: [],
   dubLanguage: [],
 };
 
 export type ShowtimeFilterState = {
-  version: 1;
+  version: 2;
   unchecked: SavedUncheckedGroups;
 };
 
 export type ShowtimeFilterSelections = {
   showType: ReadonlySet<string>;
+  screenFormat: ReadonlySet<string>;
   screeningTech: ReadonlySet<string>;
   dubLanguage: ReadonlySet<string>;
 };
 
 export type CanonicalShowtimeMeta = {
   showTypeTokens: readonly string[];
+  screenFormatToken: string;
   screeningTechTokens: readonly string[];
   dubLanguage: string | null;
 };
 
 export type ShowtimeFilterOptions = {
   showType: readonly string[];
+  screenFormat: readonly string[];
   screeningTech: readonly string[];
   dubLanguage: readonly string[];
 };
@@ -68,6 +76,7 @@ function copyUncheckedGroups(
 ): SavedUncheckedGroups {
   return {
     showType: [...(unchecked?.showType ?? [])],
+    screenFormat: [...(unchecked?.screenFormat ?? [])],
     screeningTech: [...(unchecked?.screeningTech ?? [])],
     dubLanguage: [...(unchecked?.dubLanguage ?? [])],
   };
@@ -89,14 +98,35 @@ function normalizeFilterState(value: unknown): ShowtimeFilterState | null {
     unchecked?: Partial<Record<FilterGroup, unknown>>;
   };
 
-  if (candidate.version !== 1) {
+  if (candidate.version !== 1 && candidate.version !== 2) {
     return null;
   }
 
   const uncheckedGroups = candidate.unchecked;
+  const rawUncheckedScreeningTech = Array.isArray(
+    uncheckedGroups?.screeningTech,
+  )
+    ? normalizeUniqueList(
+        uncheckedGroups.screeningTech.filter(
+          (entry): entry is string => typeof entry === "string",
+        ),
+      )
+    : [];
+  const migratedScreenFormat =
+    candidate.version === 1
+      ? rawUncheckedScreeningTech.filter(
+          (entry) => entry === "2D" || entry === "3D",
+        )
+      : Array.isArray(uncheckedGroups?.screenFormat)
+        ? normalizeUniqueList(
+            uncheckedGroups.screenFormat.filter(
+              (entry): entry is string => typeof entry === "string",
+            ),
+          )
+        : [];
 
   return {
-    version: 1,
+    version: 2,
     unchecked: {
       showType: Array.isArray(uncheckedGroups?.showType)
         ? normalizeUniqueList(
@@ -105,13 +135,13 @@ function normalizeFilterState(value: unknown): ShowtimeFilterState | null {
             ),
           )
         : [],
-      screeningTech: Array.isArray(uncheckedGroups?.screeningTech)
-        ? normalizeUniqueList(
-            uncheckedGroups.screeningTech.filter(
-              (entry): entry is string => typeof entry === "string",
-            ),
-          )
-        : [],
+      screenFormat: migratedScreenFormat,
+      screeningTech:
+        candidate.version === 1
+          ? rawUncheckedScreeningTech.filter(
+              (entry) => entry !== "2D" && entry !== "3D",
+            )
+          : rawUncheckedScreeningTech,
       dubLanguage: Array.isArray(uncheckedGroups?.dubLanguage)
         ? normalizeUniqueList(
             uncheckedGroups.dubLanguage.filter(
@@ -240,25 +270,33 @@ function normalizeScreeningTechToken(raw: string): string {
     return "Atmos";
   }
 
-  if (upperValue === "DOLBY") {
-    return "Atmos";
-  }
-
   if (upperValue === "2D" || upperValue === "3D") {
     return upperValue;
   }
 
-  return normalizedRaw;
+  return "";
 }
 
-function getScreeningTechTokens(raw: string): string[] {
+function getScreeningTechParts(raw: string): {
+  screenFormatToken: string;
+  screeningTechTokens: string[];
+} {
   const normalizedTech = normalizeScreeningTech(raw);
   const tokens = normalizedTech
     .split(/[+\s/,-]+/)
     .map((value) => normalizeScreeningTechToken(value))
     .filter(Boolean);
+  const screenFormatToken = tokens.includes("3D") ? "3D" : "2D";
+  const premiumTokens = tokens.filter(
+    (token) => token !== "2D" && token !== "3D" && token !== "Standard",
+  );
+  const screeningTechTokens =
+    premiumTokens.length > 0 ? premiumTokens : ["Standard"];
 
-  return [...new Set(tokens)];
+  return {
+    screenFormatToken,
+    screeningTechTokens: [...new Set(screeningTechTokens)],
+  };
 }
 
 function normalizeDubLanguage(raw: string | null | undefined): string | null {
@@ -284,9 +322,12 @@ function normalizeDubLanguage(raw: string | null | undefined): string | null {
 export function getCanonicalShowtimeMeta(
   showtime: ShowtimeEntry,
 ): CanonicalShowtimeMeta {
+  const screeningTechParts = getScreeningTechParts(showtime.screeningTech);
+
   return {
     showTypeTokens: getShowTypeTokens(showtime.screeningType),
-    screeningTechTokens: getScreeningTechTokens(showtime.screeningTech),
+    screenFormatToken: screeningTechParts.screenFormatToken,
+    screeningTechTokens: screeningTechParts.screeningTechTokens,
     dubLanguage: normalizeDubLanguage(showtime.dubLanguage),
   };
 }
@@ -295,6 +336,7 @@ export function getShowtimeFilterOptions(
   theaters: readonly TheaterShowtimes[],
 ): ShowtimeFilterOptions {
   const showTypeSet = new Set<string>();
+  const screenFormatSet = new Set<string>();
   const screeningTechSet = new Set<string>();
 
   for (const theater of theaters) {
@@ -303,6 +345,7 @@ export function getShowtimeFilterOptions(
       for (const token of canonicalMeta.showTypeTokens) {
         showTypeSet.add(token);
       }
+      screenFormatSet.add(canonicalMeta.screenFormatToken);
       for (const token of canonicalMeta.screeningTechTokens) {
         screeningTechSet.add(token);
       }
@@ -313,12 +356,18 @@ export function getShowtimeFilterOptions(
     showTypeSet.add(option);
   }
 
+  for (const option of SCREEN_FORMAT_OPTIONS) {
+    screenFormatSet.add(option);
+  }
+
   for (const option of SCREENING_TECH_OPTIONS) {
     screeningTechSet.add(option);
   }
 
   return {
     showType: [...showTypeSet].sort((left, right) => left.localeCompare(right)),
+    screenFormat: [...screenFormatSet].sort((left, right) =>
+      left.localeCompare(right)),
     screeningTech: [...screeningTechSet].sort((left, right) =>
       left.localeCompare(right)),
     dubLanguage: [...FIXED_DUB_LANGUAGES],
@@ -342,6 +391,10 @@ export function buildShowtimeFilterSelections(
 
   return {
     showType: toSelectedSet(options.showType, unchecked.showType),
+    screenFormat: toSelectedSet(
+      options.screenFormat,
+      unchecked.screenFormat,
+    ),
     screeningTech: toSelectedSet(
       options.screeningTech,
       unchecked.screeningTech,
@@ -362,10 +415,15 @@ function isShowtimeAllowed(
     }
   }
 
-  for (const token of canonicalMeta.screeningTechTokens) {
-    if (!selections.screeningTech.has(token)) {
-      return false;
-    }
+  if (!selections.screenFormat.has(canonicalMeta.screenFormatToken)) {
+    return false;
+  }
+
+  if (
+    !canonicalMeta.screeningTechTokens.some((token) =>
+      selections.screeningTech.has(token))
+  ) {
+    return false;
   }
 
   if (
@@ -426,12 +484,17 @@ export function updateShowtimeFilterState(
   };
 
   return {
-    version: 1,
+    version: 2,
     unchecked: {
       showType: nextUncheckedForGroup(
         "showType",
         options.showType,
         nextSelections.showType,
+      ),
+      screenFormat: nextUncheckedForGroup(
+        "screenFormat",
+        options.screenFormat,
+        nextSelections.screenFormat,
       ),
       screeningTech: nextUncheckedForGroup(
         "screeningTech",
@@ -453,7 +516,7 @@ export function loadShowtimeFilters(): ShowtimeFilterState | null {
 
 export function saveShowtimeFilters(nextState: ShowtimeFilterState): void {
   cachedFilterState = {
-    version: 1,
+    version: 2,
     unchecked: copyUncheckedGroups(nextState.unchecked),
   };
 

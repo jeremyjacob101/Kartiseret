@@ -177,6 +177,7 @@ export function AllShowtimesPage() {
     if (allLoadedTheaters.length === 0) {
       return {
         showType: [],
+        screenFormat: [],
         screeningTech: [],
         dubLanguage: ["Hebrew", "French"],
       };
@@ -217,6 +218,7 @@ export function AllShowtimesPage() {
     (group: keyof ShowtimeFilterOptions, value: string) => {
       const nextSelections: Record<keyof ShowtimeFilterOptions, Set<string>> = {
         showType: new Set(showtimeFilterSelections.showType),
+        screenFormat: new Set(showtimeFilterSelections.screenFormat),
         screeningTech: new Set(showtimeFilterSelections.screeningTech),
         dubLanguage: new Set(showtimeFilterSelections.dubLanguage),
       };
@@ -247,6 +249,7 @@ export function AllShowtimesPage() {
         groupOptions.every((value) => currentSelected.has(value));
       const nextSelections: Record<keyof ShowtimeFilterOptions, Set<string>> = {
         showType: new Set(showtimeFilterSelections.showType),
+        screenFormat: new Set(showtimeFilterSelections.screenFormat),
         screeningTech: new Set(showtimeFilterSelections.screeningTech),
         dubLanguage: new Set(showtimeFilterSelections.dubLanguage),
       };
