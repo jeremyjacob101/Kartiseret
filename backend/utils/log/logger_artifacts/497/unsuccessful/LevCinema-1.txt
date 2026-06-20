@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: LevCinema
+URL: https://www.lev.co.il/en/movies/%d7%94%d7%90%d7%95%d7%93%d7%99%d7%a1%d7%90%d7%94/
+Exception: TimeoutException - Message: 
+Call Chain: runners.py:43 > runners.py:19 > BaseCinema.py:28 > LevCinema.py:22 > ScrapingHelpers.py:19
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/497/unsuccessful/LevCinema-1.png
+CSV: backend/utils/log/logger_artifacts/497/unsuccessful/LevCinema-1.csv
