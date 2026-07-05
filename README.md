@@ -223,7 +223,7 @@ The browser app intentionally uses only the publishable key and never a service-
 - `.github/workflows/daily_sweep.yml` clears old showtimes and soon entries on a daily schedule.
 - `backend/config/cron/run_weekly.sh` is a local weekly shell runner that syncs the repo, runs the full job, commits artifacts/logs, and pushes them back to `main`.
 - `backend/config/cron/run_daily.sh` is a local daily shell runner that performs the same default headless run, writes separate daily logs, and pushes artifacts/logs back to `main`.
-- `backend/config/cron/run_realtime_watcher.sh` runs a local realtime listener for `finalMovies` and `finalSoons`.
+- `backend/config/realtime/start_realtime_watcher_background.sh` starts/restarts a local realtime listener for `finalMovies` and `finalSoons`, loads Supabase credentials from the project-root `.env`, and writes logs to `backend/config/cron/run_realtime_logs/realtime_watcher.log`.
   - watcher-triggered update runs use `solo_update` mode (`SOLO_UPDATE_ONLY=true`) and process only rows where `solo_update = true`, then reset `solo_update` back to `false` on processed rows.
   - watcher-triggered runs write `utilRunLogs.run_from` as `np_solo_update` (for `finalMovies`) or `cs_solo_update` (for `finalSoons`).
   - regular daily/weekly/manual runs are unchanged and still process full tables.
