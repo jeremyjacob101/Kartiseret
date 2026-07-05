@@ -17,3 +17,6 @@ venv
 
 # .env
 .env
+
+# Realtime watcher logs
+backend/config/cron/run_realtime_logs/
