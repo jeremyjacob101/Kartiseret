@@ -1,0 +1,191 @@
+.attribution-page {
+  width: min(100%, 1000px);
+  display: grid;
+  gap: 24px;
+}
+
+.attribution-page-header {
+  display: flex;
+  align-items: flex-start;
+}
+
+.attribution-page-heading {
+  display: grid;
+  gap: 10px;
+}
+
+.attribution-page-intro {
+  margin: 0;
+  color: rgba(233, 218, 255, 0.8);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.attribution-page-sections {
+  display: grid;
+  gap: 18px;
+}
+
+.attribution-disclaimer {
+  display: grid;
+  gap: 6px;
+  padding: 4px 2px 0;
+}
+
+.attribution-disclaimer-kicker {
+  margin: 0;
+  color: rgba(233, 218, 255, 0.62);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.attribution-disclaimer-text {
+  margin: 0;
+  color: rgba(233, 218, 255, 0.72);
+  font-size: 0.94rem;
+  line-height: 1.6;
+}
+
+.attribution-card {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 22px;
+  padding: 24px;
+  border: 2px solid var(--border);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--main-app-color) 15%, transparent), transparent 34%),
+    var(--surface);
+  box-shadow: 0 20px 44px rgba(12, 8, 19, 0.18);
+}
+
+.attribution-card--sources {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.attribution-card-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.attribution-card-kicker {
+  margin: 0;
+  color: rgba(233, 218, 255, 0.76);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.attribution-card-title {
+  margin: 0;
+  color: #f6f0ff;
+  font-size: clamp(1.3rem, 2.4vw, 1.75rem);
+  line-height: 1.08;
+}
+
+.attribution-card-text {
+  margin: 0;
+  color: rgba(233, 218, 255, 0.82);
+  line-height: 1.65;
+}
+
+.attribution-card-text--compact {
+  margin-top: 6px;
+}
+
+.attribution-source-link:hover,
+.attribution-source-link:focus-visible {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--main-app-color) 42%, transparent);
+  background: color-mix(in srgb, var(--main-app-color) 18%, transparent);
+  box-shadow: 0 12px 22px rgba(20, 14, 33, 0.18);
+}
+
+.attribution-source-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 10px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attribution-source-list--plain {
+  margin-top: 0;
+}
+
+.attribution-source-item {
+  display: flex;
+  align-items: center;
+}
+
+.attribution-source-item--text {
+  flex-basis: 100%;
+  color: rgba(233, 218, 255, 0.82);
+  line-height: 1.65;
+}
+
+.attribution-source-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: #f4edff;
+  padding: 0 10px 0 6px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.attribution-source-logo-shell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 18px;
+  flex: none;
+  overflow: hidden;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.attribution-source-logo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attribution-source-link {
+    transition: none;
+  }
+}
+
+html[data-device-type="mobile"] .attribution-page-header {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+html[data-device-type="mobile"] .attribution-page-header,
+html[data-device-type="mobile"] .attribution-card {
+  display: grid;
+}
+
+html[data-device-type="mobile"] .attribution-card {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 20px;
+}

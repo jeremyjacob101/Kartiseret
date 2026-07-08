@@ -1,0 +1,296 @@
+.user-menu {
+  position: relative;
+}
+
+.user-menu-trigger {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--text-main);
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
+}
+
+.user-menu-trigger:hover,
+.user-menu-trigger.is-open {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(45, 34, 58, 0.2);
+}
+
+.floating-navbar-stack .user-menu-trigger {
+  width: var(--floating-navbar-size);
+  height: var(--floating-navbar-size);
+  border: 3px solid var(--surface);
+  box-shadow:
+    0 18px 30px rgba(22, 16, 30, 0.32),
+    0 0 0 1px rgba(255, 255, 255, 0.18) inset;
+  backdrop-filter: blur(16px);
+}
+
+.floating-navbar-stack.is-over-bottom-bar .user-menu-trigger {
+  background: var(--surface);
+  border-color: var(--surface-strong);
+  color: var(--surface-strong);
+  box-shadow:
+    0 18px 32px rgba(22, 16, 30, 0.34),
+    0 0 0 1px color-mix(in srgb, var(--surface-strong) 36%, transparent) inset;
+}
+
+.floating-navbar-stack .user-menu-trigger:hover,
+.floating-navbar-stack .user-menu-trigger.is-open,
+.floating-navbar-stack .user-menu-trigger:focus-visible {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow:
+    0 22px 34px rgba(22, 16, 30, 0.38),
+    0 0 0 1px rgba(255, 255, 255, 0.22) inset;
+}
+
+.floating-navbar-stack.is-over-bottom-bar .user-menu-trigger:hover,
+.floating-navbar-stack.is-over-bottom-bar .user-menu-trigger.is-open,
+.floating-navbar-stack.is-over-bottom-bar .user-menu-trigger:focus-visible {
+  box-shadow:
+    0 24px 36px rgba(22, 16, 30, 0.42),
+    0 0 0 1px color-mix(in srgb, var(--surface-strong) 44%, transparent) inset;
+}
+
+.floating-navbar-stack .user-menu-trigger:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.92);
+  outline-offset: 3px;
+}
+
+.floating-navbar-stack .user-menu-panel {
+  width: min(340px, calc(100vw - 24px));
+}
+
+.user-menu-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 180;
+  width: min(320px, calc(100vw - 24px));
+  padding: 14px;
+  border: 1px solid rgba(129, 95, 170, 0.45);
+  border-radius: 16px;
+  background: rgba(245, 239, 251, 0.98);
+  color: var(--text-main);
+  box-shadow:
+    0 24px 42px rgba(26, 20, 38, 0.28),
+    0 1px 0 rgba(255, 255, 255, 0.85) inset;
+}
+
+.user-menu--panel-up .user-menu-panel {
+  top: auto;
+  right: auto;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.user-menu-header {
+  margin-bottom: 10px;
+}
+
+.user-menu-title {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: rgba(72, 57, 92, 0.72);
+}
+
+.user-menu-subtitle {
+  margin: 5px 0 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.user-menu-auth-form {
+  display: grid;
+  gap: 10px;
+}
+
+.user-menu-auth-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.user-menu-mode {
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 42%, transparent);
+  border-radius: 999px;
+  background: #f8f4fe;
+  color: rgba(72, 57, 92, 0.82);
+  padding: 8px 10px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.user-menu-mode.is-active {
+  border-color: var(--main-app-color);
+  background: var(--main-app-color);
+  color: #fff;
+}
+
+.user-menu-field {
+  display: grid;
+  gap: 5px;
+}
+
+.user-menu-field span {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(72, 57, 92, 0.65);
+}
+
+.user-menu-field input {
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 34%, transparent);
+  border-radius: 10px;
+  background: #fff;
+  color: #241f2b;
+  padding: 10px 11px;
+  font-size: 0.92rem;
+}
+
+.user-menu-field input:focus {
+  outline: 2px solid color-mix(in srgb, var(--main-app-color) 35%, transparent);
+  outline-offset: 1px;
+}
+
+.user-menu-submit,
+.user-menu-signout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 36%, transparent);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.76);
+  color: rgba(45, 35, 58, 0.92);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.88) inset;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.user-menu-submit:hover:not(:disabled),
+.user-menu-signout:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.user-menu-signout-icon {
+  color: currentColor;
+}
+
+.user-menu-authenticated {
+  display: grid;
+  gap: 10px;
+}
+
+.user-menu-nav-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 45%, transparent);
+  border-radius: 10px;
+  background: #f8f4fe;
+  color: var(--main-app-color);
+  padding: 10px 12px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.user-menu-submit:disabled,
+.user-menu-signout:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.user-menu-divider {
+  height: 1px;
+  margin: 12px 0;
+  background: rgba(135, 101, 178, 0.25);
+}
+
+.user-menu-prefs {
+  display: grid;
+  gap: 8px;
+}
+
+.user-menu-section-title {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(72, 57, 92, 0.76);
+}
+
+.user-menu-section-note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: rgba(72, 57, 92, 0.72);
+}
+
+.user-menu-source-list {
+  display: grid;
+  gap: 6px;
+}
+
+.user-menu-source-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: rgba(39, 31, 49, 0.9);
+}
+
+.user-menu-source-item input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--main-app-color);
+}
+
+.user-menu-feedback {
+  margin: 10px 0 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(53, 110, 64, 0.92);
+}
+
+.user-menu-feedback--error {
+  color: rgba(146, 27, 67, 0.95);
+}
+
+html[data-device-type="mobile"] .user-menu-panel {
+  width: min(320px, calc(100vw - 20px));
+  padding: 12px;
+}
+
+html[data-device-type="mobile"] .user-menu--panel-up .user-menu-panel {
+  width: min(340px, calc(100vw - 20px));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-menu-trigger {
+    transition: none;
+  }
+}

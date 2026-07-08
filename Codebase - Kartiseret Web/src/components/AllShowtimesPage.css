@@ -1,0 +1,343 @@
+.all-showtimes-page {
+  width: min(100%, 1100px);
+  display: grid;
+}
+
+.all-showtimes-page-city {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.all-showtimes-browser {
+  width: 100%;
+  min-height: calc(100vh - 240px);
+  display: flex;
+  flex-direction: column;
+}
+
+.all-showtimes-day-picker-shell {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+.all-showtimes-day-picker-shell.details-showtimes,
+.all-showtimes-browser.details-showtimes {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.all-showtimes-day-picker-scroll {
+  margin: 0;
+  grid-column: 2;
+  justify-self: center;
+}
+
+.all-showtimes-page-city {
+  grid-column: 1;
+  justify-self: start;
+  box-shadow: none;
+}
+
+.all-showtimes-day-picker-filter {
+  grid-column: 3;
+  justify-self: end;
+}
+
+.all-showtimes-page-city.city-map-trigger.theater-map-trigger--labeled:hover,
+.all-showtimes-page-city.city-map-trigger.theater-map-trigger--labeled.is-open,
+.all-showtimes-page-city.city-map-trigger.theater-map-trigger--labeled:focus-visible {
+  border-color: var(--border);
+  background: rgba(20, 16, 33, 0.88);
+  box-shadow: none;
+}
+
+.all-showtimes-day-panel {
+  padding: 18px;
+}
+
+.all-showtimes-day-header {
+  margin-bottom: 20px;
+}
+
+.all-showtimes-empty-state {
+  padding: 0;
+}
+
+.all-showtimes-empty-actions {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.all-showtimes-empty-nearby {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.all-showtimes-movie-list {
+  display: grid;
+  gap: 20px;
+}
+
+.all-showtimes-movie-row {
+  display: grid;
+  grid-template-columns: minmax(380px, 500px) minmax(0, 510px);
+  gap: 24px;
+  padding: 20px;
+  border: 1px solid rgba(221, 194, 255, 0.14);
+  border-radius: 24px;
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(52, 44, 88, 0.18),
+      transparent 46%
+    ),
+    rgba(11, 9, 20, 0.92);
+  box-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  content-visibility: auto;
+  contain-intrinsic-size: 340px;
+}
+
+.all-showtimes-movie-summary {
+  display: grid;
+  grid-template-columns: 124px minmax(0, 1fr);
+  gap: 16px;
+  align-items: end;
+  min-width: 0;
+  align-self: start;
+}
+
+.all-showtimes-poster-shell {
+  width: 124px;
+}
+
+.all-showtimes-poster {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 18px;
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.34),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.all-showtimes-copy {
+  min-width: 0;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-bottom: 10px;
+}
+
+.all-showtimes-copy .all-showtimes-title.details-title {
+  font-size: 1.63rem;
+  line-height: 1.02;
+  color: #f4efff;
+  letter-spacing: -0.02em;
+}
+
+.all-showtimes-copy .details-subtitle {
+  margin-top: 8px;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  color: rgba(236, 229, 248, 0.82);
+}
+
+.all-showtimes-metrics-row {
+  margin-top: 12px;
+  gap: 12px;
+}
+
+.all-showtimes-metrics-row .details-trailer-launch--metrics {
+  min-width: 0;
+  padding: 0;
+  margin-right: 6px;
+}
+
+.all-showtimes-metrics-row .details-trailer-launch-logo {
+  width: 26px;
+  height: 20px;
+}
+
+.all-showtimes-metrics-row .details-metrics-divider {
+  height: 34px;
+}
+
+.all-showtimes-metrics-row .details-metrics {
+  gap: 6px;
+}
+
+.all-showtimes-metrics-row .details-metric {
+  width: 46px;
+  height: auto;
+  flex: 0 0 46px;
+  min-width: 46px;
+  max-width: 46px;
+  min-height: 0;
+  max-height: none;
+  gap: 8px;
+  padding: 0;
+}
+
+.all-showtimes-metrics-row .details-metric strong {
+  font-size: 0.82rem;
+  color: rgba(244, 238, 255, 0.92);
+}
+
+.all-showtimes-metrics-row .details-metric-logo--imdb {
+  width: 33px;
+  height: 18px;
+}
+
+.all-showtimes-metrics-row .details-metric-logo--rt-audience-bad,
+.all-showtimes-metrics-row .details-metric-logo--rt-audience-hot,
+.all-showtimes-metrics-row .details-metric-logo--rt-critic-hot,
+.all-showtimes-metrics-row .details-metric-logo--letterboxd {
+  width: 26px;
+  height: 26px;
+}
+
+.all-showtimes-metrics-row .details-metric-logo--rt-audience-good,
+.all-showtimes-metrics-row .details-metric-logo--rt-critic-bad,
+.all-showtimes-metrics-row .details-metric-logo--rt-critic-good {
+  width: 24px;
+  height: 24px;
+}
+
+.all-showtimes-metrics-row .details-metric-logo--tmdb {
+  width: 33px;
+  height: 18px;
+}
+
+.all-showtimes-theaters {
+  min-width: 0;
+}
+
+.all-showtimes-theaters .details-theaters {
+  margin-left: 0;
+  gap: 16px;
+}
+
+.all-showtimes-theaters .details-theater-name {
+  font-size: 0.94rem;
+  color: rgba(244, 238, 255, 0.92);
+}
+
+.all-showtimes-theaters .details-time-grid {
+  margin-top: 10px;
+}
+
+.all-showtimes-day-header .details-day-kicker {
+  color: rgba(200, 183, 230, 0.72);
+}
+
+.all-showtimes-day-header .details-day-title {
+  color: #f4efff;
+}
+
+html[data-device-type="mobile"] .all-showtimes-page-city {
+  margin-left: 0;
+  font-size: 0.9rem;
+}
+
+html[data-device-type="mobile"] .all-showtimes-browser {
+  min-height: calc(100vh - 210px);
+}
+
+html[data-device-type="mobile"] .all-showtimes-day-picker-shell {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  row-gap: 10px;
+  column-gap: 12px;
+  padding: 14px 0;
+}
+
+html[data-device-type="mobile"] .all-showtimes-day-picker-scroll {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  justify-self: center;
+}
+
+html[data-device-type="mobile"] .all-showtimes-page-city {
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: start;
+}
+
+html[data-device-type="mobile"] .all-showtimes-day-picker-filter {
+  grid-column: 2;
+  grid-row: 2;
+  margin-right: 0;
+  justify-self: end;
+}
+
+html[data-device-type="mobile"] .all-showtimes-day-panel {
+  padding: 8px;
+}
+
+html[data-device-type="mobile"] .all-showtimes-movie-row {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  min-width: 0;
+  padding: 18px 16px;
+  contain-intrinsic-size: 460px;
+}
+
+html[data-device-type="mobile"] .all-showtimes-movie-summary {
+  grid-template-columns: 97px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+html[data-device-type="mobile"] .all-showtimes-poster-shell {
+  width: 97px;
+}
+
+html[data-device-type="mobile"]
+  .all-showtimes-copy
+  .all-showtimes-title.details-title {
+  font-size: 1.32rem;
+}
+
+html[data-device-type="mobile"] .all-showtimes-copy .details-subtitle {
+  font-size: 0.9rem;
+}
+
+html[data-device-type="mobile"] .all-showtimes-copy {
+  justify-content: flex-start;
+  padding-bottom: 0;
+}
+
+html[data-device-type="mobile"] .all-showtimes-metrics-row {
+  gap: 7px;
+}
+
+html[data-device-type="mobile"]
+  .all-showtimes-metrics-row
+  .details-trailer-launch-logo {
+  width: 24px;
+  height: 18px;
+}
+
+html[data-device-type="mobile"] .all-showtimes-metrics-row .details-metric {
+  width: 42px;
+  flex-basis: 42px;
+  min-width: 42px;
+  max-width: 42px;
+}
+
+html[data-device-type="mobile"]
+  .all-showtimes-metrics-row
+  .details-metric
+  strong {
+  font-size: 0.78rem;
+}

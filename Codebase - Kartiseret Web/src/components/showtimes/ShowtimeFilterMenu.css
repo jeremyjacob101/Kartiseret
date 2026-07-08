@@ -1,0 +1,125 @@
+.showtime-filter-shell {
+  position: relative;
+  z-index: 5;
+}
+
+.showtime-filter-trigger {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  background: rgba(20, 16, 33, 0.88);
+  color: #f6f0ff;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.showtime-filter-trigger:hover,
+.showtime-filter-trigger.is-open,
+.showtime-filter-trigger:focus-visible {
+  transform: translateY(-1px);
+  border-color: var(--border);
+  background: rgba(24, 18, 39, 0.95);
+  box-shadow: none;
+}
+
+.showtime-filter-panel {
+  position: fixed;
+  z-index: 240;
+  max-height: min(68vh, 540px);
+  overflow-y: auto;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 30%, transparent);
+  border-radius: 16px;
+  background:
+    radial-gradient(
+      circle at top right,
+      color-mix(in srgb, var(--main-app-color) 20%, transparent),
+      transparent 54%
+    ),
+    rgba(11, 9, 20, 0.96);
+  box-shadow:
+    0 30px 56px rgba(0, 0, 0, 0.46),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.showtime-filter-group {
+  display: grid;
+  gap: 8px;
+}
+
+.showtime-filter-group + .showtime-filter-group {
+  border-top: 1px solid color-mix(in srgb, var(--main-app-color) 16%, transparent);
+  padding-top: 12px;
+}
+
+.showtime-filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.showtime-filter-group-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  min-height: 34px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 35%, transparent);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--main-app-color);
+  cursor: pointer;
+}
+
+.showtime-filter-group-icon:hover,
+.showtime-filter-group-icon:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: color-mix(in srgb, var(--main-app-color) 62%, transparent);
+}
+
+.showtime-filter-group-icon.is-selected {
+  background: color-mix(in srgb, var(--main-app-color) 16%, transparent);
+  border-color: color-mix(in srgb, var(--main-app-color) 74%, transparent);
+}
+
+.showtime-filter-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 22%, transparent);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #f3ebff;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+.showtime-filter-option:hover {
+  border-color: color-mix(in srgb, var(--main-app-color) 56%, transparent);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.showtime-filter-option.is-selected {
+  border-color: color-mix(in srgb, var(--main-app-color) 74%, transparent);
+  background: color-mix(in srgb, var(--main-app-color) 16%, transparent);
+}
+
+.showtime-filter-option:not(.is-selected) {
+  color: rgba(233, 218, 255, 0.82);
+}

@@ -1,0 +1,197 @@
+:root {
+  --floating-navbar-size: 46px;
+  --floating-navbar-default-bottom: 24px;
+}
+
+.floating-navbar-stack {
+  position: fixed;
+  left: 50%;
+  right: auto;
+  bottom: max(24px, calc(env(safe-area-inset-bottom) + var(--floating-navbar-dynamic-bottom, var(--floating-navbar-default-bottom))));
+  z-index: 140;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transform-origin: bottom center;
+  transition: bottom 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.floating-navbar-stack.is-visible {
+  pointer-events: auto;
+}
+
+.floating-navbar-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+}
+
+.floating-navbar-item {
+  pointer-events: auto;
+  opacity: 0;
+  transform: translate(-12px, 0) scale(0.28);
+  transition:
+    opacity 220ms ease var(--floating-navbar-leave-delay, 0ms),
+    transform 380ms cubic-bezier(0.18, 0.9, 0.24, 1) var(--floating-navbar-leave-delay, 0ms);
+}
+
+.floating-navbar-stack.is-visible .floating-navbar-item {
+  opacity: 1;
+  transform: translate(0, 0) scale(1);
+  transition-delay: var(--floating-navbar-enter-delay, 0ms);
+}
+
+.floating-navbar-item--search {
+  --floating-navbar-enter-delay: 240ms;
+  --floating-navbar-leave-delay: 0ms;
+}
+
+.floating-navbar-item--map {
+  --floating-navbar-enter-delay: 180ms;
+  --floating-navbar-leave-delay: 60ms;
+}
+
+.floating-navbar-item--user {
+  --floating-navbar-enter-delay: 120ms;
+  --floating-navbar-leave-delay: 120ms;
+}
+
+.floating-navbar-item--settings {
+  --floating-navbar-enter-delay: 60ms;
+  --floating-navbar-leave-delay: 180ms;
+}
+
+.floating-navbar-item--home {
+  --floating-navbar-enter-delay: 0ms;
+  --floating-navbar-leave-delay: 240ms;
+}
+
+.floating-navbar-stack .movie-search-trigger,
+.floating-navbar-stack .location-menu-trigger,
+.floating-navbar-stack .settings-button,
+.floating-home-button {
+  width: var(--floating-navbar-size);
+  height: var(--floating-navbar-size);
+  border: 3px solid var(--surface);
+  box-shadow:
+    0 18px 30px rgba(22, 16, 30, 0.32),
+    0 0 0 1px rgba(255, 255, 255, 0.18) inset;
+  backdrop-filter: blur(16px);
+}
+
+.floating-navbar-stack.is-over-bottom-bar .movie-search-trigger,
+.floating-navbar-stack.is-over-bottom-bar .location-menu-trigger,
+.floating-navbar-stack.is-over-bottom-bar .settings-button,
+.floating-navbar-stack.is-over-bottom-bar .floating-home-button {
+  background: var(--surface);
+  border-color: var(--surface-strong);
+  color: var(--surface-strong);
+  box-shadow:
+    0 18px 32px rgba(22, 16, 30, 0.34),
+    0 0 0 1px color-mix(in srgb, var(--surface-strong) 36%, transparent) inset;
+}
+
+.floating-navbar-stack.is-over-bottom-bar .app-accent-icon {
+  color: var(--surface-strong);
+}
+
+.floating-navbar-stack .movie-search-trigger:hover,
+.floating-navbar-stack .movie-search-trigger.is-open,
+.floating-navbar-stack .movie-search-trigger:focus-visible,
+.floating-navbar-stack .location-menu-trigger:hover,
+.floating-navbar-stack .location-menu-trigger.is-open,
+.floating-navbar-stack .location-menu-trigger:focus-visible,
+.floating-navbar-stack .settings-button:hover,
+.floating-navbar-stack .settings-button:focus-visible,
+.floating-home-button:hover,
+.floating-home-button:focus-visible {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow:
+    0 22px 34px rgba(22, 16, 30, 0.38),
+    0 0 0 1px rgba(255, 255, 255, 0.22) inset;
+}
+
+.floating-navbar-stack.is-over-bottom-bar .movie-search-trigger:hover,
+.floating-navbar-stack.is-over-bottom-bar .movie-search-trigger.is-open,
+.floating-navbar-stack.is-over-bottom-bar .movie-search-trigger:focus-visible,
+.floating-navbar-stack.is-over-bottom-bar .location-menu-trigger:hover,
+.floating-navbar-stack.is-over-bottom-bar .location-menu-trigger.is-open,
+.floating-navbar-stack.is-over-bottom-bar .location-menu-trigger:focus-visible,
+.floating-navbar-stack.is-over-bottom-bar .settings-button:hover,
+.floating-navbar-stack.is-over-bottom-bar .settings-button:focus-visible,
+.floating-navbar-stack.is-over-bottom-bar .floating-home-button:hover,
+.floating-navbar-stack.is-over-bottom-bar .floating-home-button:focus-visible {
+  box-shadow:
+    0 24px 36px rgba(22, 16, 30, 0.42),
+    0 0 0 1px color-mix(in srgb, var(--surface-strong) 44%, transparent) inset;
+}
+
+.floating-navbar-stack .movie-search-trigger:focus-visible,
+.floating-navbar-stack .location-menu-trigger:focus-visible,
+.floating-navbar-stack .settings-button:focus-visible,
+.floating-navbar-stack .floating-home-button:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.92);
+  outline-offset: 3px;
+}
+
+.floating-home-button {
+  display: grid;
+  place-items: center;
+  width: var(--floating-navbar-size);
+  height: var(--floating-navbar-size);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--surface);
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
+}
+
+.brand-mark--floating-home {
+  width: 24px;
+}
+
+html[data-device-type="mobile"] .floating-navbar-stack {
+  --floating-navbar-size: 52px;
+  --floating-navbar-default-bottom: 10px;
+}
+
+html[data-device-type="mobile"] .floating-navbar-actions {
+  gap: 14px;
+}
+
+html[data-device-type="mobile"] .floating-navbar-item {
+  transform: translate(-12px, 0) scale(0.28);
+}
+
+html[data-device-type="mobile"] .brand-mark--floating-home {
+  width: 26px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .floating-navbar-stack,
+  .floating-navbar-item {
+    transition: none;
+  }
+
+  .floating-home-button {
+    transition: none;
+  }
+
+  .floating-navbar-stack.is-visible,
+  .floating-navbar-item {
+    transform: none;
+  }
+
+  .floating-navbar-item {
+    opacity: 1;
+  }
+}

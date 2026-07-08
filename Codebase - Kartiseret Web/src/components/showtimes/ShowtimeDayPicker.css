@@ -1,0 +1,178 @@
+.showtime-day-picker-shell {
+  width: 100%;
+}
+
+.showtime-day-picker-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-top: 4px;
+  margin-top: -4px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.showtime-day-picker-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.showtime-day-picker {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  padding-bottom: 2px;
+}
+
+.showtime-day-button {
+  flex: 0 0 auto;
+  width: 86px;
+  min-width: 86px;
+  min-height: 86px;
+  position: relative;
+  z-index: 0;
+  appearance: none;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  box-shadow: none;
+  color: #efe7ff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 650;
+  line-height: 1;
+  padding: 0.78rem 0.5rem 0.62rem;
+  display: grid;
+  grid-template-rows: 1fr auto 1fr;
+  align-content: stretch;
+  align-items: center;
+  justify-items: center;
+  gap: 0.3rem;
+  text-align: center;
+  transition:
+    transform 140ms ease,
+    color 140ms ease,
+    opacity 140ms ease;
+}
+
+.showtime-day-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  z-index: 2;
+  color: #ffffff;
+}
+
+.showtime-day-button--selected {
+  color: #ffffff;
+}
+
+.showtime-day-picker-indicator {
+  --showtime-day-indicator-center: 0px;
+  --showtime-day-indicator-width: 0px;
+  position: absolute;
+  left: var(--showtime-day-indicator-center);
+  bottom: 0;
+  z-index: 1;
+  width: var(--showtime-day-indicator-width);
+  height: 4px;
+  border-radius: 999px;
+  background: var(--main-app-color);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--main-app-color) 36%, transparent);
+  opacity: 0;
+  transform: translateX(-50%);
+  transform-origin: center;
+  transition:
+    left 210ms cubic-bezier(0.16, 1, 0.3, 1),
+    width 210ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 120ms ease;
+  pointer-events: none;
+}
+
+.showtime-day-picker-indicator--visible {
+  opacity: 1;
+}
+
+.showtime-day-button--disabled {
+  cursor: default;
+  opacity: 0.44;
+}
+
+.showtime-day-button-eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 0.62rem;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(235, 226, 247, 0.72);
+  text-align: center;
+  margin: 0;
+}
+
+.showtime-day-button-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  font-size: 2rem;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  color: #f7f2ff;
+  text-align: center;
+}
+
+.showtime-day-button-month {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 0.72rem;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(214, 201, 235, 0.76);
+  text-align: center;
+  margin: 0;
+  transform: translateY(-0.08em);
+}
+
+html[data-device-type="mobile"] .showtime-day-picker {
+  gap: 8px;
+  padding-bottom: 9px;
+}
+
+html[data-device-type="mobile"] .showtime-day-picker-scroll {
+  overflow-x: hidden;
+}
+
+html[data-device-type="mobile"] .showtime-day-button {
+  width: min(72px, calc((100% - 34px) / 5));
+  min-width: min(72px, calc((100% - 34px) / 5));
+  min-height: 78px;
+  padding: 0.56rem 0.42rem 0.42rem;
+}
+
+html[data-device-type="mobile"] .showtime-day-button-eyebrow {
+  font-size: 0.56rem;
+}
+
+html[data-device-type="mobile"] .showtime-day-button-number {
+  font-size: 1.72rem;
+}
+
+html[data-device-type="mobile"] .showtime-day-button-month {
+  font-size: 0.66rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .showtime-day-button,
+  .showtime-day-picker-indicator {
+    transition: none;
+  }
+}
