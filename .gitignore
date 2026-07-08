@@ -1,22 +1,54 @@
-# DS_STORE
+# macOS
 .DS_Store
 
-# INIT PY
+# Python
 __init__.py
-
-# PYCACHE
 __pycache__/
 *.py[cod]
 *$py.class
 
-# VENV
+# Python virtualenvs
 venv/
 .venv/
 venv
 .venv
 
-# .env
+# Environment files
 .env
+.env.*
+/env/
+/env
+env/
+env
+env.
 
 # Realtime watcher logs
 backend/config/cron/run_realtime_logs/
+
+# Kartiseret web logs
+/Codebase\ -\ Kartiseret\ Web/logs/
+/Codebase\ -\ Kartiseret\ Web/*.log
+/Codebase\ -\ Kartiseret\ Web/**/*.log
+/Codebase\ -\ Kartiseret\ Web/npm-debug.log*
+/Codebase\ -\ Kartiseret\ Web/yarn-debug.log*
+/Codebase\ -\ Kartiseret\ Web/yarn-error.log*
+/Codebase\ -\ Kartiseret\ Web/pnpm-debug.log*
+/Codebase\ -\ Kartiseret\ Web/lerna-debug.log*
+
+# Kartiseret web dependencies and builds
+/Codebase\ -\ Kartiseret\ Web/node_modules/
+/Codebase\ -\ Kartiseret\ Web/**/node_modules/
+/Codebase\ -\ Kartiseret\ Web/dist/
+/Codebase\ -\ Kartiseret\ Web/dist-ssr/
+/Codebase\ -\ Kartiseret\ Web/*.local
+/Codebase\ -\ Kartiseret\ Web/**/*.local
+
+# Editor directories and files
+/Codebase\ -\ Kartiseret\ Web/.vscode/*
+!/Codebase\ -\ Kartiseret\ Web/.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
