@@ -34,8 +34,7 @@ type UserPreferences = {
 };
 type UserPreferenceOptions = {
   [Key in PreferenceKey]:
-    | readonly PreferenceOption<PreferenceDefinitions[Key]>[]
-    | undefined;
+    readonly PreferenceOption<PreferenceDefinitions[Key]>[] | undefined;
 };
 type SavePreference = <Key extends PreferenceKey>(
   key: Key,
@@ -226,8 +225,7 @@ function saveCachedPreference<Key extends PreferenceKey>(
   value: UserPreferences[Key],
 ): void {
   const save = getPreferenceDefinition(key).clientCache?.save as
-    | ((nextValue: UserPreferences[Key]) => void)
-    | undefined;
+    ((nextValue: UserPreferences[Key]) => void) | undefined;
 
   save?.(copyPreferenceValue(key, value));
 }
@@ -322,6 +320,9 @@ export function useUserPreferences(): UserPreferencesState {
   const confirmedPreferencesRef = useRef<UserPreferences>(preferences);
   const activeUserIdRef = useRef<string | null>(userId);
   const queuedPreferenceSavesRef = useRef<QueuedPreferenceSaves>({});
+  const flushQueuedPreferenceSaveRef = useRef<
+    ((key: PreferenceKey) => Promise<void>) | null
+  >(null);
   const savingPreferenceKeysRef = useRef(
     createPreferenceKeyRecord(() => false),
   );
@@ -595,11 +596,15 @@ export function useUserPreferences(): UserPreferencesState {
         savingPreferenceKeysRef.current[key] = false;
 
         if (queuedPreferenceSavesRef.current[key] !== undefined) {
-          void flushQueuedPreferenceSave(key);
+          void flushQueuedPreferenceSaveRef.current?.(key);
         }
       }
     }
   }, []);
+
+  useEffect(() => {
+    flushQueuedPreferenceSaveRef.current = flushQueuedPreferenceSave;
+  }, [flushQueuedPreferenceSave]);
 
   const savePreference = useCallback(
     async (key: PreferenceKey, nextInput: UserPreferences[PreferenceKey]) => {
@@ -610,8 +615,7 @@ export function useUserPreferences(): UserPreferencesState {
       if (!userId) {
         const guestPersistence = definition.guestPersistence;
         const saveGuestPreference = guestPersistence?.save as
-          | ((value: UserPreferences[typeof key]) => void)
-          | undefined;
+          ((value: UserPreferences[typeof key]) => void) | undefined;
 
         if (!saveGuestPreference) {
           if (guestPersistence?.unsupportedMessage) {

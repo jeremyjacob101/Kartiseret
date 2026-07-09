@@ -25,10 +25,7 @@ const SCREENING_TECH_OPTIONS = [
 ] as const;
 
 type FilterGroup =
-  | "showType"
-  | "screenFormat"
-  | "screeningTech"
-  | "dubLanguage";
+  "showType" | "screenFormat" | "screeningTech" | "dubLanguage";
 
 type SavedUncheckedGroups = Record<FilterGroup, string[]>;
 
@@ -391,10 +388,7 @@ export function buildShowtimeFilterSelections(
 
   return {
     showType: toSelectedSet(options.showType, unchecked.showType),
-    screenFormat: toSelectedSet(
-      options.screenFormat,
-      unchecked.screenFormat,
-    ),
+    screenFormat: toSelectedSet(options.screenFormat, unchecked.screenFormat),
     screeningTech: toSelectedSet(
       options.screeningTech,
       unchecked.screeningTech,

@@ -1014,7 +1014,7 @@ export function MovieDetailsContent({
       setPendingNearbyCity(cityName);
       onPreferredShowtimeDateChange?.(nextShowtimeDate);
 
-      let didSave = false;
+      let didSave: boolean;
 
       try {
         didSave = await setLocationPreference(cityName);

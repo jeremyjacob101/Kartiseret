@@ -1,5 +1,11 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const configDir = dirname(fileURLToPath(import.meta.url));
+const appRoot = resolve(configDir, "..");
+const repoRoot = resolve(appRoot, "..");
 
 function resolveEnvValue(...values: Array<string | undefined>): string {
   for (const value of values) {
@@ -28,7 +34,7 @@ function resolveOrigin(value: string): string {
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "");
+  const env = loadEnv(mode, repoRoot, "");
   const supabaseUrl = resolveEnvValue(
     process.env.SUPABASE_URL,
     process.env.VITE_SUPABASE_URL,
@@ -44,6 +50,7 @@ export default defineConfig(({ mode }) => {
   const supabaseOrigin = resolveOrigin(supabaseUrl);
 
   return {
+    envDir: repoRoot,
     plugins: [
       react(),
       {
