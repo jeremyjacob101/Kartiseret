@@ -6,6 +6,7 @@ import { BottomBar } from "./components/bars/BottomBar";
 import { AttributionPage } from "./components/AttributionPage";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
 import { Navbar } from "./components/bars/Navbar";
+import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
 import { type MovieSearchResult } from "./components/MovieSearchMenu";
 import { allComingSoonMovies, allNowPlayingMovies, applyAdminMovieEdit, getMovieCatalogStatusSnapshot, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, reloadComingSoonMovies, reloadNowPlayingMovies, subscribeToMovieCatalog, type Movie } from "./data/movieCatalog";
 import { DeviceTypeProvider } from "./device/deviceType";
@@ -296,6 +297,8 @@ export function App() {
       ) => number;
     };
     const preloadNonCriticalExperience = () => {
+      preloadCityLocationPicker();
+
       void Promise.allSettled([
         loadUserPreferencesPage(),
         loadPosterGridPage(),

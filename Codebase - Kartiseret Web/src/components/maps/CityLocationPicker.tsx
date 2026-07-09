@@ -568,9 +568,12 @@ export function CityLocationPicker({
 
     function handleLoad() {
       configureBaseLabels(map);
-      map.once("idle", markBaseMapReady);
+      // `idle` waits for every CARTO tile, so it can keep the map in a loading
+      // state for seconds on a slow connection. The loaded style is enough to
+      // render and place our controls while tiles continue streaming in.
       fitFrame = window.requestAnimationFrame(() => {
         fitFrame = 0;
+        markBaseMapReady();
         fitStartingView({ duration: 1000 });
         syncOverviewState();
       });
@@ -582,7 +585,6 @@ export function CityLocationPicker({
 
     return () => {
       map.off("load", handleLoad);
-      map.off("idle", markBaseMapReady);
       map.off("moveend", syncOverviewState);
       map.off("zoomend", syncOverviewState);
       if (fitFrame !== 0) {

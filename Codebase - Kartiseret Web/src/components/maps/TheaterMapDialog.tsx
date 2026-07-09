@@ -28,16 +28,11 @@ const CityLocationPicker = lazy(async () => {
   return { default: module.CityLocationPicker };
 });
 
-function CityLocationPickerLoading({
-  mapPinAnchorRef,
-}: {
-  mapPinAnchorRef: (element: HTMLButtonElement | null) => void;
-}) {
+function CityLocationPickerLoading() {
   return (
     <div className="theater-map-panel theater-map-panel--loading" role="status">
       <div className="theater-map-loading-shell">
         <button
-          ref={mapPinAnchorRef}
           type="button"
           className="theater-map-loading-pin"
           tabIndex={-1}
@@ -297,11 +292,7 @@ export function TheaterMapDialog({
           role="dialog"
           aria-modal="true"
         >
-          <Suspense
-            fallback={
-              <CityLocationPickerLoading mapPinAnchorRef={setMapIconAnchor} />
-            }
-          >
+          <Suspense fallback={<CityLocationPickerLoading />}>
             <CityLocationPicker
               currentLocation={location}
               feedbackMessage={error ?? statusMessage}
