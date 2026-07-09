@@ -628,7 +628,7 @@
 }
 
 .details-day-picker-shell .showtime-day-picker-shell {
-  width: fit-content;
+  width: min(100%, 620px);
   max-width: 100%;
 }
 
