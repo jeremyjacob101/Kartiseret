@@ -1,0 +1,193 @@
+.theater-map-city-label {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.theater-map-city-label-surface {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid color-mix(in srgb, var(--main-app-color) 72%, transparent);
+  border-radius: 999px;
+  background: rgba(27, 31, 39, 0.66);
+  color: rgba(226, 231, 239, 0.9);
+  padding: 8px 12px;
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  font-size: clamp(0.75rem, 0.82vw, 0.9rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow:
+    0 10px 24px rgba(6, 8, 12, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  text-shadow:
+    0 1px 0 rgba(6, 8, 12, 0.64);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+  opacity: 0.1;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    opacity 500ms ease,
+    box-shadow 140ms ease;
+}
+
+.theater-map-city-label:hover .theater-map-city-label-surface,
+.theater-map-city-label:focus-visible .theater-map-city-label-surface {
+  background: rgba(36, 41, 51, 0.78);
+  color: rgba(244, 247, 252, 0.98);
+  outline: none;
+}
+
+.theater-map-city-label.is-active .theater-map-city-label-surface {
+  border-color: rgba(152, 160, 176, 0.74);
+  background: color-mix(in srgb, var(--main-app-color) 78%, transparent);
+  color: #17131f;
+  text-shadow: none;
+  box-shadow:
+    0 14px 28px rgba(75, 49, 118, 0.34),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+.theater-map-city-label:focus-visible {
+  outline: none;
+}
+
+.theater-map-city-label:disabled .theater-map-city-label-surface {
+  opacity: 0.56;
+  cursor: progress;
+}
+
+.theater-map-secondary-city-label {
+  color: rgba(214, 218, 226, 0.54);
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  font-size: clamp(0.58rem, 0.66vw, 0.7rem);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgba(6, 8, 12, 0.6);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  transition:
+    opacity 500ms ease,
+    color 140ms ease;
+}
+
+.theater-map-secondary-city-label.is-hidden {
+  opacity: 0;
+}
+
+.theater-map-theater-dot {
+  --theater-dot-color: #8c96a6;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  border: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: none;
+}
+
+.theater-map-theater-dot-surface {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  border: 1.5px solid color-mix(in srgb, var(--theater-dot-color) 48%, rgba(239, 229, 255, 0.22));
+  border-radius: 4px;
+  color: var(--theater-dot-color);
+  transform: scale(1);
+  transform-origin: center;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--theater-dot-color) 18%, transparent),
+    0 8px 18px rgba(6, 8, 12, 0.36);
+  opacity: 0;
+  transition:
+    opacity 500ms ease,
+    box-shadow 120ms ease,
+    color 120ms ease,
+    transform 120ms ease;
+}
+
+.theater-map-theater-dot-surface svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+
+.theater-map-theater-dot.is-visible .theater-map-theater-dot-surface {
+  opacity: 0.95;
+}
+
+.theater-map-theater-dot:hover .theater-map-theater-dot-surface,
+.theater-map-theater-dot:focus-visible .theater-map-theater-dot-surface {
+  outline: none;
+  transform: scale(1.1);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--theater-dot-color) 22%, transparent),
+    0 12px 24px rgba(6, 8, 12, 0.42);
+}
+
+.theater-map-theater-popup-shell.maplibregl-popup {
+  z-index: 1500;
+}
+
+.theater-map-theater-popup-shell .maplibregl-popup-content {
+  padding: 0;
+  border-radius: 14px;
+  background: rgba(18, 22, 30, 0.9);
+  box-shadow: 0 22px 40px rgba(4, 6, 12, 0.34);
+}
+
+.theater-map-theater-popup-shell .maplibregl-popup-tip {
+  border-top-color: rgba(18, 22, 30, 0.9);
+  border-bottom-color: rgba(18, 22, 30, 0.9);
+}
+
+.theater-map-theater-popup {
+  display: grid;
+  gap: 6px;
+  width: max-content;
+  min-width: 0;
+  max-width: 100%;
+  padding: 12px 13px;
+}
+
+.theater-map-theater-popup-title {
+  color: #f5f0ff;
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.theater-map-theater-popup-link {
+  color: rgba(208, 215, 227, 0.9);
+  font-size: 0.84rem;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.theater-map-theater-popup-link:hover,
+.theater-map-theater-popup-link:focus-visible {
+  color: color-mix(in srgb, var(--main-app-color) 90%, transparent);
+  text-decoration: underline;
+}

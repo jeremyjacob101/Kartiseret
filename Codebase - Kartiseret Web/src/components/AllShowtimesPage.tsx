@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { allNowPlayingMovies, fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeDays, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, subscribeToMovieCatalog, type Movie, type TheaterShowtimes } from "../data/movieCatalog";
 import { loadCities, type City } from "../data/theaters";
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
-import { TheaterMapDialog } from "./TheaterMapDialog";
+import { TheaterMapDialog } from "./maps/TheaterMapDialog";
 import { ShowtimeDayPicker } from "./showtimes/ShowtimeDayPicker";
 import { MovieMetricsRow, MovieTrailerModal, ShowtimeTheaters } from "./showtimes/ShowtimeShared";
 import { ShowtimeFilterMenu } from "./showtimes/ShowtimeFilterMenu";

@@ -2,7 +2,7 @@ import { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Link } from "react-router";
 import "./UserPreferencesPage.css";
-import { loadCityLocationPicker } from "./loadCityLocationPicker";
+import { loadCityLocationPicker } from "./maps/loadCityLocationPicker";
 import { useUserPreferencesContext } from "../prefs/useUserPreferences";
 import { type RatingSource } from "../prefs/definitions/ratingSources";
 import { type AppLocation } from "../prefs/definitions/locations";

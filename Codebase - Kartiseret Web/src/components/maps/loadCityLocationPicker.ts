@@ -1,4 +1,4 @@
-import { preloadTheaters } from "../data/theaters";
+import { preloadTheaters } from "../../data/theaters";
 
 let cityLocationPickerPromise: Promise<
   typeof import("./CityLocationPicker")

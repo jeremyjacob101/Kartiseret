@@ -11,6 +11,7 @@
 }
 
 .prefs-location-map-loading {
+  display: grid;
   min-height: 420px;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.08);

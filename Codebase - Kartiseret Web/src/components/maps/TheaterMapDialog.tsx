@@ -2,8 +2,9 @@ import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useSta
 import { createPortal } from "react-dom";
 import { MapPin } from "lucide-react";
 import { loadCityLocationPicker, preloadCityLocationPicker } from "./loadCityLocationPicker";
-import { useUserPreferencesContext } from "../prefs/useUserPreferences";
-import { type AppLocation } from "../prefs/definitions/locations";
+import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
+import { type AppLocation } from "../../prefs/definitions/locations";
+import "./TheaterMapDialog.css";
 
 const OPEN_TRANSITION_MS = 420;
 const INLINE_ICON_HANDOFF_LEAD_MS = 80;

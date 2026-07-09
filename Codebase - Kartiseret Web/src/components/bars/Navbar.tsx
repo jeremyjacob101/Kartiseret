@@ -4,7 +4,7 @@ import { useLocation } from "react-router";
 import "./Navbar.css";
 import { MiniNavBar } from "./MiniNavBar";
 import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "../MovieSearchMenu";
-import { TheaterMapDialog } from "../TheaterMapDialog";
+import { TheaterMapDialog } from "../maps/TheaterMapDialog";
 import { UserMenu } from "../UserMenu";
 import { useDeviceInfo } from "../../device/useDeviceType";
 
