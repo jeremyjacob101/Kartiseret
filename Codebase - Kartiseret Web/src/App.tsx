@@ -8,7 +8,6 @@ import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scrol
 import { Navbar } from "./components/bars/Navbar";
 import { type MovieSearchResult } from "./components/MovieSearchMenu";
 import { allComingSoonMovies, allNowPlayingMovies, applyAdminMovieEdit, getMovieCatalogStatusSnapshot, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, reloadComingSoonMovies, reloadNowPlayingMovies, subscribeToMovieCatalog, type Movie } from "./data/movieCatalog";
-import { preloadTheaters } from "./data/theaters";
 import { DeviceTypeProvider } from "./device/deviceType";
 import { useDeviceInfo } from "./device/useDeviceType";
 import { UserPreferencesProvider } from "./prefs/UserPreferencesContext";
@@ -24,7 +23,6 @@ const MOBILE_SCROLLER_CARD_WIDTH = 160;
 const MOBILE_SCROLLER_CARD_HEIGHT = 240;
 const MOBILE_SCROLLER_GAP = 18;
 const MOBILE_SCROLLER_SLOT_MIN_HEIGHT = 300;
-const preloadNavbarDependencies = () => import("./components/TheaterMapDialog");
 const loadUserPreferencesPage = () =>
   import("./components/UserPreferencesPage");
 const loadPosterGridPage = () => import("./components/PosterGridPage");
@@ -439,9 +437,7 @@ export function App() {
       ) => number;
     };
     const runPreload = () => {
-      void preloadNavbarDependencies();
       void loadAllShowtimesPage();
-      preloadTheaters();
     };
 
     if (typeof windowWithIdleCallbacks.requestIdleCallback === "function") {

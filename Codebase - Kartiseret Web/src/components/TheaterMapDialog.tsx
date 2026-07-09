@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MapPin } from "lucide-react";
-import { CityLocationPicker } from "./CityLocationPicker";
+import { loadCityLocationPicker, preloadCityLocationPicker } from "./loadCityLocationPicker";
 import { useUserPreferencesContext } from "../prefs/useUserPreferences";
 import { type AppLocation } from "../prefs/definitions/locations";
 
@@ -20,6 +20,35 @@ type FlyingMapIconState = {
   arrived: boolean;
   rect: FlightRect;
 };
+
+const CityLocationPicker = lazy(async () => {
+  const module = await loadCityLocationPicker();
+
+  return { default: module.CityLocationPicker };
+});
+
+function CityLocationPickerLoading({
+  mapPinAnchorRef,
+}: {
+  mapPinAnchorRef: (element: HTMLButtonElement | null) => void;
+}) {
+  return (
+    <div className="theater-map-panel theater-map-panel--loading" role="status">
+      <div className="theater-map-loading-shell">
+        <button
+          ref={mapPinAnchorRef}
+          type="button"
+          className="theater-map-loading-pin"
+          tabIndex={-1}
+          aria-hidden="true"
+        >
+          <MapPin size={20} strokeWidth={2.75} />
+        </button>
+        <p>Loading city map...</p>
+      </div>
+    </div>
+  );
+}
 
 function toFlightRect(rect?: DOMRect | null): FlightRect | null {
   if (!rect) {
@@ -267,15 +296,21 @@ export function TheaterMapDialog({
           role="dialog"
           aria-modal="true"
         >
-          <CityLocationPicker
-            currentLocation={location}
-            feedbackMessage={error ?? statusMessage}
-            mapPinAnchorRef={setMapIconAnchor}
-            onPickLocation={handleLocationPick}
-            onClose={handleCloseDialog}
-            showMapPinButton={showMapPinButton}
-            syncing={syncing}
-          />
+          <Suspense
+            fallback={
+              <CityLocationPickerLoading mapPinAnchorRef={setMapIconAnchor} />
+            }
+          >
+            <CityLocationPicker
+              currentLocation={location}
+              feedbackMessage={error ?? statusMessage}
+              mapPinAnchorRef={setMapIconAnchor}
+              onPickLocation={handleLocationPick}
+              onClose={handleCloseDialog}
+              showMapPinButton={showMapPinButton}
+              syncing={syncing}
+            />
+          </Suspense>
         </div>
       </div>
       {flyingMapIcon ? (
@@ -315,7 +350,11 @@ export function TheaterMapDialog({
         aria-haspopup="dialog"
         aria-expanded={isOpen && !isClosing}
         aria-label={`Open city selector. Current city: ${location}`}
+        onFocus={preloadCityLocationPicker}
+        onPointerDown={preloadCityLocationPicker}
+        onPointerEnter={preloadCityLocationPicker}
         onClick={() => {
+          preloadCityLocationPicker();
           clearPinFlightAnimation();
           openAnimationStartedRef.current = false;
           pendingFlightOriginRef.current = toFlightRect(

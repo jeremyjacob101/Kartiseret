@@ -319,6 +319,37 @@ html[data-device-type="mobile"] .city-map-trigger.theater-map-trigger--labeled {
   min-height: 0;
 }
 
+.theater-map-panel--loading {
+  place-items: center;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.theater-map-loading-shell {
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  color: rgba(245, 235, 255, 0.78);
+  font-size: 0.94rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.theater-map-loading-shell p {
+  margin: 0;
+}
+
+.theater-map-loading-pin {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 42%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--main-app-color) 18%, transparent);
+  color: var(--main-app-color);
+  pointer-events: none;
+}
+
 .theater-map-panel-bar {
   display: flex;
   align-items: center;

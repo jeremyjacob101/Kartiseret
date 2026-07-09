@@ -1,12 +1,12 @@
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
-import { Clock8, Film, MapPin, Settings } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Clock8, Film, Settings } from "lucide-react";
 import { useLocation } from "react-router";
 import "./Navbar.css";
 import { MiniNavBar } from "./MiniNavBar";
 import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "../MovieSearchMenu";
+import { TheaterMapDialog } from "../TheaterMapDialog";
 import { UserMenu } from "../UserMenu";
 import { useDeviceInfo } from "../../device/useDeviceType";
-import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
 
 const NAVBAR_INTRO_DURATION_MS = 760;
 const MINI_NAVBAR_TRANSITION_MS = 620;
@@ -14,13 +14,6 @@ const MOBILE_FLOATING_NAVBAR_BOTTOM_PX = 10;
 const DEFAULT_FLOATING_NAVBAR_BOTTOM_PX = 24;
 const FLOATING_NAVBAR_FOOTER_GAP_PX = 10;
 const MOBILE_MINI_NAVBAR_SCROLL_THRESHOLD_PX = 6;
-
-const loadTheaterMapDialog = () => import("../TheaterMapDialog");
-
-const TheaterMapDialog = lazy(async () => {
-  const module = await loadTheaterMapDialog();
-  return { default: module.TheaterMapDialog };
-});
 
 function getWindowScrollY(): number {
   return Math.max(0, window.scrollY || window.pageYOffset || 0);
@@ -48,26 +41,6 @@ export type NavbarProps = {
   onSettingsClick: () => void;
   onSoonsNavClick: () => void;
 };
-
-function LoadingMapButton() {
-  const { location } = useUserPreferencesContext();
-
-  return (
-    <div className="theater-map-trigger-shell">
-      <button
-        type="button"
-        className="location-menu-trigger theater-map-trigger"
-        aria-haspopup="dialog"
-        aria-expanded="false"
-        aria-label={`Open city selector. Current city: ${location}`}
-        aria-disabled="true"
-        disabled
-      >
-        <MapPin size={20} strokeWidth={2.75} className="app-accent-icon" />
-      </button>
-    </div>
-  );
-}
 
 function NavbarActions({
   catalogReady,
@@ -108,9 +81,7 @@ function NavbarActions({
           : undefined
       }
     >
-      <Suspense fallback={<LoadingMapButton />}>
-        <TheaterMapDialog triggerTabIndex={triggerTabIndex} />
-      </Suspense>
+      <TheaterMapDialog triggerTabIndex={triggerTabIndex} />
     </div>
   );
   const userAction = (

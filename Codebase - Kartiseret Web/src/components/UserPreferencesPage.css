@@ -10,6 +10,20 @@
   background: rgba(255, 255, 255, 0.03);
 }
 
+.prefs-location-map-loading {
+  min-height: 420px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.07), transparent 40%),
+    rgba(255, 255, 255, 0.03);
+  color: rgba(245, 235, 255, 0.72);
+  font-size: 0.94rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
 .prefs-page {
   width: min(100%, 1100px);
 }

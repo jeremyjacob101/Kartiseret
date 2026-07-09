@@ -1,12 +1,18 @@
-import { useCallback, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Link } from "react-router";
 import "./UserPreferencesPage.css";
-import { CityLocationPicker } from "./CityLocationPicker";
+import { loadCityLocationPicker } from "./loadCityLocationPicker";
 import { useUserPreferencesContext } from "../prefs/useUserPreferences";
 import { type RatingSource } from "../prefs/definitions/ratingSources";
 import { type AppLocation } from "../prefs/definitions/locations";
 import { getSiteColorLabel, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
+
+const CityLocationPicker = lazy(async () => {
+  const module = await loadCityLocationPicker();
+
+  return { default: module.CityLocationPicker };
+});
 
 const sourceLabelMap: Record<RatingSource, string> = {
   imdbRating: "IMDb",
@@ -44,6 +50,17 @@ function getVisibleSiteColors(
     },
     ...options,
   ];
+}
+
+function EmbeddedCityLocationPickerLoading() {
+  return (
+    <div
+      className="theater-map-panel theater-map-panel--embedded prefs-location-map-loading"
+      role="status"
+    >
+      Loading city map...
+    </div>
+  );
 }
 
 export function UserPreferencesPage() {
@@ -118,12 +135,14 @@ export function UserPreferencesPage() {
             </div>
           </div>
 
-          <CityLocationPicker
-            className="theater-map-panel--embedded"
-            currentLocation={location}
-            onPickLocation={handleLocationPick}
-            syncing={syncing}
-          />
+          <Suspense fallback={<EmbeddedCityLocationPickerLoading />}>
+            <CityLocationPicker
+              className="theater-map-panel--embedded"
+              currentLocation={location}
+              onPickLocation={handleLocationPick}
+              syncing={syncing}
+            />
+          </Suspense>
         </section>
 
         <div className="prefs-page-settings">

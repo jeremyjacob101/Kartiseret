@@ -1338,6 +1338,7 @@ export function CityLocationPicker({
     null,
   );
   const [theaters, setTheaters] = useState<Theater[]>([]);
+  const [isBaseMapReady, setIsBaseMapReady] = useState(false);
   const cityListWrapRef = useRef<HTMLDivElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -1360,6 +1361,8 @@ export function CityLocationPicker({
   const cityMarkersRef = useRef<Marker[]>([]);
   const theaterMarkersRef = useRef<TheaterMarkerState[]>([]);
   const scheduleVisibilitySyncRef = useRef<(() => void) | null>(null);
+  const focusSelectedLocationRef = useRef<(() => void) | null>(null);
+  const handleLocateNearestCityRef = useRef<(() => void) | null>(null);
   const searchZoomOutTimeoutRef = useRef<number | null>(null);
   const searchQueryRef = useRef("");
   const normalizedQuery = useMemo(
@@ -1383,6 +1386,7 @@ export function CityLocationPicker({
   }, [clearPendingSearchZoomOut]);
 
   const cityEntries = useMemo(() => buildCityEntries(theaters), [theaters]);
+  const isTheaterMapDataReady = cityEntries.length > 0;
   const cityRevealConfig = useMemo(
     () => buildCityRevealConfig(cityEntries),
     [cityEntries],
@@ -1538,6 +1542,11 @@ export function CityLocationPicker({
       return;
     }
 
+    if (!isTheaterMapDataReady) {
+      setMapControlMessage("Loading theater locations...");
+      return;
+    }
+
     if (
       typeof navigator === "undefined" ||
       typeof navigator.geolocation === "undefined"
@@ -1597,7 +1606,25 @@ export function CityLocationPicker({
         maximumAge: 300_000,
       },
     );
-  }, [cityEntries, handleLocationSelect, setLocateBlockedMessage]);
+  }, [
+    cityEntries,
+    handleLocationSelect,
+    isTheaterMapDataReady,
+    setLocateBlockedMessage,
+  ]);
+
+  useEffect(() => {
+    focusSelectedLocationRef.current = () => {
+      setMapControlMessage(null);
+      focusLocation(currentLocationRef.current, {
+        clearSearch: searchQueryRef.current.length > 0,
+      });
+    };
+  }, [focusLocation]);
+
+  useEffect(() => {
+    handleLocateNearestCityRef.current = handleLocateNearestCity;
+  }, [handleLocateNearestCity]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1774,10 +1801,11 @@ export function CityLocationPicker({
   }, [mapControlMessage]);
 
   useEffect(() => {
-    if (!mapContainerRef.current || cityEntries.length === 0) {
+    if (!mapContainerRef.current) {
       return;
     }
 
+    setIsBaseMapReady(false);
     const map = new MapLibreMap({
       container: mapContainerRef.current,
       style: MAP_STYLE_URL,
@@ -1787,13 +1815,11 @@ export function CityLocationPicker({
       renderWorldCopies: false,
       attributionControl: false,
     });
-    const labelElements = new Map<string, CityMarkerState>();
-    const secondaryLabelElements: SecondaryCityMarkerState[] = [];
-    const markers: Marker[] = [];
-    const theaterMarkers: TheaterMarkerState[] = [];
     const mapActionControl = new TheaterMapActionControl({
       blockedLocateMessage: locateBlockedMessageRef.current,
-      onLocate: handleLocateNearestCity,
+      onLocate: () => {
+        handleLocateNearestCityRef.current?.();
+      },
       onMapPinAnchorChange: (element) => {
         mapPinAnchorRefRef.current?.(element);
       },
@@ -1802,23 +1828,16 @@ export function CityLocationPicker({
         fitStartingView();
       },
       onZoomToSelectedCity: () => {
-        setMapControlMessage(null);
-        focusLocation(currentLocationRef.current, {
-          clearSearch: searchQueryRef.current.length > 0,
-        });
+        focusSelectedLocationRef.current?.();
       },
       selectedLocationLabel: currentLocationRef.current,
       showMapPinButton: showMapPinButtonRef.current,
     });
-    let visibilityFrame = 0;
 
     mapRef.current = map;
     mapActionControlRef.current = mapActionControl;
     mapActionControl.setSelectedLocation(currentLocationRef.current);
     mapActionControl.setMapPinVisible(showMapPinButtonRef.current);
-    cityLabelElementsRef.current = labelElements;
-    secondaryCityLabelElementsRef.current = secondaryLabelElements;
-    cityMarkersRef.current = markers;
     map.dragRotate.disable();
     map.touchZoomRotate.disableRotation();
     if (onCloseRef.current) {
@@ -1832,12 +1851,70 @@ export function CityLocationPicker({
     map.addControl(new NavigationControl({ showCompass: false }), "top-right");
     map.addControl(mapActionControl, "top-right");
     map.addControl(new TheaterMapAttributionControl(), "top-left");
+    let fitFrame = 0;
+
+    function syncOverviewState() {
+      mapActionControl.setOverviewState(isMapAtStartingView(map));
+    }
+
+    function markBaseMapReady() {
+      setIsBaseMapReady(true);
+    }
+
+    function handleLoad() {
+      configureBaseLabels(map);
+      map.once("idle", markBaseMapReady);
+      fitFrame = window.requestAnimationFrame(() => {
+        fitFrame = 0;
+        fitStartingView({ duration: 1000 });
+        syncOverviewState();
+      });
+    }
+
+    map.once("load", handleLoad);
+    map.on("moveend", syncOverviewState);
+    map.on("zoomend", syncOverviewState);
+
+    return () => {
+      map.off("load", handleLoad);
+      map.off("idle", markBaseMapReady);
+      map.off("moveend", syncOverviewState);
+      map.off("zoomend", syncOverviewState);
+      if (fitFrame !== 0) {
+        window.cancelAnimationFrame(fitFrame);
+      }
+      scheduleVisibilitySyncRef.current = null;
+      mapActionControlRef.current = null;
+      geolocationRequestRef.current = false;
+      map.remove();
+      mapRef.current = null;
+    };
+  }, [fitStartingView]);
+
+  useEffect(() => {
+    const currentMap = mapRef.current;
+
+    if (!currentMap || !isBaseMapReady || cityEntries.length === 0) {
+      return;
+    }
+
+    const map: MapLibreMap = currentMap;
+    const labelElements = new Map<string, CityMarkerState>();
+    const secondaryLabelElements: SecondaryCityMarkerState[] = [];
+    const markers: Marker[] = [];
+    const theaterMarkers: TheaterMarkerState[] = [];
+    const mapActionControl = mapActionControlRef.current;
+    let visibilityFrame = 0;
+
+    cityLabelElementsRef.current = labelElements;
+    secondaryCityLabelElementsRef.current = secondaryLabelElements;
+    cityMarkersRef.current = markers;
 
     function syncMarkerVisibility() {
       const zoom = map.getZoom();
       const currentSelection = currentLocationRef.current;
       const searchQuery = searchQueryRef.current;
-      mapActionControl.setOverviewState(isMapAtStartingView(map));
+      mapActionControl?.setOverviewState(isMapAtStartingView(map));
       const searchActive = searchQuery.length > 0;
       const searchMatchCount = searchActive
         ? cityEntries.reduce(
@@ -1985,9 +2062,7 @@ export function CityLocationPicker({
 
     scheduleVisibilitySyncRef.current = scheduleSyncMarkerVisibility;
 
-    function handleLoad() {
-      configureBaseLabels(map);
-
+    function addMapMarkers() {
       for (const entry of cityEntries) {
         const revealZoom = entry.zoomLayer;
         const active = entry.location === currentLocationRef.current;
@@ -2002,18 +2077,8 @@ export function CityLocationPicker({
         styleCityLabel(element, surface, {
           active,
           syncing: syncingRef.current,
-          opacity: getCityLabelOpacity(
-            map.getZoom(),
-            revealZoom,
-            active,
-            cityRevealConfig,
-          ),
-          interactive: isCityLabelRevealed(
-            map.getZoom(),
-            revealZoom,
-            active,
-            cityRevealConfig,
-          ),
+          opacity: 0,
+          interactive: false,
           zIndex: active
             ? SELECTED_CITY_Z_INDEX
             : getCityMarkerZIndex(revealZoom, cityRevealConfig),
@@ -2188,14 +2253,11 @@ export function CityLocationPicker({
       map.on("move", scheduleSyncMarkerVisibility);
       map.on("zoom", scheduleSyncMarkerVisibility);
       map.on("resize", scheduleSyncMarkerVisibility);
-      syncMarkerVisibility();
-      window.requestAnimationFrame(() => {
-        fitStartingView({ duration: 1000 });
-      });
+      scheduleSyncMarkerVisibility();
       theaterMarkersRef.current = theaterMarkers;
     }
 
-    map.once("load", handleLoad);
+    addMapMarkers();
 
     return () => {
       for (const marker of markers) {
@@ -2222,24 +2284,26 @@ export function CityLocationPicker({
       theaterMarkersRef.current = [];
       labelElements.clear();
       cityLabelElementsRef.current = new Map();
-      mapActionControlRef.current = null;
-      geolocationRequestRef.current = false;
-      map.remove();
-      mapRef.current = null;
     };
   }, [
     cityEntryMap,
     cityEntries,
     cityRevealConfig,
-    fitStartingView,
-    focusLocation,
-    handleLocateNearestCity,
     handleLocationSelect,
+    isBaseMapReady,
     theaters,
   ]);
 
   return (
-    <div className={["theater-map-panel", className].filter(Boolean).join(" ")}>
+    <div
+      className={[
+        "theater-map-panel",
+        !isBaseMapReady ? "is-loading-base-map" : null,
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <div className="theater-map-panel-bar" />
 
       <div className="theater-map-canvas-shell">
@@ -2247,6 +2311,10 @@ export function CityLocationPicker({
         {mapControlMessage ? (
           <div className="theater-map-control-message" aria-live="polite">
             {mapControlMessage}
+          </div>
+        ) : isBaseMapReady && !isTheaterMapDataReady ? (
+          <div className="theater-map-control-message" aria-live="polite">
+            Loading theater locations...
           </div>
         ) : null}
 
@@ -2258,6 +2326,7 @@ export function CityLocationPicker({
               aria-expanded={isCityListOpen}
               aria-haspopup="listbox"
               aria-label="Open city list"
+              disabled={!isTheaterMapDataReady}
               onClick={() => {
                 setIsCityListOpen((current) => !current);
               }}
@@ -2319,6 +2388,7 @@ export function CityLocationPicker({
                 type="search"
                 name="city-search"
                 value={query}
+                disabled={!isTheaterMapDataReady}
                 onKeyDown={(event) => {
                   if (
                     event.key !== "Enter" ||
