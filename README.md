@@ -9,9 +9,9 @@
 </p>
 
 <p align="center">
-  <img alt="React 19.2.0" src="https://img.shields.io/badge/React-19.2.0-0F172A?style=for-the-badge&logo=react&logoColor=61DAFB">
-  <img alt="TypeScript 5.9.3" src="https://img.shields.io/badge/TypeScript-5.9.3-1D4ED8?style=for-the-badge&logo=typescript&logoColor=white">
-  <img alt="Vite 7.3.1" src="https://img.shields.io/badge/Vite-7.3.1-111827?style=for-the-badge&logo=vite&logoColor=FBBF24">
+  <img alt="React 19.2.7" src="https://img.shields.io/badge/React-19.2.7-0F172A?style=for-the-badge&logo=react&logoColor=61DAFB">
+  <img alt="TypeScript 6.0.3" src="https://img.shields.io/badge/TypeScript-6.0.3-1D4ED8?style=for-the-badge&logo=typescript&logoColor=white">
+  <img alt="Vite 8.1.4" src="https://img.shields.io/badge/Vite-8.1.4-111827?style=for-the-badge&logo=vite&logoColor=FBBF24">
   <img alt="Python 3.14+" src="https://img.shields.io/badge/Python-3.14%2B-166534?style=for-the-badge&logo=python&logoColor=white">
   <img alt="Supabase" src="https://img.shields.io/badge/Supabase-Platform-0F172A?style=for-the-badge&logo=supabase&logoColor=3ECF8E">
   <img alt="License MIT" src="https://img.shields.io/badge/License-MIT-15803D?style=for-the-badge">
@@ -33,9 +33,6 @@
 Kartiseret is a movie discovery and showtimes platform built to make cinema browsing feel unified instead of fragmented. On the product side, it powers a motion-heavy React + TypeScript single-page app for browsing now-playing films, coming-soon releases, city and theater options, trailers, ratings, and user preferences. On the data side, it relies on a Python scraping and enrichment pipeline that collects listings from cinema websites, cleans inconsistent titles and metadata, enriches records with TMDb and other external sources, and writes the results into Supabase.
 
 The goal is simple: reduce the friction between "I want to watch a movie tonight" and "here are the real options."
-
-> Note
-> This checkout currently contains the Python backend, automation, and project metadata. The frontend architecture described below reflects the current Kartiseret app, but its source is not present in this workspace.
 
 ## Why This Exists
 
@@ -71,7 +68,7 @@ Kartiseret currently spans two connected layers:
 
 ### Frontend Experience
 
-- Built as a client-side React 19.2.0 + TypeScript 5.9.3 SPA with Vite 7.3.1.
+- Built as a client-side React 19.2.7 + TypeScript 6.0.3 SPA with Vite 8.1.4.
 - Uses custom `window.history` routing instead of React Router.
 - Uses React state/hooks plus a few singleton stores instead of Redux, Zustand, React Query, or SWR.
 - Styles are global CSS-driven, accent-color-driven, and motion-heavy rather than Tailwind-based.
@@ -208,14 +205,24 @@ export PYTHONPATH="$PWD"
 python backend/utils/supabase/clear_old_entries.py
 ```
 
-### Frontend Runtime Notes
+### Frontend
 
-The current frontend app expects:
+The frontend lives in `Codebase - Kartiseret Web/` and expects:
 
 - `SUPABASE_URL` or `VITE_SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY` or `VITE_SUPABASE_PUBLISHABLE_KEY`
 
-The browser app intentionally uses only the publishable key and never a service-role key.
+(These are loaded from the project-root `.env` file by the Vite config.)
+
+Setup and run:
+
+```bash
+cd "Codebase - Kartiseret Web"
+npm install
+npm run dev
+```
+
+The app intentionally uses only the publishable key and never a service-role key.
 
 ## Automation
 
@@ -235,13 +242,22 @@ The browser app intentionally uses only the publishable key and never a service-
 
 ```text
 .
-├── .github/workflows/   GitHub Actions for main runs, cleanup, and license maintenance
+├── .github/workflows/          GitHub Actions for main runs, cleanup, and license maintenance
 ├── backend/
-│   ├── config/          Runner entrypoints, registries, and cron helpers
-│   ├── scraping/        Selenium scrapers for chains, coming-soon pages, and cinematheques
-│   ├── dataflow/        Cleaning, TMDb matching, enrichment, dedupe, and preview generation
-│   └── utils/           Console UI, logging artifacts, and Supabase helpers
-├── docs/images/         README assets
+│   ├── config/                 Runner entrypoints, registries, and cron helpers
+│   ├── scraping/               Selenium scrapers for chains, coming-soon pages, and cinematheques
+│   ├── dataflow/               Cleaning, TMDb matching, enrichment, dedupe, and preview generation
+│   └── utils/                  Console UI, logging artifacts, and Supabase helpers
+├── Codebase - Kartiseret Web/  React + TypeScript frontend SPA
+│   ├── config/                 Vite, TypeScript, and prettier config
+│   ├── src/                    App source: components, data, lib, prefs
+│   ├── public/
+│   ├── index.html
+│   ├── eslint.config.js
+│   ├── tsconfig.json
+│   └── package.json
+├── docs/images/                README assets
+├── .env                        Shared environment variables (Supabase keys, etc.)
 ├── LICENSE.md
 ├── README.md
 └── requirements.txt
@@ -263,7 +279,6 @@ The browser app intentionally uses only the publishable key and never a service-
 
 ## Current Limitations
 
-- This workspace does not currently include the React frontend source, only the backend pipeline and repo automation.
 - The frontend is tightly coupled to its Supabase table names and column assumptions.
 - No automated tests are configured in this repo right now.
 - Scrapers depend on third-party cinema DOMs, so upstream site changes can break individual sources without warning.
@@ -289,7 +304,7 @@ Place your PNGs here:
 - If you touch TMDb matching, dedupe rules, or title normalization, verify both now-playing and coming-soon flows.
 - Use run artifacts when debugging scraper failures; the screenshot + text + CSV bundle is part of the intended workflow.
 - Treat source-site changes as expected maintenance, not exceptional events.
-- If the frontend lives in a separate workspace, UI changes should still be checked for keyboard navigation, motion fallbacks, mobile layout, and auth/preference behavior.
+- UI changes should be checked for keyboard navigation, motion fallbacks, mobile layout, and auth/preference behavior.
 
 ## License
 
