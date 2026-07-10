@@ -7,7 +7,7 @@ import pytz, secrets, string, time
 
 
 class ScrapingHelpers:
-    def element(self, path: str):
+    def element(self, path: str, prevSelectorToReclick: str | None = None):
         try:
             return self.driver.find_element(By.XPATH if path.startswith(("/", ".//")) else By.CSS_SELECTOR, path)
         except Exception:
@@ -15,6 +15,8 @@ class ScrapingHelpers:
             try:
                 return self.driver.find_element(By.XPATH if path.startswith(("/", ".//")) else By.CSS_SELECTOR, path)
             except Exception:
+                if prevSelectorToReclick is not None:
+                    self.jsClick(prevSelectorToReclick)
                 locator = (By.XPATH if path.startswith(("/", ".//")) else By.CSS_SELECTOR, path)
                 return WebDriverWait(self.driver, 15).until(EC.presence_of_element_located(locator))
 
@@ -73,8 +75,8 @@ class ScrapingHelpers:
     def ifElseNone(self, condition, value):
         return value if condition else None
 
-    def jsClick(self, path: str, sleepafter: float = 0.15):
-        self.driver.execute_script("arguments[0].click();", self.element(path))
+    def jsClick(self, path: str, sleepafter: float = 0.15, prevSelectorToReclick: str | None = None):
+        self.driver.execute_script("arguments[0].click();", self.element(path, prevSelectorToReclick))
         self.sleep(sleepafter)
 
     def jsRemove(self, path: str, sleepafter: float = 0.5):
