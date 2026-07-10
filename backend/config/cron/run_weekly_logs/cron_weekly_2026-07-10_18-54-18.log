@@ -1,0 +1,48 @@
+==== cron run start: 2026-07-10T18:54:18+0300 ====
+From github.com:jeremyjacob101/Kartiseret
+ * branch            main       -> FETCH_HEAD
+Already on 'main'
+Your branch is up to date with 'origin/main'.
+HEAD is now at beb0de5 [+] hopefully upsert/dedupe/batching fix
+
+--------------------
+
+CCsoon: 00m32s
+LCsoon: 01m13s
+YPsoon: 01m24s
+MLsoon: 02m03s
+HCsoon: 03m00s
+
+--------------------
+
+
+--------------------
+
+LevCinema: 04m09s
+RavHen: 07m59s
+MovieLand: 12m44s
+HotCinema: 16m06s
+YesPlanet: 17m28s
+CinemaCity: 28m02s
+
+--------------------
+
+
+--------------------
+
+ComingSoonsClean: 00m04s
+ComingSoonsTmdb: 00m13s
+ComingSoonsUpdate: 00m05s
+
+--------------------
+
+
+--------------------
+
+NowPlayingsClean: 02m09s
+NowPlayingsTmdb: 07m01s
+NowPlayingsUpdate: 02m43s
+
+--------------------
+
+==== cron run end: 2026-07-10T19:37:46+0300 ====
