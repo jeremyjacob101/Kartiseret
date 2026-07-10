@@ -15,7 +15,7 @@ class NowPlayingsClean(BaseDataflow):
             if row.get("cleaned") is True:
                 continue
             if row.get("id") in fixed_row_ids:
-                self.updates.append({"id": row["id"], "cleaned": True})
+                self.updates.append({**row, "cleaned": True})
                 continue
             row["english_title"] = self.normalizeTitle(row.get("english_title") or "")
             row["hebrew_title"] = (row.get("hebrew_title") or "").lower()

@@ -106,6 +106,8 @@ class NowPlayingsHelpers:
         self.potential_chosen_id = None
         self.candidates = []
         self.details = {}
+        self.chosen_path = None
+        self.alt_options = []
 
         self.override_tmdb = None
         self.seen_already = set()

@@ -76,6 +76,9 @@ class InitializeBaseDataflow:
         self.found_year_match = False
         self.candidates = []
         self.details = {}
+        self.chosen_path = None
+        self.alt_options = []
+        self.unhealthy_cinemas = set()
 
         self.general_focused_page = 1
         self.year_focused_page = 1

@@ -14,7 +14,7 @@ class ComingSoonsClean(BaseDataflow):
             if row.get("cleaned") is True:
                 continue
             if self.tmdbFixForTitle(row.get("english_title"), tmdb_fix_by_title):
-                self.updates.append({"id": row["id"], "cleaned": True})
+                self.updates.append({**row, "cleaned": True})
                 continue
             row["english_title"] = self.normalizeTitle(row.get("english_title") or "")
             row["hebrew_title"] = (row.get("hebrew_title") or "").lower()
