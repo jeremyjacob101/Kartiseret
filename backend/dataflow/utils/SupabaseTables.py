@@ -104,7 +104,12 @@ class SupabaseTables:
                     if isinstance(row, dict) and "run_id" not in row:
                         row["run_id"] = int(self.run_id)
             self.dedupeUpdatesForUpsert(table_name)
-            self.supabase.table(table_name).upsert(self.updates).execute()
+            update_groups = {}
+            for row in self.updates:
+                # PostgREST unions columns in bulk upserts, so never mix full and partial rows.
+                update_groups.setdefault(tuple(sorted(row.keys())), []).append(row)
+            for updates in update_groups.values():
+                self.supabase.table(table_name).upsert(updates).execute()
 
         self.updates = []
         if refresh:
