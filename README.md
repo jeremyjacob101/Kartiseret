@@ -146,6 +146,7 @@ Within that plan, the backend currently does the following:
 - `finalShowtimes`
 - `finalMovies`
 - `finalSoons`
+- `movie_codes` maps each TMDb ID to its permanent three-character Base62 code.
 - `theaters`
 - `userPreferences`
 
@@ -157,6 +158,8 @@ Within that plan, the backend currently does the following:
 - `utilAvgTime`
 
 This repo includes generic Supabase table utilities in `backend/utils/supabase/supabase_tables.py`.
+
+Apply `backend/utils/supabase/migrations/20260712_create_movie_codes.sql` in the Supabase SQL Editor before running the enrichment pipeline. It backfills existing `finalMovies` and `finalSoons` rows, then future dataflow runs reuse the same code for every TMDb ID.
 
 </details>
 

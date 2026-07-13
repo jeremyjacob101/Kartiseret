@@ -1,9 +1,11 @@
-from typing import Callable, Any
+from typing import Callable, Any, Iterable
 from datetime import datetime, timezone
 import re
 
 
 class SupabaseTables:
+    MOVIE_CODES_RPC_NAME = "ensure_movie_codes"
+
     PRIMARY_KEY_BY_TABLE = {
         "finalMovies": "tmdb_id",
         "finalSoons": "id",
@@ -114,6 +116,38 @@ class SupabaseTables:
         self.updates = []
         if refresh:
             self.refreshAllTables(table_name)
+
+    def ensureMovieCodes(self, tmdb_ids: Iterable[Any]) -> dict[int, str]:
+        normalized_ids: set[int] = set()
+        for tmdb_id in tmdb_ids:
+            try:
+                value = int(tmdb_id)
+            except (TypeError, ValueError):
+                continue
+            if value > 0:
+                normalized_ids.add(value)
+
+        if not normalized_ids:
+            return {}
+
+        requested_ids = sorted(normalized_ids)
+        response = self.supabase.rpc(self.MOVIE_CODES_RPC_NAME, {"p_tmdb_ids": requested_ids}).execute()
+        movie_codes_by_tmdb: dict[int, str] = {}
+
+        for row in response.data or []:
+            try:
+                tmdb_id = int(row.get("tmdb_id"))
+            except (AttributeError, TypeError, ValueError):
+                continue
+            movie_code = str(row.get("movie_code") or "").strip()
+            if tmdb_id > 0 and len(movie_code) == 3:
+                movie_codes_by_tmdb[tmdb_id] = movie_code
+
+        missing_ids = normalized_ids - set(movie_codes_by_tmdb)
+        if missing_ids:
+            raise ValueError(f"Movie code allocation failed for TMDB IDs: {sorted(missing_ids)}")
+
+        return movie_codes_by_tmdb
 
     def _norm_text(self, value: Any) -> str:
         if value is None:

@@ -249,10 +249,13 @@ class ComingSoonsTmdb(BaseDataflow):
             self.updates.append(new_row)
             self.trace_event("enrich", "mapped", "enriched", key=str(new_row.get("old_uuid") or ""), payload={"title": new_row.get("english_title"), "title_norm": self.normalizeTitle(new_row.get("english_title") or ""), "chosen_tmdb": tmdb_id})
 
+        final_soon_tmdb_ids = [row.get("tmdb_id") for row in self.updates]
         pre_upsert_count = len(self.updates)
         self.upsertUpdates(self.MOVING_TO_TABLE_NAME)
         self.trace_event("write", "mapped", "upserted", key=self.MOVING_TO_TABLE_NAME, payload={"title": "", "title_norm": "", "chosen_tmdb": ""})
         self.trace_write_action(f"upsertUpdates({self.MOVING_TO_TABLE_NAME}) rows={pre_upsert_count}")
+        movie_codes_by_tmdb = self.ensureMovieCodes(final_soon_tmdb_ids)
+        self.trace_write_action(f"ensureMovieCodes(movie_codes) rows={len(movie_codes_by_tmdb)}")
         if self.processed_ids:
             ids = list(self.processed_ids)
             for i in range(0, len(ids), 200):

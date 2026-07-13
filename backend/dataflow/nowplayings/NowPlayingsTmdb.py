@@ -348,10 +348,13 @@ class NowPlayingsTmdb(BaseDataflow):
             imdb_id = res.get("imdb_id") or None
             self.updates.append({"tmdb_id": tmdb_id, "english_title": res.get("english_title"), "runtime": res.get("runtime"), "popularity": res.get("popularity"), "imdb_id": imdb_id, "genres": res.get("genres"), "en_poster": res.get("en_poster"), "en_trailer": res.get("en_trailer"), "backdrop": res.get("backdrop"), "release_year": res.get("release_year"), "alt_options": res.get("alt_options") or []})
 
+        final_movie_tmdb_ids = [row.get("tmdb_id") for row in self.updates]
         final_movies_upsert_count = len(self.updates)
         self.upsertUpdates(self.MOVING_TO_TABLE_NAME_2)
         self.trace_event("write", "mapped", "upserted", key=self.MOVING_TO_TABLE_NAME_2, payload={"key": self.MOVING_TO_TABLE_NAME_2, "row_count": final_movies_upsert_count, "representative_title": "", "parsed_year": None, "candidate_count": 0, "chosen_tmdb": "", "chosen_path": "final_movies"})
         self.trace_write_action(f"upsertUpdates({self.MOVING_TO_TABLE_NAME_2}) rows={final_movies_upsert_count}")
+        movie_codes_by_tmdb = self.ensureMovieCodes(final_movie_tmdb_ids)
+        self.trace_write_action(f"ensureMovieCodes(movie_codes) rows={len(movie_codes_by_tmdb)}")
         self.dedupeFinalMovies(self.MOVING_TO_TABLE_NAME_2)
         self.trace_write_action(f"dedupeFinalMovies({self.MOVING_TO_TABLE_NAME_2})")
 
