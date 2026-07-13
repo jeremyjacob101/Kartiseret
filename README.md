@@ -159,7 +159,7 @@ Within that plan, the backend currently does the following:
 
 This repo includes generic Supabase table utilities in `backend/utils/supabase/supabase_tables.py`.
 
-Apply `backend/utils/supabase/migrations/20260712_create_movie_codes.sql` in the Supabase SQL Editor before running the enrichment pipeline. It backfills existing `finalMovies` and `finalSoons` rows, then future dataflow runs reuse the same code for every TMDb ID.
+Apply `backend/utils/supabase/migrations/20260712_create_movie_codes.sql` in the Supabase SQL Editor before running the enrichment pipeline. The Python dataflow then fills the empty table from the current final rows and reuses the same code for every TMDb ID on later runs.
 
 </details>
 
