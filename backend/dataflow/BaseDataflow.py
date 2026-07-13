@@ -1,4 +1,5 @@
 from backend.dataflow.utils.SupabaseTables import SupabaseTables
+from backend.dataflow.utils.MovieCodes import MovieCodes
 from backend.dataflow.utils.DataflowHelpers import DataflowHelpers
 from backend.dataflow.utils.DataflowSummaryHelpers import DataflowSummaryHelpers
 from backend.scraping.utils.ScrapingHelpers import ScrapingHelpers
@@ -9,7 +10,7 @@ from backend.dataflow.nowplayings.utils.NowPlayingsHelpers import NowPlayingsHel
 import os
 
 
-class BaseDataflow(InitializeBaseDataflow, DataflowSummaryHelpers, DataflowHelpers, SupabaseTables, ComingSoonsHelpers, NowPlayingsHelpers, ScrapingHelpers):
+class BaseDataflow(InitializeBaseDataflow, DataflowSummaryHelpers, DataflowHelpers, SupabaseTables, MovieCodes, ComingSoonsHelpers, NowPlayingsHelpers, ScrapingHelpers):
     MAIN_TABLE_NAME: str = ""
     DUPLICATE_TABLE_NAME: str = ""
     MOVING_TO_TABLE_NAME: str = ""

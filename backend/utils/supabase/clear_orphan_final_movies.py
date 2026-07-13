@@ -43,6 +43,8 @@ def clear_orphan_final_movies():
         sb.table("finalMovies").delete().in_("tmdb_id", chunk).execute()
         deleted_count += len(chunk)
 
+    print(f"Deleted {deleted_count} orphan finalMovies rows.")
+
 
 if __name__ == "__main__":
     clear_orphan_final_movies()

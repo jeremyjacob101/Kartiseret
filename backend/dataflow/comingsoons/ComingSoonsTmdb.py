@@ -1,5 +1,6 @@
 from backend.dataflow.BaseDataflow import BaseDataflow
 from backend.utils.supabase.clear_old_entries import clear_old_entries
+from backend.utils.supabase.dedupe_all_soons import dedupe_all_soons
 from collections import defaultdict
 from datetime import date
 import requests
@@ -266,3 +267,4 @@ class ComingSoonsTmdb(BaseDataflow):
         self.trace_write_action(f"dedupeFinalSoons({self.MOVING_TO_TABLE_NAME})")
 
         clear_old_entries("soons")
+        dedupe_all_soons(dry_run=False)
