@@ -254,7 +254,7 @@ class ComingSoonsTmdb(BaseDataflow):
         self.trace_event("write", "mapped", "upserted", key=self.MOVING_TO_TABLE_NAME, payload={"title": "", "title_norm": "", "chosen_tmdb": ""})
         self.trace_write_action(f"upsertUpdates({self.MOVING_TO_TABLE_NAME}) rows={pre_upsert_count}")
         movie_codes_by_tmdb = self.ensureMovieCodesForTable(self.MOVING_TO_TABLE_NAME)
-        self.trace_write_action(f"ensureMovieCodes(movie_codes) rows={len(movie_codes_by_tmdb)}")
+        self.trace_write_action(f"ensureMovieCodes(movieCodes) rows={len(movie_codes_by_tmdb)}")
         if self.processed_ids:
             ids = list(self.processed_ids)
             for i in range(0, len(ids), 200):

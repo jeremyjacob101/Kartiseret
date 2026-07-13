@@ -4,7 +4,7 @@ import re
 
 
 class SupabaseTables:
-    MOVIE_CODES_TABLE_NAME = "movie_codes"
+    MOVIE_CODES_TABLE_NAME = "movieCodes"
     MOVIE_CODE_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     MOVIE_CODE_LENGTH = 3
     MOVIE_CODE_CAPACITY = len(MOVIE_CODE_ALPHABET) ** MOVIE_CODE_LENGTH
@@ -12,7 +12,7 @@ class SupabaseTables:
     PRIMARY_KEY_BY_TABLE = {
         "finalMovies": "tmdb_id",
         "finalSoons": "id",
-        "movie_codes": "tmdb_id",
+        "movieCodes": "tmdb_id",
         "allShowtimes": "id",
         "tableFixes": "id",
         "tableSkips": "name_or_tmdb_id",
