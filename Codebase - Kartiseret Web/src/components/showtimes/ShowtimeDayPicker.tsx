@@ -961,10 +961,7 @@ export function ShowtimeDayPicker({
         .join(" ")}
     >
       <div className="showtime-day-picker-frame" aria-hidden="true">
-        <span className="showtime-day-picker-rail showtime-day-picker-rail--top" />
-        <span className="showtime-day-picker-rail showtime-day-picker-rail--bottom" />
         <span className="showtime-day-picker-center-notch showtime-day-picker-center-notch--top" />
-        <span className="showtime-day-picker-center-notch showtime-day-picker-center-notch--bottom" />
       </div>
 
       <div
@@ -1070,10 +1067,11 @@ export function ShowtimeDayPicker({
                 <span className="showtime-day-button-number">
                   {getDayNumber(entry.date)}
                 </span>
-                <span className="showtime-day-button-month">
-                  {getDayMonth(entry.date)}
-                </span>
-                <span className="showtime-day-button-tick showtime-day-button-tick--bottom" />
+                {isPreview && (
+                  <span className="showtime-day-button-month">
+                    {getDayMonth(entry.date)}
+                  </span>
+                )}
               </button>
             );
           })}

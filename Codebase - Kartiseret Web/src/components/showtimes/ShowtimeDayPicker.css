@@ -1,8 +1,6 @@
 .showtime-day-picker-shell {
   --showtime-day-slot-width: 78px;
-  --showtime-day-rail-inset: 10px;
   --showtime-day-top-rail-y: 23px;
-  --showtime-day-bottom-rail-y: 91px;
   position: relative;
   isolation: isolate;
   width: 620px;
@@ -18,35 +16,12 @@
   pointer-events: none;
 }
 
-.showtime-day-picker-rail {
-  position: absolute;
-  right: var(--showtime-day-rail-inset);
-  left: var(--showtime-day-rail-inset);
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(226, 213, 247, 0.28) 8%,
-    rgba(226, 213, 247, 0.42) 50%,
-    rgba(226, 213, 247, 0.28) 92%,
-    transparent
-  );
-}
-
-.showtime-day-picker-rail--top {
-  top: var(--showtime-day-top-rail-y);
-}
-
-.showtime-day-picker-rail--bottom {
-  top: var(--showtime-day-bottom-rail-y);
-}
-
 .showtime-day-picker-center-notch {
   position: absolute;
   left: 50%;
   z-index: 2;
   width: 2px;
-  height: 18px;
+  height: 12px;
   border-radius: 999px;
   background: var(--main-app-color);
   box-shadow: 0 0 15px
@@ -56,11 +31,6 @@
 
 .showtime-day-picker-center-notch--top {
   top: var(--showtime-day-top-rail-y);
-}
-
-.showtime-day-picker-center-notch--bottom {
-  bottom: calc(114px - var(--showtime-day-bottom-rail-y));
-  transform: translateX(-50%) rotate(180deg);
 }
 
 .showtime-day-picker-scroll {
@@ -127,7 +97,7 @@
   flex: 0 0 var(--showtime-day-slot-width);
   position: relative;
   display: grid;
-  grid-template-rows: 34px 44px 36px;
+  grid-template-rows: 38px 44px 32px;
   min-height: 114px;
   padding: 0;
   border: 0;
@@ -171,8 +141,9 @@
 .showtime-day-button-tick {
   position: absolute;
   left: 50%;
+  top: var(--showtime-day-top-rail-y);
   width: 1px;
-  height: 9px;
+  height: 5px;
   border-radius: 999px;
   background: currentcolor;
   opacity: 0.72;
@@ -183,17 +154,8 @@
     opacity 150ms ease;
 }
 
-.showtime-day-button-tick--top {
-  top: var(--showtime-day-top-rail-y);
-}
-
-.showtime-day-button-tick--bottom {
-  bottom: calc(114px - var(--showtime-day-bottom-rail-y));
-  transform: translateX(-50%) rotate(180deg);
-}
-
 .showtime-day-button--preview .showtime-day-button-tick {
-  height: 14px;
+  height: 8px;
   background: var(--main-app-color);
   box-shadow: 0 0 10px
     color-mix(in srgb, var(--main-app-color) 35%, transparent);
@@ -265,21 +227,14 @@
 
 html[data-device-type="mobile"] .showtime-day-picker-shell {
   --showtime-day-slot-width: min(72px, 21vw);
-  --showtime-day-rail-inset: 4px;
   --showtime-day-top-rail-y: 21px;
-  --showtime-day-bottom-rail-y: 83px;
   width: 100%;
   height: 104px;
 }
 
 html[data-device-type="mobile"] .showtime-day-button {
-  grid-template-rows: 31px 40px 33px;
+  grid-template-rows: 35px 40px 29px;
   min-height: 104px;
-}
-
-html[data-device-type="mobile"] .showtime-day-picker-center-notch--bottom,
-html[data-device-type="mobile"] .showtime-day-button-tick--bottom {
-  bottom: calc(104px - var(--showtime-day-bottom-rail-y));
 }
 
 html[data-device-type="mobile"] .showtime-day-button-eyebrow,
