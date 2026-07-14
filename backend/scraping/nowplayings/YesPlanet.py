@@ -1,12 +1,14 @@
 from backend.scraping.BaseCinema import BaseCinema
 
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import re
 
 
 class YesPlanet(BaseCinema):
     CINEMA_NAME = "Yes Planet"
     URL = "https://www.planetcinema.co.il/?lang=en_gb#/"
+
+    month_mapping = {"January": "01", "February": "02", "March": "03", "April": "04", "May": "05", "June": "06", "July": "07", "August": "08", "September": "09", "October": "10", "November": "11", "December": "12"}
 
     def logic(self):
         self.sleep(10)
@@ -25,6 +27,15 @@ class YesPlanet(BaseCinema):
 
             self.english_hrefs.append(href)
             self.english_titles.append(str(self.element(f"/html/body/div[6]/section/div[2]/div/div/div/div[2]/div/div/div/div[1]/div[{film_card}]/a/p").text))
+
+        for film_card in range(1, self.lenElements("/html/body/div[6]/section/div[4]/div/div/div/div[2]/div/div/div/div[1]/div") + 1):
+            href = str(self.element(f"/html/body/div[6]/section/div[4]/div/div/div/div[2]/div/div/div/div[1]/div[{film_card}]/a").get_attribute("href"))
+            if href.endswith("s2r2") or href.endswith("d2r1"):
+                continue
+
+            self.english_hrefs.append(href)
+            self.english_titles.append(str(self.element(f"/html/body/div[6]/section/div[4]/div/div/div/div[2]/div/div/div/div[1]/div[{film_card}]/a/p").text))
+
         for href in self.english_hrefs:
             self.driver.get(href)
             self.sleep(0.1)
@@ -48,6 +59,7 @@ class YesPlanet(BaseCinema):
 
             runtime = self.element("/html/body/div[5]/section[2]/div/div[2]/div[1]/div[1]/div[2]/p").text.strip()
             self.runtimes.append(int(m.group()) if runtime and (m := re.search(r"\d+", runtime)) else None)
+
         name_to_idx = {str(name).lower(): i for i, name in enumerate(self.english_titles)}
 
         self.click("#header-change-location", 1)
@@ -96,7 +108,13 @@ class YesPlanet(BaseCinema):
                         date_name = self.element(f"body > section.light.quickbook-section.npm-quickbook > section > div:nth-child(1) > div > div > div:nth-child(2) > div.col-xs-12.col-md-6.qb-calendar-widget > div > div.col-xs-12.mb-sm > h5").text
                         self.date_of_showing = datetime.strptime(date_name.split(" ", 1)[1], "%d/%m/%Y").date().isoformat()
 
-                        self.sleep(1)
+                        self.sleep(0.5)
+                        self.click("/html/body/section[3]/section/div[1]/div/div/div[2]/div[3]/div/div/button")
+                        self.click("/html/body/div[12]/div[2]/div/ul/li[2]/a")
+                        self.click("/html/body/section[3]/section/div[1]/div/div/div[2]/div[3]/div/div/button")
+                        self.click("/html/body/div[12]/div[2]/div/ul/li[1]/a")
+                        self.sleep(0.5)
+
                         for film_index in range(1, self.lenElements("/html/body/section[3]/section/div[1]/div/section/div[2]/div") + 1):
                             selector = f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div/div/h4"
                             if self.lenElements(selector) and self.element(selector).text == "PRE-ORDER YOUR TICKETS NOW":

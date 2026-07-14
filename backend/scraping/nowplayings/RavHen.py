@@ -1,12 +1,14 @@
 from backend.scraping.BaseCinema import BaseCinema
 
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import re
 
 
 class RavHen(BaseCinema):
     CINEMA_NAME = "Rav Hen"
     URL = "https://www.rav-hen.co.il/#/"
+
+    month_mapping = {"ינואר": "01", "פברואר": "02", "מרץ": "03", "אפריל": "04", "מאי": "05", "יוני": "06", "יולי": "07", "אוגוסט": "08", "ספטמבר": "09", "אוקטובר": "10", "נובמבר": "11", "דצמבר": "12"}
 
     def logic(self):
         self.sleep(10)
@@ -20,6 +22,9 @@ class RavHen(BaseCinema):
 
         for film_card in range(1, self.lenElements("/html/body/div[6]/section/div[2]/div/div/div/div[2]/div/div/div/div[1]/div") + 1):
             self.hebrew_hrefs.append(str(self.element(f"/html/body/div[6]/section/div[2]/div/div/div/div[2]/div/div/div/div[1]/div[{film_card}]/a").get_attribute("href")))
+
+        for film_card in range(1, self.lenElements("/html/body/div[6]/section/div[4]/div/div/div/div[2]/div/div/div/div[1]/div") + 1):
+            self.hebrew_hrefs.append(str(self.element(f"/html/body/div[6]/section/div[4]/div/div/div/div[2]/div/div/div/div[1]/div[{film_card}]/a").get_attribute("href")))
 
         for href in self.hebrew_hrefs:
             self.driver.get(href)
@@ -41,6 +46,7 @@ class RavHen(BaseCinema):
             if runtime and runtime == "יעודכן בקרוב":
                 runtime = None
             self.runtimes.append(int(m.group()) if runtime and (m := re.search(r"\d+", runtime)) else None)
+
         name_to_idx = {str(name): i for i, name in enumerate(self.hebrew_titles)}
 
         self.click("#header-change-location", 1)
@@ -89,7 +95,13 @@ class RavHen(BaseCinema):
                         date_name = self.element(f"body > section.light.quickbook-section.npm-quickbook > section > div:nth-child(1) > div > div > div:nth-child(2) > div.col-xs-12.col-md-6.qb-calendar-widget > div > div.col-xs-12.mb-sm > h5").text
                         self.date_of_showing = datetime.strptime(date_name.split(" ", 1)[1], "%d/%m/%Y").date().isoformat()
 
-                        self.sleep(1)
+                        self.sleep(0.5)
+                        self.click("/html/body/section[2]/section/div[1]/div/div/div[2]/div[3]/div/div/button")
+                        self.click("/html/body/div[12]/div[2]/div/ul/li[2]/a")
+                        self.click("/html/body/section[2]/section/div[1]/div/div/div[2]/div[3]/div/div/button")
+                        self.click("/html/body/div[12]/div[2]/div/ul/li[1]/a")
+                        self.sleep(0.5)
+
                         for film_index in range(1, self.lenElements("/html/body/section[2]/section/div[1]/div/section/div[2]/div") + 1):
                             selector = f"/html/body/section[2]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div/div/h4"
                             if self.lenElements(selector) and self.element(selector).text == "להזמנת כרטיסים במכירה מוקדמת בחרו בתאריך ההקרנה הרצוי":

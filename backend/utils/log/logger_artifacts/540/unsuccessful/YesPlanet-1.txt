@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: YesPlanet
+URL: https://www.planetcinema.co.il/films/planetshoetime-naama/8085s2r3#/buy-tickets-by-film?in-cinema=1025&at=2026-07-29&for-movie=8085s2r3&view-mode=list
+Exception: AttributeError - 'YesPlanet' object has no attribute 'month_mapping'
+Call Chain: runners.py:43 > runners.py:19 > BaseCinema.py:28 > YesPlanet.py:47
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/540/unsuccessful/YesPlanet-1.png
+CSV: 

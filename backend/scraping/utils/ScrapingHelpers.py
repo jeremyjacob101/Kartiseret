@@ -98,7 +98,7 @@ class ScrapingHelpers:
         return "".join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(9))
 
     def printRow(self):
-        print(f"{(self.english_title)!s:29.29} - {(self.hebrew_title)!s:20.20} - {self.screening_type!s:10.10} - {(self.screening_tech)!s:10.10} - {self.CINEMA_NAME!s:15.15} - {self.screening_city!s:15.15} - {self.date_of_showing!s:10.10} - {self.showtime!s:5.5}".rstrip())
+        print(f"{(self.english_title)!s:29.29} - {(self.hebrew_title)!s:20.20} - {self.screening_type!s:10.10} - {(self.screening_tech)!s:10.10} - {self.CINEMA_NAME!s:15.15} - {self.screening_city!s:15.15} - {self.date_of_showing!s:10.10} - {self.showtime!s:5.5}".rstrip(), flush=True)
 
     def is_forbidden_page(self):
         page_text = (self.driver.page_source or "").lower()
