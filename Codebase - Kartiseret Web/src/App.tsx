@@ -243,10 +243,15 @@ function UserRoute({ user }: { user: User | null }) {
 }
 
 export function App() {
-  const location = useLocation();
+  const routeLocation = useLocation();
   const navigate = useNavigate();
   const { isMobile } = useDeviceInfo();
-  const { user, loading, isAdmin } = useUserPreferencesContext();
+  const {
+    user,
+    loading,
+    isAdmin,
+    location: selectedCity,
+  } = useUserPreferencesContext();
   const catalogStatus = useSyncExternalStore(
     subscribeToMovieCatalog,
     getMovieCatalogStatusSnapshot,
@@ -255,7 +260,7 @@ export function App() {
   const comingSoonReady = catalogStatus.comingSoonReady;
   const showtimesReady = catalogStatus.showtimesReady;
   const catalogReady = catalogStatus.catalogReady;
-  const pathname = location.pathname;
+  const pathname = routeLocation.pathname;
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogMovieJumpRequest, setCatalogMovieJumpRequest] =
     useState<AppMovieJumpRequest | null>(null);
@@ -340,11 +345,11 @@ export function App() {
     }
 
     const catalogLoadPromise =
-      pathname === "/showtimes"
+      pathname === "/showtimes" && !showtimesReady
         ? Promise.all([
             loadNowPlayingMovies(),
             loadComingSoonMovies(),
-            loadShowtimes(),
+            loadShowtimes(selectedCity),
           ])
         : Promise.all([loadNowPlayingMovies(), loadComingSoonMovies()]);
 
@@ -371,7 +376,7 @@ export function App() {
     return () => {
       isActive = false;
     };
-  }, [pathname]);
+  }, [pathname, selectedCity, showtimesReady]);
 
   useEffect(() => {
     if (
@@ -395,7 +400,7 @@ export function App() {
       ) => number;
     };
     const requestShowtimes = () => {
-      void loadShowtimes().catch(() => {});
+      void loadShowtimes(selectedCity).catch(() => {});
     };
 
     if (typeof windowWithIdleCallbacks.requestIdleCallback === "function") {
@@ -423,7 +428,13 @@ export function App() {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [comingSoonReady, nowPlayingReady, pathname, showtimesReady]);
+  }, [
+    comingSoonReady,
+    nowPlayingReady,
+    pathname,
+    selectedCity,
+    showtimesReady,
+  ]);
 
   useEffect(() => {
     if (!showtimesReady || pathname !== "/") {

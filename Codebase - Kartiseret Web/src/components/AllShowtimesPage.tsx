@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { allNowPlayingMovies, fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeDays, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, subscribeToMovieCatalog, type Movie, type TheaterShowtimes } from "../data/movieCatalog";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { allNowPlayingMovies, fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeDays, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, subscribeToMovieCatalog, type Movie, type TheaterShowtimes } from "../data/movieCatalog";
 import { loadCities, type City } from "../data/theaters";
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { TheaterMapDialog } from "./maps/TheaterMapDialog";
@@ -123,6 +123,7 @@ export function AllShowtimesPage() {
   const [pendingNearbyCity, setPendingNearbyCity] = useState<string | null>(
     null,
   );
+  const previousShowtimeLocationRef = useRef(location);
   const dayPanels = useMemo<ShowtimesDayPanel[]>(() => {
     if (allNowPlayingMovies.length === 0) {
       return [];
@@ -329,6 +330,20 @@ export function AllShowtimesPage() {
   }, []);
 
   useEffect(() => {
+    if (previousShowtimeLocationRef.current === location) {
+      return;
+    }
+
+    previousShowtimeLocationRef.current = location;
+    void loadShowtimesAroundDate(
+      location,
+      selectedShowtimeDate ?? fixedAppDateString,
+    ).catch((error: unknown) => {
+      console.error("Could not load showtimes for the selected city.", error);
+    });
+  }, [location, selectedShowtimeDate]);
+
+  useEffect(() => {
     let isActive = true;
 
     void loadCities()
@@ -368,7 +383,7 @@ export function AllShowtimesPage() {
       SHOWTIME_WINDOW_DAY_COUNT,
     );
     const requestMoreDays = () => {
-      void loadAdditionalShowtimeDays(nextDayCount).catch(() => {});
+      void loadAdditionalShowtimeDays(location, nextDayCount).catch(() => {});
     };
 
     if (typeof windowWithIdleCallbacks.requestIdleCallback === "function") {
@@ -396,7 +411,7 @@ export function AllShowtimesPage() {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [dayPanels.length]);
+  }, [dayPanels.length, location]);
 
   useEffect(() => {
     const selectedDayIndex = dayPanels.findIndex(
@@ -416,8 +431,8 @@ export function AllShowtimesPage() {
       SHOWTIME_WINDOW_DAY_COUNT,
     );
 
-    void loadAdditionalShowtimeDays(nextDayCount).catch(() => {});
-  }, [dayPanels, resolvedShowtimeDate]);
+    void loadAdditionalShowtimeDays(location, nextDayCount).catch(() => {});
+  }, [dayPanels, location, resolvedShowtimeDate]);
 
   return (
     <section className="all-showtimes-page" aria-label="All Showtimes">

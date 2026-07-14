@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type Ref } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type Ref } from "react";
 import { createPortal } from "react-dom";
 import { Clock8, MapPin, MoveRight, Star, X } from "lucide-react";
 import { Link } from "react-router";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { TheaterMapDialog } from "../maps/TheaterMapDialog";
-import { APP_TIME_ZONE, fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeCities, getMovieShowtimeDays, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, subscribeToMovieCatalog, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
+import { APP_TIME_ZONE, fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeCities, getMovieShowtimeDays, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, subscribeToMovieCatalog, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
 import { loadCities, type City } from "../../data/theaters";
 import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
@@ -625,6 +625,7 @@ export function MovieDetailsContent({
   const [pendingNearbyCity, setPendingNearbyCity] = useState<string | null>(
     null,
   );
+  const previousShowtimeLocationRef = useRef(location);
   const infoParts = getMovieInfoParts(movie);
   const metaParts =
     movie.genres.length > 0
@@ -1042,6 +1043,24 @@ export function MovieDetailsContent({
       return;
     }
 
+    if (previousShowtimeLocationRef.current === location) {
+      return;
+    }
+
+    previousShowtimeLocationRef.current = location;
+    void loadShowtimesAroundDate(
+      location,
+      preferredShowtimeDate ?? fixedAppDateString,
+    ).catch((error: unknown) => {
+      console.error("Could not load showtimes for the selected city.", error);
+    });
+  }, [location, preferredShowtimeDate, variant]);
+
+  useEffect(() => {
+    if (variant !== "nowPlaying") {
+      return;
+    }
+
     let isActive = true;
 
     void loadCities()
@@ -1083,7 +1102,7 @@ export function MovieDetailsContent({
       SHOWTIME_WINDOW_DAY_COUNT,
     );
     const requestMoreDays = () => {
-      void loadAdditionalShowtimeDays(nextDayCount).catch(() => {});
+      void loadAdditionalShowtimeDays(location, nextDayCount).catch(() => {});
     };
 
     if (typeof windowWithIdleCallbacks.requestIdleCallback === "function") {
@@ -1111,7 +1130,7 @@ export function MovieDetailsContent({
         window.clearTimeout(timeoutId);
       }
     };
-  }, [showtimeDays.length, showtimesReady, variant]);
+  }, [location, showtimeDays.length, showtimesReady, variant]);
 
   useEffect(() => {
     if (
@@ -1129,32 +1148,8 @@ export function MovieDetailsContent({
       SHOWTIME_WINDOW_DAY_COUNT,
     );
 
-    void loadAdditionalShowtimeDays(nextDayCount).catch(() => {});
-  }, [effectiveVisibleShowtimeIndex, showtimeDays.length, variant]);
-
-  useEffect(() => {
-    if (
-      variant !== "nowPlaying" ||
-      !showtimesReady ||
-      hasAnyShowtimesInSelectedCity ||
-      showtimeDays.length === 0 ||
-      showtimeDays.length >= SHOWTIME_WINDOW_DAY_COUNT
-    ) {
-      return;
-    }
-
-    const nextDayCount = Math.min(
-      showtimeDays.length + SHOWTIME_PREFETCH_CHUNK_DAY_COUNT,
-      SHOWTIME_WINDOW_DAY_COUNT,
-    );
-
-    void loadAdditionalShowtimeDays(nextDayCount).catch(() => {});
-  }, [
-    hasAnyShowtimesInSelectedCity,
-    showtimeDays.length,
-    showtimesReady,
-    variant,
-  ]);
+    void loadAdditionalShowtimeDays(location, nextDayCount).catch(() => {});
+  }, [effectiveVisibleShowtimeIndex, location, showtimeDays.length, variant]);
 
   useEffect(() => {
     if (!isTrailerModalOpen) {

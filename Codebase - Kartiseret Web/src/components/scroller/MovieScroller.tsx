@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { comingSoonMovies, loadShowtimes, movies, type Movie } from "../../data/movieCatalog";
 import { useDeviceInfo } from "../../device/useDeviceType";
+import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
 import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
 import { MovieDetailsContent, type MovieDetailsVariant } from "./MovieDetailsContent";
 import "./MovieScroller.css";
@@ -562,6 +563,7 @@ function MovieScrollerContent({
   maxWidth = "100%",
   className,
 }: MovieScrollerContentProps) {
+  const { location: selectedCity } = useUserPreferencesContext();
   const { isMobile } = useDeviceInfo();
   const movieCount = movieItems.length;
   const collapsedRepeatSets = getRepeatSetCount(cardWidth + gap, movieCount);
@@ -719,8 +721,8 @@ function MovieScrollerContent({
       return;
     }
 
-    void loadShowtimes().catch(() => {});
-  }, [detailVariant]);
+    void loadShowtimes(selectedCity).catch(() => {});
+  }, [detailVariant, selectedCity]);
 
   const measureDetailStage = useCallback(() => {
     const stage = detailStageRef.current;
