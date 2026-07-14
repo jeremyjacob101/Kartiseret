@@ -1095,7 +1095,6 @@ export function CityLocationPicker({
                 type="search"
                 name="city-search"
                 value={query}
-                disabled={!isTheaterMapDataReady}
                 onKeyDown={(event) => {
                   if (
                     event.key !== "Enter" ||

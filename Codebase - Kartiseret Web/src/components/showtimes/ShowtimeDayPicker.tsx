@@ -19,7 +19,7 @@ type DayPickerEntry = {
 type PointerDragState = {
   pointerId: number;
   startClientX: number;
-  startScrollLeft: number;
+  startVirtualScrollLeft: number;
   lastClientX: number;
   lastTime: number;
   velocity: number;
@@ -27,9 +27,13 @@ type PointerDragState = {
 };
 
 const SCROLL_SETTLE_DELAY_MS = 140;
+const EDGE_RELEASE_DURATION_MS = 150;
+const EDGE_RELEASE_INPUT_IDLE_MS = 32;
+const LEFT_EDGE_PULL_RATIO = 20;
 const POINTER_DRAG_THRESHOLD_PX = 5;
 const POINTER_INERTIA_MIN_VELOCITY = 0.04;
 const POINTER_INERTIA_FRICTION = 0.006;
+const POINTER_VELOCITY_STALE_AFTER_MS = 80;
 const LEADING_DISABLED_DAY_COUNT = 5;
 
 const weekdayFormatter = new Intl.DateTimeFormat(undefined, {
@@ -137,6 +141,14 @@ function getPreferredScrollBehavior(): ScrollBehavior {
   return "smooth";
 }
 
+function getEdgeOffsetForPull(pullDistance: number): number {
+  return Math.max(0, pullDistance) / LEFT_EDGE_PULL_RATIO;
+}
+
+function getPullForEdgeOffset(edgeOffset: number): number {
+  return Math.max(0, edgeOffset) * LEFT_EDGE_PULL_RATIO;
+}
+
 export function ShowtimeDayPicker({
   dates,
   selectedDate,
@@ -165,13 +177,17 @@ export function ShowtimeDayPicker({
     selectedEntryDate,
   );
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const railRef = useRef<HTMLDivElement | null>(null);
   const buttonRefs = useRef(new Map<string, HTMLButtonElement>());
   const previewDateRef = useRef(previewDate);
   const scrollFrameRef = useRef<number | null>(null);
   const settleTimeoutRef = useRef<number | null>(null);
   const pointerDragRef = useRef<PointerDragState | null>(null);
   const inertiaFrameRef = useRef<number | null>(null);
-  const pendingAnimatedCenterDateRef = useRef<string | null>(null);
+  const edgeReleaseFrameRef = useRef<number | null>(null);
+  const edgeReleaseTimeoutRef = useRef<number | null>(null);
+  const edgeOffsetRef = useRef(0);
+  const edgePullDistanceRef = useRef(0);
   const suppressClickRef = useRef(false);
   const isInteractingRef = useRef(false);
   const [edgePadding, setEdgePadding] = useState(0);
@@ -243,24 +259,6 @@ export function ShowtimeDayPicker({
 
     return { min: minimumScrollLeft, max: maxScrollLeft };
   }, [getMinimumSelectableScrollLeft]);
-
-  const clampToSelectableRange = useCallback((): boolean => {
-    const viewport = viewportRef.current;
-
-    if (!viewport) {
-      return false;
-    }
-
-    const { min, max } = getSelectableScrollBounds();
-    const boundedScrollLeft = Math.max(min, Math.min(viewport.scrollLeft, max));
-
-    if (Math.abs(viewport.scrollLeft - boundedScrollLeft) < 1) {
-      return false;
-    }
-
-    viewport.scrollLeft = boundedScrollLeft;
-    return true;
-  }, [getSelectableScrollBounds]);
 
   const centerDate = useCallback(
     (date: string, behavior: ScrollBehavior): boolean => {
@@ -336,15 +334,68 @@ export function ShowtimeDayPicker({
     });
   }, [getNearestEnabledEntry, setPreviewDateIfChanged]);
 
-  const settleOnNearestDate = useCallback(() => {
-    if (pointerDragRef.current?.didDrag) {
+  const renderEdgeOffset = useCallback((edgeOffset: number) => {
+    const rail = railRef.current;
+    const viewport = viewportRef.current;
+    const boundedOffset = Math.max(0, edgeOffset);
+
+    edgeOffsetRef.current = boundedOffset;
+    edgePullDistanceRef.current = getPullForEdgeOffset(boundedOffset);
+
+    if (!rail) {
       return;
     }
 
-    if (settleTimeoutRef.current !== null) {
-      window.clearTimeout(settleTimeoutRef.current);
-      settleTimeoutRef.current = null;
+    if (boundedOffset > 0.01) {
+      viewport?.classList.add("showtime-day-picker-scroll--rubber-banding");
+      rail.classList.add("showtime-day-picker--rubber-banding");
+      rail.style.transform = `translate3d(${boundedOffset}px, 0, 0)`;
+      return;
     }
+
+    rail.style.transform = "";
+    rail.classList.remove("showtime-day-picker--rubber-banding");
+    viewport?.classList.remove("showtime-day-picker-scroll--rubber-banding");
+  }, []);
+
+  const setEdgePullDistance = useCallback(
+    (pullDistance: number) => {
+      const boundedPullDistance = Math.max(0, pullDistance);
+
+      edgePullDistanceRef.current = boundedPullDistance;
+      renderEdgeOffset(getEdgeOffsetForPull(boundedPullDistance));
+      edgePullDistanceRef.current = boundedPullDistance;
+    },
+    [renderEdgeOffset],
+  );
+
+  const cancelEdgeRelease = useCallback(() => {
+    if (edgeReleaseTimeoutRef.current !== null) {
+      window.clearTimeout(edgeReleaseTimeoutRef.current);
+      edgeReleaseTimeoutRef.current = null;
+    }
+
+    if (edgeReleaseFrameRef.current !== null) {
+      window.cancelAnimationFrame(edgeReleaseFrameRef.current);
+      edgeReleaseFrameRef.current = null;
+    }
+  }, []);
+
+  const clearScheduledSettle = useCallback(() => {
+    if (settleTimeoutRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(settleTimeoutRef.current);
+    settleTimeoutRef.current = null;
+  }, []);
+
+  const settleOnNearestDate = useCallback(() => {
+    if (pointerDragRef.current?.didDrag || inertiaFrameRef.current !== null) {
+      return;
+    }
+
+    clearScheduledSettle();
 
     const nearestEntry = getNearestEnabledEntry();
 
@@ -367,22 +418,73 @@ export function ShowtimeDayPicker({
     }
   }, [
     centerDate,
+    clearScheduledSettle,
     getNearestEnabledEntry,
     onSelect,
     selectedEntryDate,
     setPreviewDateIfChanged,
   ]);
 
-  const scheduleSettle = useCallback(() => {
-    if (settleTimeoutRef.current !== null) {
-      window.clearTimeout(settleTimeoutRef.current);
+  const scheduleSettle = useCallback(
+    (delayMs = SCROLL_SETTLE_DELAY_MS) => {
+      clearScheduledSettle();
+
+      settleTimeoutRef.current = window.setTimeout(() => {
+        settleTimeoutRef.current = null;
+        settleOnNearestDate();
+      }, delayMs);
+    },
+    [clearScheduledSettle, settleOnNearestDate],
+  );
+
+  const scheduleSettleForCurrentPosition = useCallback(() => {
+    scheduleSettle();
+  }, [scheduleSettle]);
+
+  const startEdgeRelease = useCallback(() => {
+    cancelEdgeRelease();
+
+    const shouldReduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const initialPosition = edgeOffsetRef.current;
+
+    if (initialPosition <= 0.05 || shouldReduceMotion) {
+      renderEdgeOffset(0);
+      return;
     }
 
-    settleTimeoutRef.current = window.setTimeout(() => {
-      settleTimeoutRef.current = null;
-      settleOnNearestDate();
-    }, SCROLL_SETTLE_DELAY_MS);
-  }, [settleOnNearestDate]);
+    const startedAt = window.performance.now();
+
+    const animate = (time: number) => {
+      const progress = Math.min(
+        1,
+        (time - startedAt) / EDGE_RELEASE_DURATION_MS,
+      );
+      const remaining = (1 - progress) ** 3;
+
+      renderEdgeOffset(initialPosition * remaining);
+
+      if (progress >= 1) {
+        edgeReleaseFrameRef.current = null;
+        renderEdgeOffset(0);
+        return;
+      }
+
+      edgeReleaseFrameRef.current = window.requestAnimationFrame(animate);
+    };
+
+    edgeReleaseFrameRef.current = window.requestAnimationFrame(animate);
+  }, [cancelEdgeRelease, renderEdgeOffset]);
+
+  const scheduleEdgeRelease = useCallback(() => {
+    cancelEdgeRelease();
+
+    edgeReleaseTimeoutRef.current = window.setTimeout(() => {
+      edgeReleaseTimeoutRef.current = null;
+      startEdgeRelease();
+    }, EDGE_RELEASE_INPUT_IDLE_MS);
+  }, [cancelEdgeRelease, startEdgeRelease]);
 
   const stopPointerInertia = useCallback(() => {
     if (inertiaFrameRef.current !== null) {
@@ -397,12 +499,24 @@ export function ShowtimeDayPicker({
 
       const viewport = viewportRef.current;
 
+      if (!viewport) {
+        setIsPointerDragging(false);
+        return;
+      }
+
       if (
-        !viewport ||
+        edgeOffsetRef.current > 0.05 ||
         Math.abs(initialVelocity) < POINTER_INERTIA_MIN_VELOCITY
       ) {
         setIsPointerDragging(false);
-        scheduleSettle();
+
+        if (edgeOffsetRef.current > 0.05) {
+          startEdgeRelease();
+          scheduleSettleForCurrentPosition();
+        } else {
+          scheduleSettleForCurrentPosition();
+        }
+
         return;
       }
 
@@ -421,13 +535,22 @@ export function ShowtimeDayPicker({
         const elapsed = Math.min(34, Math.max(1, time - previousTime));
         previousTime = time;
         const { min, max } = getSelectableScrollBounds();
-        const nextScrollLeft = Math.max(
-          min,
-          Math.min(max, currentViewport.scrollLeft + velocity * elapsed),
-        );
-        const hitBoundary =
-          (nextScrollLeft <= min && velocity < 0) ||
-          (nextScrollLeft >= max && velocity > 0);
+        const requestedScrollLeft =
+          currentViewport.scrollLeft + velocity * elapsed;
+
+        if (requestedScrollLeft < min && velocity < 0) {
+          currentViewport.scrollLeft = min;
+          setEdgePullDistance(min - requestedScrollLeft);
+          updatePreviewDate();
+          inertiaFrameRef.current = null;
+          setIsPointerDragging(false);
+          startEdgeRelease();
+          scheduleSettleForCurrentPosition();
+          return;
+        }
+
+        const nextScrollLeft = Math.min(max, requestedScrollLeft);
+        const hitBoundary = nextScrollLeft >= max && velocity > 0;
 
         currentViewport.scrollLeft = nextScrollLeft;
         updatePreviewDate();
@@ -438,7 +561,7 @@ export function ShowtimeDayPicker({
         if (Math.abs(velocity) < POINTER_INERTIA_MIN_VELOCITY || hitBoundary) {
           inertiaFrameRef.current = null;
           setIsPointerDragging(false);
-          scheduleSettle();
+          scheduleSettleForCurrentPosition();
           return;
         }
 
@@ -449,40 +572,49 @@ export function ShowtimeDayPicker({
     },
     [
       getSelectableScrollBounds,
-      scheduleSettle,
+      scheduleSettleForCurrentPosition,
+      setEdgePullDistance,
+      startEdgeRelease,
       stopPointerInertia,
       updatePreviewDate,
     ],
   );
 
   const requestDate = useCallback(
-    (date: string, selectImmediately = false) => {
+    (date: string) => {
       const entry = entries.find((candidate) => candidate.date === date);
 
       if (!entry || entry.isDisabled) {
         return;
       }
 
+      stopPointerInertia();
+      cancelEdgeRelease();
+      clearScheduledSettle();
+      renderEdgeOffset(0);
+      setIsPointerDragging(false);
       setPreviewDateIfChanged(entry.date);
       isInteractingRef.current = true;
-
-      const shouldSelectImmediately =
-        selectImmediately && entry.date !== selectedEntryDate;
-
-      if (shouldSelectImmediately) {
-        pendingAnimatedCenterDateRef.current = entry.date;
-        onSelect(entry.date);
-      }
 
       if (!centerDate(entry.date, getPreferredScrollBehavior())) {
         isInteractingRef.current = false;
 
-        if (!shouldSelectImmediately && entry.date !== selectedEntryDate) {
+        if (entry.date !== selectedEntryDate) {
           onSelect(entry.date);
         }
       }
     },
-    [centerDate, entries, onSelect, selectedEntryDate, setPreviewDateIfChanged],
+    [
+      cancelEdgeRelease,
+      centerDate,
+      clearScheduledSettle,
+      entries,
+      onSelect,
+      renderEdgeOffset,
+      selectedEntryDate,
+      setPreviewDateIfChanged,
+      stopPointerInertia,
+    ],
   );
 
   useLayoutEffect(() => {
@@ -494,20 +626,11 @@ export function ShowtimeDayPicker({
     }
 
     const frameId = window.requestAnimationFrame(() => {
-      const shouldPreserveAnimatedCenter =
-        pendingAnimatedCenterDateRef.current === selectedEntryDate;
-
-      if (shouldPreserveAnimatedCenter) {
-        pendingAnimatedCenterDateRef.current = null;
-      }
-
       if (!isInteractingRef.current) {
         setPreviewDateIfChanged(selectedEntryDate);
       }
 
-      if (!shouldPreserveAnimatedCenter) {
-        centerDate(selectedEntryDate, "auto");
-      }
+      centerDate(selectedEntryDate, "auto");
     });
 
     return () => {
@@ -530,7 +653,7 @@ export function ShowtimeDayPicker({
     }
 
     const handleScrollEnd = () => {
-      if (pointerDragRef.current?.didDrag) {
+      if (pointerDragRef.current?.didDrag || inertiaFrameRef.current !== null) {
         return;
       }
 
@@ -543,6 +666,68 @@ export function ShowtimeDayPicker({
       viewport.removeEventListener("scrollend", handleScrollEnd);
     };
   }, [settleOnNearestDate]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+
+    if (!viewport) {
+      return;
+    }
+
+    const handleWheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaX) < 0.5) {
+        return;
+      }
+
+      const { min, max } = getSelectableScrollBounds();
+      const currentEdgePull = edgePullDistanceRef.current;
+
+      if (event.deltaX > 0 && currentEdgePull > 0.5) {
+        event.preventDefault();
+        cancelEdgeRelease();
+
+        const remainingDelta = event.deltaX - currentEdgePull;
+
+        if (remainingDelta < 0) {
+          setEdgePullDistance(-remainingDelta);
+          scheduleEdgeRelease();
+          return;
+        }
+
+        renderEdgeOffset(0);
+
+        if (remainingDelta > 0.5) {
+          viewport.scrollLeft = Math.min(max, min + remainingDelta);
+        }
+
+        return;
+      }
+
+      const isPushingPastStart =
+        viewport.scrollLeft <= min + 0.5 && event.deltaX < 0;
+
+      if (!isPushingPastStart) {
+        return;
+      }
+
+      event.preventDefault();
+      cancelEdgeRelease();
+      setEdgePullDistance(edgePullDistanceRef.current + Math.abs(event.deltaX));
+      scheduleEdgeRelease();
+    };
+
+    viewport.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => {
+      viewport.removeEventListener("wheel", handleWheel);
+    };
+  }, [
+    cancelEdgeRelease,
+    getSelectableScrollBounds,
+    renderEdgeOffset,
+    scheduleEdgeRelease,
+    setEdgePullDistance,
+  ]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -570,6 +755,28 @@ export function ShowtimeDayPicker({
 
       if (settleTimeoutRef.current !== null) {
         window.clearTimeout(settleTimeoutRef.current);
+      }
+
+      if (inertiaFrameRef.current !== null) {
+        window.cancelAnimationFrame(inertiaFrameRef.current);
+      }
+
+      if (edgeReleaseFrameRef.current !== null) {
+        window.cancelAnimationFrame(edgeReleaseFrameRef.current);
+      }
+
+      if (edgeReleaseTimeoutRef.current !== null) {
+        window.clearTimeout(edgeReleaseTimeoutRef.current);
+      }
+
+      viewportRef.current?.classList.remove(
+        "showtime-day-picker-scroll--direct-manipulation",
+        "showtime-day-picker-scroll--rubber-banding",
+      );
+
+      if (railRef.current) {
+        railRef.current.style.transform = "";
+        railRef.current.classList.remove("showtime-day-picker--rubber-banding");
       }
     },
     [],
@@ -645,23 +852,19 @@ export function ShowtimeDayPicker({
     }
 
     stopPointerInertia();
+    cancelEdgeRelease();
+    clearScheduledSettle();
     suppressClickRef.current = false;
-
-    if (settleTimeoutRef.current !== null) {
-      window.clearTimeout(settleTimeoutRef.current);
-      settleTimeoutRef.current = null;
-    }
 
     pointerDragRef.current = {
       pointerId: event.pointerId,
       startClientX: event.clientX,
-      startScrollLeft: viewport.scrollLeft,
+      startVirtualScrollLeft: viewport.scrollLeft - edgePullDistanceRef.current,
       lastClientX: event.clientX,
       lastTime: window.performance.now(),
       velocity: 0,
       didDrag: false,
     };
-    viewport.setPointerCapture(event.pointerId);
   };
 
   const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
@@ -680,10 +883,8 @@ export function ShowtimeDayPicker({
       dragState.didDrag = true;
       suppressClickRef.current = true;
       viewport.setPointerCapture(event.pointerId);
-      if (settleTimeoutRef.current !== null) {
-        window.clearTimeout(settleTimeoutRef.current);
-        settleTimeoutRef.current = null;
-      }
+      viewport.classList.add("showtime-day-picker-scroll--direct-manipulation");
+      clearScheduledSettle();
       setIsPointerDragging(true);
     }
 
@@ -698,10 +899,16 @@ export function ShowtimeDayPicker({
     dragState.lastTime = currentTime;
 
     const { min, max } = getSelectableScrollBounds();
-    viewport.scrollLeft = Math.max(
-      min,
-      Math.min(max, dragState.startScrollLeft - distance),
-    );
+    const targetVirtualScrollLeft = dragState.startVirtualScrollLeft - distance;
+
+    if (targetVirtualScrollLeft < min) {
+      viewport.scrollLeft = min;
+      setEdgePullDistance(min - targetVirtualScrollLeft);
+      return;
+    }
+
+    setEdgePullDistance(0);
+    viewport.scrollLeft = Math.min(max, targetVirtualScrollLeft);
   };
 
   const finishPointerDrag = (event: PointerEvent<HTMLDivElement>) => {
@@ -718,12 +925,26 @@ export function ShowtimeDayPicker({
       viewport.releasePointerCapture(event.pointerId);
     }
 
+    viewport?.classList.remove(
+      "showtime-day-picker-scroll--direct-manipulation",
+    );
+
     if (!dragState.didDrag) {
+      if (edgeOffsetRef.current > 0.05) {
+        startEdgeRelease();
+      }
+
       return;
     }
 
     updatePreviewDate();
-    runPointerInertia(dragState.velocity);
+    const releaseVelocity =
+      window.performance.now() - dragState.lastTime >
+      POINTER_VELOCITY_STALE_AFTER_MS
+        ? 0
+        : dragState.velocity;
+
+    runPointerInertia(releaseVelocity);
     window.setTimeout(() => {
       suppressClickRef.current = false;
     }, 0);
@@ -754,16 +975,46 @@ export function ShowtimeDayPicker({
         onPointerUp={finishPointerDrag}
         onPointerCancel={finishPointerDrag}
         onScroll={() => {
+          const viewport = viewportRef.current;
+
+          if (!viewport) {
+            return;
+          }
+
           isInteractingRef.current = true;
-          clampToSelectableRange();
+          const { min } = getSelectableScrollBounds();
+
+          if (viewport.scrollLeft < min - 0.5) {
+            const overshoot = min - viewport.scrollLeft;
+
+            viewport.scrollLeft = min;
+            clearScheduledSettle();
+            setEdgePullDistance(edgePullDistanceRef.current + overshoot);
+            updatePreviewDate();
+
+            if (
+              !pointerDragRef.current?.didDrag &&
+              inertiaFrameRef.current === null
+            ) {
+              scheduleEdgeRelease();
+              scheduleSettleForCurrentPosition();
+            }
+
+            return;
+          }
+
           updatePreviewDate();
 
-          if (!pointerDragRef.current?.didDrag) {
-            scheduleSettle();
+          if (
+            !pointerDragRef.current?.didDrag &&
+            inertiaFrameRef.current === null
+          ) {
+            scheduleSettleForCurrentPosition();
           }
         }}
       >
         <div
+          ref={railRef}
           className="showtime-day-picker"
           role="radiogroup"
           aria-label={ariaLabel}
@@ -806,7 +1057,7 @@ export function ShowtimeDayPicker({
                     return;
                   }
 
-                  requestDate(entry.date, true);
+                  requestDate(entry.date);
                 }}
                 onKeyDown={(event) => {
                   handleKeyDown(event, index);
