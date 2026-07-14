@@ -1,0 +1,60 @@
+==== cron run start: 2026-07-14T18:00:00+0300 ====
+From github.com:jeremyjacob101/Kartiseret
+ * branch            main       -> FETCH_HEAD
+   88b5de0..f358a5b  main       -> origin/main
+Already on 'main'
+M	backend/config/cron/cron_weekly.log
+Your branch is behind 'origin/main' by 8 commits, and can be fast-forwarded.
+  (use "git pull" to update your local branch)
+HEAD is now at f358a5b [+] yp/rh coming soons also have showtimes
+
+--------------------
+
+CCsoon: 00m28s
+LCsoon: 01m50s
+YPsoon: 02m17s
+MLsoon: 02m40s
+HCsoon: 04m47s
+
+--------------------
+
+
+--------------------
+
+LevCinema: 06m59s
+RavHen: 14m57s
+MovieLand: 15m59s
+HotCinema: 23m26s
+YesPlanet: 30m04s
+CinemaCity: 56m25s
+
+--------------------
+
+Deleted 0 old allSoons rows on or before 2026-06-13.
+Deleted 0 old finalSoons rows on or before 2026-07-14.
+Found 0 duplicate rows out of 176 allSoons rows.
+Deleted 0 duplicate rows from allSoons.
+
+--------------------
+
+ComingSoonsClean: 00m06s
+ComingSoonsTmdb: 00m40s
+ComingSoonsUpdate: 00m07s
+
+--------------------
+
+Deleted 0 old allShowtimes rows on or before 2026-07-09.
+Deleted 0 old finalShowtimes rows on or before 2026-07-13.
+Deleted 0 orphan finalMovies rows.
+Found 8720 exact duplicate rows out of 40519 allShowtimes rows.
+Deleted 8720 exact duplicate rows from allShowtimes.
+
+--------------------
+
+NowPlayingsClean: 00m45s
+NowPlayingsTmdb: 06m42s
+NowPlayingsUpdate: 03m53s
+
+--------------------
+
+==== cron run end: 2026-07-14T19:13:39+0300 ====
