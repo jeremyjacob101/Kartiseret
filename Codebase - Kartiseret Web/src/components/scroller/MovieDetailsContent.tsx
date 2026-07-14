@@ -1284,7 +1284,6 @@ export function MovieDetailsContent({
                 dates={showtimeDays.map((day) => day.date)}
                 selectedDate={effectiveVisibleShowtimeDate}
                 disabledBeforeDate={fixedAppDateString}
-                visibleDayCount={5}
                 onSelect={(date) => {
                   scrollRailToDate(date);
                 }}

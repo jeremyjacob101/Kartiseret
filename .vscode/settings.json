@@ -13,12 +13,18 @@
     "editor.defaultFormatter": "ms-python.black-formatter",
     "editor.formatOnSave": true
   },
-  "black-formatter.args": ["--line-length", "1000"],
+  "black-formatter.args": [
+    "--line-length",
+    "1000"
+  ],
   "black-formatter.importStrategy": "fromEnvironment",
   "terminal.integrated.env.osx": {
     "PYTHONPATH": "${workspaceFolder}"
   },
   "github-actions.workflows.pinned.workflows": [
     ".github/workflows/run-runner.yml"
-  ]
+  ],
+  "[html]": {
+    "editor.defaultFormatter": "vscode.html-language-features"
+  }
 }
