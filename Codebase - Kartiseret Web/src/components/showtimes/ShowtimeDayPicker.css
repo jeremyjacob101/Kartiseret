@@ -75,22 +75,22 @@
   scroll-snap-type: none;
 }
 
-.showtime-day-picker-scroll--direct-manipulation,
-.showtime-day-picker-scroll--rubber-banding {
+.showtime-day-picker-scroll--direct-manipulation {
   scroll-behavior: auto;
   scroll-snap-type: none;
 }
 
 .showtime-day-picker {
+  position: relative;
   display: flex;
   width: max-content;
   min-width: 100%;
   min-height: 100%;
+  overflow: clip;
+  overflow-clip-margin: calc(
+    var(--showtime-day-slot-width) + var(--showtime-day-slot-width)
+  );
   padding-inline: var(--showtime-day-edge-padding, 0px);
-}
-
-.showtime-day-picker--rubber-banding {
-  will-change: transform;
 }
 
 .showtime-day-button {
@@ -136,6 +136,27 @@
   cursor: default;
   opacity: 0.23;
   scroll-snap-align: none;
+}
+
+.showtime-day-button--edge-ghost {
+  position: absolute;
+  top: 0;
+  width: var(--showtime-day-slot-width);
+  pointer-events: none;
+}
+
+.showtime-day-button--edge-ghost-before {
+  left: calc(
+    var(--showtime-day-edge-padding) -
+      var(--showtime-day-ghost-index) * var(--showtime-day-slot-width)
+  );
+}
+
+.showtime-day-button--edge-ghost-after {
+  right: calc(
+    var(--showtime-day-edge-padding) -
+      var(--showtime-day-ghost-index) * var(--showtime-day-slot-width)
+  );
 }
 
 .showtime-day-button-tick {
@@ -184,13 +205,13 @@
 
 .showtime-day-button-eyebrow {
   grid-row: 1;
-  transform: translateY(1px);
+  transform: translateY(-2px);
 }
 
 .showtime-day-button-month {
   grid-row: 3;
   color: rgba(223, 210, 241, 0.62);
-  transform: translateY(-1px);
+  transform: translateY(-4px);
 }
 
 .showtime-day-button-number {
@@ -212,12 +233,12 @@
 
 .showtime-day-button--preview .showtime-day-button-eyebrow {
   color: color-mix(in srgb, var(--main-app-color) 68%, #fff);
-  transform: translateY(-1px);
+  transform: translateY(-3px);
 }
 
 .showtime-day-button--preview .showtime-day-button-month {
   color: color-mix(in srgb, var(--main-app-color) 54%, #fff);
-  transform: translateY(1px);
+  transform: translateY(-4px);
 }
 
 .showtime-day-button--preview .showtime-day-button-number {
