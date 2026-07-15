@@ -8,6 +8,7 @@ const SHOWTIME_GRACE_PERIOD_MINUTES = 15;
 export const INITIAL_SHOWTIME_WINDOW_DAY_COUNT = 1;
 export const SHOWTIME_WINDOW_DAY_COUNT = 180;
 export const SHOWTIME_PREFETCH_CHUNK_DAY_COUNT = 15;
+export const SHOWTIME_PREFETCH_TRIGGER_DAY_COUNT = 10;
 
 const MOVIES_TABLE_NAME = "finalMovies";
 const COMING_SOON_TABLE_NAME = "finalSoons";
@@ -895,6 +896,37 @@ function clampShowtimeWindowDayCount(dayCount: number): number {
   return Math.max(
     INITIAL_SHOWTIME_WINDOW_DAY_COUNT,
     Math.min(SHOWTIME_WINDOW_DAY_COUNT, normalizedDayCount),
+  );
+}
+
+export function getNextShowtimePrefetchDayCount(
+  loadedDayCount: number,
+  previewDayIndex: number,
+): number | null {
+  const normalizedLoadedDayCount = clampShowtimeWindowDayCount(loadedDayCount);
+  const normalizedPreviewDayIndex = Math.floor(previewDayIndex);
+
+  if (
+    normalizedLoadedDayCount < SHOWTIME_PREFETCH_CHUNK_DAY_COUNT ||
+    normalizedLoadedDayCount >= SHOWTIME_WINDOW_DAY_COUNT ||
+    !Number.isFinite(normalizedPreviewDayIndex) ||
+    normalizedPreviewDayIndex < 0
+  ) {
+    return null;
+  }
+
+  const currentChunkStartIndex =
+    normalizedLoadedDayCount - SHOWTIME_PREFETCH_CHUNK_DAY_COUNT;
+  const prefetchTriggerIndex =
+    currentChunkStartIndex + SHOWTIME_PREFETCH_TRIGGER_DAY_COUNT - 1;
+
+  if (normalizedPreviewDayIndex < prefetchTriggerIndex) {
+    return null;
+  }
+
+  return Math.min(
+    normalizedLoadedDayCount + SHOWTIME_PREFETCH_CHUNK_DAY_COUNT,
+    SHOWTIME_WINDOW_DAY_COUNT,
   );
 }
 

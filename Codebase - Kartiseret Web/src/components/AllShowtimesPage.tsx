@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { allNowPlayingMovies, fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeDays, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, subscribeToMovieCatalog, type Movie, type TheaterShowtimes } from "../data/movieCatalog";
+import { allNowPlayingMovies, fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, subscribeToMovieCatalog, type Movie, type TheaterShowtimes } from "../data/movieCatalog";
 import { loadCities, type City } from "../data/theaters";
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { TheaterMapDialog } from "./maps/TheaterMapDialog";
@@ -124,6 +124,7 @@ export function AllShowtimesPage() {
     null,
   );
   const previousShowtimeLocationRef = useRef(location);
+  const requestedShowtimePrefetchRef = useRef<string | null>(null);
   const dayPanels = useMemo<ShowtimesDayPanel[]>(() => {
     if (allNowPlayingMovies.length === 0) {
       return [];
@@ -325,6 +326,34 @@ export function AllShowtimesPage() {
     [setLocationPreference],
   );
 
+  const handleShowtimePreviewDateChange = useCallback(
+    (date: string) => {
+      const previewDayIndex = dayPanels.findIndex((day) => day.date === date);
+      const nextDayCount = getNextShowtimePrefetchDayCount(
+        dayPanels.length,
+        previewDayIndex,
+      );
+
+      if (nextDayCount === null) {
+        return;
+      }
+
+      const requestKey = `${location}:${nextDayCount}`;
+
+      if (requestedShowtimePrefetchRef.current === requestKey) {
+        return;
+      }
+
+      requestedShowtimePrefetchRef.current = requestKey;
+      void loadAdditionalShowtimeDays(location, nextDayCount).catch(() => {
+        if (requestedShowtimePrefetchRef.current === requestKey) {
+          requestedShowtimePrefetchRef.current = null;
+        }
+      });
+    },
+    [dayPanels, location],
+  );
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, []);
@@ -379,7 +408,7 @@ export function AllShowtimesPage() {
       ) => number;
     };
     const nextDayCount = Math.min(
-      INITIAL_SHOWTIME_WINDOW_DAY_COUNT + SHOWTIME_PREFETCH_CHUNK_DAY_COUNT,
+      SHOWTIME_PREFETCH_CHUNK_DAY_COUNT,
       SHOWTIME_WINDOW_DAY_COUNT,
     );
     const requestMoreDays = () => {
@@ -413,27 +442,6 @@ export function AllShowtimesPage() {
     };
   }, [dayPanels.length, location]);
 
-  useEffect(() => {
-    const selectedDayIndex = dayPanels.findIndex(
-      (day) => day.date === resolvedShowtimeDate,
-    );
-
-    if (
-      selectedDayIndex < 0 ||
-      dayPanels.length >= SHOWTIME_WINDOW_DAY_COUNT ||
-      selectedDayIndex < dayPanels.length - 3
-    ) {
-      return;
-    }
-
-    const nextDayCount = Math.min(
-      dayPanels.length + SHOWTIME_PREFETCH_CHUNK_DAY_COUNT,
-      SHOWTIME_WINDOW_DAY_COUNT,
-    );
-
-    void loadAdditionalShowtimeDays(location, nextDayCount).catch(() => {});
-  }, [dayPanels, location, resolvedShowtimeDate]);
-
   return (
     <section className="all-showtimes-page" aria-label="All Showtimes">
       <div
@@ -450,6 +458,7 @@ export function AllShowtimesPage() {
           dates={dayPanels.map((day) => day.date)}
           selectedDate={resolvedShowtimeDate}
           disabledBeforeDate={fixedAppDateString}
+          onPreviewDateChange={handleShowtimePreviewDateChange}
           onSelect={(date) => {
             setSelectedShowtimeDate(date);
           }}

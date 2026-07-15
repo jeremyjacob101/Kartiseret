@@ -6,6 +6,7 @@ type ShowtimeDayPickerProps = {
   dates: readonly string[];
   selectedDate: string | null;
   onSelect: (date: string) => void;
+  onPreviewDateChange?: (date: string) => void;
   ariaLabel: string;
   className?: string;
   disabledBeforeDate?: string | null;
@@ -27,11 +28,12 @@ type PointerDragState = {
 };
 
 const SCROLL_SETTLE_DELAY_MS = 140;
+const TOUCH_SCROLL_SETTLE_DELAY_MS = 240;
 const POINTER_DRAG_THRESHOLD_PX = 5;
 const POINTER_INERTIA_MIN_VELOCITY = 0.04;
 const POINTER_INERTIA_FRICTION = 0.006;
 const POINTER_VELOCITY_STALE_AFTER_MS = 80;
-const EDGE_GHOST_DAY_COUNT = 5;
+const LEADING_GHOST_DAY_COUNT = 5;
 
 const weekdayFormatter = new Intl.DateTimeFormat(undefined, {
   weekday: "short",
@@ -107,18 +109,10 @@ function getDayAriaLabel(dateString: string): string {
     : `${relativeLabel}, ${calendarLabel}`;
 }
 
-function EdgeGhostDay({
-  date,
-  index,
-  side,
-}: {
-  date: string;
-  index: number;
-  side: "before" | "after";
-}) {
+function EdgeGhostDay({ date, index }: { date: string; index: number }) {
   return (
     <div
-      className={`showtime-day-button showtime-day-button--disabled showtime-day-button--edge-ghost showtime-day-button--edge-ghost-${side} showtime-day-button--edge-ghost-${index}`}
+      className={`showtime-day-button showtime-day-button--disabled showtime-day-button--edge-ghost showtime-day-button--edge-ghost-before showtime-day-button--edge-ghost-${index}`}
       style={{ "--showtime-day-ghost-index": index } as CSSProperties}
       aria-hidden="true"
     >
@@ -144,6 +138,7 @@ export function ShowtimeDayPicker({
   dates,
   selectedDate,
   onSelect,
+  onPreviewDateChange,
   ariaLabel,
   className,
   disabledBeforeDate = null,
@@ -164,34 +159,45 @@ export function ShowtimeDayPicker({
     [entries, firstEnabledEntry, selectedDate],
   );
   const selectedEntryDate = selectedEntry?.date ?? null;
+  const firstEntryDate = entries[0]?.date ?? null;
+  const firstEnabledEntryDate = firstEnabledEntry?.date ?? null;
   const [previewDate, setPreviewDate] = useState<string | null>(
     selectedEntryDate,
   );
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const buttonRefs = useRef(new Map<string, HTMLButtonElement>());
   const previewDateRef = useRef(previewDate);
+  const requestedDateRef = useRef<string | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
   const settleTimeoutRef = useRef<number | null>(null);
   const pointerDragRef = useRef<PointerDragState | null>(null);
   const inertiaFrameRef = useRef<number | null>(null);
   const suppressClickRef = useRef(false);
   const isInteractingRef = useRef(false);
+  const isTouchingRef = useRef(false);
   const [edgePadding, setEdgePadding] = useState(0);
   const [isPointerDragging, setIsPointerDragging] = useState(false);
 
-  const setPreviewDateIfChanged = useCallback((date: string | null) => {
-    if (previewDateRef.current === date) {
-      return;
-    }
+  const setPreviewDateIfChanged = useCallback(
+    (date: string | null) => {
+      if (previewDateRef.current === date) {
+        return;
+      }
 
-    previewDateRef.current = date;
-    setPreviewDate(date);
-  }, []);
+      previewDateRef.current = date;
+      setPreviewDate(date);
+
+      if (date) {
+        onPreviewDateChange?.(date);
+      }
+    },
+    [onPreviewDateChange],
+  );
 
   const updateEdgePadding = useCallback(() => {
     const viewport = viewportRef.current;
-    const firstButton = entries[0]
-      ? buttonRefs.current.get(entries[0].date)
+    const firstButton = firstEntryDate
+      ? buttonRefs.current.get(firstEntryDate)
       : null;
 
     if (!viewport || !firstButton) {
@@ -207,12 +213,12 @@ export function ShowtimeDayPicker({
       Math.abs(currentEdgePadding - nextEdgePadding) < 1
         ? currentEdgePadding
         : nextEdgePadding);
-  }, [entries]);
+  }, [firstEntryDate]);
 
   const getMinimumSelectableScrollLeft = useCallback((): number => {
     const viewport = viewportRef.current;
-    const firstEnabledButton = firstEnabledEntry
-      ? buttonRefs.current.get(firstEnabledEntry.date)
+    const firstEnabledButton = firstEnabledEntryDate
+      ? buttonRefs.current.get(firstEnabledEntryDate)
       : null;
 
     if (!viewport || !firstEnabledButton) {
@@ -225,7 +231,7 @@ export function ShowtimeDayPicker({
         firstEnabledButton.offsetWidth / 2 -
         viewport.clientWidth / 2,
     );
-  }, [firstEnabledEntry]);
+  }, [firstEnabledEntryDate]);
 
   const getSelectableScrollBounds = useCallback(() => {
     const viewport = viewportRef.current;
@@ -313,6 +319,12 @@ export function ShowtimeDayPicker({
     }
 
     scrollFrameRef.current = window.requestAnimationFrame(() => {
+      if (requestedDateRef.current) {
+        setPreviewDateIfChanged(requestedDateRef.current);
+        scrollFrameRef.current = null;
+        return;
+      }
+
       const nearestEntry = getNearestEnabledEntry();
 
       setPreviewDateIfChanged(nearestEntry?.date ?? null);
@@ -330,15 +342,26 @@ export function ShowtimeDayPicker({
   }, []);
 
   const settleOnNearestDate = useCallback(() => {
-    if (pointerDragRef.current?.didDrag || inertiaFrameRef.current !== null) {
+    if (
+      isTouchingRef.current ||
+      pointerDragRef.current?.didDrag ||
+      inertiaFrameRef.current !== null
+    ) {
       return;
     }
 
     clearScheduledSettle();
 
-    const nearestEntry = getNearestEnabledEntry();
+    const requestedDate = requestedDateRef.current;
+    const requestedEntry = requestedDate
+      ? (entries.find(
+          (entry) => entry.date === requestedDate && !entry.isDisabled,
+        ) ?? null)
+      : null;
+    const nearestEntry = requestedEntry ?? getNearestEnabledEntry();
 
     if (!nearestEntry) {
+      requestedDateRef.current = null;
       isInteractingRef.current = false;
       return;
     }
@@ -350,6 +373,7 @@ export function ShowtimeDayPicker({
       return;
     }
 
+    requestedDateRef.current = null;
     isInteractingRef.current = false;
 
     if (nearestEntry.date !== selectedEntryDate) {
@@ -358,6 +382,7 @@ export function ShowtimeDayPicker({
   }, [
     centerDate,
     clearScheduledSettle,
+    entries,
     getNearestEnabledEntry,
     onSelect,
     selectedEntryDate,
@@ -467,10 +492,12 @@ export function ShowtimeDayPicker({
       stopPointerInertia();
       clearScheduledSettle();
       setIsPointerDragging(false);
+      requestedDateRef.current = entry.date;
       setPreviewDateIfChanged(entry.date);
       isInteractingRef.current = true;
 
       if (!centerDate(entry.date, getPreferredScrollBehavior())) {
+        requestedDateRef.current = null;
         isInteractingRef.current = false;
 
         if (entry.date !== selectedEntryDate) {
@@ -498,10 +525,11 @@ export function ShowtimeDayPicker({
     }
 
     const frameId = window.requestAnimationFrame(() => {
-      if (!isInteractingRef.current) {
-        setPreviewDateIfChanged(selectedEntryDate);
+      if (isInteractingRef.current) {
+        return;
       }
 
+      setPreviewDateIfChanged(selectedEntryDate);
       centerDate(selectedEntryDate, "auto");
     });
 
@@ -525,7 +553,11 @@ export function ShowtimeDayPicker({
     }
 
     const handleScrollEnd = () => {
-      if (pointerDragRef.current?.didDrag || inertiaFrameRef.current !== null) {
+      if (
+        isTouchingRef.current ||
+        pointerDragRef.current?.didDrag ||
+        inertiaFrameRef.current !== null
+      ) {
         return;
       }
 
@@ -574,6 +606,8 @@ export function ShowtimeDayPicker({
       viewportRef.current?.classList.remove(
         "showtime-day-picker-scroll--direct-manipulation",
       );
+      requestedDateRef.current = null;
+      isTouchingRef.current = false;
     },
     [],
   );
@@ -600,15 +634,10 @@ export function ShowtimeDayPicker({
     "--showtime-day-edge-padding": `${edgePadding}px`,
   } as CSSProperties;
   const firstDate = entries[0].date;
-  const lastDate = entries[entries.length - 1].date;
-  const leadingGhostDates = Array.from({ length: EDGE_GHOST_DAY_COUNT }, (
+  const leadingGhostDates = Array.from({ length: LEADING_GHOST_DAY_COUNT }, (
     _,
     index,
   ) => addCalendarDays(firstDate, -(index + 1)));
-  const trailingGhostDates = Array.from({ length: EDGE_GHOST_DAY_COUNT }, (
-    _,
-    index,
-  ) => addCalendarDays(lastDate, index + 1));
 
   const handleKeyDown = (
     event: KeyboardEvent<HTMLButtonElement>,
@@ -659,6 +688,7 @@ export function ShowtimeDayPicker({
 
     stopPointerInertia();
     clearScheduledSettle();
+    requestedDateRef.current = null;
     suppressClickRef.current = false;
 
     pointerDragRef.current = {
@@ -744,6 +774,23 @@ export function ShowtimeDayPicker({
     }, 0);
   };
 
+  const beginTouchInteraction = () => {
+    requestedDateRef.current = null;
+    isTouchingRef.current = true;
+    isInteractingRef.current = true;
+    stopPointerInertia();
+    clearScheduledSettle();
+  };
+
+  const finishTouchInteraction = () => {
+    if (!isTouchingRef.current) {
+      return;
+    }
+
+    isTouchingRef.current = false;
+    scheduleSettle(TOUCH_SCROLL_SETTLE_DELAY_MS);
+  };
+
   return (
     <div
       className={[
@@ -765,6 +812,9 @@ export function ShowtimeDayPicker({
         onPointerMove={handlePointerMove}
         onPointerUp={finishPointerDrag}
         onPointerCancel={finishPointerDrag}
+        onTouchStart={beginTouchInteraction}
+        onTouchEnd={finishTouchInteraction}
+        onTouchCancel={finishTouchInteraction}
         onScroll={() => {
           const viewport = viewportRef.current;
 
@@ -774,6 +824,11 @@ export function ShowtimeDayPicker({
 
           isInteractingRef.current = true;
           updatePreviewDate();
+
+          if (isTouchingRef.current) {
+            clearScheduledSettle();
+            return;
+          }
 
           if (
             !pointerDragRef.current?.didDrag &&
@@ -789,12 +844,15 @@ export function ShowtimeDayPicker({
           aria-label={ariaLabel}
           style={pickerStyle}
         >
+          <span
+            className="showtime-day-picker-edge-spacer"
+            aria-hidden="true"
+          />
           {leadingGhostDates.map((date, index) => (
             <EdgeGhostDay
               key={`before-${date}`}
               date={date}
               index={index + 1}
-              side="before"
             />
           ))}
           {entries.map((entry, index) => {
@@ -855,14 +913,10 @@ export function ShowtimeDayPicker({
               </button>
             );
           })}
-          {trailingGhostDates.map((date, index) => (
-            <EdgeGhostDay
-              key={`after-${date}`}
-              date={date}
-              index={index + 1}
-              side="after"
-            />
-          ))}
+          <span
+            className="showtime-day-picker-edge-spacer"
+            aria-hidden="true"
+          />
         </div>
       </div>
     </div>

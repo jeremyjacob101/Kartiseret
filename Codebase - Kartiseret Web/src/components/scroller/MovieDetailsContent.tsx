@@ -4,7 +4,7 @@ import { Clock8, MapPin, MoveRight, Star, X } from "lucide-react";
 import { Link } from "react-router";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { TheaterMapDialog } from "../maps/TheaterMapDialog";
-import { APP_TIME_ZONE, fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeCities, getMovieShowtimeDays, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, subscribeToMovieCatalog, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
+import { APP_TIME_ZONE, fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeCities, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, subscribeToMovieCatalog, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
 import { loadCities, type City } from "../../data/theaters";
 import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
@@ -124,18 +124,6 @@ type NearbyCityChoice = {
   name: string;
   targetDate: string;
 };
-
-function getShowtimeDayIndex(
-  showtimeDays: readonly MovieShowtimeDay[],
-  date: string | null,
-): number {
-  if (!date) {
-    return 0;
-  }
-
-  const matchingIndex = showtimeDays.findIndex((day) => day.date === date);
-  return matchingIndex >= 0 ? matchingIndex : 0;
-}
 
 function formatRuntime(runtime: number): string {
   const hours = Math.floor(runtime / 60);
@@ -626,6 +614,7 @@ export function MovieDetailsContent({
     null,
   );
   const previousShowtimeLocationRef = useRef(location);
+  const requestedShowtimePrefetchRef = useRef<string | null>(null);
   const infoParts = getMovieInfoParts(movie);
   const metaParts =
     movie.genres.length > 0
@@ -675,10 +664,6 @@ export function MovieDetailsContent({
     firstCityShowtimeDate !== null &&
     firstCityShowtimeDate !== fixedAppDateString;
   const effectiveVisibleShowtimeDate = targetShowtimeDate;
-  const effectiveVisibleShowtimeIndex = useMemo(
-    () => getShowtimeDayIndex(showtimeDays, effectiveVisibleShowtimeDate),
-    [effectiveVisibleShowtimeDate, showtimeDays],
-  );
   const selectedShowtimeDay =
     showtimeDays.find((day) => day.date === effectiveVisibleShowtimeDate) ??
     showtimeDays[0] ??
@@ -997,6 +982,40 @@ export function MovieDetailsContent({
     [onPreferredShowtimeDateChange, showtimeDays],
   );
 
+  const handleShowtimePreviewDateChange = useCallback(
+    (date: string) => {
+      if (variant !== "nowPlaying") {
+        return;
+      }
+
+      const previewDayIndex = showtimeDays.findIndex(
+        (day) => day.date === date,
+      );
+      const nextDayCount = getNextShowtimePrefetchDayCount(
+        showtimeDays.length,
+        previewDayIndex,
+      );
+
+      if (nextDayCount === null) {
+        return;
+      }
+
+      const requestKey = `${location}:${nextDayCount}`;
+
+      if (requestedShowtimePrefetchRef.current === requestKey) {
+        return;
+      }
+
+      requestedShowtimePrefetchRef.current = requestKey;
+      void loadAdditionalShowtimeDays(location, nextDayCount).catch(() => {
+        if (requestedShowtimePrefetchRef.current === requestKey) {
+          requestedShowtimePrefetchRef.current = null;
+        }
+      });
+    },
+    [location, showtimeDays, variant],
+  );
+
   const handleShowtimeJumpClick = useCallback(() => {
     if (!showtimeJumpTargetDate) {
       return;
@@ -1098,7 +1117,7 @@ export function MovieDetailsContent({
       ) => number;
     };
     const nextDayCount = Math.min(
-      INITIAL_SHOWTIME_WINDOW_DAY_COUNT + SHOWTIME_PREFETCH_CHUNK_DAY_COUNT,
+      SHOWTIME_PREFETCH_CHUNK_DAY_COUNT,
       SHOWTIME_WINDOW_DAY_COUNT,
     );
     const requestMoreDays = () => {
@@ -1131,25 +1150,6 @@ export function MovieDetailsContent({
       }
     };
   }, [location, showtimeDays.length, showtimesReady, variant]);
-
-  useEffect(() => {
-    if (
-      variant !== "nowPlaying" ||
-      showtimeDays.length === 0 ||
-      showtimeDays.length >= SHOWTIME_WINDOW_DAY_COUNT ||
-      effectiveVisibleShowtimeIndex < 0 ||
-      effectiveVisibleShowtimeIndex < showtimeDays.length - 3
-    ) {
-      return;
-    }
-
-    const nextDayCount = Math.min(
-      showtimeDays.length + SHOWTIME_PREFETCH_CHUNK_DAY_COUNT,
-      SHOWTIME_WINDOW_DAY_COUNT,
-    );
-
-    void loadAdditionalShowtimeDays(location, nextDayCount).catch(() => {});
-  }, [effectiveVisibleShowtimeIndex, location, showtimeDays.length, variant]);
 
   useEffect(() => {
     if (!isTrailerModalOpen) {
@@ -1279,6 +1279,7 @@ export function MovieDetailsContent({
                 dates={showtimeDays.map((day) => day.date)}
                 selectedDate={effectiveVisibleShowtimeDate}
                 disabledBeforeDate={fixedAppDateString}
+                onPreviewDateChange={handleShowtimePreviewDateChange}
                 onSelect={(date) => {
                   scrollRailToDate(date);
                 }}
