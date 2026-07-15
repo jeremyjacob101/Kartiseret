@@ -199,6 +199,7 @@ type ShowtimeCityLoadState = {
   visibleDayCount: number;
 };
 const showtimeLoadStateByCity = new Map<AppLocation, ShowtimeCityLoadState>();
+const targetedMovieShowtimeLoadPromises = new Map<string, Promise<void>>();
 const movieCatalogListeners = new Set<() => void>();
 const EMPTY_SHOWTIME_CITIES: readonly AppLocation[] = Object.freeze([]);
 let movieCatalogStatusSnapshot: MovieCatalogStatusSnapshot = {
@@ -998,6 +999,7 @@ async function fetchShowtimeRowsForDateRange(
   city: AppLocation,
   startDateString: string,
   endDateString: string,
+  tmdbId?: string,
 ): Promise<ShowtimeRow[]> {
   if (startDateString > endDateString) {
     return [];
@@ -1023,6 +1025,10 @@ async function fetchShowtimeRowsForDateRange(
         .gte("date_of_showing", startDateString)
         .lte("date_of_showing", endDateString)
         .range(fromIndex, fromIndex + SUPABASE_PAGE_SIZE - 1);
+
+      if (tmdbId) {
+        query = query.eq("tmdb_id", tmdbId);
+      }
 
       query = query
         .order("tmdb_id", { ascending: true })
@@ -1226,8 +1232,35 @@ function publishShowtimeCityState(
   refreshMovieCatalogStatus();
 }
 
+function publishTargetedMovieShowtimeState(
+  city: AppLocation,
+  movie: Movie,
+  rows: readonly ShowtimeRow[],
+): void {
+  const movieShowtimesById = buildMovieShowtimesForCity(
+    [...rows],
+    [movie],
+    city,
+    getShowtimeWindowEndDateString(INITIAL_SHOWTIME_WINDOW_DAY_COUNT),
+  );
+  const existingMovieShowtimes =
+    movieShowtimesByTmdbId[movie.tmdbId] ?? createEmptyMovieShowtimesByCity();
+
+  movieShowtimesByTmdbId = {
+    ...movieShowtimesByTmdbId,
+    [movie.tmdbId]: {
+      ...existingMovieShowtimes,
+      [city]: movieShowtimesById[movie.tmdbId] ?? [],
+    },
+  };
+  showtimesLoaded = true;
+  showtimesVersion += 1;
+  refreshMovieCatalogStatus();
+}
+
 export async function loadShowtimes(
   city: AppLocation = defaultCity,
+  tmdbId?: string,
 ): Promise<void> {
   const cityState = getShowtimeCityLoadState(city);
 
@@ -1235,7 +1268,73 @@ export async function loadShowtimes(
     await cityState.priorityLoadPromise;
   }
 
+  if (tmdbId) {
+    return ensureMovieShowtimeWindowLoaded(
+      city,
+      tmdbId,
+      INITIAL_SHOWTIME_WINDOW_DAY_COUNT,
+    );
+  }
+
   return ensureShowtimeWindowLoaded(city, INITIAL_SHOWTIME_WINDOW_DAY_COUNT);
+}
+
+async function ensureMovieShowtimeWindowLoaded(
+  city: AppLocation,
+  tmdbId: string,
+  dayCount: number,
+): Promise<void> {
+  const targetDayCount = clampShowtimeWindowDayCount(dayCount);
+  const cityState = getShowtimeCityLoadState(city);
+  const targetDateString = getShowtimeWindowEndDateString(targetDayCount);
+
+  if (
+    cityState.loadedDayCount >= targetDayCount ||
+    cityState.fetchedDateStrings.has(targetDateString)
+  ) {
+    return;
+  }
+
+  if (cityState.loadPromise) {
+    await cityState.loadPromise;
+    return ensureMovieShowtimeWindowLoaded(city, tmdbId, targetDayCount);
+  }
+
+  const loadKey = `${city}:${tmdbId}:${targetDateString}`;
+  const existingLoadPromise = targetedMovieShowtimeLoadPromises.get(loadKey);
+
+  if (existingLoadPromise) {
+    await existingLoadPromise;
+    return;
+  }
+
+  const loadPromise = (async () => {
+    await loadNowPlayingMovies();
+    const movie = allNowPlayingMovies.find(
+      (candidate) => candidate.tmdbId === tmdbId,
+    );
+
+    if (!movie) {
+      return;
+    }
+
+    const showtimeRows = await fetchShowtimeRowsForDateRange(
+      city,
+      fixedAppDateString,
+      targetDateString,
+      tmdbId,
+    );
+
+    cacheShowtimeRows(cityState, showtimeRows);
+    publishTargetedMovieShowtimeState(city, movie, showtimeRows);
+  })().catch((error) => {
+    targetedMovieShowtimeLoadPromises.delete(loadKey);
+    refreshMovieCatalogStatus();
+    throw error instanceof Error ? error : new Error(String(error));
+  });
+
+  targetedMovieShowtimeLoadPromises.set(loadKey, loadPromise);
+  return loadPromise;
 }
 
 async function ensureShowtimeWindowLoaded(

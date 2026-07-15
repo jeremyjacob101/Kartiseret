@@ -716,13 +716,16 @@ function MovieScrollerContent({
       current === nextDate ? current : nextDate);
   }, []);
 
-  const requestNowPlayingShowtimes = useCallback(() => {
-    if (detailVariant !== "nowPlaying") {
-      return;
-    }
+  const requestNowPlayingShowtimes = useCallback(
+    (tmdbId?: string) => {
+      if (detailVariant !== "nowPlaying") {
+        return;
+      }
 
-    void loadShowtimes(selectedCity).catch(() => {});
-  }, [detailVariant, selectedCity]);
+      void loadShowtimes(selectedCity, tmdbId).catch(() => {});
+    },
+    [detailVariant, selectedCity],
+  );
 
   const measureDetailStage = useCallback(() => {
     const stage = detailStageRef.current;
@@ -1045,9 +1048,10 @@ function MovieScrollerContent({
         return;
       }
 
-      requestNowPlayingShowtimes();
-
       const detailItemIndex = recenterCollapsedItemIndex(itemIndex);
+      requestNowPlayingShowtimes(
+        movieItems[mod(detailItemIndex, movieCount)]?.tmdbId,
+      );
 
       clearAllScheduledWork();
       captureCollapsedViewportSnapshot();
@@ -1234,9 +1238,10 @@ function MovieScrollerContent({
 
   const openMovieDetailFromExternalRequest = useCallback(
     (movieIndex: number, behavior: ScrollBehavior = "auto") => {
-      requestNowPlayingShowtimes();
+      const normalizedMovieIndex = mod(movieIndex, movieCount);
+      requestNowPlayingShowtimes(movieItems[normalizedMovieIndex]?.tmdbId);
 
-      const itemIndex = collapsedMiddleStartIndex + mod(movieIndex, movieCount);
+      const itemIndex = collapsedMiddleStartIndex + normalizedMovieIndex;
       const scroller = getCollapsedScrollerElement();
       const viewportFallback =
         typeof window === "undefined"
