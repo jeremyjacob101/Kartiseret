@@ -458,6 +458,12 @@ export function AllShowtimesPage() {
           dates={dayPanels.map((day) => day.date)}
           selectedDate={resolvedShowtimeDate}
           disabledBeforeDate={fixedAppDateString}
+          trailingPlaceholderCount={Math.min(
+            dayPanels.length < SHOWTIME_PREFETCH_CHUNK_DAY_COUNT
+              ? SHOWTIME_PREFETCH_CHUNK_DAY_COUNT - dayPanels.length
+              : SHOWTIME_PREFETCH_CHUNK_DAY_COUNT,
+            SHOWTIME_WINDOW_DAY_COUNT - dayPanels.length,
+          )}
           onPreviewDateChange={handleShowtimePreviewDateChange}
           onSelect={(date) => {
             setSelectedShowtimeDate(date);

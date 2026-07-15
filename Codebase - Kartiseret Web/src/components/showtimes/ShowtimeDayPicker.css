@@ -137,6 +137,12 @@
   scroll-snap-align: none;
 }
 
+.showtime-day-button--placeholder {
+  cursor: default;
+  pointer-events: none;
+  scroll-snap-align: none;
+}
+
 .showtime-day-button--edge-ghost {
   position: absolute;
   top: 0;

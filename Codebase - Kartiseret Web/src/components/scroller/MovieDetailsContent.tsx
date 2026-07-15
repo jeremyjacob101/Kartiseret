@@ -1279,6 +1279,12 @@ export function MovieDetailsContent({
                 dates={showtimeDays.map((day) => day.date)}
                 selectedDate={effectiveVisibleShowtimeDate}
                 disabledBeforeDate={fixedAppDateString}
+                trailingPlaceholderCount={Math.min(
+                  showtimeDays.length < SHOWTIME_PREFETCH_CHUNK_DAY_COUNT
+                    ? SHOWTIME_PREFETCH_CHUNK_DAY_COUNT - showtimeDays.length
+                    : SHOWTIME_PREFETCH_CHUNK_DAY_COUNT,
+                  SHOWTIME_WINDOW_DAY_COUNT - showtimeDays.length,
+                )}
                 onPreviewDateChange={handleShowtimePreviewDateChange}
                 onSelect={(date) => {
                   scrollRailToDate(date);

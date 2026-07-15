@@ -10,6 +10,7 @@ type ShowtimeDayPickerProps = {
   ariaLabel: string;
   className?: string;
   disabledBeforeDate?: string | null;
+  trailingPlaceholderCount?: number;
 };
 
 type DayPickerEntry = {
@@ -122,6 +123,21 @@ function EdgeGhostDay({ date, index }: { date: string; index: number }) {
   );
 }
 
+function TrailingPlaceholderDay({ date }: { date: string }) {
+  return (
+    <div
+      className="showtime-day-button showtime-day-button--placeholder"
+      aria-hidden="true"
+    >
+      <span className="showtime-day-button-tick showtime-day-button-tick--top" />
+      <span className="showtime-day-button-eyebrow">
+        {getDayWeekday(date)}
+      </span>
+      <span className="showtime-day-button-number">{getDayNumber(date)}</span>
+    </div>
+  );
+}
+
 function getPreferredScrollBehavior(): ScrollBehavior {
   if (
     typeof window !== "undefined" &&
@@ -141,6 +157,7 @@ export function ShowtimeDayPicker({
   ariaLabel,
   className,
   disabledBeforeDate = null,
+  trailingPlaceholderCount = 0,
 }: ShowtimeDayPickerProps) {
   const entries = useMemo<DayPickerEntry[]>(
     () => buildDayPickerEntries(dates, disabledBeforeDate),
@@ -159,7 +176,24 @@ export function ShowtimeDayPicker({
   );
   const selectedEntryDate = selectedEntry?.date ?? null;
   const firstEntryDate = entries[0]?.date ?? null;
+  const lastEntryDate = entries.at(-1)?.date ?? null;
   const firstEnabledEntryDate = firstEnabledEntry?.date ?? null;
+  const normalizedTrailingPlaceholderCount = Math.max(
+    0,
+    Number.isFinite(trailingPlaceholderCount)
+      ? Math.floor(trailingPlaceholderCount)
+      : 0,
+  );
+  const trailingPlaceholderDates = useMemo(
+    () =>
+      lastEntryDate
+        ? Array.from(
+            { length: normalizedTrailingPlaceholderCount },
+            (_, index) => addCalendarDays(lastEntryDate, index + 1),
+          )
+        : [],
+    [lastEntryDate, normalizedTrailingPlaceholderCount],
+  );
   const [previewDate, setPreviewDate] = useState<string | null>(
     selectedEntryDate,
   );
@@ -232,6 +266,24 @@ export function ShowtimeDayPicker({
     );
   }, [firstEnabledEntryDate]);
 
+  const getMaximumSelectableScrollLeft = useCallback((): number => {
+    const viewport = viewportRef.current;
+    const lastButton = lastEntryDate
+      ? buttonRefs.current.get(lastEntryDate)
+      : null;
+
+    if (!viewport || !lastButton) {
+      return 0;
+    }
+
+    return Math.max(
+      0,
+      lastButton.offsetLeft +
+        lastButton.offsetWidth / 2 -
+        viewport.clientWidth / 2,
+    );
+  }, [lastEntryDate]);
+
   const getSelectableScrollBounds = useCallback(() => {
     const viewport = viewportRef.current;
 
@@ -247,9 +299,13 @@ export function ShowtimeDayPicker({
       getMinimumSelectableScrollLeft(),
       maxScrollLeft,
     );
+    const maximumScrollLeft = Math.max(
+      minimumScrollLeft,
+      Math.min(getMaximumSelectableScrollLeft(), maxScrollLeft),
+    );
 
-    return { min: minimumScrollLeft, max: maxScrollLeft };
-  }, [getMinimumSelectableScrollLeft]);
+    return { min: minimumScrollLeft, max: maximumScrollLeft };
+  }, [getMaximumSelectableScrollLeft, getMinimumSelectableScrollLeft]);
 
   const centerDate = useCallback(
     (date: string, behavior: ScrollBehavior): boolean => {
@@ -802,6 +858,16 @@ export function ShowtimeDayPicker({
             return;
           }
 
+          const { min, max } = getSelectableScrollBounds();
+          const boundedScrollLeft = Math.max(
+            min,
+            Math.min(viewport.scrollLeft, max),
+          );
+
+          if (Math.abs(viewport.scrollLeft - boundedScrollLeft) >= 0.5) {
+            viewport.scrollLeft = boundedScrollLeft;
+          }
+
           isInteractingRef.current = true;
           updatePreviewDate();
 
@@ -890,6 +956,9 @@ export function ShowtimeDayPicker({
               </button>
             );
           })}
+          {trailingPlaceholderDates.map((date) => (
+            <TrailingPlaceholderDay key={`placeholder-${date}`} date={date} />
+          ))}
           <span
             className="showtime-day-picker-edge-spacer"
             aria-hidden="true"
