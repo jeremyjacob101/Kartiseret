@@ -71,8 +71,6 @@
 
 .showtime-day-picker-shell--dragging .showtime-day-picker-scroll {
   cursor: grabbing;
-  scroll-behavior: auto;
-  scroll-snap-type: none;
 }
 
 .showtime-day-picker-scroll--direct-manipulation {
