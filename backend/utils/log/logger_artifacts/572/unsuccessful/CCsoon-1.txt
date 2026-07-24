@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: CCsoon
+URL: https://www.cinema-city.co.il/comingsoon
+Exception: ReadTimeoutError - HTTPConnectionPool(host='localhost', port=62385): Read timed out. (read timeout=120)
+Call Chain: runners.py:43 > runners.py:19 > BaseCinema.py:27 > InitializeBaseCinema.py:17
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/572/unsuccessful/CCsoon-1.png
+CSV: 
