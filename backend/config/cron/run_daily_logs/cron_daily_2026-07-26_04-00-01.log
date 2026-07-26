@@ -1,0 +1,58 @@
+==== cron run start: 2026-07-26T04:00:01+0300 ====
+From github.com:jeremyjacob101/Kartiseret
+ * branch            main       -> FETCH_HEAD
+Already on 'main'
+M	backend/config/cron/cron_daily.log
+Your branch is up to date with 'origin/main'.
+HEAD is now at 1d867b1 [D-RUN] daily artifacts and log 2026-07-25_05-45-27
+
+--------------------
+
+CCsoon: 00m32s
+LCsoon: 01m02s
+YPsoon: 01m55s
+MLsoon: 02m41s
+HCsoon: 04m04s
+
+--------------------
+
+
+--------------------
+
+LevCinema: 04m21s
+RavHen: 10m26s
+MovieLand: 10m37s
+YesPlanet: 21m50s
+CinemaCity: 39m54s
+HotCinema: 53m23s
+
+--------------------
+
+Deleted 9 old allSoons rows on or before 2026-06-25.
+Deleted 1 old finalSoons rows on or before 2026-07-26.
+Found 0 duplicate rows out of 171 allSoons rows.
+Deleted 0 duplicate rows from allSoons.
+
+--------------------
+
+ComingSoonsClean: 00m04s
+ComingSoonsTmdb: 00m20s
+ComingSoonsUpdate: 00m06s
+
+--------------------
+
+Deleted 2048 old allShowtimes rows on or before 2026-07-21.
+Deleted 0 old finalShowtimes rows on or before 2026-07-25.
+Deleted 0 orphan finalMovies rows.
+Found 8620 exact duplicate rows out of 25819 allShowtimes rows.
+Deleted 8620 exact duplicate rows from allShowtimes.
+
+--------------------
+
+NowPlayingsClean: 00m23s
+NowPlayingsTmdb: 06m05s
+NowPlayingsUpdate: 73m03s
+
+--------------------
+
+==== cron run end: 2026-07-26T06:17:40+0300 ====
