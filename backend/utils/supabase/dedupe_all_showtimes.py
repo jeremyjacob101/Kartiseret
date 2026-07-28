@@ -109,15 +109,15 @@ def dedupe_all_showtimes(dry_run: bool = True) -> None:
     rows = select_all_showtimes(sb)
     ids_to_delete = duplicate_ids(rows)
 
-    print(f"Found {len(ids_to_delete)} exact duplicate rows out of {len(rows)} allShowtimes rows.")
+    # print(f"Found {len(ids_to_delete)} exact duplicate rows out of {len(rows)} allShowtimes rows.")
     if dry_run:
-        print("Dry run only. Change dry_run to False below to delete them.")
+        # print("Dry run only. Change dry_run to False below to delete them.")
         return
 
     for start in range(0, len(ids_to_delete), DELETE_BATCH_SIZE):
         sb.table("allShowtimes").delete().in_("id", ids_to_delete[start : start + DELETE_BATCH_SIZE]).execute()
 
-    print(f"Deleted {len(ids_to_delete)} exact duplicate rows from allShowtimes.")
+    # print(f"Deleted {len(ids_to_delete)} exact duplicate rows from allShowtimes.")
 
 
 if __name__ == "__main__":

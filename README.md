@@ -119,12 +119,14 @@ The default run plan is:
 
 1. Scrape `allSoons`
 2. Scrape `allShowtimes`
-3. Run coming-soon dataflows
-4. Run now-playing dataflows
+3. Scrape `allTheques`
+4. Run coming-soon dataflows
+5. Run now-playing dataflows
+6. Run cinematheque dataflows
 
 Within that plan, the backend currently does the following:
 
-1. Scrapes raw source rows into Supabase tables like `allShowtimes` and `allSoons`.
+1. Scrapes raw source rows into Supabase tables like `allShowtimes`, `allSoons`, and `allTheques`.
 2. Normalizes titles, removes obviously bad rows, and performs source-specific cleanup.
 3. Matches films against TMDb, moves accepted rows into final tables, and marks processed source rows as added.
 4. Enriches final movie records with posters, backdrops, trailers, genres, ratings, and popularity metadata.
@@ -140,12 +142,15 @@ Within that plan, the backend currently does the following:
 
 - `allShowtimes`
 - `allSoons`
+- `allTheques`
 
 **Final / enriched tables**
 
 - `finalShowtimes`
 - `finalMovies`
 - `finalSoons`
+- `finalTheques`
+- `finalThequeMovies`
 - `movieCodes` maps each TMDb ID to its permanent three-character Base62 code.
 - `theaters`
 - `userPreferences`
@@ -233,9 +238,9 @@ The app intentionally uses only the publishable key and never a service-role key
 - `.github/workflows/daily_sweep.yml` clears old showtimes and soon entries on a daily schedule.
 - `backend/config/cron/run_weekly.sh` is a local weekly shell runner that syncs the repo, runs the full job, commits artifacts/logs, and pushes them back to `main`.
 - `backend/config/cron/run_daily.sh` is a local daily shell runner that performs the same default headless run, writes separate daily logs, and pushes artifacts/logs back to `main`.
-- `backend/config/realtime/start_realtime_watcher_background.sh` starts/restarts a local realtime listener for `finalMovies` and `finalSoons`, loads Supabase credentials from the project-root `.env`, and writes logs to `backend/config/cron/run_realtime_logs/realtime_watcher.log`.
+- `backend/config/realtime/start_realtime_watcher_background.sh` starts/restarts a local realtime listener for `finalMovies`, `finalThequeMovies`, and `finalSoons`, loads Supabase credentials from the project-root `.env`, and writes logs to `backend/config/cron/run_realtime_logs/realtime_watcher.log`.
   - watcher-triggered update runs use `solo_update` mode (`SOLO_UPDATE_ONLY=true`) and process only rows where `solo_update = true`, then reset `solo_update` back to `false` on processed rows.
-  - watcher-triggered runs write `utilRunLogs.run_from` as `np_solo_update` (for `finalMovies`) or `cs_solo_update` (for `finalSoons`).
+  - watcher-triggered runs write `utilRunLogs.run_from` as `np_solo_update` (for `finalMovies`), `theque_solo_update` (for `finalThequeMovies`), or `cs_solo_update` (for `finalSoons`).
   - regular daily/weekly/manual runs are unchanged and still process full tables.
 
 ## Project Tour

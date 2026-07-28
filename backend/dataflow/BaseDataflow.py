@@ -20,13 +20,14 @@ class BaseDataflow(InitializeBaseDataflow, DataflowSummaryHelpers, DataflowHelpe
     HELPER_TABLE_NAME_3: str = ""
     HELPER_TABLE_NAME_4: str = ""
     HEADLESS: bool = True
+    USES_BROWSER: bool = False
 
     def __init__(self, run_id, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.run_id = run_id
         self.solo_update_only = str(os.environ.get("SOLO_UPDATE_ONLY", "")).strip().lower() in {"1", "true", "yes", "on"}
 
-        self.driver = build_chrome(self.HEADLESS)
+        self.driver = build_chrome(self.HEADLESS) if self.USES_BROWSER else None
 
         setUpSupabase(self)
         setUpTmdb(self)

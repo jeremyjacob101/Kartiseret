@@ -9,10 +9,11 @@ from backend.utils.log.dataflow_summary_logging import write_dataflow_summary
 class DataflowSummaryHelpers:
     def init_dataflow_summary_state(self):
         self.summaryStartTime = time.time()
-        self.summaryEnabled = self.__class__.__name__ in {"ComingSoonsTmdb", "NowPlayingsTmdb"}
+        self.summaryEnabled = self.__class__.__name__ in {"CinemathequesTmdb", "ComingSoonsTmdb", "NowPlayingsTmdb"}
         self.summaryCounts = defaultdict(int)
         self.summaryStageBreakdown = defaultdict(int)
         self.summaryComingSoonDetails = []
+        self.summaryCinemathequeGroups = []
         self.summaryNowPlayingGroups = []
         self.summaryUnresolvedOrDropped = []
         self.summaryWriteOrDedupeActions = []
@@ -55,6 +56,19 @@ class DataflowSummaryHelpers:
                     "chosen_path": payload.get("chosen_path") or "",
                 }
                 self.summaryNowPlayingGroups.append(event)
+            elif self.__class__.__name__ == "CinemathequesTmdb":
+                event = {
+                    "key": key or payload.get("key") or "",
+                    "status": status_s,
+                    "reason": reason_s,
+                    "representative_title": payload.get("representative_title") or "",
+                    "row_count": payload.get("row_count") or 0,
+                    "parsed_year": payload.get("parsed_year"),
+                    "candidate_count": payload.get("candidate_count") or 0,
+                    "chosen_tmdb": payload.get("chosen_tmdb") or "",
+                    "chosen_path": payload.get("chosen_path") or "",
+                }
+                self.summaryCinemathequeGroups.append(event)
         except Exception:
             pass
 
@@ -98,6 +112,7 @@ class DataflowSummaryHelpers:
                 "summary_counts": dict(getattr(self, "summaryCounts", {}) or {}),
                 "stage_breakdown": dict(getattr(self, "summaryStageBreakdown", {}) or {}),
                 "coming_soon_details": list(getattr(self, "summaryComingSoonDetails", []) or []),
+                "cinematheque_groups": list(getattr(self, "summaryCinemathequeGroups", []) or []),
                 "now_playing_groups": list(getattr(self, "summaryNowPlayingGroups", []) or []),
                 "unresolved_or_dropped": list(getattr(self, "summaryUnresolvedOrDropped", []) or []),
                 "write_or_dedupe_actions": list(getattr(self, "summaryWriteOrDedupeActions", []) or []),

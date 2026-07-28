@@ -126,13 +126,13 @@ class YesPlanet(BaseCinema):
                                 continue
 
                             for showtype in range(1, self.lenElements(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div") + 1):
-                                dub_stuff = self.element(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div[{showtype}]/div/ul[2]").get_attribute("innerText")
+                                dub_stuff = " ".join((element.get_attribute("innerText") or "").strip() for element in self.elements(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div[{showtype}]/div/ul[1]/li[contains(concat(' ', normalize-space(@class), ' '), ' lang-attributes ')]"))
                                 if "RU" in dub_stuff:
                                     continue
                                 else:
                                     self.dub_language = "Hebrew" if "DUB" in dub_stuff else None
 
-                                self.screening_type = str(self.element(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div[{showtype}]/div/ul[1]").get_attribute("innerText"))
+                                self.screening_type = "".join((element.get_attribute("innerText") or "").strip() for element in self.elements(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div[{showtype}]/div/ul[1]/li[not(contains(concat(' ', normalize-space(@class), ' '), ' lang-attributes '))]"))
                                 self.screening_tech = self.screening_type
 
                                 for showtime in range(1, self.lenElements(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div[{showtype}]/div/a") + 1):

@@ -118,7 +118,7 @@ def _plan_header(plan: List[Tuple[str, str, Optional[List[type]]]]) -> Panel:
 def _select_mode_and_groups(console: Console) -> Tuple[str, Set[str]]:
     top = [_MenuItem("Everything", "everything"), _MenuItem("All", "all"), _MenuItem("Scrape", "scrape"), _MenuItem("Dataflow", "dataflow")]
     groups_all_or_scrape = [_MenuItem("All", "all"), _MenuItem("Soons", "Soons"), _MenuItem("Theques", "Theques"), _MenuItem("Showtimes", "Showtimes")]
-    groups_dataflow = [_MenuItem("All", "all"), _MenuItem("Soons", "Soons"), _MenuItem("Theques", "Theques", enabled=False), _MenuItem("Showtimes", "Showtimes")]
+    groups_dataflow = [_MenuItem("All", "all"), _MenuItem("Soons", "Soons"), _MenuItem("Theques", "Theques"), _MenuItem("Showtimes", "Showtimes")]
 
     stage: str = "top"
     idx: int = 0
@@ -272,7 +272,7 @@ def choose_run_plan() -> Tuple[List[Tuple], Panel]:
     console = Console(theme=Theme({"progress.elapsed": "bold #9c27f5"}))
 
     SCRAPE_KEY_BY_GROUP = {"Soons": "allSoons", "Theques": "allTheques", "Showtimes": "allShowtimes"}
-    DATAFLOW_KEY_BY_GROUP = {"Soons": "comingSoonsData", "Showtimes": "nowPlayingData"}
+    DATAFLOW_KEY_BY_GROUP = {"Soons": "comingSoonsData", "Showtimes": "nowPlayingData", "Theques": "cinemathequeData"}
     ORDER = ["Soons", "Showtimes", "Theques"]
 
     while True:
@@ -286,7 +286,7 @@ def choose_run_plan() -> Tuple[List[Tuple], Panel]:
                 if scrape_key:
                     plan.append(("cinema", scrape_key, list(REGISTRY.get(scrape_key, []))))
 
-            for group in ["Soons", "Showtimes"]:
+            for group in ["Soons", "Showtimes", "Theques"]:
                 df_key = DATAFLOW_KEY_BY_GROUP.get(group)
                 if df_key:
                     plan.append(("dataflow", df_key, list(DATAFLOW_REGISTRY.get(df_key, []))))

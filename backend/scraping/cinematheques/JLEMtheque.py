@@ -1,59 +1,111 @@
 from backend.scraping.BaseCinema import BaseCinema
 
 from selenium.webdriver.common.by import By
-from datetime import datetime
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+from datetime import datetime, timedelta
 
 
 class JLEMtheque(BaseCinema):
     CINEMA_NAME = "Jerusalem Cinematheque"
     SCREENING_CITY = "Jerusalem"
     URL = "https://jer-cin.org.il/en/article/4284"
+    DAYS = 45
 
     def logic(self):
         self.sleep(3)
+        date_selector = "//div[contains(@class, 'calenders-filter-date')]/p"
 
-        for _ in range(1, 46):
-            date_of_showing = self.element("/html/body/div[4]/div/div[2]/div[2]/div/div/div[4]/div[1]/div/div/div/div[1]/div/div[2]/div[2]/div[1]/p").text.strip().split("|")[1].strip()
+        date_of_showing = self.element(date_selector).text.strip().split("|")[1].strip()
+        WebDriverWait(self.driver, 10).until(EC.invisibility_of_element_located((By.CSS_SELECTOR, ".load-inner.loading")))
+        self.click("//ul[contains(@class, 'language-switcher-locale-url')]/li/a")
+        WebDriverWait(self.driver, 10).until(lambda driver: date_of_showing in driver.find_element(By.XPATH, date_selector).text)
+
+        self.hebrew_titles = {}
+        for day in range(self.DAYS):
+            if day:
+                selected_date = (self.today_date + timedelta(days=day)).replace(hour=0, minute=0, second=0, microsecond=0)
+                selected_date_timestamp = str(int(selected_date.timestamp()))
+                calendar_url = self.driver.current_url
+
+                for _ in range(3):
+                    try:
+                        self.jsClick(f"//*[@id='calender-filter']/p/span[contains(@class, 'filter-date') and text()='{selected_date_timestamp}']/..")
+                        WebDriverWait(self.driver, 10).until(lambda driver: selected_date.strftime("%d.%m.%y") in driver.find_element(By.XPATH, date_selector).text)
+                        break
+                    except:
+                        self.tryExceptPass(lambda: self.driver.get(calendar_url))
+                        self.sleep(3)
+                else:
+                    raise TimeoutError(f"Could not load Jerusalem Cinematheque date {selected_date.date().isoformat()}")
+
+            date_of_showing = self.element(date_selector).text.strip().split("|")[1].strip()
             self.date_of_showing = datetime.strptime(date_of_showing, "%d.%m.%y").date().isoformat()
 
-            self.click("/html/body/header/div/nav/div[2]/ul[2]/li[7]/ul/li/a", 2)
-            self.hebrew_titles = []
-            for hebrew_film_block in range(2, self.lenElements("/html/body/div[4]/div/div[2]/div[2]/div/div/div[4]/div[1]/div/div/div/div[1]/div/div[2]/div[2]/div", "lobby-container") + 2):
+            for hebrew_film_block in range(2, self.lenElements("//div[contains(@class, 'calendar-full-container')]/div", "lobby-container") + 2):
                 try:
-                    no_screenings_check = self.element(f"/html/body/div[4]/div/div[2]/div[2]/div/div/div[4]/div[1]/div/div/div/div[1]/div/div[2]/div[2]/div[{hebrew_film_block}]/div[3]/div[1]/a").text.strip()
+                    no_screenings_check = self.element(f"//div[contains(@class, 'calendar-full-container')]/div[{hebrew_film_block}]//div[contains(@class, 'lobby-title') and contains(@class, 'second')]").text.strip()
                     if "אין הקרנות" in no_screenings_check:
                         continue
                 except:
                     pass
-                try:
-                    self.hebrew_titles.append(self.element(f"/html/body/div[4]/div/div[2]/div[2]/div/div/div[4]/div[1]/div/div/div/div[1]/div/div[2]/div[2]/div[{hebrew_film_block}]/div[3]/div[3]/a").text.strip())
-                except:
-                    try:
-                        self.hebrew_titles.append(self.element(f"/html/body/div[4]/div/div[2]/div[2]/div/div/div[4]/div[1]/div/div/div/div[1]/div/div[2]/div[2]/div[{hebrew_film_block}]/div[3]/div[3]").text.strip())
-                    except:
-                        self.hebrew_titles.append(None)
+                title_link = self.driver.find_elements("xpath", f"//div[contains(@class, 'calendar-full-container')]/div[{hebrew_film_block}]//div[contains(@class, 'lobby-title') and contains(@class, 'second')]/a")
+                hebrew_title = title_link[0].text.strip() if title_link else self.tryExceptNone(lambda: self.element(f"//div[contains(@class, 'calendar-full-container')]/div[{hebrew_film_block}]//div[contains(@class, 'lobby-title') and contains(@class, 'second')]").text.strip())
+                purchase_button = self.driver.find_elements("xpath", f"//div[contains(@class, 'calendar-full-container')]/div[{hebrew_film_block}]//button[contains(@class, 'toptix-purchase')]")
+                event_id = purchase_button[0].get_attribute("data-event-id") if purchase_button else None
+                self.hebrew_titles[(self.date_of_showing, event_id)] = hebrew_title
 
-            self.click("/html/body/header/div/nav/div[2]/ul[2]/li[7]/ul/li/a", 2)
-            for film_block in range(2, self.lenElements("/html/body/div[4]/div/div[2]/div[2]/div/div/div[4]/div[1]/div/div/div/div[1]/div/div[2]/div[2]/div", "lobby-container") + 2):
+        WebDriverWait(self.driver, 10).until(EC.invisibility_of_element_located((By.CSS_SELECTOR, ".load-inner.loading")))
+        self.click("//ul[contains(@class, 'language-switcher-locale-url')]/li/a")
+        WebDriverWait(self.driver, 10).until(lambda driver: date_of_showing in driver.find_element(By.XPATH, date_selector).text)
+
+        for day in range(self.DAYS):
+            selected_date = (self.today_date + timedelta(days=day)).replace(hour=0, minute=0, second=0, microsecond=0)
+            selected_date_timestamp = str(int(selected_date.timestamp()))
+            calendar_url = self.driver.current_url
+
+            for _ in range(3):
                 try:
-                    no_screenings_check = self.element(f"/html/body/div[4]/div/div[2]/div[2]/div/div/div[4]/div[1]/div/div/div/div[1]/div/div[2]/div[2]/div[{film_block}]/div[3]/div[1]/a").text.strip()
+                    self.jsClick(f"//*[@id='calender-filter']/p/span[contains(@class, 'filter-date') and text()='{selected_date_timestamp}']/..")
+                    WebDriverWait(self.driver, 10).until(lambda driver: selected_date.strftime("%d.%m.%y") in driver.find_element(By.XPATH, date_selector).text)
+                    break
+                except:
+                    self.tryExceptPass(lambda: self.driver.get(calendar_url))
+                    self.sleep(3)
+            else:
+                raise TimeoutError(f"Could not load Jerusalem Cinematheque date {selected_date.date().isoformat()}")
+
+            date_of_showing = self.element(date_selector).text.strip().split("|")[1].strip()
+            self.date_of_showing = datetime.strptime(date_of_showing, "%d.%m.%y").date().isoformat()
+
+            for film_block in range(2, self.lenElements("//div[contains(@class, 'calendar-full-container')]/div", "lobby-container") + 2):
+                try:
+                    no_screenings_check = self.element(f"//div[contains(@class, 'calendar-full-container')]/div[{film_block}]//div[contains(@class, 'lobby-title') and contains(@class, 'second')]").text.strip()
                     if "No Screenings" in no_screenings_check:
                         continue
                 except:
                     pass
                 try:
-                    try:
-                        self.english_title = self.element(f"/html/body/div[4]/div/div[2]/div[2]/div/div/div[4]/div[1]/div/div/div/div[1]/div/div[2]/div[2]/div[{film_block}]/div[3]/div[3]/a").text.strip()
-                    except:
-                        self.english_title = self.element(f"/html/body/div[4]/div/div[2]/div[2]/div/div/div[4]/div[1]/div/div/div/div[1]/div/div[2]/div[2]/div[{film_block}]/div[3]/div[3]").text.strip()
-                    self.hebrew_title = self.hebrew_titles[film_block - 2]
-                    self.showtime = self.element(f"/html/body/div[4]/div/div[2]/div[2]/div/div/div[4]/div[1]/div/div/div/div[1]/div/div[2]/div[2]/div[{film_block}]/div[1]/div/div[1]").text.strip()
-                    self.directed_by = self.element(f"/html/body/div[4]/div/div[2]/div[2]/div/div/div[4]/div[1]/div/div/div/div[1]/div/div[2]/div[2]/div[{film_block}]/div[3]/div[4]/span[1]").text.strip().split(":")[1].strip()
-                    self.runtime = self.element(f"/html/body/div[4]/div/div[2]/div[2]/div/div/div[4]/div[1]/div/div/div/div[1]/div/div[2]/div[2]/div[{film_block}]/div[3]/div[4]/span[2]").text.strip().split(" ")[0].strip()
-                    try:
-                        self.english_href = self.element(f"/html/body/div[4]/div/div[2]/div[2]/div/div/div[4]/div[1]/div/div/div/div[1]/div/div[2]/div[2]/div[{film_block}]/div[1]/div/div[3]/div/div/div/div/button").get_attribute("data-url")
-                    except:
-                        self.english_href = self.element(f"/html/body/div[4]/div/div[2]/div[2]/div/div/div[4]/div[1]/div/div/div/div[1]/div/div[2]/div[2]/div[{film_block}]/div[2]/div[1]/a").get_attribute("href")
+                    title_link = self.driver.find_elements("xpath", f"//div[contains(@class, 'calendar-full-container')]/div[{film_block}]//div[contains(@class, 'lobby-title') and contains(@class, 'second')]/a")
+                    self.english_title = title_link[0].text.strip() if title_link else self.element(f"//div[contains(@class, 'calendar-full-container')]/div[{film_block}]//div[contains(@class, 'lobby-title') and contains(@class, 'second')]").text.strip()
+                    purchase_button = self.driver.find_elements("xpath", f"//div[contains(@class, 'calendar-full-container')]/div[{film_block}]//button[contains(@class, 'toptix-purchase')]")
+                    event_id = purchase_button[0].get_attribute("data-event-id") if purchase_button else None
+                    self.hebrew_title = self.hebrew_titles.get((self.date_of_showing, event_id))
+                    self.showtime = self.element(f"//div[contains(@class, 'calendar-full-container')]/div[{film_block}]//div[contains(@class, 'ticket-details')]//div[contains(@class, 'time')]").text.strip()
+                    hall = self.driver.find_elements("xpath", f"//div[contains(@class, 'calendar-full-container')]/div[{film_block}]//span[contains(@class, 'cal-hall')]")
+                    length = self.driver.find_elements("xpath", f"//div[contains(@class, 'calendar-full-container')]/div[{film_block}]//span[contains(@class, 'cal-length')]")
+                    if not hall or not length:
+                        continue
+                    self.directed_by = hall[0].text.strip().split(":")[1].strip()
+                    self.runtime = length[0].text.strip().split(" ")[0].strip()
+                    if purchase_button:
+                        self.english_href = purchase_button[0].get_attribute("data-url")
+                    else:
+                        image_link = self.driver.find_elements("xpath", f"//div[contains(@class, 'calendar-full-container')]/div[{film_block}]//a[contains(@class, 'link-image')]")
+                        if not image_link:
+                            continue
+                        self.english_href = image_link[0].get_attribute("href")
+                    self.hebrew_href = self.english_href.replace("lang=en", "lang=he")
                     self.screening_city = self.SCREENING_CITY
                     self.screening_type = "Regular"
                     self.screening_tech = "2D"
@@ -61,7 +113,3 @@ class JLEMtheque(BaseCinema):
                     continue
 
                 self.appendToGatheringInfo()
-
-            self.sleep(2)
-            self.element("#calender-filter > p.active").find_element(By.XPATH, "following-sibling::p").click()
-            self.sleep(3)

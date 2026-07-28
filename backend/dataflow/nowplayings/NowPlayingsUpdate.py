@@ -6,11 +6,11 @@ import requests
 import re
 import time
 import json
-import threading
 
 
 class NowPlayingsUpdate(BaseDataflow):
     MAIN_TABLE_NAME = "finalMovies"
+    USES_BROWSER = False
 
     def process_row(self, row):
         new_row = self.updating_output_row(row)
@@ -96,29 +96,10 @@ class NowPlayingsUpdate(BaseDataflow):
 
         # IMDb
         imdb_id = (new_row.get("imdb_id") or "").strip()
-        if imdb_id:
-            with self._imdb_driver_lock:
-                self.driver.get(f"https://www.imdb.com/title/{imdb_id}/")
-
-                imdb_dom = None
-                for _ in range(3):
-                    try:
-                        imdb_dom = self.element("#__NEXT_DATA__").get_attribute("innerHTML")
-                        if imdb_dom:
-                            break
-                    except Exception:
-                        pass
-                    time.sleep(0.5)
-
-                if imdb_dom:
-                    imdb_data = json.loads(imdb_dom)
-                    ratings = imdb_data.get("props", {}).get("pageProps", {}).get("aboveTheFoldData", {}).get("ratingsSummary") or self.per_thread_updating_imdb_find_ratings_summary(imdb_data) or {}
-
-                    aggregate_rating = ratings.get("aggregateRating")
-                    vote_count = ratings.get("voteCount")
-
-                    new_row["imdbRating"] = aggregate_rating if aggregate_rating is not None else existing["imdbRating"]
-                    new_row["imdbVotes"] = vote_count if vote_count is not None else existing["imdbVotes"]
+        ratings = self._imdb_ratings.get(imdb_id)
+        if ratings:
+            new_row["imdbRating"] = ratings["rating"]
+            new_row["imdbVotes"] = ratings["votes"]
 
         # Rotten Tomatoes
         picked_url = None
@@ -197,22 +178,26 @@ class NowPlayingsUpdate(BaseDataflow):
         return self.apply_solo_update_postprocess(new_row)
 
     def logic(self):
-        self.dedupeFinalMovies(self.MAIN_TABLE_NAME)
-        target_rows = self.rows_for_update()
-        if not target_rows:
-            return
-
-        self._imdb_driver_lock = threading.Lock()
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [executor.submit(self.process_row, row) for row in target_rows]
-            for future in as_completed(futures):
-                try:
-                    result = future.result()
-                    if result:
-                        self.updates.append(result)
-                except Exception:
-                    pass
-
-        if self.updates:
-            self.upsertUpdates(self.MAIN_TABLE_NAME)
+        try:
             self.dedupeFinalMovies(self.MAIN_TABLE_NAME)
+            target_rows = self.rows_for_update()
+            if not target_rows:
+                return
+
+            self._imdb_ratings = self.loadImdbRatings(target_rows)
+
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                futures = [executor.submit(self.process_row, row) for row in target_rows]
+                for future in as_completed(futures):
+                    try:
+                        result = future.result()
+                        if result:
+                            self.updates.append(result)
+                    except Exception:
+                        pass
+
+            if self.updates:
+                self.upsertUpdates(self.MAIN_TABLE_NAME)
+                self.dedupeFinalMovies(self.MAIN_TABLE_NAME)
+        finally:
+            self.deleteImdbRatingsFile()

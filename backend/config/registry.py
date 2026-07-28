@@ -27,6 +27,10 @@ from backend.dataflow.nowplayings.NowPlayingsClean import NowPlayingsClean
 from backend.dataflow.nowplayings.NowPlayingsTmdb import NowPlayingsTmdb
 from backend.dataflow.nowplayings.NowPlayingsUpdate import NowPlayingsUpdate
 
+from backend.dataflow.cinematheques.CinemathequesClean import CinemathequesClean
+from backend.dataflow.cinematheques.CinemathequesTmdb import CinemathequesTmdb
+from backend.dataflow.cinematheques.CinemathequesUpdate import CinemathequesUpdate
+
 REGISTRY = {
     "allShowtimes": [
         LevCinema,
@@ -38,8 +42,8 @@ REGISTRY = {
     ],
     "allTheques": [
         JAFCtheque,
-        SSCtheque,
-        HOLONtheque,
+        # SSCtheque,
+        # HOLONtheque,
         HERZtheque,
         HAIFtheque,
         JLEMtheque,
@@ -64,5 +68,10 @@ DATAFLOW_REGISTRY = {
         NowPlayingsClean,
         NowPlayingsTmdb,
         NowPlayingsUpdate,
+    ],
+    "cinemathequeData": [
+        CinemathequesClean,
+        CinemathequesTmdb,
+        CinemathequesUpdate,
     ],
 }

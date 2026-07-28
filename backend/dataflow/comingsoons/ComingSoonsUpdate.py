@@ -7,6 +7,7 @@ import time
 
 class ComingSoonsUpdate(BaseDataflow):
     MAIN_TABLE_NAME = "finalSoons"
+    USES_BROWSER = False
 
     def process_row(self, row):
         new_row = self.updating_output_row(row)

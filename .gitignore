@@ -25,6 +25,10 @@ env.
 # Realtime watcher logs
 backend/config/cron/run_realtime_logs/
 
+# IMDb daily ratings download
+/backend/dataflow/cinematheques/title.ratings.tsv.gz
+/backend/dataflow/nowplayings/title.ratings.tsv.gz
+
 # Kartiseret web logs
 /Codebase\ -\ Kartiseret\ Web/logs/
 /Codebase\ -\ Kartiseret\ Web/*.log

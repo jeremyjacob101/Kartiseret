@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from supabase import create_async_client
 
 from backend.config.runners import runGroup
+from backend.dataflow.cinematheques.CinemathequesUpdate import CinemathequesUpdate
 from backend.dataflow.comingsoons.ComingSoonsUpdate import ComingSoonsUpdate
 from backend.dataflow.nowplayings.NowPlayingsUpdate import NowPlayingsUpdate
 from backend.utils.log import artifact_logging
@@ -23,8 +24,9 @@ from backend.utils.log.run_logging import RunLogSession
 load_dotenv()
 
 TABLE_FINAL_MOVIES = "finalMovies"
+TABLE_FINAL_THEQUE_MOVIES = "finalThequeMovies"
 TABLE_FINAL_SOONS = "finalSoons"
-SUPPORTED_TABLES = {TABLE_FINAL_MOVIES, TABLE_FINAL_SOONS}
+SUPPORTED_TABLES = {TABLE_FINAL_MOVIES, TABLE_FINAL_THEQUE_MOVIES, TABLE_FINAL_SOONS}
 
 DEBOUNCE_SECONDS = float(os.environ.get("REALTIME_DEBOUNCE_SECONDS", "8"))
 RECONNECT_SECONDS = float(os.environ.get("REALTIME_RECONNECT_SECONDS", "3"))
@@ -111,6 +113,9 @@ def _run_single_update(table_name: str) -> bool:
     if table_name == TABLE_FINAL_MOVIES:
         plan = [("dataflow", "nowPlayingData", [NowPlayingsUpdate])]
         run_from_override = "np_solo_update"
+    elif table_name == TABLE_FINAL_THEQUE_MOVIES:
+        plan = [("dataflow", "cinemathequeData", [CinemathequesUpdate])]
+        run_from_override = "theque_solo_update"
     elif table_name == TABLE_FINAL_SOONS:
         plan = [("dataflow", "comingSoonsData", [ComingSoonsUpdate])]
         run_from_override = "cs_solo_update"
@@ -227,16 +232,20 @@ async def _subscribe_forever(event_queue: "queue.Queue[str]", stop_event: thread
             def on_soons_change(payload: Any) -> None:
                 _queue_if_solo_update(TABLE_FINAL_SOONS, payload)
 
+            def on_theque_movies_change(payload: Any) -> None:
+                _queue_if_solo_update(TABLE_FINAL_THEQUE_MOVIES, payload)
+
             def on_subscribe_status(status: Any, err: Any) -> None:
                 logger.info("Realtime subscribe status: %s (err=%s)", status, err)
 
             for event in ("UPDATE", "INSERT", "DELETE"):
                 channel.on_postgres_changes(event, on_movies_change, table=TABLE_FINAL_MOVIES, schema="public")
+                channel.on_postgres_changes(event, on_theque_movies_change, table=TABLE_FINAL_THEQUE_MOVIES, schema="public")
                 channel.on_postgres_changes(event, on_soons_change, table=TABLE_FINAL_SOONS, schema="public")
 
             await client.realtime.connect()
             await channel.subscribe(on_subscribe_status)
-            logger.info("Subscribed to realtime changes for public.%s and public.%s", TABLE_FINAL_MOVIES, TABLE_FINAL_SOONS)
+            logger.info("Subscribed to realtime changes for public.%s, public.%s, and public.%s", TABLE_FINAL_MOVIES, TABLE_FINAL_THEQUE_MOVIES, TABLE_FINAL_SOONS)
 
             while not stop_event.is_set():
                 if not client.realtime.is_connected:

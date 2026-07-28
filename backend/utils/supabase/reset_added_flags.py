@@ -9,7 +9,9 @@ from supabase import create_client
 TABLES_BY_CATEGORY = {
     "nowplayings": ["allShowtimes"],
     "comingsoons": ["allSoons"],
+    "cinematheques": ["allTheques"],
     "both": ["allShowtimes", "allSoons"],
+    "all": ["allShowtimes", "allSoons", "allTheques"],
 }
 
 UPDATE_CHUNK_SIZE = 200
@@ -39,4 +41,6 @@ def reset_added_flags(category: str) -> None:
 if __name__ == "__main__":
     # reset_added_flags("nowplayings")
     # reset_added_flags("comingsoons")
-    reset_added_flags("both")
+    # reset_added_flags("cinematheques")
+    # reset_added_flags("both")
+    reset_added_flags("all")

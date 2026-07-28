@@ -126,6 +126,28 @@ def _render_now_playing_groups(summary: dict) -> list[str]:
     return lines
 
 
+def _render_cinematheque_groups(summary: dict) -> list[str]:
+    lines = ["", "CINEMATHEQUE GROUP DETAILS"]
+    groups = summary.get("cinematheque_groups") or []
+    if not groups:
+        lines.append("- (none)")
+        return lines
+
+    for row in groups:
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            f"- key={row.get('key') or ''} | status={row.get('status') or ''} | "
+            f"reason={row.get('reason') or ''} | rep_title={row.get('representative_title') or ''} | "
+            f"rows={row.get('row_count') or 0} | parsed_year={row.get('parsed_year') or ''} | "
+            f"candidates={row.get('candidate_count') or 0} | chosen_tmdb={row.get('chosen_tmdb') or ''} | "
+            f"path={row.get('chosen_path') or ''}"
+        )
+    if len(lines) == 1:
+        lines.append("- (none)")
+    return lines
+
+
 def _render_simple_list(summary: dict, key: str, title: str) -> list[str]:
     lines = ["", title]
     items = summary.get(key) or []
@@ -143,6 +165,7 @@ def render_summary_text(summary: dict) -> str:
     lines.extend(_render_summary_counts(summary))
     lines.extend(_render_stage_breakdown(summary))
     lines.extend(_render_coming_soon_details(summary))
+    lines.extend(_render_cinematheque_groups(summary))
     lines.extend(_render_now_playing_groups(summary))
     lines.extend(_render_simple_list(summary, "unresolved_or_dropped", "UNRESOLVED / DROPPED ITEMS"))
     lines.extend(_render_simple_list(summary, "write_or_dedupe_actions", "WRITE/DEDUPE ACTIONS"))

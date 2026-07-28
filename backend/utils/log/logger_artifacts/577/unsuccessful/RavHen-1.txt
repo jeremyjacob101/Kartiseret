@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: RavHen
+URL: https://www.rav-hen.co.il/cinemas/kiryat-ono/1062#/buy-tickets-by-cinema?in-cinema=1062&at=2026-08-05&view-mode=list
+Exception: Empty gathering_info table
+Call Chain: runners.py:50 > runners.py:26 > BaseCinema.py:29 > FormatAndAppend.py:84
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/581/unsuccessful/RavHen-1.png
+CSV: 

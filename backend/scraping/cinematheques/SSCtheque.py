@@ -16,11 +16,11 @@ class SSCtheque(BaseCinema):
 
         crossed_year = False
         trying_year = self.current_year
-        for film_card in range(1, self.lenElements("/html/body/div[3]/div[3]/div/div/div/div/div") + 1):
+        for film_card in range(1, self.lenElements("//div[contains(@class, 'elementor-widget-loop-grid')]//div[@data-elementor-type='loop-item']") + 1):
             try:
-                full_title = self.element(f"/html/body/div[3]/div[3]/div/div/div/div/div[{film_card}]/div/div[2]/div/div/div/div/div[1]/div/div[1]/div/div/div/h1").text.strip()
+                full_title = self.element(f"//div[contains(@class, 'elementor-widget-loop-grid')]//div[@data-elementor-type='loop-item'][{film_card}]//h1").text.strip()
             except:
-                full_title = self.element(f"/html/body/div[3]/div[3]/div/div/div/div/div[{film_card}]/div/div[3]/div/div/div/div/div[1]/div/div[1]/div/div/div/h1").text.strip()
+                full_title = self.element(f"//div[contains(@class, 'elementor-widget-loop-grid')]//div[@data-elementor-type='loop-item'][{film_card}]//h2").text.strip()
             title_parts = [part.strip() for part in full_title.split("|")]
             if len(title_parts) >= 3:
                 self.hebrew_title, self.english_title = title_parts[0], title_parts[2]
@@ -33,9 +33,9 @@ class SSCtheque(BaseCinema):
                 self.hebrew_title, self.english_title = self.english_title, self.hebrew_title
 
             try:
-                date_of_showing = self.element(f"/html/body/div[3]/div[3]/div/div/div/div/div[{film_card}]/div/div[2]/div/div/div/div/div[1]/div/div[2]/div/div[2]/div/h2").text.strip()
+                date_of_showing = self.element(f"//div[contains(@class, 'elementor-widget-loop-grid')]//div[@data-elementor-type='loop-item'][{film_card}]//h2[1]").text.strip()
             except:
-                date_of_showing = self.element(f"/html/body/div[3]/div[3]/div/div/div/div/div[{film_card}]/div/div[3]/div/div/div/div/div[1]/div/div[2]/div/div[2]/div/h2").text.strip()
+                date_of_showing = self.element(f"//div[contains(@class, 'elementor-widget-loop-grid')]//div[@data-elementor-type='loop-item'][{film_card}]//h3[1]").text.strip()
             month_of_showing = date_of_showing.split("/")[1].strip()
             if self.current_month == "12" and not crossed_year and (str(month_of_showing) == "1" or str(month_of_showing) == "01"):
                 crossed_year = True
@@ -45,37 +45,37 @@ class SSCtheque(BaseCinema):
             self.date_of_showing = datetime.strptime(date_of_showing, "%d/%m/%Y").date().isoformat()
 
             try:
-                self.showtime = self.element(f"/html/body/div[3]/div[3]/div/div/div/div/div[{film_card}]/div/div[2]/div/div/div/div/div[1]/div/div[2]/div/div[3]/div/h2").text.strip()
+                self.showtime = self.element(f"//div[contains(@class, 'elementor-widget-loop-grid')]//div[@data-elementor-type='loop-item'][{film_card}]//h2[2]").text.strip()
             except:
-                self.showtime = self.element(f"/html/body/div[3]/div[3]/div/div/div/div/div[{film_card}]/div/div[3]/div/div/div/div/div[1]/div/div[2]/div/div[3]/div/h2").text.strip()
+                self.showtime = self.element(f"//div[contains(@class, 'elementor-widget-loop-grid')]//div[@data-elementor-type='loop-item'][{film_card}]//h3[2]").text.strip()
 
-            num_text_blocks = self.lenElements(f"/html/body/div[3]/div[3]/div/div/div/div/div[{film_card}]/div/div[4]/div/p")
+            num_text_blocks = self.lenElements(f"//div[contains(@class, 'elementor-widget-loop-grid')]//div[@data-elementor-type='loop-item'][{film_card}]//p")
             if num_text_blocks == 1:
-                if "|" in self.element(f"/html/body/div[3]/div[3]/div/div/div/div/div[{film_card}]/div/div[4]/div/p").get_attribute("textContent").split("\n")[0].strip():
-                    full_info = self.element(f"/html/body/div[3]/div[3]/div/div/div/div/div[{film_card}]/div/div[4]/div/p").get_attribute("textContent").split("\n")[0].strip()
+                if "|" in self.element(f"//div[contains(@class, 'elementor-widget-loop-grid')]//div[@data-elementor-type='loop-item'][{film_card}]//p").get_attribute("textContent").split("\n")[0].strip():
+                    full_info = self.element(f"//div[contains(@class, 'elementor-widget-loop-grid')]//div[@data-elementor-type='loop-item'][{film_card}]//p").get_attribute("textContent").split("\n")[0].strip()
                 else:
                     try:
-                        full_info = self.element(f"/html/body/div[3]/div[3]/div/div/div/div/div[{film_card}]/div/div[4]/div/p").get_attribute("textContent").split("\n")[1].strip()
+                        full_info = self.element(f"//div[contains(@class, 'elementor-widget-loop-grid')]//div[@data-elementor-type='loop-item'][{film_card}]//p").get_attribute("textContent").split("\n")[1].strip()
                     except:
                         full_info = ""
             elif num_text_blocks >= 2:
-                if "|" in self.element(f"/html/body/div[3]/div[3]/div/div/div/div/div[{film_card}]/div/div[4]/div/p[1]").get_attribute("textContent").split("\n")[0].strip():
-                    full_info = self.element(f"/html/body/div[3]/div[3]/div/div/div/div/div[{film_card}]/div/div[4]/div/p[1]").get_attribute("textContent").split("\n")[0].strip()
+                if "|" in self.element(f"//div[contains(@class, 'elementor-widget-loop-grid')]//div[@data-elementor-type='loop-item'][{film_card}]//p[1]").get_attribute("textContent").split("\n")[0].strip():
+                    full_info = self.element(f"//div[contains(@class, 'elementor-widget-loop-grid')]//div[@data-elementor-type='loop-item'][{film_card}]//p[1]").get_attribute("textContent").split("\n")[0].strip()
                 else:
                     try:
-                        if "|" in self.element(f"/html/body/div[3]/div[3]/div/div/div/div/div[{film_card}]/div/div[4]/div/p[2]/span").get_attribute("textContent").split("\n")[1].strip():
-                            full_info = self.element(f"/html/body/div[3]/div[3]/div/div/div/div/div[{film_card}]/div/div[4]/div/p[2]/span").get_attribute("textContent").split("\n")[1].strip()
+                        if "|" in self.element(f"//div[contains(@class, 'elementor-widget-loop-grid')]//div[@data-elementor-type='loop-item'][{film_card}]//p[2]").get_attribute("textContent").split("\n")[1].strip():
+                            full_info = self.element(f"//div[contains(@class, 'elementor-widget-loop-grid')]//div[@data-elementor-type='loop-item'][{film_card}]//p[2]").get_attribute("textContent").split("\n")[1].strip()
                         else:
                             try:
-                                full_info = self.element(f"/html/body/div[3]/div[3]/div/div/div/div/div[{film_card}]/div/div[4]/div/p[2]/span").get_attribute("textContent").split("\n")[0].strip()
+                                full_info = self.element(f"//div[contains(@class, 'elementor-widget-loop-grid')]//div[@data-elementor-type='loop-item'][{film_card}]//p[2]").get_attribute("textContent").split("\n")[0].strip()
                             except:
                                 full_info = ""
                     except:
                         try:
-                            full_info = self.element(f"/html/body/div[3]/div[3]/div/div/div/div/div[{film_card}]/div/div[4]/div/p[2]").get_attribute("textContent").split("\n")[1].strip()
+                            full_info = self.element(f"//div[contains(@class, 'elementor-widget-loop-grid')]//div[@data-elementor-type='loop-item'][{film_card}]//p[2]").get_attribute("textContent").split("\n")[1].strip()
                         except:
                             try:
-                                full_info = self.element(f"/html/body/div[3]/div[3]/div/div/div/div/div[{film_card}]/div/div[5]/div/p[2]/span").get_attribute("textContent").split("\n")[1].strip()
+                                full_info = self.element(f"//div[contains(@class, 'elementor-widget-loop-grid')]//div[@data-elementor-type='loop-item'][{film_card}]//p[2]").get_attribute("textContent").split("\n")[1].strip()
                             except:
                                 full_info = ""
 

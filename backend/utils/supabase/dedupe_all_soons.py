@@ -117,15 +117,15 @@ def dedupe_all_soons(dry_run: bool = True) -> None:
     rows = select_all_soons(sb)
     ids_to_delete = duplicate_ids(rows)
 
-    print(f"Found {len(ids_to_delete)} duplicate rows out of {len(rows)} allSoons rows.")
+    # print(f"Found {len(ids_to_delete)} duplicate rows out of {len(rows)} allSoons rows.")
     if dry_run:
-        print("Dry run only. Change dry_run to False below to delete them.")
+        # print("Dry run only. Change dry_run to False below to delete them.")
         return
 
     for start in range(0, len(ids_to_delete), DELETE_BATCH_SIZE):
         sb.table("allSoons").delete().in_("id", ids_to_delete[start : start + DELETE_BATCH_SIZE]).execute()
 
-    print(f"Deleted {len(ids_to_delete)} duplicate rows from allSoons.")
+    # print(f"Deleted {len(ids_to_delete)} duplicate rows from allSoons.")
 
 
 if __name__ == "__main__":
