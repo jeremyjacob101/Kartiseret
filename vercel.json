@@ -7,7 +7,8 @@
       "includeFiles": "Codebase - Kartiseret Web/dist/**"
     },
     "api/og-image.ts": {
-      "maxDuration": 30
+      "maxDuration": 30,
+      "includeFiles": "Codebase - Kartiseret Web/server/og/assets/**"
     }
   },
   "rewrites": [
