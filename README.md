@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/logo.png" alt="Kartiseret logo" width="140">
+  <img src="Codebase%20-%20Kartiseret%20Web/public/docs/images/logo.png" alt="Kartiseret logo" width="140">
 </p>
 
 <h1 align="center">Kartiseret</h1>
@@ -25,7 +25,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/ks1.gif" alt="Kartiseret demo" width="500">
+  <img src="Codebase%20-%20Kartiseret%20Web/public/docs/images/ks1.gif" alt="Kartiseret demo" width="500">
 </p>
 
 ## Overview
@@ -260,11 +260,11 @@ The app intentionally uses only the publishable key and never a service-role key
 │   ├── config/                 Vite, TypeScript, and prettier config
 │   ├── src/                    App source: components, data, lib, prefs
 │   ├── public/
+│   │   └── docs/images/        README assets
 │   ├── index.html
 │   ├── eslint.config.js
 │   ├── tsconfig.json
 │   └── package.json
-├── docs/images/                README assets
 ├── .env                        Shared environment variables (Supabase keys, etc.)
 ├── LICENSE.md
 ├── README.md
@@ -303,8 +303,8 @@ Place your PNGs here:
 
 | Asset | Path | Used for |
 | --- | --- | --- |
-| Logo | `docs/images/logo.png` | Centered logo at the top of the README |
-| Demo GIF | `docs/images/ks1.gif` | Centered hero media rendered at `500px` width |
+| Logo | `Codebase - Kartiseret Web/public/docs/images/logo.png` | Centered logo at the top of the README |
+| Demo GIF | `Codebase - Kartiseret Web/public/docs/images/ks1.gif` | Centered hero media rendered at `500px` width |
 
 ## Notes For Contributors
 
