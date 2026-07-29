@@ -30,7 +30,9 @@ export function buildPreviewDescription(data: PreviewData): string {
 }
 
 export function injectOpenGraphTags(html: string, data: PreviewData): string {
-  const pageTitle = `${data.title} showtimes in ${data.city}`;
+  const pageTitle = data.isComingSoon
+    ? `${data.title} — Coming soon`
+    : `${data.title} showtimes in ${data.city}`;
   const description = buildPreviewDescription(data);
   const pageUrl = `${siteUrl}/${data.routeCode}`;
   const imageUrl = `${siteUrl}/api/og-image?routeCode=${encodeURIComponent(data.routeCode)}`;
