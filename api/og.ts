@@ -1,1 +1,3 @@
-export { default } from "../Codebase - Kartiseret Web/server/og/handler.js";
+import handler from "../Codebase - Kartiseret Web/server/og/handler.js";
+
+export default handler;
