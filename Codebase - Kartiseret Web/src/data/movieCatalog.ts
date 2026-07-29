@@ -1,6 +1,6 @@
-import { getSupabaseBrowserClient } from "../lib/supabase";
-import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/definitions/locations";
-import { addCalendarDays, getJerusalemCalendarDate, getTargetedShowtimePrefetchRange, SHOWTIME_LINK_DATE_COUNT } from "../routing/showtimeLinkCodec";
+import { getSupabaseBrowserClient } from "../lib/supabase.js";
+import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/definitions/locations.js";
+import { addCalendarDays, getJerusalemCalendarDate, getTargetedShowtimePrefetchRange, SHOWTIME_LINK_DATE_COUNT } from "../routing/showtimeLinkCodec.js";
 
 const SUPABASE_PAGE_SIZE = 1000;
 export const APP_TIME_ZONE = "Asia/Jerusalem";

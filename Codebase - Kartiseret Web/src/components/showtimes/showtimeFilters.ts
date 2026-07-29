@@ -1,5 +1,5 @@
-import { type ShowtimeEntry, type TheaterShowtimes } from "../../data/movieCatalog";
-import { isCanonicalShowtimeFilterMatch, migrateShowtimeFilterState, SHOWTIME_FILTER_OPTIONS, type PersistedShowtimeFilterState, type ShowtimeFilterGroup } from "../../routing/showtimeLinkCodec";
+import { type ShowtimeEntry, type TheaterShowtimes } from "../../data/movieCatalog.js";
+import { isCanonicalShowtimeFilterMatch, migrateShowtimeFilterState, SHOWTIME_FILTER_OPTIONS, type PersistedShowtimeFilterState, type ShowtimeFilterGroup } from "../../routing/showtimeLinkCodec.js";
 
 const SHOWTIME_FILTERS_STORAGE_KEY = "showtime_filters_v1";
 const SHOWTIME_FILTERS_EVENT_NAME = "showtime-filters-updated";

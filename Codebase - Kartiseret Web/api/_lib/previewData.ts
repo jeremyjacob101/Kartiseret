@@ -1,10 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 
-import { decodeDateCode, getJerusalemCalendarDate, isCanonicalShowtimeFilterMatch, parseMovieRouteCode, resolveCityCode, SHOWTIME_FILTER_OPTIONS, uncheckedFromFilterMask } from "../../src/routing/showtimeLinkCodec";
+import { decodeDateCode, getJerusalemCalendarDate, isCanonicalShowtimeFilterMatch, parseMovieRouteCode, resolveCityCode, SHOWTIME_FILTER_OPTIONS, uncheckedFromFilterMask } from "../../src/routing/showtimeLinkCodec.js";
 
-import { buildShowtimeFilterSelections, getCanonicalShowtimeMeta } from "../../src/components/showtimes/showtimeFilters";
+import { buildShowtimeFilterSelections, getCanonicalShowtimeMeta } from "../../src/components/showtimes/showtimeFilters.js";
 
-import { DEFAULT_LOCATION } from "../../src/prefs/definitions/locations";
+import { DEFAULT_LOCATION } from "../../src/prefs/definitions/locations.js";
 
 const supabaseUrl =
   process.env.SUPABASE_URL?.trim() ||
@@ -270,6 +270,8 @@ export async function getPreviewData(
     filterMask,
   );
 
+  const nonExpiredRows = filterExpiredShowtimes(filteredRows, date);
+
   return {
     routeCode,
     movieCode: parsedRoute.movieCode,
@@ -281,6 +283,48 @@ export async function getPreviewData(
     posterUrl: movie.en_poster?.trim() || "",
     backdropUrl: movie.backdrop?.trim() || "",
     isComingSoon,
-    theaters: groupPreviewShowtimes(filteredRows),
+    theaters: groupPreviewShowtimes(nonExpiredRows),
   };
+}
+
+function filterExpiredShowtimes(
+  rows: DatabaseShowtime[],
+  date: string,
+): DatabaseShowtime[] {
+  const today = getJerusalemCalendarDate();
+
+  if (date !== today) {
+    return rows;
+  }
+
+  const now = new Date();
+  const jerusalemTime = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jerusalem",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(now);
+
+  const [currentHours, currentMinutes] = jerusalemTime.split(":").map(Number);
+  const currentTotalMinutes = currentHours * 60 + currentMinutes;
+
+  return rows.filter((row) => {
+    const showtime = normalizeShowtime(row.showtime);
+    if (!showtime) return false;
+
+    const [hours, minutes] = showtime.split(":").map(Number);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return false;
+
+    const totalMinutes = hours * 60 + minutes;
+
+    if (totalMinutes < 65) {
+      return false;
+    }
+
+    if (totalMinutes + 15 <= currentTotalMinutes) {
+      return false;
+    }
+
+    return true;
+  });
 }

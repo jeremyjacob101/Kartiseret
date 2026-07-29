@@ -1,5 +1,5 @@
 import sharp, { type OverlayOptions } from "sharp";
-import type { PreviewData } from "./previewData";
+import type { PreviewData } from "./previewData.js";
 
 const IMAGE_TIMEOUT_MS = 8_000;
 

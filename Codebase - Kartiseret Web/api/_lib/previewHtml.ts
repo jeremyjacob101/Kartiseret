@@ -1,9 +1,4 @@
-import type { PreviewData } from "./previewData";
-
-const siteUrl = (process.env.SITE_URL || "https://seret.site").replace(
-  /\/$/,
-  "",
-);
+import type { PreviewData } from "./previewData.js";
 
 function escapeHtml(value: string): string {
   return value
@@ -29,13 +24,17 @@ export function buildPreviewDescription(data: PreviewData): string {
     : `${data.city} · ${data.dateLabel} · View available showtimes`;
 }
 
-export function injectOpenGraphTags(html: string, data: PreviewData): string {
+export function injectOpenGraphTags(
+  html: string,
+  data: PreviewData,
+  siteOrigin: string,
+): string {
   const pageTitle = data.isComingSoon
     ? `${data.title} — Coming soon`
     : `${data.title} showtimes in ${data.city}`;
   const description = buildPreviewDescription(data);
-  const pageUrl = `${siteUrl}/${data.routeCode}`;
-  const imageUrl = `${siteUrl}/api/og-image?routeCode=${encodeURIComponent(data.routeCode)}`;
+  const pageUrl = `${siteOrigin}/${data.routeCode}`;
+  const imageUrl = `${siteOrigin}/api/og-image?routeCode=${encodeURIComponent(data.routeCode)}`;
 
   const openGraphBlock = `<!-- OG_START -->
 <title>${escapeHtml(pageTitle)} | Kartiseret</title>

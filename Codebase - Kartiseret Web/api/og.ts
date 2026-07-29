@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { getPreviewData } from "./_lib/previewData";
-import { injectOpenGraphTags } from "./_lib/previewHtml";
+import { getPreviewData } from "./_lib/previewData.js";
+import { injectOpenGraphTags } from "./_lib/previewHtml.js";
 
 const indexPath = resolve(process.cwd(), "dist/index.html");
 let baseIndexHtml: string | null = null;
@@ -20,6 +20,23 @@ function loadBaseIndexHtml(): string {
   }
 
   return baseIndexHtml;
+}
+
+function deriveSiteOrigin(request: VercelRequest): string {
+  const protoHeader = request.headers["x-forwarded-proto"];
+  const proto = Array.isArray(protoHeader)
+    ? protoHeader[0]
+    : protoHeader || "https";
+
+  const hostHeader =
+    request.headers["x-forwarded-host"] || request.headers.host;
+  const host = Array.isArray(hostHeader) ? hostHeader[0] : hostHeader;
+
+  if (host) {
+    return `${proto}://${host}`.replace(/\/+$/, "");
+  }
+
+  return (process.env.SITE_URL || "https://seret.site").replace(/\/$/, "");
 }
 
 export default async function handler(
@@ -50,7 +67,8 @@ export default async function handler(
       return;
     }
 
-    const ogHtml = injectOpenGraphTags(html, previewData);
+    const siteOrigin = deriveSiteOrigin(request);
+    const ogHtml = injectOpenGraphTags(html, previewData, siteOrigin);
 
     response
       .status(200)
