@@ -1,0 +1,72 @@
+==== cron run start: 2026-07-29T04:00:00+0300 ====
+From github.com:jeremyjacob101/Kartiseret
+ * branch            main       -> FETCH_HEAD
+   49aecf9..a3c2489  main       -> origin/main
+Already on 'main'
+M	backend/config/cron/cron_daily.log
+Your branch is behind 'origin/main' by 1 commit, and can be fast-forwarded.
+  (use "git pull" to update your local branch)
+HEAD is now at a3c2489 [+++] Cinematheques backend! | imdb fix manual download zip | YP/RH screening_tech/screening_type fixes
+Removing backend/utils/log/logger_artifacts/581/
+
+--------------------
+
+CCsoon: 00m27s
+LCsoon: 01m07s
+YPsoon: 01m56s
+MLsoon: 02m26s
+HCsoon: 03m50s
+
+--------------------
+
+
+--------------------
+
+LevCinema: 05m19s
+RavHen: 11m09s
+MovieLand: 13m39s
+HotCinema: 19m53s
+YesPlanet: 26m34s
+CinemaCity: 27m07s
+
+--------------------
+
+
+--------------------
+
+JAFCtheque: 00m14s
+JLEMtheque: 03m42s
+HERZtheque: 04m59s
+HAIFtheque: 05m21s
+TLVtheque: 12m33s
+
+--------------------
+
+
+--------------------
+
+ComingSoonsClean: 00m02s
+ComingSoonsTmdb: 00m18s
+ComingSoonsUpdate: 00m05s
+
+--------------------
+
+
+--------------------
+
+NowPlayingsClean: 00m38s
+NowPlayingsTmdb: 06m50s
+NowPlayingsUpdate: 00m45s
+
+--------------------
+
+
+--------------------
+
+CinemathequesClean: 00m05s
+CinemathequesTmdb: 13m12s
+CinemathequesUpdate: 01m46s
+
+--------------------
+
+==== cron run end: 2026-07-29T05:07:25+0300 ====
