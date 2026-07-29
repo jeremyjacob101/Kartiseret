@@ -7,26 +7,8 @@ class MovieCodes:
     MOVIE_CODE_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     MOVIE_CODE_LENGTH = 3
     MOVIE_CODE_CAPACITY = len(MOVIE_CODE_ALPHABET) ** MOVIE_CODE_LENGTH
-    MOVIE_CODE_ALPHABETS_BY_WIDTH = (
-        "1iljIt",
-        "23457fkrsvxyzFJLT",
-        "0689abcdeghnopquABCDEGHKNOPQRSUVXYZ",
-        "mwMW",
-    )
-    MOVIE_CODE_RESERVED_PREFIXES = frozenset(
-        {
-            "mov",
-            "sho",
-            "soo",
-            "use",
-            "att",
-            "sea",
-            "adm",
-            "api",
-            "log",
-            "sig",
-        }
-    )
+    MOVIE_CODE_ALPHABETS_BY_WIDTH = ("1iljIt", "23457fkrsvxyzFJLT", "0689abcdeghnopquABCDEGHKNOPQRSUVXYZ", "mwMW")
+    MOVIE_CODE_RESERVED_PREFIXES = frozenset({"mov", "sho", "soo", "use", "att", "sea", "adm", "api", "log", "sig"})
     MOVIE_CODE_ATTEMPTS_PER_WIDTH = 1_000
 
     @classmethod
