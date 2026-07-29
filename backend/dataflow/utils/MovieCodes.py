@@ -13,6 +13,20 @@ class MovieCodes:
         "0689abcdeghnopquABCDEGHKNOPQRSUVXYZ",
         "mwMW",
     )
+    MOVIE_CODE_RESERVED_PREFIXES = frozenset(
+        {
+            "mov",
+            "sho",
+            "soo",
+            "use",
+            "att",
+            "sea",
+            "adm",
+            "api",
+            "log",
+            "sig",
+        }
+    )
     MOVIE_CODE_ATTEMPTS_PER_WIDTH = 1_000
 
     @classmethod
@@ -33,21 +47,31 @@ class MovieCodes:
         return "".join(secrets.choice(characters) for _ in range(cls.MOVIE_CODE_LENGTH))
 
     @classmethod
+    def isReservedMovieCode(cls, movie_code: str) -> bool:
+        normalized_code = movie_code.strip().lower()
+        return any(normalized_code.startswith(prefix) for prefix in cls.MOVIE_CODE_RESERVED_PREFIXES)
+
+    @classmethod
+    def isAvailableMovieCode(cls, movie_code: str, used_codes: set[str]) -> bool:
+        return movie_code not in used_codes and not cls.isReservedMovieCode(movie_code)
+
+    @classmethod
     def randomAvailableMovieCode(cls, used_codes: set[str]) -> str:
         alphabet = ""
         for width_tier in cls.MOVIE_CODE_ALPHABETS_BY_WIDTH:
             alphabet += width_tier
             for _ in range(cls.MOVIE_CODE_ATTEMPTS_PER_WIDTH):
                 movie_code = cls.randomMovieCode(alphabet)
-                if movie_code not in used_codes:
+                if cls.isAvailableMovieCode(movie_code, used_codes):
                     return movie_code
 
-        while len(used_codes) < cls.MOVIE_CODE_CAPACITY:
-            movie_code = cls.randomMovieCode()
-            if movie_code not in used_codes:
+        start_value = secrets.randbelow(cls.MOVIE_CODE_CAPACITY)
+        for offset in range(cls.MOVIE_CODE_CAPACITY):
+            movie_code = cls.movieCodeForNumber((start_value + offset) % cls.MOVIE_CODE_CAPACITY)
+            if cls.isAvailableMovieCode(movie_code, used_codes):
                 return movie_code
 
-        raise ValueError("Movie code capacity of 238328 has been reached")
+        raise ValueError("Available non-reserved movie code capacity has been reached")
 
     def ensureMovieCodes(self, tmdb_ids: Iterable[Any]) -> dict[int, str]:
         normalized_ids: set[int] = set()
