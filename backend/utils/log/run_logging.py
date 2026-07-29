@@ -1,11 +1,19 @@
 from supabase import create_client
 from typing import Any, Callable
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import os, time, pathlib
 
 ARTIFACT_ROOT = pathlib.Path("backend/utils/log/logger_artifacts")
 CURRENT_RUN_ID: int | None = None
 RUN_LOCK_SLEEP_SECONDS = int(os.environ.get("RUN_LOCK_SLEEP_SECONDS", "600"))
 RUN_LOCK_MAX_WAIT_SECONDS = int(os.environ.get("RUN_LOCK_MAX_WAIT_SECONDS", "10800"))
+ISRAEL_TIMEZONE = ZoneInfo("Asia/Jerusalem")
+
+
+def israel_local_timestamp() -> str:
+    """Return the current time with Israel's DST-aware UTC offset."""
+    return datetime.now(ISRAEL_TIMEZONE).isoformat()
 
 
 def allocate_run_id() -> int:
@@ -40,7 +48,7 @@ def allocate_run_id() -> int:
     (run_dir / ".job_ok").write_text("true", encoding="utf-8")
     (ARTIFACT_ROOT / ".last_run_id").write_text(str(new_id), encoding="utf-8")
 
-    sb.table("utilRunLogs").insert({"run_id": new_id, "running_now": True, "run_from": run_from}).execute()
+    sb.table("utilRunLogs").insert({"run_id": new_id, "running_now": True, "run_from": run_from, "date_created": israel_local_timestamp()}).execute()
 
     global CURRENT_RUN_ID
     CURRENT_RUN_ID = new_id
