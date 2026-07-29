@@ -83,7 +83,7 @@ function createRatings(data: PreviewData): string {
     [RT_CRITIC_LOGO, data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null],
     [RT_AUDIENCE_LOGO, data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null],
     [LETTERBOXD_LOGO, data.lbRating ? data.lbRating.toFixed(1) : null],
-  ].filter((rating): rating is [string, string, string] => Boolean(rating[1]));
+  ].filter((rating): rating is [string, string] => Boolean(rating[1]));
 
   return ratings.slice(0, 4).map(([logo, value], index) => {
     const x = 486 + index * 150;
