@@ -88,7 +88,7 @@ function createRatings(data: PreviewData): string {
     [LETTERBOXD_LOGO, data.lbRating ? data.lbRating.toFixed(1) : null],
   ].filter((rating): rating is [string, string] => Boolean(rating[1]));
 
-  const logoX = [530, 650, 768, 889];
+  const logoX = [565, 685, 803, 924];
   return ratings.slice(0, 4).map(([logo], index) => {
     return `<image href="data:image/svg+xml;base64,${logo}" x="${logoX[index]}" y="462" width="62" height="62" preserveAspectRatio="xMidYMid meet"/>`;
   }).join("");
@@ -107,8 +107,8 @@ function createTextOverlay(data: PreviewData): Buffer {
     "</linearGradient>",
     "</defs>",
     '<rect x="430" y="0" width="770" height="630" fill="url(#panelGrad)" />',
-    `<image href="data:image/svg+xml;base64,${YOUTUBE_LOGO}" x="400" y="476" width="48" height="48" preserveAspectRatio="xMidYMid meet"/>`,
-    '<rect x="478" y="462" width="1" height="78" fill="#A990D1" fill-opacity="0.7" />',
+    `<image href="data:image/svg+xml;base64,${YOUTUBE_LOGO}" x="435" y="476" width="48" height="48" preserveAspectRatio="xMidYMid meet"/>`,
+    '<rect x="513" y="462" width="1" height="78" fill="#A990D1" fill-opacity="0.7" />',
     ratingsSvg,
     "</svg>",
   ].join("");
@@ -140,13 +140,13 @@ async function createMovieTextLayers(data: PreviewData): Promise<OverlayOptions[
   const infoText = [data.year ? String(data.year) : null, formatRuntime(data.runtime), data.genres.length ? data.genres.join(", ") : null].filter(Boolean).join("  •  ");
   const ratingValues = [data.imdbRating ? data.imdbRating.toFixed(1) : null, data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null, data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null, data.lbRating ? data.lbRating.toFixed(1) : null].filter((value): value is string => Boolean(value));
   const layers: OverlayOptions[] = [
-    { input: await createTextLayer(data.isComingSoon ? "COMING SOON" : "NOW PLAYING", 400, 30, 16, "#C5A9EB", true), left: 400, top: 252 },
-    { input: await createTextLayer(wrapTitle(data.title).join("\n"), 650, 120, 50, "#FFFFFF", true), left: 400, top: 287 },
-    { input: await createTextLayer(infoText, 720, 36, 20, "#E6DFF3"), left: 400, top: 397 },
+    { input: await createTextLayer(data.isComingSoon ? "COMING SOON" : "NOW PLAYING", 400, 30, 14, "#C5A9EB", true), left: 435, top: 252 },
+    { input: await createTextLayer(wrapTitle(data.title).join("\n"), 650, 120, 46, "#FFFFFF", true), left: 435, top: 287 },
+    { input: await createTextLayer(infoText, 680, 36, 20, "#E6DFF3"), left: 435, top: 397 },
   ];
-  const ratingValueX = [516, 636, 754, 875];
+  const ratingValueX = [551, 671, 789, 910];
   for (const [index, value] of ratingValues.entries()) {
-    layers.push({ input: await createTextLayer(value, 90, 38, 28, "#FFFFFF", true), left: ratingValueX[index], top: 528 });
+    layers.push({ input: await createTextLayer(value, 90, 38, index === 0 || index === 3 ? 25 : 28, "#FFFFFF", true), left: ratingValueX[index], top: 528 });
   }
   return layers;
 }
