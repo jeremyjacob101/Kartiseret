@@ -202,6 +202,10 @@ type MovieShowtimesByCity = Record<AppLocation, MovieShowtimeDay[]>;
 let movieShowtimesByTmdbId: Record<string, MovieShowtimesByCity> = {};
 let nowPlayingLoaded = false;
 let comingSoonLoaded = false;
+// This readiness flag is intentionally reserved for the broad, all-movies
+// city window consumed by /showtimes and inline movie details. Targeted
+// standalone movie requests publish into the same cache, but must not make the
+// rest of the app believe that broad data is available.
 let showtimesLoaded = false;
 let showtimesVersion = 0;
 let loadNowPlayingMoviesPromise: Promise<void> | null = null;
@@ -1558,7 +1562,6 @@ function publishTargetedMovieShowtimeState(
       [city]: movieShowtimesById[movie.tmdbId] ?? [],
     },
   };
-  showtimesLoaded = true;
   showtimesVersion += 1;
   refreshMovieCatalogStatus();
 }

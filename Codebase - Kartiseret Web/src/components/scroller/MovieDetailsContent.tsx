@@ -717,7 +717,9 @@ export function MovieDetailsContent({
     [cities],
   );
   const hasLoadedShowtimeWindow =
-    variant === "nowPlaying" && showtimesReady && showtimeDays.length > 0;
+    variant === "nowPlaying" &&
+    (exactDateShowtimeQueries || showtimesReady) &&
+    showtimeDays.length > 0;
   const hasLoadedCompleteShowtimeWindow =
     hasLoadedShowtimeWindow && showtimeDays.length >= SHOWTIME_WINDOW_DAY_COUNT;
   const firstCityShowtimeDate = hasLoadedShowtimeWindow

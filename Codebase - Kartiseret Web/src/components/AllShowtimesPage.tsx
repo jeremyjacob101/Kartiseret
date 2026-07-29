@@ -175,18 +175,10 @@ export function AllShowtimesPage() {
         day.movies.flatMap(({ theaters }) => theaters)),
     [dayPanels],
   );
-  const showtimeFilterOptions = useMemo<ShowtimeFilterOptions>(() => {
-    if (allLoadedTheaters.length === 0) {
-      return {
-        showType: [],
-        screenFormat: [],
-        screeningTech: [],
-        dubLanguage: ["Hebrew", "French"],
-      };
-    }
-
-    return getShowtimeFilterOptions(allLoadedTheaters);
-  }, [allLoadedTheaters]);
+  const showtimeFilterOptions = useMemo<ShowtimeFilterOptions>(
+    () => getShowtimeFilterOptions(allLoadedTheaters),
+    [allLoadedTheaters],
+  );
   const showtimeFilterSelections = useMemo<ShowtimeFilterSelections>(
     () =>
       buildShowtimeFilterSelections(showtimeFilterOptions, showtimeFilterState),
