@@ -32,17 +32,7 @@ const FONT_FACE_CSS = [
 
 const LOGO_WIDTH = 150;
 const LOGO_MARGIN_RIGHT = 45;
-const LOGO_MARGIN_BOTTOM = 45;
-
-const CINEMA_CHAIN_COLORS: Record<string, string> = {
-  "Yes Planet": "#d9710f",
-  "Cinema City": "#186bdf",
-  "Lev Cinema": "#b50519",
-  "Rav Hen": "#ab5306",
-  "Hot Cinema": "#f06a87",
-  MovieLand: "#a80371",
-  Cinematheque: "#31a26d",
-};
+const LOGO_MARGIN_TOP = 35;
 
 function escapeXml(value: string): string {
   return value
@@ -87,27 +77,25 @@ function wrapTitle(title: string, maximumLength = 25): string[] {
   return lines;
 }
 
-function getCinemaChainColor(theater: string): string {
-  const normalizedTheater = theater.toLowerCase();
-  const matchingChain = Object.keys(CINEMA_CHAIN_COLORS).find((chain) =>
-    normalizedTheater.includes(chain.toLowerCase()),
-  );
-
-  return matchingChain ? CINEMA_CHAIN_COLORS[matchingChain] : "#5b4b83";
+function formatRuntime(runtime: number | null): string | null {
+  if (!runtime) return null;
+  const hours = Math.floor(runtime / 60);
+  const minutes = runtime % 60;
+  return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
 
-function createTheaterRows(
-  theaters: PreviewData["theaters"],
-  startY: number,
-): string {
-  return theaters
-    .map((theater, index) => {
-      const y = startY + index * 85;
-      const showtimesFormatted = theater.showtimes.join("  ·  ");
-      const color = getCinemaChainColor(theater.theater);
-      return `<rect x="470" y="${y - 31}" width="660" height="70" rx="14" fill="${color}" fill-opacity="0.88"/><text x="486" y="${y - 4}" font-size="21" font-weight="700" fill="white" font-family="Inter OG,sans-serif">${escapeXml(theater.theater)}</text><text x="486" y="${y + 27}" font-size="29" font-weight="600" fill="white" font-family="Inter OG,sans-serif">${escapeXml(showtimesFormatted)}</text>`;
-    })
-    .join("");
+function createRatings(data: PreviewData): string {
+  const ratings: Array<[string, string | null, string]> = [
+    ["IMDb", data.imdbRating ? data.imdbRating.toFixed(1) : null, "#f5c518"],
+    ["RT Critics", data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null, "#e33b32"],
+    ["RT Audience", data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null, "#ef7f30"],
+    ["Letterboxd", data.lbRating ? data.lbRating.toFixed(1) : null, "#3d93bd"],
+  ].filter((rating): rating is [string, string, string] => Boolean(rating[1]));
+
+  return ratings.slice(0, 4).map(([label, value, color], index) => {
+    const x = 486 + index * 150;
+    return `<rect x="${x}" y="420" width="132" height="76" rx="14" fill="${color}" fill-opacity="0.92"/><text x="${x + 12}" y="448" font-size="15" font-weight="700" fill="#111116" font-family="Inter OG,sans-serif">${label}</text><text x="${x + 12}" y="478" font-size="28" font-weight="700" fill="white" font-family="Inter OG,sans-serif">${value}</text>`;
+  }).join("");
 }
 
 function createTextOverlay(data: PreviewData): Buffer {
@@ -120,22 +108,13 @@ function createTextOverlay(data: PreviewData): Buffer {
     })
     .join("");
 
-  const contextText = data.isComingSoon
-    ? "Coming soon on Kartiseret"
-    : `${data.city} · ${data.dateLabel}`;
-
-  let bodySvg: string;
-
-  if (data.isComingSoon) {
-    bodySvg =
-      '<text x="486" y="310" font-size="30" font-weight="400" fill="#D8CFF5" font-family="Inter OG,sans-serif">Coming soon</text>';
-  } else if (data.theaters.length > 0) {
-    const theaterStartY = data.theaters.length <= 2 ? 340 : 310;
-    bodySvg = createTheaterRows(data.theaters, theaterStartY);
-  } else {
-    bodySvg =
-      '<text x="486" y="340" font-size="28" font-weight="600" fill="#D8CFF5" font-family="Inter OG,sans-serif">View available showtimes</text>';
-  }
+  const infoText = [
+    data.year ? String(data.year) : null,
+    formatRuntime(data.runtime),
+    data.genres.length ? data.genres.join(", ") : null,
+  ].filter(Boolean).join("  •  ");
+  const statusText = data.isComingSoon ? "COMING SOON" : "NOW PLAYING";
+  const ratingsSvg = createRatings(data);
 
   const svg = [
     '<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">',
@@ -148,9 +127,10 @@ function createTextOverlay(data: PreviewData): Buffer {
     "</linearGradient>",
     "</defs>",
     '<rect x="430" y="0" width="770" height="630" fill="url(#panelGrad)" />',
+    `<text x="486" y="62" font-size="21" font-weight="700" letter-spacing="5" fill="#C5A9EB" font-family="Inter OG,sans-serif">${statusText}</text>`,
     titleSvg,
-    `<text x="486" y="245" font-size="26" font-weight="400" fill="#D8CFF5" font-family="Inter OG,sans-serif">${escapeXml(contextText)}</text>`,
-    bodySvg,
+    `<text x="486" y="270" font-size="25" font-weight="400" fill="#E6DFF3" font-family="Inter OG,sans-serif">${escapeXml(infoText)}</text>`,
+    ratingsSvg,
     "</svg>",
   ].join("");
 
@@ -187,7 +167,7 @@ async function createLogoLayer(): Promise<OverlayOptions | null> {
     return {
       input: logoBuffer,
       left: 1200 - LOGO_WIDTH - LOGO_MARGIN_RIGHT,
-      top: 630 - logoHeight - LOGO_MARGIN_BOTTOM,
+      top: LOGO_MARGIN_TOP,
     };
   } catch (error) {
     console.error("Failed to create logo layer:", error);

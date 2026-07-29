@@ -23,6 +23,13 @@ type DatabaseMovie = {
   english_title: string | null;
   en_poster: string | null;
   backdrop: string | null;
+  release_year: number | string | null;
+  runtime: number | string | null;
+  genres: string[] | string | null;
+  imdbRating: number | string | null;
+  rtCriticRating: number | string | null;
+  rtAudienceRating: number | string | null;
+  lbRating: number | string | null;
 };
 
 type DatabaseShowtime = {
@@ -50,7 +57,32 @@ export type PreviewData = {
   backdropUrl: string;
   isComingSoon: boolean;
   theaters: PreviewTheater[];
+  year: number | null;
+  runtime: number | null;
+  genres: string[];
+  imdbRating: number | null;
+  rtCriticRating: number | null;
+  rtAudienceRating: number | null;
+  lbRating: number | null;
 };
+
+function parseNumber(value: number | string | null): number | null {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function parseGenres(value: DatabaseMovie["genres"]): string[] {
+  if (Array.isArray(value)) return value.filter(Boolean).slice(0, 3);
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((genre): genre is string => typeof genre === "string").slice(0, 3)
+      : value.split(",").map((genre) => genre.trim()).filter(Boolean).slice(0, 3);
+  } catch {
+    return value.split(",").map((genre) => genre.trim()).filter(Boolean).slice(0, 3);
+  }
+}
 
 function normalizeShowtime(value: string | null): string {
   const normalizedValue = value?.trim() || "";
@@ -90,9 +122,12 @@ async function getMovieByTmdbId(
   }
 
   for (const tableName of ["finalMovies", "finalSoons"]) {
+    const movieColumns = tableName === "finalMovies"
+      ? "english_title,en_poster,backdrop,release_year,runtime,genres,imdbRating,rtCriticRating,rtAudienceRating,lbRating"
+      : "english_title,en_poster,backdrop,release_year,runtime,genres";
     const { data, error } = await supabase
       .from(tableName)
-      .select("english_title,en_poster,backdrop")
+      .select(movieColumns)
       .eq("tmdb_id", tmdbId)
       .limit(1);
 
@@ -251,6 +286,13 @@ export async function getPreviewData(
       backdropUrl: movie.backdrop?.trim() || "",
       isComingSoon,
       theaters: [],
+      year: parseNumber(movie.release_year),
+      runtime: parseNumber(movie.runtime),
+      genres: parseGenres(movie.genres),
+      imdbRating: parseNumber(movie.imdbRating),
+      rtCriticRating: parseNumber(movie.rtCriticRating),
+      rtAudienceRating: parseNumber(movie.rtAudienceRating),
+      lbRating: parseNumber(movie.lbRating),
     };
   }
 
@@ -284,6 +326,13 @@ export async function getPreviewData(
     backdropUrl: movie.backdrop?.trim() || "",
     isComingSoon,
     theaters: groupPreviewShowtimes(nonExpiredRows),
+    year: parseNumber(movie.release_year),
+    runtime: parseNumber(movie.runtime),
+    genres: parseGenres(movie.genres),
+    imdbRating: parseNumber(movie.imdbRating),
+    rtCriticRating: parseNumber(movie.rtCriticRating),
+    rtAudienceRating: parseNumber(movie.rtAudienceRating),
+    lbRating: parseNumber(movie.lbRating),
   };
 }
 
