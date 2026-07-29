@@ -3,6 +3,9 @@
   "functions": {
     "api/og.ts": {
       "includeFiles": "dist/**"
+    },
+    "api/og-image.ts": {
+      "maxDuration": 30
     }
   },
   "rewrites": [
@@ -29,6 +32,10 @@
     {
       "source": "/:routeCode([0-9A-Za-z]{3,10})",
       "destination": "/api/og?routeCode=:routeCode"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }

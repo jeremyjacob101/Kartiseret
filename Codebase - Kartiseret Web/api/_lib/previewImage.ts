@@ -1,10 +1,7 @@
 import sharp, { type OverlayOptions } from "sharp";
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import type { PreviewData } from "./previewData";
 
 const IMAGE_TIMEOUT_MS = 8_000;
-const logoPath = resolve(process.cwd(), "public/logos/favicon.svg");
 
 function escapeXml(value: string): string {
   return value
@@ -49,6 +46,33 @@ function wrapTitle(title: string, maximumLength = 25): string[] {
   return lines;
 }
 
+function createTheaterRows(theaters: PreviewData["theaters"]): string {
+  return theaters
+    .map((theater, index) => {
+      const y = 350 + index * 78;
+
+      return `
+        <text
+          x="480"
+          y="${y}"
+          font-size="23"
+          font-weight="700"
+          fill="white"
+          font-family="Arial, Helvetica, sans-serif"
+        >${escapeXml(theater.theater)}</text>
+
+        <text
+          x="480"
+          y="${y + 34}"
+          font-size="28"
+          fill="#d9d1ee"
+          font-family="Arial, Helvetica, sans-serif"
+        >${escapeXml(theater.showtimes.join("   "))}</text>
+      `;
+    })
+    .join("");
+}
+
 function createTextOverlay(data: PreviewData): Buffer {
   const titleLines = wrapTitle(data.title);
 
@@ -67,32 +91,22 @@ function createTextOverlay(data: PreviewData): Buffer {
     )
     .join("");
 
-  const theaterSvg =
-    data.theaters.length > 0
-      ? data.theaters
-          .map((theater, index) => {
-            const y = 350 + index * 78;
+  const contextText = data.isComingSoon
+    ? "Coming soon on Kartiseret"
+    : `${data.city} · ${data.dateLabel}`;
 
-            return `
-              <text
-                x="480"
-                y="${y}"
-                font-size="23"
-                font-weight="700"
-                fill="white"
-                font-family="Arial, Helvetica, sans-serif"
-              >${escapeXml(theater.theater)}</text>
-
-              <text
-                x="480"
-                y="${y + 34}"
-                font-size="28"
-                fill="#d9d1ee"
-                font-family="Arial, Helvetica, sans-serif"
-              >${escapeXml(theater.showtimes.join("   "))}</text>
-            `;
-          })
-          .join("")
+  const theaterSvg = data.isComingSoon
+    ? `
+        <text
+          x="480"
+          y="375"
+          font-size="30"
+          fill="#d9d1ee"
+          font-family="Arial, Helvetica, sans-serif"
+        >Coming soon</text>
+      `
+    : data.theaters.length > 0
+      ? createTheaterRows(data.theaters)
       : `
           <text
             x="480"
@@ -132,7 +146,7 @@ function createTextOverlay(data: PreviewData): Buffer {
         font-size="25"
         fill="#d9d1ee"
         font-family="Arial, Helvetica, sans-serif"
-      >${escapeXml(data.city)} · ${escapeXml(data.dateLabel)}</text>
+      >${escapeXml(contextText)}</text>
 
       ${theaterSvg}
     </svg>
@@ -183,15 +197,14 @@ async function downloadImage(url: string): Promise<Buffer | null> {
 }
 
 export async function createPreviewImage(data: PreviewData): Promise<Buffer> {
-  const posterSource = data.posterUrl
-    ? await downloadImage(data.posterUrl)
-    : null;
-
-  const backdropSource =
+  const [posterSource, downloadedBackdrop] = await Promise.all([
+    data.posterUrl ? downloadImage(data.posterUrl) : Promise.resolve(null),
     data.backdropUrl && data.backdropUrl !== data.posterUrl
-      ? await downloadImage(data.backdropUrl)
-      : posterSource;
+      ? downloadImage(data.backdropUrl)
+      : Promise.resolve(null),
+  ]);
 
+  const backdropSource = downloadedBackdrop || posterSource;
   const layers: OverlayOptions[] = [];
 
   if (backdropSource) {
@@ -219,23 +232,6 @@ export async function createPreviewImage(data: PreviewData): Promise<Buffer> {
     left: 0,
     top: 0,
   });
-
-  if (existsSync(logoPath)) {
-    try {
-      const logo = await sharp(readFileSync(logoPath))
-        .resize(82, 82)
-        .png()
-        .toBuffer();
-
-      layers.push({
-        input: logo,
-        left: 72,
-        top: 485,
-      });
-    } catch {
-      // Logo overlay is optional.
-    }
-  }
 
   return sharp({
     create: {

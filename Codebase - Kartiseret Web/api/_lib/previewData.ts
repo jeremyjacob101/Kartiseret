@@ -238,6 +238,22 @@ export async function getPreviewData(
     return null;
   }
 
+  if (isComingSoon) {
+    return {
+      routeCode,
+      movieCode: parsedRoute.movieCode,
+      tmdbId,
+      title: movie.english_title,
+      city,
+      date,
+      dateLabel: formatPreviewDate(date),
+      posterUrl: movie.en_poster?.trim() || "",
+      backdropUrl: movie.backdrop?.trim() || "",
+      isComingSoon,
+      theaters: [],
+    };
+  }
+
   const { data: showtimeRows, error: showtimeError } = await supabase
     .from("finalShowtimes")
     .select("cinema,showtime,screening_tech,screening_type,dub_language")
