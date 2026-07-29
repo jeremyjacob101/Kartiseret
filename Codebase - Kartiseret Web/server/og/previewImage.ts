@@ -34,6 +34,16 @@ const LOGO_WIDTH = 150;
 const LOGO_MARGIN_RIGHT = 45;
 const LOGO_MARGIN_BOTTOM = 45;
 
+const CINEMA_CHAIN_COLORS: Record<string, string> = {
+  "Yes Planet": "#d9710f",
+  "Cinema City": "#186bdf",
+  "Lev Cinema": "#b50519",
+  "Rav Hen": "#ab5306",
+  "Hot Cinema": "#f06a87",
+  MovieLand: "#a80371",
+  Cinematheque: "#31a26d",
+};
+
 function escapeXml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -77,6 +87,15 @@ function wrapTitle(title: string, maximumLength = 25): string[] {
   return lines;
 }
 
+function getCinemaChainColor(theater: string): string {
+  const normalizedTheater = theater.toLowerCase();
+  const matchingChain = Object.keys(CINEMA_CHAIN_COLORS).find((chain) =>
+    normalizedTheater.includes(chain.toLowerCase()),
+  );
+
+  return matchingChain ? CINEMA_CHAIN_COLORS[matchingChain] : "#5b4b83";
+}
+
 function createTheaterRows(
   theaters: PreviewData["theaters"],
   startY: number,
@@ -85,7 +104,8 @@ function createTheaterRows(
     .map((theater, index) => {
       const y = startY + index * 85;
       const showtimesFormatted = theater.showtimes.join("  ·  ");
-      return `<text x="486" y="${y}" font-size="25" font-weight="700" fill="white" font-family="Inter OG,sans-serif">${escapeXml(theater.theater)}</text><text x="486" y="${y + 38}" font-size="33" font-weight="600" fill="#D8CFF5" font-family="Inter OG,sans-serif">${escapeXml(showtimesFormatted)}</text>`;
+      const color = getCinemaChainColor(theater.theater);
+      return `<rect x="470" y="${y - 31}" width="660" height="70" rx="14" fill="${color}" fill-opacity="0.88"/><text x="486" y="${y - 4}" font-size="21" font-weight="700" fill="white" font-family="Inter OG,sans-serif">${escapeXml(theater.theater)}</text><text x="486" y="${y + 27}" font-size="29" font-weight="600" fill="white" font-family="Inter OG,sans-serif">${escapeXml(showtimesFormatted)}</text>`;
     })
     .join("");
 }
@@ -122,9 +142,9 @@ function createTextOverlay(data: PreviewData): Buffer {
     "<defs>",
     `<style>${FONT_FACE_CSS}</style>`,
     '<linearGradient id="panelGrad" x1="0" y1="0" x2="1" y2="0">',
-    '<stop offset="0%" stop-color="rgba(8,10,18,0.95)" />',
-    '<stop offset="8%" stop-color="rgba(10,12,22,0.91)" />',
-    '<stop offset="100%" stop-color="rgba(10,12,22,0.88)" />',
+    '<stop offset="0%" stop-color="rgba(8,10,18,0.72)" />',
+    '<stop offset="8%" stop-color="rgba(10,12,22,0.62)" />',
+    '<stop offset="100%" stop-color="rgba(10,12,22,0.52)" />',
     "</linearGradient>",
     "</defs>",
     '<rect x="430" y="0" width="770" height="630" fill="url(#panelGrad)" />',
@@ -205,8 +225,7 @@ export async function createPreviewImage(data: PreviewData): Promise<Buffer> {
   if (backdropSource) {
     const background = await sharp(backdropSource)
       .resize(1200, 630, { fit: "cover" })
-      .blur(16)
-      .modulate({ brightness: 0.42 })
+      .modulate({ brightness: 0.62 })
       .jpeg()
       .toBuffer();
 
