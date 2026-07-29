@@ -17,18 +17,11 @@ function loadAssetBuffer(filename: string): Buffer {
   }
 }
 
-const INTER_REGULAR_B64 =
-  loadAssetBuffer("Inter-Regular.ttf").toString("base64");
-const INTER_SEMIBOLD_B64 =
-  loadAssetBuffer("Inter-SemiBold.ttf").toString("base64");
-const INTER_BOLD_B64 = loadAssetBuffer("Inter-Bold.ttf").toString("base64");
 const LOGO_SVG = loadAssetBuffer("kartiseret-logo.svg");
-
-const FONT_FACE_CSS = [
-  `@font-face{font-family:'Inter OG';font-weight:400;src:url(data:font/ttf;base64,${INTER_REGULAR_B64}) format('truetype')}`,
-  `@font-face{font-family:'Inter OG';font-weight:600;src:url(data:font/ttf;base64,${INTER_SEMIBOLD_B64}) format('truetype')}`,
-  `@font-face{font-family:'Inter OG';font-weight:700;src:url(data:font/ttf;base64,${INTER_BOLD_B64}) format('truetype')}`,
-].join("");
+const IMDB_LOGO = loadAssetBuffer("imdb.svg").toString("base64");
+const RT_CRITIC_LOGO = loadAssetBuffer("rtCriticGood.svg").toString("base64");
+const RT_AUDIENCE_LOGO = loadAssetBuffer("rtAudienceGood.svg").toString("base64");
+const LETTERBOXD_LOGO = loadAssetBuffer("letterboxd.svg").toString("base64");
 
 const LOGO_WIDTH = 150;
 const LOGO_MARGIN_RIGHT = 45;
@@ -85,16 +78,16 @@ function formatRuntime(runtime: number | null): string | null {
 }
 
 function createRatings(data: PreviewData): string {
-  const ratings: Array<[string, string | null, string]> = [
-    ["IMDb", data.imdbRating ? data.imdbRating.toFixed(1) : null, "#f5c518"],
-    ["RT Critics", data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null, "#e33b32"],
-    ["RT Audience", data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null, "#ef7f30"],
-    ["Letterboxd", data.lbRating ? data.lbRating.toFixed(1) : null, "#3d93bd"],
+  const ratings: Array<[string, string | null]> = [
+    [IMDB_LOGO, data.imdbRating ? data.imdbRating.toFixed(1) : null],
+    [RT_CRITIC_LOGO, data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null],
+    [RT_AUDIENCE_LOGO, data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null],
+    [LETTERBOXD_LOGO, data.lbRating ? data.lbRating.toFixed(1) : null],
   ].filter((rating): rating is [string, string, string] => Boolean(rating[1]));
 
-  return ratings.slice(0, 4).map(([label, value, color], index) => {
+  return ratings.slice(0, 4).map(([logo, value], index) => {
     const x = 486 + index * 150;
-    return `<rect x="${x}" y="420" width="132" height="76" rx="14" fill="${color}" fill-opacity="0.92"/><text x="${x + 12}" y="448" font-size="15" font-weight="700" fill="#111116" font-family="Inter OG,sans-serif">${label}</text><text x="${x + 12}" y="478" font-size="28" font-weight="700" fill="white" font-family="Inter OG,sans-serif">${value}</text>`;
+    return `<image href="data:image/svg+xml;base64,${logo}" x="${x + 35}" y="402" width="62" height="62" preserveAspectRatio="xMidYMid meet"/><text x="${x + 66}" y="500" text-anchor="middle" font-size="28" font-weight="700" fill="white" font-family="Arial, Helvetica, sans-serif">${value}</text>`;
   }).join("");
 }
 
@@ -104,7 +97,7 @@ function createTextOverlay(data: PreviewData): Buffer {
   const titleSvg = titleLines
     .map((line, index) => {
       const y = 120 + index * 62;
-      return `<text x="486" y="${y}" font-size="56" font-weight="700" fill="white" font-family="Inter OG,sans-serif">${escapeXml(line)}</text>`;
+      return `<text x="486" y="${y}" font-size="56" font-weight="700" fill="white" font-family="Arial, Helvetica, sans-serif">${escapeXml(line)}</text>`;
     })
     .join("");
 
@@ -119,7 +112,6 @@ function createTextOverlay(data: PreviewData): Buffer {
   const svg = [
     '<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">',
     "<defs>",
-    `<style>${FONT_FACE_CSS}</style>`,
     '<linearGradient id="panelGrad" x1="0" y1="0" x2="1" y2="0">',
     '<stop offset="0%" stop-color="rgba(8,10,18,0.72)" />',
     '<stop offset="8%" stop-color="rgba(10,12,22,0.62)" />',
@@ -127,9 +119,9 @@ function createTextOverlay(data: PreviewData): Buffer {
     "</linearGradient>",
     "</defs>",
     '<rect x="430" y="0" width="770" height="630" fill="url(#panelGrad)" />',
-    `<text x="486" y="62" font-size="21" font-weight="700" letter-spacing="5" fill="#C5A9EB" font-family="Inter OG,sans-serif">${statusText}</text>`,
+    `<text x="486" y="62" font-size="21" font-weight="700" letter-spacing="5" fill="#C5A9EB" font-family="Arial, Helvetica, sans-serif">${statusText}</text>`,
     titleSvg,
-    `<text x="486" y="270" font-size="25" font-weight="400" fill="#E6DFF3" font-family="Inter OG,sans-serif">${escapeXml(infoText)}</text>`,
+    `<text x="486" y="270" font-size="25" font-weight="400" fill="#E6DFF3" font-family="Arial, Helvetica, sans-serif">${escapeXml(infoText)}</text>`,
     ratingsSvg,
     "</svg>",
   ].join("");
@@ -141,11 +133,10 @@ function createHomepageSvg(): Buffer {
   const svg = [
     '<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">',
     "<defs>",
-    `<style>${FONT_FACE_CSS}</style>`,
     "</defs>",
     '<rect width="1200" height="630" fill="#111116" />',
-    '<text x="600" y="300" font-size="64" font-weight="700" fill="white" font-family="Inter OG,sans-serif" text-anchor="middle">Kartiseret</text>',
-    '<text x="600" y="364" font-size="28" font-weight="400" fill="#D8CFF5" font-family="Inter OG,sans-serif" text-anchor="middle">Movie showtimes across Israel</text>',
+    '<text x="600" y="300" font-size="64" font-weight="700" fill="white" font-family="Arial, Helvetica, sans-serif" text-anchor="middle">Kartiseret</text>',
+    '<text x="600" y="364" font-size="28" font-weight="400" fill="#D8CFF5" font-family="Arial, Helvetica, sans-serif" text-anchor="middle">Movie showtimes across Israel</text>',
     "</svg>",
   ].join("");
 
@@ -210,6 +201,14 @@ export async function createPreviewImage(data: PreviewData): Promise<Buffer> {
   if (posterSource) {
     const poster = await sharp(posterSource)
       .resize(340, 540, { fit: "cover" })
+      .composite([
+        {
+          input: Buffer.from(
+            '<svg width="340" height="540"><rect width="340" height="540" rx="38" fill="white"/></svg>',
+          ),
+          blend: "dest-in",
+        },
+      ])
       .jpeg()
       .toBuffer();
 
