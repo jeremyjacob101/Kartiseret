@@ -1,0 +1,11 @@
+{
+  "installCommand": "npm --prefix \"Codebase - Kartiseret Web\" install",
+  "buildCommand": "npm --prefix \"Codebase - Kartiseret Web\" run build",
+  "outputDirectory": "Codebase - Kartiseret Web/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
