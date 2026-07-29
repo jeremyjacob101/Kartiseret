@@ -130,9 +130,7 @@ function TrailingPlaceholderDay({ date }: { date: string }) {
       aria-hidden="true"
     >
       <span className="showtime-day-button-tick showtime-day-button-tick--top" />
-      <span className="showtime-day-button-eyebrow">
-        {getDayWeekday(date)}
-      </span>
+      <span className="showtime-day-button-eyebrow">{getDayWeekday(date)}</span>
       <span className="showtime-day-button-number">{getDayNumber(date)}</span>
     </div>
   );
@@ -187,10 +185,10 @@ export function ShowtimeDayPicker({
   const trailingPlaceholderDates = useMemo(
     () =>
       lastEntryDate
-        ? Array.from(
-            { length: normalizedTrailingPlaceholderCount },
-            (_, index) => addCalendarDays(lastEntryDate, index + 1),
-          )
+        ? Array.from({ length: normalizedTrailingPlaceholderCount }, (
+            _,
+            index,
+          ) => addCalendarDays(lastEntryDate, index + 1))
         : [],
     [lastEntryDate, normalizedTrailingPlaceholderCount],
   );

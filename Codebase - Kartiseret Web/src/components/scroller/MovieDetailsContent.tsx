@@ -100,12 +100,14 @@ const EMPTY_SHOWTIME_DAYS: readonly MovieShowtimeDay[] = Object.freeze([]);
 type MovieDetailsContentProps = {
   movie: Movie;
   titleId: string;
+  titleAs?: "h1" | "h2";
   posterRef?: Ref<HTMLImageElement>;
   posterClassName?: string;
   eyebrow?: string;
   variant?: MovieDetailsVariant;
   preferredShowtimeDate?: string | null;
   onPreferredShowtimeDateChange?: (date: string) => void;
+  targetShowtimeQueries?: boolean;
 };
 
 export type MovieDetailsVariant = "nowPlaying" | "comingSoon";
@@ -589,12 +591,14 @@ function getScreeningTypeBadgeLabel(screeningType: string): string | null {
 export function MovieDetailsContent({
   movie,
   titleId,
+  titleAs: TitleElement = "h2",
   posterRef,
   posterClassName = "details-poster",
   eyebrow = "Now playing",
   variant = "nowPlaying",
   preferredShowtimeDate = null,
   onPreferredShowtimeDateChange,
+  targetShowtimeQueries = false,
 }: MovieDetailsContentProps) {
   const { sources, location, setLocationPreference } =
     useUserPreferencesContext();
@@ -1000,20 +1004,24 @@ export function MovieDetailsContent({
         return;
       }
 
-      const requestKey = `${location}:${nextDayCount}`;
+      const requestKey = `${location}:${movie.tmdbId}:${nextDayCount}`;
 
       if (requestedShowtimePrefetchRef.current === requestKey) {
         return;
       }
 
       requestedShowtimePrefetchRef.current = requestKey;
-      void loadAdditionalShowtimeDays(location, nextDayCount).catch(() => {
+      void loadAdditionalShowtimeDays(
+        location,
+        nextDayCount,
+        targetShowtimeQueries ? movie.tmdbId : undefined,
+      ).catch(() => {
         if (requestedShowtimePrefetchRef.current === requestKey) {
           requestedShowtimePrefetchRef.current = null;
         }
       });
     },
-    [location, showtimeDays, variant],
+    [location, movie.tmdbId, showtimeDays, targetShowtimeQueries, variant],
   );
 
   const handleShowtimeJumpClick = useCallback(() => {
@@ -1070,10 +1078,17 @@ export function MovieDetailsContent({
     void loadShowtimesAroundDate(
       location,
       preferredShowtimeDate ?? fixedAppDateString,
+      targetShowtimeQueries ? movie.tmdbId : undefined,
     ).catch((error: unknown) => {
       console.error("Could not load showtimes for the selected city.", error);
     });
-  }, [location, preferredShowtimeDate, variant]);
+  }, [
+    location,
+    movie.tmdbId,
+    preferredShowtimeDate,
+    targetShowtimeQueries,
+    variant,
+  ]);
 
   useEffect(() => {
     if (variant !== "nowPlaying") {
@@ -1121,7 +1136,11 @@ export function MovieDetailsContent({
       SHOWTIME_WINDOW_DAY_COUNT,
     );
     const requestMoreDays = () => {
-      void loadAdditionalShowtimeDays(location, nextDayCount).catch(() => {});
+      void loadAdditionalShowtimeDays(
+        location,
+        nextDayCount,
+        targetShowtimeQueries ? movie.tmdbId : undefined,
+      ).catch(() => {});
     };
 
     if (typeof windowWithIdleCallbacks.requestIdleCallback === "function") {
@@ -1149,7 +1168,14 @@ export function MovieDetailsContent({
         window.clearTimeout(timeoutId);
       }
     };
-  }, [location, showtimeDays.length, showtimesReady, variant]);
+  }, [
+    location,
+    movie.tmdbId,
+    showtimeDays.length,
+    showtimesReady,
+    targetShowtimeQueries,
+    variant,
+  ]);
 
   useEffect(() => {
     if (!isTrailerModalOpen) {
@@ -1235,9 +1261,9 @@ export function MovieDetailsContent({
 
         <div className="details-copy">
           <p className="details-eyebrow">{eyebrow}</p>
-          <h2 id={titleId} className="details-title">
+          <TitleElement id={titleId} className="details-title">
             {movie.title}
-          </h2>
+          </TitleElement>
           {metaParts.length > 0 ? (
             <div className="details-subtitle details-subtitle--meta-row">
               {metaParts.map((part) => (

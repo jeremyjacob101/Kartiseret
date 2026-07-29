@@ -13,6 +13,7 @@ export type MovieSearchCollection = {
 
 export type MovieSearchResult = {
   tmdbId: string;
+  movieCode?: string;
   title: string;
   year: number;
   imageSrc: string;
@@ -132,6 +133,7 @@ export function MovieSearchMenu({
           .map((movie) => ({
             result: {
               tmdbId: movie.tmdbId,
+              movieCode: movie.movieCode,
               title: movie.title,
               year: movie.year,
               imageSrc: movie.imageSrc,

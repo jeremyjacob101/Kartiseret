@@ -13,6 +13,9 @@ export const SHOWTIME_PREFETCH_TRIGGER_DAY_COUNT = 10;
 const MOVIES_TABLE_NAME = "finalMovies";
 const COMING_SOON_TABLE_NAME = "finalSoons";
 const SHOWTIMES_TABLE_NAME = "finalShowtimes";
+const MOVIE_CODES_TABLE_NAME = "movieCodes";
+const MOVIE_CODE_QUERY_CHUNK_SIZE = 200;
+const MOVIE_CODE_PATTERN = /^[0-9A-Za-z]{3}$/;
 const MOVIE_SELECT_COLUMNS = [
   "tmdb_id",
   "english_title",
@@ -104,6 +107,11 @@ type ComingSoonMovieRow = MovieRow & {
   release_date: string;
 };
 
+type MovieCodeRow = SupabaseRow & {
+  tmdb_id: string | number;
+  movie_code: string;
+};
+
 type ShowtimeRow = SupabaseRow & {
   tmdb_id: string | number;
   screening_city: string;
@@ -116,6 +124,7 @@ type ShowtimeRow = SupabaseRow & {
 
 export type Movie = {
   tmdbId: string;
+  movieCode?: string;
   imdbId?: string;
   rtId?: string;
   title: string;
@@ -147,7 +156,12 @@ export type MovieAltOption = {
   posterUrl: string | null;
 };
 
-type CatalogMode = "nowPlaying" | "comingSoon";
+export type CatalogMode = "nowPlaying" | "comingSoon";
+
+export type MovieRouteMatch = {
+  movie: Movie;
+  mode: CatalogMode;
+};
 
 export type TheaterShowtimes = {
   theater: string;
@@ -179,6 +193,8 @@ export let movies: Movie[] = [];
 export let allNowPlayingMovies: Movie[] = [];
 export let comingSoonMovies: Movie[] = [];
 export let allComingSoonMovies: Movie[] = [];
+let nowPlayingMoviesByCode = new Map<string, Movie>();
+let comingSoonMoviesByCode = new Map<string, Movie>();
 
 type MovieShowtimesByCity = Record<AppLocation, MovieShowtimeDay[]>;
 
@@ -196,6 +212,7 @@ type ShowtimeCityLoadState = {
   loadPromise: Promise<void> | null;
   priorityLoadPromise: Promise<void> | null;
   rowsByKey: Map<string, ShowtimeRow>;
+  targetedLoadedDayCountByTmdbId: Map<string, number>;
   visibleDayCount: number;
 };
 const showtimeLoadStateByCity = new Map<AppLocation, ShowtimeCityLoadState>();
@@ -639,12 +656,16 @@ function compareTheaters(left: string, right: string): number {
 }
 
 type BuildMoviesOptions = {
+  movieCodesByTmdbId?: ReadonlyMap<string, string>;
   sortMode?: "popularity" | "releaseDate";
 };
 
 function buildMovies(
   rows: MovieRow[],
-  { sortMode = "popularity" }: BuildMoviesOptions = {},
+  {
+    movieCodesByTmdbId = new Map<string, string>(),
+    sortMode = "popularity",
+  }: BuildMoviesOptions = {},
 ): Movie[] {
   return [...rows]
     .filter((row) => !parseBooleanValue(row.solo_update))
@@ -674,9 +695,11 @@ function buildMovies(
         normalizeText(stringifySupabaseValue(row.release_date)) || undefined;
       const parsedReleaseYear =
         Number.parseInt(stringifySupabaseValue(row.release_year), 10) || 0;
+      const tmdbId = normalizeText(stringifySupabaseValue(row.tmdb_id));
 
       return {
-        tmdbId: normalizeText(stringifySupabaseValue(row.tmdb_id)),
+        tmdbId,
+        movieCode: movieCodesByTmdbId.get(tmdbId),
         imdbId: getFirstNormalizedText(row, ["imdb_id"]) || undefined,
         rtId: getFirstNormalizedText(row, ["rt_id"]) || undefined,
         title: normalizeTitle(stringifySupabaseValue(row.english_title)),
@@ -995,6 +1018,88 @@ async function fetchComingSoonMovieRows(): Promise<ComingSoonMovieRow[]> {
   }
 }
 
+async function fetchMovieCodesByTmdbId(
+  movieRows: readonly MovieRow[],
+): Promise<Map<string, string>> {
+  const tmdbIds = [
+    ...new Set(
+      movieRows
+        .map((row) => normalizeText(stringifySupabaseValue(row.tmdb_id)))
+        .filter(Boolean),
+    ),
+  ];
+
+  if (tmdbIds.length === 0) {
+    return new Map();
+  }
+
+  const supabase = getSupabaseBrowserClient();
+  const chunks = Array.from(
+    { length: Math.ceil(tmdbIds.length / MOVIE_CODE_QUERY_CHUNK_SIZE) },
+    (_, index) =>
+      tmdbIds.slice(
+        index * MOVIE_CODE_QUERY_CHUNK_SIZE,
+        (index + 1) * MOVIE_CODE_QUERY_CHUNK_SIZE,
+      ),
+  );
+  const chunkRows = await Promise.all(
+    chunks.map(async (tmdbIdChunk) => {
+      const { data, error } = await supabase
+        .from(MOVIE_CODES_TABLE_NAME)
+        .select("tmdb_id,movie_code")
+        .in("tmdb_id", tmdbIdChunk);
+
+      if (error) {
+        throw new Error(
+          `Failed to load ${MOVIE_CODES_TABLE_NAME} from Supabase: ${error.message}`,
+        );
+      }
+
+      return (data ?? []) as unknown as MovieCodeRow[];
+    }),
+  );
+  const movieCodesByTmdbId = new Map<string, string>();
+
+  for (const row of chunkRows.flat()) {
+    const tmdbId = normalizeText(stringifySupabaseValue(row.tmdb_id));
+    const movieCode = normalizeText(row.movie_code);
+
+    if (tmdbId && MOVIE_CODE_PATTERN.test(movieCode)) {
+      movieCodesByTmdbId.set(tmdbId, movieCode);
+    }
+  }
+
+  return movieCodesByTmdbId;
+}
+
+function indexMoviesByCode(movieItems: readonly Movie[]): Map<string, Movie> {
+  return new Map(
+    movieItems.flatMap((movie) =>
+      movie.movieCode ? [[movie.movieCode, movie] as const] : []),
+  );
+}
+
+export function isValidMovieCode(movieCode: string): boolean {
+  return MOVIE_CODE_PATTERN.test(movieCode);
+}
+
+export function findMovieByCode(movieCode: string): MovieRouteMatch | null {
+  if (!isValidMovieCode(movieCode)) {
+    return null;
+  }
+
+  const nowPlayingMovie = nowPlayingMoviesByCode.get(movieCode);
+
+  if (nowPlayingMovie) {
+    return { movie: nowPlayingMovie, mode: "nowPlaying" };
+  }
+
+  const comingSoonMovie = comingSoonMoviesByCode.get(movieCode);
+  return comingSoonMovie
+    ? { movie: comingSoonMovie, mode: "comingSoon" }
+    : null;
+}
+
 async function fetchShowtimeRowsForDateRange(
   city: AppLocation,
   startDateString: string,
@@ -1079,7 +1184,8 @@ export async function loadNowPlayingMovies(): Promise<void> {
 
   loadNowPlayingMoviesPromise = (async () => {
     const movieRows = await fetchMovieRows();
-    const nextMovies = buildMovies(movieRows);
+    const movieCodesByTmdbId = await fetchMovieCodesByTmdbId(movieRows);
+    const nextMovies = buildMovies(movieRows, { movieCodesByTmdbId });
 
     if (nextMovies.length === 0) {
       throw new Error(
@@ -1089,6 +1195,7 @@ export async function loadNowPlayingMovies(): Promise<void> {
 
     movies = nextMovies;
     allNowPlayingMovies = nextMovies;
+    nowPlayingMoviesByCode = indexMoviesByCode(nextMovies);
     nowPlayingLoaded = true;
     refreshMovieCatalogStatus();
   })()
@@ -1096,6 +1203,7 @@ export async function loadNowPlayingMovies(): Promise<void> {
       if (!nowPlayingLoaded) {
         movies = [];
         allNowPlayingMovies = [];
+        nowPlayingMoviesByCode = new Map();
       }
 
       refreshMovieCatalogStatus();
@@ -1119,7 +1227,9 @@ export async function loadComingSoonMovies(): Promise<void> {
 
   loadComingSoonMoviesPromise = (async () => {
     const comingSoonRows = await fetchComingSoonMovieRows();
+    const movieCodesByTmdbId = await fetchMovieCodesByTmdbId(comingSoonRows);
     const nextMovies = buildMovies(comingSoonRows, {
+      movieCodesByTmdbId,
       sortMode: "releaseDate",
     });
 
@@ -1131,6 +1241,7 @@ export async function loadComingSoonMovies(): Promise<void> {
 
     comingSoonMovies = nextMovies;
     allComingSoonMovies = nextMovies;
+    comingSoonMoviesByCode = indexMoviesByCode(nextMovies);
     comingSoonLoaded = true;
     refreshMovieCatalogStatus();
   })()
@@ -1138,6 +1249,7 @@ export async function loadComingSoonMovies(): Promise<void> {
       if (!comingSoonLoaded) {
         comingSoonMovies = [];
         allComingSoonMovies = [];
+        comingSoonMoviesByCode = new Map();
       }
 
       refreshMovieCatalogStatus();
@@ -1163,6 +1275,7 @@ function getShowtimeCityLoadState(city: AppLocation): ShowtimeCityLoadState {
     loadPromise: null,
     priorityLoadPromise: null,
     rowsByKey: new Map(),
+    targetedLoadedDayCountByTmdbId: new Map(),
     visibleDayCount: 0,
   };
   showtimeLoadStateByCity.set(city, nextState);
@@ -1234,14 +1347,20 @@ function publishShowtimeCityState(
 
 function publishTargetedMovieShowtimeState(
   city: AppLocation,
+  cityState: ShowtimeCityLoadState,
   movie: Movie,
-  rows: readonly ShowtimeRow[],
+  visibleDayCount: number,
 ): void {
+  const normalizedTmdbId = normalizeText(movie.tmdbId);
+  const movieRows = [...cityState.rowsByKey.values()].filter(
+    (row) =>
+      normalizeText(stringifySupabaseValue(row.tmdb_id)) === normalizedTmdbId,
+  );
   const movieShowtimesById = buildMovieShowtimesForCity(
-    [...rows],
+    movieRows,
     [movie],
     city,
-    getShowtimeWindowEndDateString(INITIAL_SHOWTIME_WINDOW_DAY_COUNT),
+    getShowtimeWindowEndDateString(visibleDayCount),
   );
   const existingMovieShowtimes =
     movieShowtimesByTmdbId[movie.tmdbId] ?? createEmptyMovieShowtimesByCity();
@@ -1287,11 +1406,14 @@ async function ensureMovieShowtimeWindowLoaded(
   const targetDayCount = clampShowtimeWindowDayCount(dayCount);
   const cityState = getShowtimeCityLoadState(city);
   const targetDateString = getShowtimeWindowEndDateString(targetDayCount);
+  const loadedMovieDayCount =
+    cityState.targetedLoadedDayCountByTmdbId.get(tmdbId) ?? 0;
+  const coveredDayCount = Math.max(
+    cityState.loadedDayCount,
+    loadedMovieDayCount,
+  );
 
-  if (
-    cityState.loadedDayCount >= targetDayCount ||
-    cityState.fetchedDateStrings.has(targetDateString)
-  ) {
+  if (coveredDayCount >= targetDayCount) {
     return;
   }
 
@@ -1318,20 +1440,28 @@ async function ensureMovieShowtimeWindowLoaded(
       return;
     }
 
+    const startDateString =
+      coveredDayCount > 0
+        ? addDaysToIsoDate(fixedAppDateString, coveredDayCount)
+        : fixedAppDateString;
     const showtimeRows = await fetchShowtimeRowsForDateRange(
       city,
-      fixedAppDateString,
+      startDateString,
       targetDateString,
       tmdbId,
     );
 
     cacheShowtimeRows(cityState, showtimeRows);
-    publishTargetedMovieShowtimeState(city, movie, showtimeRows);
-  })().catch((error) => {
-    targetedMovieShowtimeLoadPromises.delete(loadKey);
-    refreshMovieCatalogStatus();
-    throw error instanceof Error ? error : new Error(String(error));
-  });
+    cityState.targetedLoadedDayCountByTmdbId.set(tmdbId, targetDayCount);
+    publishTargetedMovieShowtimeState(city, cityState, movie, targetDayCount);
+  })()
+    .catch((error) => {
+      refreshMovieCatalogStatus();
+      throw error instanceof Error ? error : new Error(String(error));
+    })
+    .finally(() => {
+      targetedMovieShowtimeLoadPromises.delete(loadKey);
+    });
 
   targetedMovieShowtimeLoadPromises.set(loadKey, loadPromise);
   return loadPromise;
@@ -1444,16 +1574,29 @@ async function loadFocusedShowtimeDate(
 export async function loadShowtimesAroundDate(
   city: AppLocation,
   dateString: string,
+  tmdbId?: string,
 ): Promise<void> {
   const cityState = getShowtimeCityLoadState(city);
   const focusedDayCount = getShowtimeWindowDayCountForDate(dateString);
 
   if (cityState.priorityLoadPromise) {
     await cityState.priorityLoadPromise;
-    return loadShowtimesAroundDate(city, dateString);
+    return loadShowtimesAroundDate(city, dateString, tmdbId);
   }
 
   cityState.priorityLoadPromise = (async () => {
+    if (tmdbId) {
+      await ensureMovieShowtimeWindowLoaded(
+        city,
+        tmdbId,
+        Math.min(
+          focusedDayCount + SHOWTIME_PREFETCH_CHUNK_DAY_COUNT,
+          SHOWTIME_WINDOW_DAY_COUNT,
+        ),
+      );
+      return;
+    }
+
     await loadFocusedShowtimeDate(city, dateString);
 
     const backfillDayCount = focusedDayCount - 1;
@@ -1478,6 +1621,7 @@ export async function loadShowtimesAroundDate(
 export async function loadAdditionalShowtimeDays(
   city: AppLocation,
   dayCount: number,
+  tmdbId?: string,
 ): Promise<void> {
   const cityState = getShowtimeCityLoadState(city);
 
@@ -1485,7 +1629,9 @@ export async function loadAdditionalShowtimeDays(
     await cityState.priorityLoadPromise;
   }
 
-  return ensureShowtimeWindowLoaded(city, dayCount);
+  return tmdbId
+    ? ensureMovieShowtimeWindowLoaded(city, tmdbId, dayCount)
+    : ensureShowtimeWindowLoaded(city, dayCount);
 }
 
 export async function loadMovieCatalog(
@@ -1514,6 +1660,7 @@ export async function reloadNowPlayingMovies(): Promise<void> {
   nowPlayingLoaded = false;
   movies = [];
   allNowPlayingMovies = [];
+  nowPlayingMoviesByCode = new Map();
   refreshMovieCatalogStatus();
   await loadNowPlayingMovies();
 }
@@ -1522,6 +1669,7 @@ export async function reloadComingSoonMovies(): Promise<void> {
   comingSoonLoaded = false;
   comingSoonMovies = [];
   allComingSoonMovies = [];
+  comingSoonMoviesByCode = new Map();
   refreshMovieCatalogStatus();
   await loadComingSoonMovies();
 }

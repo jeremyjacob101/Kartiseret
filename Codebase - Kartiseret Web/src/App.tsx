@@ -28,6 +28,7 @@ const loadUserPreferencesPage = () =>
   import("./components/UserPreferencesPage");
 const loadPosterGridPage = () => import("./components/PosterGridPage");
 const loadAllShowtimesPage = () => import("./components/AllShowtimesPage");
+const loadMoviePage = () => import("./components/MoviePage");
 
 const UserPreferencesPage = lazy(async () => {
   const module = await loadUserPreferencesPage();
@@ -42,6 +43,11 @@ const PosterGridPage = lazy(async () => {
 const AllShowtimesPage = lazy(async () => {
   const module = await loadAllShowtimesPage();
   return { default: module.AllShowtimesPage };
+});
+
+const MoviePage = lazy(async () => {
+  const module = await loadMoviePage();
+  return { default: module.MoviePage };
 });
 
 type MovieSearchMode = "nowPlaying" | "comingSoon";
@@ -563,6 +569,11 @@ export function App() {
 
   const handleMovieSearchSelect = useCallback(
     (result: MovieSearchResult) => {
+      if (result.movieCode) {
+        navigate(`/${result.movieCode}`);
+        return;
+      }
+
       openCatalogMovie(result.mode, result.tmdbId);
 
       const targetPath = result.mode === "nowPlaying" ? "/movies" : "/soons";
@@ -738,6 +749,17 @@ export function App() {
               <section className="page-panel">
                 <AttributionPage />
               </section>
+            }
+          />
+          <Route
+            path="/:movieCode"
+            element={
+              <Suspense fallback={null}>
+                <MoviePage
+                  catalogError={catalogError}
+                  catalogReady={catalogReady}
+                />
+              </Suspense>
             }
           />
           <Route path="*" element={<Navigate to="/" replace />} />
