@@ -87,7 +87,7 @@ function createRatings(data: PreviewData): string {
     [LETTERBOXD_LOGO, data.lbRating ? data.lbRating.toFixed(1) : null],
   ].filter((rating): rating is [string, string] => Boolean(rating[1]));
 
-  return ratings.slice(0, 4).map(([logo, value], index) => {
+  return ratings.slice(0, 4).map(([logo], index) => {
     const x = 486 + index * 150;
     return `<image href="data:image/svg+xml;base64,${logo}" x="${x + 35}" y="402" width="62" height="62" preserveAspectRatio="xMidYMid meet"/>`;
   }).join("");
