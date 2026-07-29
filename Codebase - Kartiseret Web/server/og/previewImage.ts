@@ -154,11 +154,6 @@ function createHomepageSvg(): Buffer {
 
 async function createLogoLayer(): Promise<OverlayOptions | null> {
   try {
-    const logoMeta = await sharp(LOGO_SVG).metadata();
-    const svgWidth = logoMeta.width ?? 1800;
-    const svgHeight = logoMeta.height ?? 1340;
-    const logoHeight = Math.round(LOGO_WIDTH * (svgHeight / svgWidth));
-
     const logoBuffer = await sharp(LOGO_SVG)
       .resize({ width: LOGO_WIDTH })
       .png()

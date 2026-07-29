@@ -137,7 +137,7 @@ async function getMovieByTmdbId(
       );
     }
 
-    const movie = data?.[0] as DatabaseMovie | undefined;
+    const movie = data?.[0] as unknown as DatabaseMovie | undefined;
     if (movie) {
       return { movie, isComingSoon: tableName === "finalSoons" };
     }
