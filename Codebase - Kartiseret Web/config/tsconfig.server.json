@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "dom"],
+    "types": ["node", "vite/client"]
+  },
+  "include": ["../server", "../src/env.d.ts"]
+}

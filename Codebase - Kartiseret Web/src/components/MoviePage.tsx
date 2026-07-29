@@ -542,10 +542,14 @@ export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
       return;
     }
 
-    const url = `seret.site/${shareRouteCode}`;
+    const url = `https://seret.site/${shareRouteCode}`;
     if (typeof navigator.share === "function") {
       try {
-        await navigator.share({ text: url });
+        await navigator.share({
+          title: `${routeMovie.title} showtimes`,
+          text: `${routeMovie.title} showtimes on Kartiseret`,
+          url,
+        });
         showShareFeedback("Shared");
         return;
       } catch (error) {
