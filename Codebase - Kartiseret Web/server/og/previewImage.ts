@@ -89,7 +89,7 @@ function createRatings(data: PreviewData): string {
 
   return ratings.slice(0, 4).map(([logo], index) => {
     const x = 486 + index * 150;
-    return `<image href="data:image/svg+xml;base64,${logo}" x="${x + 35}" y="402" width="62" height="62" preserveAspectRatio="xMidYMid meet"/>`;
+    return `<image href="data:image/svg+xml;base64,${logo}" x="${x + 35}" y="432" width="62" height="62" preserveAspectRatio="xMidYMid meet"/>`;
   }).join("");
 }
 
@@ -137,12 +137,12 @@ async function createMovieTextLayers(data: PreviewData): Promise<OverlayOptions[
   const infoText = [data.year ? String(data.year) : null, formatRuntime(data.runtime), data.genres.length ? data.genres.join(", ") : null].filter(Boolean).join("  •  ");
   const ratingValues = [data.imdbRating ? data.imdbRating.toFixed(1) : null, data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null, data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null, data.lbRating ? data.lbRating.toFixed(1) : null].filter((value): value is string => Boolean(value));
   const layers: OverlayOptions[] = [
-    { input: await createTextLayer(data.isComingSoon ? "COMING SOON" : "NOW PLAYING", 400, 36, 21, "#C5A9EB", true), left: 486, top: 39 },
-    { input: await createTextLayer(wrapTitle(data.title).join("\n"), 650, 135, 56, "#FFFFFF", true), left: 486, top: 90 },
-    { input: await createTextLayer(infoText, 650, 42, 25, "#E6DFF3"), left: 486, top: 240 },
+    { input: await createTextLayer(data.isComingSoon ? "COMING SOON" : "NOW PLAYING", 400, 30, 16, "#C5A9EB", true), left: 486, top: 190 },
+    { input: await createTextLayer(wrapTitle(data.title).join("\n"), 650, 120, 50, "#FFFFFF", true), left: 486, top: 224 },
+    { input: await createTextLayer(infoText, 650, 36, 20, "#E6DFF3"), left: 486, top: 355 },
   ];
   for (const [index, value] of ratingValues.entries()) {
-    layers.push({ input: await createTextLayer(value, 90, 38, 28, "#FFFFFF", true), left: 507 + index * 150, top: 466 });
+    layers.push({ input: await createTextLayer(value, 90, 38, 28, "#FFFFFF", true), left: 507 + index * 150, top: 500 });
   }
   return layers;
 }
