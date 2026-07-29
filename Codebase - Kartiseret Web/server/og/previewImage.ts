@@ -140,13 +140,13 @@ async function createMovieTextLayers(data: PreviewData): Promise<OverlayOptions[
   const infoText = [data.year ? String(data.year) : null, formatRuntime(data.runtime), data.genres.length ? data.genres.join(", ") : null].filter(Boolean).join("  •  ");
   const ratingValues = [data.imdbRating ? data.imdbRating.toFixed(1) : null, data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null, data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null, data.lbRating ? data.lbRating.toFixed(1) : null].filter((value): value is string => Boolean(value));
   const layers: OverlayOptions[] = [
-    { input: await createTextLayer(data.isComingSoon ? "COMING SOON" : "NOW PLAYING", 400, 30, 14, "#C5A9EB", true), left: 435, top: 252 },
-    { input: await createTextLayer(wrapTitle(data.title).join("\n"), 650, 120, 46, "#FFFFFF", true), left: 435, top: 287 },
+    { input: await createTextLayer(data.isComingSoon ? "COMING SOON" : "NOW PLAYING", 400, 30, 13, "#C5A9EB", true), left: 435, top: 252 },
+    { input: await createTextLayer(wrapTitle(data.title).join("\n"), 650, 120, 43, "#FFFFFF", true), left: 435, top: 287 },
     { input: await createTextLayer(infoText, 680, 36, 20, "#E6DFF3"), left: 435, top: 397 },
   ];
   const ratingValueX = [551, 671, 789, 910];
   for (const [index, value] of ratingValues.entries()) {
-    layers.push({ input: await createTextLayer(value, 90, 38, index === 0 || index === 3 ? 25 : 28, "#FFFFFF", true), left: ratingValueX[index], top: 528 });
+    layers.push({ input: await createTextLayer(value, 90, 38, index === 0 || index === 3 ? 20 : 28, "#FFFFFF", true), left: ratingValueX[index], top: 528 });
   }
   return layers;
 }
