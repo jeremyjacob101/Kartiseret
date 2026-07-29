@@ -1,7 +1,28 @@
 import sharp, { type OverlayOptions } from "sharp";
 import type { PreviewData } from "./previewData.js";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const IMAGE_TIMEOUT_MS = 8_000;
+
+const __dirname = new URL(".", import.meta.url).pathname;
+const assetsDir = resolve(__dirname, "assets");
+
+const INTER_REGULAR_B64 = readFileSync(
+  resolve(assetsDir, "Inter-Regular.ttf"),
+).toString("base64");
+const INTER_SEMIBOLD_B64 = readFileSync(
+  resolve(assetsDir, "Inter-SemiBold.ttf"),
+).toString("base64");
+const INTER_BOLD_B64 = readFileSync(
+  resolve(assetsDir, "Inter-Bold.ttf"),
+).toString("base64");
+
+const FONT_FACE_CSS = [
+  `@font-face{font-family:'Inter OG';font-weight:400;src:url(data:font/ttf;base64,${INTER_REGULAR_B64}) format('truetype')}`,
+  `@font-face{font-family:'Inter OG';font-weight:600;src:url(data:font/ttf;base64,${INTER_SEMIBOLD_B64}) format('truetype')}`,
+  `@font-face{font-family:'Inter OG';font-weight:700;src:url(data:font/ttf;base64,${INTER_BOLD_B64}) format('truetype')}`,
+].join("");
 
 function escapeXml(value: string): string {
   return value
@@ -46,29 +67,17 @@ function wrapTitle(title: string, maximumLength = 25): string[] {
   return lines;
 }
 
-function createTheaterRows(theaters: PreviewData["theaters"]): string {
+function createTheaterRows(
+  theaters: PreviewData["theaters"],
+  startY: number,
+): string {
   return theaters
     .map((theater, index) => {
-      const y = 350 + index * 78;
-
-      return `
-        <text
-          x="480"
-          y="${y}"
-          font-size="23"
-          font-weight="700"
-          fill="white"
-          font-family="Arial, Helvetica, sans-serif"
-        >${escapeXml(theater.theater)}</text>
-
-        <text
-          x="480"
-          y="${y + 34}"
-          font-size="28"
-          fill="#d9d1ee"
-          font-family="Arial, Helvetica, sans-serif"
-        >${escapeXml(theater.showtimes.join("   "))}</text>
-      `;
+      const y = startY + index * 85;
+      const showtimesFormatted = theater.showtimes.join("  ·  ");
+      const theaterLine = `<text x="486" y="${y}" font-size="25" font-weight="700" fill="white" font-family="Inter OG,sans-serif">${escapeXml(theater.theater)}</text>`;
+      const showtimesLine = `<text x="486" y="${y + 38}" font-size="33" font-weight="600" fill="#D8CFF5" font-family="Inter OG,sans-serif">${escapeXml(showtimesFormatted)}</text>`;
+      return `${theaterLine}${showtimesLine}`;
     })
     .join("");
 }
@@ -77,107 +86,64 @@ function createTextOverlay(data: PreviewData): Buffer {
   const titleLines = wrapTitle(data.title);
 
   const titleSvg = titleLines
-    .map(
-      (line, index) => `
-        <text
-          x="480"
-          y="${145 + index * 60}"
-          font-size="52"
-          font-weight="700"
-          fill="white"
-          font-family="Arial, Helvetica, sans-serif"
-        >${escapeXml(line)}</text>
-      `,
-    )
+    .map((line, index) => {
+      const y = 120 + index * 62;
+      return `<text x="486" y="${y}" font-size="56" font-weight="700" fill="white" font-family="Inter OG,sans-serif">${escapeXml(line)}</text>`;
+    })
     .join("");
 
   const contextText = data.isComingSoon
     ? "Coming soon on Kartiseret"
     : `${data.city} · ${data.dateLabel}`;
 
-  const theaterSvg = data.isComingSoon
-    ? `
-        <text
-          x="480"
-          y="375"
-          font-size="30"
-          fill="#d9d1ee"
-          font-family="Arial, Helvetica, sans-serif"
-        >Coming soon</text>
-      `
-    : data.theaters.length > 0
-      ? createTheaterRows(data.theaters)
-      : `
-          <text
-            x="480"
-            y="375"
-            font-size="27"
-            fill="#d9d1ee"
-            font-family="Arial, Helvetica, sans-serif"
-          >View the latest available showtimes</text>
-        `;
+  let bodySvg: string;
 
-  return Buffer.from(`
-    <svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
-      <rect
-        x="425"
-        y="0"
-        width="775"
-        height="630"
-        fill="#111116"
-        fill-opacity="0.92"
-      />
+  if (data.isComingSoon) {
+    bodySvg =
+      '<text x="486" y="310" font-size="30" font-weight="400" fill="#D8CFF5" font-family="Inter OG,sans-serif">Coming soon</text>';
+  } else if (data.theaters.length > 0) {
+    const theaterStartY = data.theaters.length <= 2 ? 340 : 310;
+    bodySvg = createTheaterRows(data.theaters, theaterStartY);
+  } else {
+    bodySvg =
+      '<text x="486" y="340" font-size="28" font-weight="600" fill="#D8CFF5" font-family="Inter OG,sans-serif">View available showtimes</text>';
+  }
 
-      <text
-        x="480"
-        y="70"
-        font-size="22"
-        font-weight="700"
-        letter-spacing="4"
-        fill="#a996d7"
-        font-family="Arial, Helvetica, sans-serif"
-      >KARTISERET</text>
+  const svg = [
+    '<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">',
+    "<defs>",
+    `<style>${FONT_FACE_CSS}</style>`,
+    '<linearGradient id="panelGrad" x1="0" y1="0" x2="1" y2="0">',
+    '<stop offset="0%" stop-color="rgba(8,10,18,0.95)" />',
+    '<stop offset="8%" stop-color="rgba(10,12,22,0.91)" />',
+    '<stop offset="100%" stop-color="rgba(10,12,22,0.88)" />',
+    "</linearGradient>",
+    "</defs>",
+    '<rect x="430" y="0" width="770" height="630" fill="url(#panelGrad)" />',
+    titleSvg,
+    `<text x="486" y="245" font-size="26" font-weight="400" fill="#D8CFF5" font-family="Inter OG,sans-serif">${escapeXml(contextText)}</text>`,
+    bodySvg,
+    '<text x="1140" y="590" font-size="20" font-weight="600" fill="#9B87C7" font-family="Inter OG,sans-serif" text-anchor="end">Kartiseret</text>',
+    "</svg>",
+  ].join("");
 
-      ${titleSvg}
-
-      <text
-        x="480"
-        y="280"
-        font-size="25"
-        fill="#d9d1ee"
-        font-family="Arial, Helvetica, sans-serif"
-      >${escapeXml(contextText)}</text>
-
-      ${theaterSvg}
-    </svg>
-  `);
+  return Buffer.from(svg);
 }
 
 function createHomepageSvg(): Buffer {
-  return Buffer.from(`
-    <svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
-      <rect width="1200" height="630" fill="#111116" />
+  const svg = [
+    '<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">',
+    "<defs>",
+    `<style>${FONT_FACE_CSS}</style>`,
+    "</defs>",
+    '<rect width="1200" height="630" fill="#111116" />',
+    '<text x="600" y="300" font-size="64" font-weight="700" fill="white" font-family="Inter OG,sans-serif" text-anchor="middle">Kartiseret</text>',
+    '<text x="600" y="364" font-size="28" font-weight="400" fill="#D8CFF5" font-family="Inter OG,sans-serif" text-anchor="middle">Movie showtimes across Israel</text>',
+    '<text x="1140" y="590" font-size="20" font-weight="600" fill="#9B87C7" font-family="Inter OG,sans-serif" text-anchor="end">Kartiseret</text>',
+    "</svg>",
+  ].join("");
 
-      <text
-        x="600"
-        y="280"
-        font-size="64"
-        font-weight="700"
-        fill="white"
-        font-family="Arial, Helvetica, sans-serif"
-        text-anchor="middle"
-      >Kartiseret</text>
-
-      <text
-        x="600"
-        y="350"
-        font-size="28"
-        fill="#d9d1ee"
-        font-family="Arial, Helvetica, sans-serif"
-        text-anchor="middle"
-      >Movie showtimes across Israel</text>
-    </svg>
-  `);
+  return Buffer.from(svg);
 }
 
 async function downloadImage(url: string): Promise<Buffer | null> {
