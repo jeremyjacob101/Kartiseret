@@ -2,8 +2,15 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "target": "ES2023",
-    "lib": ["ES2023", "dom"],
-    "types": ["node", "vite/client"]
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"]
   },
-  "include": ["../server", "../src/env.d.ts"]
+  "include": [
+    "../api",
+    "../src/env.d.ts",
+    "../src/routing/showtimeLinkCodec.ts",
+    "../src/components/showtimes/showtimeFilters.ts",
+    "../src/prefs/definitions/locations.ts",
+    "../src/data/movieCatalog.ts"
+  ]
 }
