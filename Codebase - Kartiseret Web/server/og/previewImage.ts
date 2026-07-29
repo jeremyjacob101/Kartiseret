@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 const IMAGE_TIMEOUT_MS = 8_000;
 
 const assetsDir = fileURLToPath(new URL("./assets/", import.meta.url));
+const INTER_REGULAR_PATH = resolve(assetsDir, "Inter-Regular.ttf");
+const INTER_BOLD_PATH = resolve(assetsDir, "Inter-Bold.ttf");
 
 function loadAssetBuffer(filename: string): Buffer {
   const filePath = resolve(assetsDir, filename);
@@ -87,26 +89,11 @@ function createRatings(data: PreviewData): string {
 
   return ratings.slice(0, 4).map(([logo, value], index) => {
     const x = 486 + index * 150;
-    return `<image href="data:image/svg+xml;base64,${logo}" x="${x + 35}" y="402" width="62" height="62" preserveAspectRatio="xMidYMid meet"/><text x="${x + 66}" y="500" text-anchor="middle" font-size="28" font-weight="700" fill="white" font-family="Arial, Helvetica, sans-serif">${value}</text>`;
+    return `<image href="data:image/svg+xml;base64,${logo}" x="${x + 35}" y="402" width="62" height="62" preserveAspectRatio="xMidYMid meet"/>`;
   }).join("");
 }
 
 function createTextOverlay(data: PreviewData): Buffer {
-  const titleLines = wrapTitle(data.title);
-
-  const titleSvg = titleLines
-    .map((line, index) => {
-      const y = 120 + index * 62;
-      return `<text x="486" y="${y}" font-size="56" font-weight="700" fill="white" font-family="Arial, Helvetica, sans-serif">${escapeXml(line)}</text>`;
-    })
-    .join("");
-
-  const infoText = [
-    data.year ? String(data.year) : null,
-    formatRuntime(data.runtime),
-    data.genres.length ? data.genres.join(", ") : null,
-  ].filter(Boolean).join("  •  ");
-  const statusText = data.isComingSoon ? "COMING SOON" : "NOW PLAYING";
   const ratingsSvg = createRatings(data);
 
   const svg = [
@@ -119,14 +106,45 @@ function createTextOverlay(data: PreviewData): Buffer {
     "</linearGradient>",
     "</defs>",
     '<rect x="430" y="0" width="770" height="630" fill="url(#panelGrad)" />',
-    `<text x="486" y="62" font-size="21" font-weight="700" letter-spacing="5" fill="#C5A9EB" font-family="Arial, Helvetica, sans-serif">${statusText}</text>`,
-    titleSvg,
-    `<text x="486" y="270" font-size="25" font-weight="400" fill="#E6DFF3" font-family="Arial, Helvetica, sans-serif">${escapeXml(infoText)}</text>`,
     ratingsSvg,
     "</svg>",
   ].join("");
 
   return Buffer.from(svg);
+}
+
+async function createTextLayer(
+  text: string,
+  width: number,
+  height: number,
+  fontSize: number,
+  color: string,
+  bold = false,
+): Promise<Buffer> {
+  return sharp({
+    text: {
+      text: `<span foreground="${color}" font_desc="Inter ${bold ? "Bold" : "Regular"} ${fontSize}">${escapeXml(text)}</span>`,
+      font: "Inter",
+      fontfile: bold ? INTER_BOLD_PATH : INTER_REGULAR_PATH,
+      width,
+      height,
+      rgba: true,
+    },
+  }).png().toBuffer();
+}
+
+async function createMovieTextLayers(data: PreviewData): Promise<OverlayOptions[]> {
+  const infoText = [data.year ? String(data.year) : null, formatRuntime(data.runtime), data.genres.length ? data.genres.join(", ") : null].filter(Boolean).join("  •  ");
+  const ratingValues = [data.imdbRating ? data.imdbRating.toFixed(1) : null, data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null, data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null, data.lbRating ? data.lbRating.toFixed(1) : null].filter((value): value is string => Boolean(value));
+  const layers: OverlayOptions[] = [
+    { input: await createTextLayer(data.isComingSoon ? "COMING SOON" : "NOW PLAYING", 400, 36, 21, "#C5A9EB", true), left: 486, top: 39 },
+    { input: await createTextLayer(wrapTitle(data.title).join("\n"), 650, 135, 56, "#FFFFFF", true), left: 486, top: 90 },
+    { input: await createTextLayer(infoText, 650, 42, 25, "#E6DFF3"), left: 486, top: 240 },
+  ];
+  for (const [index, value] of ratingValues.entries()) {
+    layers.push({ input: await createTextLayer(value, 90, 38, 28, "#FFFFFF", true), left: 507 + index * 150, top: 466 });
+  }
+  return layers;
 }
 
 function createHomepageSvg(): Buffer {
@@ -220,6 +238,8 @@ export async function createPreviewImage(data: PreviewData): Promise<Buffer> {
     left: 0,
     top: 0,
   });
+
+  layers.push(...(await createMovieTextLayers(data)));
 
   const logoLayer = await createLogoLayer();
   if (logoLayer) {
