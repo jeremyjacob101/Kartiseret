@@ -1,33 +1,13 @@
 import { type ShowtimeEntry, type TheaterShowtimes } from "../../data/movieCatalog";
+import { isCanonicalShowtimeFilterMatch, migrateShowtimeFilterState, SHOWTIME_FILTER_OPTIONS, type PersistedShowtimeFilterState, type ShowtimeFilterGroup } from "../../routing/showtimeLinkCodec";
 
 const SHOWTIME_FILTERS_STORAGE_KEY = "showtime_filters_v1";
 const SHOWTIME_FILTERS_EVENT_NAME = "showtime-filters-updated";
 const COLLAPSE_WHITESPACE = /\s+/g;
+const WARNED_UNSUPPORTED_SHOW_TYPES = new Set<string>();
+const WARNED_UNSUPPORTED_DUB_LANGUAGES = new Set<string>();
 
-const FIXED_DUB_LANGUAGES = ["Hebrew", "French"] as const;
-const SHOW_TYPE_OPTIONS = [
-  "Regular",
-  "VIP",
-  "VIP Light",
-  "Upgrade",
-  "Prime",
-  "Lounge",
-] as const;
-const SCREEN_FORMAT_OPTIONS = ["2D", "3D"] as const;
-const SCREENING_TECH_OPTIONS = [
-  "Standard",
-  "HFR",
-  "IMAX",
-  "Atmos",
-  "ONYX",
-  "ScreenX",
-  "4DX",
-] as const;
-
-type FilterGroup =
-  "showType" | "screenFormat" | "screeningTech" | "dubLanguage";
-
-type SavedUncheckedGroups = Record<FilterGroup, string[]>;
+type SavedUncheckedGroups = Record<ShowtimeFilterGroup, string[]>;
 
 const DEFAULT_SAVED_UNCHECKED: SavedUncheckedGroups = {
   showType: [],
@@ -36,10 +16,7 @@ const DEFAULT_SAVED_UNCHECKED: SavedUncheckedGroups = {
   dubLanguage: [],
 };
 
-export type ShowtimeFilterState = {
-  version: 2;
-  unchecked: SavedUncheckedGroups;
-};
+export type ShowtimeFilterState = PersistedShowtimeFilterState;
 
 export type ShowtimeFilterSelections = {
   showType: ReadonlySet<string>;
@@ -52,7 +29,7 @@ export type CanonicalShowtimeMeta = {
   showTypeTokens: readonly string[];
   screenFormatToken: string;
   screeningTechTokens: readonly string[];
-  dubLanguage: string | null;
+  dubLanguage: string;
 };
 
 export type ShowtimeFilterOptions = {
@@ -85,71 +62,6 @@ function normalizeUniqueList(values: readonly string[]): string[] {
   ].sort((left, right) => left.localeCompare(right));
 }
 
-function normalizeFilterState(value: unknown): ShowtimeFilterState | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const candidate = value as {
-    version?: unknown;
-    unchecked?: Partial<Record<FilterGroup, unknown>>;
-  };
-
-  if (candidate.version !== 1 && candidate.version !== 2) {
-    return null;
-  }
-
-  const uncheckedGroups = candidate.unchecked;
-  const rawUncheckedScreeningTech = Array.isArray(
-    uncheckedGroups?.screeningTech,
-  )
-    ? normalizeUniqueList(
-        uncheckedGroups.screeningTech.filter(
-          (entry): entry is string => typeof entry === "string",
-        ),
-      )
-    : [];
-  const migratedScreenFormat =
-    candidate.version === 1
-      ? rawUncheckedScreeningTech.filter(
-          (entry) => entry === "2D" || entry === "3D",
-        )
-      : Array.isArray(uncheckedGroups?.screenFormat)
-        ? normalizeUniqueList(
-            uncheckedGroups.screenFormat.filter(
-              (entry): entry is string => typeof entry === "string",
-            ),
-          )
-        : [];
-
-  return {
-    version: 2,
-    unchecked: {
-      showType: Array.isArray(uncheckedGroups?.showType)
-        ? normalizeUniqueList(
-            uncheckedGroups.showType.filter(
-              (entry): entry is string => typeof entry === "string",
-            ),
-          )
-        : [],
-      screenFormat: migratedScreenFormat,
-      screeningTech:
-        candidate.version === 1
-          ? rawUncheckedScreeningTech.filter(
-              (entry) => entry !== "2D" && entry !== "3D",
-            )
-          : rawUncheckedScreeningTech,
-      dubLanguage: Array.isArray(uncheckedGroups?.dubLanguage)
-        ? normalizeUniqueList(
-            uncheckedGroups.dubLanguage.filter(
-              (entry): entry is string => typeof entry === "string",
-            ),
-          )
-        : [],
-    },
-  };
-}
-
 function readFilterStateFromStorage(): ShowtimeFilterState | null {
   try {
     const raw = window.localStorage.getItem(SHOWTIME_FILTERS_STORAGE_KEY);
@@ -159,7 +71,7 @@ function readFilterStateFromStorage(): ShowtimeFilterState | null {
     }
 
     const parsed = JSON.parse(raw) as unknown;
-    return normalizeFilterState(parsed);
+    return migrateShowtimeFilterState(parsed);
   } catch {
     return null;
   }
@@ -186,6 +98,16 @@ export function normalizeScreeningType(raw: string): string {
 
 function getShowTypeTokens(raw: string): string[] {
   const normalizedType = normalizeScreeningType(raw);
+  const comparableType = normalizedType.toLowerCase();
+
+  if (comparableType === "premium") {
+    return ["Premium"];
+  }
+
+  if (comparableType === "not just cinema") {
+    return ["Not Just Cinema"];
+  }
+
   const words = normalizedType
     .toUpperCase()
     .split(/[+\s/,-]+/)
@@ -223,7 +145,14 @@ function getShowTypeTokens(raw: string): string[] {
   }
 
   if (tokens.size === 0) {
-    tokens.add(normalizedType);
+    if (!WARNED_UNSUPPORTED_SHOW_TYPES.has(normalizedType)) {
+      WARNED_UNSUPPORTED_SHOW_TYPES.add(normalizedType);
+      console.warn(
+        `Unsupported screening type "${normalizedType}" is not exposed as a showtime filter.`,
+      );
+    }
+
+    return [];
   }
 
   return [...tokens];
@@ -296,11 +225,11 @@ function getScreeningTechParts(raw: string): {
   };
 }
 
-function normalizeDubLanguage(raw: string | null | undefined): string | null {
+function normalizeDubLanguage(raw: string | null | undefined): string {
   const normalizedRaw = normalizeText(raw);
 
   if (!normalizedRaw) {
-    return null;
+    return "Original";
   }
 
   const comparableValue = normalizedRaw.toLowerCase();
@@ -311,6 +240,17 @@ function normalizeDubLanguage(raw: string | null | undefined): string | null {
 
   if (comparableValue === "french") {
     return "French";
+  }
+
+  if (comparableValue === "original") {
+    return "Original";
+  }
+
+  if (!WARNED_UNSUPPORTED_DUB_LANGUAGES.has(normalizedRaw)) {
+    WARNED_UNSUPPORTED_DUB_LANGUAGES.add(normalizedRaw);
+    console.warn(
+      `Unsupported dub language "${normalizedRaw}" is not exposed as a showtime filter.`,
+    );
   }
 
   return normalizedRaw;
@@ -332,42 +272,17 @@ export function getCanonicalShowtimeMeta(
 export function getShowtimeFilterOptions(
   theaters: readonly TheaterShowtimes[],
 ): ShowtimeFilterOptions {
-  const showTypeSet = new Set<string>();
-  const screenFormatSet = new Set<string>();
-  const screeningTechSet = new Set<string>();
-
   for (const theater of theaters) {
     for (const showtime of theater.showtimes) {
-      const canonicalMeta = getCanonicalShowtimeMeta(showtime);
-      for (const token of canonicalMeta.showTypeTokens) {
-        showTypeSet.add(token);
-      }
-      screenFormatSet.add(canonicalMeta.screenFormatToken);
-      for (const token of canonicalMeta.screeningTechTokens) {
-        screeningTechSet.add(token);
-      }
+      getCanonicalShowtimeMeta(showtime);
     }
   }
 
-  for (const option of SHOW_TYPE_OPTIONS) {
-    showTypeSet.add(option);
-  }
-
-  for (const option of SCREEN_FORMAT_OPTIONS) {
-    screenFormatSet.add(option);
-  }
-
-  for (const option of SCREENING_TECH_OPTIONS) {
-    screeningTechSet.add(option);
-  }
-
   return {
-    showType: [...showTypeSet].sort((left, right) => left.localeCompare(right)),
-    screenFormat: [...screenFormatSet].sort((left, right) =>
-      left.localeCompare(right)),
-    screeningTech: [...screeningTechSet].sort((left, right) =>
-      left.localeCompare(right)),
-    dubLanguage: [...FIXED_DUB_LANGUAGES],
+    showType: SHOWTIME_FILTER_OPTIONS.showType,
+    screenFormat: SHOWTIME_FILTER_OPTIONS.screenFormat,
+    screeningTech: SHOWTIME_FILTER_OPTIONS.screeningTech,
+    dubLanguage: SHOWTIME_FILTER_OPTIONS.dubLanguage,
   };
 }
 
@@ -401,36 +316,10 @@ function isShowtimeAllowed(
   showtime: ShowtimeEntry,
   selections: ShowtimeFilterSelections,
 ): boolean {
-  const canonicalMeta = getCanonicalShowtimeMeta(showtime);
-
-  for (const token of canonicalMeta.showTypeTokens) {
-    if (!selections.showType.has(token)) {
-      return false;
-    }
-  }
-
-  if (!selections.screenFormat.has(canonicalMeta.screenFormatToken)) {
-    return false;
-  }
-
-  if (
-    !canonicalMeta.screeningTechTokens.some((token) =>
-      selections.screeningTech.has(token))
-  ) {
-    return false;
-  }
-
-  if (
-    canonicalMeta.dubLanguage &&
-    FIXED_DUB_LANGUAGES.includes(
-      canonicalMeta.dubLanguage as (typeof FIXED_DUB_LANGUAGES)[number],
-    ) &&
-    !selections.dubLanguage.has(canonicalMeta.dubLanguage)
-  ) {
-    return false;
-  }
-
-  return true;
+  return isCanonicalShowtimeFilterMatch(
+    getCanonicalShowtimeMeta(showtime),
+    selections,
+  );
 }
 
 export function filterTheatersBySelections(
@@ -460,7 +349,7 @@ export function updateShowtimeFilterState(
   const previousUnchecked = copyUncheckedGroups(previousState?.unchecked);
 
   const nextUncheckedForGroup = (
-    group: FilterGroup,
+    group: ShowtimeFilterGroup,
     groupOptions: readonly string[],
     selectedValues: ReadonlySet<string>,
   ): string[] => {
@@ -478,7 +367,7 @@ export function updateShowtimeFilterState(
   };
 
   return {
-    version: 2,
+    version: 3,
     unchecked: {
       showType: nextUncheckedForGroup(
         "showType",
@@ -510,7 +399,7 @@ export function loadShowtimeFilters(): ShowtimeFilterState | null {
 
 export function saveShowtimeFilters(nextState: ShowtimeFilterState): void {
   cachedFilterState = {
-    version: 2,
+    version: 3,
     unchecked: copyUncheckedGroups(nextState.unchecked),
   };
 

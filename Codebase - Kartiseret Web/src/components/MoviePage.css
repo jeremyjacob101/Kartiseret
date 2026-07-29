@@ -217,11 +217,14 @@
     transform: none;
   }
 
-  .movie-page-card .details-day-picker-filter {
+  .movie-page-card .details-day-picker-actions {
     position: static;
     grid-column: 2;
     grid-row: 2;
     justify-self: end;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     inset: auto;
     transform: none;
   }

@@ -81,12 +81,15 @@
 }
 
 .movie-scroller-shell.is-opening .movie-scroller-detail-layer {
-  animation: movieScrollerStageIn var(--movie-scroller-stage-fade-duration, 260ms) ease both;
+  animation: movieScrollerStageIn
+    var(--movie-scroller-stage-fade-duration, 260ms) ease both;
 }
 
 .movie-scroller-shell.is-closing .movie-scroller-detail-layer {
   pointer-events: none;
-  animation: movieScrollerStageOut var(--movie-scroller-stage-fade-duration, 260ms) ease var(--movie-scroller-stage-close-delay, 0ms) both;
+  animation: movieScrollerStageOut
+    var(--movie-scroller-stage-fade-duration, 260ms) ease
+    var(--movie-scroller-stage-close-delay, 0ms) both;
 }
 
 .movie-scroller-shell.is-open .movie-scroller-detail-layer {
@@ -153,7 +156,8 @@
 }
 
 .movie-scroller-shell.is-opening .movie-scroller-side-preview {
-  animation: movieScrollerSidePreviewIn 360ms cubic-bezier(0.16, 0.9, 0.24, 1) 70ms both;
+  animation: movieScrollerSidePreviewIn 360ms cubic-bezier(0.16, 0.9, 0.24, 1)
+    70ms both;
 }
 
 .movie-scroller-shell.is-opening .movie-scroller-side-preview.is-disabled {
@@ -167,11 +171,13 @@
   inset: 0;
   background:
     linear-gradient(180deg, rgba(6, 5, 10, 0.06), rgba(6, 5, 10, 0.38)),
-    linear-gradient(90deg,
+    linear-gradient(
+      90deg,
       rgba(6, 5, 10, 0.24),
       transparent 28%,
       transparent 72%,
-      rgba(6, 5, 10, 0.24));
+      rgba(6, 5, 10, 0.24)
+    );
 }
 
 .movie-scroller-side-preview-image {
@@ -190,9 +196,7 @@
   border-radius: 34px;
   overflow: hidden;
   color: #f6f0ff;
-  background:
-    linear-gradient(180deg, #18142a, #090813 72%),
-    #090813;
+  background: linear-gradient(180deg, #18142a, #090813 72%), #090813;
   box-shadow:
     0 30px 72px rgba(0, 0, 0, 0.34),
     0 0 0 1px rgba(255, 255, 255, 0.06);
@@ -213,19 +217,27 @@
 }
 
 .movie-scroller-detail-body.is-entering-from-right {
-  animation: movieScrollerBodyEnterFromRight var(--movie-scroller-detail-swap-duration, 360ms) cubic-bezier(0.16, 0.9, 0.24, 1) both;
+  animation: movieScrollerBodyEnterFromRight
+    var(--movie-scroller-detail-swap-duration, 360ms)
+    cubic-bezier(0.16, 0.9, 0.24, 1) both;
 }
 
 .movie-scroller-detail-body.is-entering-from-left {
-  animation: movieScrollerBodyEnterFromLeft var(--movie-scroller-detail-swap-duration, 360ms) cubic-bezier(0.16, 0.9, 0.24, 1) both;
+  animation: movieScrollerBodyEnterFromLeft
+    var(--movie-scroller-detail-swap-duration, 360ms)
+    cubic-bezier(0.16, 0.9, 0.24, 1) both;
 }
 
 .movie-scroller-detail-body.is-leaving-to-left {
-  animation: movieScrollerBodyExitToLeft var(--movie-scroller-detail-swap-duration, 360ms) cubic-bezier(0.16, 0.9, 0.24, 1) both;
+  animation: movieScrollerBodyExitToLeft
+    var(--movie-scroller-detail-swap-duration, 360ms)
+    cubic-bezier(0.16, 0.9, 0.24, 1) both;
 }
 
 .movie-scroller-detail-body.is-leaving-to-right {
-  animation: movieScrollerBodyExitToRight var(--movie-scroller-detail-swap-duration, 360ms) cubic-bezier(0.16, 0.9, 0.24, 1) both;
+  animation: movieScrollerBodyExitToRight
+    var(--movie-scroller-detail-swap-duration, 360ms)
+    cubic-bezier(0.16, 0.9, 0.24, 1) both;
 }
 
 .movie-scroller-detail-backdrop-shell,
@@ -245,17 +257,21 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg,
+    linear-gradient(
+      180deg,
       rgba(11, 9, 14, 0.06) 0%,
       rgba(11, 9, 14, 0.08) 24%,
       rgba(11, 9, 14, 0.18) 48%,
       rgba(11, 9, 14, 0.34) 70%,
-      rgba(11, 9, 14, 0.7) 100%),
-    linear-gradient(90deg,
+      rgba(11, 9, 14, 0.7) 100%
+    ),
+    linear-gradient(
+      90deg,
       rgba(11, 9, 14, 0.18) 0%,
       rgba(11, 9, 14, 0.04) 24%,
       rgba(11, 9, 14, 0.04) 76%,
-      rgba(11, 9, 14, 0.18) 100%);
+      rgba(11, 9, 14, 0.18) 100%
+    );
 }
 
 .movie-scroller-detail-backdrop {
@@ -273,23 +289,31 @@
 }
 
 .movie-scroller-detail-backdrop.is-animating-in {
-  animation: movieScrollerBackdropIn 720ms cubic-bezier(0.18, 0.88, 0.24, 1) both;
+  animation: movieScrollerBackdropIn 720ms cubic-bezier(0.18, 0.88, 0.24, 1)
+    both;
 }
 
-.movie-scroller-shell.is-closing .movie-scroller-detail-body.is-current .movie-scroller-detail-backdrop {
-  animation: movieScrollerBackdropOut var(--movie-scroller-stage-fade-duration, 260ms) ease both;
+.movie-scroller-shell.is-closing
+  .movie-scroller-detail-body.is-current
+  .movie-scroller-detail-backdrop {
+  animation: movieScrollerBackdropOut
+    var(--movie-scroller-stage-fade-duration, 260ms) ease both;
 }
 
 .movie-scroller-detail-sheen {
   background:
-    linear-gradient(180deg,
+    linear-gradient(
+      180deg,
       rgba(255, 255, 255, 0.08) 0%,
       rgba(255, 255, 255, 0.02) 24%,
-      rgba(255, 255, 255, 0) 100%),
-    linear-gradient(180deg,
+      rgba(255, 255, 255, 0) 100%
+    ),
+    linear-gradient(
+      180deg,
       rgba(11, 9, 14, 0.06) 0%,
       rgba(11, 9, 14, 0.18) 36%,
-      rgba(11, 9, 14, 0.74) 100%);
+      rgba(11, 9, 14, 0.74) 100%
+    );
 }
 
 .movie-scroller-close {
@@ -412,7 +436,7 @@
   gap: 8px;
 }
 
-.details-subtitle-item+.details-subtitle-item::before {
+.details-subtitle-item + .details-subtitle-item::before {
   content: "•";
   display: inline-block;
   margin-inline-end: 8px;
@@ -427,7 +451,9 @@
   border: 0;
   background: transparent;
   cursor: pointer;
-  transition: transform 140ms ease, opacity 140ms ease;
+  transition:
+    transform 140ms ease,
+    opacity 140ms ease;
 }
 
 .details-trailer-launch:hover,
@@ -473,11 +499,13 @@
   width: 1px;
   align-self: center;
   height: 54px;
-  background: linear-gradient(180deg,
-      rgba(217, 191, 255, 0),
-      rgba(217, 191, 255, 0.42) 18%,
-      rgba(217, 191, 255, 0.42) 82%,
-      rgba(217, 191, 255, 0));
+  background: linear-gradient(
+    180deg,
+    rgba(217, 191, 255, 0),
+    rgba(217, 191, 255, 0.42) 18%,
+    rgba(217, 191, 255, 0.42) 82%,
+    rgba(217, 191, 255, 0)
+  );
 }
 
 .details-metrics {
@@ -524,7 +552,9 @@
   justify-content: center;
   color: inherit;
   text-decoration: none;
-  transition: transform 140ms ease, opacity 140ms ease;
+  transition:
+    transform 140ms ease,
+    opacity 140ms ease;
 }
 
 .details-metric-link:hover,
@@ -609,13 +639,81 @@
   align-items: center;
 }
 
-.details-day-picker-filter {
+.details-day-picker-actions {
   position: absolute;
   right: 24px;
   top: 50%;
   transform: translateY(-50%);
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  gap: 8px;
+}
+
+.details-day-picker-filter {
+  display: inline-flex;
+}
+
+.details-share-shell {
+  position: relative;
+  display: inline-flex;
+}
+
+.details-share-trigger {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  background: rgba(20, 16, 33, 0.88);
+  color: #f6f0ff;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.details-share-trigger:hover,
+.details-share-trigger:focus-visible {
+  transform: translateY(-1px);
+  border-color: var(--border);
+  background: rgba(24, 18, 39, 0.95);
+}
+
+.details-share-trigger:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--main-app-color) 62%, white 18%);
+  outline-offset: 3px;
+}
+
+.details-share-feedback {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 25;
+  width: 184px;
+  min-height: 28px;
+  box-sizing: border-box;
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 32%, transparent);
+  border-radius: 9px;
+  background: rgba(11, 9, 20, 0.96);
+  color: #f3ebff;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-3px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.details-share-feedback.is-visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .details-day-picker-city.city-map-trigger.theater-map-trigger--labeled:hover,
@@ -672,7 +770,11 @@
   border-radius: 22px;
   overflow: hidden;
   background:
-    radial-gradient(circle at top, color-mix(in srgb, var(--main-app-color) 22%, transparent), transparent 54%),
+    radial-gradient(
+      circle at top,
+      color-mix(in srgb, var(--main-app-color) 22%, transparent),
+      transparent 54%
+    ),
     #050507;
   box-shadow:
     0 22px 48px rgba(0, 0, 0, 0.28),
@@ -703,7 +805,11 @@
   border: 1px solid rgba(217, 191, 255, 0.18);
   border-radius: 28px;
   background:
-    radial-gradient(circle at top, color-mix(in srgb, var(--main-app-color) 20%, transparent), transparent 54%),
+    radial-gradient(
+      circle at top,
+      color-mix(in srgb, var(--main-app-color) 20%, transparent),
+      transparent 54%
+    ),
     rgba(7, 7, 11, 0.96);
   box-shadow:
     0 34px 80px rgba(0, 0, 0, 0.46),
@@ -725,7 +831,9 @@
   background: rgba(15, 12, 22, 0.88);
   color: #f6f0ff;
   cursor: pointer;
-  transition: transform 140ms ease, background 140ms ease;
+  transition:
+    transform 140ms ease,
+    background 140ms ease;
 }
 
 .movie-trailer-modal-close:hover,
@@ -765,7 +873,11 @@
   border: 1px solid rgba(221, 194, 255, 0.14);
   border-radius: 22px;
   background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--main-app-color) 22%, transparent), transparent 54%),
+    radial-gradient(
+      circle at top right,
+      color-mix(in srgb, var(--main-app-color) 22%, transparent),
+      transparent 54%
+    ),
     rgba(11, 9, 20, 0.92);
   box-shadow:
     0 24px 48px rgba(0, 0, 0, 0.22),
@@ -1137,7 +1249,8 @@
   position: absolute;
   left: 50%;
   bottom: calc(
-    var(--details-showtime-pill-outer-height) - var(--details-showtime-cap-overlap)
+    var(--details-showtime-pill-outer-height) -
+      var(--details-showtime-cap-overlap)
   );
   transform: translateX(-50%);
   z-index: 1;
@@ -1145,7 +1258,8 @@
   align-items: flex-start;
   justify-content: center;
   width: calc(
-    var(--details-showtime-outer-width) - var(--details-showtime-cap-width-offset)
+    var(--details-showtime-outer-width) -
+      var(--details-showtime-cap-width-offset)
   );
   min-height: var(--details-showtime-cap-min-height);
   padding: 0.1875rem 0.5rem 0.125rem;
@@ -1337,8 +1451,8 @@
     0 24px 46px rgba(0, 0, 0, 0.34),
     0 0 0 1px rgba(255, 255, 255, 0.08);
   opacity: 0;
-  transition:
-    opacity var(--movie-scroller-focus-poster-fade-duration, 180ms) ease;
+  transition: opacity var(--movie-scroller-focus-poster-fade-duration, 180ms)
+    ease;
   will-change: opacity;
   transform: translateZ(0);
   backface-visibility: hidden;
@@ -1375,7 +1489,9 @@
 }
 
 .movie-scroller-detail-card .details-showtime-card:hover .details-time-pill,
-.movie-scroller-detail-card .details-showtime-card:focus-visible .details-time-pill {
+.movie-scroller-detail-card
+  .details-showtime-card:focus-visible
+  .details-time-pill {
   filter: brightness(1.04);
   box-shadow:
     0 7px 14px rgba(0, 0, 0, 0.2),
@@ -1383,7 +1499,9 @@
 }
 
 .movie-scroller-detail-card .details-showtime-card:hover .details-showtime-tech,
-.movie-scroller-detail-card .details-showtime-card:focus-visible .details-showtime-tech {
+.movie-scroller-detail-card
+  .details-showtime-card:focus-visible
+  .details-showtime-tech {
   filter: brightness(1.05);
 }
 
@@ -1434,23 +1552,32 @@
   display: none;
 }
 
-.movie-scroller-shell.is-opening .movie-scroller-detail-body.is-current .details-copy {
+.movie-scroller-shell.is-opening
+  .movie-scroller-detail-body.is-current
+  .details-copy {
   animation: movieScrollerZipUp 520ms cubic-bezier(0.16, 0.9, 0.22, 1) 80ms both;
 }
 
-.movie-scroller-shell.is-opening .movie-scroller-detail-body.is-current .details-showtimes {
-  animation: movieScrollerZipUp 580ms cubic-bezier(0.16, 0.9, 0.22, 1) 140ms both;
+.movie-scroller-shell.is-opening
+  .movie-scroller-detail-body.is-current
+  .details-showtimes {
+  animation: movieScrollerZipUp 580ms cubic-bezier(0.16, 0.9, 0.22, 1) 140ms
+    both;
 }
 
 .movie-scroller-shell.is-opening .movie-scroller-close {
   animation: movieScrollerFadeDown 300ms ease 110ms both;
 }
 
-.movie-scroller-shell.is-closing .movie-scroller-detail-body.is-current .details-copy {
+.movie-scroller-shell.is-closing
+  .movie-scroller-detail-body.is-current
+  .details-copy {
   animation: movieScrollerSlideAway 180ms ease both;
 }
 
-.movie-scroller-shell.is-closing .movie-scroller-detail-body.is-current .details-showtimes {
+.movie-scroller-shell.is-closing
+  .movie-scroller-detail-body.is-current
+  .details-showtimes {
   animation: movieScrollerSlideAway 160ms ease both;
 }
 
@@ -1470,8 +1597,10 @@
     0 24px 46px rgba(0, 0, 0, 0.34),
     0 0 0 1px rgba(255, 255, 255, 0.08);
   transition:
-    transform var(--movie-scroller-ghost-move-duration, 300ms) cubic-bezier(0.16, 0.9, 0.26, 1),
-    border-radius var(--movie-scroller-ghost-move-duration, 300ms) cubic-bezier(0.16, 0.9, 0.26, 1),
+    transform var(--movie-scroller-ghost-move-duration, 300ms)
+      cubic-bezier(0.16, 0.9, 0.26, 1),
+    border-radius var(--movie-scroller-ghost-move-duration, 300ms)
+      cubic-bezier(0.16, 0.9, 0.26, 1),
     box-shadow var(--movie-scroller-ghost-move-duration, 300ms) ease,
     opacity var(--movie-scroller-ghost-opacity-duration, 120ms) ease;
   will-change: transform, opacity;
@@ -1485,14 +1614,15 @@
 }
 
 .movie-scroller-poster-ghost.is-scripted-opening {
-  transition:
-    opacity var(--movie-scroller-ghost-opacity-duration, 120ms) ease;
+  transition: opacity var(--movie-scroller-ghost-opacity-duration, 120ms) ease;
 }
 
 .movie-scroller-poster-ghost.is-closing {
   transition:
-    transform var(--movie-scroller-ghost-move-duration, 300ms) cubic-bezier(0.16, 0.9, 0.26, 1),
-    border-radius var(--movie-scroller-ghost-move-duration, 300ms) cubic-bezier(0.16, 0.9, 0.26, 1),
+    transform var(--movie-scroller-ghost-move-duration, 300ms)
+      cubic-bezier(0.16, 0.9, 0.26, 1),
+    border-radius var(--movie-scroller-ghost-move-duration, 300ms)
+      cubic-bezier(0.16, 0.9, 0.26, 1),
     box-shadow var(--movie-scroller-ghost-move-duration, 300ms) ease,
     opacity var(--movie-scroller-ghost-close-opacity-duration, 220ms) linear;
 }
@@ -1515,17 +1645,25 @@ html[data-device-type="mobile"] .movie-scroller-detail-card .details-hero {
   margin-bottom: 18px;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-media-column {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-media-column {
   width: 100%;
   gap: 10px;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-poster-shell,
-html[data-device-type="mobile"] .movie-scroller-detail-card .movie-scroller-detail-poster {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-poster-shell,
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .movie-scroller-detail-poster {
   width: 100%;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .movie-scroller-detail-poster {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .movie-scroller-detail-poster {
   border-radius: 20px;
 }
 
@@ -1544,27 +1682,37 @@ html[data-device-type="mobile"] .movie-scroller-detail-card .details-title {
   line-height: 0.96;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-jump-button {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-day-jump-button {
   padding: 0.48rem 0.72rem;
   font-size: 0.73rem;
 }
 
 html[data-device-type="mobile"] .movie-scroller-detail-card .details-subtitle,
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-release-date {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-release-date {
   margin-top: 8px;
   font-size: 0.88rem;
   line-height: 1.35;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-subtitle--meta-row {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-subtitle--meta-row {
   gap: 6px;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--copy {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-metrics-row--copy {
   display: none;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-metrics-row--mobile {
   display: flex;
   grid-column: 1 / -1;
   align-items: center;
@@ -1574,27 +1722,42 @@ html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row
   min-width: 0;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-trailer-launch--metrics {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-metrics-row--mobile
+  .details-trailer-launch--metrics {
   min-width: 0;
   padding: 0;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-trailer-launch-logo {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-metrics-row--mobile
+  .details-trailer-launch-logo {
   width: 24px;
   height: 18px;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metrics-divider {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-metrics-row--mobile
+  .details-metrics-divider {
   height: 38px;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metrics {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-metrics-row--mobile
+  .details-metrics {
   flex-wrap: nowrap;
   gap: 6px;
   min-width: 0;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-metrics-row--mobile
+  .details-metric {
   width: 42px;
   height: auto;
   flex: 0 0 42px;
@@ -1606,31 +1769,62 @@ html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row
   padding: 0;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric strong {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-metrics-row--mobile
+  .details-metric
+  strong {
   font-size: 0.74rem;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric-logo--imdb {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-metrics-row--mobile
+  .details-metric-logo--imdb {
   width: 30px;
   height: 16px;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric-logo--rt-audience-bad,
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric-logo--rt-audience-hot,
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric-logo--rt-critic-hot,
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric-logo--letterboxd {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-metrics-row--mobile
+  .details-metric-logo--rt-audience-bad,
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-metrics-row--mobile
+  .details-metric-logo--rt-audience-hot,
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-metrics-row--mobile
+  .details-metric-logo--rt-critic-hot,
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-metrics-row--mobile
+  .details-metric-logo--letterboxd {
   width: 24px;
   height: 24px;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric-logo--rt-audience-good,
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric-logo--rt-critic-bad,
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric-logo--rt-critic-good {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-metrics-row--mobile
+  .details-metric-logo--rt-audience-good,
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-metrics-row--mobile
+  .details-metric-logo--rt-critic-bad,
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-metrics-row--mobile
+  .details-metric-logo--rt-critic-good {
   width: 22px;
   height: 22px;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-metrics-row--mobile .details-metric-logo--tmdb {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-metrics-row--mobile
+  .details-metric-logo--tmdb {
   width: 30px;
   height: 16px;
 }
@@ -1639,15 +1833,21 @@ html[data-device-type="mobile"] .movie-scroller-detail-card .details-time-grid {
   gap: 0.4375rem;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-showtime-slot {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-showtime-slot {
   width: var(--details-showtime-outer-width);
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-showtime-slot--with-tech {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-showtime-slot--with-tech {
   height: var(--details-showtime-slot-height-with-tech);
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-showtime-tech {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-showtime-tech {
   font-size: var(--details-showtime-cap-font-size);
 }
 
@@ -1657,7 +1857,9 @@ html[data-device-type="mobile"] .movie-scroller-detail-card .details-time-pill {
   font-size: var(--details-showtime-pill-font-size);
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-shell {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-day-picker-shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -1666,7 +1868,9 @@ html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-
   padding: 14px 14px 0;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-city {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-day-picker-city {
   position: static;
   grid-column: 1;
   grid-row: 2;
@@ -1677,23 +1881,37 @@ html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-
   font-size: 0.9rem;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-city.city-map-trigger.theater-map-trigger--labeled:hover,
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-city.city-map-trigger.theater-map-trigger--labeled.is-open,
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-city.city-map-trigger.theater-map-trigger--labeled:focus-visible {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-day-picker-city.city-map-trigger.theater-map-trigger--labeled:hover,
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-day-picker-city.city-map-trigger.theater-map-trigger--labeled.is-open,
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-day-picker-city.city-map-trigger.theater-map-trigger--labeled:focus-visible {
   transform: none;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-filter {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-day-picker-actions {
   position: static;
   grid-column: 2;
   grid-row: 2;
   justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   right: auto;
   top: auto;
   transform: none;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-picker-shell .showtime-day-picker-shell {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-day-picker-shell
+  .showtime-day-picker-shell {
   grid-column: 1 / -1;
   grid-row: 1;
   justify-self: center;
@@ -1703,29 +1921,41 @@ html[data-device-type="mobile"] .movie-scroller-detail-content {
   min-height: 100%;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-content > .details-showtimes {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-content
+  > .details-showtimes {
   flex: 1 1 auto;
   min-height: 0;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-empty-state {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-empty-state {
   padding: 16px;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-empty-state-panel {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-empty-state-panel {
   padding: 20px;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-empty-actions {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-empty-actions {
   grid-template-columns: 1fr;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-empty-link {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-empty-link {
   margin-bottom: 18px;
   max-width: 100%;
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-empty-nearby {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-empty-nearby {
   min-height: 0;
   padding-top: 18px;
   padding-left: 0;
@@ -1733,73 +1963,145 @@ html[data-device-type="mobile"] .movie-scroller-detail-card .details-empty-nearb
   border-top: 1px solid rgba(221, 194, 255, 0.22);
 }
 
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-day-panel-placeholder {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-day-panel-placeholder {
   min-height: 240px;
 }
 
 html[data-device-type="mobile"] .movie-scroller-detail-card .details-empty-link,
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-empty-link-heading,
-html[data-device-type="mobile"] .movie-scroller-detail-card .details-empty-city-button {
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-empty-link-heading,
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-empty-city-button {
   font-size: 0.88rem;
 }
 
-html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scroller-detail-backdrop-shell,
-html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scroller-detail-sheen,
-html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scroller-side-preview,
-html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .details-metrics-row--mobile,
-html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .details-copy,
-html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .details-showtimes,
-html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scroller-close {
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-detail-mode
+  .movie-scroller-detail-backdrop-shell,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-detail-mode
+  .movie-scroller-detail-sheen,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-detail-mode
+  .movie-scroller-side-preview,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-detail-mode
+  .details-metrics-row--mobile,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-detail-mode
+  .details-copy,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-detail-mode
+  .details-showtimes,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-detail-mode
+  .movie-scroller-close {
   opacity: 0;
-  transition:
-    opacity var(--movie-scroller-mobile-chrome-reveal-duration, 120ms) ease;
+  transition: opacity var(--movie-scroller-mobile-chrome-reveal-duration, 120ms)
+    ease;
 }
 
-html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scroller-side-preview,
-html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .details-metrics-row--mobile,
-html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .details-copy,
-html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .details-showtimes,
-html[data-device-type="mobile"] .movie-scroller-shell.is-detail-mode .movie-scroller-close {
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-detail-mode
+  .movie-scroller-side-preview,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-detail-mode
+  .details-metrics-row--mobile,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-detail-mode
+  .details-copy,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-detail-mode
+  .details-showtimes,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-detail-mode
+  .movie-scroller-close {
   pointer-events: none;
 }
 
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .movie-scroller-detail-backdrop-shell,
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .movie-scroller-detail-sheen,
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .details-metrics-row--mobile,
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .details-copy,
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .details-showtimes,
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .movie-scroller-close {
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-detail-chrome-visible
+  .movie-scroller-detail-backdrop-shell,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-detail-chrome-visible
+  .movie-scroller-detail-sheen,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-detail-chrome-visible
+  .details-metrics-row--mobile,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-detail-chrome-visible
+  .details-copy,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-detail-chrome-visible
+  .details-showtimes,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-detail-chrome-visible
+  .movie-scroller-close {
   opacity: 1;
 }
 
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .movie-scroller-side-preview {
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-detail-chrome-visible
+  .movie-scroller-side-preview {
   opacity: var(--movie-scroller-side-preview-rest-opacity);
 }
 
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .movie-scroller-side-preview.is-disabled {
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-detail-chrome-visible
+  .movie-scroller-side-preview.is-disabled {
   opacity: calc(var(--movie-scroller-side-preview-rest-opacity) * 0.9);
 }
 
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .movie-scroller-side-preview,
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .details-metrics-row--mobile,
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .details-copy,
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .details-showtimes,
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-detail-chrome-visible .movie-scroller-close {
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-detail-chrome-visible
+  .movie-scroller-side-preview,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-detail-chrome-visible
+  .details-metrics-row--mobile,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-detail-chrome-visible
+  .details-copy,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-detail-chrome-visible
+  .details-showtimes,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-detail-chrome-visible
+  .movie-scroller-close {
   pointer-events: auto;
 }
 
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff.is-opening .movie-scroller-detail-layer,
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff.is-closing .movie-scroller-detail-layer {
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-handoff.is-opening
+  .movie-scroller-detail-layer,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-handoff.is-closing
+  .movie-scroller-detail-layer {
   animation: none;
   opacity: 1;
 }
 
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff .movie-scroller-side-preview,
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff .movie-scroller-detail-backdrop,
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff .details-metrics-row--mobile,
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff .details-copy,
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff .details-showtimes,
-html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff .movie-scroller-close {
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-handoff
+  .movie-scroller-side-preview,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-handoff
+  .movie-scroller-detail-backdrop,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-handoff
+  .details-metrics-row--mobile,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-handoff
+  .details-copy,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-handoff
+  .details-showtimes,
+html[data-device-type="mobile"]
+  .movie-scroller-shell.is-mobile-handoff
+  .movie-scroller-close {
   animation: none;
 }
 
@@ -1827,7 +2129,8 @@ html[data-device-type="mobile"] .movie-scroller-shell.is-mobile-handoff .movie-s
   from {
     opacity: 0.18;
     filter: saturate(0.64) brightness(0.7);
-    transform: translate(var(--movie-scroller-side-preview-enter-x), 36px) scale(0.955);
+    transform: translate(var(--movie-scroller-side-preview-enter-x), 36px)
+      scale(0.955);
   }
 
   to {

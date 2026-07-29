@@ -24,6 +24,14 @@ const MOBILE_SCROLLER_CARD_WIDTH = 160;
 const MOBILE_SCROLLER_CARD_HEIGHT = 240;
 const MOBILE_SCROLLER_GAP = 18;
 const MOBILE_SCROLLER_SLOT_MIN_HEIGHT = 300;
+const FIXED_APP_PATHS = new Set([
+  "/",
+  "/movies",
+  "/showtimes",
+  "/soons",
+  "/user",
+  "/attribution",
+]);
 const loadUserPreferencesPage = () =>
   import("./components/UserPreferencesPage");
 const loadPosterGridPage = () => import("./components/PosterGridPage");
@@ -52,6 +60,16 @@ const MoviePage = lazy(async () => {
 
 type MovieSearchMode = "nowPlaying" | "comingSoon";
 type CatalogPageView = "grid" | "scroller";
+
+function isPotentialStandaloneMoviePath(pathname: string): boolean {
+  if (FIXED_APP_PATHS.has(pathname)) {
+    return false;
+  }
+
+  const segment = pathname.startsWith("/") ? pathname.slice(1) : pathname;
+
+  return !segment.includes("/") && /^[0-9A-Za-z]{3}/.test(segment);
+}
 
 type AppMovieJumpRequest = MovieScrollerJumpRequest & {
   mode: MovieSearchMode;
@@ -389,6 +407,7 @@ export function App() {
       pathname === "/showtimes" ||
       pathname === "/user" ||
       pathname === "/attribution" ||
+      isPotentialStandaloneMoviePath(pathname) ||
       !nowPlayingReady ||
       !comingSoonReady ||
       showtimesReady

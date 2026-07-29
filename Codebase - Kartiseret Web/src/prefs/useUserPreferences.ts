@@ -403,6 +403,7 @@ export function useUserPreferences(): UserPreferencesState {
         setPreferences(guestPreferences);
       }
 
+      activeUserIdRef.current = sessionUser?.id ?? null;
       setUser(sessionUser);
       setSessionResolved(true);
     }
@@ -414,13 +415,19 @@ export function useUserPreferences(): UserPreferencesState {
       session,
     ) => {
       const nextUser = session?.user ?? null;
-      resetPendingPreferenceSaves();
+      const nextUserId = nextUser?.id ?? null;
+      const didUserIdentityChange = activeUserIdRef.current !== nextUserId;
 
-      if (!nextUser) {
-        clearCachedPreferences();
-        const guestPreferences = getGuestPreferences();
-        confirmedPreferencesRef.current = guestPreferences;
-        setPreferences(guestPreferences);
+      if (didUserIdentityChange) {
+        activeUserIdRef.current = nextUserId;
+        resetPendingPreferenceSaves();
+
+        if (!nextUser) {
+          clearCachedPreferences();
+          const guestPreferences = getGuestPreferences();
+          confirmedPreferencesRef.current = guestPreferences;
+          setPreferences(guestPreferences);
+        }
       }
 
       setUser(nextUser);
@@ -518,7 +525,7 @@ export function useUserPreferences(): UserPreferencesState {
     return () => {
       cancelled = true;
     };
-  }, [resetPendingPreferenceSaves, sessionResolved, user, userId]);
+  }, [resetPendingPreferenceSaves, sessionResolved, userId]);
 
   const flushQueuedPreferenceSave = useCallback(async (key: PreferenceKey) => {
     const requestUserId = activeUserIdRef.current;

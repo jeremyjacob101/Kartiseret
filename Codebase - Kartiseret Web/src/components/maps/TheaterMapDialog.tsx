@@ -61,15 +61,26 @@ function toFlightRect(rect?: DOMRect | null): FlightRect | null {
 
 export function TheaterMapDialog({
   className,
+  locationOverride,
+  onLocationOverrideChange,
   triggerLabel,
   triggerTabIndex,
 }: {
   className?: string;
+  locationOverride?: AppLocation;
+  onLocationOverrideChange?: (location: AppLocation) => Promise<boolean>;
   triggerLabel?: string;
   triggerTabIndex?: number;
 }) {
-  const { location, syncing, setLocationPreference, error } =
-    useUserPreferencesContext();
+  const {
+    location: preferenceLocation,
+    syncing: preferenceSyncing,
+    setLocationPreference,
+    error: preferenceError,
+  } = useUserPreferencesContext();
+  const location = locationOverride ?? preferenceLocation;
+  const syncing = locationOverride === undefined ? preferenceSyncing : false;
+  const error = locationOverride === undefined ? preferenceError : null;
   const [isOpen, setIsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -115,7 +126,12 @@ export function TheaterMapDialog({
   const handleLocationPick = useCallback(
     async (nextLocation: AppLocation) => {
       setStatusMessage(null);
-      const didSave = await setLocationPreference(nextLocation);
+      const didSave =
+        locationOverride !== undefined
+          ? onLocationOverrideChange
+            ? await onLocationOverrideChange(nextLocation)
+            : false
+          : await setLocationPreference(nextLocation);
 
       if (!didSave) {
         return;
@@ -123,7 +139,7 @@ export function TheaterMapDialog({
 
       setStatusMessage(`City set to ${nextLocation}.`);
     },
-    [setLocationPreference],
+    [locationOverride, onLocationOverrideChange, setLocationPreference],
   );
 
   const finishCloseDialog = useCallback(() => {
