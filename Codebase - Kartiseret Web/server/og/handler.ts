@@ -1,10 +1,13 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { getPreviewData } from "./_lib/previewData.js";
-import { injectOpenGraphTags } from "./_lib/previewHtml.js";
+import { getPreviewData } from "./previewData.js";
+import { injectOpenGraphTags } from "./previewHtml.js";
 
-const indexPath = resolve(process.cwd(), "dist/index.html");
+const indexPath = resolve(
+  process.cwd(),
+  "Codebase - Kartiseret Web/dist/index.html",
+);
 let baseIndexHtml: string | null = null;
 
 function loadBaseIndexHtml(): string {

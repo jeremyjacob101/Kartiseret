@@ -6,7 +6,7 @@
     "types": ["node"]
   },
   "include": [
-    "../api",
+    "../server",
     "../src/env.d.ts",
     "../src/routing/showtimeLinkCodec.ts",
     "../src/components/showtimes/showtimeFilters.ts",

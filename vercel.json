@@ -1,7 +1,10 @@
 {
+  "installCommand": "npm --prefix \"Codebase - Kartiseret Web\" install",
+  "buildCommand": "npm --prefix \"Codebase - Kartiseret Web\" run build",
+  "outputDirectory": "Codebase - Kartiseret Web/dist",
   "functions": {
     "api/og.ts": {
-      "includeFiles": "dist/**"
+      "includeFiles": "Codebase - Kartiseret Web/dist/**"
     },
     "api/og-image.ts": {
       "maxDuration": 30
