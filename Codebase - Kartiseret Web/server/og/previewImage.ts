@@ -17,7 +17,7 @@ function wrapTitle(title: string, maximumLength = 25): string[] {
   const lines: string[] = [];
 
   for (const word of words) {
-    const currentLine = lines.at(-1);
+    const currentLine = lines[lines.length - 1];
 
     if (!currentLine) {
       lines.push(word);
