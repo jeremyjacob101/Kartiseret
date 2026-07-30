@@ -4,8 +4,10 @@ import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { comingSoonMovies, loadShowtimes, movies, type Movie } from "../../data/movieCatalog";
 import { useDeviceInfo } from "../../device/useDeviceType";
 import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
+import { shareLink } from "../../routing/shareLink";
+import { buildMovieShowtimeShareUrl, filterMaskFromUnchecked, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "../../routing/showtimeLinkCodec";
 import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
-import { MovieDetailsContent, type MovieDetailsVariant } from "./MovieDetailsContent";
+import { MovieDetailsContent, type MovieDetailsShareSelection, type MovieDetailsVariant } from "./MovieDetailsContent";
 import "./MovieScroller.css";
 
 type FocusPhase = "collapsed" | "opening" | "open" | "closing";
@@ -119,6 +121,7 @@ const DETAIL_NAV_DURATION_MS = 360;
 const DETAIL_FOCUS_VIEWPORT_PADDING_PX = 28;
 const DETAIL_WHEEL_LOCK_MS = 420;
 const DETAIL_SWIPE_THRESHOLD_PX = 56;
+const SHARE_FEEDBACK_DURATION_MS = 2_200;
 const COLLAPSED_CARD_SCALE_BOOST = 0.15;
 const EXTERNAL_JUMP_RUFFLE_DURATION_MS = 440;
 const EXTERNAL_JUMP_VIEWPORT_MIN_TOP_PX = 88;
@@ -601,6 +604,7 @@ function MovieScrollerContent({
   const [detailShowtimeDate, setDetailShowtimeDate] = useState<string | null>(
     () => persistedDetailShowtimeDate,
   );
+  const [shareFeedback, setShareFeedback] = useState<string | null>(null);
 
   const shellRef = useRef<HTMLDivElement | null>(null);
   const detailStageRef = useRef<HTMLDivElement | null>(null);
@@ -625,6 +629,7 @@ function MovieScrollerContent({
   const collapsedOpenClientWidthRef = useRef<number | null>(null);
   const collapsedOpenAnchorItemIndexRef = useRef<number | null>(null);
   const scrollRequestNonceRef = useRef(0);
+  const shareFeedbackTimeoutRef = useRef<number | null>(null);
   const titleId = useId();
 
   const isDetailMounted = phase !== "collapsed";
@@ -715,6 +720,65 @@ function MovieScrollerContent({
     setDetailShowtimeDate((current) =>
       current === nextDate ? current : nextDate);
   }, []);
+
+  const showShareFeedback = useCallback((message: string) => {
+    if (shareFeedbackTimeoutRef.current !== null) {
+      window.clearTimeout(shareFeedbackTimeoutRef.current);
+    }
+
+    setShareFeedback(message);
+    shareFeedbackTimeoutRef.current = window.setTimeout(() => {
+      setShareFeedback(null);
+      shareFeedbackTimeoutRef.current = null;
+    }, SHARE_FEEDBACK_DURATION_MS);
+  }, []);
+
+  const handleShareShowtimes = useCallback(
+    async (selection: MovieDetailsShareSelection) => {
+      const movie = movieItems[displayMovieIndex];
+      const movieCode = movie.movieCode;
+      const today = getJerusalemCinemaDate();
+
+      if (!movieCode || !isDateInShowtimeLinkWindow(selection.date, today)) {
+        showShareFeedback("Unable to share this selection");
+        return;
+      }
+
+      const url = buildMovieShowtimeShareUrl({
+        movieCode,
+        city: selection.location,
+        date: selection.date,
+        filterMask: filterMaskFromUnchecked(
+          selection.filterState?.unchecked ?? {
+            showType: [],
+            screenFormat: [],
+            screeningTech: [],
+            dubLanguage: [],
+          },
+        ),
+      });
+
+      if (!url) {
+        showShareFeedback("Unable to share this selection");
+        return;
+      }
+
+      const result = await shareLink({
+        title: `${movie.title} showtimes`,
+        text: `${movie.title} showtimes on Kartiseret`,
+        url,
+      });
+
+      if (result === "shared") {
+        showShareFeedback("Shared");
+      } else if (result === "copied") {
+        showShareFeedback("Link copied");
+      } else if (result === "failed") {
+        showShareFeedback("Could not copy link");
+      }
+    },
+    [displayMovieIndex, movieItems, showShareFeedback],
+  );
 
   const requestNowPlayingShowtimes = useCallback(
     (tmdbId?: string) => {
@@ -1078,6 +1142,8 @@ function MovieScrollerContent({
     [
       captureCollapsedViewportSnapshot,
       clearAllScheduledWork,
+      movieCount,
+      movieItems,
       phase,
       requestNowPlayingShowtimes,
       recenterCollapsedItemIndex,
@@ -1289,6 +1355,7 @@ function MovieScrollerContent({
       getCollapsedScrollerElement,
       maxWidth,
       movieCount,
+      movieItems,
       requestNowPlayingShowtimes,
     ],
   );
@@ -2052,6 +2119,9 @@ function MovieScrollerContent({
   useEffect(() => {
     return () => {
       clearAllScheduledWork();
+      if (shareFeedbackTimeoutRef.current !== null) {
+        window.clearTimeout(shareFeedbackTimeoutRef.current);
+      }
     };
   }, [clearAllScheduledWork]);
 
@@ -2142,6 +2212,10 @@ function MovieScrollerContent({
             variant={detailVariant}
             preferredShowtimeDate={detailShowtimeDate}
             onPreferredShowtimeDateChange={handleDetailShowtimeDateChange}
+            onShareShowtimes={
+              detailVariant === "nowPlaying" ? handleShareShowtimes : undefined
+            }
+            shareFeedback={shareFeedback}
             posterClassName={`details-poster movie-scroller-detail-poster${
               posterVisible ? " is-visible" : ""
             }`}

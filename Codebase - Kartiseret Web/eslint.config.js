@@ -23,7 +23,7 @@ export default defineConfig([
   },
 
   {
-    files: ["api/**/*.ts", "config/**/*.ts"],
+    files: ["server/**/*.ts", "config/**/*.ts"],
     extends: [js.configs.recommended, tseslint.configs.recommended],
     languageOptions: {
       ecmaVersion: 2023,

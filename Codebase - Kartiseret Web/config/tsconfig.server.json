@@ -8,9 +8,9 @@
   "include": [
     "../server",
     "../src/env.d.ts",
+    "../src/domain/showtimeDay.ts",
+    "../src/domain/showtimeFilters.ts",
     "../src/routing/showtimeLinkCodec.ts",
-    "../src/components/showtimes/showtimeFilters.ts",
-    "../src/prefs/definitions/locations.ts",
-    "../src/data/movieCatalog.ts"
+    "../src/prefs/definitions/locations.ts"
   ]
 }

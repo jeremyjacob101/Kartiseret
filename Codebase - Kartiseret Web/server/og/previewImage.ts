@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const IMAGE_TIMEOUT_MS = 8_000;
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 const assetsDir = fileURLToPath(new URL("./assets/", import.meta.url));
 const INTER_REGULAR_PATH = resolve(assetsDir, "Inter-Regular.ttf");
@@ -15,18 +16,25 @@ function loadAssetBuffer(filename: string): Buffer {
   try {
     return readFileSync(filePath);
   } catch (error) {
-    throw new Error(`Failed to load OG image asset at ${filePath}: ${error}`);
+    throw new Error(`Failed to load OG image asset at ${filePath}`, {
+      cause: error,
+    });
   }
 }
 
 const LOGO_SVG = loadAssetBuffer("kartiseret-logo.svg");
 const IMDB_LOGO = loadAssetBuffer("imdb.svg").toString("base64");
 const RT_CRITIC_LOGO = loadAssetBuffer("rtCriticHot.svg").toString("base64");
-const RT_AUDIENCE_LOGO = loadAssetBuffer("rtAudienceHot.svg").toString("base64");
-const RT_CRITIC_GOOD_LOGO = loadAssetBuffer("rtCriticGood.svg").toString("base64");
-const RT_CRITIC_BAD_LOGO = loadAssetBuffer("rtCriticBad.svg").toString("base64");
-const RT_AUDIENCE_GOOD_LOGO = loadAssetBuffer("rtAudienceGood.svg").toString("base64");
-const RT_AUDIENCE_BAD_LOGO = loadAssetBuffer("rtAudienceBad.svg").toString("base64");
+const RT_AUDIENCE_LOGO =
+  loadAssetBuffer("rtAudienceHot.svg").toString("base64");
+const RT_CRITIC_GOOD_LOGO =
+  loadAssetBuffer("rtCriticGood.svg").toString("base64");
+const RT_CRITIC_BAD_LOGO =
+  loadAssetBuffer("rtCriticBad.svg").toString("base64");
+const RT_AUDIENCE_GOOD_LOGO =
+  loadAssetBuffer("rtAudienceGood.svg").toString("base64");
+const RT_AUDIENCE_BAD_LOGO =
+  loadAssetBuffer("rtAudienceBad.svg").toString("base64");
 const LETTERBOXD_LOGO = loadAssetBuffer("letterboxd.svg").toString("base64");
 const YOUTUBE_LOGO = loadAssetBuffer("youtube.svg").toString("base64");
 
@@ -125,6 +133,24 @@ function formatRuntime(runtime: number | null): string | null {
   return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
 
+export function formatPreviewReleaseDate(releaseDate: string | null): string {
+  if (!releaseDate) {
+    return "TBA";
+  }
+
+  const parsedDate = new Date(`${releaseDate}T12:00:00Z`);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return releaseDate;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(parsedDate);
+}
+
 function getCriticLogo(score: number | null, votes: number | null): string {
   if ((score ?? 0) >= 75 && (votes ?? 0) >= 80) return RT_CRITIC_LOGO;
   return (score ?? 0) >= 60 ? RT_CRITIC_GOOD_LOGO : RT_CRITIC_BAD_LOGO;
@@ -136,17 +162,30 @@ function getAudienceLogo(score: number | null, votes: number | null): string {
 }
 
 function createRatings(data: PreviewData, layout: MovieLayout): string {
+  if (data.isComingSoon) {
+    return "";
+  }
+
   const ratings: Array<[string, string | null]> = [
     [IMDB_LOGO, data.imdbRating ? data.imdbRating.toFixed(1) : null],
-    [getAudienceLogo(data.rtAudienceRating, data.rtAudienceVotes), data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null],
-    [getCriticLogo(data.rtCriticRating, data.rtCriticVotes), data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null],
+    [
+      getAudienceLogo(data.rtAudienceRating, data.rtAudienceVotes),
+      data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null,
+    ],
+    [
+      getCriticLogo(data.rtCriticRating, data.rtCriticVotes),
+      data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null,
+    ],
     [LETTERBOXD_LOGO, data.lbRating ? data.lbRating.toFixed(1) : null],
   ].filter((rating): rating is [string, string] => Boolean(rating[1]));
 
   const logoX = [530, 650, 770, 890];
-  return ratings.slice(0, 4).map(([logo], index) => {
-    return `<image href="data:image/svg+xml;base64,${logo}" x="${logoX[index]}" y="${layout.ratingLogoTop}" width="62" height="62" preserveAspectRatio="xMidYMid meet"/>`;
-  }).join("");
+  return ratings
+    .slice(0, 4)
+    .map(([logo], index) => {
+      return `<image href="data:image/svg+xml;base64,${logo}" x="${logoX[index]}" y="${layout.ratingLogoTop}" width="62" height="62" preserveAspectRatio="xMidYMid meet"/>`;
+    })
+    .join("");
 }
 
 function createTextOverlay(data: PreviewData, layout: MovieLayout): Buffer {
@@ -154,14 +193,7 @@ function createTextOverlay(data: PreviewData, layout: MovieLayout): Buffer {
 
   const svg = [
     '<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">',
-    "<defs>",
-    '<linearGradient id="panelGrad" x1="0" y1="0" x2="1" y2="0">',
-    '<stop offset="0%" stop-color="rgba(8,10,18,0.72)" />',
-    '<stop offset="8%" stop-color="rgba(10,12,22,0.62)" />',
-    '<stop offset="100%" stop-color="rgba(10,12,22,0.52)" />',
-    "</linearGradient>",
-    "</defs>",
-    '<rect x="365" y="0" width="835" height="630" fill="url(#panelGrad)" />',
+    '<rect width="1200" height="630" fill="rgba(10,12,22,0.46)" />',
     `<image href="data:image/svg+xml;base64,${YOUTUBE_LOGO}" x="405" y="${layout.trailerTop}" width="46" height="34" preserveAspectRatio="xMidYMid meet"/>`,
     `<rect x="489" y="${layout.dividerTop}" width="1" height="82" fill="#A990D1" fill-opacity="0.7" />`,
     ratingsSvg,
@@ -194,28 +226,51 @@ async function createTextLayer(
     .toBuffer();
 }
 
-async function createMovieTextLayers(data: PreviewData, layout: MovieLayout): Promise<OverlayOptions[]> {
-  const infoText = [data.year ? String(data.year) : null, formatRuntime(data.runtime), data.genres.length ? data.genres.join(", ") : null].filter(Boolean).join("  •  ");
-  const ratingValues = [data.imdbRating ? data.imdbRating.toFixed(1) : null, data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null, data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null, data.lbRating ? data.lbRating.toFixed(1) : null].filter((value): value is string => Boolean(value));
-  const eyebrowInput = await createTextLayer(data.isComingSoon ? "COMING SOON" : "NOW PLAYING", 400, 20, "#C5A9EB", true);
+async function createMovieTextLayers(
+  data: PreviewData,
+  layout: MovieLayout,
+): Promise<OverlayOptions[]> {
+  const infoText = [
+    data.year ? String(data.year) : null,
+    formatRuntime(data.runtime),
+    data.genres.length ? data.genres.join(", ") : null,
+  ]
+    .filter(Boolean)
+    .join("  •  ");
+  const ratingValues = [
+    data.imdbRating ? data.imdbRating.toFixed(1) : null,
+    data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null,
+    data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null,
+    data.lbRating ? data.lbRating.toFixed(1) : null,
+  ].filter((value): value is string => Boolean(value));
+  const eyebrowInput = await createTextLayer(
+    data.isComingSoon ? "COMING SOON" : "NOW PLAYING",
+    400,
+    20,
+    "#C5A9EB",
+    true,
+  );
   const titleInputs = await Promise.all(
     layout.titleLines.map((line) =>
-      createTextLayer(line, 680, layout.titleFontSize, "#FFFFFF", true),
-    ),
+      createTextLayer(line, 680, layout.titleFontSize, "#FFFFFF", true)),
   );
   const eyebrowHeight = (await sharp(eyebrowInput).metadata()).height ?? 0;
   const titleHeights = await Promise.all(
-    titleInputs.map(async (input) => (await sharp(input).metadata()).height ?? 0),
+    titleInputs.map(
+      async (input) => (await sharp(input).metadata()).height ?? 0,
+    ),
   );
-  const titleTops = layout.titleLines.length === 2
-    ? [
-        layout.metaTop - titleHeights[1] - titleHeights[0] - 20,
-        layout.metaTop - titleHeights[1] - 14,
-      ]
-    : [layout.titleTop];
-  const eyebrowTop = layout.titleLines.length === 2
-    ? titleTops[0] - eyebrowHeight - 16
-    : layout.eyebrowTop;
+  const titleTops =
+    layout.titleLines.length === 2
+      ? [
+          layout.metaTop - titleHeights[1] - titleHeights[0] - 20,
+          layout.metaTop - titleHeights[1] - 14,
+        ]
+      : [layout.titleTop];
+  const eyebrowTop =
+    layout.titleLines.length === 2
+      ? titleTops[0] - eyebrowHeight - 16
+      : layout.eyebrowTop;
   const layers: OverlayOptions[] = [
     { input: eyebrowInput, left: 400, top: eyebrowTop },
     ...titleInputs.map((input, index) => ({
@@ -223,13 +278,44 @@ async function createMovieTextLayers(data: PreviewData, layout: MovieLayout): Pr
       left: 400,
       top: titleTops[index],
     })),
-    { input: await createTextLayer(infoText, 730, 24, "#E6DFF3"), left: 400, top: layout.metaTop },
+    {
+      input: await createTextLayer(infoText, 730, 24, "#E6DFF3"),
+      left: 400,
+      top: layout.metaTop,
+    },
   ];
+
+  if (data.isComingSoon) {
+    layers.push({
+      input: await createTextLayer(
+        `Release Date: ${formatPreviewReleaseDate(data.releaseDate)}`,
+        620,
+        26,
+        "#FFFFFF",
+        true,
+      ),
+      left: 530,
+      top: layout.ratingLogoTop + 27,
+    });
+    return layers;
+  }
+
   const ratingLogoCenters = [561, 681, 801, 921];
   for (const [index, value] of ratingValues.entries()) {
-    const input = await createTextLayer(value, 90, 26, "#FFFFFF", true, "center");
+    const input = await createTextLayer(
+      value,
+      90,
+      26,
+      "#FFFFFF",
+      true,
+      "center",
+    );
     const { width = 0 } = await sharp(input).metadata();
-    layers.push({ input, left: Math.round(ratingLogoCenters[index] - width / 2), top: layout.ratingValueTop });
+    layers.push({
+      input,
+      left: Math.round(ratingLogoCenters[index] - width / 2),
+      top: layout.ratingValueTop,
+    });
   }
   return layers;
 }
@@ -266,17 +352,85 @@ async function createLogoLayer(): Promise<OverlayOptions | null> {
   }
 }
 
-async function downloadImage(url: string): Promise<Buffer | null> {
+function isHttpsUrl(value: string): boolean {
   try {
-    const response = await fetch(url, {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export async function downloadImage(
+  url: string,
+  fetchImage: typeof fetch = fetch,
+): Promise<Buffer | null> {
+  if (!isHttpsUrl(url)) {
+    return null;
+  }
+
+  try {
+    const response = await fetchImage(url, {
       signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
     });
 
-    if (!response.ok) {
+    if (!response.ok || (response.url && !isHttpsUrl(response.url))) {
       return null;
     }
 
-    return Buffer.from(await response.arrayBuffer());
+    const contentType = response.headers
+      .get("content-type")
+      ?.split(";", 1)[0]
+      ?.trim()
+      .toLowerCase();
+    if (!contentType?.startsWith("image/")) {
+      return null;
+    }
+
+    const declaredLength = response.headers.get("content-length");
+    if (declaredLength !== null) {
+      const parsedLength = Number(declaredLength);
+      if (
+        !Number.isFinite(parsedLength) ||
+        parsedLength < 0 ||
+        parsedLength > MAX_IMAGE_BYTES
+      ) {
+        return null;
+      }
+    }
+
+    if (!response.body) {
+      return null;
+    }
+
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      if (!value) {
+        continue;
+      }
+
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_IMAGE_BYTES) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+
+    if (totalBytes === 0) {
+      return null;
+    }
+
+    return Buffer.concat(
+      chunks.map((chunk) => Buffer.from(chunk)),
+      totalBytes,
+    );
   } catch {
     return null;
   }

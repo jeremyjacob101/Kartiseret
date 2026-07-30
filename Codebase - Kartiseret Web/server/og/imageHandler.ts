@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { NO_STORE_CACHE_CONTROL, PREVIEW_CACHE_CONTROL } from "./cacheControl.js";
 import { getPreviewData } from "./previewData.js";
 import { createPreviewImage, createHomepagePreviewImage } from "./previewImage.js";
 
@@ -20,20 +21,26 @@ export default async function handler(
       response
         .status(200)
         .setHeader("Content-Type", "image/jpeg")
-        .setHeader("Cache-Control", "no-store")
+        .setHeader("Cache-Control", PREVIEW_CACHE_CONTROL)
         .send(image);
       return;
     }
 
     if (!routeCode) {
-      response.status(404).send("Not found");
+      response
+        .status(404)
+        .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
+        .send("Not found");
       return;
     }
 
     const previewData = await getPreviewData(routeCode);
 
     if (!previewData) {
-      response.status(404).send("Not found");
+      response
+        .status(404)
+        .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
+        .send("Not found");
       return;
     }
 
@@ -42,7 +49,7 @@ export default async function handler(
     response
       .status(200)
       .setHeader("Content-Type", "image/jpeg")
-      .setHeader("Cache-Control", "no-store")
+      .setHeader("Cache-Control", PREVIEW_CACHE_CONTROL)
       .send(image);
   } catch (error) {
     console.error("OG image handler error:", error);
@@ -52,13 +59,13 @@ export default async function handler(
       response
         .status(200)
         .setHeader("Content-Type", "image/jpeg")
-        .setHeader("Cache-Control", "no-store")
+        .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
         .send(fallback);
     } catch {
       response
         .status(200)
         .setHeader("Content-Type", "image/jpeg")
-        .setHeader("Cache-Control", "no-store")
+        .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
         .send(FALLBACK_JPEG);
     }
   }

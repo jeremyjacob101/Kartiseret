@@ -1,10 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 
-import { decodeDateCode, getJerusalemCalendarDate, isCanonicalShowtimeFilterMatch, parseMovieRouteCode, resolveCityCode, SHOWTIME_FILTER_OPTIONS, uncheckedFromFilterMask } from "../../src/routing/showtimeLinkCodec.js";
-
-import { buildShowtimeFilterSelections, getCanonicalShowtimeMeta } from "../../src/components/showtimes/showtimeFilters.js";
-
+import { buildShowtimeFilterSelections, getCanonicalShowtimeMeta } from "../../src/domain/showtimeFilters.js";
+import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime, SHOWTIME_TIME_ZONE } from "../../src/domain/showtimeDay.js";
 import { DEFAULT_LOCATION } from "../../src/prefs/definitions/locations.js";
+import { decodeDateCode, isCanonicalShowtimeFilterMatch, parseMovieRouteCode, resolveCityCode, SHOWTIME_FILTER_OPTIONS, uncheckedFromFilterMask } from "../../src/routing/showtimeLinkCodec.js";
 
 const supabaseUrl =
   process.env.SUPABASE_URL?.trim() ||
@@ -18,12 +17,14 @@ const supabaseKey =
 
 const supabase =
   supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+type PreviewDataClient = NonNullable<typeof supabase>;
 
 type DatabaseMovie = {
   english_title: string | null;
   en_poster: string | null;
   backdrop: string | null;
   release_year: number | string | null;
+  release_date?: string | null;
   runtime: number | string | null;
   genres: string[] | string | null;
   imdbRating: number | string | null;
@@ -60,6 +61,7 @@ export type PreviewData = {
   isComingSoon: boolean;
   theaters: PreviewTheater[];
   year: number | null;
+  releaseDate: string | null;
   runtime: number | null;
   genres: string[];
   imdbRating: number | null;
@@ -68,6 +70,13 @@ export type PreviewData = {
   rtAudienceRating: number | null;
   rtAudienceVotes: number | null;
   lbRating: number | null;
+};
+
+export type PreviewRouteSelection = {
+  movieCode: string;
+  city: string;
+  date: string;
+  filterMask: number;
 };
 
 function parseNumber(value: number | string | null): number | null {
@@ -81,10 +90,20 @@ function parseGenres(value: DatabaseMovie["genres"]): string[] {
   try {
     const parsed = JSON.parse(value) as unknown;
     return Array.isArray(parsed)
-      ? parsed.filter((genre): genre is string => typeof genre === "string").slice(0, 3)
-      : value.split(",").map((genre) => genre.trim()).filter(Boolean).slice(0, 3);
+      ? parsed
+          .filter((genre): genre is string => typeof genre === "string")
+          .slice(0, 3)
+      : value
+          .split(",")
+          .map((genre) => genre.trim())
+          .filter(Boolean)
+          .slice(0, 3);
   } catch {
-    return value.split(",").map((genre) => genre.trim()).filter(Boolean).slice(0, 3);
+    return value
+      .split(",")
+      .map((genre) => genre.trim())
+      .filter(Boolean)
+      .slice(0, 3);
   }
 }
 
@@ -95,23 +114,9 @@ function normalizeShowtime(value: string | null): string {
     : normalizedValue;
 }
 
-function getShowtimeSortValue(showtime: string): number {
-  const [hoursText, minutesText] = showtime.split(":");
-  const hours = Number.parseInt(hoursText || "", 10);
-  const minutes = Number.parseInt(minutesText || "", 10);
-
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
-    return Number.POSITIVE_INFINITY;
-  }
-
-  const totalMinutes = hours * 60 + minutes;
-
-  return totalMinutes < 65 ? totalMinutes + 24 * 60 : totalMinutes;
-}
-
 function formatPreviewDate(date: string): string {
   return new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Jerusalem",
+    timeZone: SHOWTIME_TIME_ZONE,
     weekday: "long",
     month: "short",
     day: "numeric",
@@ -119,35 +124,50 @@ function formatPreviewDate(date: string): string {
 }
 
 async function getMovieByTmdbId(
+  client: PreviewDataClient,
   tmdbId: string,
 ): Promise<{ movie: DatabaseMovie | null; isComingSoon: boolean }> {
-  if (!supabase) {
-    return { movie: null, isComingSoon: false };
-  }
-
-  for (const tableName of ["finalMovies", "finalSoons"]) {
-    const movieColumns = tableName === "finalMovies"
-      ? "english_title,en_poster,backdrop,release_year,runtime,genres,imdbRating,rtCriticRating,rtCriticVotes,rtAudienceRating,rtAudienceVotes,lbRating"
-      : "english_title,en_poster,backdrop,release_year,runtime,genres";
-    const { data, error } = await supabase
-      .from(tableName)
-      .select(movieColumns)
+  const [currentMovieResult, comingSoonResult] = await Promise.all([
+    client
+      .from("finalMovies")
+      .select(
+        "english_title,en_poster,backdrop,release_year,runtime,genres,imdbRating,rtCriticRating,rtCriticVotes,rtAudienceRating,rtAudienceVotes,lbRating",
+      )
       .eq("tmdb_id", tmdbId)
-      .limit(1);
+      .limit(1),
+    client
+      .from("finalSoons")
+      .select(
+        "english_title,en_poster,backdrop,release_year,release_date,runtime,genres",
+      )
+      .eq("tmdb_id", tmdbId)
+      .limit(1),
+  ]);
 
-    if (error) {
-      throw new Error(
-        `Failed to load ${tableName} movie ${tmdbId}: ${error.message}`,
-      );
-    }
-
-    const movie = data?.[0] as unknown as DatabaseMovie | undefined;
-    if (movie) {
-      return { movie, isComingSoon: tableName === "finalSoons" };
-    }
+  if (currentMovieResult.error) {
+    throw new Error(
+      `Failed to load finalMovies movie ${tmdbId}: ${currentMovieResult.error.message}`,
+    );
   }
 
-  return { movie: null, isComingSoon: false };
+  const currentMovie = currentMovieResult.data?.[0] as unknown as
+    DatabaseMovie | undefined;
+  if (currentMovie) {
+    return { movie: currentMovie, isComingSoon: false };
+  }
+
+  if (comingSoonResult.error) {
+    throw new Error(
+      `Failed to load finalSoons movie ${tmdbId}: ${comingSoonResult.error.message}`,
+    );
+  }
+
+  const comingSoonMovie = comingSoonResult.data?.[0] as unknown as
+    DatabaseMovie | undefined;
+  return {
+    movie: comingSoonMovie || null,
+    isComingSoon: Boolean(comingSoonMovie),
+  };
 }
 
 function filterShowtimeRows(
@@ -174,7 +194,6 @@ function filterShowtimeRows(
     isCanonicalShowtimeFilterMatch(
       getCanonicalShowtimeMeta({
         time: normalizeShowtime(row.showtime),
-        href: null,
         screeningTech: row.screening_tech || "",
         screeningType: row.screening_type || "",
         dubLanguage: row.dub_language,
@@ -222,16 +241,17 @@ function groupPreviewShowtimes(rows: DatabaseShowtime[]): PreviewTheater[] {
     .slice(0, 3);
 }
 
-export async function getPreviewData(
+export function resolvePreviewRouteSelection(
   routeCode: string,
-): Promise<PreviewData | null> {
+  instant: Date = new Date(),
+): PreviewRouteSelection | null {
   const parsedRoute = parseMovieRouteCode(routeCode);
 
   if (!parsedRoute) {
     return null;
   }
 
-  const today = getJerusalemCalendarDate();
+  const today = getCinemaDayDate(instant);
   let city = DEFAULT_LOCATION;
   let date = today;
   let filterMask = 0;
@@ -250,14 +270,33 @@ export async function getPreviewData(
     filterMask = parsedRoute.filterMask;
   }
 
-  if (!supabase) {
+  return {
+    movieCode: parsedRoute.movieCode,
+    city,
+    date,
+    filterMask,
+  };
+}
+
+export async function getPreviewData(
+  routeCode: string,
+  instant: Date = new Date(),
+  client: PreviewDataClient | null = supabase,
+): Promise<PreviewData | null> {
+  const selection = resolvePreviewRouteSelection(routeCode, instant);
+
+  if (!selection) {
     return null;
   }
 
-  const { data: codeRows, error: codeError } = await supabase
+  if (!client) {
+    return null;
+  }
+
+  const { data: codeRows, error: codeError } = await client
     .from("movieCodes")
     .select("tmdb_id")
-    .eq("movie_code", parsedRoute.movieCode)
+    .eq("movie_code", selection.movieCode)
     .limit(1);
 
   if (codeError) {
@@ -271,7 +310,16 @@ export async function getPreviewData(
     return null;
   }
 
-  const { movie, isComingSoon } = await getMovieByTmdbId(tmdbId);
+  const [movieResult, showtimeResult] = await Promise.all([
+    getMovieByTmdbId(client, tmdbId),
+    client
+      .from("finalShowtimes")
+      .select("cinema,showtime,screening_tech,screening_type,dub_language")
+      .eq("tmdb_id", tmdbId)
+      .eq("screening_city", selection.city)
+      .eq("date_of_showing", selection.date),
+  ]);
+  const { movie, isComingSoon } = movieResult;
 
   if (!movie?.english_title) {
     return null;
@@ -280,17 +328,18 @@ export async function getPreviewData(
   if (isComingSoon) {
     return {
       routeCode,
-      movieCode: parsedRoute.movieCode,
+      movieCode: selection.movieCode,
       tmdbId,
       title: movie.english_title,
-      city,
-      date,
-      dateLabel: formatPreviewDate(date),
+      city: selection.city,
+      date: selection.date,
+      dateLabel: formatPreviewDate(selection.date),
       posterUrl: movie.en_poster?.trim() || "",
       backdropUrl: movie.backdrop?.trim() || "",
       isComingSoon,
       theaters: [],
       year: parseNumber(movie.release_year),
+      releaseDate: movie.release_date?.trim() || null,
       runtime: parseNumber(movie.runtime),
       genres: parseGenres(movie.genres),
       imdbRating: parseNumber(movie.imdbRating),
@@ -302,37 +351,37 @@ export async function getPreviewData(
     };
   }
 
-  const { data: showtimeRows, error: showtimeError } = await supabase
-    .from("finalShowtimes")
-    .select("cinema,showtime,screening_tech,screening_type,dub_language")
-    .eq("tmdb_id", tmdbId)
-    .eq("screening_city", city)
-    .eq("date_of_showing", date);
-
-  if (showtimeError) {
-    console.error(`Failed to load movie showtimes: ${showtimeError.message}`);
+  if (showtimeResult.error) {
+    console.error(
+      `Failed to load movie showtimes: ${showtimeResult.error.message}`,
+    );
   }
 
   const filteredRows = filterShowtimeRows(
-    (showtimeRows || []) as DatabaseShowtime[],
-    filterMask,
+    (showtimeResult.data || []) as DatabaseShowtime[],
+    selection.filterMask,
   );
 
-  const nonExpiredRows = filterExpiredShowtimes(filteredRows, date);
+  const nonExpiredRows = filterExpiredShowtimes(
+    filteredRows,
+    selection.date,
+    instant,
+  );
 
   return {
     routeCode,
-    movieCode: parsedRoute.movieCode,
+    movieCode: selection.movieCode,
     tmdbId,
     title: movie.english_title,
-    city,
-    date,
-    dateLabel: formatPreviewDate(date),
+    city: selection.city,
+    date: selection.date,
+    dateLabel: formatPreviewDate(selection.date),
     posterUrl: movie.en_poster?.trim() || "",
     backdropUrl: movie.backdrop?.trim() || "",
     isComingSoon,
     theaters: groupPreviewShowtimes(nonExpiredRows),
     year: parseNumber(movie.release_year),
+    releaseDate: null,
     runtime: parseNumber(movie.runtime),
     genres: parseGenres(movie.genres),
     imdbRating: parseNumber(movie.imdbRating),
@@ -347,41 +396,8 @@ export async function getPreviewData(
 function filterExpiredShowtimes(
   rows: DatabaseShowtime[],
   date: string,
+  instant: Date,
 ): DatabaseShowtime[] {
-  const today = getJerusalemCalendarDate();
-
-  if (date !== today) {
-    return rows;
-  }
-
-  const now = new Date();
-  const jerusalemTime = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Jerusalem",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).format(now);
-
-  const [currentHours, currentMinutes] = jerusalemTime.split(":").map(Number);
-  const currentTotalMinutes = currentHours * 60 + currentMinutes;
-
-  return rows.filter((row) => {
-    const showtime = normalizeShowtime(row.showtime);
-    if (!showtime) return false;
-
-    const [hours, minutes] = showtime.split(":").map(Number);
-    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return false;
-
-    const totalMinutes = hours * 60 + minutes;
-
-    if (totalMinutes < 65) {
-      return false;
-    }
-
-    if (totalMinutes + 15 <= currentTotalMinutes) {
-      return false;
-    }
-
-    return true;
-  });
+  return rows.filter((row) =>
+    shouldIncludeShowtime(date, normalizeShowtime(row.showtime), instant));
 }

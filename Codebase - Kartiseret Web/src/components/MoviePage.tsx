@@ -4,7 +4,8 @@ import { Link, useNavigate, useParams } from "react-router";
 import { findMovieByCode, isMovieShowtimeDateLoaded, isValidMovieCode, loadMovieShowtimesForDate, prefetchMovieShowtimesAfterDate } from "../data/movieCatalog";
 import { DEFAULT_LOCATION } from "../prefs/definitions/locations";
 import { useUserPreferencesContext } from "../prefs/useUserPreferences";
-import { CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, getJerusalemCalendarDate, isDateInShowtimeLinkWindow, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "../routing/showtimeLinkCodec";
+import { shareLink } from "../routing/shareLink";
+import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, getJerusalemCinemaDate, isDateInShowtimeLinkWindow, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "../routing/showtimeLinkCodec";
 import { getShowtimeFiltersSnapshot, saveShowtimeFilters, type ShowtimeFilterState } from "./showtimes/showtimeFilters";
 import { MovieDetailsContent } from "./scroller/MovieDetailsContent";
 import "./scroller/MovieScroller.css";
@@ -118,11 +119,11 @@ function areQueryStatesEqual(
 }
 
 function useJerusalemToday(): string {
-  const [today, setToday] = useState(() => getJerusalemCalendarDate());
+  const [today, setToday] = useState(() => getJerusalemCinemaDate());
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
-      const nextToday = getJerusalemCalendarDate();
+      const nextToday = getJerusalemCinemaDate();
       setToday((currentToday) =>
         currentToday === nextToday ? currentToday : nextToday);
     }, MIDNIGHT_CHECK_INTERVAL_MS);
@@ -133,23 +134,6 @@ function useJerusalemToday(): string {
   }, []);
 
   return today;
-}
-
-function copyTextWithLegacyFallback(value: string): boolean {
-  const textarea = document.createElement("textarea");
-  textarea.value = value;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.opacity = "0";
-  textarea.style.pointerEvents = "none";
-  document.body.append(textarea);
-  textarea.select();
-
-  try {
-    return document.execCommand("copy");
-  } finally {
-    textarea.remove();
-  }
 }
 
 export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
@@ -521,53 +505,29 @@ export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
       return;
     }
 
-    const explicitCityCode = getExplicitCityCode(currentState.location);
-    const dateCode = encodeDateCode(currentState.date);
-
-    if (!explicitCityCode || !dateCode) {
-      showShareFeedback("Unable to share this selection");
-      return;
-    }
-
-    const shareRouteCode = encodeMovieRouteCode({
+    const url = buildMovieShowtimeShareUrl({
       movieCode: currentState.movieCode,
-      cityCode: explicitCityCode,
-      dateCode,
+      city: currentState.location,
+      date: currentState.date,
       filterMask: currentState.filterMask,
-      mode: "share",
     });
 
-    if (!shareRouteCode) {
+    if (!url) {
       showShareFeedback("Unable to share this selection");
       return;
     }
 
-    const url = `https://seret.site/${shareRouteCode}`;
-    if (typeof navigator.share === "function") {
-      try {
-        await navigator.share({
-          title: `${routeMovie.title} showtimes`,
-          text: `${routeMovie.title} showtimes on Kartiseret`,
-          url,
-        });
-        showShareFeedback("Shared");
-        return;
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
-        }
-      }
-    }
+    const result = await shareLink({
+      title: `${routeMovie.title} showtimes`,
+      text: `${routeMovie.title} showtimes on Kartiseret`,
+      url,
+    });
 
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-      } else if (!copyTextWithLegacyFallback(url)) {
-        throw new Error("Copy command was unavailable.");
-      }
-
+    if (result === "shared") {
+      showShareFeedback("Shared");
+    } else if (result === "copied") {
       showShareFeedback("Link copied");
-    } catch {
+    } else if (result === "failed") {
       showShareFeedback("Could not copy link");
     }
   };

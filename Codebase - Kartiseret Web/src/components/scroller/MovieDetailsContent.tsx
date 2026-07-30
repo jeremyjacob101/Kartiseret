@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type Ref } from "react";
 import { createPortal } from "react-dom";
-import { Clock8, Forward, MapPin, MoveRight, Star, X } from "lucide-react";
+import { Clock8, ExternalLink, MapPin, MoveRight, Star, X } from "lucide-react";
 import { Link } from "react-router";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { TheaterMapDialog } from "../maps/TheaterMapDialog";
@@ -119,11 +119,17 @@ type MovieDetailsContentProps = {
   showtimeDateLoading?: boolean;
   showtimeDateError?: string | null;
   showtimeDateWindowStart?: string | null;
-  onShareShowtimes?: () => void;
+  onShareShowtimes?: (selection: MovieDetailsShareSelection) => void;
   shareFeedback?: string | null;
 };
 
 export type MovieDetailsVariant = "nowPlaying" | "comingSoon";
+
+export type MovieDetailsShareSelection = {
+  date: string;
+  location: AppLocation;
+  filterState: ShowtimeFilterState | null;
+};
 
 type MetricDisplay = {
   key: RatingSource;
@@ -1438,9 +1444,17 @@ export function MovieDetailsContent({
                       className="details-share-trigger"
                       aria-label="Share these showtimes"
                       title="Share these showtimes"
-                      onClick={onShareShowtimes}
+                      onClick={() => {
+                        if (effectiveVisibleShowtimeDate) {
+                          onShareShowtimes({
+                            date: effectiveVisibleShowtimeDate,
+                            location,
+                            filterState: showtimeFilterState,
+                          });
+                        }
+                      }}
                     >
-                      <Forward
+                      <ExternalLink
                         size={20}
                         strokeWidth={2.75}
                         className="app-accent-icon"

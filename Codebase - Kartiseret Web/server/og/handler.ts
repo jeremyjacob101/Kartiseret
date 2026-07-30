@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { NO_STORE_CACHE_CONTROL, PREVIEW_CACHE_CONTROL } from "./cacheControl.js";
 import { getPreviewData } from "./previewData.js";
 import { injectOpenGraphTags } from "./previewHtml.js";
 
@@ -53,7 +54,7 @@ export default async function handler(
       response
         .status(200)
         .setHeader("Content-Type", "text/html; charset=utf-8")
-        .setHeader("Cache-Control", "no-store")
+        .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
         .send(loadBaseIndexHtml());
       return;
     }
@@ -65,7 +66,7 @@ export default async function handler(
       response
         .status(200)
         .setHeader("Content-Type", "text/html; charset=utf-8")
-        .setHeader("Cache-Control", "no-store")
+        .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
         .send(html);
       return;
     }
@@ -76,7 +77,7 @@ export default async function handler(
     response
       .status(200)
       .setHeader("Content-Type", "text/html; charset=utf-8")
-      .setHeader("Cache-Control", "no-store")
+      .setHeader("Cache-Control", PREVIEW_CACHE_CONTROL)
       .send(ogHtml);
   } catch (error) {
     console.error("OG handler error:", error);
@@ -84,7 +85,7 @@ export default async function handler(
     response
       .status(200)
       .setHeader("Content-Type", "text/html; charset=utf-8")
-      .setHeader("Cache-Control", "no-store")
+      .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
       .send(loadBaseIndexHtml());
   }
 }
