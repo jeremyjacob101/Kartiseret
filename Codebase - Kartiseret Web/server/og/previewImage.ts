@@ -31,7 +31,7 @@ const LETTERBOXD_LOGO = loadAssetBuffer("letterboxd.svg").toString("base64");
 const YOUTUBE_LOGO = loadAssetBuffer("youtube.svg").toString("base64");
 
 const LOGO_WIDTH = 120;
-const LOGO_MARGIN_RIGHT = 46;
+const LOGO_MARGIN_RIGHT = 42;
 const LOGO_MARGIN_TOP = 42;
 
 function escapeXml(value: string): string {
