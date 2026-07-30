@@ -29,7 +29,7 @@ const theaterChainSources = [
   {
     name: "MovieLand",
     href: "https://www.movieland.co.il/",
-    logoSrc: "/logos/theaters/movieland-favicon.ico",
+    logoSrc: "/logos/theaters/movieland-cinema.ico",
   },
 ] as const;
 
