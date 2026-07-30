@@ -6,7 +6,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="preconnect" href="https://image.tmdb.org" crossorigin />
   <link rel="dns-prefetch" href="https://image.tmdb.org" />
-  <link rel="icon" href="/logos/favicon.svg?v=4" type="image/svg+xml" sizes="any" />
+  <link id="site-favicon" rel="icon" href="/favicon.ico" type="image/x-icon" />
+  <script>
+    var favicon = document.getElementById("site-favicon");
+    if (favicon) {
+      favicon.setAttribute("href", "/logos/kartiseret1.svg?v=1");
+      favicon.setAttribute("type", "image/svg+xml");
+      favicon.setAttribute("sizes", "any");
+    }
+  </script>
   <!-- OG_START -->
   <title>Kartiseret — Movie showtimes across Israel</title>
   <meta name="description" content="Find movie showtimes across Israeli cinemas in one place." />
