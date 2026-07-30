@@ -2,7 +2,40 @@
   "installCommand": "npm --prefix \"Codebase - Kartiseret Web\" install",
   "buildCommand": "npm --prefix \"Codebase - Kartiseret Web\" run build",
   "outputDirectory": "Codebase - Kartiseret Web/dist",
+  "functions": {
+    "api/og.ts": {
+      "includeFiles": "Codebase - Kartiseret Web/dist/**"
+    },
+    "api/og-image.ts": {
+      "maxDuration": 30,
+      "includeFiles": "Codebase - Kartiseret Web/server/og/assets/**"
+    }
+  },
   "rewrites": [
+    {
+      "source": "/movies",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/showtimes",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/soons",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/user",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/attribution",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/:routeCode([0-9A-Za-z]{3,10})",
+      "destination": "/api/og?routeCode=:routeCode"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"

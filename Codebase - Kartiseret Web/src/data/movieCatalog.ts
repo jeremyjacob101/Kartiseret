@@ -1,11 +1,10 @@
-import { getSupabaseBrowserClient } from "../lib/supabase";
-import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/definitions/locations";
-import { addCalendarDays, getJerusalemCalendarDate, getTargetedShowtimePrefetchRange, SHOWTIME_LINK_DATE_COUNT } from "../routing/showtimeLinkCodec";
+import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime as shouldIncludeShowtimeAtInstant, SHOWTIME_TIME_ZONE } from "../domain/showtimeDay.js";
+import { getSupabaseBrowserClient } from "../lib/supabase.js";
+import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/definitions/locations.js";
+import { addCalendarDays, getJerusalemCinemaDate, getTargetedShowtimePrefetchRange, SHOWTIME_LINK_DATE_COUNT } from "../routing/showtimeLinkCodec.js";
 
 const SUPABASE_PAGE_SIZE = 1000;
-export const APP_TIME_ZONE = "Asia/Jerusalem";
-export const SHOWTIME_DAY_CUTOFF_MINUTES = 65;
-const SHOWTIME_GRACE_PERIOD_MINUTES = 15;
+export const APP_TIME_ZONE = SHOWTIME_TIME_ZONE;
 export const INITIAL_SHOWTIME_WINDOW_DAY_COUNT = 1;
 export const SHOWTIME_WINDOW_DAY_COUNT = 180;
 export const SHOWTIME_PREFETCH_CHUNK_DAY_COUNT = 15;
@@ -82,15 +81,11 @@ const THEATER_SORT_INDEX = new Map(
 );
 
 export const defaultCity: AppLocation = DEFAULT_LOCATION;
-export const fixedAppDateString = getCurrentAppDateString(APP_TIME_ZONE);
-const fixedCurrentDateTimeParts =
-  getCurrentDateTimePartsInTimeZone(APP_TIME_ZONE);
-const fixedCurrentIsraelDateString = fixedCurrentDateTimeParts
-  ? `${fixedCurrentDateTimeParts.year}-${fixedCurrentDateTimeParts.month}-${fixedCurrentDateTimeParts.day}`
-  : fixedAppDateString;
-const fixedCurrentIsraelMinutesSinceMidnight = fixedCurrentDateTimeParts
-  ? fixedCurrentDateTimeParts.hour * 60 + fixedCurrentDateTimeParts.minute
-  : Number.NEGATIVE_INFINITY;
+const fixedAppInstant = new Date();
+export const fixedAppDateString = getCinemaDayDate(
+  fixedAppInstant,
+  APP_TIME_ZONE,
+);
 
 type SupabaseValue = unknown;
 type SupabaseRow = Record<string, SupabaseValue | undefined>;
@@ -483,114 +478,13 @@ function formatIsoDate(date: Date): string {
   ].join("-");
 }
 
-type TimeZoneDateTimeParts = {
-  year: string;
-  month: string;
-  day: string;
-  hour: number;
-  minute: number;
-};
-
-function getCurrentDateTimePartsInTimeZone(
-  timeZone: string,
-): TimeZoneDateTimeParts | null {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  });
-  const parts = formatter.formatToParts(new Date());
-  const year = parts.find((part) => part.type === "year")?.value ?? "";
-  const month = parts.find((part) => part.type === "month")?.value ?? "";
-  const day = parts.find((part) => part.type === "day")?.value ?? "";
-  const hour = Number.parseInt(
-    parts.find((part) => part.type === "hour")?.value ?? "",
-    10,
-  );
-  const minute = Number.parseInt(
-    parts.find((part) => part.type === "minute")?.value ?? "",
-    10,
-  );
-
-  if (
-    !year ||
-    !month ||
-    !day ||
-    !Number.isFinite(hour) ||
-    !Number.isFinite(minute)
-  ) {
-    return null;
-  }
-
-  return {
-    year,
-    month,
-    day,
-    hour,
-    minute,
-  };
-}
-
-function getCurrentAppDateString(timeZone: string): string {
-  const parts = getCurrentDateTimePartsInTimeZone(timeZone);
-
-  if (!parts) {
-    return formatIsoDate(new Date());
-  }
-
-  const currentDateString = `${parts.year}-${parts.month}-${parts.day}`;
-  const minutesSinceMidnight = parts.hour * 60 + parts.minute;
-
-  if (minutesSinceMidnight < SHOWTIME_DAY_CUTOFF_MINUTES) {
-    return addDaysToIsoDate(currentDateString, -1);
-  }
-
-  return currentDateString;
-}
-
-function parseShowtimeMinutes(value: string): number {
-  const [hoursText, minutesText] = value.split(":");
-  const hours = Number.parseInt(hoursText ?? "", 10);
-  const minutes = Number.parseInt(minutesText ?? "", 10);
-
-  if (
-    !Number.isFinite(hours) ||
-    !Number.isFinite(minutes) ||
-    hours < 0 ||
-    hours > 23 ||
-    minutes < 0 ||
-    minutes > 59
-  ) {
-    return Number.POSITIVE_INFINITY;
-  }
-
-  return hours * 60 + minutes;
-}
-
-function isPostMidnightCarryoverShowtime(value: string): boolean {
-  return parseShowtimeMinutes(value) < SHOWTIME_DAY_CUTOFF_MINUTES;
-}
-
 function compareShowtimeEntries(
   leftShowtime: ShowtimeEntry,
   rightShowtime: ShowtimeEntry,
 ): number {
-  const leftIsCarryover = isPostMidnightCarryoverShowtime(leftShowtime.time);
-  const rightIsCarryover = isPostMidnightCarryoverShowtime(rightShowtime.time);
-
-  if (leftIsCarryover !== rightIsCarryover) {
-    return leftIsCarryover ? 1 : -1;
-  }
-
-  const leftMinutes = parseShowtimeMinutes(leftShowtime.time);
-  const rightMinutes = parseShowtimeMinutes(rightShowtime.time);
-
   return (
-    leftMinutes - rightMinutes ||
+    getShowtimeSortValue(leftShowtime.time) -
+      getShowtimeSortValue(rightShowtime.time) ||
     leftShowtime.time.localeCompare(rightShowtime.time) ||
     leftShowtime.screeningTech.localeCompare(rightShowtime.screeningTech) ||
     leftShowtime.screeningType.localeCompare(rightShowtime.screeningType) ||
@@ -601,27 +495,11 @@ function compareShowtimeEntries(
 }
 
 function shouldIncludeShowtime(dateString: string, showtime: string): boolean {
-  const showtimeMinutes = parseShowtimeMinutes(showtime);
-
-  if (!Number.isFinite(showtimeMinutes)) {
-    return false;
-  }
-
-  const effectiveDateString = isPostMidnightCarryoverShowtime(showtime)
-    ? addDaysToIsoDate(dateString, 1)
-    : dateString;
-
-  if (effectiveDateString > fixedCurrentIsraelDateString) {
-    return true;
-  }
-
-  if (effectiveDateString < fixedCurrentIsraelDateString) {
-    return false;
-  }
-
-  return (
-    showtimeMinutes + SHOWTIME_GRACE_PERIOD_MINUTES >=
-    fixedCurrentIsraelMinutesSinceMidnight
+  return shouldIncludeShowtimeAtInstant(
+    dateString,
+    showtime,
+    fixedAppInstant,
+    APP_TIME_ZONE,
   );
 }
 
@@ -1477,7 +1355,7 @@ async function loadTargetedMovieShowtimeDateRange(
   }
 
   const linkWindowEndDate = addCalendarDays(
-    getJerusalemCalendarDate(),
+    getJerusalemCinemaDate(),
     SHOWTIME_LINK_DATE_COUNT - 1,
   );
   const visibleDayCount = linkWindowEndDate
@@ -1609,7 +1487,7 @@ export async function prefetchMovieShowtimesAfterDate(
 ): Promise<void> {
   return queueTargetedMovieShowtimeTask(city, tmdbId, async () => {
     const cityState = getShowtimeCityLoadState(city);
-    const windowStartDate = getJerusalemCalendarDate();
+    const windowStartDate = getJerusalemCinemaDate();
     const windowEndDate = addCalendarDays(
       windowStartDate,
       SHOWTIME_LINK_DATE_COUNT - 1,

@@ -1,4 +1,4 @@
-import type { UserPreferenceDefinition } from "./shared";
+import type { UserPreferenceDefinition } from "./shared.js";
 
 export const ALL_LOCATIONS = [
   "Afula",

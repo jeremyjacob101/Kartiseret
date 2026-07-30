@@ -1,8 +1,10 @@
+import { getCinemaDayDate, SHOWTIME_TIME_ZONE } from "../domain/showtimeDay.js";
+
 export const URL_ALPHABET =
   "1iljIt23457fkrsvxyzFJLT0689abcdeghnopquABCDEGHKNOPQRSUVXYZmwMW";
 export const DATE_CODE_ALPHABET =
   "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-export const SHOWTIME_LINK_TIME_ZONE = "Asia/Jerusalem";
+export const SHOWTIME_LINK_TIME_ZONE = SHOWTIME_TIME_ZONE;
 export const SHOWTIME_LINK_DATE_COUNT = 62;
 export const SHOWTIME_FILTER_MASK_WIDTH = 4;
 export const SHOWTIME_FILTER_BIT_COUNT = 20;
@@ -167,6 +169,13 @@ export type EncodedMovieRouteState = {
   dateCode: string;
   filterMask: number;
   mode: MovieRouteMode;
+};
+
+export type MovieShowtimeShareState = {
+  movieCode: string;
+  city: string;
+  date: string;
+  filterMask: number;
 };
 
 function normalizeFilterValue(value: string): string {
@@ -390,6 +399,10 @@ export function getCalendarDateInTimeZone(
 
 export function getJerusalemCalendarDate(instant: Date = new Date()): string {
   return getCalendarDateInTimeZone(SHOWTIME_LINK_TIME_ZONE, instant);
+}
+
+export function getJerusalemCinemaDate(instant: Date = new Date()): string {
+  return getCinemaDayDate(instant, SHOWTIME_LINK_TIME_ZONE);
 }
 
 export function encodeDateCode(dateString: string): string | null {
@@ -642,6 +655,28 @@ export function encodeMovieRouteCode(
     filterCode,
     state.mode === "edit" ? EDIT_MODE_MARKER : "",
   ].join("");
+}
+
+export function buildMovieShowtimeShareUrl(
+  state: MovieShowtimeShareState,
+  siteOrigin = "https://seret.site",
+): string | null {
+  const cityCode = getExplicitCityCode(state.city);
+  const dateCode = encodeDateCode(state.date);
+
+  if (!cityCode || !dateCode) {
+    return null;
+  }
+
+  const routeCode = encodeMovieRouteCode({
+    movieCode: state.movieCode,
+    cityCode,
+    dateCode,
+    filterMask: state.filterMask,
+    mode: "share",
+  });
+
+  return routeCode ? `${siteOrigin.replace(/\/+$/, "")}/${routeCode}` : null;
 }
 
 export function resolveCityCode(
