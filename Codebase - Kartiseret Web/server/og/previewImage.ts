@@ -46,35 +46,76 @@ function escapeXml(value: string): string {
 function wrapTitle(title: string, maximumLength = 25): string[] {
   const words = title.split(/\s+/);
   const lines: string[] = [];
+  let truncated = false;
 
   for (const word of words) {
     const currentLine = lines[lines.length - 1];
 
     if (!currentLine) {
-      lines.push(word);
+      lines.push(word.slice(0, maximumLength));
       continue;
     }
 
-    if (
-      currentLine.length + word.length + 1 <= maximumLength ||
-      lines.length >= 2
-    ) {
+    if (currentLine.length + word.length + 1 <= maximumLength) {
       lines[lines.length - 1] = `${currentLine} ${word}`;
       continue;
     }
 
-    lines.push(word);
+    if (lines.length < 2) {
+      lines.push(word.slice(0, maximumLength));
+    } else {
+      truncated = true;
+      break;
+    }
   }
 
-  if (lines.length > 2) {
-    lines.length = 2;
-  }
-
-  if ((lines[1]?.length || 0) > maximumLength + 8) {
-    lines[1] = `${lines[1]?.slice(0, maximumLength + 5)}…`;
+  if (truncated && lines[1]) {
+    lines[1] = `${lines[1].slice(0, maximumLength - 3).trimEnd()}...`;
   }
 
   return lines;
+}
+
+type MovieLayout = {
+  titleLines: string[];
+  eyebrowTop: number;
+  titleTop: number;
+  titleFontSize: number;
+  metaTop: number;
+  ratingLogoTop: number;
+  ratingValueTop: number;
+  trailerTop: number;
+  dividerTop: number;
+};
+
+function getMovieLayout(title: string): MovieLayout {
+  const titleLines = wrapTitle(title);
+
+  if (titleLines.length === 2) {
+    return {
+      titleLines,
+      eyebrowTop: 202,
+      titleTop: 240,
+      titleFontSize: 52,
+      metaTop: 378,
+      ratingLogoTop: 442,
+      ratingValueTop: 514,
+      trailerTop: 469,
+      dividerTop: 445,
+    };
+  }
+
+  return {
+    titleLines,
+    eyebrowTop: 242,
+    titleTop: 286,
+    titleFontSize: 70,
+    metaTop: 378,
+    ratingLogoTop: 442,
+    ratingValueTop: 514,
+    trailerTop: 469,
+    dividerTop: 445,
+  };
 }
 
 function formatRuntime(runtime: number | null): string | null {
@@ -94,7 +135,7 @@ function getAudienceLogo(score: number | null, votes: number | null): string {
   return (score ?? 0) >= 60 ? RT_AUDIENCE_GOOD_LOGO : RT_AUDIENCE_BAD_LOGO;
 }
 
-function createRatings(data: PreviewData): string {
+function createRatings(data: PreviewData, layout: MovieLayout): string {
   const ratings: Array<[string, string | null]> = [
     [IMDB_LOGO, data.imdbRating ? data.imdbRating.toFixed(1) : null],
     [getAudienceLogo(data.rtAudienceRating, data.rtAudienceVotes), data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null],
@@ -104,12 +145,12 @@ function createRatings(data: PreviewData): string {
 
   const logoX = [530, 650, 770, 890];
   return ratings.slice(0, 4).map(([logo], index) => {
-    return `<image href="data:image/svg+xml;base64,${logo}" x="${logoX[index]}" y="442" width="62" height="62" preserveAspectRatio="xMidYMid meet"/>`;
+    return `<image href="data:image/svg+xml;base64,${logo}" x="${logoX[index]}" y="${layout.ratingLogoTop}" width="62" height="62" preserveAspectRatio="xMidYMid meet"/>`;
   }).join("");
 }
 
-function createTextOverlay(data: PreviewData): Buffer {
-  const ratingsSvg = createRatings(data);
+function createTextOverlay(data: PreviewData, layout: MovieLayout): Buffer {
+  const ratingsSvg = createRatings(data, layout);
 
   const svg = [
     '<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">',
@@ -121,8 +162,8 @@ function createTextOverlay(data: PreviewData): Buffer {
     "</linearGradient>",
     "</defs>",
     '<rect x="365" y="0" width="835" height="630" fill="url(#panelGrad)" />',
-    `<image href="data:image/svg+xml;base64,${YOUTUBE_LOGO}" x="405" y="469" width="46" height="34" preserveAspectRatio="xMidYMid meet"/>`,
-    '<rect x="489" y="445" width="1" height="82" fill="#A990D1" fill-opacity="0.7" />',
+    `<image href="data:image/svg+xml;base64,${YOUTUBE_LOGO}" x="405" y="${layout.trailerTop}" width="46" height="34" preserveAspectRatio="xMidYMid meet"/>`,
+    `<rect x="489" y="${layout.dividerTop}" width="1" height="82" fill="#A990D1" fill-opacity="0.7" />`,
     ratingsSvg,
     "</svg>",
   ].join("");
@@ -150,19 +191,19 @@ async function createTextLayer(
   }).png().toBuffer();
 }
 
-async function createMovieTextLayers(data: PreviewData): Promise<OverlayOptions[]> {
+async function createMovieTextLayers(data: PreviewData, layout: MovieLayout): Promise<OverlayOptions[]> {
   const infoText = [data.year ? String(data.year) : null, formatRuntime(data.runtime), data.genres.length ? data.genres.join(", ") : null].filter(Boolean).join("  •  ");
   const ratingValues = [data.imdbRating ? data.imdbRating.toFixed(1) : null, data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null, data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null, data.lbRating ? data.lbRating.toFixed(1) : null].filter((value): value is string => Boolean(value));
   const layers: OverlayOptions[] = [
-    { input: await createTextLayer(data.isComingSoon ? "COMING SOON" : "NOW PLAYING", 400, 20, "#C5A9EB", true), left: 400, top: 242 },
-    { input: await createTextLayer(wrapTitle(data.title).join("\n"), 680, 70, "#FFFFFF", true), left: 400, top: 286 },
-    { input: await createTextLayer(infoText, 730, 24, "#E6DFF3"), left: 400, top: 378 },
+    { input: await createTextLayer(data.isComingSoon ? "COMING SOON" : "NOW PLAYING", 400, 20, "#C5A9EB", true), left: 400, top: layout.eyebrowTop },
+    { input: await createTextLayer(layout.titleLines.join("\n"), 680, layout.titleFontSize, "#FFFFFF", true), left: 400, top: layout.titleTop },
+    { input: await createTextLayer(infoText, 730, 24, "#E6DFF3"), left: 400, top: layout.metaTop },
   ];
   const ratingLogoCenters = [561, 681, 801, 921];
   for (const [index, value] of ratingValues.entries()) {
     const input = await createTextLayer(value, 90, 26, "#FFFFFF", true, "center");
     const { width = 0 } = await sharp(input).metadata();
-    layers.push({ input, left: Math.round(ratingLogoCenters[index] - width / 2), top: 514 });
+    layers.push({ input, left: Math.round(ratingLogoCenters[index] - width / 2), top: layout.ratingValueTop });
   }
   return layers;
 }
@@ -224,6 +265,7 @@ export async function createPreviewImage(data: PreviewData): Promise<Buffer> {
   ]);
 
   const backdropSource = downloadedBackdrop || posterSource;
+  const layout = getMovieLayout(data.title);
   const layers: OverlayOptions[] = [];
 
   if (backdropSource) {
@@ -254,12 +296,12 @@ export async function createPreviewImage(data: PreviewData): Promise<Buffer> {
   }
 
   layers.push({
-    input: createTextOverlay(data),
+    input: createTextOverlay(data, layout),
     left: 0,
     top: 0,
   });
 
-  layers.push(...(await createMovieTextLayers(data)));
+  layers.push(...(await createMovieTextLayers(data, layout)));
 
   const logoLayer = await createLogoLayer();
   if (logoLayer) {
