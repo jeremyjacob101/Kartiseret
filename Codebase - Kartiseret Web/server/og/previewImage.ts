@@ -21,14 +21,18 @@ function loadAssetBuffer(filename: string): Buffer {
 
 const LOGO_SVG = loadAssetBuffer("kartiseret-logo.svg");
 const IMDB_LOGO = loadAssetBuffer("imdb.svg").toString("base64");
-const RT_CRITIC_LOGO = loadAssetBuffer("rtCriticGood.svg").toString("base64");
-const RT_AUDIENCE_LOGO = loadAssetBuffer("rtAudienceGood.svg").toString("base64");
+const RT_CRITIC_LOGO = loadAssetBuffer("rtCriticHot.svg").toString("base64");
+const RT_AUDIENCE_LOGO = loadAssetBuffer("rtAudienceHot.svg").toString("base64");
+const RT_CRITIC_GOOD_LOGO = loadAssetBuffer("rtCriticGood.svg").toString("base64");
+const RT_CRITIC_BAD_LOGO = loadAssetBuffer("rtCriticBad.svg").toString("base64");
+const RT_AUDIENCE_GOOD_LOGO = loadAssetBuffer("rtAudienceGood.svg").toString("base64");
+const RT_AUDIENCE_BAD_LOGO = loadAssetBuffer("rtAudienceBad.svg").toString("base64");
 const LETTERBOXD_LOGO = loadAssetBuffer("letterboxd.svg").toString("base64");
 const YOUTUBE_LOGO = loadAssetBuffer("youtube.svg").toString("base64");
 
-const LOGO_WIDTH = 150;
-const LOGO_MARGIN_RIGHT = 45;
-const LOGO_MARGIN_TOP = 35;
+const LOGO_WIDTH = 120;
+const LOGO_MARGIN_RIGHT = 35;
+const LOGO_MARGIN_TOP = 30;
 
 function escapeXml(value: string): string {
   return value
@@ -80,15 +84,25 @@ function formatRuntime(runtime: number | null): string | null {
   return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
 
+function getCriticLogo(score: number | null, votes: number | null): string {
+  if ((score ?? 0) >= 75 && (votes ?? 0) >= 80) return RT_CRITIC_LOGO;
+  return (score ?? 0) >= 60 ? RT_CRITIC_GOOD_LOGO : RT_CRITIC_BAD_LOGO;
+}
+
+function getAudienceLogo(score: number | null, votes: number | null): string {
+  if ((score ?? 0) >= 90 && (votes ?? 0) >= 500) return RT_AUDIENCE_LOGO;
+  return (score ?? 0) >= 60 ? RT_AUDIENCE_GOOD_LOGO : RT_AUDIENCE_BAD_LOGO;
+}
+
 function createRatings(data: PreviewData): string {
   const ratings: Array<[string, string | null]> = [
     [IMDB_LOGO, data.imdbRating ? data.imdbRating.toFixed(1) : null],
-    [RT_CRITIC_LOGO, data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null],
-    [RT_AUDIENCE_LOGO, data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null],
+    [getAudienceLogo(data.rtAudienceRating, data.rtAudienceVotes), data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null],
+    [getCriticLogo(data.rtCriticRating, data.rtCriticVotes), data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null],
     [LETTERBOXD_LOGO, data.lbRating ? data.lbRating.toFixed(1) : null],
   ].filter((rating): rating is [string, string] => Boolean(rating[1]));
 
-  const logoX = [565, 685, 803, 924];
+  const logoX = [530, 650, 770, 890];
   return ratings.slice(0, 4).map(([logo], index) => {
     return `<image href="data:image/svg+xml;base64,${logo}" x="${logoX[index]}" y="462" width="62" height="62" preserveAspectRatio="xMidYMid meet"/>`;
   }).join("");
@@ -106,9 +120,9 @@ function createTextOverlay(data: PreviewData): Buffer {
     '<stop offset="100%" stop-color="rgba(10,12,22,0.52)" />',
     "</linearGradient>",
     "</defs>",
-    '<rect x="430" y="0" width="770" height="630" fill="url(#panelGrad)" />',
-    `<image href="data:image/svg+xml;base64,${YOUTUBE_LOGO}" x="435" y="476" width="48" height="48" preserveAspectRatio="xMidYMid meet"/>`,
-    '<rect x="513" y="462" width="1" height="78" fill="#A990D1" fill-opacity="0.7" />',
+    '<rect x="365" y="0" width="835" height="630" fill="url(#panelGrad)" />',
+    `<image href="data:image/svg+xml;base64,${YOUTUBE_LOGO}" x="405" y="476" width="48" height="48" preserveAspectRatio="xMidYMid meet"/>`,
+    '<rect x="483" y="462" width="1" height="78" fill="#A990D1" fill-opacity="0.7" />',
     ratingsSvg,
     "</svg>",
   ].join("");
@@ -140,11 +154,11 @@ async function createMovieTextLayers(data: PreviewData): Promise<OverlayOptions[
   const infoText = [data.year ? String(data.year) : null, formatRuntime(data.runtime), data.genres.length ? data.genres.join(", ") : null].filter(Boolean).join("  •  ");
   const ratingValues = [data.imdbRating ? data.imdbRating.toFixed(1) : null, data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null, data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null, data.lbRating ? data.lbRating.toFixed(1) : null].filter((value): value is string => Boolean(value));
   const layers: OverlayOptions[] = [
-    { input: await createTextLayer(data.isComingSoon ? "COMING SOON" : "NOW PLAYING", 400, 26, 10, "#C5A9EB", true), left: 435, top: 252 },
-    { input: await createTextLayer(wrapTitle(data.title).join("\n"), 650, 100, 36, "#FFFFFF", true), left: 435, top: 287 },
-    { input: await createTextLayer(infoText, 680, 36, 20, "#E6DFF3"), left: 435, top: 397 },
+    { input: await createTextLayer(data.isComingSoon ? "COMING SOON" : "NOW PLAYING", 400, 26, 10, "#C5A9EB", true), left: 400, top: 252 },
+    { input: await createTextLayer(wrapTitle(data.title).join("\n"), 680, 100, 36, "#FFFFFF", true), left: 400, top: 287 },
+    { input: await createTextLayer(infoText, 730, 36, 20, "#E6DFF3"), left: 400, top: 397 },
   ];
-  const ratingValueX = [551, 671, 789, 910];
+  const ratingValueX = [516, 636, 756, 876];
   for (const [index, value] of ratingValues.entries()) {
     layers.push({ input: await createTextLayer(value, 90, 38, index === 0 || index === 3 ? 20 : 28, "#FFFFFF", true), left: ratingValueX[index], top: 528 });
   }
@@ -222,19 +236,19 @@ export async function createPreviewImage(data: PreviewData): Promise<Buffer> {
 
   if (posterSource) {
     const poster = await sharp(posterSource)
-      .resize(340, 540, { fit: "cover" })
+      .resize(330, 495, { fit: "cover" })
       .composite([
         {
           input: Buffer.from(
-            '<svg width="340" height="540"><rect width="340" height="540" rx="38" fill="white"/></svg>',
+            '<svg width="330" height="495"><rect width="330" height="495" rx="34" fill="white"/></svg>',
           ),
           blend: "dest-in",
         },
       ])
-      .jpeg()
+      .png()
       .toBuffer();
 
-    layers.push({ input: poster, left: 55, top: 45 });
+    layers.push({ input: poster, left: 35, top: 45 });
   }
 
   layers.push({

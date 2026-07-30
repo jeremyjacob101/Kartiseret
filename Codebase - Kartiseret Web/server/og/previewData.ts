@@ -28,7 +28,9 @@ type DatabaseMovie = {
   genres: string[] | string | null;
   imdbRating: number | string | null;
   rtCriticRating: number | string | null;
+  rtCriticVotes: number | string | null;
   rtAudienceRating: number | string | null;
+  rtAudienceVotes: number | string | null;
   lbRating: number | string | null;
 };
 
@@ -62,7 +64,9 @@ export type PreviewData = {
   genres: string[];
   imdbRating: number | null;
   rtCriticRating: number | null;
+  rtCriticVotes: number | null;
   rtAudienceRating: number | null;
+  rtAudienceVotes: number | null;
   lbRating: number | null;
 };
 
@@ -123,7 +127,7 @@ async function getMovieByTmdbId(
 
   for (const tableName of ["finalMovies", "finalSoons"]) {
     const movieColumns = tableName === "finalMovies"
-      ? "english_title,en_poster,backdrop,release_year,runtime,genres,imdbRating,rtCriticRating,rtAudienceRating,lbRating"
+      ? "english_title,en_poster,backdrop,release_year,runtime,genres,imdbRating,rtCriticRating,rtCriticVotes,rtAudienceRating,rtAudienceVotes,lbRating"
       : "english_title,en_poster,backdrop,release_year,runtime,genres";
     const { data, error } = await supabase
       .from(tableName)
@@ -291,7 +295,9 @@ export async function getPreviewData(
       genres: parseGenres(movie.genres),
       imdbRating: parseNumber(movie.imdbRating),
       rtCriticRating: parseNumber(movie.rtCriticRating),
+      rtCriticVotes: parseNumber(movie.rtCriticVotes),
       rtAudienceRating: parseNumber(movie.rtAudienceRating),
+      rtAudienceVotes: parseNumber(movie.rtAudienceVotes),
       lbRating: parseNumber(movie.lbRating),
     };
   }
@@ -331,7 +337,9 @@ export async function getPreviewData(
     genres: parseGenres(movie.genres),
     imdbRating: parseNumber(movie.imdbRating),
     rtCriticRating: parseNumber(movie.rtCriticRating),
+    rtCriticVotes: parseNumber(movie.rtCriticVotes),
     rtAudienceRating: parseNumber(movie.rtAudienceRating),
+    rtAudienceVotes: parseNumber(movie.rtAudienceVotes),
     lbRating: parseNumber(movie.lbRating),
   };
 }
