@@ -1,5 +1,8 @@
 import type { PreviewData } from "./previewData.js";
 
+const PREVIEW_CRAWLER_FAVICON =
+  '<link rel="icon" href="/logos/kartiseret1_white.ico?v=2" />';
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -22,6 +25,13 @@ export function buildPreviewDescription(data: PreviewData): string {
   return theaterText
     ? `${data.city} · ${data.dateLabel} · ${theaterText}`
     : `${data.city} · ${data.dateLabel} · View available showtimes`;
+}
+
+export function injectPreviewCrawlerFavicon(html: string): string {
+  return html.replace(
+    "<!-- OG_START -->",
+    `${PREVIEW_CRAWLER_FAVICON}\n  <!-- OG_START -->`,
+  );
 }
 
 export function injectOpenGraphTags(

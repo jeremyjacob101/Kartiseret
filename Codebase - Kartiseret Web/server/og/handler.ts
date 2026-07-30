@@ -3,7 +3,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { NO_STORE_CACHE_CONTROL, PREVIEW_CACHE_CONTROL } from "./cacheControl.js";
 import { getPreviewData } from "./previewData.js";
-import { injectOpenGraphTags } from "./previewHtml.js";
+import { injectOpenGraphTags, injectPreviewCrawlerFavicon } from "./previewHtml.js";
+
+const PREVIEW_CRAWLER_USER_AGENT = /WhatsApp|facebookexternalhit|Facebot/i;
 
 const indexPath = resolve(
   process.cwd(),
@@ -24,6 +26,18 @@ function loadBaseIndexHtml(): string {
   }
 
   return baseIndexHtml;
+}
+
+function loadRequestIndexHtml(request: VercelRequest): string {
+  const userAgent = request.headers["user-agent"];
+  const userAgentText = Array.isArray(userAgent)
+    ? userAgent.join(" ")
+    : userAgent || "";
+  const html = loadBaseIndexHtml();
+
+  return PREVIEW_CRAWLER_USER_AGENT.test(userAgentText)
+    ? injectPreviewCrawlerFavicon(html)
+    : html;
 }
 
 function deriveSiteOrigin(request: VercelRequest): string {
@@ -47,20 +61,22 @@ export default async function handler(
   request: VercelRequest,
   response: VercelResponse,
 ): Promise<void> {
+  response.setHeader("Vary", "User-Agent");
+
   try {
     const routeCode = (request.query.routeCode as string | undefined) || "";
+    const html = loadRequestIndexHtml(request);
 
     if (!routeCode) {
       response
         .status(200)
         .setHeader("Content-Type", "text/html; charset=utf-8")
         .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
-        .send(loadBaseIndexHtml());
+        .send(html);
       return;
     }
 
     const previewData = await getPreviewData(routeCode);
-    const html = loadBaseIndexHtml();
 
     if (!previewData) {
       response
@@ -81,11 +97,12 @@ export default async function handler(
       .send(ogHtml);
   } catch (error) {
     console.error("OG handler error:", error);
+    const html = loadRequestIndexHtml(request);
 
     response
       .status(200)
       .setHeader("Content-Type", "text/html; charset=utf-8")
       .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
-      .send(loadBaseIndexHtml());
+      .send(html);
   }
 }
