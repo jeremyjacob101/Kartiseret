@@ -136,6 +136,7 @@ async function createTextLayer(
   fontSize: number,
   color: string,
   bold = false,
+  align: "left" | "center" = "left",
 ): Promise<Buffer> {
   return sharp({
     text: {
@@ -143,6 +144,7 @@ async function createTextLayer(
       font: "Inter",
       fontfile: bold ? INTER_BOLD_PATH : INTER_REGULAR_PATH,
       width,
+      align,
       rgba: true,
     },
   }).png().toBuffer();
@@ -158,7 +160,7 @@ async function createMovieTextLayers(data: PreviewData): Promise<OverlayOptions[
   ];
   const ratingValueX = [516, 636, 756, 876];
   for (const [index, value] of ratingValues.entries()) {
-    layers.push({ input: await createTextLayer(value, 90, 24, "#FFFFFF", true), left: ratingValueX[index], top: 514 });
+    layers.push({ input: await createTextLayer(value, 90, 26, "#FFFFFF", true, "center"), left: ratingValueX[index], top: 514 });
   }
   return layers;
 }
