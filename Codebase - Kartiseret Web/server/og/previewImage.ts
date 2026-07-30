@@ -104,7 +104,7 @@ function createRatings(data: PreviewData): string {
 
   const logoX = [530, 650, 770, 890];
   return ratings.slice(0, 4).map(([logo], index) => {
-    return `<image href="data:image/svg+xml;base64,${logo}" x="${logoX[index]}" y="462" width="62" height="62" preserveAspectRatio="xMidYMid meet"/>`;
+    return `<image href="data:image/svg+xml;base64,${logo}" x="${logoX[index]}" y="442" width="62" height="62" preserveAspectRatio="xMidYMid meet"/>`;
   }).join("");
 }
 
@@ -121,8 +121,8 @@ function createTextOverlay(data: PreviewData): Buffer {
     "</linearGradient>",
     "</defs>",
     '<rect x="365" y="0" width="835" height="630" fill="url(#panelGrad)" />',
-    `<image href="data:image/svg+xml;base64,${YOUTUBE_LOGO}" x="405" y="476" width="48" height="48" preserveAspectRatio="xMidYMid meet"/>`,
-    '<rect x="483" y="462" width="1" height="78" fill="#A990D1" fill-opacity="0.7" />',
+    `<image href="data:image/svg+xml;base64,${YOUTUBE_LOGO}" x="405" y="469" width="46" height="34" preserveAspectRatio="xMidYMid meet"/>`,
+    '<rect x="489" y="445" width="1" height="82" fill="#A990D1" fill-opacity="0.7" />',
     ratingsSvg,
     "</svg>",
   ].join("");
@@ -133,7 +133,6 @@ function createTextOverlay(data: PreviewData): Buffer {
 async function createTextLayer(
   text: string,
   width: number,
-  height: number,
   fontSize: number,
   color: string,
   bold = false,
@@ -144,7 +143,6 @@ async function createTextLayer(
       font: "Inter",
       fontfile: bold ? INTER_BOLD_PATH : INTER_REGULAR_PATH,
       width,
-      height,
       rgba: true,
     },
   }).png().toBuffer();
@@ -152,15 +150,15 @@ async function createTextLayer(
 
 async function createMovieTextLayers(data: PreviewData): Promise<OverlayOptions[]> {
   const infoText = [data.year ? String(data.year) : null, formatRuntime(data.runtime), data.genres.length ? data.genres.join(", ") : null].filter(Boolean).join("  •  ");
-  const ratingValues = [data.imdbRating ? data.imdbRating.toFixed(1) : null, data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null, data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null, data.lbRating ? data.lbRating.toFixed(1) : null].filter((value): value is string => Boolean(value));
+  const ratingValues = [data.imdbRating ? data.imdbRating.toFixed(1) : null, data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null, data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null, data.lbRating ? data.lbRating.toFixed(1) : null].filter((value): value is string => Boolean(value));
   const layers: OverlayOptions[] = [
-    { input: await createTextLayer(data.isComingSoon ? "COMING SOON" : "NOW PLAYING", 400, 26, 10, "#C5A9EB", true), left: 400, top: 252 },
-    { input: await createTextLayer(wrapTitle(data.title).join("\n"), 680, 100, 36, "#FFFFFF", true), left: 400, top: 287 },
-    { input: await createTextLayer(infoText, 730, 36, 20, "#E6DFF3"), left: 400, top: 397 },
+    { input: await createTextLayer(data.isComingSoon ? "COMING SOON" : "NOW PLAYING", 400, 20, "#C5A9EB", true), left: 400, top: 242 },
+    { input: await createTextLayer(wrapTitle(data.title).join("\n"), 680, 70, "#FFFFFF", true), left: 400, top: 286 },
+    { input: await createTextLayer(infoText, 730, 24, "#E6DFF3"), left: 400, top: 378 },
   ];
   const ratingValueX = [516, 636, 756, 876];
   for (const [index, value] of ratingValues.entries()) {
-    layers.push({ input: await createTextLayer(value, 90, 38, index === 0 || index === 3 ? 20 : 28, "#FFFFFF", true), left: ratingValueX[index], top: 528 });
+    layers.push({ input: await createTextLayer(value, 90, 24, "#FFFFFF", true), left: ratingValueX[index], top: 514 });
   }
   return layers;
 }
