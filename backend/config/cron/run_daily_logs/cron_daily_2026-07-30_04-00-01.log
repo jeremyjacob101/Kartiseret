@@ -1,0 +1,71 @@
+==== cron run start: 2026-07-30T04:00:01+0300 ====
+From github.com:jeremyjacob101/Kartiseret
+ * branch            main       -> FETCH_HEAD
+   0e3f566..03d0574  main       -> origin/main
+Already on 'main'
+M	backend/config/cron/cron_daily.log
+Your branch is behind 'origin/main' by 9 commits, and can be fast-forwarded.
+  (use "git pull" to update your local branch)
+HEAD is now at 03d0574 [VERCEL] vercel.json move to root
+
+--------------------
+
+CCsoon: 00m27s
+LCsoon: 01m02s
+YPsoon: 01m54s
+MLsoon: 02m52s
+HCsoon: 03m51s
+
+--------------------
+
+
+--------------------
+
+LevCinema: 05m00s
+RavHen: 11m01s
+MovieLand: 12m41s
+CinemaCity: 26m04s
+YesPlanet: 27m15s
+HotCinema: 31m49s
+
+--------------------
+
+
+--------------------
+
+JAFCtheque: 00m20s
+JLEMtheque: 04m08s
+HERZtheque: 04m40s
+HAIFtheque: 06m09s
+TLVtheque: 10m19s
+
+--------------------
+
+
+--------------------
+
+ComingSoonsClean: 00m02s
+ComingSoonsTmdb: 00m29s
+ComingSoonsUpdate: 00m06s
+
+--------------------
+
+
+--------------------
+
+NowPlayingsClean: 00m32s
+NowPlayingsTmdb: 06m37s
+NowPlayingsUpdate: 00m43s
+
+--------------------
+
+
+--------------------
+
+CinemathequesClean: 00m07s
+CinemathequesTmdb: 13m21s
+CinemathequesUpdate: 01m52s
+
+--------------------
+
+==== cron run end: 2026-07-30T05:10:01+0300 ====

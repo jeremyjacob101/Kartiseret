@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: HotCinema
+URL: https://hotcinema.co.il/theater/8
+Exception: TimeoutException - Message: 
+Call Chain: runners.py:43 > runners.py:19 > BaseCinema.py:28 > HotCinema.py:68 > ScrapingHelpers.py:21
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/583/unsuccessful/HotCinema-1.png
+CSV: backend/utils/log/logger_artifacts/583/unsuccessful/HotCinema-1.csv
