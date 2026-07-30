@@ -158,9 +158,11 @@ async function createMovieTextLayers(data: PreviewData): Promise<OverlayOptions[
     { input: await createTextLayer(wrapTitle(data.title).join("\n"), 680, 70, "#FFFFFF", true), left: 400, top: 286 },
     { input: await createTextLayer(infoText, 730, 24, "#E6DFF3"), left: 400, top: 378 },
   ];
-  const ratingValueX = [516, 636, 756, 876];
+  const ratingLogoCenters = [561, 681, 801, 921];
   for (const [index, value] of ratingValues.entries()) {
-    layers.push({ input: await createTextLayer(value, 90, 26, "#FFFFFF", true, "center"), left: ratingValueX[index], top: 514 });
+    const input = await createTextLayer(value, 90, 26, "#FFFFFF", true, "center");
+    const { width = 0 } = await sharp(input).metadata();
+    layers.push({ input, left: Math.round(ratingLogoCenters[index] - width / 2), top: 514 });
   }
   return layers;
 }
