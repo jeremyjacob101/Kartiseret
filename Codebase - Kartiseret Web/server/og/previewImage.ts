@@ -194,9 +194,19 @@ async function createTextLayer(
 async function createMovieTextLayers(data: PreviewData, layout: MovieLayout): Promise<OverlayOptions[]> {
   const infoText = [data.year ? String(data.year) : null, formatRuntime(data.runtime), data.genres.length ? data.genres.join(", ") : null].filter(Boolean).join("  •  ");
   const ratingValues = [data.imdbRating ? data.imdbRating.toFixed(1) : null, data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null, data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null, data.lbRating ? data.lbRating.toFixed(1) : null].filter((value): value is string => Boolean(value));
+  const eyebrowInput = await createTextLayer(data.isComingSoon ? "COMING SOON" : "NOW PLAYING", 400, 20, "#C5A9EB", true);
+  const titleInput = await createTextLayer(layout.titleLines.join("\n"), 680, layout.titleFontSize, "#FFFFFF", true);
+  const eyebrowHeight = (await sharp(eyebrowInput).metadata()).height ?? 0;
+  const titleHeight = (await sharp(titleInput).metadata()).height ?? 0;
+  const titleTop = layout.titleLines.length === 2
+    ? layout.metaTop - titleHeight - 18
+    : layout.titleTop;
+  const eyebrowTop = layout.titleLines.length === 2
+    ? titleTop - eyebrowHeight - 18
+    : layout.eyebrowTop;
   const layers: OverlayOptions[] = [
-    { input: await createTextLayer(data.isComingSoon ? "COMING SOON" : "NOW PLAYING", 400, 20, "#C5A9EB", true), left: 400, top: layout.eyebrowTop },
-    { input: await createTextLayer(layout.titleLines.join("\n"), 680, layout.titleFontSize, "#FFFFFF", true), left: 400, top: layout.titleTop },
+    { input: eyebrowInput, left: 400, top: eyebrowTop },
+    { input: titleInput, left: 400, top: titleTop },
     { input: await createTextLayer(infoText, 730, 24, "#E6DFF3"), left: 400, top: layout.metaTop },
   ];
   const ratingLogoCenters = [561, 681, 801, 921];
