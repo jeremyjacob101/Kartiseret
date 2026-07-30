@@ -31,8 +31,8 @@ const LETTERBOXD_LOGO = loadAssetBuffer("letterboxd.svg").toString("base64");
 const YOUTUBE_LOGO = loadAssetBuffer("youtube.svg").toString("base64");
 
 const LOGO_WIDTH = 120;
-const LOGO_MARGIN_RIGHT = 35;
-const LOGO_MARGIN_TOP = 30;
+const LOGO_MARGIN_RIGHT = 50;
+const LOGO_MARGIN_TOP = 42;
 
 function escapeXml(value: string): string {
   return value
@@ -43,7 +43,7 @@ function escapeXml(value: string): string {
     .replaceAll("'", "&#039;");
 }
 
-function wrapTitle(title: string, maximumLength = 25): string[] {
+function wrapTitle(title: string, maximumLength = 18): string[] {
   const words = title.split(/\s+/);
   const lines: string[] = [];
   let truncated = false;
@@ -188,25 +188,41 @@ async function createTextLayer(
       align,
       rgba: true,
     },
-  }).png().toBuffer();
+  })
+    .trim()
+    .png()
+    .toBuffer();
 }
 
 async function createMovieTextLayers(data: PreviewData, layout: MovieLayout): Promise<OverlayOptions[]> {
   const infoText = [data.year ? String(data.year) : null, formatRuntime(data.runtime), data.genres.length ? data.genres.join(", ") : null].filter(Boolean).join("  •  ");
   const ratingValues = [data.imdbRating ? data.imdbRating.toFixed(1) : null, data.rtAudienceRating ? `${Math.round(data.rtAudienceRating)}%` : null, data.rtCriticRating ? `${Math.round(data.rtCriticRating)}%` : null, data.lbRating ? data.lbRating.toFixed(1) : null].filter((value): value is string => Boolean(value));
   const eyebrowInput = await createTextLayer(data.isComingSoon ? "COMING SOON" : "NOW PLAYING", 400, 20, "#C5A9EB", true);
-  const titleInput = await createTextLayer(layout.titleLines.join("\n"), 680, layout.titleFontSize, "#FFFFFF", true);
+  const titleInputs = await Promise.all(
+    layout.titleLines.map((line) =>
+      createTextLayer(line, 680, layout.titleFontSize, "#FFFFFF", true),
+    ),
+  );
   const eyebrowHeight = (await sharp(eyebrowInput).metadata()).height ?? 0;
-  const titleHeight = (await sharp(titleInput).metadata()).height ?? 0;
-  const titleTop = layout.titleLines.length === 2
-    ? layout.metaTop - titleHeight - 18
-    : layout.titleTop;
+  const titleHeights = await Promise.all(
+    titleInputs.map(async (input) => (await sharp(input).metadata()).height ?? 0),
+  );
+  const titleTops = layout.titleLines.length === 2
+    ? [
+        layout.metaTop - titleHeights[1] - titleHeights[0] - 20,
+        layout.metaTop - titleHeights[1] - 14,
+      ]
+    : [layout.titleTop];
   const eyebrowTop = layout.titleLines.length === 2
-    ? titleTop - eyebrowHeight - 18
+    ? titleTops[0] - eyebrowHeight - 16
     : layout.eyebrowTop;
   const layers: OverlayOptions[] = [
     { input: eyebrowInput, left: 400, top: eyebrowTop },
-    { input: titleInput, left: 400, top: titleTop },
+    ...titleInputs.map((input, index) => ({
+      input,
+      left: 400,
+      top: titleTops[index],
+    })),
     { input: await createTextLayer(infoText, 730, 24, "#E6DFF3"), left: 400, top: layout.metaTop },
   ];
   const ratingLogoCenters = [561, 681, 801, 921];
