@@ -88,7 +88,7 @@ export function MovieSearchMenu({
     onOpen?.();
 
     const focusTimer = window.setTimeout(() => {
-      inputRef.current?.focus();
+      inputRef.current?.focus({ preventScroll: true });
       inputRef.current?.select();
     }, 0);
 

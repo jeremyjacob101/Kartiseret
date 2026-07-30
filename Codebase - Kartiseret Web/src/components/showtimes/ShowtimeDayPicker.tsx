@@ -206,6 +206,7 @@ export function ShowtimeDayPicker({
   const suppressClickRef = useRef(false);
   const isInteractingRef = useRef(false);
   const isTouchingRef = useRef(false);
+  const isNativeTouchSettlingRef = useRef(false);
   const [edgePadding, setEdgePadding] = useState(0);
   const [isPointerDragging, setIsPointerDragging] = useState(false);
 
@@ -450,7 +451,23 @@ export function ShowtimeDayPicker({
     if (!nearestEntry) {
       requestedDateRef.current = null;
       pointerLandingDateRef.current = null;
+      isNativeTouchSettlingRef.current = false;
       isInteractingRef.current = false;
+      return;
+    }
+
+    // Native snap already shaped the touch momentum; only commit its result.
+    if (isNativeTouchSettlingRef.current) {
+      setPreviewDateIfChanged(nearestEntry.date);
+      requestedDateRef.current = null;
+      pointerLandingDateRef.current = null;
+      isNativeTouchSettlingRef.current = false;
+      isInteractingRef.current = false;
+
+      if (nearestEntry.date !== selectedEntryDate) {
+        onSelect(nearestEntry.date);
+      }
+
       return;
     }
 
@@ -508,6 +525,7 @@ export function ShowtimeDayPicker({
       clearScheduledSettle();
       setIsPointerDragging(false);
       pointerLandingDateRef.current = null;
+      isNativeTouchSettlingRef.current = false;
       requestedDateRef.current = entry.date;
       setPreviewDateIfChanged(entry.date);
       isInteractingRef.current = true;
@@ -563,28 +581,6 @@ export function ShowtimeDayPicker({
   useEffect(() => {
     const viewport = viewportRef.current;
 
-    if (!viewport) {
-      return;
-    }
-
-    const handleScrollEnd = () => {
-      if (isTouchingRef.current || pointerDragRef.current?.didDrag) {
-        return;
-      }
-
-      settleOnNearestDate();
-    };
-
-    viewport.addEventListener("scrollend", handleScrollEnd);
-
-    return () => {
-      viewport.removeEventListener("scrollend", handleScrollEnd);
-    };
-  }, [settleOnNearestDate]);
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-
     if (!viewport || !selectedEntryDate) {
       return;
     }
@@ -602,20 +598,36 @@ export function ShowtimeDayPicker({
 
   useEffect(
     () => () => {
+      const viewport = viewportRef.current;
+
       if (scrollFrameRef.current !== null) {
         window.cancelAnimationFrame(scrollFrameRef.current);
+        scrollFrameRef.current = null;
       }
 
       if (settleTimeoutRef.current !== null) {
         window.clearTimeout(settleTimeoutRef.current);
+        settleTimeoutRef.current = null;
       }
 
-      viewportRef.current?.classList.remove(
-        "showtime-day-picker-scroll--direct-manipulation",
-      );
+      if (viewport) {
+        const currentScrollLeft = viewport.scrollLeft;
+
+        // Abort browser-owned scrolling before this node can be replaced by a
+        // rapidly reopened picker.
+        viewport.style.scrollBehavior = "auto";
+        viewport.style.scrollSnapType = "none";
+        viewport.scrollTo({ left: currentScrollLeft, behavior: "auto" });
+        viewport.classList.remove(
+          "showtime-day-picker-scroll--direct-manipulation",
+        );
+      }
+
       requestedDateRef.current = null;
       pointerLandingDateRef.current = null;
       isTouchingRef.current = false;
+      isNativeTouchSettlingRef.current = false;
+      isInteractingRef.current = false;
     },
     [],
   );
@@ -696,6 +708,7 @@ export function ShowtimeDayPicker({
 
     clearScheduledSettle();
     pointerLandingDateRef.current = null;
+    isNativeTouchSettlingRef.current = false;
     requestedDateRef.current = null;
     suppressClickRef.current = false;
 
@@ -809,6 +822,7 @@ export function ShowtimeDayPicker({
     pointerLandingDateRef.current = null;
     requestedDateRef.current = null;
     isTouchingRef.current = true;
+    isNativeTouchSettlingRef.current = true;
     isInteractingRef.current = true;
     clearScheduledSettle();
   };
@@ -848,6 +862,8 @@ export function ShowtimeDayPicker({
         onTouchCancel={finishTouchInteraction}
         onWheel={() => {
           pointerLandingDateRef.current = null;
+          isNativeTouchSettlingRef.current = false;
+          requestedDateRef.current = null;
         }}
         onScroll={() => {
           const viewport = viewportRef.current;

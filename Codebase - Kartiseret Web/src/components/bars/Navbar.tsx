@@ -215,9 +215,17 @@ export function Navbar({
 
       if (isMobile) {
         const currentScrollY = getWindowScrollY();
-        const scrollDelta = currentScrollY - mobileLastScrollYRef.current;
+        const isFloatingSearchOpen = Boolean(
+          floatingNavStackRef.current?.querySelector(".movie-search-panel"),
+        );
+        const scrollDelta = isFloatingSearchOpen
+          ? 0
+          : currentScrollY - mobileLastScrollYRef.current;
 
-        if (scrollDelta !== 0) {
+        if (isFloatingSearchOpen) {
+          shouldShowMiniNavBar = true;
+          mobileScrollDeltaRef.current = 0;
+        } else if (scrollDelta !== 0) {
           const scrollDirection = Math.sign(scrollDelta);
           const accumulatedDirection = Math.sign(mobileScrollDeltaRef.current);
 

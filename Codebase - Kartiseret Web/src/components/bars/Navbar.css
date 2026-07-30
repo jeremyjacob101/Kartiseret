@@ -594,7 +594,19 @@ html[data-device-type="mobile"] .movie-search-panel {
 }
 
 html[data-device-type="mobile"] .movie-search--panel-up .movie-search-panel {
-  width: min(340px, calc(100vw - 20px));
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 72px);
+  width: min(400px, calc(100vw - 20px));
+  max-height: calc(100dvh - env(safe-area-inset-bottom) - 92px);
+}
+
+html[data-device-type="mobile"] .movie-search-field input {
+  font-size: 16px;
+}
+
+html[data-device-type="mobile"] .movie-search-results {
+  max-height: min(56dvh, 420px);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -78,6 +78,11 @@
   scroll-snap-type: none;
 }
 
+.movie-scroller-shell.is-closing .showtime-day-picker-scroll {
+  scroll-behavior: auto;
+  scroll-snap-type: none;
+}
+
 .showtime-day-picker {
   position: relative;
   display: flex;
