@@ -1,0 +1,11 @@
+- - -
+ERROR
+- - -
+Name: LevCinema
+URL: https://www.lev.co.il/movies/%d7%9e%d7%99%d7%a0%d7%99%d7%95%d7%a0%d7%99%d7%9d-%d7%95%d7%9e%d7%a4%d7%9c%d7%a6%d7%95%d7%aa-%d7%9e%d7%93%d7%95%d7%91%d7%91/
+Exception: WebDriverException - Message: unknown error: net::ERR_CONNECTION_CLOSED
+  (Session info: chrome=150.0.7871.187)
+Call Chain: runners.py:43 > runners.py:19 > BaseCinema.py:28 > LevCinema.py:17
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/587/unsuccessful/LevCinema-1.png
+CSV: backend/utils/log/logger_artifacts/587/unsuccessful/LevCinema-1.csv
