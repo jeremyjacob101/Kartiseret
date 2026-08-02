@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type WheelEvent } from "react";
 import { X } from "lucide-react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
-import { comingSoonMovies, loadShowtimes, movies, type Movie } from "../../data/movieCatalog";
+import { comingSoonMovies, loadShowtimes, loadShowtimesAroundDate, movies, type Movie } from "../../data/movieCatalog";
 import { useDeviceInfo } from "../../device/useDeviceType";
 import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
 import { shareLink } from "../../routing/shareLink";
@@ -780,13 +780,22 @@ function MovieScrollerContent({
     [displayMovieIndex, movieItems, showShareFeedback],
   );
 
-  const requestNowPlayingShowtimes = useCallback(
+  const requestMovieShowtimes = useCallback(
     (tmdbId?: string) => {
-      if (detailVariant !== "nowPlaying") {
+      if (!tmdbId) {
         return;
       }
 
-      void loadShowtimes(selectedCity, tmdbId).catch(() => {});
+      const loadPromise =
+        detailVariant === "comingSoon"
+          ? loadShowtimesAroundDate(
+              selectedCity,
+              getJerusalemCinemaDate(),
+              tmdbId,
+            )
+          : loadShowtimes(selectedCity, tmdbId);
+
+      void loadPromise.catch(() => {});
     },
     [detailVariant, selectedCity],
   );
@@ -1113,7 +1122,7 @@ function MovieScrollerContent({
       }
 
       const detailItemIndex = recenterCollapsedItemIndex(itemIndex);
-      requestNowPlayingShowtimes(
+      requestMovieShowtimes(
         movieItems[mod(detailItemIndex, movieCount)]?.tmdbId,
       );
 
@@ -1145,7 +1154,7 @@ function MovieScrollerContent({
       movieCount,
       movieItems,
       phase,
-      requestNowPlayingShowtimes,
+      requestMovieShowtimes,
       recenterCollapsedItemIndex,
     ],
   );
@@ -1305,7 +1314,7 @@ function MovieScrollerContent({
   const openMovieDetailFromExternalRequest = useCallback(
     (movieIndex: number, behavior: ScrollBehavior = "auto") => {
       const normalizedMovieIndex = mod(movieIndex, movieCount);
-      requestNowPlayingShowtimes(movieItems[normalizedMovieIndex]?.tmdbId);
+      requestMovieShowtimes(movieItems[normalizedMovieIndex]?.tmdbId);
 
       const itemIndex = collapsedMiddleStartIndex + normalizedMovieIndex;
       const scroller = getCollapsedScrollerElement();
@@ -1356,7 +1365,7 @@ function MovieScrollerContent({
       maxWidth,
       movieCount,
       movieItems,
-      requestNowPlayingShowtimes,
+      requestMovieShowtimes,
     ],
   );
 

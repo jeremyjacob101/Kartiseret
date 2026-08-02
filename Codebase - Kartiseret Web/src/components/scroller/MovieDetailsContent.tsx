@@ -674,8 +674,23 @@ export function MovieDetailsContent({
     variant === "comingSoon" && movie.releaseDate
       ? formatReleaseDate(movie.releaseDate)
       : null;
+  const hasComingSoonShowtimes = useMemo(() => {
+    if (variant !== "comingSoon") {
+      return false;
+    }
+
+    // Targeted showtime loads publish into the shared cache without changing
+    // the broad showtimes-ready flag, so the version token is the rerender
+    // signal for this Coming Soon-only lookup.
+    void showtimesVersion;
+    return getMovieShowtimeDays(movie.tmdbId, location).some(
+      (day) => day.theaters.length > 0,
+    );
+  }, [location, movie.tmdbId, showtimesVersion, variant]);
+  const shouldRenderShowtimes =
+    variant === "nowPlaying" || hasComingSoonShowtimes;
   const showtimeDays = useMemo(() => {
-    if (variant !== "nowPlaying") {
+    if (!shouldRenderShowtimes) {
       return EMPTY_SHOWTIME_DAYS;
     }
 
@@ -708,7 +723,7 @@ export function MovieDetailsContent({
     movie.tmdbId,
     showtimeDateWindowStart,
     showtimesVersion,
-    variant,
+    shouldRenderShowtimes,
   ]);
   const metrics =
     variant === "nowPlaying" ? getMetricDisplays(movie, sources) : [];
@@ -723,8 +738,8 @@ export function MovieDetailsContent({
     [cities],
   );
   const hasLoadedShowtimeWindow =
-    variant === "nowPlaying" &&
-    (exactDateShowtimeQueries || showtimesReady) &&
+    shouldRenderShowtimes &&
+    (variant === "comingSoon" || exactDateShowtimeQueries || showtimesReady) &&
     showtimeDays.length > 0;
   const hasLoadedCompleteShowtimeWindow =
     hasLoadedShowtimeWindow && showtimeDays.length >= SHOWTIME_WINDOW_DAY_COUNT;
@@ -1393,7 +1408,7 @@ export function MovieDetailsContent({
         {renderMetricsRow("details-metrics-row--mobile")}
       </div>
 
-      {variant === "nowPlaying" ? (
+      {shouldRenderShowtimes ? (
         <div
           className="details-showtimes"
           data-movie-scroller-swipe-ignore="true"
