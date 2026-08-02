@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: JLEMtheque
+URL: https://jer-cin.org.il/en/article/4284
+Exception: StaleElementReferenceException - Message: stale element reference: stale element not found in the current frame
+Call Chain: BaseCinema.py:28 > JLEMtheque.py:81 > ScrapingHelpers.py:56 > ScrapingHelpers.py:56 > ScrapingHelpers.py:56
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/587/unsuccessful/JLEMtheque-1.png
+CSV: 
