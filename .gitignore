@@ -56,3 +56,5 @@ backend/config/cron/run_realtime_logs/
 *.njsproj
 *.sln
 *.sw?
+
+buildServer.json

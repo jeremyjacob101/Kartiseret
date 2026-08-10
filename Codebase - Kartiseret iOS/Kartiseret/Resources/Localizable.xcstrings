@@ -1,0 +1,302 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ accent" : {
+
+    },
+    "%@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "%lld" : {
+
+    },
+    "%lld mapped %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld mapped %2$@"
+          }
+        }
+      }
+    },
+    "About" : {
+
+    },
+    "About & Attribution" : {
+
+    },
+    "Accent Color" : {
+
+    },
+    "Account" : {
+
+    },
+    "Authentication mode" : {
+
+    },
+    "Browse %@ Showtimes" : {
+
+    },
+    "Browsing as a guest" : {
+
+    },
+    "By creating an account, you agree to use Kartiseret as-is. Password reset and account deletion are not available in this first release." : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Choose a City" : {
+
+    },
+    "Choose a movie" : {
+
+    },
+    "Choose city, currently %@" : {
+
+    },
+    "Choose the ratings shown throughout the app." : {
+
+    },
+    "Cinemas in %@" : {
+
+    },
+    "City" : {
+
+    },
+    "Create Account" : {
+
+    },
+    "Create an account with email and password. Your guest city will come with you." : {
+
+    },
+    "Creator" : {
+
+    },
+    "Disclaimer" : {
+
+    },
+    "Dismiss message" : {
+
+    },
+    "Done" : {
+
+    },
+    "Email" : {
+
+    },
+    "Filters" : {
+
+    },
+    "Find the right movie, the right cinema, and the right time." : {
+
+    },
+    "Fixture mode blocks live networking while preserving this presentation flow." : {
+
+    },
+    "Guest city is saved on this device." : {
+
+    },
+    "In cinemas" : {
+
+    },
+    "In-App Browser" : {
+
+    },
+    "Information shown throughout the app may be incomplete, outdated, or incorrect and can change without notice. Confirm final times and ticket details with the cinema." : {
+
+    },
+    "Jeremy Jacob on GitHub" : {
+
+    },
+    "Jeremy Jacob on LinkedIn" : {
+
+    },
+    "K" : {
+
+    },
+    "Kartiseret" : {
+
+    },
+    "Kartiseret brings Israeli cinema listings, movie details, ratings, maps, and ticket links into one native experience." : {
+
+    },
+    "Kartiseret uses Supabase to securely manage email and password sessions." : {
+
+    },
+    "Loading more dates" : {
+
+    },
+    "Loading movie showtimes" : {
+
+    },
+    "Loading showtimes" : {
+
+    },
+    "Location" : {
+
+    },
+    "Log In" : {
+
+    },
+    "Log Out" : {
+
+    },
+    "Log in to change rating sources." : {
+
+    },
+    "Log in to choose an accent color." : {
+
+    },
+    "Log out of Kartiseret?" : {
+
+    },
+    "Make Kartiseret yours" : {
+
+    },
+    "Movie unavailable" : {
+
+    },
+    "My Location" : {
+
+    },
+    "OK" : {
+
+    },
+    "Open TMDb details" : {
+
+    },
+    "Opens the cinema ticket page" : {
+
+    },
+    "Password" : {
+
+    },
+    "Poster for %@" : {
+
+    },
+    "Preference Sync" : {
+
+    },
+    "Preview" : {
+
+    },
+    "Rating Sources" : {
+
+    },
+    "Ratings" : {
+
+    },
+    "Restoring session…" : {
+
+    },
+    "Screenings must match one selected option in every group." : {
+
+    },
+    "Search %@" : {
+
+    },
+    "Search movies or years" : {
+
+    },
+    "Search supported cities" : {
+
+    },
+    "See %@ showtimes on Kartiseret" : {
+
+    },
+    "Select %@" : {
+
+    },
+    "Select All" : {
+
+    },
+    "Select a poster to see details and showtimes." : {
+
+    },
+    "Settings" : {
+
+    },
+    "Share %@" : {
+
+    },
+    "Showing %@" : {
+
+    },
+    "Showtime City" : {
+
+    },
+    "Showtime Filters" : {
+
+    },
+    "Showtime Location" : {
+
+    },
+    "Showtime filters" : {
+
+    },
+    "Showtimes" : {
+
+    },
+    "Signed In" : {
+
+    },
+    "Supported Cities" : {
+
+    },
+    "Sync your city, ratings, and accent color." : {
+
+    },
+    "Tap to choose another supported city" : {
+
+    },
+    "The selected accent follows your account." : {
+
+    },
+    "This movie is no longer in the current catalog." : {
+
+    },
+    "Ticket link unavailable" : {
+
+    },
+    "Top matches" : {
+
+    },
+    "Trailer Unavailable" : {
+
+    },
+    "Try a nearby city" : {
+
+    },
+    "Use My Location" : {
+
+    },
+    "Version" : {
+
+    },
+    "Watch Trailer" : {
+
+    },
+    "Welcome back" : {
+
+    },
+    "Your city stays on this device. Log in to sync ratings and accent color." : {
+
+    },
+    "Your city syncs with your Kartiseret account." : {
+
+    },
+    "© 2026 Kartiseret" : {
+
+    }
+  },
+  "version" : "1.0"
+}

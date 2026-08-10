@@ -1,0 +1,842 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1190D48EAD1BF90C94AB9F1A /* CinemaClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = B074EDD05E53DD1A91B2860A /* CinemaClock.swift */; };
+		121CEF842084356AFC1CF62B /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86B445F42A6720A1FE2A0457 /* HomeView.swift */; };
+		15206FE9B037692CF6BAF78D /* BrandComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1517D030E7811B240DB8A055 /* BrandComponents.swift */; };
+		1AA8D2B4D247AB45928D062E /* MovieDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E64E50E68FB21ECF4B01CCB /* MovieDetailView.swift */; };
+		21E0A1A7B88A1C35B8A56AD4 /* PreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD09C52DA06F15B5BD80907 /* PreferencesStore.swift */; };
+		235922945ECF3B2628AF07C0 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 267CB192159B2833DBC0C897 /* SettingsView.swift */; };
+		2533379241769CE15758A542 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F1495922BB3D15B8FAA60466 /* Assets.xcassets */; };
+		31A1E3CB5368BD009BCA0359 /* AttributionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52061FB51FDA405A81CFA79C /* AttributionView.swift */; };
+		3564E7C9AF5A07B0381132D6 /* RowDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42E49B393CCD0E2E3C92775F /* RowDecodingTests.swift */; };
+		361260B8090A3033AFBE4C75 /* DomainModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC9D14F0528921F54F499DFA /* DomainModels.swift */; };
+		3D91503D8FD420AF51521A3D /* KartiseretUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7EB2FCC41A47E7B7B688012 /* KartiseretUITests.swift */; };
+		41417CE0FD76A21C4E6FA5AE /* SearchEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72BBE43431AF480D6EE3EB83 /* SearchEngine.swift */; };
+		41C963661D4AB34EA3367446 /* Routing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 093BED5C8E8124CC67F80DE0 /* Routing.swift */; };
+		4C51F6644179F33C1F2D6A0D /* AuthAndPreferencesClients.swift in Sources */ = {isa = PBXBuildFile; fileRef = 488D427D2CD1D4D5E30CF339 /* AuthAndPreferencesClients.swift */; };
+		599D676526969908504A3CFA /* AppDestinationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C5338FFC662D6FDBBEAC8C4 /* AppDestinationView.swift */; };
+		63A71C712C0E2722A08C7E8E /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 276C7BA743130439C56F0F47 /* SessionStore.swift */; };
+		65588C23222F4A9C6C296ADC /* ShowtimesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81554D1F622431DDB4EC41CB /* ShowtimesView.swift */; };
+		6E22A864770865747293A489 /* CityPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CAB48AC4D9ED1E33602C9B /* CityPickerView.swift */; };
+		8029DE639BF43D93128E3F95 /* ShowtimeLinkCodecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8E1549A18343C4F47F1AF60 /* ShowtimeLinkCodecTests.swift */; };
+		8D51BA239BE4FE8E482CF730 /* CatalogRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F954B421DE99EB713D61FF2 /* CatalogRepository.swift */; };
+		915F284A15D76F4E82D80EF9 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4BCE82C92A019C46300A7F /* Theme.swift */; };
+		9657B5BFB60B181790278D7B /* ShowtimeLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36403B0593E41CEE576AB621 /* ShowtimeLogicTests.swift */; };
+		965CA9A3D128A4F92C60C101 /* RowDecoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDA974A8C0913D617C53CB9C /* RowDecoding.swift */; };
+		971B37296CAA943BE5EDA593 /* ShowtimeVisuals.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27385BAA1DC45A5EE4858600 /* ShowtimeVisuals.swift */; };
+		9A08BA1A0562505F7E297A46 /* PreferencesAndCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC9A77FC1C3AB6312C3EDCF2 /* PreferencesAndCacheTests.swift */; };
+		A0E004CC7C81CDE07E322E21 /* CatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59AA1183E8B828633913EB83 /* CatalogView.swift */; };
+		A621AFD390519F069DD65769 /* CatalogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6FAE66E82B128EB830A393 /* CatalogStore.swift */; };
+		A7673EB5C9382287A44EE865 /* PreviewGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F6D989F8A46E9B70013B292 /* PreviewGallery.swift */; };
+		A8A5C98B71094C9B66452890 /* ShowtimeLinkCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DA11844B8FA98591539C209 /* ShowtimeLinkCodec.swift */; };
+		AACC78221B4596B44624ACA5 /* FixtureClients.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C857D5DC35FF283784D8794 /* FixtureClients.swift */; };
+		ACEB22751BF4CD00CD00FEAC /* AppDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D2D02C3E95FB1D2ACD14ECB /* AppDependencies.swift */; };
+		B0EB945F1817606B9720F9BD /* KartiseretConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 926E8296B426451010F0F43E /* KartiseretConstants.swift */; };
+		B1BB3517554C85DD4D5EA610 /* SearchAndCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0EF4044549360537594ED7 /* SearchAndCatalogTests.swift */; };
+		C179EF664358AFEA30630E2B /* KartiseretApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62058E6AF7CDE34704A0F575 /* KartiseretApp.swift */; };
+		C90D26922774BB93C321C85E /* SafariView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5CA88704B9037ABA3D8471 /* SafariView.swift */; };
+		CF448A967EEE857916E3E84E /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8DCD7B426387853FB9FF101 /* LocationService.swift */; };
+		D3DD1FB6BC8EF6C57926380B /* ImagePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B44A1EE5C1E1678634BCEF1 /* ImagePipeline.swift */; };
+		D9D64A1A9F92FB6946B629A5 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2F539EF226AE1DCEA021B73 /* AppRootView.swift */; };
+		DAB7352C0E199705C47F6C86 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = F615F460C63F2C78F83869B1 /* Supabase */; };
+		DCA49D346D3A50E4F4F2DF61 /* ShowtimeFilters.swift in Sources */ = {isa = PBXBuildFile; fileRef = A47B4E1B67F748F0EC6ECB30 /* ShowtimeFilters.swift */; };
+		EAF3B0038328A132884A1216 /* AuthenticationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CA8505008E7EC4F5EC22DD2 /* AuthenticationView.swift */; };
+		FFF3CA7A750608EF2C3486A6 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = AC3759DB5050D5B952A83B3A /* Localizable.xcstrings */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		265F4074485D3CF403677FF7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5B60796D7ACA59F40398ABF4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 98989D6384B8DCB1D09EBE58;
+			remoteInfo = Kartiseret;
+		};
+		755513377F2EB05D1904AD10 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5B60796D7ACA59F40398ABF4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 98989D6384B8DCB1D09EBE58;
+			remoteInfo = Kartiseret;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		093BED5C8E8124CC67F80DE0 /* Routing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Routing.swift; sourceTree = "<group>"; };
+		0B44A1EE5C1E1678634BCEF1 /* ImagePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePipeline.swift; sourceTree = "<group>"; };
+		0D2D02C3E95FB1D2ACD14ECB /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
+		1517D030E7811B240DB8A055 /* BrandComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandComponents.swift; sourceTree = "<group>"; };
+		20CAB48AC4D9ED1E33602C9B /* CityPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CityPickerView.swift; sourceTree = "<group>"; };
+		267CB192159B2833DBC0C897 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		27385BAA1DC45A5EE4858600 /* ShowtimeVisuals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowtimeVisuals.swift; sourceTree = "<group>"; };
+		276C7BA743130439C56F0F47 /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
+		27E204723A7007119BDF02D3 /* Kartiseret.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Kartiseret.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2DA11844B8FA98591539C209 /* ShowtimeLinkCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowtimeLinkCodec.swift; sourceTree = "<group>"; };
+		36403B0593E41CEE576AB621 /* ShowtimeLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowtimeLogicTests.swift; sourceTree = "<group>"; };
+		3F954B421DE99EB713D61FF2 /* CatalogRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogRepository.swift; sourceTree = "<group>"; };
+		42E49B393CCD0E2E3C92775F /* RowDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowDecodingTests.swift; sourceTree = "<group>"; };
+		488D427D2CD1D4D5E30CF339 /* AuthAndPreferencesClients.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthAndPreferencesClients.swift; sourceTree = "<group>"; };
+		4A6E7F316256DC14ACE2DD4B /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		4C857D5DC35FF283784D8794 /* FixtureClients.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureClients.swift; sourceTree = "<group>"; };
+		52061FB51FDA405A81CFA79C /* AttributionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttributionView.swift; sourceTree = "<group>"; };
+		59AA1183E8B828633913EB83 /* CatalogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogView.swift; sourceTree = "<group>"; };
+		62058E6AF7CDE34704A0F575 /* KartiseretApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KartiseretApp.swift; sourceTree = "<group>"; };
+		6C5338FFC662D6FDBBEAC8C4 /* AppDestinationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDestinationView.swift; sourceTree = "<group>"; };
+		6F6D989F8A46E9B70013B292 /* PreviewGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewGallery.swift; sourceTree = "<group>"; };
+		72BBE43431AF480D6EE3EB83 /* SearchEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchEngine.swift; sourceTree = "<group>"; };
+		7CA8505008E7EC4F5EC22DD2 /* AuthenticationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationView.swift; sourceTree = "<group>"; };
+		81554D1F622431DDB4EC41CB /* ShowtimesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowtimesView.swift; sourceTree = "<group>"; };
+		86B445F42A6720A1FE2A0457 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		926E8296B426451010F0F43E /* KartiseretConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KartiseretConstants.swift; sourceTree = "<group>"; };
+		9A0EF4044549360537594ED7 /* SearchAndCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchAndCatalogTests.swift; sourceTree = "<group>"; };
+		9A12C4B938EE67D0C05B748A /* KartiseretTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KartiseretTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9E64E50E68FB21ECF4B01CCB /* MovieDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovieDetailView.swift; sourceTree = "<group>"; };
+		A47B4E1B67F748F0EC6ECB30 /* ShowtimeFilters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowtimeFilters.swift; sourceTree = "<group>"; };
+		AC3759DB5050D5B952A83B3A /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		ADD09C52DA06F15B5BD80907 /* PreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesStore.swift; sourceTree = "<group>"; };
+		B074EDD05E53DD1A91B2860A /* CinemaClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CinemaClock.swift; sourceTree = "<group>"; };
+		BDA974A8C0913D617C53CB9C /* RowDecoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowDecoding.swift; sourceTree = "<group>"; };
+		C8DCD7B426387853FB9FF101 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
+		C8DD5E7D119AB79A1F670689 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		C8E1549A18343C4F47F1AF60 /* ShowtimeLinkCodecTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowtimeLinkCodecTests.swift; sourceTree = "<group>"; };
+		CC5CA88704B9037ABA3D8471 /* SafariView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariView.swift; sourceTree = "<group>"; };
+		D117ADCF46C8ADAF4E8B5D51 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		DC9D14F0528921F54F499DFA /* DomainModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainModels.swift; sourceTree = "<group>"; };
+		E19714449C3D30C0EA30E31E /* KartiseretUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KartiseretUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E7EB2FCC41A47E7B7B688012 /* KartiseretUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KartiseretUITests.swift; sourceTree = "<group>"; };
+		EC9A77FC1C3AB6312C3EDCF2 /* PreferencesAndCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesAndCacheTests.swift; sourceTree = "<group>"; };
+		F1495922BB3D15B8FAA60466 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F2F539EF226AE1DCEA021B73 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
+		FA6FAE66E82B128EB830A393 /* CatalogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogStore.swift; sourceTree = "<group>"; };
+		FB4BCE82C92A019C46300A7F /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A26C857B5F6954BD75AB7CED /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DAB7352C0E199705C47F6C86 /* Supabase in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		00F312F206B753059FD1DA91 /* Home */ = {
+			isa = PBXGroup;
+			children = (
+				86B445F42A6720A1FE2A0457 /* HomeView.swift */,
+			);
+			path = Home;
+			sourceTree = "<group>";
+		};
+		0D1C21C4904A558B4D033246 /* Catalog */ = {
+			isa = PBXGroup;
+			children = (
+				59AA1183E8B828633913EB83 /* CatalogView.swift */,
+			);
+			path = Catalog;
+			sourceTree = "<group>";
+		};
+		1FF1FDAD959FCBB2295FE4C1 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				F1495922BB3D15B8FAA60466 /* Assets.xcassets */,
+				C8DD5E7D119AB79A1F670689 /* Info.plist */,
+				AC3759DB5050D5B952A83B3A /* Localizable.xcstrings */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		2013895E5ECF902DEE030506 /* Map */ = {
+			isa = PBXGroup;
+			children = (
+				20CAB48AC4D9ED1E33602C9B /* CityPickerView.swift */,
+				C8DCD7B426387853FB9FF101 /* LocationService.swift */,
+			);
+			path = Map;
+			sourceTree = "<group>";
+		};
+		2DD04A1F97335EB9A178C42A /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				4A6E7F316256DC14ACE2DD4B /* Debug.xcconfig */,
+				D117ADCF46C8ADAF4E8B5D51 /* Release.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		40157537B8723DF9BDD31341 /* Kartiseret */ = {
+			isa = PBXGroup;
+			children = (
+				FFC3063B6D2A6A72EBF4C3BC /* App */,
+				EF724E4B06F6DCFD01568C01 /* Core */,
+				F152F8BCDECDDE89BCDEF8D9 /* Data */,
+				AB8FF1F878840F0963DE5FEA /* DesignSystem */,
+				59731FA93C8037FCDAAE557E /* Features */,
+				D075F7C62D19DD1EE94897D9 /* Preview Content */,
+				1FF1FDAD959FCBB2295FE4C1 /* Resources */,
+			);
+			path = Kartiseret;
+			sourceTree = "<group>";
+		};
+		59731FA93C8037FCDAAE557E /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				0D1C21C4904A558B4D033246 /* Catalog */,
+				E897E89EEF128B5A35B065CE /* Details */,
+				00F312F206B753059FD1DA91 /* Home */,
+				2013895E5ECF902DEE030506 /* Map */,
+				7D116B7188ECBDFADAFA7567 /* Settings */,
+				FB4F6CD13100F13C48CA348F /* Shared */,
+				A3A6C984A1294FA5E7AC063D /* Showtimes */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		63502B965959C21C1755AECD /* KartiseretTests */ = {
+			isa = PBXGroup;
+			children = (
+				EC9A77FC1C3AB6312C3EDCF2 /* PreferencesAndCacheTests.swift */,
+				42E49B393CCD0E2E3C92775F /* RowDecodingTests.swift */,
+				9A0EF4044549360537594ED7 /* SearchAndCatalogTests.swift */,
+				C8E1549A18343C4F47F1AF60 /* ShowtimeLinkCodecTests.swift */,
+				36403B0593E41CEE576AB621 /* ShowtimeLogicTests.swift */,
+			);
+			path = KartiseretTests;
+			sourceTree = "<group>";
+		};
+		7D116B7188ECBDFADAFA7567 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				52061FB51FDA405A81CFA79C /* AttributionView.swift */,
+				7CA8505008E7EC4F5EC22DD2 /* AuthenticationView.swift */,
+				267CB192159B2833DBC0C897 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		838895DB7E366747E1232D01 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				27E204723A7007119BDF02D3 /* Kartiseret.app */,
+				9A12C4B938EE67D0C05B748A /* KartiseretTests.xctest */,
+				E19714449C3D30C0EA30E31E /* KartiseretUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A1CB182C1D03A3BA1CFFC2BE /* KartiseretUITests */ = {
+			isa = PBXGroup;
+			children = (
+				E7EB2FCC41A47E7B7B688012 /* KartiseretUITests.swift */,
+			);
+			path = KartiseretUITests;
+			sourceTree = "<group>";
+		};
+		A3A6C984A1294FA5E7AC063D /* Showtimes */ = {
+			isa = PBXGroup;
+			children = (
+				81554D1F622431DDB4EC41CB /* ShowtimesView.swift */,
+			);
+			path = Showtimes;
+			sourceTree = "<group>";
+		};
+		AB8FF1F878840F0963DE5FEA /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				1517D030E7811B240DB8A055 /* BrandComponents.swift */,
+				27385BAA1DC45A5EE4858600 /* ShowtimeVisuals.swift */,
+				FB4BCE82C92A019C46300A7F /* Theme.swift */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		D075F7C62D19DD1EE94897D9 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				6F6D989F8A46E9B70013B292 /* PreviewGallery.swift */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		E2CD42A2AFE29D85BA04132D = {
+			isa = PBXGroup;
+			children = (
+				2DD04A1F97335EB9A178C42A /* Config */,
+				40157537B8723DF9BDD31341 /* Kartiseret */,
+				63502B965959C21C1755AECD /* KartiseretTests */,
+				A1CB182C1D03A3BA1CFFC2BE /* KartiseretUITests */,
+				838895DB7E366747E1232D01 /* Products */,
+			);
+			indentWidth = 2;
+			sourceTree = "<group>";
+			tabWidth = 2;
+		};
+		E897E89EEF128B5A35B065CE /* Details */ = {
+			isa = PBXGroup;
+			children = (
+				9E64E50E68FB21ECF4B01CCB /* MovieDetailView.swift */,
+			);
+			path = Details;
+			sourceTree = "<group>";
+		};
+		EF724E4B06F6DCFD01568C01 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				B074EDD05E53DD1A91B2860A /* CinemaClock.swift */,
+				DC9D14F0528921F54F499DFA /* DomainModels.swift */,
+				926E8296B426451010F0F43E /* KartiseretConstants.swift */,
+				72BBE43431AF480D6EE3EB83 /* SearchEngine.swift */,
+				A47B4E1B67F748F0EC6ECB30 /* ShowtimeFilters.swift */,
+				2DA11844B8FA98591539C209 /* ShowtimeLinkCodec.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		F152F8BCDECDDE89BCDEF8D9 /* Data */ = {
+			isa = PBXGroup;
+			children = (
+				488D427D2CD1D4D5E30CF339 /* AuthAndPreferencesClients.swift */,
+				3F954B421DE99EB713D61FF2 /* CatalogRepository.swift */,
+				4C857D5DC35FF283784D8794 /* FixtureClients.swift */,
+				0B44A1EE5C1E1678634BCEF1 /* ImagePipeline.swift */,
+				BDA974A8C0913D617C53CB9C /* RowDecoding.swift */,
+			);
+			path = Data;
+			sourceTree = "<group>";
+		};
+		FB4F6CD13100F13C48CA348F /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				6C5338FFC662D6FDBBEAC8C4 /* AppDestinationView.swift */,
+				CC5CA88704B9037ABA3D8471 /* SafariView.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		FFC3063B6D2A6A72EBF4C3BC /* App */ = {
+			isa = PBXGroup;
+			children = (
+				0D2D02C3E95FB1D2ACD14ECB /* AppDependencies.swift */,
+				F2F539EF226AE1DCEA021B73 /* AppRootView.swift */,
+				FA6FAE66E82B128EB830A393 /* CatalogStore.swift */,
+				62058E6AF7CDE34704A0F575 /* KartiseretApp.swift */,
+				ADD09C52DA06F15B5BD80907 /* PreferencesStore.swift */,
+				093BED5C8E8124CC67F80DE0 /* Routing.swift */,
+				276C7BA743130439C56F0F47 /* SessionStore.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		03F60A8F5097900BE2AB7582 /* KartiseretTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 39B88DE68D91E5460EEA3EE5 /* Build configuration list for PBXNativeTarget "KartiseretTests" */;
+			buildPhases = (
+				DD6D9813B52A4C4B31775D57 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1D7EFCE89D0854EF48182306 /* PBXTargetDependency */,
+			);
+			name = KartiseretTests;
+			packageProductDependencies = (
+			);
+			productName = KartiseretTests;
+			productReference = 9A12C4B938EE67D0C05B748A /* KartiseretTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		2747609B17ABA76B8488BC01 /* KartiseretUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 97B0B92318E5BBC893065D91 /* Build configuration list for PBXNativeTarget "KartiseretUITests" */;
+			buildPhases = (
+				709FEAA00B2E84949934C613 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6A91915ECFE25186FB4BA930 /* PBXTargetDependency */,
+			);
+			name = KartiseretUITests;
+			packageProductDependencies = (
+			);
+			productName = KartiseretUITests;
+			productReference = E19714449C3D30C0EA30E31E /* KartiseretUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		98989D6384B8DCB1D09EBE58 /* Kartiseret */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AE03FB1661B2352ABD84D634 /* Build configuration list for PBXNativeTarget "Kartiseret" */;
+			buildPhases = (
+				4EA1DAAC344D94D27042C5D4 /* Sources */,
+				F4A7BC501F81A1758279B5B1 /* Resources */,
+				A26C857B5F6954BD75AB7CED /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Kartiseret;
+			packageProductDependencies = (
+				F615F460C63F2C78F83869B1 /* Supabase */,
+			);
+			productName = Kartiseret;
+			productReference = 27E204723A7007119BDF02D3 /* Kartiseret.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5B60796D7ACA59F40398ABF4 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					2747609B17ABA76B8488BC01 = {
+						TestTargetID = 98989D6384B8DCB1D09EBE58;
+					};
+					98989D6384B8DCB1D09EBE58 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = EA8A4AB5F1559D724AC991CD /* Build configuration list for PBXProject "Kartiseret" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = E2CD42A2AFE29D85BA04132D;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				561ECA262C049DE040830201 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 838895DB7E366747E1232D01 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				98989D6384B8DCB1D09EBE58 /* Kartiseret */,
+				03F60A8F5097900BE2AB7582 /* KartiseretTests */,
+				2747609B17ABA76B8488BC01 /* KartiseretUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F4A7BC501F81A1758279B5B1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2533379241769CE15758A542 /* Assets.xcassets in Resources */,
+				FFF3CA7A750608EF2C3486A6 /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4EA1DAAC344D94D27042C5D4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ACEB22751BF4CD00CD00FEAC /* AppDependencies.swift in Sources */,
+				599D676526969908504A3CFA /* AppDestinationView.swift in Sources */,
+				D9D64A1A9F92FB6946B629A5 /* AppRootView.swift in Sources */,
+				31A1E3CB5368BD009BCA0359 /* AttributionView.swift in Sources */,
+				4C51F6644179F33C1F2D6A0D /* AuthAndPreferencesClients.swift in Sources */,
+				EAF3B0038328A132884A1216 /* AuthenticationView.swift in Sources */,
+				15206FE9B037692CF6BAF78D /* BrandComponents.swift in Sources */,
+				8D51BA239BE4FE8E482CF730 /* CatalogRepository.swift in Sources */,
+				A621AFD390519F069DD65769 /* CatalogStore.swift in Sources */,
+				A0E004CC7C81CDE07E322E21 /* CatalogView.swift in Sources */,
+				1190D48EAD1BF90C94AB9F1A /* CinemaClock.swift in Sources */,
+				6E22A864770865747293A489 /* CityPickerView.swift in Sources */,
+				361260B8090A3033AFBE4C75 /* DomainModels.swift in Sources */,
+				AACC78221B4596B44624ACA5 /* FixtureClients.swift in Sources */,
+				121CEF842084356AFC1CF62B /* HomeView.swift in Sources */,
+				D3DD1FB6BC8EF6C57926380B /* ImagePipeline.swift in Sources */,
+				C179EF664358AFEA30630E2B /* KartiseretApp.swift in Sources */,
+				B0EB945F1817606B9720F9BD /* KartiseretConstants.swift in Sources */,
+				CF448A967EEE857916E3E84E /* LocationService.swift in Sources */,
+				1AA8D2B4D247AB45928D062E /* MovieDetailView.swift in Sources */,
+				21E0A1A7B88A1C35B8A56AD4 /* PreferencesStore.swift in Sources */,
+				A7673EB5C9382287A44EE865 /* PreviewGallery.swift in Sources */,
+				41C963661D4AB34EA3367446 /* Routing.swift in Sources */,
+				965CA9A3D128A4F92C60C101 /* RowDecoding.swift in Sources */,
+				C90D26922774BB93C321C85E /* SafariView.swift in Sources */,
+				41417CE0FD76A21C4E6FA5AE /* SearchEngine.swift in Sources */,
+				63A71C712C0E2722A08C7E8E /* SessionStore.swift in Sources */,
+				235922945ECF3B2628AF07C0 /* SettingsView.swift in Sources */,
+				DCA49D346D3A50E4F4F2DF61 /* ShowtimeFilters.swift in Sources */,
+				A8A5C98B71094C9B66452890 /* ShowtimeLinkCodec.swift in Sources */,
+				971B37296CAA943BE5EDA593 /* ShowtimeVisuals.swift in Sources */,
+				65588C23222F4A9C6C296ADC /* ShowtimesView.swift in Sources */,
+				915F284A15D76F4E82D80EF9 /* Theme.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		709FEAA00B2E84949934C613 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3D91503D8FD420AF51521A3D /* KartiseretUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DD6D9813B52A4C4B31775D57 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9A08BA1A0562505F7E297A46 /* PreferencesAndCacheTests.swift in Sources */,
+				3564E7C9AF5A07B0381132D6 /* RowDecodingTests.swift in Sources */,
+				B1BB3517554C85DD4D5EA610 /* SearchAndCatalogTests.swift in Sources */,
+				8029DE639BF43D93128E3F95 /* ShowtimeLinkCodecTests.swift in Sources */,
+				9657B5BFB60B181790278D7B /* ShowtimeLogicTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		1D7EFCE89D0854EF48182306 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 98989D6384B8DCB1D09EBE58 /* Kartiseret */;
+			targetProxy = 755513377F2EB05D1904AD10 /* PBXContainerItemProxy */;
+		};
+		6A91915ECFE25186FB4BA930 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 98989D6384B8DCB1D09EBE58 /* Kartiseret */;
+			targetProxy = 265F4074485D3CF403677FF7 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		497D37CAECDE51403F28F1DF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jj.kartiseret.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Kartiseret.app/Kartiseret";
+			};
+			name = Release;
+		};
+		4E090E47D55713708F573AE4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jj.kartiseret.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Kartiseret.app/Kartiseret";
+			};
+			name = Debug;
+		};
+		6204393E3B1EF3EE54992170 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 4A6E7F316256DC14ACE2DD4B /* Debug.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Kartiseret/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jj.kartiseret;
+				PRODUCT_NAME = Kartiseret;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		718FC79DEF86B64D375FA1A0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = D117ADCF46C8ADAF4E8B5D51 /* Release.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Kartiseret/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jj.kartiseret;
+				PRODUCT_NAME = Kartiseret;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		91E15F538670AE425D57E45F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jj.kartiseret.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Kartiseret;
+			};
+			name = Release;
+		};
+		9DD27E1148AA5E738A9CDA5F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		E91B703E88F62C323A121C4C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jj.kartiseret.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Kartiseret;
+			};
+			name = Debug;
+		};
+		E9EF5E22200C751F43BF5957 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		39B88DE68D91E5460EEA3EE5 /* Build configuration list for PBXNativeTarget "KartiseretTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4E090E47D55713708F573AE4 /* Debug */,
+				497D37CAECDE51403F28F1DF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		97B0B92318E5BBC893065D91 /* Build configuration list for PBXNativeTarget "KartiseretUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E91B703E88F62C323A121C4C /* Debug */,
+				91E15F538670AE425D57E45F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AE03FB1661B2352ABD84D634 /* Build configuration list for PBXNativeTarget "Kartiseret" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6204393E3B1EF3EE54992170 /* Debug */,
+				718FC79DEF86B64D375FA1A0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		EA8A4AB5F1559D724AC991CD /* Build configuration list for PBXProject "Kartiseret" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E9EF5E22200C751F43BF5957 /* Debug */,
+				9DD27E1148AA5E738A9CDA5F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		561ECA262C049DE040830201 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = exactVersion;
+				version = 2.46.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F615F460C63F2C78F83869B1 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 561ECA262C049DE040830201 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 5B60796D7ACA59F40398ABF4 /* Project object */;
+}
