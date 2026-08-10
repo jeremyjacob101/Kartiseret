@@ -116,44 +116,39 @@ struct ShowtimeTicketVisual: View {
                             startPoint: .top,
                             endPoint: .bottom
                         ),
-                        in: RoundedRectangle(cornerRadius: compact ? 7 : 8, style: .continuous)
+                        in: UnevenRoundedRectangle(
+                            topLeadingRadius: compact ? 7 : 8,
+                            bottomLeadingRadius: 1,
+                            bottomTrailingRadius: 1,
+                            topTrailingRadius: compact ? 7 : 8,
+                            style: .continuous
+                        )
                     )
                     .zIndex(0)
             }
 
-            ZStack {
-                VStack(spacing: 1) {
-                    Text(entry.time)
-                        .font(.system(size: compact ? 11 : 13, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                    if let screeningTypeLabel {
-                        Text(screeningTypeLabel)
-                            .font(.system(size: compact ? 6 : 7, weight: .semibold))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.58)
-                            .foregroundStyle(.white.opacity(0.88))
-                    }
-                }
+            Text(entry.time)
+                .font(.system(size: compact ? 11 : 13, weight: .bold, design: .rounded))
+                .monospacedDigit()
                 .padding(.horizontal, 5)
-            }
-            .foregroundStyle(Color(hex: "#f4efec"))
-            .frame(width: pillWidth, height: pillHeight)
-            .background(
-                LinearGradient(
-                    colors: palette.gradientColors,
-                    startPoint: palette.gradientStart,
-                    endPoint: palette.gradientEnd
-                ),
-                in: RoundedRectangle(cornerRadius: compact ? 8 : 9, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: compact ? 8 : 9, style: .continuous)
-                    .stroke(Color(hex: "#040408").opacity(0.9), lineWidth: 1.25)
-            }
-            .overlay(alignment: .topLeading) { dubFlag }
-            .overlay(alignment: .topTrailing) { screeningTypeMarker }
-            .shadow(color: .black.opacity(0.22), radius: 2.5, y: 1.5)
-            .zIndex(1)
+                .foregroundStyle(Color(hex: "#f4efec"))
+                .frame(width: pillWidth, height: pillHeight)
+                .background(
+                    LinearGradient(
+                        colors: palette.gradientColors,
+                        startPoint: palette.gradientStart,
+                        endPoint: palette.gradientEnd
+                    ),
+                    in: RoundedRectangle(cornerRadius: compact ? 8 : 9, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: compact ? 8 : 9, style: .continuous)
+                        .stroke(Color(hex: "#040408").opacity(0.9), lineWidth: 1.25)
+                }
+                .overlay(alignment: .topLeading) { dubFlag }
+                .overlay(alignment: .topTrailing) { screeningTypeMarker }
+                .shadow(color: .black.opacity(0.22), radius: 2.5, y: 1.5)
+                .zIndex(1)
         }
         .frame(minWidth: pillWidth, minHeight: technologyLabel == nil ? 44 : (compact ? 43 : 46))
         .dynamicTypeSize(.xSmall ... .accessibility1)
@@ -179,12 +174,12 @@ struct ShowtimeTicketVisual: View {
     @ViewBuilder
     private var screeningTypeMarker: some View {
         if screeningTypeLabel != nil {
-            Image(systemName: "star.fill")
+            Image(systemName: "star")
                 .font(.system(size: compact ? 6 : 7, weight: .bold))
                 .foregroundStyle(theme.tint)
                 .frame(width: compact ? 12 : 14, height: compact ? 12 : 14)
                 .background(Theme.background.opacity(0.94), in: Circle())
-                .overlay(Circle().stroke(Color(hex: "#040408"), lineWidth: 1))
+                .overlay(Circle().stroke(Color(hex: "#040408").opacity(0.92), lineWidth: 1))
                 .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
                 .offset(x: compact ? 2 : 3, y: compact ? -2 : -3)
         }

@@ -172,29 +172,21 @@ struct RatingPill: View {
 
     var body: some View {
         if let value = source.formattedValue(in: movie) {
-            VStack(spacing: compact ? 4 : 7) {
-                RatingBrandLogo(source: source, movie: movie, compact: compact)
-                    .frame(width: logoSize.width, height: logoSize.height)
+            VStack(spacing: 4) {
+                RatingBrandLogo(source: source, movie: movie)
+                    .frame(width: compact ? 32 : 42, height: compact ? 22 : 27)
                 Text(value)
                     .font(compact ? .caption2.weight(.bold) : .caption.weight(.bold))
                     .monospacedDigit()
                     .foregroundStyle(Theme.primaryText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
+                    .frame(height: compact ? 12 : 14)
             }
-            .frame(width: compact ? 36 : 44, height: compact ? 40 : 48)
+            .frame(width: compact ? 36 : 48, height: compact ? 40 : 50, alignment: .top)
             .dynamicTypeSize(.xSmall ... .accessibility1)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(source.scoreDescription(in: movie)), \(value)")
-        }
-    }
-
-    private var logoSize: CGSize {
-        switch source {
-        case .imdb, .tmdb:
-            CGSize(width: compact ? 26 : 30, height: compact ? 13 : 16)
-        case .rottenTomatoesAudience, .rottenTomatoesCritic, .letterboxd:
-            CGSize(width: compact ? 20 : 24, height: compact ? 20 : 24)
         }
     }
 }
@@ -202,42 +194,13 @@ struct RatingPill: View {
 private struct RatingBrandLogo: View {
     let source: RatingSource
     let movie: Movie
-    let compact: Bool
 
-    @ViewBuilder
     var body: some View {
-        switch source {
-        case .imdb:
-            Text("IMDb")
-                .font(.system(size: compact ? 8 : 10, weight: .black, design: .rounded))
-                .foregroundStyle(.black)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(hex: "#f6c700"), in: RoundedRectangle(cornerRadius: compact ? 2.5 : 3.5))
-        case .rottenTomatoesAudience, .rottenTomatoesCritic:
-            Image(source.logoAssetName(in: movie))
-                .resizable()
-                .renderingMode(.original)
-                .scaledToFit()
-        case .letterboxd:
-            HStack(spacing: compact ? -4 : -5) {
-                Circle().fill(Color(hex: "#ff8000"))
-                Circle().fill(Color(hex: "#00e054")).zIndex(1)
-                Circle().fill(Color(hex: "#40bcf4"))
-            }
-            .padding(.vertical, compact ? 5 : 6)
-        case .tmdb:
-            Text("TMDB")
-                .font(.system(size: compact ? 8 : 10, weight: .black, design: .rounded))
-                .tracking(-0.35)
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Color(hex: "#90cea1"), Color(hex: "#3cbec9"), Color(hex: "#00b3e5")],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
+        Image(source.logoAssetName(in: movie))
+            .resizable()
+            .renderingMode(.original)
+            .scaledToFit()
+            .accessibilityHidden(true)
     }
 }
 
