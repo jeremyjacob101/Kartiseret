@@ -57,6 +57,7 @@ body {
   overflow-x: hidden;
   min-width: 320px;
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--app-bg);
   color: var(--text-main);
 }
@@ -68,6 +69,7 @@ button {
 #root {
   width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .app-shell {
@@ -76,6 +78,7 @@ button {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-height: 100dvh;
   padding: 24px 40px;
   background: var(--app-bg);
 }
@@ -214,6 +217,17 @@ html[data-device-type="mobile"] .app-shell {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--poster-grid-min-column-width), 1fr));
   gap: 22px;
+}
+
+@media (max-width: 500px) {
+  html[data-device-type="mobile"] .poster-grid-page-grid {
+    --poster-grid-min-column-width: 132px;
+    gap: 14px 12px;
+  }
+
+  html[data-device-type="mobile"] .poster-grid-page-tile {
+    border-radius: 14px;
+  }
 }
 
 .poster-grid-page-tile {

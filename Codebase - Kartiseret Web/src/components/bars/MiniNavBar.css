@@ -160,12 +160,12 @@
 }
 
 html[data-device-type="mobile"] .floating-navbar-stack {
-  --floating-navbar-size: 52px;
+  --floating-navbar-size: 48px;
   --floating-navbar-default-bottom: 10px;
 }
 
 html[data-device-type="mobile"] .floating-navbar-actions {
-  gap: 14px;
+  gap: 10px;
 }
 
 html[data-device-type="mobile"] .floating-navbar-item {
@@ -173,7 +173,21 @@ html[data-device-type="mobile"] .floating-navbar-item {
 }
 
 html[data-device-type="mobile"] .brand-mark--floating-home {
-  width: 26px;
+  width: 24px;
+}
+
+@media (max-width: 360px) {
+  html[data-device-type="mobile"] .floating-navbar-stack {
+    --floating-navbar-size: 44px;
+  }
+
+  html[data-device-type="mobile"] .floating-navbar-actions {
+    gap: 9px;
+  }
+
+  html[data-device-type="mobile"] .brand-mark--floating-home {
+    width: 22px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

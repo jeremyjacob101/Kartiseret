@@ -22,6 +22,7 @@ function getWindowScrollY(): number {
 type NavbarActionsProps = {
   catalogReady: boolean;
   searchCollections: readonly MovieSearchCollection[];
+  settingsDisabled: boolean;
   variant?: "inline" | "floating";
   triggerTabIndex?: number;
   onSearchOpen: () => void;
@@ -33,6 +34,7 @@ export type NavbarProps = {
   catalogReady: boolean;
   miniNavPortalTarget?: HTMLDivElement | null;
   searchCollections: readonly MovieSearchCollection[];
+  settingsDisabled: boolean;
   onAllShowtimesNavClick: () => void;
   onHomeClick: () => void;
   onMoviesNavClick: () => void;
@@ -45,6 +47,7 @@ export type NavbarProps = {
 function NavbarActions({
   catalogReady,
   searchCollections,
+  settingsDisabled,
   variant = "inline",
   triggerTabIndex,
   onSearchOpen,
@@ -110,7 +113,13 @@ function NavbarActions({
         type="button"
         className="settings-button"
         tabIndex={triggerTabIndex}
-        aria-label="Settings"
+        aria-label={
+          settingsDisabled ? "Settings require an account" : "Settings"
+        }
+        title={
+          settingsDisabled ? "Sign up or log in to use settings" : undefined
+        }
+        disabled={settingsDisabled}
         onClick={onSettingsClick}
       >
         <Settings size={20} strokeWidth={2.75} className="app-accent-icon" />
@@ -132,6 +141,7 @@ export function Navbar({
   catalogReady,
   miniNavPortalTarget,
   searchCollections,
+  settingsDisabled,
   onAllShowtimesNavClick,
   onHomeClick,
   onMoviesNavClick,
@@ -183,9 +193,9 @@ export function Navbar({
 
     mobileLastScrollYRef.current = getWindowScrollY();
     mobileScrollDeltaRef.current = 0;
-    showMiniNavBarRef.current = true;
+    showMiniNavBarRef.current = false;
     const frameId = window.requestAnimationFrame(() => {
-      setShowMiniNavBar(true);
+      setShowMiniNavBar(false);
     });
 
     return () => {
@@ -222,7 +232,10 @@ export function Navbar({
           ? 0
           : currentScrollY - mobileLastScrollYRef.current;
 
-        if (isFloatingSearchOpen) {
+        if (navbarBottom > 0) {
+          shouldShowMiniNavBar = false;
+          mobileScrollDeltaRef.current = 0;
+        } else if (isFloatingSearchOpen) {
           shouldShowMiniNavBar = true;
           mobileScrollDeltaRef.current = 0;
         } else if (scrollDelta !== 0) {
@@ -509,15 +522,14 @@ export function Navbar({
                 <span className="topnav-label">All Showtimes</span>
               </button>
             </nav>
-            {isMobile ? null : (
-              <NavbarActions
-                catalogReady={catalogReady}
-                searchCollections={searchCollections}
-                onSearchOpen={onSearchOpen}
-                onSelectResult={onSelectResult}
-                onSettingsClick={onSettingsClick}
-              />
-            )}
+            <NavbarActions
+              catalogReady={catalogReady}
+              searchCollections={searchCollections}
+              settingsDisabled={settingsDisabled}
+              onSearchOpen={onSearchOpen}
+              onSelectResult={onSelectResult}
+              onSettingsClick={onSettingsClick}
+            />
           </div>
         </header>
       </div>
@@ -528,6 +540,7 @@ export function Navbar({
             <NavbarActions
               catalogReady={catalogReady}
               searchCollections={searchCollections}
+              settingsDisabled={settingsDisabled}
               variant="floating"
               triggerTabIndex={miniNavBarVisible ? 0 : -1}
               onSearchOpen={onSearchOpen}

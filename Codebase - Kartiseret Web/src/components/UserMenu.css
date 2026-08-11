@@ -289,6 +289,18 @@ html[data-device-type="mobile"] .user-menu--panel-up .user-menu-panel {
   width: min(340px, calc(100vw - 20px));
 }
 
+@media (max-width: 699px) {
+  html[data-device-type="mobile"] .navbar-actions .user-menu {
+    position: static;
+  }
+
+  html[data-device-type="mobile"] .navbar-actions .user-menu-panel {
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .user-menu-trigger {
     transition: none;

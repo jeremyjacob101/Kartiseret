@@ -662,6 +662,7 @@ export function App() {
         catalogReady={catalogReady}
         miniNavPortalTarget={miniNavPortalTarget}
         searchCollections={searchCollections}
+        settingsDisabled={!user || loading}
         onAllShowtimesNavClick={handleAllShowtimesNavClick}
         onHomeClick={handleFloatingHomeClick}
         onMoviesNavClick={handleMoviesNavClick}
