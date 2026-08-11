@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: YesPlanet
+URL: https://www.planetcinema.co.il/films/one-night-only/8184s2r#/
+Exception: TimeoutException - Message: 
+Call Chain: runners.py:43 > runners.py:19 > BaseCinema.py:28 > YesPlanet.py:43 > ScrapingHelpers.py:21
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/598/unsuccessful/YesPlanet-1.png
+CSV: 
