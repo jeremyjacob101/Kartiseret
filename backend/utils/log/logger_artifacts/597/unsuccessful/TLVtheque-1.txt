@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: TLVtheque
+URL: https://www.cinema.co.il/en/shown/?date=2026-09-19
+Exception: TimeoutError - Could not load Tel Aviv Cinematheque date 2026-09-19
+Call Chain: runners.py:43 > runners.py:19 > BaseCinema.py:28 > TLVtheque.py:30
+Selector: 
+Screenshot: 
+CSV: backend/utils/log/logger_artifacts/597/unsuccessful/TLVtheque-1.csv
