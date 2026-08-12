@@ -2,6 +2,8 @@ import { Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { type Movie } from "../data/movieCatalog";
+import { useI18n } from "../i18n/I18nContext";
+import { getEnglishMovieTitle } from "../i18n/content";
 
 export type MovieSearchMode = "nowPlaying" | "comingSoon";
 
@@ -33,27 +35,48 @@ type MovieSearchMenuProps = {
 const MAX_RESULTS = 10;
 
 function normalizeSearchText(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, " ");
+  return value
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[׳']/g, "")
+    .replace(/[״"]/g, "")
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function getTitleSearchScore(title: string, query: string): number {
+  const normalizedTitle = normalizeSearchText(title);
+
+  if (normalizedTitle === query) {
+    return 500;
+  }
+
+  if (normalizedTitle.startsWith(query)) {
+    return 400;
+  }
+
+  if (normalizedTitle.includes(` ${query}`)) {
+    return 320;
+  }
+
+  if (normalizedTitle.includes(query)) {
+    return 240;
+  }
+
+  return 0;
 }
 
 function getSearchScore(movie: Movie, query: string): number {
   const title = normalizeSearchText(movie.title);
   const year = String(movie.year);
+  const titleScore = Math.max(
+    getTitleSearchScore(movie.title, query),
+    getTitleSearchScore(getEnglishMovieTitle(movie), query),
+  );
 
-  if (title === query) {
-    return 500;
-  }
-
-  if (title.startsWith(query)) {
-    return 400;
-  }
-
-  if (title.includes(` ${query}`)) {
-    return 320;
-  }
-
-  if (title.includes(query)) {
-    return 240;
+  if (titleScore > 0) {
+    return titleScore;
   }
 
   if (year === query) {
@@ -75,6 +98,7 @@ export function MovieSearchMenu({
   triggerTabIndex,
   onSelectResult,
 }: MovieSearchMenuProps) {
+  const { locale, t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -152,11 +176,11 @@ export function MovieSearchMenu({
           return right.result.year - left.result.year;
         }
 
-        return left.result.title.localeCompare(right.result.title);
+        return left.result.title.localeCompare(right.result.title, locale);
       })
       .slice(0, MAX_RESULTS)
       .map((entry) => entry.result);
-  }, [collections, normalizedQuery]);
+  }, [collections, locale, normalizedQuery]);
 
   function handleQueryChange(event: ChangeEvent<HTMLInputElement>) {
     setQuery(event.target.value);
@@ -179,7 +203,7 @@ export function MovieSearchMenu({
         tabIndex={triggerTabIndex}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
-        aria-label="Search movies"
+        aria-label={t("search.label")}
         onClick={() => {
           setIsOpen((open) => !open);
         }}
@@ -191,28 +215,27 @@ export function MovieSearchMenu({
         <div
           className="movie-search-panel"
           role="dialog"
-          aria-label="Search movies"
+          aria-label={t("search.label")}
         >
           <label className="movie-search-field">
-            <span className="movie-search-title">Search movies</span>
+            <span className="movie-search-title">{t("search.label")}</span>
             <input
               ref={inputRef}
               type="search"
               value={query}
               onChange={handleQueryChange}
-              placeholder="Search now playing and coming soon"
+              placeholder={t("search.placeholder")}
+              dir="auto"
             />
           </label>
 
           <div className="movie-search-results" role="list">
             {!normalizedQuery ? (
-              <p className="movie-search-empty">
-                Type a movie title to search.
-              </p>
+              <p className="movie-search-empty">{t("search.instructions")}</p>
             ) : loading && results.length === 0 ? (
-              <p className="movie-search-empty">Loading movie library...</p>
+              <p className="movie-search-empty">{t("search.loading")}</p>
             ) : results.length === 0 ? (
-              <p className="movie-search-empty">No movies found.</p>
+              <p className="movie-search-empty">{t("search.noResults")}</p>
             ) : (
               results.map((result) => (
                 <button
@@ -233,11 +256,12 @@ export function MovieSearchMenu({
                     loading="lazy"
                   />
                   <span className="movie-search-result-copy">
-                    <span className="movie-search-result-title">
+                    <span className="movie-search-result-title" dir="auto">
                       {result.title}
                     </span>
                     <span className="movie-search-result-meta">
-                      {result.sectionLabel} • {result.year || "Unknown year"}
+                      {result.sectionLabel} •{" "}
+                      {result.year || t("search.unknownYear")}
                     </span>
                   </span>
                 </button>

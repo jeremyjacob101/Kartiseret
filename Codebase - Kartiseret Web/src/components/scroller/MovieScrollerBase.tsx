@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, type CSSProperties, type Keybo
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { movies, type Movie } from "../../data/movieCatalog";
 import { useDeviceInfo } from "../../device/useDeviceType";
+import { useI18n } from "../../i18n/I18nContext";
 
 export type PosterSourceRect = {
   top: number;
@@ -169,6 +170,7 @@ export function MovieScrollerBase({
   getCardClassName,
   getCardStyle,
 }: MovieScrollerBaseProps) {
+  const { t } = useI18n();
   const { isMobile } = useDeviceInfo();
   const allMovies = movieItems ?? movies;
   const movieCount = allMovies.length;
@@ -760,7 +762,9 @@ export function MovieScrollerBase({
           role={isKeyboardInteractive ? "button" : undefined}
           tabIndex={isTabbable ? 0 : undefined}
           aria-label={
-            isKeyboardInteractive ? `Open ${movie.title} details` : undefined
+            isKeyboardInteractive
+              ? t("catalog.openDetails", { title: movie.title })
+              : undefined
           }
           className={["movie-scroller-card", cardClassName]
             .filter(Boolean)
@@ -824,6 +828,7 @@ export function MovieScrollerBase({
   return (
     <section
       ref={scrollerRef}
+      dir="ltr"
       onScroll={scheduleWindowUpdate}
       className={className}
       style={{

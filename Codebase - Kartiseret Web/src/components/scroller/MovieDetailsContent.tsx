@@ -4,15 +4,18 @@ import { Clock8, ExternalLink, MapPin, MoveRight, Star, X } from "lucide-react";
 import { Link } from "react-router";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { TheaterMapDialog } from "../maps/TheaterMapDialog";
-import { APP_TIME_ZONE, fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeCities, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, subscribeToMovieCatalog, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
+import { fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeCities, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, subscribeToMovieCatalog, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
 import { loadCities, type City } from "../../data/theaters";
 import { type AppLocation } from "../../prefs/definitions/locations";
 import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
-import { type RatingSource } from "../../prefs/definitions/ratingSources";
 import { addCalendarDays, SHOWTIME_LINK_DATE_COUNT } from "../../routing/showtimeLinkCodec";
 import { ShowtimeDayPicker } from "../showtimes/ShowtimeDayPicker";
 import { ShowtimeFilterMenu } from "../showtimes/ShowtimeFilterMenu";
 import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, getShowtimeFiltersSnapshot, saveShowtimeFilters, subscribeToShowtimeFilters, updateShowtimeFilterState, type ShowtimeFilterOptions, type ShowtimeFilterSelections, type ShowtimeFilterState } from "../showtimes/showtimeFilters";
+import { formatReleaseDate, getMetricDisplays, getMovieInfoParts, getShowtimeDateLabel, getTrailerEmbedUrl } from "../showtimes/showtimeUtils";
+import { useI18n } from "../../i18n/I18nContext";
+import { getLocalizedShowtimeHref, localizeCityName, localizeFilterOption, localizeTheaterName } from "../../i18n/content";
+import type { AppLocale } from "../../i18n/locale";
 
 type TheaterTheme = {
   accent: string;
@@ -79,24 +82,6 @@ const fallbackTheaterThemes: TheaterTheme[] = [
     glow: "rgba(123, 223, 242, 0.28)",
   },
 ];
-const showtimeDateFormatter = new Intl.DateTimeFormat(undefined, {
-  timeZone: APP_TIME_ZONE,
-  weekday: "long",
-  month: "long",
-  day: "numeric",
-});
-const releaseDateFormatter = new Intl.DateTimeFormat(undefined, {
-  month: "long",
-  day: "numeric",
-  year: "numeric",
-});
-const RT_CRITIC_FRESH_MIN_SCORE = 60;
-const RT_CRITIC_CERTIFIED_FRESH_MIN_SCORE = 75;
-const RT_CRITIC_CERTIFIED_FRESH_MIN_REVIEWS = 80;
-const RT_AUDIENCE_POSITIVE_MIN_SCORE = 60;
-const RT_AUDIENCE_HOT_MIN_SCORE = 90;
-const RT_AUDIENCE_HOT_MIN_VERIFIED_RATINGS = 500;
-const YOUTUBE_KEY_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const EMPTY_SHOWTIME_DAYS: readonly MovieShowtimeDay[] = Object.freeze([]);
 
 type MovieDetailsContentProps = {
@@ -131,370 +116,16 @@ export type MovieDetailsShareSelection = {
   filterState: ShowtimeFilterState | null;
 };
 
-type MetricDisplay = {
-  key: RatingSource;
-  value: string;
-  ariaLabel: string;
-  logoSrc: string;
-  href?: string;
-  linkAriaLabel?: string;
-  logoClassName?: string;
-};
-
 type NearbyCityChoice = {
   name: string;
   targetDate: string;
 };
-
-function formatRuntime(runtime: number): string {
-  const hours = Math.floor(runtime / 60);
-  const minutes = runtime % 60;
-
-  if (hours === 0) {
-    return `${minutes}m`;
-  }
-
-  return `${hours}h ${minutes}m`;
-}
-
-function getMovieInfoParts(movie: Movie): string[] {
-  const parts: string[] = [];
-
-  if (movie.year > 0) {
-    parts.push(String(movie.year));
-  }
-
-  if (movie.runtime > 0) {
-    parts.push(formatRuntime(movie.runtime));
-  }
-
-  return parts;
-}
-
-function parseLocalDate(dateString: string): Date {
-  const [year, month, day] = dateString
-    .split("-")
-    .map((value) => Number.parseInt(value, 10));
-
-  if (!year || !month || !day) {
-    return new Date(dateString);
-  }
-
-  return new Date(year, month - 1, day);
-}
-
-function parseShowtimeDate(dateString: string): Date {
-  const [year, month, day] = dateString
-    .split("-")
-    .map((value) => Number.parseInt(value, 10));
-
-  if (!year || !month || !day) {
-    return new Date(dateString);
-  }
-
-  // Noon UTC keeps the Israel calendar date stable across viewer timezones.
-  return new Date(Date.UTC(year, month - 1, day, 12));
-}
-
-function getShowtimeDateLabel(dateString: string): string {
-  const showDate = parseShowtimeDate(dateString);
-  const today = parseShowtimeDate(fixedAppDateString);
-  const dayOffset = Math.round(
-    (showDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
-  );
-
-  if (dayOffset === 0) {
-    return "Today";
-  }
-
-  if (dayOffset === 1) {
-    return "Tomorrow";
-  }
-
-  return showtimeDateFormatter.format(showDate);
-}
-
-function formatReleaseDate(dateString: string): string {
-  const releaseDate = parseLocalDate(dateString);
-
-  return Number.isNaN(releaseDate.getTime())
-    ? dateString
-    : releaseDateFormatter.format(releaseDate);
-}
-
-function extractYouTubeVideoKey(
-  value: string | null | undefined,
-): string | null {
-  const normalizedValue = value?.trim();
-
-  if (!normalizedValue) {
-    return null;
-  }
-
-  if (YOUTUBE_KEY_PATTERN.test(normalizedValue)) {
-    return normalizedValue;
-  }
-
-  const matchedKey = normalizedValue.match(
-    /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/,
-  )?.[1];
-
-  return matchedKey && YOUTUBE_KEY_PATTERN.test(matchedKey) ? matchedKey : null;
-}
-
-function getTrailerEmbedUrl(
-  trailerValue: string | null | undefined,
-): string | null {
-  const videoKey = extractYouTubeVideoKey(trailerValue);
-
-  if (!videoKey) {
-    return null;
-  }
-
-  return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoKey)}?rel=0&modestbranding=1&playsinline=1`;
-}
-
-function isAbsoluteUrl(value: string): boolean {
-  return /^https?:\/\//i.test(value);
-}
-
-function toPathUrl(
-  baseUrl: string,
-  value: string | null | undefined,
-): string | null {
-  const normalizedValue = value?.trim();
-
-  if (!normalizedValue) {
-    return null;
-  }
-
-  if (isAbsoluteUrl(normalizedValue)) {
-    return normalizedValue;
-  }
-
-  return `${baseUrl}/${normalizedValue.replace(/^\/+/, "")}`;
-}
-
-function getImdbUrl(movie: Movie): string | null {
-  const imdbId = movie.imdbId?.trim();
-
-  if (!imdbId) {
-    return null;
-  }
-
-  if (isAbsoluteUrl(imdbId)) {
-    return imdbId;
-  }
-
-  return `https://www.imdb.com/title/${imdbId.replace(/^\/+|\/+$/g, "")}/`;
-}
-
-function getRottenTomatoesUrl(movie: Movie): string | null {
-  return toPathUrl("https://www.rottentomatoes.com", movie.rtId);
-}
-
-function getLetterboxdUrl(movie: Movie): string | null {
-  return toPathUrl("https://letterboxd.com", movie.lbId);
-}
-
-function getTmdbUrl(movie: Movie): string {
-  const tmdbId = movie.tmdbId.trim();
-
-  if (isAbsoluteUrl(tmdbId)) {
-    return tmdbId;
-  }
-
-  return `https://www.themoviedb.org/movie/${encodeURIComponent(tmdbId)}`;
-}
 
 function getTheaterTheme(theater: string, index: number): TheaterTheme {
   return (
     theaterThemes[theater] ??
     fallbackTheaterThemes[index % fallbackTheaterThemes.length]
   );
-}
-
-function hasRating(value: number | null | undefined): value is number {
-  return typeof value === "number" && Number.isFinite(value);
-}
-
-function formatPercent(value: number | null | undefined): string {
-  return hasRating(value) ? `${Math.round(value)}%` : "—";
-}
-
-function formatDecimalRating(value: number | null | undefined): string {
-  return hasRating(value) ? value.toFixed(1) : "—";
-}
-
-function formatTmdbRating(value: number | null | undefined): string {
-  return hasRating(value) ? Number(value.toFixed(1)).toString() : "—";
-}
-
-// RT's full "hot" badges also depend on fields this app does not store
-// (for example Top Critics / verified-release buckets), so we use the
-// available score plus conservative theatrical vote thresholds here.
-function getCriticBadge(
-  score: number | null,
-  votes: number | null,
-): { src: string; description: string } | null {
-  if (!hasRating(score)) {
-    return null;
-  }
-
-  if (
-    score >= RT_CRITIC_CERTIFIED_FRESH_MIN_SCORE &&
-    (votes ?? 0) >= RT_CRITIC_CERTIFIED_FRESH_MIN_REVIEWS
-  ) {
-    return {
-      src: "/logos/rtCriticHot.svg",
-      description: "Certified Fresh",
-    };
-  }
-
-  return score >= RT_CRITIC_FRESH_MIN_SCORE
-    ? {
-        src: "/logos/rtCriticGood.svg",
-        description: "Fresh",
-      }
-    : {
-        src: "/logos/rtCriticBad.svg",
-        description: "Rotten",
-      };
-}
-
-function getAudienceBadge(
-  score: number | null,
-  votes: number | null,
-): { src: string; description: string } | null {
-  if (!hasRating(score)) {
-    return null;
-  }
-
-  if (
-    score >= RT_AUDIENCE_HOT_MIN_SCORE &&
-    (votes ?? 0) >= RT_AUDIENCE_HOT_MIN_VERIFIED_RATINGS
-  ) {
-    return {
-      src: "/logos/rtAudienceHot.svg",
-      description: "Verified Hot",
-    };
-  }
-
-  return score >= RT_AUDIENCE_POSITIVE_MIN_SCORE
-    ? {
-        src: "/logos/rtAudienceGood.svg",
-        description: "Full Popcorn Bucket",
-      }
-    : {
-        src: "/logos/rtAudienceBad.svg",
-        description: "Spilled Popcorn Bucket",
-      };
-}
-
-function getMetricDisplay(
-  movie: Movie,
-  source: RatingSource,
-  criticBadge: { src: string; description: string } | null,
-  audienceBadge: { src: string; description: string } | null,
-): MetricDisplay {
-  switch (source) {
-    case "imdbRating":
-      return {
-        key: "imdbRating",
-        value: formatDecimalRating(movie.imdbRating),
-        ariaLabel: hasRating(movie.imdbRating)
-          ? `IMDb rating ${movie.imdbRating.toFixed(1)}`
-          : "IMDb rating unavailable",
-        logoSrc: "/logos/imdb.svg",
-        href: getImdbUrl(movie) ?? undefined,
-        linkAriaLabel: `Open ${movie.title} on IMDb`,
-        logoClassName: "details-metric-logo details-metric-logo--imdb",
-      };
-    case "rtAudienceRating": {
-      const logoSrc = audienceBadge?.src ?? "/logos/rtAudienceGood.svg";
-      const logoClassName =
-        logoSrc === "/logos/rtAudienceBad.svg"
-          ? "details-metric-logo details-metric-logo--rt-audience-bad"
-          : logoSrc === "/logos/rtAudienceHot.svg"
-            ? "details-metric-logo details-metric-logo--rt-audience-hot"
-            : "details-metric-logo details-metric-logo--rt-audience-good";
-
-      return {
-        key: "rtAudienceRating",
-        value: formatPercent(movie.rtAudienceRating),
-        ariaLabel: audienceBadge
-          ? `Rotten Tomatoes audience score ${formatPercent(movie.rtAudienceRating)}, ${audienceBadge.description}`
-          : "Rotten Tomatoes audience score unavailable",
-        logoSrc,
-        href: getRottenTomatoesUrl(movie) ?? undefined,
-        linkAriaLabel: `Open ${movie.title} on Rotten Tomatoes`,
-        logoClassName,
-      };
-    }
-    case "rtCriticRating": {
-      const logoSrc = criticBadge?.src ?? "/logos/rtCriticGood.svg";
-      const logoClassName =
-        logoSrc === "/logos/rtCriticBad.svg"
-          ? "details-metric-logo details-metric-logo--rt-critic-bad"
-          : logoSrc === "/logos/rtCriticHot.svg"
-            ? "details-metric-logo details-metric-logo--rt-critic-hot"
-            : "details-metric-logo details-metric-logo--rt-critic-good";
-
-      return {
-        key: "rtCriticRating",
-        value: formatPercent(movie.rtCriticRating),
-        ariaLabel: criticBadge
-          ? `Rotten Tomatoes critic score ${formatPercent(movie.rtCriticRating)}, ${criticBadge.description}`
-          : "Rotten Tomatoes critic score unavailable",
-        logoSrc,
-        href: getRottenTomatoesUrl(movie) ?? undefined,
-        linkAriaLabel: `Open ${movie.title} on Rotten Tomatoes`,
-        logoClassName,
-      };
-    }
-    case "lbRating":
-      return {
-        key: "lbRating",
-        value: formatDecimalRating(movie.lbRating),
-        ariaLabel: hasRating(movie.lbRating)
-          ? `Letterboxd rating ${movie.lbRating.toFixed(1)}`
-          : "Letterboxd rating unavailable",
-        logoSrc: "/logos/letterboxd.svg",
-        href: getLetterboxdUrl(movie) ?? undefined,
-        linkAriaLabel: `Open ${movie.title} on Letterboxd`,
-        logoClassName: "details-metric-logo details-metric-logo--letterboxd",
-      };
-    case "tmdbRating":
-      return {
-        key: "tmdbRating",
-        value: formatTmdbRating(movie.tmdbRating),
-        ariaLabel: hasRating(movie.tmdbRating)
-          ? `TMDB rating ${formatTmdbRating(movie.tmdbRating)}`
-          : "TMDB rating unavailable",
-        logoSrc: "/logos/tmdb.svg",
-        href: getTmdbUrl(movie),
-        linkAriaLabel: `Open ${movie.title} on TMDB`,
-        logoClassName: "details-metric-logo details-metric-logo--tmdb",
-      };
-    default: {
-      const neverSource: never = source;
-      throw new Error(`Unsupported rating source: ${String(neverSource)}`);
-    }
-  }
-}
-
-function getMetricDisplays(
-  movie: Movie,
-  selectedSources: readonly RatingSource[],
-): MetricDisplay[] {
-  const criticBadge = getCriticBadge(movie.rtCriticRating, movie.rtCriticVotes);
-  const audienceBadge = getAudienceBadge(
-    movie.rtAudienceRating,
-    movie.rtAudienceVotes,
-  );
-
-  return selectedSources.map((source) =>
-    getMetricDisplay(movie, source, criticBadge, audienceBadge));
 }
 
 function getShowtimeTargetDate(
@@ -553,6 +184,7 @@ function cloneShowtimeDays(
       showtimes: theater.showtimes.map((showtime) => ({
         time: showtime.time,
         href: showtime.href,
+        localizedHrefs: showtime.localizedHrefs,
         screeningTech: showtime.screeningTech,
         screeningType: showtime.screeningType,
         dubLanguage: showtime.dubLanguage,
@@ -591,20 +223,24 @@ function getDubFlagSrc(dubLanguage: string | null | undefined): string | null {
 
 function getDubBadgeLabel(
   dubLanguage: string | null | undefined,
+  locale: AppLocale,
 ): string | null {
   const normalizedValue = dubLanguage?.trim().replace(/\s+/g, " ") ?? "";
 
-  return normalizedValue ? `${normalizedValue} Dub` : null;
+  return normalizedValue ? localizeFilterOption(normalizedValue, locale) : null;
 }
 
-function getScreeningTypeBadgeLabel(screeningType: string): string | null {
+function getScreeningTypeBadgeLabel(
+  screeningType: string,
+  locale: AppLocale,
+): string | null {
   const normalizedValue = screeningType.trim().replace(/\s+/g, " ");
 
   if (!normalizedValue || normalizedValue.toLowerCase() === "regular") {
     return null;
   }
 
-  return normalizedValue;
+  return localizeFilterOption(normalizedValue, locale);
 }
 
 export function MovieDetailsContent({
@@ -613,7 +249,7 @@ export function MovieDetailsContent({
   titleAs: TitleElement = "h2",
   posterRef,
   posterClassName = "details-poster",
-  eyebrow = "Now playing",
+  eyebrow,
   variant = "nowPlaying",
   preferredShowtimeDate = null,
   onPreferredShowtimeDateChange,
@@ -630,6 +266,7 @@ export function MovieDetailsContent({
   onShareShowtimes,
   shareFeedback = null,
 }: MovieDetailsContentProps) {
+  const { locale, direction, t } = useI18n();
   const {
     sources,
     location: preferenceLocation,
@@ -665,14 +302,18 @@ export function MovieDetailsContent({
   );
   const previousShowtimeLocationRef = useRef(location);
   const requestedShowtimePrefetchRef = useRef<string | null>(null);
-  const infoParts = getMovieInfoParts(movie);
+  const resolvedEyebrow =
+    eyebrow ??
+    t(variant === "comingSoon" ? "catalog.comingSoon" : "catalog.nowPlaying");
+  const localizedLocation = localizeCityName(location, locale);
+  const infoParts = getMovieInfoParts(movie, locale);
   const metaParts =
     movie.genres.length > 0
       ? [...infoParts, movie.genres.join(", ")]
       : infoParts;
   const releaseDateLabel =
     variant === "comingSoon" && movie.releaseDate
-      ? formatReleaseDate(movie.releaseDate)
+      ? formatReleaseDate(movie.releaseDate, locale)
       : null;
   const hasComingSoonShowtimes = useMemo(() => {
     if (variant !== "comingSoon") {
@@ -726,7 +367,7 @@ export function MovieDetailsContent({
     shouldRenderShowtimes,
   ]);
   const metrics =
-    variant === "nowPlaying" ? getMetricDisplays(movie, sources) : [];
+    variant === "nowPlaying" ? getMetricDisplays(movie, sources, locale) : [];
   const trailerEmbedUrl = getTrailerEmbedUrl(movie.trailerKey);
   const trailerModalId = `${variant}:${movie.tmdbId}`;
   const targetShowtimeDate = getShowtimeTargetDate(
@@ -883,8 +524,8 @@ export function MovieDetailsContent({
     ? fixedAppDateString
     : firstCityShowtimeDate;
   const showtimeJumpButtonLabel = shouldShowTodayReturnButton
-    ? "BACK TO TODAY"
-    : "Skip to showing day";
+    ? t("showtimes.backToday")
+    : t("showtimes.skipShowingDay");
   const shouldShowDayPicker =
     hasLoadedShowtimeWindow &&
     showtimeDays.length > 0 &&
@@ -944,7 +585,7 @@ export function MovieDetailsContent({
           <button
             type="button"
             className="details-trailer-launch details-trailer-launch--metrics"
-            aria-label={`Watch ${movie.title} trailer`}
+            aria-label={t("movie.watchTrailer", { title: movie.title })}
             onClick={() => {
               setOpenTrailerModalId(trailerModalId);
             }}
@@ -997,7 +638,7 @@ export function MovieDetailsContent({
                     />
                   )}
                 </div>
-                <strong>{metric.value}</strong>
+                <strong dir="ltr">{metric.value}</strong>
               </div>
             ))}
           </div>
@@ -1020,7 +661,9 @@ export function MovieDetailsContent({
                 className="details-empty-link-icon"
                 aria-hidden="true"
               />
-              <span>See all showtimes in {location}</span>
+              <span>
+                {t("showtimes.seeAllIn", { city: localizedLocation })}
+              </span>
             </span>
             <MoveRight
               size={16}
@@ -1035,13 +678,15 @@ export function MovieDetailsContent({
             aria-busy={pendingNearbyCity ? "true" : undefined}
           >
             <p className="details-empty-link-heading">
-              See where {movie.title} is playing near you
+              {t("showtimes.playingNear", { title: movie.title })}
             </p>
 
             {nearbyCityChoices.length > 0 ? (
               <div
                 className="details-empty-city-list"
-                aria-label={`Cities where ${movie.title} is playing`}
+                aria-label={t("showtimes.citiesPlaying", {
+                  title: movie.title,
+                })}
               >
                 {nearbyCityChoices.map((city) => (
                   <button
@@ -1061,16 +706,16 @@ export function MovieDetailsContent({
                     />
                     <span>
                       {pendingNearbyCity === city.name
-                        ? `Switching to ${city.name}...`
-                        : city.name}
+                        ? t("showtimes.switchingCity", {
+                            city: localizeCityName(city.name, locale),
+                          })
+                        : localizeCityName(city.name, locale)}
                     </span>
                   </button>
                 ))}
               </div>
             ) : (
-              <p className="details-empty-note">
-                No scheduled showtimes in the current window.
-              </p>
+              <p className="details-empty-note">{t("showtimes.noneWindow")}</p>
             )}
           </div>
         </div>
@@ -1324,6 +969,7 @@ export function MovieDetailsContent({
           <div
             className="movie-trailer-modal"
             data-movie-scroller-detail-overlay="true"
+            dir={direction}
             onMouseDown={(event) => {
               if (event.target === event.currentTarget) {
                 setOpenTrailerModalId(null);
@@ -1334,12 +980,12 @@ export function MovieDetailsContent({
               className="movie-trailer-modal-dialog"
               role="dialog"
               aria-modal="true"
-              aria-label={`${movie.title} trailer`}
+              aria-label={t("movie.trailer", { title: movie.title })}
             >
               <button
                 type="button"
                 className="movie-trailer-modal-close"
-                aria-label="Close trailer"
+                aria-label={t("movie.closeTrailer")}
                 onClick={() => {
                   setOpenTrailerModalId(null);
                 }}
@@ -1349,7 +995,7 @@ export function MovieDetailsContent({
               <div className="movie-trailer-modal-frame">
                 <iframe
                   src={`${trailerEmbedUrl}&autoplay=1`}
-                  title={`${movie.title} trailer`}
+                  title={t("movie.trailer", { title: movie.title })}
                   loading="eager"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   allowFullScreen
@@ -1364,7 +1010,7 @@ export function MovieDetailsContent({
 
   return (
     <>
-      <div className="details-hero">
+      <div className="details-hero" dir={direction}>
         <div className="details-media-column">
           <div className="details-poster-shell">
             <MoviePosterArtwork
@@ -1379,8 +1025,8 @@ export function MovieDetailsContent({
         </div>
 
         <div className="details-copy">
-          <p className="details-eyebrow">{eyebrow}</p>
-          <TitleElement id={titleId} className="details-title">
+          <p className="details-eyebrow">{resolvedEyebrow}</p>
+          <TitleElement id={titleId} className="details-title" dir="auto">
             {movie.title}
           </TitleElement>
           {metaParts.length > 0 ? (
@@ -1389,6 +1035,7 @@ export function MovieDetailsContent({
                 <span
                   key={`${movie.tmdbId}-meta-${part}`}
                   className="details-subtitle-item"
+                  dir="auto"
                 >
                   {part}
                 </span>
@@ -1398,7 +1045,7 @@ export function MovieDetailsContent({
 
           {releaseDateLabel ? (
             <p className="details-release-date">
-              Release date: {releaseDateLabel}
+              {t("movie.releaseDate", { date: releaseDateLabel })}
             </p>
           ) : null}
 
@@ -1412,17 +1059,20 @@ export function MovieDetailsContent({
         <div
           className="details-showtimes"
           data-movie-scroller-swipe-ignore="true"
+          dir={direction}
         >
           {shouldShowDayPicker ? (
             <div className="details-day-picker-shell">
               <TheaterMapDialog
                 className="details-day-picker-city city-map-trigger"
-                triggerLabel={location}
+                triggerLabel={localizedLocation}
                 locationOverride={locationOverride}
                 onLocationOverrideChange={onLocationOverrideChange}
               />
               <ShowtimeDayPicker
-                ariaLabel={`Choose ${movie.title} showtime day`}
+                ariaLabel={t("showtimes.chooseMovieDay", {
+                  title: movie.title,
+                })}
                 dates={showtimeDays.map((day) => day.date)}
                 selectedDate={effectiveVisibleShowtimeDate}
                 disabledBeforeDate={
@@ -1457,8 +1107,8 @@ export function MovieDetailsContent({
                     <button
                       type="button"
                       className="details-share-trigger"
-                      aria-label="Share these showtimes"
-                      title="Share these showtimes"
+                      aria-label={t("showtimes.share")}
+                      title={t("showtimes.share")}
                       onClick={() => {
                         if (effectiveVisibleShowtimeDate) {
                           onShareShowtimes({
@@ -1492,13 +1142,18 @@ export function MovieDetailsContent({
           {exactDateShowtimeQueries &&
           showtimeDateLoading &&
           !effectiveSelectedShowtimeDay ? (
-            renderNoShowtimesState("Loading showtimes…")
+            renderNoShowtimesState(t("showtimes.loading"))
           ) : shouldShowCityUnavailableState ? (
-            renderNoShowtimesState(`Movie not playing in ${location}`)
+            renderNoShowtimesState(
+              t("showtimes.movieNotPlaying", { city: localizedLocation }),
+            )
           ) : (
             <div
               className="details-rail"
-              aria-label={`${movie.title} showtimes in ${location}`}
+              aria-label={t("showtimes.ariaInCity", {
+                title: movie.title,
+                city: localizedLocation,
+              })}
             >
               {effectiveSelectedShowtimeDay ? (
                 <article
@@ -1520,14 +1175,26 @@ export function MovieDetailsContent({
                     ) : null}
 
                     {showtimeDateLoading ? (
-                      renderNoShowtimesState("Loading showtimes…")
+                      renderNoShowtimesState(t("showtimes.loading"))
                     ) : showtimeDateError ? (
                       renderNoShowtimesState(showtimeDateError)
                     ) : effectiveSelectedShowtimeDay.theaters.length === 0 ? (
                       renderNoShowtimesState(
                         hasFilteredOutAllSelectedShowtimes
-                          ? `No showtimes match current filters on ${getShowtimeDateLabel(effectiveSelectedShowtimeDay.date)} in ${location}`
-                          : `No showtimes on ${getShowtimeDateLabel(effectiveSelectedShowtimeDay.date)} in ${location}`,
+                          ? t("showtimes.noneFiltered", {
+                              date: getShowtimeDateLabel(
+                                effectiveSelectedShowtimeDay.date,
+                                locale,
+                              ),
+                              city: localizedLocation,
+                            })
+                          : t("showtimes.noneDay", {
+                              date: getShowtimeDateLabel(
+                                effectiveSelectedShowtimeDay.date,
+                                locale,
+                              ),
+                              city: localizedLocation,
+                            }),
                       )
                     ) : (
                       <div className="details-theaters">
@@ -1553,7 +1220,9 @@ export function MovieDetailsContent({
                                     boxShadow: `0 0 18px ${colors.glow}`,
                                   }}
                                 />
-                                <span>{theater.theater}</span>
+                                <span dir="auto">
+                                  {localizeTheaterName(theater.theater, locale)}
+                                </span>
                               </div>
 
                               <div className="details-time-grid">
@@ -1566,11 +1235,15 @@ export function MovieDetailsContent({
                                   );
                                   const dubBadgeLabel = getDubBadgeLabel(
                                     showtime.dubLanguage,
+                                    locale,
                                   );
                                   const screeningTypeBadgeLabel =
                                     getScreeningTypeBadgeLabel(
                                       showtime.screeningType,
+                                      locale,
                                     );
+                                  const localizedShowtimeHref =
+                                    getLocalizedShowtimeHref(showtime, locale);
                                   const showtimeSlotClassName = [
                                     "details-showtime-slot",
                                     showtimeTech
@@ -1584,7 +1257,7 @@ export function MovieDetailsContent({
                                     .join(" ");
                                   const showtimeCardClassName = [
                                     "details-showtime-card",
-                                    showtime.href
+                                    localizedShowtimeHref
                                       ? "details-showtime-card--link"
                                       : null,
                                   ]
@@ -1604,7 +1277,14 @@ export function MovieDetailsContent({
                                           `linear-gradient(180deg, color-mix(in srgb, ${colors.accent} 88%, white 12%), color-mix(in srgb, ${colors.accent} 72%, black 28%))`,
                                       };
                                   const showtimeLabel = [
-                                    `Open ${movie.title} ${showtime.time} showtime at ${theater.theater}`,
+                                    t("showtimes.openTicket", {
+                                      title: movie.title,
+                                      time: showtime.time,
+                                      theater: localizeTheaterName(
+                                        theater.theater,
+                                        locale,
+                                      ),
+                                    }),
                                     showtimeTech,
                                     screeningTypeBadgeLabel,
                                     dubBadgeLabel,
@@ -1619,9 +1299,9 @@ export function MovieDetailsContent({
                                     showtime.screeningType,
                                     showtime.dubLanguage ?? "original",
                                   ].join("-");
-                                  const showtimeCard = showtime.href ? (
+                                  const showtimeCard = localizedShowtimeHref ? (
                                     <a
-                                      href={showtime.href}
+                                      href={localizedShowtimeHref}
                                       target="_blank"
                                       rel="noreferrer"
                                       className={showtimeCardClassName}
@@ -1631,6 +1311,7 @@ export function MovieDetailsContent({
                                         <span
                                           className="details-showtime-tech"
                                           aria-hidden="true"
+                                          dir="ltr"
                                         >
                                           {showtimeTech}
                                         </span>
@@ -1669,7 +1350,10 @@ export function MovieDetailsContent({
                                               </span>
                                             </span>
                                           ) : null}
-                                          <span className="details-time-pill-label">
+                                          <span
+                                            className="details-time-pill-label"
+                                            dir="ltr"
+                                          >
                                             {showtime.time}
                                           </span>
                                         </span>
@@ -1684,6 +1368,7 @@ export function MovieDetailsContent({
                                         <span
                                           className="details-showtime-tech"
                                           aria-hidden="true"
+                                          dir="ltr"
                                         >
                                           {showtimeTech}
                                         </span>
@@ -1722,7 +1407,10 @@ export function MovieDetailsContent({
                                               </span>
                                             </span>
                                           ) : null}
-                                          <span className="details-time-pill-label">
+                                          <span
+                                            className="details-time-pill-label"
+                                            dir="ltr"
+                                          >
                                             {showtime.time}
                                           </span>
                                         </span>
@@ -1755,14 +1443,15 @@ export function MovieDetailsContent({
         <section
           className="details-showtimes details-showtimes--trailer"
           data-movie-scroller-swipe-ignore="true"
-          aria-label={`${movie.title} trailer`}
+          aria-label={t("movie.trailer", { title: movie.title })}
+          dir={direction}
         >
           {trailerEmbedUrl ? (
             <div className="details-trailer-shell">
               <div className="details-trailer-frame">
                 <iframe
                   src={trailerEmbedUrl}
-                  title={`${movie.title} official trailer`}
+                  title={t("movie.officialTrailer", { title: movie.title })}
                   loading="lazy"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   allowFullScreen
@@ -1771,7 +1460,9 @@ export function MovieDetailsContent({
               </div>
             </div>
           ) : (
-            <p className="details-showtime-empty">Trailer not available yet.</p>
+            <p className="details-showtime-empty">
+              {t("movie.trailerUnavailable")}
+            </p>
           )}
         </section>
       )}

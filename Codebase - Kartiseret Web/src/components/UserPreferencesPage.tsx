@@ -7,6 +7,10 @@ import { useUserPreferencesContext } from "../prefs/useUserPreferences";
 import { type RatingSource } from "../prefs/definitions/ratingSources";
 import { type AppLocation } from "../prefs/definitions/locations";
 import { getSiteColorLabel, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
+import { useI18n } from "../i18n/I18nContext";
+import { localizeCityName } from "../i18n/content";
+import { LanguageToggle } from "./LanguageToggle";
+import type { MessageKey } from "../i18n/messages";
 
 const CityLocationPicker = lazy(async () => {
   const module = await loadCityLocationPicker();
@@ -21,9 +25,24 @@ const sourceLabelMap: Record<RatingSource, string> = {
   lbRating: "Letterboxd",
   tmdbRating: "TMDB",
 };
-function getSourcesSummary(sources: readonly RatingSource[]): string {
+const colorLabelKeys: Readonly<Record<string, MessageKey>> = {
+  Pink: "color.pink",
+  Red: "color.red",
+  Orange: "color.orange",
+  Yellow: "color.yellow",
+  Green: "color.green",
+  Teal: "color.teal",
+  Blue: "color.blue",
+  Indigo: "color.indigo",
+  Purple: "color.purple",
+};
+
+function getSourcesSummary(
+  sources: readonly RatingSource[],
+  t: ReturnType<typeof useI18n>["t"],
+): string {
   if (sources.length === 0) {
-    return "No sources selected";
+    return t("preferences.noSources");
   }
 
   const labels = sources.map((source) => sourceLabelMap[source]);
@@ -32,12 +51,26 @@ function getSourcesSummary(sources: readonly RatingSource[]): string {
     return labels.join(", ");
   }
 
-  return `${labels[0]}, ${labels[1]} +${labels.length - 2} more`;
+  return t("preferences.moreSources", {
+    first: labels[0] ?? "",
+    second: labels[1] ?? "",
+    count: labels.length - 2,
+  });
+}
+
+function getLocalizedColorLabel(
+  label: string,
+  t: ReturnType<typeof useI18n>["t"],
+): string {
+  const messageKey = colorLabelKeys[label];
+
+  return messageKey ? t(messageKey) : label;
 }
 
 function getVisibleSiteColors(
   siteColor: SiteColor,
   options: readonly SiteColorOption[],
+  t: ReturnType<typeof useI18n>["t"],
 ): readonly SiteColorOption[] {
   if (options.some((option) => option.value === siteColor)) {
     return options;
@@ -45,7 +78,9 @@ function getVisibleSiteColors(
 
   return [
     {
-      label: `Current ${siteColor.toUpperCase()}`,
+      label: t("preferences.currentColor", {
+        color: siteColor.toUpperCase(),
+      }),
       value: siteColor,
     },
     ...options,
@@ -53,17 +88,20 @@ function getVisibleSiteColors(
 }
 
 function EmbeddedCityLocationPickerLoading() {
+  const { t } = useI18n();
+
   return (
     <div
       className="theater-map-panel theater-map-panel--embedded prefs-location-map-loading"
       role="status"
     >
-      Loading city map...
+      {t("map.loadingCity")}
     </div>
   );
 }
 
 export function UserPreferencesPage() {
+  const { locale, t } = useI18n();
   const {
     user,
     sources,
@@ -81,8 +119,8 @@ export function UserPreferencesPage() {
   } = useUserPreferencesContext();
   const [isSourcesOpen, setIsSourcesOpen] = useState(true);
   const visibleSiteColors = useMemo(
-    () => getVisibleSiteColors(siteColor, allSiteColors),
-    [allSiteColors, siteColor],
+    () => getVisibleSiteColors(siteColor, allSiteColors, t),
+    [allSiteColors, siteColor, t],
   );
 
   const handleSourceToggle = useCallback(
@@ -115,14 +153,14 @@ export function UserPreferencesPage() {
   }, [resetSiteColor]);
 
   return (
-    <section className="prefs-page" aria-label="User preferences">
+    <section className="prefs-page" aria-label={t("preferences.aria")}>
       <div className="prefs-page-header">
         <div>
-          <p className="section-kicker">User</p>
-          <h1 className="section-title">User Preferences</h1>
+          <p className="section-kicker">{t("preferences.kicker")}</p>
+          <h1 className="section-title">{t("preferences.title")}</h1>
         </div>
         <Link className="prefs-page-back" to="/">
-          Back to Home
+          {t("account.backHome")}
         </Link>
       </div>
 
@@ -130,8 +168,10 @@ export function UserPreferencesPage() {
         <section className="prefs-location-card">
           <div className="prefs-location-header">
             <div>
-              <p className="prefs-setting-label">Location</p>
-              <h2 className="prefs-location-title">{location}</h2>
+              <p className="prefs-setting-label">{t("preferences.location")}</p>
+              <h2 className="prefs-location-title" dir="auto">
+                {localizeCityName(location, locale)}
+              </h2>
             </div>
           </div>
 
@@ -148,11 +188,34 @@ export function UserPreferencesPage() {
         <div className="prefs-page-settings">
           <section className="prefs-setting prefs-setting--static">
             <div className="prefs-setting-content prefs-setting-content--static">
+              <div className="prefs-language-setting">
+                <div className="prefs-language-copy">
+                  <span className="prefs-setting-label">
+                    {t("preferences.language")}
+                  </span>
+                  <span className="prefs-setting-summary">
+                    {t("preferences.languageHelp")}
+                  </span>
+                </div>
+                <LanguageToggle showCurrentLanguage />
+              </div>
+            </div>
+          </section>
+
+          <section className="prefs-setting prefs-setting--static">
+            <div className="prefs-setting-content prefs-setting-content--static">
               <div className="prefs-color-setting">
                 <div className="prefs-color-copy">
-                  <span className="prefs-setting-label">Color</span>
+                  <span className="prefs-setting-label">
+                    {t("preferences.color")}
+                  </span>
                   <span className="prefs-setting-summary">
-                    Site Color {getSiteColorLabel(siteColor)}
+                    {t("preferences.siteColor", {
+                      color: getLocalizedColorLabel(
+                        getSiteColorLabel(siteColor),
+                        t,
+                      ),
+                    })}
                   </span>
                 </div>
 
@@ -160,7 +223,7 @@ export function UserPreferencesPage() {
                   <div
                     className="prefs-color-swatches"
                     role="list"
-                    aria-label="Site colors"
+                    aria-label={t("preferences.siteColors")}
                   >
                     {visibleSiteColors.map((colorOption) => {
                       const isSelected = colorOption.value === siteColor;
@@ -171,9 +234,11 @@ export function UserPreferencesPage() {
                           type="button"
                           className={`prefs-color-swatch${isSelected ? " is-selected" : ""}`}
                           style={{ backgroundColor: colorOption.value }}
-                          aria-label={`Use ${colorOption.label} site color`}
+                          aria-label={t("preferences.useColor", {
+                            color: getLocalizedColorLabel(colorOption.label, t),
+                          })}
                           aria-pressed={isSelected}
-                          title={colorOption.label}
+                          title={getLocalizedColorLabel(colorOption.label, t)}
                           disabled={syncing || !user}
                           onClick={() => {
                             void handleSiteColorChange(colorOption.value);
@@ -193,7 +258,7 @@ export function UserPreferencesPage() {
                       void handleSiteColorReset();
                     }}
                   >
-                    Reset
+                    {t("preferences.reset")}
                   </button>
                 </div>
               </div>
@@ -210,9 +275,11 @@ export function UserPreferencesPage() {
               }}
             >
               <span className="prefs-setting-copy">
-                <span className="prefs-setting-label">Rating Sources</span>
+                <span className="prefs-setting-label">
+                  {t("preferences.ratingSources")}
+                </span>
                 <span className="prefs-setting-summary">
-                  {getSourcesSummary(sources)}
+                  {getSourcesSummary(sources, t)}
                 </span>
               </span>
               <ChevronDown
@@ -255,7 +322,7 @@ export function UserPreferencesPage() {
       </div>
       {error ? (
         <p className="prefs-page-feedback prefs-page-feedback--error">
-          {error}
+          {t("preferences.error")}
         </p>
       ) : null}
     </section>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type WheelEvent } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type WheelEvent } from "react";
 import { X } from "lucide-react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { comingSoonMovies, loadShowtimes, loadShowtimesAroundDate, movies, type Movie } from "../../data/movieCatalog";
@@ -8,6 +8,8 @@ import { shareLink } from "../../routing/shareLink";
 import { buildMovieShowtimeShareUrl, filterMaskFromUnchecked, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "../../routing/showtimeLinkCodec";
 import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
 import { MovieDetailsContent, type MovieDetailsShareSelection, type MovieDetailsVariant } from "./MovieDetailsContent";
+import { useI18n } from "../../i18n/I18nContext";
+import { localizeMovies } from "../../i18n/content";
 import "./MovieScroller.css";
 
 type FocusPhase = "collapsed" | "opening" | "open" | "closing";
@@ -352,10 +354,13 @@ function getDetailLayout(
     maxWidthValue * (isCompact ? 0.9 : 0.78),
     safeClientWidth * (isCompact ? 0.9 : 0.7),
   );
-  const panelWidth = Math.max(
+  const uncappedPanelWidth = Math.max(
     isCompact ? 320 : 420,
     Math.min(panelMaxWidth, Math.max(boundedPanelWidth, isCompact ? 320 : 420)),
   );
+  const viewportPanelLimit =
+    typeof window === "undefined" ? uncappedPanelWidth : window.innerWidth - 8;
+  const panelWidth = Math.min(uncappedPanelWidth, viewportPanelLimit);
   const panelHeight = isCompact ? 706 : 756;
   const panelLeft = (safeClientWidth - panelWidth) / 2;
   const previewWidth = isMobile
@@ -528,10 +533,15 @@ export function MovieScroller({
   onExitDetail,
   ...props
 }: MovieScrollerProps) {
+  const { locale, t } = useI18n();
   const resolvedVariant = mode ?? detailVariant ?? "nowPlaying";
-  const resolvedMovieItems =
+  const sourceMovieItems =
     movieItems ??
     (resolvedVariant === "comingSoon" ? comingSoonMovies : movies);
+  const resolvedMovieItems = useMemo(
+    () => localizeMovies(sourceMovieItems, locale),
+    [locale, sourceMovieItems],
+  );
 
   if (resolvedMovieItems.length === 0) {
     return null;
@@ -547,7 +557,11 @@ export function MovieScroller({
       onExitDetail={onExitDetail}
       detailEyebrow={
         detailEyebrow ??
-        (resolvedVariant === "comingSoon" ? "Coming soon" : "Now playing")
+        t(
+          resolvedVariant === "comingSoon"
+            ? "catalog.comingSoon"
+            : "catalog.nowPlaying",
+        )
       }
     />
   );
@@ -566,6 +580,7 @@ function MovieScrollerContent({
   maxWidth = "100%",
   className,
 }: MovieScrollerContentProps) {
+  const { direction, t } = useI18n();
   const { location: selectedCity } = useUserPreferencesContext();
   const { isMobile } = useDeviceInfo();
   const movieCount = movieItems.length;
@@ -740,7 +755,7 @@ function MovieScrollerContent({
       const today = getJerusalemCinemaDate();
 
       if (!movieCode || !isDateInShowtimeLinkWindow(selection.date, today)) {
-        showShareFeedback("Unable to share this selection");
+        showShareFeedback(t("showtimes.shareUnavailable"));
         return;
       }
 
@@ -759,25 +774,25 @@ function MovieScrollerContent({
       });
 
       if (!url) {
-        showShareFeedback("Unable to share this selection");
+        showShareFeedback(t("showtimes.shareUnavailable"));
         return;
       }
 
       const result = await shareLink({
-        title: `${movie.title} showtimes`,
-        text: `${movie.title} showtimes on Kartiseret`,
+        title: `${movie.title} · ${t("showtimes.title")}`,
+        text: `${movie.title} · ${t("showtimes.title")} · ${t("brand.name")}`,
         url,
       });
 
       if (result === "shared") {
-        showShareFeedback("Shared");
+        showShareFeedback(t("showtimes.shared"));
       } else if (result === "copied") {
-        showShareFeedback("Link copied");
+        showShareFeedback(t("showtimes.linkCopied"));
       } else if (result === "failed") {
-        showShareFeedback("Could not copy link");
+        showShareFeedback(t("showtimes.copyFailed"));
       }
     },
-    [displayMovieIndex, movieItems, showShareFeedback],
+    [displayMovieIndex, movieItems, showShareFeedback, t],
   );
 
   const requestMovieShowtimes = useCallback(
@@ -2275,6 +2290,7 @@ function MovieScrollerContent({
     <div
       ref={shellRef}
       className={shellClassName}
+      dir="ltr"
       style={{
         ...movieScrollerTimingStyle,
         height:
@@ -2329,7 +2345,9 @@ function MovieScrollerContent({
                   role="button"
                   tabIndex={canNavigate ? 0 : -1}
                   aria-disabled={!canNavigate}
-                  aria-label={`Show previous movie: ${previousAdjacentMovie.title}`}
+                  aria-label={t("catalog.previousMovie", {
+                    title: previousAdjacentMovie.title,
+                  })}
                   style={{
                     top: detailLayout.previewTop,
                     left: detailLayout.previewLeft,
@@ -2366,7 +2384,9 @@ function MovieScrollerContent({
                   role="button"
                   tabIndex={canNavigate ? 0 : -1}
                   aria-disabled={!canNavigate}
-                  aria-label={`Show next movie: ${nextAdjacentMovie.title}`}
+                  aria-label={t("catalog.nextMovie", {
+                    title: nextAdjacentMovie.title,
+                  })}
                   style={{
                     top: detailLayout.previewTop,
                     left: detailLayout.previewRight,
@@ -2390,11 +2410,14 @@ function MovieScrollerContent({
 
             <article
               className="movie-scroller-detail-card"
+              dir={direction}
               style={{
                 width: detailLayout.panelWidth,
                 height: detailLayout.panelHeight,
               }}
-              aria-label={`${movieItems[displayMovieIndex].title} details`}
+              aria-label={t("catalog.movieDetails", {
+                title: movieItems[displayMovieIndex].title,
+              })}
               onPointerDown={handleDetailPointerDown}
               onPointerUp={handleDetailPointerUp}
               onPointerCancel={clearSwipeGesture}
@@ -2402,7 +2425,9 @@ function MovieScrollerContent({
               <button
                 type="button"
                 className="movie-scroller-close"
-                aria-label={`Close ${movieItems[displayMovieIndex].title} details`}
+                aria-label={t("catalog.closeDetails", {
+                  title: movieItems[displayMovieIndex].title,
+                })}
                 onClick={handleExitDetail}
                 disabled={phase !== "open" || detailTransition !== null}
               >

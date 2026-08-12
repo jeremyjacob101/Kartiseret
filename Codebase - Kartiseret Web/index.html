@@ -1,9 +1,26 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" dir="ltr" data-locale="en" data-direction="ltr">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+    (function () {
+      try {
+        var locale = window.localStorage.getItem("kartiseret_locale_v1");
+        var normalizedLocale = locale === "he" ? "he" : "en";
+        var direction = normalizedLocale === "he" ? "rtl" : "ltr";
+        var root = document.documentElement;
+        root.lang = normalizedLocale;
+        root.dir = direction;
+        root.dataset.locale = normalizedLocale;
+        root.dataset.direction = direction;
+        root.style.setProperty("--app-direction", direction);
+      } catch (_error) {
+        // English/LTR remains the safe default when storage is unavailable.
+      }
+    })();
+  </script>
   <link rel="preconnect" href="https://image.tmdb.org" crossorigin />
   <link rel="dns-prefetch" href="https://image.tmdb.org" />
   <link id="site-favicon" rel="icon" href="/favicon.ico" type="image/x-icon" />
@@ -28,8 +45,12 @@
   <meta property="og:url" content="https://seret.site/" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Kartiseret" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:locale:alternate" content="he_IL" />
 
   <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Kartiseret — Movie showtimes across Israel" />
+  <meta name="twitter:description" content="Find movie showtimes across Israeli cinemas in one place." />
   <!-- OG_END -->
 </head>
 

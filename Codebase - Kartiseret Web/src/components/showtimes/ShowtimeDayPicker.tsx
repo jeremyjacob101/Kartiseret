@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import { getShowtimeDateLabel } from "./showtimeUtils";
 import "./ShowtimeDayPicker.css";
+import { useI18n } from "../../i18n/I18nContext";
+import type { AppDirection, AppLocale } from "../../i18n/locale";
 
 type ShowtimeDayPickerProps = {
   dates: readonly string[];
@@ -35,20 +37,36 @@ const POINTER_RELEASE_PROJECTION_FRICTION = 0.006;
 const POINTER_VELOCITY_STALE_AFTER_MS = 80;
 const LEADING_GHOST_DAY_COUNT = 5;
 
-const weekdayFormatter = new Intl.DateTimeFormat(undefined, {
-  weekday: "short",
-});
+const dateFormatters = new Map<
+  AppLocale,
+  {
+    weekday: Intl.DateTimeFormat;
+    month: Intl.DateTimeFormat;
+    accessible: Intl.DateTimeFormat;
+  }
+>();
 
-const monthFormatter = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-});
+function getDateFormatters(locale: AppLocale) {
+  const cachedFormatters = dateFormatters.get(locale);
 
-const accessibleDateFormatter = new Intl.DateTimeFormat(undefined, {
-  weekday: "long",
-  month: "long",
-  day: "numeric",
-  year: "numeric",
-});
+  if (cachedFormatters) {
+    return cachedFormatters;
+  }
+
+  const formatters = {
+    weekday: new Intl.DateTimeFormat(locale, { weekday: "short" }),
+    month: new Intl.DateTimeFormat(locale, { month: "short" }),
+    accessible: new Intl.DateTimeFormat(locale, {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }),
+  };
+
+  dateFormatters.set(locale, formatters);
+  return formatters;
+}
 
 function parseCalendarDate(dateString: string): Date {
   const [year, month, day] = dateString
@@ -90,17 +108,19 @@ function getDayNumber(dateString: string): string {
   return String(parseCalendarDate(dateString).getDate());
 }
 
-function getDayWeekday(dateString: string): string {
-  return weekdayFormatter.format(parseCalendarDate(dateString));
+function getDayWeekday(dateString: string, locale: AppLocale): string {
+  return getDateFormatters(locale).weekday.format(
+    parseCalendarDate(dateString),
+  );
 }
 
-function getDayMonth(dateString: string): string {
-  return monthFormatter.format(parseCalendarDate(dateString));
+function getDayMonth(dateString: string, locale: AppLocale): string {
+  return getDateFormatters(locale).month.format(parseCalendarDate(dateString));
 }
 
-function getDayAriaLabel(dateString: string): string {
-  const relativeLabel = getShowtimeDateLabel(dateString);
-  const calendarLabel = accessibleDateFormatter.format(
+function getDayAriaLabel(dateString: string, locale: AppLocale): string {
+  const relativeLabel = getShowtimeDateLabel(dateString, locale);
+  const calendarLabel = getDateFormatters(locale).accessible.format(
     parseCalendarDate(dateString),
   );
 
@@ -109,28 +129,52 @@ function getDayAriaLabel(dateString: string): string {
     : `${relativeLabel}, ${calendarLabel}`;
 }
 
-function EdgeGhostDay({ date, index }: { date: string; index: number }) {
+function EdgeGhostDay({
+  date,
+  direction,
+  index,
+  locale,
+}: {
+  date: string;
+  direction: AppDirection;
+  index: number;
+  locale: AppLocale;
+}) {
   return (
     <div
       className={`showtime-day-button showtime-day-button--disabled showtime-day-button--edge-ghost showtime-day-button--edge-ghost-before showtime-day-button--edge-ghost-${index}`}
       style={{ "--showtime-day-ghost-index": index } as CSSProperties}
       aria-hidden="true"
+      dir={direction}
     >
       <span className="showtime-day-button-tick showtime-day-button-tick--top" />
-      <span className="showtime-day-button-eyebrow">{getDayWeekday(date)}</span>
+      <span className="showtime-day-button-eyebrow">
+        {getDayWeekday(date, locale)}
+      </span>
       <span className="showtime-day-button-number">{getDayNumber(date)}</span>
     </div>
   );
 }
 
-function TrailingPlaceholderDay({ date }: { date: string }) {
+function TrailingPlaceholderDay({
+  date,
+  direction,
+  locale,
+}: {
+  date: string;
+  direction: AppDirection;
+  locale: AppLocale;
+}) {
   return (
     <div
       className="showtime-day-button showtime-day-button--placeholder"
       aria-hidden="true"
+      dir={direction}
     >
       <span className="showtime-day-button-tick showtime-day-button-tick--top" />
-      <span className="showtime-day-button-eyebrow">{getDayWeekday(date)}</span>
+      <span className="showtime-day-button-eyebrow">
+        {getDayWeekday(date, locale)}
+      </span>
       <span className="showtime-day-button-number">{getDayNumber(date)}</span>
     </div>
   );
@@ -157,6 +201,7 @@ export function ShowtimeDayPicker({
   disabledBeforeDate = null,
   trailingPlaceholderCount = 0,
 }: ShowtimeDayPickerProps) {
+  const { direction, locale } = useI18n();
   const entries = useMemo<DayPickerEntry[]>(
     () => buildDayPickerEntries(dates, disabledBeforeDate),
     [dates, disabledBeforeDate],
@@ -853,6 +898,7 @@ export function ShowtimeDayPicker({
       <div
         ref={viewportRef}
         className="showtime-day-picker-scroll"
+        dir="ltr"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={finishPointerDrag}
@@ -909,7 +955,9 @@ export function ShowtimeDayPicker({
             <EdgeGhostDay
               key={`before-${date}`}
               date={date}
+              direction={direction}
               index={index + 1}
+              locale={locale}
             />
           ))}
           {entries.map((entry, index) => {
@@ -939,8 +987,9 @@ export function ShowtimeDayPicker({
                   .join(" ")}
                 aria-checked={isSelected}
                 aria-current={isSelected ? "date" : undefined}
-                aria-label={getDayAriaLabel(entry.date)}
+                aria-label={getDayAriaLabel(entry.date, locale)}
                 disabled={entry.isDisabled}
+                dir={direction}
                 tabIndex={isSelected ? 0 : -1}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -957,21 +1006,26 @@ export function ShowtimeDayPicker({
               >
                 <span className="showtime-day-button-tick showtime-day-button-tick--top" />
                 <span className="showtime-day-button-eyebrow">
-                  {getDayWeekday(entry.date)}
+                  {getDayWeekday(entry.date, locale)}
                 </span>
                 <span className="showtime-day-button-number">
                   {getDayNumber(entry.date)}
                 </span>
                 {isPreview && (
                   <span className="showtime-day-button-month">
-                    {getDayMonth(entry.date)}
+                    {getDayMonth(entry.date, locale)}
                   </span>
                 )}
               </button>
             );
           })}
           {trailingPlaceholderDates.map((date) => (
-            <TrailingPlaceholderDay key={`placeholder-${date}`} date={date} />
+            <TrailingPlaceholderDay
+              key={`placeholder-${date}`}
+              date={date}
+              direction={direction}
+              locale={locale}
+            />
           ))}
           <span
             className="showtime-day-picker-edge-spacer"

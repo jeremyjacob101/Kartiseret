@@ -1,5 +1,7 @@
 import { type Marker, type Offset, type PositionAnchor, LngLat, LngLatBounds, Map as MapLibreMap, Popup } from "maplibre-gl";
 import { type Theater } from "../../data/theaters";
+import type { AppLocale } from "../../i18n/locale";
+import { translateMessage } from "../../i18n/messages";
 
 export const MAP_STYLE_URL =
   "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
@@ -90,14 +92,24 @@ export const NON_ROAD_LABEL_KEYWORDS = [
   "boundary",
   "housenumber",
 ];
-export const ENGLISH_LABEL_TEXT_FIELD = [
-  "coalesce",
-  ["get", "name_en"],
-  ["get", "name:en"],
-  ["get", "name:latin"],
-  ["get", "name_int"],
-  ["get", "name"],
-] as const;
+export function getMapLabelTextField(locale: AppLocale) {
+  return locale === "he"
+    ? [
+        "coalesce",
+        ["get", "name_he"],
+        ["get", "name:he"],
+        ["get", "name"],
+        ["get", "name_en"],
+      ]
+    : [
+        "coalesce",
+        ["get", "name_en"],
+        ["get", "name:en"],
+        ["get", "name:latin"],
+        ["get", "name_int"],
+        ["get", "name"],
+      ];
+}
 export const SECONDARY_CITIES: ReadonlyArray<{
   name: string;
   center: [number, number];
@@ -302,16 +314,19 @@ export function getNearestCityLocation(
   return nearestLocation;
 }
 
-export function getGeolocationErrorMessage(error: GeolocationPositionError) {
+export function getGeolocationErrorMessage(
+  error: GeolocationPositionError,
+  locale: AppLocale,
+) {
   switch (error.code) {
     case error.PERMISSION_DENIED:
-      return "Location access was denied.";
+      return translateMessage(locale, "map.locationDenied");
     case error.POSITION_UNAVAILABLE:
-      return "Your location could not be determined.";
+      return translateMessage(locale, "map.locationUnavailable");
     case error.TIMEOUT:
-      return "Location lookup timed out.";
+      return translateMessage(locale, "map.locationTimeout");
     default:
-      return "Location lookup failed.";
+      return translateMessage(locale, "map.locationFailed");
   }
 }
 
@@ -725,7 +740,7 @@ export function chooseTheaterPopupAnchor(options: {
   return bestAnchor;
 }
 
-export function configureBaseLabels(map: MapLibreMap) {
+export function configureBaseLabels(map: MapLibreMap, locale: AppLocale) {
   const layers = map.getStyle().layers ?? [];
 
   for (const layer of layers) {
@@ -750,7 +765,11 @@ export function configureBaseLabels(map: MapLibreMap) {
       }
 
       if (map.getLayoutProperty(layer.id, "text-field") !== undefined) {
-        map.setLayoutProperty(layer.id, "text-field", ENGLISH_LABEL_TEXT_FIELD);
+        map.setLayoutProperty(
+          layer.id,
+          "text-field",
+          getMapLabelTextField(locale),
+        );
       }
     } catch {
       continue;

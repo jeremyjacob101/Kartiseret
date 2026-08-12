@@ -3,6 +3,9 @@ import { createPortal } from "react-dom";
 import { Armchair, Glasses, Languages, ListFilter, TvMinimal } from "lucide-react";
 import { type ShowtimeFilterOptions, type ShowtimeFilterSelections } from "./showtimeFilters";
 import "./ShowtimeFilterMenu.css";
+import { useI18n } from "../../i18n/I18nContext";
+import { localizeFilterOption } from "../../i18n/content";
+import type { MessageKey } from "../../i18n/messages";
 
 type FilterGroup = keyof ShowtimeFilterOptions;
 
@@ -17,11 +20,16 @@ type ShowtimeFilterMenuProps = {
 const FILTER_GROUP_COPY: Array<{
   group: FilterGroup;
   icon: typeof Armchair;
+  labelKey: MessageKey;
 }> = [
-  { group: "showType", icon: Armchair },
-  { group: "screenFormat", icon: Glasses },
-  { group: "screeningTech", icon: TvMinimal },
-  { group: "dubLanguage", icon: Languages },
+  { group: "showType", icon: Armchair, labelKey: "filters.showType" },
+  { group: "screenFormat", icon: Glasses, labelKey: "filters.screenFormat" },
+  {
+    group: "screeningTech",
+    icon: TvMinimal,
+    labelKey: "filters.screeningTech",
+  },
+  { group: "dubLanguage", icon: Languages, labelKey: "filters.dubLanguage" },
 ];
 
 export function ShowtimeFilterMenu({
@@ -31,6 +39,7 @@ export function ShowtimeFilterMenu({
   onToggleOption,
   onToggleGroup,
 }: ShowtimeFilterMenuProps) {
+  const { isRtl, locale, t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [panelStyle, setPanelStyle] = useState<{
     top: number;
@@ -59,28 +68,36 @@ export function ShowtimeFilterMenu({
       const viewportHeight = window.innerHeight;
       const panelWidth = Math.min(320, viewportWidth - 24);
       const estimatedPanelHeight =
-        panelRef.current?.getBoundingClientRect().height ?? 540;
+        panelRef.current?.getBoundingClientRect().height ??
+        Math.min(540, viewportHeight * 0.68);
       const maxTop = Math.max(8, viewportHeight - estimatedPanelHeight - 8);
       const desiredTop = triggerRect.bottom + 10;
-      const desiredLeft = triggerRect.right - panelWidth;
+      const desiredLeft = isRtl
+        ? triggerRect.left
+        : triggerRect.right - panelWidth;
 
       setPanelStyle({
         top: Math.min(maxTop, Math.max(8, desiredTop)),
-        left: Math.max(8, desiredLeft),
+        left: Math.min(
+          viewportWidth - panelWidth - 8,
+          Math.max(8, desiredLeft),
+        ),
         width: panelWidth,
       });
     };
 
     updatePanelPosition();
+    const positionFrame = window.requestAnimationFrame(updatePanelPosition);
 
     window.addEventListener("resize", updatePanelPosition);
     window.addEventListener("scroll", updatePanelPosition, true);
 
     return () => {
+      window.cancelAnimationFrame(positionFrame);
       window.removeEventListener("resize", updatePanelPosition);
       window.removeEventListener("scroll", updatePanelPosition, true);
     };
-  }, [isOpen]);
+  }, [isOpen, isRtl]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -132,7 +149,7 @@ export function ShowtimeFilterMenu({
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         aria-controls={panelId}
-        aria-label="Filter showtimes"
+        aria-label={t("filters.open")}
         onClick={() => {
           setIsOpen((open) => !open);
         }}
@@ -153,16 +170,17 @@ export function ShowtimeFilterMenu({
               id={panelId}
               className="showtime-filter-panel"
               role="dialog"
-              aria-label="Showtime filters"
+              aria-label={t("filters.title")}
               style={{
                 top: `${panelStyle.top}px`,
                 left: `${panelStyle.left}px`,
                 width: `${panelStyle.width}px`,
               }}
             >
-              {FILTER_GROUP_COPY.map(({ group, icon: GroupIcon }) => {
+              {FILTER_GROUP_COPY.map(({ group, icon: GroupIcon, labelKey }) => {
                 const groupOptions = options[group];
                 const selectedValues = selections[group];
+                const groupLabel = t(labelKey);
                 const allSelected =
                   groupOptions.length > 0 &&
                   groupOptions.every((value) => selectedValues.has(value));
@@ -175,7 +193,7 @@ export function ShowtimeFilterMenu({
                   <section
                     key={group}
                     className="showtime-filter-group"
-                    aria-label={`${group} filters`}
+                    aria-label={t("filters.group", { group: groupLabel })}
                   >
                     <div className="showtime-filter-options">
                       <button
@@ -183,8 +201,8 @@ export function ShowtimeFilterMenu({
                         className={`showtime-filter-group-icon${allSelected ? " is-selected" : ""}`}
                         aria-label={
                           allSelected
-                            ? `Unselect all ${group} filters`
-                            : `Select all ${group} filters`
+                            ? t("filters.unselectAll", { group: groupLabel })
+                            : t("filters.selectAll", { group: groupLabel })
                         }
                         aria-pressed={allSelected}
                         onClick={() => {
@@ -206,7 +224,9 @@ export function ShowtimeFilterMenu({
                               onToggleOption(group, value);
                             }}
                           >
-                            <span>{value}</span>
+                            <span dir="auto">
+                              {localizeFilterOption(value, locale)}
+                            </span>
                           </button>
                         );
                       })}

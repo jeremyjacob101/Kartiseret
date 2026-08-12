@@ -2,6 +2,7 @@ import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime as should
 import { getSupabaseBrowserClient } from "../lib/supabase.js";
 import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/definitions/locations.js";
 import { addCalendarDays, getJerusalemCinemaDate, getTargetedShowtimePrefetchRange, SHOWTIME_LINK_DATE_COUNT } from "../routing/showtimeLinkCodec.js";
+import type { AppLocale } from "../i18n/locale.js";
 
 const SUPABASE_PAGE_SIZE = 1000;
 export const APP_TIME_ZONE = SHOWTIME_TIME_ZONE;
@@ -43,6 +44,10 @@ const OPTIONAL_MOVIE_SELECT_COLUMNS = [
   "tmdbRating",
   "tmdbVotes",
 ] as const;
+const OPTIONAL_LOCALIZED_MOVIE_SELECT_COLUMNS = [
+  "hebrew_title",
+  "localized_content",
+] as const;
 const COMING_SOON_SELECT_COLUMNS = [
   "tmdb_id",
   "english_title",
@@ -56,6 +61,8 @@ const COMING_SOON_SELECT_COLUMNS = [
   "en_trailer",
 ] as const;
 const OPTIONAL_COMING_SOON_SELECT_COLUMNS = ["runtime", "popularity"] as const;
+const OPTIONAL_LOCALIZED_COMING_SOON_SELECT_COLUMNS =
+  OPTIONAL_LOCALIZED_MOVIE_SELECT_COLUMNS;
 const SHOWTIME_SELECT_COLUMNS = [
   "tmdb_id",
   "screening_city",
@@ -69,6 +76,7 @@ const OPTIONAL_SHOWTIME_SELECT_COLUMNS = [
   "screening_type",
   "dub_language",
 ] as const;
+const OPTIONAL_LOCALIZED_SHOWTIME_SELECT_COLUMNS = ["hebrew_href"] as const;
 const THEATER_SORT_ORDER = [
   "MovieLand",
   "Yes Planet",
@@ -143,6 +151,17 @@ export type Movie = {
   runtime: number;
   popularity: number;
   altOptions: MovieAltOption[];
+  localizations: Partial<Record<AppLocale, MovieLocalizedContent>> & {
+    en: MovieLocalizedContent;
+  };
+};
+
+export type MovieLocalizedContent = {
+  title?: string;
+  genres?: string[];
+  imageSrc?: string;
+  backdropSrc?: string;
+  trailerKey?: string;
 };
 
 export type MovieAltOption = {
@@ -175,6 +194,7 @@ export type ShowtimeEntry = {
   screeningTech: string;
   screeningType: string;
   dubLanguage: string | null;
+  localizedHrefs?: Partial<Record<AppLocale, string | null>>;
 };
 
 export type MovieCatalogStatusSnapshot = {
@@ -402,6 +422,84 @@ function parseGenres(value: SupabaseValue | undefined): string[] {
   return [...normalizedGenres];
 }
 
+function parseJsonObject(
+  value: SupabaseValue | undefined,
+): Record<string, unknown> | null {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  if (typeof value !== "string" || !value.trim()) {
+    return null;
+  }
+
+  try {
+    const parsedValue = JSON.parse(value) as unknown;
+
+    return parsedValue &&
+      typeof parsedValue === "object" &&
+      !Array.isArray(parsedValue)
+      ? (parsedValue as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseLocalizedMovieContent(
+  row: MovieRow,
+): Partial<Record<AppLocale, MovieLocalizedContent>> {
+  const localizedContentRoot = parseJsonObject(row.localized_content);
+  const hebrewPayload = parseJsonObject(localizedContentRoot?.he);
+  const hebrewTitle =
+    normalizeTitle(
+      getFirstNormalizedText(row, ["hebrew_title"]) ||
+        stringifySupabaseValue(hebrewPayload?.title),
+    ) || undefined;
+  const hebrewGenres = parseGenres(
+    hebrewPayload?.genres as SupabaseValue | undefined,
+  );
+  const hebrewImageSrc = getFirstNormalizedText(hebrewPayload ?? {}, [
+    "imageSrc",
+    "image_src",
+    "poster",
+    "posterUrl",
+    "poster_url",
+  ]);
+  const hebrewBackdropSrc = getFirstNormalizedText(hebrewPayload ?? {}, [
+    "backdropSrc",
+    "backdrop_src",
+    "backdrop",
+    "backdropUrl",
+    "backdrop_url",
+  ]);
+  const hebrewTrailerKey = getFirstNormalizedText(hebrewPayload ?? {}, [
+    "trailerKey",
+    "trailer_key",
+    "trailer",
+  ]);
+
+  if (
+    !hebrewTitle &&
+    hebrewGenres.length === 0 &&
+    !hebrewImageSrc &&
+    !hebrewBackdropSrc &&
+    !hebrewTrailerKey
+  ) {
+    return {};
+  }
+
+  return {
+    he: {
+      title: hebrewTitle,
+      genres: hebrewGenres.length > 0 ? hebrewGenres : undefined,
+      imageSrc: hebrewImageSrc || undefined,
+      backdropSrc: hebrewBackdropSrc || undefined,
+      trailerKey: hebrewTrailerKey || undefined,
+    },
+  };
+}
+
 function getReleaseYearFromDate(releaseDate: string | undefined): number {
   if (!releaseDate) {
     return 0;
@@ -581,16 +679,18 @@ function buildMovies(
       const parsedReleaseYear =
         Number.parseInt(stringifySupabaseValue(row.release_year), 10) || 0;
       const tmdbId = normalizeText(stringifySupabaseValue(row.tmdb_id));
+      const title = normalizeTitle(stringifySupabaseValue(row.english_title));
+      const genres = parseGenres(row.genres);
 
       return {
         tmdbId,
         movieCode: movieCodesByTmdbId.get(tmdbId),
         imdbId: getFirstNormalizedText(row, ["imdb_id"]) || undefined,
         rtId: getFirstNormalizedText(row, ["rt_id"]) || undefined,
-        title: normalizeTitle(stringifySupabaseValue(row.english_title)),
+        title,
         year: parsedReleaseYear || getReleaseYearFromDate(releaseDate),
         releaseDate,
-        genres: parseGenres(row.genres),
+        genres,
         imageSrc,
         backdropSrc,
         trailerKey: trailerKey || undefined,
@@ -607,6 +707,16 @@ function buildMovies(
         runtime: Number.parseInt(stringifySupabaseValue(row.runtime), 10) || 0,
         popularity: parseNumberValue(row.popularity),
         altOptions: parseAltOptions(row.alt_options),
+        localizations: {
+          en: {
+            title,
+            genres,
+            imageSrc,
+            backdropSrc,
+            trailerKey: trailerKey || undefined,
+          },
+          ...parseLocalizedMovieContent(row),
+        },
       };
     });
 }
@@ -650,6 +760,8 @@ function buildMovieShowtimesForCity(
     const showtime = formatShowtime(row.showtime);
     const showtimeHref =
       normalizeText(stringifySupabaseValue(row.english_href)) || null;
+    const hebrewShowtimeHref =
+      normalizeText(stringifySupabaseValue(row.hebrew_href)) || null;
     const screeningTech = normalizeText(row.screening_tech);
     const screeningType = normalizeText(row.screening_type);
     const dubLanguage = getFirstNormalizedText(row, ["dub_language"]) || null;
@@ -690,6 +802,13 @@ function buildMovieShowtimesForCity(
       screeningTech: existingEntry?.screeningTech ?? screeningTech,
       screeningType: existingEntry?.screeningType ?? screeningType,
       dubLanguage: existingEntry?.dubLanguage ?? dubLanguage,
+      localizedHrefs: {
+        en: existingEntry?.localizedHrefs?.en ?? showtimeHref,
+        he:
+          existingEntry?.localizedHrefs?.he ??
+          hebrewShowtimeHref ??
+          showtimeHref,
+      },
     });
   }
 
@@ -758,21 +877,56 @@ async function fetchAllTableRows<Row extends SupabaseRow>(
   }
 }
 
-function isMissingOptionalColumnError(
+function getMissingOptionalColumn(
   error: unknown,
   optionalColumns: readonly string[],
-): boolean {
+): string | null {
   if (!(error instanceof Error)) {
-    return false;
+    return null;
   }
 
   const message = error.message.toLowerCase();
 
-  return optionalColumns.some(
-    (column) =>
-      message.includes(column.toLowerCase()) &&
-      (message.includes("column") || message.includes("schema cache")),
+  if (!message.includes("column") && !message.includes("schema cache")) {
+    return null;
+  }
+
+  return (
+    optionalColumns.find((column) => message.includes(column.toLowerCase())) ??
+    null
   );
+}
+
+async function fetchAllTableRowsWithOptionalColumns<Row extends SupabaseRow>(
+  tableName: string,
+  requiredColumns: readonly string[],
+  optionalColumns: readonly string[],
+  orderColumns: readonly string[],
+): Promise<Row[]> {
+  let remainingOptionalColumns = [...optionalColumns];
+
+  while (true) {
+    try {
+      return await fetchAllTableRows<Row>(
+        tableName,
+        [...requiredColumns, ...remainingOptionalColumns],
+        orderColumns,
+      );
+    } catch (error) {
+      const missingColumn = getMissingOptionalColumn(
+        error,
+        remainingOptionalColumns,
+      );
+
+      if (!missingColumn) {
+        throw error;
+      }
+
+      remainingOptionalColumns = remainingOptionalColumns.filter(
+        (column) => column !== missingColumn,
+      );
+    }
+  }
 }
 
 function getShowtimeWindowEndDateString(dayCount: number): string {
@@ -850,57 +1004,32 @@ function getCachedShowtimeRowKey(row: ShowtimeRow): string {
     normalizeText(row.screening_type),
     getFirstNormalizedText(row, ["dub_language"]) || "original",
     normalizeText(stringifySupabaseValue(row.english_href)) || "none",
+    normalizeText(stringifySupabaseValue(row.hebrew_href)) || "none",
   ].join("::");
 }
 
 async function fetchMovieRows(): Promise<MovieRow[]> {
-  const selectColumns = [
-    ...MOVIE_SELECT_COLUMNS,
-    ...OPTIONAL_MOVIE_SELECT_COLUMNS,
-  ];
-
-  try {
-    return await fetchAllTableRows<MovieRow>(MOVIES_TABLE_NAME, selectColumns, [
-      "tmdb_id",
-    ]);
-  } catch (error) {
-    if (!isMissingOptionalColumnError(error, OPTIONAL_MOVIE_SELECT_COLUMNS)) {
-      throw error;
-    }
-
-    return fetchAllTableRows<MovieRow>(
-      MOVIES_TABLE_NAME,
-      MOVIE_SELECT_COLUMNS,
-      ["tmdb_id"],
-    );
-  }
+  return fetchAllTableRowsWithOptionalColumns<MovieRow>(
+    MOVIES_TABLE_NAME,
+    MOVIE_SELECT_COLUMNS,
+    [
+      ...OPTIONAL_MOVIE_SELECT_COLUMNS,
+      ...OPTIONAL_LOCALIZED_MOVIE_SELECT_COLUMNS,
+    ],
+    ["tmdb_id"],
+  );
 }
 
 async function fetchComingSoonMovieRows(): Promise<ComingSoonMovieRow[]> {
-  const selectColumns = [
-    ...COMING_SOON_SELECT_COLUMNS,
-    ...OPTIONAL_COMING_SOON_SELECT_COLUMNS,
-  ];
-
-  try {
-    return await fetchAllTableRows<ComingSoonMovieRow>(
-      COMING_SOON_TABLE_NAME,
-      selectColumns,
-      ["tmdb_id"],
-    );
-  } catch (error) {
-    if (
-      !isMissingOptionalColumnError(error, OPTIONAL_COMING_SOON_SELECT_COLUMNS)
-    ) {
-      throw error;
-    }
-
-    return fetchAllTableRows<ComingSoonMovieRow>(
-      COMING_SOON_TABLE_NAME,
-      COMING_SOON_SELECT_COLUMNS,
-      ["tmdb_id"],
-    );
-  }
+  return fetchAllTableRowsWithOptionalColumns<ComingSoonMovieRow>(
+    COMING_SOON_TABLE_NAME,
+    COMING_SOON_SELECT_COLUMNS,
+    [
+      ...OPTIONAL_COMING_SOON_SELECT_COLUMNS,
+      ...OPTIONAL_LOCALIZED_COMING_SOON_SELECT_COLUMNS,
+    ],
+    ["tmdb_id"],
+  );
 }
 
 async function fetchMovieCodesByTmdbId(
@@ -995,9 +1124,9 @@ async function fetchShowtimeRowsForDateRange(
     return [];
   }
 
-  const selectColumns = [
-    ...SHOWTIME_SELECT_COLUMNS,
+  const optionalColumns = [
     ...OPTIONAL_SHOWTIME_SELECT_COLUMNS,
+    ...OPTIONAL_LOCALIZED_SHOWTIME_SELECT_COLUMNS,
   ];
 
   const fetchRange = async (
@@ -1045,16 +1174,28 @@ async function fetchShowtimeRowsForDateRange(
     }
   };
 
-  try {
-    return await fetchRange(selectColumns);
-  } catch (error) {
-    if (
-      !isMissingOptionalColumnError(error, OPTIONAL_SHOWTIME_SELECT_COLUMNS)
-    ) {
-      throw error;
-    }
+  let remainingOptionalColumns = [...optionalColumns];
 
-    return fetchRange(SHOWTIME_SELECT_COLUMNS);
+  while (true) {
+    try {
+      return await fetchRange([
+        ...SHOWTIME_SELECT_COLUMNS,
+        ...remainingOptionalColumns,
+      ]);
+    } catch (error) {
+      const missingColumn = getMissingOptionalColumn(
+        error,
+        remainingOptionalColumns,
+      );
+
+      if (!missingColumn) {
+        throw error;
+      }
+
+      remainingOptionalColumns = remainingOptionalColumns.filter(
+        (column) => column !== missingColumn,
+      );
+    }
   }
 }
 

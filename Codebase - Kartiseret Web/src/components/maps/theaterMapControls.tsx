@@ -1,11 +1,16 @@
 import { Ban, Info, Locate, LocateFixed, MapPin, X } from "lucide-react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { type IControl } from "maplibre-gl";
+import type { AppLocale } from "../../i18n/locale";
+import { translateMessage } from "../../i18n/messages";
 
-export const LOCATION_DISABLED_MESSAGE =
-  "Location services are disabled for this site.";
-export const LOCATION_UNSUPPORTED_MESSAGE =
-  "Location services are not available in this browser.";
+export function getLocationDisabledMessage(locale: AppLocale): string {
+  return translateMessage(locale, "map.locationDisabled");
+}
+
+export function getLocationUnsupportedMessage(locale: AppLocale): string {
+  return translateMessage(locale, "map.locationUnsupported");
+}
 
 const OVERVIEW_CONTROL_ICON = renderToStaticMarkup(
   <Locate size={18} strokeWidth={2.5} />,
@@ -31,6 +36,11 @@ export class TheaterMapAttributionControl implements IControl {
   private container?: HTMLDivElement;
   private button?: HTMLButtonElement;
   private isOpen = false;
+  private readonly locale: AppLocale;
+
+  constructor(locale: AppLocale) {
+    this.locale = locale;
+  }
 
   private readonly handleDocumentMouseDown = (event: MouseEvent) => {
     if (!this.container?.contains(event.target as Node)) {
@@ -55,9 +65,10 @@ export class TheaterMapAttributionControl implements IControl {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "theater-map-attribution-button";
-    button.setAttribute("aria-label", "Map attribution");
+    const attributionLabel = translateMessage(this.locale, "map.attribution");
+    button.setAttribute("aria-label", attributionLabel);
     button.setAttribute("aria-expanded", "false");
-    button.title = "Map attribution";
+    button.title = attributionLabel;
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -142,9 +153,11 @@ export class TheaterMapAttributionControl implements IControl {
 export class TheaterMapCloseControl implements IControl {
   private container?: HTMLDivElement;
   private readonly onClose: () => void;
+  private readonly locale: AppLocale;
 
-  constructor(onClose: () => void) {
+  constructor(onClose: () => void, locale: AppLocale) {
     this.onClose = onClose;
+    this.locale = locale;
   }
 
   onAdd() {
@@ -155,8 +168,9 @@ export class TheaterMapCloseControl implements IControl {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "theater-map-close-button";
-    button.setAttribute("aria-label", "Close map");
-    button.title = "Close map";
+    const closeLabel = translateMessage(this.locale, "map.close");
+    button.setAttribute("aria-label", closeLabel);
+    button.title = closeLabel;
     button.addEventListener("click", this.onClose);
 
     const icon = document.createElement("span");
@@ -197,6 +211,7 @@ export class TheaterMapActionControl implements IControl {
     onZoomToSelectedCity: () => void;
     selectedLocationLabel: string;
     showMapPinButton: boolean;
+    locale: AppLocale;
   };
 
   constructor(options: {
@@ -207,6 +222,7 @@ export class TheaterMapActionControl implements IControl {
     onZoomToSelectedCity: () => void;
     selectedLocationLabel: string;
     showMapPinButton: boolean;
+    locale: AppLocale;
   }) {
     this.options = options;
     this.blockedLocateMessage = options.blockedLocateMessage;
@@ -342,10 +358,13 @@ export class TheaterMapActionControl implements IControl {
     }
 
     const selectedLocationLabel =
-      this.selectedLocationLabel.trim() || "selected city";
+      this.selectedLocationLabel.trim() ||
+      translateMessage(this.options.locale, "map.selectedCity");
     const label = this.isOverview
-      ? `Zoom to ${selectedLocationLabel}`
-      : "Return to full map view";
+      ? translateMessage(this.options.locale, "map.zoomToCity", {
+          city: selectedLocationLabel,
+        })
+      : translateMessage(this.options.locale, "map.returnOverview");
 
     this.viewGlyph.innerHTML = this.isOverview
       ? FOCUS_SELECTED_CITY_CONTROL_ICON
@@ -374,15 +393,16 @@ export class TheaterMapActionControl implements IControl {
     this.mapPinButton.setAttribute(
       "aria-label",
       this.isLocatePending
-        ? "Waiting for location access"
-        : "Find nearest city to my location",
+        ? translateMessage(this.options.locale, "map.waitingLocation")
+        : translateMessage(this.options.locale, "map.findNearest"),
     );
     this.mapPinButton.tabIndex = this.showMapPinButton ? 0 : -1;
     this.mapPinGlyph.innerHTML = isBlocked
       ? BLOCKED_LOCATE_ICON
       : MAP_PIN_CONTROL_ICON;
     this.mapPinTooltip.textContent =
-      this.blockedLocateMessage ?? LOCATION_DISABLED_MESSAGE;
+      this.blockedLocateMessage ??
+      getLocationDisabledMessage(this.options.locale);
     this.mapPinTooltip.classList.remove("is-visible");
     this.mapPinTooltip.setAttribute("aria-hidden", "true");
 
@@ -392,7 +412,7 @@ export class TheaterMapActionControl implements IControl {
     }
 
     this.mapPinButton.title = this.isLocatePending
-      ? "Waiting for location access..."
-      : "Find nearest city to my location";
+      ? translateMessage(this.options.locale, "map.waitingLocationEllipsis")
+      : translateMessage(this.options.locale, "map.findNearest");
   }
 }

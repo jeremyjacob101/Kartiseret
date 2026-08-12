@@ -4,6 +4,10 @@ import { Star, X } from "lucide-react";
 import { type Movie, type ShowtimeEntry, type TheaterShowtimes } from "../../data/movieCatalog";
 import { type MetricDisplay } from "./showtimeUtils";
 import "./ShowtimeShared.css";
+import { useI18n } from "../../i18n/I18nContext";
+import { getLocalizedShowtimeHref, localizeFilterOption, localizeTheaterName } from "../../i18n/content";
+import type { AppLocale } from "../../i18n/locale";
+import { translateMessage } from "../../i18n/messages";
 
 type TheaterTheme = {
   accent: string;
@@ -109,20 +113,24 @@ function getDubFlagSrc(dubLanguage: string | null | undefined): string | null {
 
 function getDubBadgeLabel(
   dubLanguage: string | null | undefined,
+  locale: AppLocale,
 ): string | null {
   const normalizedValue = dubLanguage?.trim().replace(/\s+/g, " ") ?? "";
 
-  return normalizedValue ? `${normalizedValue} Dub` : null;
+  return normalizedValue ? localizeFilterOption(normalizedValue, locale) : null;
 }
 
-function getScreeningTypeBadgeLabel(screeningType: string): string | null {
+function getScreeningTypeBadgeLabel(
+  screeningType: string,
+  locale: AppLocale,
+): string | null {
   const normalizedValue = screeningType.trim().replace(/\s+/g, " ");
 
   if (!normalizedValue || normalizedValue.toLowerCase() === "regular") {
     return null;
   }
 
-  return normalizedValue;
+  return localizeFilterOption(normalizedValue, locale);
 }
 
 function renderShowtimeCard(
@@ -130,16 +138,20 @@ function renderShowtimeCard(
   theater: string,
   showtime: ShowtimeEntry,
   colors: TheaterTheme,
+  locale: AppLocale,
 ) {
+  const localizedTheater = localizeTheaterName(theater, locale);
+  const showtimeHref = getLocalizedShowtimeHref(showtime, locale);
   const showtimeTech = getShowtimeTechLabel(showtime.screeningTech);
   const dubFlagSrc = getDubFlagSrc(showtime.dubLanguage);
-  const dubBadgeLabel = getDubBadgeLabel(showtime.dubLanguage);
+  const dubBadgeLabel = getDubBadgeLabel(showtime.dubLanguage, locale);
   const screeningTypeBadgeLabel = getScreeningTypeBadgeLabel(
     showtime.screeningType,
+    locale,
   );
   const showtimeCardClassName = [
     "details-showtime-card",
-    showtime.href ? "details-showtime-card--link" : null,
+    showtimeHref ? "details-showtime-card--link" : null,
   ]
     .filter(Boolean)
     .join(" ");
@@ -154,7 +166,11 @@ function renderShowtimeCard(
           `linear-gradient(180deg, color-mix(in srgb, ${colors.accent} 88%, white 12%), color-mix(in srgb, ${colors.accent} 72%, black 28%))`,
       };
   const showtimeLabel = [
-    `Open ${movieTitle} ${showtime.time} showtime at ${theater}`,
+    translateMessage(locale, "showtimes.openTicket", {
+      title: movieTitle,
+      time: showtime.time,
+      theater: localizedTheater,
+    }),
     showtimeTech,
     screeningTypeBadgeLabel,
     dubBadgeLabel,
@@ -164,7 +180,7 @@ function renderShowtimeCard(
   const showtimeBody = (
     <>
       {showtimeTech ? (
-        <span className="details-showtime-tech" aria-hidden="true">
+        <span className="details-showtime-tech" aria-hidden="true" dir="ltr">
           {showtimeTech}
         </span>
       ) : null}
@@ -199,15 +215,17 @@ function renderShowtimeCard(
               </span>
             </span>
           ) : null}
-          <span className="details-time-pill-label">{showtime.time}</span>
+          <span className="details-time-pill-label" dir="ltr">
+            {showtime.time}
+          </span>
         </span>
       </div>
     </>
   );
 
-  return showtime.href ? (
+  return showtimeHref ? (
     <a
-      href={showtime.href}
+      href={showtimeHref}
       target="_blank"
       rel="noreferrer"
       className={showtimeCardClassName}
@@ -237,6 +255,7 @@ export function MovieMetricsRow({
   onTrailerClick,
   className,
 }: MovieMetricsRowProps) {
+  const { t } = useI18n();
   const hasTrailerLaunch = Boolean(trailerEmbedUrl) && Boolean(onTrailerClick);
   const hasMetrics = metrics.length > 0;
 
@@ -252,7 +271,7 @@ export function MovieMetricsRow({
         <button
           type="button"
           className="details-trailer-launch details-trailer-launch--metrics"
-          aria-label={`Watch ${movie.title} trailer`}
+          aria-label={t("movie.watchTrailer", { title: movie.title })}
           onClick={onTrailerClick}
         >
           <img
@@ -303,7 +322,7 @@ export function MovieMetricsRow({
                   />
                 )}
               </div>
-              <strong>{metric.value}</strong>
+              <strong dir="ltr">{metric.value}</strong>
             </div>
           ))}
         </div>
@@ -325,6 +344,7 @@ export function MovieTrailerModal({
   isOpen,
   onClose,
 }: MovieTrailerModalProps) {
+  const { t } = useI18n();
   useEffect(() => {
     if (!isOpen || !embedUrl) {
       return;
@@ -365,12 +385,12 @@ export function MovieTrailerModal({
         className="movie-trailer-modal-dialog"
         role="dialog"
         aria-modal="true"
-        aria-label={`${movieTitle} trailer`}
+        aria-label={t("movie.trailer", { title: movieTitle })}
       >
         <button
           type="button"
           className="movie-trailer-modal-close"
-          aria-label="Close trailer"
+          aria-label={t("movie.closeTrailer")}
           onClick={onClose}
         >
           <X size={20} strokeWidth={2.6} />
@@ -378,7 +398,7 @@ export function MovieTrailerModal({
         <div className="movie-trailer-modal-frame">
           <iframe
             src={`${embedUrl}&autoplay=1`}
-            title={`${movieTitle} trailer`}
+            title={t("movie.trailer", { title: movieTitle })}
             loading="eager"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
@@ -397,6 +417,8 @@ type ShowtimeTheatersProps = {
 };
 
 export function ShowtimeTheaters({ movie, theaters }: ShowtimeTheatersProps) {
+  const { locale } = useI18n();
+
   return (
     <div className="details-theaters showtime-theaters">
       {theaters.map((theater, theaterIndex) => {
@@ -412,7 +434,9 @@ export function ShowtimeTheaters({ movie, theaters }: ShowtimeTheatersProps) {
                   boxShadow: `0 0 18px ${colors.glow}`,
                 }}
               />
-              <span>{theater.theater}</span>
+              <span dir="auto">
+                {localizeTheaterName(theater.theater, locale)}
+              </span>
             </div>
 
             <div className="details-time-grid">
@@ -443,6 +467,7 @@ export function ShowtimeTheaters({ movie, theaters }: ShowtimeTheatersProps) {
                       theater.theater,
                       showtime,
                       colors,
+                      locale,
                     )}
                   </div>
                 );

@@ -5,12 +5,14 @@ import { Map as MapLibreMap, Marker, NavigationControl, Popup } from "maplibre-g
 import "maplibre-gl/dist/maplibre-gl.css";
 import { loadTheaters, type Theater } from "../../data/theaters";
 import { type AppLocation } from "../../prefs/definitions/locations";
+import { useI18n } from "../../i18n/I18nContext";
+import { localizeCityName, localizeTheaterName } from "../../i18n/content";
 import { INITIAL_MAP_ZOOM, MAP_MAX_ZOOM, MAP_STYLE_URL, PRIMARY_CITY_COLLISION_PADDING, SECONDARY_CITIES, SELECTED_CITY_Z_INDEX, SINGLE_CITY_FOCUS_ZOOM, THEATER_DOT_COLORS, THEATER_MARKER_Z_INDEX, THEATER_POPUP_OFFSET, buildBounds, buildCityEntries, buildCityRevealConfig, chooseTheaterPopupAnchor, cityMatchesSearchQuery, configureBaseLabels, estimateCityBubbleSize, estimateSecondaryCityLabelSize, getCityLabelOpacity, getCityMarkerZIndex, getCityPriority, getFitPadding, getGeolocationErrorMessage, getInitialMapCenter, getMaxVisibleSecondaryCities, getNearestCityLocation, getSearchCityMarkerZIndex, getSecondaryCityCollisionPadding, getStartBounds, getTheaterPopupMaxWidth, isCityLabelRevealed, isMapAtStartingView, normalizeCitySearchQuery, normalizeTheaterChain, rectanglesOverlap, styleCityLabel, styleSecondaryCityLabel, styleTheaterDot, type CityMarkerState, type SecondaryCityMarkerState, type TheaterMarkerState } from "./cityLocationMapUtils";
 
 const THEATER_MARKER_ICON = renderToStaticMarkup(
   <Clapperboard size={16} strokeWidth={2.5} />,
 );
-import { LOCATION_DISABLED_MESSAGE, LOCATION_UNSUPPORTED_MESSAGE, TheaterMapActionControl, TheaterMapAttributionControl, TheaterMapCloseControl } from "./theaterMapControls";
+import { getLocationDisabledMessage, getLocationUnsupportedMessage, TheaterMapActionControl, TheaterMapAttributionControl, TheaterMapCloseControl } from "./theaterMapControls";
 import "./CityLocationPicker.layout.css";
 import "./CityLocationPicker.markers.css";
 import "./CityLocationPicker.controls.css";
@@ -29,12 +31,16 @@ export type CityLocationPickerProps = {
 export function CityLocationPicker({
   className,
   currentLocation,
+  feedbackMessage,
   mapPinAnchorRef,
   onPickLocation,
   onClose,
   showMapPinButton = true,
   syncing = false,
 }: CityLocationPickerProps) {
+  const { locale, direction, t } = useI18n();
+  const locationDisabledMessage = getLocationDisabledMessage(locale);
+  const locationUnsupportedMessage = getLocationUnsupportedMessage(locale);
   const [query, setQuery] = useState("");
   const [isCityListOpen, setIsCityListOpen] = useState(false);
   const [optimisticLocation, setOptimisticLocation] =
@@ -53,7 +59,7 @@ export function CityLocationPicker({
   const locateBlockedMessageRef = useRef<string | null>(
     typeof navigator === "undefined" ||
       typeof navigator.geolocation === "undefined"
-      ? LOCATION_UNSUPPORTED_MESSAGE
+      ? locationUnsupportedMessage
       : null,
   );
   const onCloseRef = useRef(onClose);
@@ -75,6 +81,10 @@ export function CityLocationPicker({
     [query],
   );
   const displayedCurrentLocation = optimisticLocation ?? currentLocation;
+  const localizedDisplayedCurrentLocation = localizeCityName(
+    displayedCurrentLocation,
+    locale,
+  );
 
   const clearPendingSearchZoomOut = useCallback(() => {
     if (searchZoomOutTimeoutRef.current !== null) {
@@ -104,8 +114,12 @@ export function CityLocationPicker({
     () =>
       cityEntries
         .map((entry) => entry.location)
-        .sort((left, right) => left.localeCompare(right)),
-    [cityEntries],
+        .sort((left, right) =>
+          localizeCityName(left, locale).localeCompare(
+            localizeCityName(right, locale),
+            locale,
+          )),
+    [cityEntries, locale],
   );
   const matchingSearchLocations = useMemo(
     () =>
@@ -248,7 +262,7 @@ export function CityLocationPicker({
     }
 
     if (!isTheaterMapDataReady) {
-      setMapControlMessage("Loading theater locations...");
+      setMapControlMessage(t("map.loadingTheaters"));
       return;
     }
 
@@ -256,7 +270,7 @@ export function CityLocationPicker({
       typeof navigator === "undefined" ||
       typeof navigator.geolocation === "undefined"
     ) {
-      setLocateBlockedMessage(LOCATION_UNSUPPORTED_MESSAGE);
+      setLocateBlockedMessage(locationUnsupportedMessage);
       return;
     }
 
@@ -275,9 +289,7 @@ export function CityLocationPicker({
         if (!nearestLocation) {
           geolocationRequestRef.current = false;
           mapActionControlRef.current?.setLocatePending(false);
-          setMapControlMessage(
-            "Could not match your location to a supported city.",
-          );
+          setMapControlMessage(t("map.locationNoMatch"));
           return;
         }
 
@@ -286,7 +298,7 @@ export function CityLocationPicker({
             setMapControlMessage(null);
           })
           .catch(() => {
-            setMapControlMessage("Could not update the selected city.");
+            setMapControlMessage(t("map.locationUpdateFailed"));
           })
           .finally(() => {
             geolocationRequestRef.current = false;
@@ -297,13 +309,13 @@ export function CityLocationPicker({
         geolocationRequestRef.current = false;
         mapActionControlRef.current?.setLocatePending(false);
         if (error.code === error.PERMISSION_DENIED) {
-          setLocateBlockedMessage(LOCATION_DISABLED_MESSAGE);
+          setLocateBlockedMessage(locationDisabledMessage);
           setMapControlMessage(null);
           return;
         }
 
         setLocateBlockedMessage(null);
-        setMapControlMessage(getGeolocationErrorMessage(error));
+        setMapControlMessage(getGeolocationErrorMessage(error, locale));
       },
       {
         enableHighAccuracy: true,
@@ -315,7 +327,11 @@ export function CityLocationPicker({
     cityEntries,
     handleLocationSelect,
     isTheaterMapDataReady,
+    locale,
+    locationDisabledMessage,
+    locationUnsupportedMessage,
     setLocateBlockedMessage,
+    t,
   ]);
 
   useEffect(() => {
@@ -350,19 +366,20 @@ export function CityLocationPicker({
         }
 
         console.error("Could not load theaters from Supabase.", loadError);
+        setMapControlMessage(t("map.theatersLoadFailed"));
       });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     searchInputRef.current?.setAttribute(
       "aria-label",
-      "Search any city in your theater list",
+      t("map.searchPlaceholder"),
     );
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     const focusFrame = window.requestAnimationFrame(() => {
@@ -415,8 +432,10 @@ export function CityLocationPicker({
   }, [showMapPinButton]);
 
   useEffect(() => {
-    mapActionControlRef.current?.setSelectedLocation(displayedCurrentLocation);
-  }, [displayedCurrentLocation]);
+    mapActionControlRef.current?.setSelectedLocation(
+      localizedDisplayedCurrentLocation,
+    );
+  }, [localizedDisplayedCurrentLocation]);
 
   useEffect(() => {
     if (!isCityListOpen) {
@@ -449,7 +468,7 @@ export function CityLocationPicker({
       typeof navigator === "undefined" ||
       typeof navigator.geolocation === "undefined"
     ) {
-      setLocateBlockedMessage(LOCATION_UNSUPPORTED_MESSAGE);
+      setLocateBlockedMessage(locationUnsupportedMessage);
       return;
     }
 
@@ -466,7 +485,7 @@ export function CityLocationPicker({
       }
 
       setLocateBlockedMessage(
-        permissionStatus.state === "denied" ? LOCATION_DISABLED_MESSAGE : null,
+        permissionStatus.state === "denied" ? locationDisabledMessage : null,
       );
     };
 
@@ -489,7 +508,11 @@ export function CityLocationPicker({
       isCancelled = true;
       permissionStatus?.removeEventListener("change", syncPermissionState);
     };
-  }, [setLocateBlockedMessage]);
+  }, [
+    locationDisabledMessage,
+    locationUnsupportedMessage,
+    setLocateBlockedMessage,
+  ]);
 
   useEffect(() => {
     if (!mapControlMessage) {
@@ -519,9 +542,15 @@ export function CityLocationPicker({
       maxZoom: MAP_MAX_ZOOM,
       renderWorldCopies: false,
       attributionControl: false,
+      locale: {
+        "Map.Title": t("map.canvas"),
+        "NavigationControl.ZoomIn": t("map.zoomIn"),
+        "NavigationControl.ZoomOut": t("map.zoomOut"),
+      },
     });
     const mapActionControl = new TheaterMapActionControl({
       blockedLocateMessage: locateBlockedMessageRef.current,
+      locale,
       onLocate: () => {
         handleLocateNearestCityRef.current?.();
       },
@@ -535,13 +564,18 @@ export function CityLocationPicker({
       onZoomToSelectedCity: () => {
         focusSelectedLocationRef.current?.();
       },
-      selectedLocationLabel: currentLocationRef.current,
+      selectedLocationLabel: localizeCityName(
+        currentLocationRef.current,
+        locale,
+      ),
       showMapPinButton: showMapPinButtonRef.current,
     });
 
     mapRef.current = map;
     mapActionControlRef.current = mapActionControl;
-    mapActionControl.setSelectedLocation(currentLocationRef.current);
+    mapActionControl.setSelectedLocation(
+      localizeCityName(currentLocationRef.current, locale),
+    );
     mapActionControl.setMapPinVisible(showMapPinButtonRef.current);
     map.dragRotate.disable();
     map.touchZoomRotate.disableRotation();
@@ -549,13 +583,13 @@ export function CityLocationPicker({
       map.addControl(
         new TheaterMapCloseControl(() => {
           onCloseRef.current?.();
-        }),
+        }, locale),
         "top-right",
       );
     }
     map.addControl(new NavigationControl({ showCompass: false }), "top-right");
     map.addControl(mapActionControl, "top-right");
-    map.addControl(new TheaterMapAttributionControl(), "top-left");
+    map.addControl(new TheaterMapAttributionControl(locale), "top-left");
     let fitFrame = 0;
 
     function syncOverviewState() {
@@ -567,7 +601,7 @@ export function CityLocationPicker({
     }
 
     function handleLoad() {
-      configureBaseLabels(map);
+      configureBaseLabels(map, locale);
       // `idle` waits for every CARTO tile, so it can keep the map in a loading
       // state for seconds on a slow connection. The loaded style is enough to
       // render and place our controls while tiles continue streaming in.
@@ -596,7 +630,7 @@ export function CityLocationPicker({
       map.remove();
       mapRef.current = null;
     };
-  }, [fitStartingView]);
+  }, [fitStartingView, locale, t]);
 
   useEffect(() => {
     const currentMap = mapRef.current;
@@ -680,7 +714,10 @@ export function CityLocationPicker({
         });
 
         const point = map.project(state.center);
-        const size = estimateCityBubbleSize(location, active);
+        const size = estimateCityBubbleSize(
+          localizeCityName(location, locale),
+          active,
+        );
         const collisionRect = {
           left: point.x - size.width / 2 - PRIMARY_CITY_COLLISION_PADDING.x,
           right: point.x + size.width / 2 + PRIMARY_CITY_COLLISION_PADDING.x,
@@ -774,12 +811,19 @@ export function CityLocationPicker({
         const revealZoom = entry.zoomLayer;
         const active = entry.location === currentLocationRef.current;
         const element = document.createElement("button");
+        const localizedEntryLocation = localizeCityName(entry.location, locale);
         element.type = "button";
         element.className = "theater-map-city-label";
-        element.setAttribute("aria-label", `Select ${entry.location}`);
+        element.setAttribute(
+          "aria-label",
+          t("map.selectNamedCity", { city: localizedEntryLocation }),
+        );
         const surface = document.createElement("span");
         surface.className = "theater-map-city-label-surface";
-        surface.textContent = entry.location.toUpperCase();
+        surface.textContent =
+          locale === "en"
+            ? localizedEntryLocation.toUpperCase()
+            : localizedEntryLocation;
         element.append(surface);
         styleCityLabel(element, surface, {
           active,
@@ -823,7 +867,7 @@ export function CityLocationPicker({
         const element = document.createElement("span");
         element.className = "theater-map-secondary-city-label";
         element.style.zIndex = "20";
-        element.textContent = city.name;
+        element.textContent = localizeCityName(city.name, locale);
         element.dataset.minZoom = String(city.minZoom);
         styleSecondaryCityLabel(element, false);
         secondaryLabelElements.push({
@@ -844,6 +888,10 @@ export function CityLocationPicker({
       }
 
       for (const theater of theaters) {
+        const localizedTheaterName = localizeTheaterName(
+          theater.theaterName,
+          locale,
+        );
         const element = document.createElement("button");
         element.type = "button";
         element.className = "theater-map-theater-dot";
@@ -854,8 +902,9 @@ export function CityLocationPicker({
         );
         element.setAttribute(
           "aria-label",
-          `${theater.theaterName}, ${theater.address}`,
+          `${localizedTheaterName}, ${theater.address}`,
         );
+        element.dir = "auto";
         element.dataset.lng = String(theater.lng);
         element.dataset.lat = String(theater.lat);
         const surface = document.createElement("span");
@@ -867,15 +916,17 @@ export function CityLocationPicker({
 
         const popupContent = document.createElement("div");
         popupContent.className = "theater-map-theater-popup";
+        popupContent.dir = direction;
 
         const title = document.createElement("strong");
         title.className = "theater-map-theater-popup-title";
-        title.textContent = theater.theaterName;
+        title.textContent = localizedTheaterName;
         popupContent.appendChild(title);
 
         const address = document.createElement("span");
         address.className = "theater-map-theater-popup-link";
         address.textContent = theater.address;
+        address.dir = "auto";
         popupContent.appendChild(address);
 
         const popup = new Popup({
@@ -902,7 +953,7 @@ export function CityLocationPicker({
             map,
             secondaryLabelElements,
             theaterMarkers,
-            title: theater.theaterName,
+            title: localizedTheaterName,
           });
           popup.setLngLat([theater.lng, theater.lat]).addTo(map);
         });
@@ -924,7 +975,7 @@ export function CityLocationPicker({
             map,
             secondaryLabelElements,
             theaterMarkers,
-            title: theater.theaterName,
+            title: localizedTheaterName,
           });
           popup.setLngLat([theater.lng, theater.lat]).addTo(map);
         });
@@ -996,9 +1047,12 @@ export function CityLocationPicker({
     cityEntryMap,
     cityEntries,
     cityRevealConfig,
+    direction,
     handleLocationSelect,
     isBaseMapReady,
+    locale,
     theaters,
+    t,
   ]);
 
   return (
@@ -1010,18 +1064,19 @@ export function CityLocationPicker({
       ]
         .filter(Boolean)
         .join(" ")}
+      dir={direction}
     >
       <div className="theater-map-panel-bar" />
 
       <div className="theater-map-canvas-shell">
         <div className="theater-map-canvas" ref={mapContainerRef} />
-        {mapControlMessage ? (
+        {(mapControlMessage ?? feedbackMessage) ? (
           <div className="theater-map-control-message" aria-live="polite">
-            {mapControlMessage}
+            {mapControlMessage ?? feedbackMessage}
           </div>
         ) : isBaseMapReady && !isTheaterMapDataReady ? (
           <div className="theater-map-control-message" aria-live="polite">
-            Loading theater locations...
+            {t("map.loadingTheaters")}
           </div>
         ) : null}
 
@@ -1032,7 +1087,7 @@ export function CityLocationPicker({
               className="theater-map-search-action-button theater-map-city-list-button"
               aria-expanded={isCityListOpen}
               aria-haspopup="listbox"
-              aria-label="Open city list"
+              aria-label={t("map.openCityList")}
               disabled={!isTheaterMapDataReady}
               onClick={() => {
                 setIsCityListOpen((current) => !current);
@@ -1045,7 +1100,7 @@ export function CityLocationPicker({
               <div
                 className="theater-map-city-list-panel"
                 role="listbox"
-                aria-label="Select a city"
+                aria-label={t("map.selectCity")}
               >
                 {availableCityLocations.map((location) => {
                   const isSelected =
@@ -1075,7 +1130,9 @@ export function CityLocationPicker({
                         });
                       }}
                     >
-                      {location}
+                      <span dir="auto">
+                        {localizeCityName(location, locale)}
+                      </span>
                     </button>
                   );
                 })}
@@ -1084,7 +1141,7 @@ export function CityLocationPicker({
           </div>
 
           <div className="theater-map-current-chip theater-map-current-chip--search">
-            {displayedCurrentLocation}
+            <span dir="auto">{localizedDisplayedCurrentLocation}</span>
           </div>
 
           <label className="theater-map-search-field">
@@ -1131,13 +1188,13 @@ export function CityLocationPicker({
                     searchZoomOutTimeoutRef.current = null;
                   }, 120);
                 }}
-                placeholder="Search"
+                placeholder={t("map.search")}
               />
               {query ? (
                 <button
                   type="button"
                   className="theater-map-search-clear"
-                  aria-label="Clear city search"
+                  aria-label={t("map.clearSearch")}
                   onClick={() => {
                     clearSearchQuery();
                   }}

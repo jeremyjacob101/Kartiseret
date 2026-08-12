@@ -173,6 +173,11 @@
   padding: 12px 13px;
 }
 
+html[dir="rtl"] .theater-map-theater-popup {
+  direction: rtl;
+  text-align: start;
+}
+
 .theater-map-theater-popup-title {
   color: #f5f0ff;
   font-size: 0.92rem;

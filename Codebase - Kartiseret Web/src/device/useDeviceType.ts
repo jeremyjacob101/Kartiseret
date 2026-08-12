@@ -16,6 +16,7 @@ type NavigatorWithUserAgentData = Navigator & {
 
 const MOBILE_USER_AGENT_PATTERN =
   /Android|webOS|iPhone|iPod|iPad|BlackBerry|IEMobile|Opera Mini/i;
+export const MOBILE_VIEWPORT_MEDIA_QUERY = "(max-width: 699px)";
 
 function buildDeviceInfo(deviceType: DeviceType): DeviceInfo {
   return {
@@ -32,6 +33,10 @@ function detectDeviceType(): DeviceType {
 
   const { userAgent = "", platform = "", maxTouchPoints = 0 } = navigator;
   const userAgentData = (navigator as NavigatorWithUserAgentData).userAgentData;
+  const isNarrowViewport =
+    typeof window.matchMedia === "function"
+      ? window.matchMedia(MOBILE_VIEWPORT_MEDIA_QUERY).matches
+      : window.innerWidth <= 699;
 
   if (userAgentData?.mobile === true) {
     return "mobile";
@@ -49,10 +54,10 @@ function detectDeviceType(): DeviceType {
     return "mobile";
   }
 
-  return "desktop";
+  return isNarrowViewport ? "mobile" : "desktop";
 }
 
-function applyDeviceTypeToDocument(deviceType: DeviceType): void {
+export function applyDeviceTypeToDocument(deviceType: DeviceType): void {
   if (typeof document === "undefined") {
     return;
   }
@@ -67,7 +72,7 @@ applyDeviceTypeToDocument(bootstrappedDeviceInfo.deviceType);
 export const DeviceTypeContext = createContext<DeviceInfo | null>(null);
 
 export function applyBootstrappedDeviceTypeToDocument(): void {
-  applyDeviceTypeToDocument(bootstrappedDeviceInfo.deviceType);
+  applyDeviceTypeToDocument(getDeviceInfo().deviceType);
 }
 
 export function getDeviceType(): DeviceType {
@@ -75,7 +80,7 @@ export function getDeviceType(): DeviceType {
 }
 
 export function getDeviceInfo(): DeviceInfo {
-  return bootstrappedDeviceInfo;
+  return buildDeviceInfo(detectDeviceType());
 }
 
 export function useDeviceInfo(): DeviceInfo {

@@ -329,7 +329,7 @@ span.topnav-icon {
 .movie-search-panel {
   position: absolute;
   top: calc(100% + 10px);
-  right: 0;
+  inset-inline-end: 0;
   z-index: 180;
   width: min(400px, calc(100vw - 24px));
   padding: 14px;
@@ -344,7 +344,7 @@ span.topnav-icon {
 
 .movie-search--panel-up .movie-search-panel {
   top: auto;
-  right: auto;
+  inset-inline-end: auto;
   bottom: calc(100% + 10px);
   left: 50%;
   transform: translateX(-50%);
@@ -354,7 +354,7 @@ span.topnav-icon {
 .location-menu-panel {
   position: absolute;
   top: calc(100% + 10px);
-  right: 0;
+  inset-inline-end: 0;
   z-index: 180;
   width: min(88vw, 240px);
   padding: 14px;
@@ -422,7 +422,7 @@ span.topnav-icon {
   background: #fbf8ff;
   color: inherit;
   padding: 8px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
   transition:
     transform 140ms ease,
@@ -503,7 +503,7 @@ span.topnav-icon {
   padding: 9px 10px;
   font-size: 0.88rem;
   font-weight: 700;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -605,7 +605,7 @@ html[data-device-type="mobile"] .topnav-link {
   justify-content: flex-start;
   gap: 8px;
   font-size: 0.92rem;
-  text-align: left;
+  text-align: start;
 }
 
 html[data-device-type="mobile"] .topnav-icon {
@@ -615,7 +615,7 @@ html[data-device-type="mobile"] .topnav-icon {
 html[data-device-type="mobile"] .topnav-label {
   margin-bottom: 0;
   line-height: 1.18;
-  text-align: left;
+  text-align: start;
   overflow-wrap: anywhere;
 }
 
@@ -658,7 +658,7 @@ html[data-device-type="mobile"] .movie-search-results {
     justify-content: space-between;
     justify-items: stretch;
     gap: 12px 24px;
-    text-align: left;
+    text-align: start;
   }
 
   html[data-device-type="mobile"] .navbar-content > .brand,
@@ -733,7 +733,7 @@ html[data-device-type="mobile"] .movie-search-results {
   }
 
   html[data-device-type="mobile"] .navbar-actions .movie-search-panel {
-    right: auto;
+    inset-inline-end: auto;
     left: 50%;
     transform: translateX(-50%);
   }

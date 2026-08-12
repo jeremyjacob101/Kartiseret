@@ -110,7 +110,7 @@
   background: transparent;
   color: #f3ebff;
   padding: 12px 14px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -204,6 +204,26 @@
   align-items: center;
   justify-content: space-between;
   gap: 18px;
+}
+
+.prefs-language-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.prefs-language-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+@media (max-width: 520px) {
+  .prefs-language-setting {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 .prefs-color-copy {

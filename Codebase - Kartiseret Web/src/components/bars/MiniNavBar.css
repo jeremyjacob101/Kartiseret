@@ -65,6 +65,11 @@
   --floating-navbar-leave-delay: 180ms;
 }
 
+.floating-navbar-item--language {
+  --floating-navbar-enter-delay: 300ms;
+  --floating-navbar-leave-delay: 0ms;
+}
+
 .floating-navbar-item--home {
   --floating-navbar-enter-delay: 0ms;
   --floating-navbar-leave-delay: 240ms;
@@ -73,6 +78,7 @@
 .floating-navbar-stack .movie-search-trigger,
 .floating-navbar-stack .location-menu-trigger,
 .floating-navbar-stack .settings-button,
+.floating-navbar-stack .language-toggle,
 .floating-home-button {
   width: var(--floating-navbar-size);
   height: var(--floating-navbar-size);
@@ -86,6 +92,7 @@
 .floating-navbar-stack.is-over-bottom-bar .movie-search-trigger,
 .floating-navbar-stack.is-over-bottom-bar .location-menu-trigger,
 .floating-navbar-stack.is-over-bottom-bar .settings-button,
+.floating-navbar-stack.is-over-bottom-bar .language-toggle,
 .floating-navbar-stack.is-over-bottom-bar .floating-home-button {
   background: var(--surface);
   border-color: var(--surface-strong);

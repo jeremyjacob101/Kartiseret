@@ -1,5 +1,6 @@
 import { type CSSProperties, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
+import { useI18n } from "../../i18n/I18nContext";
 import "./MiniNavBar.css";
 
 type MiniNavBarProps = {
@@ -21,6 +22,7 @@ export function MiniNavBar({
   portalTarget,
   stackRef,
 }: MiniNavBarProps) {
+  const { t } = useI18n();
   const stackStyle =
     bottomOffset === null
       ? undefined
@@ -34,7 +36,7 @@ export function MiniNavBar({
       className={`floating-navbar-stack${isVisible ? " is-visible" : ""}${
         isOverBottomBar ? " is-over-bottom-bar" : ""
       }`}
-      aria-label="Quick actions"
+      aria-label={t("nav.quickActions")}
       aria-hidden={!isVisible}
       style={stackStyle}
     >
@@ -43,7 +45,7 @@ export function MiniNavBar({
           type="button"
           className="floating-home-button"
           tabIndex={isVisible ? 0 : -1}
-          aria-label="Go to homepage"
+          aria-label={t("nav.home")}
           onClick={onHomeClick}
         >
           <span

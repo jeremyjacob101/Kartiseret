@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
 import { findMovieByCode, isMovieShowtimeDateLoaded, isValidMovieCode, loadMovieShowtimesForDate, prefetchMovieShowtimesAfterDate } from "../data/movieCatalog";
@@ -8,6 +8,8 @@ import { shareLink } from "../routing/shareLink";
 import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, getJerusalemCinemaDate, isDateInShowtimeLinkWindow, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "../routing/showtimeLinkCodec";
 import { getShowtimeFiltersSnapshot, saveShowtimeFilters, type ShowtimeFilterState } from "./showtimes/showtimeFilters";
 import { MovieDetailsContent } from "./scroller/MovieDetailsContent";
+import { useI18n } from "../i18n/I18nContext";
+import { localizeMovie } from "../i18n/content";
 import "./scroller/MovieScroller.css";
 import "./MoviePage.css";
 
@@ -47,14 +49,16 @@ const IDLE_SHOWTIME_REQUEST: ShowtimeRequestState = {
 };
 
 function MoviePageState({ message, title }: MoviePageStateProps) {
+  const { t } = useI18n();
+
   return (
     <section className="movie-page movie-page--state">
       <div className="movie-page-state" role="status">
         <h1>{title}</h1>
         <p>{message}</p>
         <div className="movie-page-state-actions">
-          <Link to="/movies">Now playing</Link>
-          <Link to="/soons">Coming soon</Link>
+          <Link to="/movies">{t("nav.nowPlaying")}</Link>
+          <Link to="/soons">{t("nav.comingSoon")}</Link>
         </div>
       </div>
     </section>
@@ -137,6 +141,7 @@ function useJerusalemToday(): string {
 }
 
 export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
+  const { locale, direction, t } = useI18n();
   const { movieCode: routeCode = "" } = useParams();
   const navigate = useNavigate();
   const {
@@ -152,7 +157,10 @@ export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
     catalogReady && hasValidMovieCode
       ? findMovieByCode(candidateMovieCode)
       : null;
-  const routeMovie = routeMatch?.movie ?? null;
+  const routeMovie = useMemo(
+    () => (routeMatch ? localizeMovie(routeMatch.movie, locale) : null),
+    [locale, routeMatch],
+  );
   const routeCatalogMode = routeMatch?.mode ?? null;
   const movieTitle = routeMovie?.title;
   const [queryState, setQueryState] = useState<MoviePageQueryState | null>(
@@ -311,17 +319,39 @@ export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
 
   useEffect(() => {
     const previousTitle = document.title;
+    const openGraphTitle = document.querySelector<HTMLMetaElement>(
+      'meta[property="og:title"]',
+    );
+    const twitterTitle = document.querySelector<HTMLMetaElement>(
+      'meta[name="twitter:title"]',
+    );
+    const previousOpenGraphTitle =
+      openGraphTitle?.getAttribute("content") ?? null;
+    const previousTwitterTitle = twitterTitle?.getAttribute("content") ?? null;
 
-    document.title = movieTitle
-      ? `${movieTitle} | Kartiseret`
+    const title = movieTitle
+      ? `${movieTitle} | ${t("brand.name")}`
       : catalogReady
-        ? "Movie not found | Kartiseret"
-        : "Loading movie | Kartiseret";
+        ? t("catalog.error.notFoundTitle")
+        : t("catalog.loadingTitle");
+    document.title = title;
+    openGraphTitle?.setAttribute("content", title);
+    twitterTitle?.setAttribute("content", title);
 
     return () => {
       document.title = previousTitle;
+      if (previousOpenGraphTitle === null) {
+        openGraphTitle?.removeAttribute("content");
+      } else {
+        openGraphTitle?.setAttribute("content", previousOpenGraphTitle);
+      }
+      if (previousTwitterTitle === null) {
+        twitterTitle?.removeAttribute("content");
+      } else {
+        twitterTitle?.setAttribute("content", previousTwitterTitle);
+      }
     };
-  }, [catalogReady, movieTitle]);
+  }, [catalogReady, movieTitle, t]);
 
   useEffect(() => {
     const nowPlayingTmdbId =
@@ -367,23 +397,18 @@ export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
           return;
         }
 
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Could not load showtimes for this date.";
-
         console.error("Failed to load movie-page showtimes.", error);
         setShowtimeRequest({
           key: requestKey,
           loading: false,
-          error: message,
+          error: t("showtimes.loadDateFailed"),
         });
       });
 
     return () => {
       isActive = false;
     };
-  }, [activeQueryState, routeCatalogMode, routeMovie?.tmdbId, today]);
+  }, [activeQueryState, routeCatalogMode, routeMovie?.tmdbId, t, today]);
 
   useEffect(
     () => () => {
@@ -513,34 +538,39 @@ export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
     });
 
     if (!url) {
-      showShareFeedback("Unable to share this selection");
+      showShareFeedback(t("showtimes.shareUnavailable"));
       return;
     }
 
     const result = await shareLink({
-      title: `${routeMovie.title} showtimes`,
-      text: `${routeMovie.title} showtimes on Kartiseret`,
+      title: `${routeMovie.title} · ${t("showtimes.title")}`,
+      text: `${routeMovie.title} · ${t("showtimes.title")} · ${t("brand.name")}`,
       url,
     });
 
     if (result === "shared") {
-      showShareFeedback("Shared");
+      showShareFeedback(t("showtimes.shared"));
     } else if (result === "copied") {
-      showShareFeedback("Link copied");
+      showShareFeedback(t("showtimes.linkCopied"));
     } else if (result === "failed") {
-      showShareFeedback("Could not copy link");
+      showShareFeedback(t("showtimes.copyFailed"));
     }
   };
 
   if (catalogError) {
-    return <MoviePageState title="Movie unavailable" message={catalogError} />;
+    return (
+      <MoviePageState
+        title={t("catalog.movieUnavailable")}
+        message={catalogError}
+      />
+    );
   }
 
   if (!catalogReady || preferencesLoading) {
     return (
       <MoviePageState
-        title="Loading movie"
-        message="Getting the latest movie details…"
+        title={t("catalog.loadingMovie")}
+        message={t("catalog.loadingLatest")}
       />
     );
   }
@@ -548,13 +578,14 @@ export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
   if (!routeMatch) {
     return (
       <MoviePageState
-        title="Loading movie"
-        message="Opening the requested movie…"
+        title={t("catalog.loadingMovie")}
+        message={t("catalog.openingMovie")}
       />
     );
   }
 
-  const { movie, mode } = routeMatch;
+  const { mode } = routeMatch;
+  const movie = localizeMovie(routeMatch.movie, locale);
   const titleId = `movie-page-title-${movie.movieCode ?? movie.tmdbId}`;
   const requestKey = activeQueryState
     ? [activeQueryState.location, movie.tmdbId, activeQueryState.date].join(":")
@@ -579,7 +610,7 @@ export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
         };
 
   return (
-    <section className="movie-page" aria-labelledby={titleId}>
+    <section className="movie-page" aria-labelledby={titleId} dir={direction}>
       <article className="movie-page-card movie-scroller-detail-card">
         {movie.backdropSrc ? (
           <div
@@ -603,7 +634,11 @@ export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
             movie={movie}
             titleId={titleId}
             titleAs="h1"
-            eyebrow={mode === "nowPlaying" ? "Now playing" : "Coming soon"}
+            eyebrow={t(
+              mode === "nowPlaying"
+                ? "catalog.nowPlaying"
+                : "catalog.comingSoon",
+            )}
             variant={mode}
             preferredShowtimeDate={activeQueryState?.date ?? null}
             onPreferredShowtimeDateChange={

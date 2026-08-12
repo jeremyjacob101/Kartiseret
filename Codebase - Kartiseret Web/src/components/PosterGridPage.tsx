@@ -3,6 +3,8 @@ import { Pencil } from "lucide-react";
 
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { type Movie } from "../data/movieCatalog";
+import { useI18n } from "../i18n/I18nContext";
+import { getEnglishMovieTitle } from "../i18n/content";
 
 const POSTER_GRID_MIN_COLUMN_WIDTH_FALLBACK = 150;
 
@@ -71,6 +73,7 @@ export function PosterGridPage({
   onAdminSaveEdit,
   onRefreshRequested,
 }: PosterGridPageProps) {
+  const { t } = useI18n();
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [columnCount, setColumnCount] = useState(1);
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
@@ -137,9 +140,11 @@ export function PosterGridPage({
     return [
       {
         tmdbId: editingMovie.tmdbId,
-        title: editingMovie.title,
+        title: getEnglishMovieTitle(editingMovie),
         year: editingMovie.year || null,
-        posterUrl: resolveOptionPosterSrc(editingMovie.imageSrc || null),
+        posterUrl: resolveOptionPosterSrc(
+          editingMovie.localizations.en.imageSrc ?? editingMovie.imageSrc,
+        ),
       },
       ...editingMovie.altOptions.map((option) => ({
         ...option,
@@ -156,7 +161,7 @@ export function PosterGridPage({
             key={movie.tmdbId}
             type="button"
             className="poster-grid-page-tile"
-            aria-label={`Open ${movie.title} in scroller view`}
+            aria-label={t("catalog.openInScroller", { title: movie.title })}
             title={movie.title}
             style={
               {
@@ -171,7 +176,7 @@ export function PosterGridPage({
               <button
                 type="button"
                 className="poster-grid-edit-trigger"
-                aria-label={`Edit mapping for ${movie.title}`}
+                aria-label={t("admin.editMapping", { title: movie.title })}
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -211,13 +216,15 @@ export function PosterGridPage({
             className="poster-grid-edit-modal"
             role="dialog"
             aria-modal="true"
-            aria-label={`Edit ${editingMovie.title}`}
+            aria-label={t("admin.editMovie", { title: editingMovie.title })}
             onClick={(event) => {
               event.stopPropagation();
             }}
           >
-            <h2 className="poster-grid-edit-heading">Admin Edit</h2>
-            <p className="poster-grid-edit-subtitle">{editingMovie.title}</p>
+            <h2 className="poster-grid-edit-heading">{t("admin.edit")}</h2>
+            <p className="poster-grid-edit-subtitle" dir="auto">
+              {editingMovie.title}
+            </p>
             <div className="poster-grid-edit-options" role="radiogroup">
               {editOptions.map((option) => (
                 <label
@@ -245,7 +252,7 @@ export function PosterGridPage({
                     loading="lazy"
                     decoding="async"
                   />
-                  <span className="poster-grid-edit-option-caption">
+                  <span className="poster-grid-edit-option-caption" dir="auto">
                     {option.title}
                     {option.year ? ` (${option.year})` : ""}
                   </span>
@@ -253,7 +260,7 @@ export function PosterGridPage({
               ))}
             </div>
             <label className="poster-grid-manual-label">
-              Manual TMDB ID
+              {t("admin.manualTmdb")}
               <input
                 type="text"
                 inputMode="numeric"
@@ -264,7 +271,8 @@ export function PosterGridPage({
                   setManualTmdbId(event.target.value.replace(/[^\d]/g, ""));
                   setSelectedTmdbId("");
                 }}
-                placeholder="e.g. 693134"
+                placeholder={t("admin.manualTmdbPlaceholder")}
+                dir="ltr"
               />
             </label>
             {error ? <p className="poster-grid-edit-error">{error}</p> : null}
@@ -285,17 +293,17 @@ export function PosterGridPage({
                       await onRefreshRequested();
                       setEditingMovie(null);
                     } catch (refreshError) {
-                      setError(
-                        refreshError instanceof Error
-                          ? refreshError.message
-                          : "Refresh failed.",
+                      console.error(
+                        "Could not refresh movie data.",
+                        refreshError,
                       );
+                      setError(t("admin.refreshFailed"));
                     } finally {
                       setIsRefreshing(false);
                     }
                   }}
                 >
-                  {isRefreshing ? "Refreshing..." : "Refresh data"}
+                  {isRefreshing ? t("admin.refreshing") : t("admin.refresh")}
                 </button>
                 <button
                   type="button"
@@ -304,7 +312,7 @@ export function PosterGridPage({
                     setEditingMovie(null);
                   }}
                 >
-                  Close
+                  {t("admin.close")}
                 </button>
               </div>
             ) : (
@@ -332,7 +340,7 @@ export function PosterGridPage({
                       : selectedTmdbId;
 
                     if (!activeTmdbId) {
-                      setError("Choose an option or enter a TMDB ID.");
+                      setError(t("admin.chooseOption"));
                       return;
                     }
 
@@ -340,7 +348,7 @@ export function PosterGridPage({
                       normalizedManualValue.length > 0 &&
                       !hasValidManualValue
                     ) {
-                      setError("Manual TMDB ID must be a positive integer.");
+                      setError(t("admin.invalidTmdb"));
                       return;
                     }
 
@@ -362,17 +370,17 @@ export function PosterGridPage({
                       });
                       setSaveComplete(true);
                     } catch (saveError) {
-                      setError(
-                        saveError instanceof Error
-                          ? saveError.message
-                          : "Failed to update movie.",
+                      console.error(
+                        "Could not update movie mapping.",
+                        saveError,
                       );
+                      setError(t("admin.updateFailed"));
                     } finally {
                       setIsSaving(false);
                     }
                   }}
                 >
-                  {isSaving ? "Saving..." : "Save"}
+                  {isSaving ? t("admin.saving") : t("admin.save")}
                 </button>
                 <button
                   type="button"
@@ -382,7 +390,7 @@ export function PosterGridPage({
                     setEditingMovie(null);
                   }}
                 >
-                  Cancel
+                  {t("admin.cancel")}
                 </button>
               </div>
             )}

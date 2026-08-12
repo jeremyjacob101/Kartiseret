@@ -7,6 +7,8 @@ import { DEFAULT_LOCATION, loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY } fro
 import { DEFAULT_RATING_SOURCES } from "../prefs/definitions/ratingSources";
 import { DEFAULT_SITE_COLOR } from "../prefs/definitions/siteColor";
 import { useUserPreferencesContext } from "../prefs/useUserPreferences";
+import { useI18n } from "../i18n/I18nContext";
+import { LOCALE_SIGNUP_METADATA_KEY } from "../i18n/locale";
 
 type AuthMode = "login" | "signup";
 type UserMenuProps = {
@@ -40,6 +42,7 @@ export function UserMenu({
 }: UserMenuProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { locale, t } = useI18n();
   const { user } = useUserPreferencesContext();
   const [isOpen, setIsOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
@@ -91,7 +94,7 @@ export function UserMenu({
     const trimmedEmail = email.trim().toLowerCase();
 
     if (!trimmedEmail || !password) {
-      setAuthError("Enter both email and password.");
+      setAuthError(t("account.error.required"));
       return;
     }
 
@@ -105,13 +108,15 @@ export function UserMenu({
         options: {
           data: {
             [LOCATION_SIGNUP_METADATA_KEY]: signupLocation,
+            [LOCALE_SIGNUP_METADATA_KEY]: locale,
           },
         },
       });
 
       if (error) {
+        console.error("Could not create account.", error);
         setAuthPending(false);
-        setAuthError(error.message);
+        setAuthError(t("account.error.signup"));
         return;
       }
 
@@ -129,15 +134,19 @@ export function UserMenu({
       setPassword("");
 
       if (preferenceInitializationError) {
-        setAuthError(preferenceInitializationError);
+        console.error(
+          "Could not save signup preference defaults.",
+          preferenceInitializationError,
+        );
+        setAuthError(t("account.error.preferenceDefaults"));
       }
 
       setAuthMessage(
         data.session
           ? preferenceInitializationError
-            ? "Account created. You are signed in, but default preferences could not be finalized."
-            : "Account created. You are signed in."
-          : "Account created. Set Confirm Email OFF for instant sign-in.",
+            ? t("account.createdPartial")
+            : t("account.created")
+          : t("account.createdConfirm"),
       );
       return;
     }
@@ -150,12 +159,13 @@ export function UserMenu({
     setAuthPending(false);
 
     if (error) {
-      setAuthError(error.message);
+      console.error("Could not sign in.", error);
+      setAuthError(t("account.error.login"));
       return;
     }
 
     setPassword("");
-    setAuthMessage("Signed in.");
+    setAuthMessage(t("account.signedIn"));
   }
 
   async function handleSignOut() {
@@ -166,11 +176,12 @@ export function UserMenu({
     setLogoutPending(false);
 
     if (error) {
-      setAuthError(error.message);
+      console.error("Could not sign out.", error);
+      setAuthError(t("account.error.signout"));
       return;
     }
 
-    setAuthMessage("Signed out.");
+    setAuthMessage(t("account.signedOut"));
     setIsOpen(false);
   }
 
@@ -185,7 +196,11 @@ export function UserMenu({
         tabIndex={triggerTabIndex}
         aria-haspopup="menu"
         aria-expanded={isOpen}
-        aria-label={user ? `Signed in as ${user.email}` : "Sign up or log in"}
+        aria-label={
+          user
+            ? t("account.signedInAs", { email: user.email ?? "" })
+            : t("account.open")
+        }
         onClick={() => {
           setIsOpen((open) => !open);
         }}
@@ -197,14 +212,14 @@ export function UserMenu({
         <div
           className="user-menu-panel"
           role="menu"
-          aria-label="User account menu"
+          aria-label={t("account.menu")}
         >
           <div className="user-menu-header">
             <p className="user-menu-title">
-              {user ? "Account" : "Auth testing"}
+              {user ? t("account.title") : t("account.authTesting")}
             </p>
-            <p className="user-menu-subtitle">
-              {user ? user.email : "Create an account or log in"}
+            <p className="user-menu-subtitle" dir={user ? "ltr" : "auto"}>
+              {user ? user.email : t("account.createOrLogin")}
             </p>
           </div>
 
@@ -213,7 +228,7 @@ export function UserMenu({
               <div
                 className="user-menu-auth-toggle"
                 role="tablist"
-                aria-label="Auth mode"
+                aria-label={t("account.authMode")}
               >
                 <button
                   type="button"
@@ -226,7 +241,7 @@ export function UserMenu({
                     setAuthError(null);
                   }}
                 >
-                  Log in
+                  {t("account.login")}
                 </button>
                 <button
                   type="button"
@@ -239,12 +254,12 @@ export function UserMenu({
                     setAuthError(null);
                   }}
                 >
-                  Sign up
+                  {t("account.signup")}
                 </button>
               </div>
 
               <label className="user-menu-field">
-                <span>Email</span>
+                <span>{t("account.email")}</span>
                 <input
                   type="email"
                   autoComplete="email"
@@ -253,12 +268,13 @@ export function UserMenu({
                     setEmail(event.target.value);
                   }}
                   placeholder="you@example.com"
+                  dir="ltr"
                   required
                 />
               </label>
 
               <label className="user-menu-field">
-                <span>Password</span>
+                <span>{t("account.password")}</span>
                 <input
                   type="password"
                   autoComplete={
@@ -269,6 +285,7 @@ export function UserMenu({
                     setPassword(event.target.value);
                   }}
                   placeholder="••••••••"
+                  dir="ltr"
                   minLength={6}
                   required
                 />
@@ -281,11 +298,11 @@ export function UserMenu({
               >
                 {authPending
                   ? authMode === "signup"
-                    ? "Creating..."
-                    : "Signing in..."
+                    ? t("account.creating")
+                    : t("account.signingIn")
                   : authMode === "signup"
-                    ? "Create account"
-                    : "Log in"}
+                    ? t("account.create")
+                    : t("account.login")}
               </button>
             </form>
           ) : (
@@ -299,8 +316,8 @@ export function UserMenu({
                 }}
               >
                 {location.pathname === "/user"
-                  ? "Back to Home"
-                  : "Open User Preferences"}
+                  ? t("account.backHome")
+                  : t("account.openPreferences")}
               </button>
 
               <button
@@ -316,7 +333,7 @@ export function UserMenu({
                   strokeWidth={2.75}
                   className="user-menu-signout-icon"
                 />
-                {logoutPending ? "Signing out..." : "Sign out"}
+                {logoutPending ? t("account.signingOut") : t("account.signOut")}
               </button>
             </div>
           )}

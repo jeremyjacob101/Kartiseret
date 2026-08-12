@@ -21,6 +21,35 @@
   --border: var(--main-app-color);
   --text-main: #212121;
   --text-muted: #5d5469;
+  --app-direction: ltr;
+}
+
+html[dir="rtl"] {
+  font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+}
+
+html[dir="rtl"] .section-kicker,
+html[dir="rtl"] .movie-poster-fallback-title,
+html[dir="rtl"] .details-eyebrow,
+html[dir="rtl"] .details-day-jump-button,
+html[dir="rtl"] .details-day-kicker,
+html[dir="rtl"] .details-day-title,
+html[dir="rtl"] .attribution-disclaimer-kicker,
+html[dir="rtl"] .attribution-card-kicker,
+html[dir="rtl"] .movie-search-title,
+html[dir="rtl"] .location-menu-title,
+html[dir="rtl"] .user-menu-title,
+html[dir="rtl"] .user-menu-field span,
+html[dir="rtl"] .user-menu-section-title,
+html[dir="rtl"] .prefs-setting-label,
+html[dir="rtl"] .showtime-day-button-eyebrow,
+html[dir="rtl"] .theater-map-current-chip,
+html[dir="rtl"] .theater-map-search-label,
+html[dir="rtl"] .theater-map-dialog-kicker,
+html[dir="rtl"] .theater-map-popup-kicker,
+html[dir="rtl"] .theater-map-city-label {
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 html {
@@ -141,8 +170,7 @@ button {
 }
 
 html[data-device-type="mobile"] .app-shell {
-  padding-left: 10px;
-  padding-right: 10px;
+  padding-inline: 10px;
   padding-bottom: 10px;
 }
 
@@ -207,8 +235,7 @@ html[data-device-type="mobile"] .app-shell {
 
 .poster-grid-page-heading {
   width: 100%;
-  margin-left: 0;
-  margin-right: 0;
+  margin-inline: 0;
 }
 
 .poster-grid-page-grid {
@@ -259,7 +286,7 @@ html[data-device-type="mobile"] .app-shell {
 .poster-grid-edit-trigger {
   position: absolute;
   top: 8px;
-  right: 8px;
+  inset-inline-end: 8px;
   z-index: 2;
   width: 28px;
   height: 28px;
@@ -416,8 +443,7 @@ html[data-device-type="mobile"] .app-shell {
 
 .showtimes-placeholder-heading {
   width: 100%;
-  margin-left: 0;
-  margin-right: 0;
+  margin-inline: 0;
 }
 
 .showtimes-placeholder-note {

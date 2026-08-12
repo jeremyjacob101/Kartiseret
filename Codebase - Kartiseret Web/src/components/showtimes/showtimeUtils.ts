@@ -1,18 +1,7 @@
 import { APP_TIME_ZONE, fixedAppDateString, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
-
-const showtimeDateFormatter = new Intl.DateTimeFormat(undefined, {
-  timeZone: APP_TIME_ZONE,
-  weekday: "long",
-  month: "long",
-  day: "numeric",
-});
-
-const releaseDateFormatter = new Intl.DateTimeFormat(undefined, {
-  month: "long",
-  day: "numeric",
-  year: "numeric",
-});
+import type { AppLocale } from "../../i18n/locale";
+import { translateMessage } from "../../i18n/messages";
 
 const RT_CRITIC_FRESH_MIN_SCORE = 60;
 const RT_CRITIC_CERTIFIED_FRESH_MIN_SCORE = 75;
@@ -133,6 +122,7 @@ function formatTmdbRating(value: number | null | undefined): string {
 function getCriticBadge(
   score: number | null,
   votes: number | null,
+  locale: AppLocale,
 ): { src: string; description: string } | null {
   if (!hasRating(score)) {
     return null;
@@ -144,24 +134,25 @@ function getCriticBadge(
   ) {
     return {
       src: "/logos/rtCriticHot.svg",
-      description: "Certified Fresh",
+      description: translateMessage(locale, "rating.certifiedFresh"),
     };
   }
 
   return score >= RT_CRITIC_FRESH_MIN_SCORE
     ? {
         src: "/logos/rtCriticGood.svg",
-        description: "Fresh",
+        description: translateMessage(locale, "rating.fresh"),
       }
     : {
         src: "/logos/rtCriticBad.svg",
-        description: "Rotten",
+        description: translateMessage(locale, "rating.rotten"),
       };
 }
 
 function getAudienceBadge(
   score: number | null,
   votes: number | null,
+  locale: AppLocale,
 ): { src: string; description: string } | null {
   if (!hasRating(score)) {
     return null;
@@ -173,18 +164,18 @@ function getAudienceBadge(
   ) {
     return {
       src: "/logos/rtAudienceHot.svg",
-      description: "Verified Hot",
+      description: translateMessage(locale, "rating.verifiedHot"),
     };
   }
 
   return score >= RT_AUDIENCE_POSITIVE_MIN_SCORE
     ? {
         src: "/logos/rtAudienceGood.svg",
-        description: "Full Popcorn Bucket",
+        description: translateMessage(locale, "rating.fullPopcorn"),
       }
     : {
         src: "/logos/rtAudienceBad.svg",
-        description: "Spilled Popcorn Bucket",
+        description: translateMessage(locale, "rating.spilledPopcorn"),
       };
 }
 
@@ -193,6 +184,7 @@ function getMetricDisplay(
   source: RatingSource,
   criticBadge: { src: string; description: string } | null,
   audienceBadge: { src: string; description: string } | null,
+  locale: AppLocale,
 ): MetricDisplay {
   switch (source) {
     case "imdbRating":
@@ -200,11 +192,16 @@ function getMetricDisplay(
         key: "imdbRating",
         value: formatDecimalRating(movie.imdbRating),
         ariaLabel: hasRating(movie.imdbRating)
-          ? `IMDb rating ${movie.imdbRating.toFixed(1)}`
-          : "IMDb rating unavailable",
+          ? translateMessage(locale, "rating.imdb", {
+              value: movie.imdbRating.toFixed(1),
+            })
+          : translateMessage(locale, "rating.imdbUnavailable"),
         logoSrc: "/logos/imdb.svg",
         href: getImdbUrl(movie) ?? undefined,
-        linkAriaLabel: `Open ${movie.title} on IMDb`,
+        linkAriaLabel: translateMessage(locale, "movie.openOn", {
+          title: movie.title,
+          service: "IMDb",
+        }),
         logoClassName: "details-metric-logo details-metric-logo--imdb",
       };
     case "rtAudienceRating": {
@@ -220,11 +217,16 @@ function getMetricDisplay(
         key: "rtAudienceRating",
         value: formatPercent(movie.rtAudienceRating),
         ariaLabel: audienceBadge
-          ? `Rotten Tomatoes audience score ${formatPercent(movie.rtAudienceRating)}, ${audienceBadge.description}`
-          : "Rotten Tomatoes audience score unavailable",
+          ? `${translateMessage(locale, "rating.rtAudience", {
+              value: formatPercent(movie.rtAudienceRating),
+            })}, ${audienceBadge.description}`
+          : translateMessage(locale, "rating.rtAudienceUnavailable"),
         logoSrc,
         href: getRottenTomatoesUrl(movie) ?? undefined,
-        linkAriaLabel: `Open ${movie.title} on Rotten Tomatoes`,
+        linkAriaLabel: translateMessage(locale, "movie.openOn", {
+          title: movie.title,
+          service: "Rotten Tomatoes",
+        }),
         logoClassName,
       };
     }
@@ -241,11 +243,16 @@ function getMetricDisplay(
         key: "rtCriticRating",
         value: formatPercent(movie.rtCriticRating),
         ariaLabel: criticBadge
-          ? `Rotten Tomatoes critic score ${formatPercent(movie.rtCriticRating)}, ${criticBadge.description}`
-          : "Rotten Tomatoes critic score unavailable",
+          ? `${translateMessage(locale, "rating.rtCritic", {
+              value: formatPercent(movie.rtCriticRating),
+            })}, ${criticBadge.description}`
+          : translateMessage(locale, "rating.rtCriticUnavailable"),
         logoSrc,
         href: getRottenTomatoesUrl(movie) ?? undefined,
-        linkAriaLabel: `Open ${movie.title} on Rotten Tomatoes`,
+        linkAriaLabel: translateMessage(locale, "movie.openOn", {
+          title: movie.title,
+          service: "Rotten Tomatoes",
+        }),
         logoClassName,
       };
     }
@@ -254,11 +261,16 @@ function getMetricDisplay(
         key: "lbRating",
         value: formatDecimalRating(movie.lbRating),
         ariaLabel: hasRating(movie.lbRating)
-          ? `Letterboxd rating ${movie.lbRating.toFixed(1)}`
-          : "Letterboxd rating unavailable",
+          ? translateMessage(locale, "rating.letterboxd", {
+              value: movie.lbRating.toFixed(1),
+            })
+          : translateMessage(locale, "rating.letterboxdUnavailable"),
         logoSrc: "/logos/letterboxd.svg",
         href: getLetterboxdUrl(movie) ?? undefined,
-        linkAriaLabel: `Open ${movie.title} on Letterboxd`,
+        linkAriaLabel: translateMessage(locale, "movie.openOn", {
+          title: movie.title,
+          service: "Letterboxd",
+        }),
         logoClassName: "details-metric-logo details-metric-logo--letterboxd",
       };
     case "tmdbRating":
@@ -266,11 +278,16 @@ function getMetricDisplay(
         key: "tmdbRating",
         value: formatTmdbRating(movie.tmdbRating),
         ariaLabel: hasRating(movie.tmdbRating)
-          ? `TMDB rating ${formatTmdbRating(movie.tmdbRating)}`
-          : "TMDB rating unavailable",
+          ? translateMessage(locale, "rating.tmdb", {
+              value: formatTmdbRating(movie.tmdbRating),
+            })
+          : translateMessage(locale, "rating.tmdbUnavailable"),
         logoSrc: "/logos/tmdb.svg",
         href: getTmdbUrl(movie),
-        linkAriaLabel: `Open ${movie.title} on TMDB`,
+        linkAriaLabel: translateMessage(locale, "movie.openOn", {
+          title: movie.title,
+          service: "TMDB",
+        }),
         logoClassName: "details-metric-logo details-metric-logo--tmdb",
       };
     default: {
@@ -280,18 +297,21 @@ function getMetricDisplay(
   }
 }
 
-export function formatRuntime(runtime: number): string {
+export function formatRuntime(runtime: number, locale: AppLocale): string {
   const hours = Math.floor(runtime / 60);
   const minutes = runtime % 60;
 
   if (hours === 0) {
-    return `${minutes}m`;
+    return translateMessage(locale, "movie.runtimeMinutes", { minutes });
   }
 
-  return `${hours}h ${minutes}m`;
+  return translateMessage(locale, "movie.runtimeHoursMinutes", {
+    hours,
+    minutes,
+  });
 }
 
-export function getMovieInfoParts(movie: Movie): string[] {
+export function getMovieInfoParts(movie: Movie, locale: AppLocale): string[] {
   const parts: string[] = [];
 
   if (movie.year > 0) {
@@ -299,13 +319,16 @@ export function getMovieInfoParts(movie: Movie): string[] {
   }
 
   if (movie.runtime > 0) {
-    parts.push(formatRuntime(movie.runtime));
+    parts.push(formatRuntime(movie.runtime, locale));
   }
 
   return parts;
 }
 
-export function getShowtimeDateLabel(dateString: string): string {
+export function getShowtimeDateLabel(
+  dateString: string,
+  locale: AppLocale,
+): string {
   const showDate = parseShowtimeDate(dateString);
   const today = parseShowtimeDate(fixedAppDateString);
   const dayOffset = Math.round(
@@ -313,22 +336,34 @@ export function getShowtimeDateLabel(dateString: string): string {
   );
 
   if (dayOffset === 0) {
-    return "Today";
+    return translateMessage(locale, "showtimes.today");
   }
 
   if (dayOffset === 1) {
-    return "Tomorrow";
+    return translateMessage(locale, "showtimes.tomorrow");
   }
 
-  return showtimeDateFormatter.format(showDate);
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: APP_TIME_ZONE,
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).format(showDate);
 }
 
-export function formatReleaseDate(dateString: string): string {
+export function formatReleaseDate(
+  dateString: string,
+  locale: AppLocale,
+): string {
   const releaseDate = parseLocalDate(dateString);
 
   return Number.isNaN(releaseDate.getTime())
     ? dateString
-    : releaseDateFormatter.format(releaseDate);
+    : new Intl.DateTimeFormat(locale, {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      }).format(releaseDate);
 }
 
 export function extractYouTubeVideoKey(
@@ -366,15 +401,21 @@ export function getTrailerEmbedUrl(
 export function getMetricDisplays(
   movie: Movie,
   selectedSources: readonly RatingSource[],
+  locale: AppLocale,
 ): MetricDisplay[] {
-  const criticBadge = getCriticBadge(movie.rtCriticRating, movie.rtCriticVotes);
+  const criticBadge = getCriticBadge(
+    movie.rtCriticRating,
+    movie.rtCriticVotes,
+    locale,
+  );
   const audienceBadge = getAudienceBadge(
     movie.rtAudienceRating,
     movie.rtAudienceVotes,
+    locale,
   );
 
   return selectedSources.map((source) =>
-    getMetricDisplay(movie, source, criticBadge, audienceBadge));
+    getMetricDisplay(movie, source, criticBadge, audienceBadge, locale));
 }
 
 export function getShowtimeTargetDate(
@@ -464,6 +505,7 @@ export function cloneShowtimeDays(
       showtimes: theater.showtimes.map((showtime) => ({
         time: showtime.time,
         href: showtime.href,
+        localizedHrefs: showtime.localizedHrefs,
         screeningTech: showtime.screeningTech,
         screeningType: showtime.screeningType,
         dubLanguage: showtime.dubLanguage,

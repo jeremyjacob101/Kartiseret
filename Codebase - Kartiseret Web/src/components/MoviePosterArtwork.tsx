@@ -48,6 +48,7 @@ function PosterFallback({
         className={["movie-poster-fallback-title", fallbackTitleClassName]
           .filter(Boolean)
           .join(" ")}
+        dir="auto"
       >
         {title}
       </span>

@@ -1,4 +1,4 @@
-import { Suspense, StrictMode, lazy, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, StrictMode, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { User } from "@supabase/supabase-js";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { createRoot } from "react-dom/client";
@@ -13,6 +13,8 @@ import { DeviceTypeProvider } from "./device/deviceType";
 import { useDeviceInfo } from "./device/useDeviceType";
 import { UserPreferencesProvider } from "./prefs/UserPreferencesContext";
 import { useUserPreferencesContext } from "./prefs/useUserPreferences";
+import { I18nProvider, useI18n } from "./i18n/I18nContext";
+import { localizeMovies } from "./i18n/content";
 import "./index.css";
 
 const SCROLLER_CARD_WIDTH = 220;
@@ -103,9 +105,11 @@ type HomeRouteProps = {
   catalogError: string | null;
   cardHeight: number;
   cardWidth: number;
+  comingSoonMovies: readonly Movie[];
   comingSoonReady: boolean;
   gap: number;
   nowPlayingReady: boolean;
+  nowPlayingMovies: readonly Movie[];
   scrollerSlotMinHeight: number;
 };
 
@@ -136,7 +140,9 @@ function CatalogRoute({
   onRefreshRequested,
   scrollerSlotMinHeight,
 }: CatalogRouteProps) {
-  const routeLabel = jumpMode === "nowPlaying" ? "Now Playing" : "Coming Soon";
+  const { t } = useI18n();
+  const routeLabel =
+    jumpMode === "nowPlaying" ? t("nav.nowPlaying") : t("nav.comingSoon");
 
   return view === "grid" ? (
     <Suspense fallback={null}>
@@ -185,17 +191,21 @@ function HomeRoute({
   catalogError,
   cardHeight,
   cardWidth,
+  comingSoonMovies,
   comingSoonReady,
   gap,
   nowPlayingReady,
+  nowPlayingMovies,
   scrollerSlotMinHeight,
 }: HomeRouteProps) {
+  const { t } = useI18n();
+
   return (
-    <section className="scroller-panel" aria-label="Now Playing">
+    <section className="scroller-panel" aria-label={t("nav.nowPlaying")}>
       <CatalogErrorNote message={catalogError} />
       <div className="section-heading">
-        <p className="section-kicker">Movies</p>
-        <h1 className="section-title">Now Playing</h1>
+        <p className="section-kicker">{t("home.movies")}</p>
+        <h1 className="section-title">{t("nav.nowPlaying")}</h1>
       </div>
       <div
         className="scroller-slot"
@@ -204,6 +214,7 @@ function HomeRoute({
         {nowPlayingReady ? (
           <MovieScroller
             mode="nowPlaying"
+            movieItems={nowPlayingMovies}
             cardWidth={cardWidth}
             cardHeight={cardHeight}
             gap={gap}
@@ -212,8 +223,8 @@ function HomeRoute({
         ) : null}
       </div>
       <div className="section-heading">
-        <p className="section-kicker">To Be Released</p>
-        <h1 className="section-title">Coming Soon</h1>
+        <p className="section-kicker">{t("home.toBeReleased")}</p>
+        <h1 className="section-title">{t("nav.comingSoon")}</h1>
       </div>
       <div
         className="scroller-slot"
@@ -222,6 +233,7 @@ function HomeRoute({
         {comingSoonReady ? (
           <MovieScroller
             mode="comingSoon"
+            movieItems={comingSoonMovies}
             cardWidth={cardWidth}
             cardHeight={cardHeight}
             gap={gap}
@@ -270,6 +282,7 @@ export function App() {
   const routeLocation = useLocation();
   const navigate = useNavigate();
   const { isMobile } = useDeviceInfo();
+  const { locale, t } = useI18n();
   const {
     user,
     loading,
@@ -284,6 +297,16 @@ export function App() {
   const comingSoonReady = catalogStatus.comingSoonReady;
   const showtimesReady = catalogStatus.showtimesReady;
   const catalogReady = catalogStatus.catalogReady;
+  const localizedNowPlayingMovies = useMemo(() => {
+    // Catalog arrays are module snapshots; readiness changes when they are
+    // replaced after a load or admin refresh.
+    void nowPlayingReady;
+    return localizeMovies(allNowPlayingMovies, locale);
+  }, [locale, nowPlayingReady]);
+  const localizedComingSoonMovies = useMemo(() => {
+    void comingSoonReady;
+    return localizeMovies(allComingSoonMovies, locale);
+  }, [comingSoonReady, locale]);
   const pathname = routeLocation.pathname;
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogMovieJumpRequest, setCatalogMovieJumpRequest] =
@@ -303,6 +326,21 @@ export function App() {
   const scrollerSlotMinHeight = isMobile
     ? MOBILE_SCROLLER_SLOT_MIN_HEIGHT
     : SCROLLER_SLOT_MIN_HEIGHT;
+
+  useEffect(() => {
+    if (isPotentialStandaloneMoviePath(pathname)) {
+      return;
+    }
+
+    const title = t("meta.title");
+    document.title = title;
+    document
+      .querySelector<HTMLMetaElement>('meta[property="og:title"]')
+      ?.setAttribute("content", title);
+    document
+      .querySelector<HTMLMetaElement>('meta[name="twitter:title"]')
+      ?.setAttribute("content", title);
+  }, [pathname, t]);
 
   useEffect(() => {
     if (
@@ -388,19 +426,14 @@ export function App() {
           return;
         }
 
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Failed to load movie data from Supabase.";
-
-        console.error("Failed to load movie catalog from Supabase.", error);
-        setCatalogError(message);
+        console.error(t("catalog.error.loadCatalog"), error);
+        setCatalogError(t("catalog.error.loadData"));
       });
 
     return () => {
       isActive = false;
     };
-  }, [pathname, selectedCity, showtimesReady]);
+  }, [pathname, selectedCity, showtimesReady, t]);
 
   useEffect(() => {
     if (
@@ -512,15 +545,10 @@ export function App() {
         setCatalogError(null);
       })
       .catch((error: unknown) => {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Failed to load movie data from Supabase.";
-
-        console.error("Failed to load movie catalog from Supabase.", error);
-        setCatalogError(message);
+        console.error(t("catalog.error.loadCatalog"), error);
+        setCatalogError(t("catalog.error.loadData"));
       });
-  }, []);
+  }, [t]);
 
   const handleAdminSaveEdit = useCallback(async (payload: {
     mode: MovieSearchMode;
@@ -646,13 +674,13 @@ export function App() {
   const searchCollections = [
     {
       mode: "nowPlaying" as const,
-      label: "Now Playing",
-      movies: catalogReady ? allNowPlayingMovies : [],
+      label: t("nav.nowPlaying"),
+      movies: catalogReady ? localizedNowPlayingMovies : [],
     },
     {
       mode: "comingSoon" as const,
-      label: "Coming Soon",
-      movies: catalogReady ? allComingSoonMovies : [],
+      label: t("nav.comingSoon"),
+      movies: catalogReady ? localizedComingSoonMovies : [],
     },
   ];
 
@@ -688,9 +716,11 @@ export function App() {
                 catalogError={catalogError}
                 cardHeight={scrollerCardHeight}
                 cardWidth={scrollerCardWidth}
+                comingSoonMovies={localizedComingSoonMovies}
                 comingSoonReady={comingSoonReady}
                 gap={scrollerGap}
                 nowPlayingReady={nowPlayingReady}
+                nowPlayingMovies={localizedNowPlayingMovies}
                 scrollerSlotMinHeight={scrollerSlotMinHeight}
               />
             }
@@ -707,7 +737,7 @@ export function App() {
                     cardWidth={scrollerCardWidth}
                     gap={scrollerGap}
                     jumpMode="nowPlaying"
-                    movies={allNowPlayingMovies}
+                    movies={localizedNowPlayingMovies}
                     onExitDetail={() => {
                       resetCatalogPage("nowPlaying");
                     }}
@@ -745,7 +775,7 @@ export function App() {
                     cardWidth={scrollerCardWidth}
                     gap={scrollerGap}
                     jumpMode="comingSoon"
-                    movies={allComingSoonMovies}
+                    movies={localizedComingSoonMovies}
                     onExitDetail={() => {
                       resetCatalogPage("comingSoon");
                     }}
@@ -796,9 +826,11 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
       <DeviceTypeProvider>
-        <UserPreferencesProvider>
-          <App />
-        </UserPreferencesProvider>
+        <I18nProvider>
+          <UserPreferencesProvider>
+            <App />
+          </UserPreferencesProvider>
+        </I18nProvider>
       </DeviceTypeProvider>
     </BrowserRouter>
   </StrictMode>,

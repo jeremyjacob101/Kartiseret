@@ -1,4 +1,6 @@
 import "./AttributionPage.css";
+import { useI18n } from "../i18n/I18nContext";
+import { localizeTheaterName } from "../i18n/content";
 
 const theaterChainSources = [
   {
@@ -121,28 +123,28 @@ const mapDataSources = [
 ] as const;
 
 export function AttributionPage() {
+  const { locale, t } = useI18n();
+
   return (
-    <section className="attribution-page" aria-label="Attribution">
+    <section className="attribution-page" aria-label={t("attribution.title")}>
       <div className="attribution-page-header">
         <div className="attribution-page-heading">
-          <p className="section-kicker">Credits</p>
-          <h1 className="section-title">Attribution</h1>
-          <p className="attribution-page-intro">
-            Kartiseret uses third-party movie, map, and showtime data. This page
-            credits those sources and links back to the official providers.
-          </p>
+          <p className="section-kicker">{t("attribution.kicker")}</p>
+          <h1 className="section-title">{t("attribution.title")}</h1>
+          <p className="attribution-page-intro">{t("attribution.intro")}</p>
         </div>
       </div>
 
       <div className="attribution-page-sections">
         <section className="attribution-card attribution-card--sources">
           <div className="attribution-card-copy">
-            <p className="attribution-card-kicker">Movie data</p>
-            <h2 className="attribution-card-title">TMDb</h2>
-            <p className="attribution-card-text">
-              This product uses the TMDB API, which has been made available to
-              this site through granted access to its publicly available data.
+            <p className="attribution-card-kicker">
+              {t("attribution.movieData")}
             </p>
+            <h2 className="attribution-card-title">
+              {t("attribution.tmdbTitle")}
+            </h2>
+            <p className="attribution-card-text">{t("attribution.tmdbCopy")}</p>
 
             <ul className="attribution-source-list attribution-source-list--plain">
               {movieDataSources.map((source) => (
@@ -173,13 +175,13 @@ export function AttributionPage() {
 
         <section className="attribution-card attribution-card--sources">
           <div className="attribution-card-copy">
-            <p className="attribution-card-kicker">Map data</p>
-            <h2 className="attribution-card-title">CARTO and OpenStreetMap</h2>
-            <p className="attribution-card-text">
-              The theater map uses CARTO basemaps and OpenStreetMap contributor
-              data. The map itself also keeps a compact attribution control
-              visible in the theater picker.
+            <p className="attribution-card-kicker">
+              {t("attribution.mapData")}
             </p>
+            <h2 className="attribution-card-title">
+              {t("attribution.mapTitle")}
+            </h2>
+            <p className="attribution-card-text">{t("attribution.mapCopy")}</p>
 
             <ul className="attribution-source-list attribution-source-list--plain">
               {mapDataSources.map((source) => (
@@ -211,16 +213,13 @@ export function AttributionPage() {
         <section className="attribution-card attribution-card--sources">
           <div className="attribution-card-copy">
             <p className="attribution-card-kicker">
-              Showtimes and theater sources
+              {t("attribution.showtimeData")}
             </p>
             <h2 className="attribution-card-title">
-              Official Israeli theater websites
+              {t("attribution.showtimeTitle")}
             </h2>
             <p className="attribution-card-text">
-              Showtime and venue information is compiled from publicly available
-              information on official theater and venue websites. The source
-              groups currently reflected in the app include the theater chains
-              below:
+              {t("attribution.showtimeCopy")}
             </p>
 
             <ul className="attribution-source-list">
@@ -242,15 +241,16 @@ export function AttributionPage() {
                         alt=""
                       />
                     </span>
-                    {source.name}
+                    <span dir="auto">
+                      {localizeTheaterName(source.name, locale)}
+                    </span>
                   </a>
                 </li>
               ))}
             </ul>
 
             <p className="attribution-card-text attribution-card-text--compact">
-              Additional listings are compiled from publicly available
-              information on official cinematheque and cinema websites:
+              {t("attribution.additional")}
             </p>
 
             <ul className="attribution-source-list attribution-source-list--plain">
@@ -272,7 +272,9 @@ export function AttributionPage() {
                         alt=""
                       />
                     </span>
-                    {source.name}
+                    <span dir="auto">
+                      {localizeTheaterName(source.name, locale)}
+                    </span>
                   </a>
                 </li>
               ))}
@@ -282,14 +284,14 @@ export function AttributionPage() {
 
         <section className="attribution-card attribution-card--sources">
           <div className="attribution-card-copy">
-            <p className="attribution-card-kicker">Rating sources</p>
+            <p className="attribution-card-kicker">
+              {t("attribution.ratings")}
+            </p>
             <h2 className="attribution-card-title">
-              Official rating and review websites
+              {t("attribution.ratingsTitle")}
             </h2>
             <p className="attribution-card-text">
-              Rating information is compiled from publicly available information
-              on official rating and review websites. The source groups
-              currently reflected in the app include:
+              {t("attribution.ratingsCopy")}
             </p>
 
             <ul className="attribution-source-list">
@@ -320,11 +322,15 @@ export function AttributionPage() {
         </section>
       </div>
 
-      <section className="attribution-disclaimer" aria-label="Disclaimer">
-        <p className="attribution-disclaimer-kicker">Disclaimer</p>
+      <section
+        className="attribution-disclaimer"
+        aria-label={t("attribution.disclaimer")}
+      >
+        <p className="attribution-disclaimer-kicker">
+          {t("attribution.disclaimer")}
+        </p>
         <p className="attribution-disclaimer-text">
-          Information shown throughout the app may be incomplete, outdated, or
-          incorrect, and can change without notice.
+          {t("attribution.disclaimerCopy")}
         </p>
       </section>
     </section>

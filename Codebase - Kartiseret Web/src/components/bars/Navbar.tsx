@@ -7,6 +7,8 @@ import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } f
 import { TheaterMapDialog } from "../maps/TheaterMapDialog";
 import { UserMenu } from "../UserMenu";
 import { useDeviceInfo } from "../../device/useDeviceType";
+import { LanguageToggle } from "../LanguageToggle";
+import { useI18n } from "../../i18n/I18nContext";
 
 const NAVBAR_INTRO_DURATION_MS = 760;
 const MINI_NAVBAR_TRANSITION_MS = 620;
@@ -54,6 +56,7 @@ function NavbarActions({
   onSelectResult,
   onSettingsClick,
 }: NavbarActionsProps) {
+  const { t } = useI18n();
   const isFloating = variant === "floating";
   const containerClassName = isFloating
     ? "floating-navbar-actions"
@@ -114,16 +117,27 @@ function NavbarActions({
         className="settings-button"
         tabIndex={triggerTabIndex}
         aria-label={
-          settingsDisabled ? "Settings require an account" : "Settings"
+          settingsDisabled
+            ? t("nav.settingsRequiresAccount")
+            : t("nav.settings")
         }
-        title={
-          settingsDisabled ? "Sign up or log in to use settings" : undefined
-        }
+        title={settingsDisabled ? t("nav.settingsSignInHint") : undefined}
         disabled={settingsDisabled}
         onClick={onSettingsClick}
       >
         <Settings size={20} strokeWidth={2.75} className="app-accent-icon" />
       </button>
+    </div>
+  );
+  const languageAction = (
+    <div
+      className={
+        isFloating
+          ? "floating-navbar-item floating-navbar-item--language"
+          : undefined
+      }
+    >
+      <LanguageToggle compact tabIndex={triggerTabIndex} />
     </div>
   );
 
@@ -133,6 +147,7 @@ function NavbarActions({
       {isFloating ? userAction : mapAction}
       {isFloating ? mapAction : userAction}
       {isFloating ? searchAction : settingsAction}
+      {languageAction}
     </div>
   );
 }
@@ -150,6 +165,7 @@ export function Navbar({
   onSettingsClick,
   onSoonsNavClick,
 }: NavbarProps) {
+  const { t } = useI18n();
   const location = useLocation();
   const { isMobile } = useDeviceInfo();
   const [showNavbarIntro, setShowNavbarIntro] = useState(true);
@@ -475,7 +491,8 @@ export function Navbar({
             <button
               type="button"
               className="brand brand-button"
-              aria-label="Go to top of home page"
+              dir="ltr"
+              aria-label={t("nav.home")}
               onClick={onHomeClick}
             >
               <span
@@ -485,9 +502,9 @@ export function Navbar({
               <span className="brand-text" aria-hidden="true">
                 ARTISERET
               </span>
-              <span className="visually-hidden">Kartiseret</span>
+              <span className="visually-hidden">{t("brand.name")}</span>
             </button>
-            <nav className="topnav" aria-label="Primary">
+            <nav className="topnav" aria-label={t("nav.primary")}>
               <button
                 type="button"
                 className={`topnav-link topnav-button${
@@ -496,7 +513,7 @@ export function Navbar({
                 onClick={onMoviesNavClick}
               >
                 <Film className="topnav-icon" aria-hidden="true" />
-                <span className="topnav-label">Now Playing</span>
+                <span className="topnav-label">{t("nav.nowPlaying")}</span>
               </button>
               <button
                 type="button"
@@ -509,7 +526,7 @@ export function Navbar({
                   className="topnav-icon topnav-icon--soon"
                   aria-hidden="true"
                 />
-                <span className="topnav-label">Coming Soon</span>
+                <span className="topnav-label">{t("nav.comingSoon")}</span>
               </button>
               <button
                 type="button"
@@ -519,7 +536,7 @@ export function Navbar({
                 onClick={onAllShowtimesNavClick}
               >
                 <Clock8 className="topnav-icon" aria-hidden="true" />
-                <span className="topnav-label">All Showtimes</span>
+                <span className="topnav-label">{t("nav.allShowtimes")}</span>
               </button>
             </nav>
             <NavbarActions

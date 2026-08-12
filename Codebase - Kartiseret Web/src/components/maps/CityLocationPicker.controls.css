@@ -278,6 +278,11 @@
   display: flex;
 }
 
+html[dir="rtl"] .theater-map-panel .theater-map-action-tooltip {
+  direction: rtl;
+  text-align: start;
+}
+
 .theater-map-control-message {
   position: absolute;
   left: 18px;

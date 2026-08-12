@@ -23,8 +23,7 @@
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 14px;
-  padding-left: 20px;
-  padding-right: 20px;
+  padding-inline: 20px;
 }
 
 .all-showtimes-day-picker-shell.details-showtimes,
@@ -76,8 +75,8 @@
 }
 
 .all-showtimes-empty-nearby {
-  padding-left: 0;
-  border-left: 0;
+  padding-inline-start: 0;
+  border-inline-start: 0;
 }
 
 .all-showtimes-movie-list {
@@ -161,7 +160,7 @@
 .all-showtimes-metrics-row .details-trailer-launch--metrics {
   min-width: 0;
   padding: 0;
-  margin-right: 6px;
+  margin-inline-end: 6px;
 }
 
 .all-showtimes-metrics-row .details-trailer-launch-logo {
@@ -224,7 +223,7 @@
 }
 
 .all-showtimes-theaters .details-theaters {
-  margin-left: 0;
+  margin-inline-start: 0;
   gap: 16px;
 }
 
@@ -246,7 +245,7 @@
 }
 
 html[data-device-type="mobile"] .all-showtimes-page-city {
-  margin-left: 0;
+  margin-inline-start: 0;
   font-size: 0.9rem;
 }
 
@@ -277,7 +276,7 @@ html[data-device-type="mobile"] .all-showtimes-page-city {
 html[data-device-type="mobile"] .all-showtimes-day-picker-filter {
   grid-column: 2;
   grid-row: 2;
-  margin-right: 0;
+  margin-inline-end: 0;
   justify-self: end;
 }
 

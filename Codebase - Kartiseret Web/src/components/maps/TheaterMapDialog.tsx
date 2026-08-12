@@ -4,6 +4,8 @@ import { MapPin } from "lucide-react";
 import { loadCityLocationPicker, preloadCityLocationPicker } from "./loadCityLocationPicker";
 import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
 import { type AppLocation } from "../../prefs/definitions/locations";
+import { useI18n } from "../../i18n/I18nContext";
+import { localizeCityName } from "../../i18n/content";
 import "./TheaterMapDialog.css";
 
 const OPEN_TRANSITION_MS = 420;
@@ -29,6 +31,8 @@ const CityLocationPicker = lazy(async () => {
 });
 
 function CityLocationPickerLoading() {
+  const { t } = useI18n();
+
   return (
     <div className="theater-map-panel theater-map-panel--loading" role="status">
       <div className="theater-map-loading-shell">
@@ -40,7 +44,7 @@ function CityLocationPickerLoading() {
         >
           <MapPin size={20} strokeWidth={2.75} />
         </button>
-        <p>Loading city map...</p>
+        <p>{t("map.loadingCity")}</p>
       </div>
     </div>
   );
@@ -72,6 +76,7 @@ export function TheaterMapDialog({
   triggerLabel?: string;
   triggerTabIndex?: number;
 }) {
+  const { locale, direction, t } = useI18n();
   const {
     location: preferenceLocation,
     syncing: preferenceSyncing,
@@ -79,6 +84,7 @@ export function TheaterMapDialog({
     error: preferenceError,
   } = useUserPreferencesContext();
   const location = locationOverride ?? preferenceLocation;
+  const localizedLocation = localizeCityName(location, locale);
   const syncing = locationOverride === undefined ? preferenceSyncing : false;
   const error = locationOverride === undefined ? preferenceError : null;
   const [isOpen, setIsOpen] = useState(false);
@@ -137,9 +143,18 @@ export function TheaterMapDialog({
         return;
       }
 
-      setStatusMessage(`City set to ${nextLocation}.`);
+      setStatusMessage(
+        t("map.citySet", { city: localizeCityName(nextLocation, locale) }),
+      );
     },
-    [locationOverride, onLocationOverrideChange, setLocationPreference],
+    [
+      locale,
+      locationOverride,
+      onLocationOverrideChange,
+      setLocationPreference,
+      setStatusMessage,
+      t,
+    ],
   );
 
   const finishCloseDialog = useCallback(() => {
@@ -152,7 +167,15 @@ export function TheaterMapDialog({
     setIsDialogVisible(false);
     setIsClosing(false);
     setIsOpen(false);
-  }, [clearPinFlightAnimation]);
+  }, [
+    clearPinFlightAnimation,
+    setFlyingMapIcon,
+    setIsClosing,
+    setIsDialogVisible,
+    setIsOpen,
+    setMapIconAnchor,
+    setShowMapPinButton,
+  ]);
 
   const handleCloseDialog = useCallback(() => {
     if (!isOpen || isClosing) {
@@ -203,6 +226,10 @@ export function TheaterMapDialog({
     isClosing,
     isOpen,
     mapIconAnchor,
+    setFlyingMapIcon,
+    setIsClosing,
+    setIsDialogVisible,
+    setShowMapPinButton,
   ]);
 
   useLayoutEffect(() => {
@@ -297,6 +324,7 @@ export function TheaterMapDialog({
     <>
       <div
         className={`theater-map-backdrop${isDialogVisible ? " is-visible" : ""}`}
+        dir={direction}
         onMouseDown={(event) => {
           if (event.target === event.currentTarget) {
             handleCloseDialog();
@@ -307,11 +335,12 @@ export function TheaterMapDialog({
           className={`theater-map-dialog${isDialogVisible ? " is-visible" : ""}`}
           role="dialog"
           aria-modal="true"
+          aria-label={t("map.selectCity")}
         >
           <Suspense fallback={<CityLocationPickerLoading />}>
             <CityLocationPicker
               currentLocation={location}
-              feedbackMessage={error ?? statusMessage}
+              feedbackMessage={error ? t("preferences.error") : statusMessage}
               mapPinAnchorRef={setMapIconAnchor}
               onPickLocation={handleLocationPick}
               onClose={handleCloseDialog}
@@ -357,7 +386,7 @@ export function TheaterMapDialog({
         tabIndex={triggerTabIndex}
         aria-haspopup="dialog"
         aria-expanded={isOpen && !isClosing}
-        aria-label={`Open city selector. Current city: ${location}`}
+        aria-label={t("map.openSelectorCurrent", { city: localizedLocation })}
         onFocus={preloadCityLocationPicker}
         onPointerDown={preloadCityLocationPicker}
         onPointerEnter={preloadCityLocationPicker}
@@ -391,7 +420,9 @@ export function TheaterMapDialog({
                 className="app-accent-icon"
               />
             </span>
-            <span className="theater-map-trigger-label">{triggerLabel}</span>
+            <span className="theater-map-trigger-label" dir="auto">
+              {triggerLabel}
+            </span>
           </>
         ) : (
           <span

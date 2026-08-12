@@ -12,6 +12,8 @@ import { type RatingSource } from "../prefs/definitions/ratingSources";
 import { useUserPreferencesContext } from "../prefs/useUserPreferences";
 import "./AllShowtimesPage.css";
 import { MapPin } from "lucide-react";
+import { useI18n } from "../i18n/I18nContext";
+import { localizeCityName, localizeMovies } from "../i18n/content";
 
 type ShowtimesMovieRowProps = {
   movie: Movie;
@@ -45,12 +47,13 @@ function ShowtimesMovieRow({
   sources,
   onOpenTrailer,
 }: ShowtimesMovieRowProps) {
-  const infoParts = getMovieInfoParts(movie);
+  const { locale } = useI18n();
+  const infoParts = getMovieInfoParts(movie, locale);
   const metaParts =
     movie.genres.length > 0
       ? [...infoParts, movie.genres.join(", ")]
       : infoParts;
-  const metrics = getMetricDisplays(movie, sources);
+  const metrics = getMetricDisplays(movie, sources, locale);
   const trailerEmbedUrl = getTrailerEmbedUrl(movie.trailerKey);
 
   return (
@@ -68,7 +71,9 @@ function ShowtimesMovieRow({
         </div>
 
         <div className="details-copy all-showtimes-copy">
-          <h3 className="details-title all-showtimes-title">{movie.title}</h3>
+          <h3 className="details-title all-showtimes-title" dir="auto">
+            {movie.title}
+          </h3>
 
           {metaParts.length > 0 ? (
             <div className="details-subtitle details-subtitle--meta-row">
@@ -76,6 +81,7 @@ function ShowtimesMovieRow({
                 <span
                   key={`${movie.tmdbId}-showtimes-meta-${part}`}
                   className="details-subtitle-item"
+                  dir="auto"
                 >
                   {part}
                 </span>
@@ -107,6 +113,7 @@ function ShowtimesMovieRow({
 }
 
 export function AllShowtimesPage() {
+  const { locale, t } = useI18n();
   const { location, sources, setLocationPreference } =
     useUserPreferencesContext();
   const showtimesVersion = useSyncExternalStore(
@@ -125,8 +132,14 @@ export function AllShowtimesPage() {
   );
   const previousShowtimeLocationRef = useRef(location);
   const requestedShowtimePrefetchRef = useRef<string | null>(null);
+  const localizedNowPlayingMovies = useMemo(() => {
+    // The catalog mutates in place as showtime chunks arrive, so the version
+    // token also needs to invalidate the localized movie projections.
+    void showtimesVersion;
+    return localizeMovies(allNowPlayingMovies, locale);
+  }, [locale, showtimesVersion]);
   const dayPanels = useMemo<ShowtimesDayPanel[]>(() => {
-    if (allNowPlayingMovies.length === 0) {
+    if (localizedNowPlayingMovies.length === 0) {
       return [];
     }
 
@@ -134,17 +147,17 @@ export function AllShowtimesPage() {
     // version token is the signal that the derived day panels should refresh.
     void showtimesVersion;
     const showtimeDaysByMovieId = new Map(
-      allNowPlayingMovies.map((movie) => [
+      localizedNowPlayingMovies.map((movie) => [
         movie.tmdbId,
         getMovieShowtimeDays(movie.tmdbId, location),
       ]),
     );
     const referenceDays =
-      showtimeDaysByMovieId.get(allNowPlayingMovies[0].tmdbId) ?? [];
+      showtimeDaysByMovieId.get(localizedNowPlayingMovies[0].tmdbId) ?? [];
 
     return referenceDays.map((day, index) => ({
       date: day.date,
-      movies: allNowPlayingMovies.flatMap((movie) => {
+      movies: localizedNowPlayingMovies.flatMap((movie) => {
         const movieDay = showtimeDaysByMovieId.get(movie.tmdbId)?.[index];
 
         return movieDay && movieDay.theaters.length > 0
@@ -152,7 +165,7 @@ export function AllShowtimesPage() {
           : [];
       }),
     }));
-  }, [location, showtimesVersion]);
+  }, [localizedNowPlayingMovies, location, showtimesVersion]);
   const resolvedShowtimeDate = getShowtimeTargetDate(
     dayPanels,
     selectedShowtimeDate ?? fixedAppDateString,
@@ -266,11 +279,11 @@ export function AllShowtimesPage() {
   const openTrailerMovie = useMemo(
     () =>
       openTrailerMovieId
-        ? allNowPlayingMovies.find(
+        ? localizedNowPlayingMovies.find(
             (movie) => movie.tmdbId === openTrailerMovieId,
           )
         : null,
-    [openTrailerMovieId],
+    [localizedNowPlayingMovies, openTrailerMovieId],
   );
   const openTrailerEmbedUrl = getTrailerEmbedUrl(openTrailerMovie?.trailerKey);
   const cityByName = useMemo(
@@ -360,9 +373,9 @@ export function AllShowtimesPage() {
       location,
       selectedShowtimeDate ?? fixedAppDateString,
     ).catch((error: unknown) => {
-      console.error("Could not load showtimes for the selected city.", error);
+      console.error(t("showtimes.loadCityFailed"), error);
     });
-  }, [location, selectedShowtimeDate]);
+  }, [location, selectedShowtimeDate, t]);
 
   useEffect(() => {
     let isActive = true;
@@ -374,13 +387,13 @@ export function AllShowtimesPage() {
         }
       })
       .catch((error: unknown) => {
-        console.error("Could not load city metadata for all showtimes.", error);
+        console.error(t("showtimes.loadMetadataFailed"), error);
       });
 
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (
@@ -435,18 +448,18 @@ export function AllShowtimesPage() {
   }, [dayPanels.length, location]);
 
   return (
-    <section className="all-showtimes-page" aria-label="All Showtimes">
+    <section className="all-showtimes-page" aria-label={t("showtimes.title")}>
       <div
         className="details-showtimes all-showtimes-day-picker-shell"
-        aria-label="Showtime day picker"
+        aria-label={t("showtimes.dayPicker")}
       >
         <TheaterMapDialog
           className="all-showtimes-page-city city-map-trigger"
-          triggerLabel={location}
+          triggerLabel={localizeCityName(location, locale)}
         />
         <ShowtimeDayPicker
           className="all-showtimes-day-picker-scroll"
-          ariaLabel="Choose showtime day"
+          ariaLabel={t("showtimes.chooseDay")}
           dates={dayPanels.map((day) => day.date)}
           selectedDate={resolvedShowtimeDate}
           disabledBeforeDate={fixedAppDateString}
@@ -472,7 +485,9 @@ export function AllShowtimesPage() {
 
       <section
         className="details-showtimes all-showtimes-browser"
-        aria-label={`All showtimes in ${location}`}
+        aria-label={t("showtimes.allInCity", {
+          city: localizeCityName(location, locale),
+        })}
       >
         {effectiveSelectedDayPanel ? (
           <article
@@ -484,15 +499,31 @@ export function AllShowtimesPage() {
                 className="details-empty-state all-showtimes-empty-state"
                 aria-label={
                   hasFilteredOutAllSelectedDayMovies
-                    ? `No ${location} showtimes match current filters on ${getShowtimeDateLabel(effectiveSelectedDayPanel.date)}`
-                    : `No showtimes on ${getShowtimeDateLabel(effectiveSelectedDayPanel.date)} in ${location}`
+                    ? t("showtimes.noneFiltered", {
+                        date: getShowtimeDateLabel(
+                          effectiveSelectedDayPanel.date,
+                          locale,
+                        ),
+                        city: localizeCityName(location, locale),
+                      })
+                    : t("showtimes.noneDay", {
+                        date: getShowtimeDateLabel(
+                          effectiveSelectedDayPanel.date,
+                          locale,
+                        ),
+                        city: localizeCityName(location, locale),
+                      })
                 }
               >
                 <div className="details-empty-state-panel">
                   <p className="details-empty-state-title">
                     {hasFilteredOutAllSelectedDayMovies
-                      ? `No ${location} showtimes match the active filters`
-                      : `No showtimes on this day in ${location}`}
+                      ? t("showtimes.noneFilteredCity", {
+                          city: localizeCityName(location, locale),
+                        })
+                      : t("showtimes.noneThisDay", {
+                          city: localizeCityName(location, locale),
+                        })}
                   </p>
 
                   <div className="details-empty-actions all-showtimes-empty-actions">
@@ -502,14 +533,19 @@ export function AllShowtimesPage() {
                     >
                       <p className="details-empty-link-heading">
                         {hasFilteredOutAllSelectedDayMovies
-                          ? "Try nearby city showtimes"
-                          : "See showtimes in a nearby city"}
+                          ? t("showtimes.tryNearby")
+                          : t("showtimes.nearbyHint")}
                       </p>
 
                       {nearbyCityChoices.length > 0 ? (
                         <div
                           className="details-empty-city-list"
-                          aria-label={`Nearby cities with showtimes on ${getShowtimeDateLabel(effectiveSelectedDayPanel.date)}`}
+                          aria-label={t("showtimes.nearbyCitiesDate", {
+                            date: getShowtimeDateLabel(
+                              effectiveSelectedDayPanel.date,
+                              locale,
+                            ),
+                          })}
                         >
                           {nearbyCityChoices.map((city) => (
                             <button
@@ -529,15 +565,17 @@ export function AllShowtimesPage() {
                               />
                               <span>
                                 {pendingNearbyCity === city.name
-                                  ? `Switching to ${city.name}...`
-                                  : city.name}
+                                  ? t("showtimes.switchingCity", {
+                                      city: localizeCityName(city.name, locale),
+                                    })
+                                  : localizeCityName(city.name, locale)}
                               </span>
                             </button>
                           ))}
                         </div>
                       ) : (
                         <p className="details-empty-note">
-                          No nearby cities have showtimes on this day.
+                          {t("showtimes.noNearby")}
                         </p>
                       )}
                     </div>
@@ -563,7 +601,7 @@ export function AllShowtimesPage() {
             className="details-day-panel all-showtimes-day-panel"
             data-showtime-date={fixedAppDateString}
           >
-            <p className="details-day-empty">No showtimes listed.</p>
+            <p className="details-day-empty">{t("showtimes.noneListed")}</p>
           </article>
         )}
       </section>
