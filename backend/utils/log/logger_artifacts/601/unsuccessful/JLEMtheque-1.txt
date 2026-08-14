@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: JLEMtheque
+URL: https://jer-cin.org.il/en/article/4284
+Exception: TimeoutError - Could not load Jerusalem Cinematheque date 2026-09-27
+Call Chain: runners.py:43 > runners.py:19 > BaseCinema.py:28 > JLEMtheque.py:76
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/601/unsuccessful/JLEMtheque-1.png
+CSV: backend/utils/log/logger_artifacts/601/unsuccessful/JLEMtheque-1.csv
