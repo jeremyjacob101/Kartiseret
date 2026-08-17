@@ -1,0 +1,235 @@
+- - -
+DATAFLOW SUMMARY
+- - -
+Name: ComingSoonsTmdb
+Run ID: 604
+Attempt: 1
+Result: SUCCESS
+Started (UTC): 2026-08-17T01:34:41.486557+00:00
+Finished (UTC): 2026-08-17T01:35:56.467105+00:00
+Duration Seconds: 74.9805
+Generated At (UTC): 2026-08-17T01:35:56.467346+00:00
+
+SUMMARY COUNTS
+- dropped: 11
+- mapped: 45
+- merged: 14
+- skipped: 128
+
+STAGE BREAKDOWN
+- dedupe|merged|deduped_into_tmdb: 14
+- enrich|mapped|enriched: 14
+- row_filter|skipped|already_added: 122
+- row_filter|skipped|past_release_date: 6
+- tmdb_choice|mapped|fallback_first_candidate: 6
+- tmdb_choice|mapped|title_first_match: 22
+- tmdb_choice|mapped|tmdb_fix_override: 1
+- tmdb_search|dropped|no_candidates: 11
+- write|mapped|marked_added: 1
+- write|mapped|upserted: 1
+
+COMING SOONS DETAILS
+- [mapped] write | title= | key=allSoons | reason=marked_added | tmdb=
+- [mapped] write | title= | key=finalSoons | reason=upserted | tmdb=
+- [skipped] row_filter | title=10 | key=850b3af2-32ee-432c-bbdf-3ccefaa5fd6b | reason=already_added | tmdb=
+- [skipped] row_filter | title=12 hours in october | key=8df37696-2648-4cf0-af20-bee24d14e829 | reason=already_added | tmdb=
+- [skipped] row_filter | title=2 | key=cfde40e9-7c45-47c8-9362-dcd4e1b7df44 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=338 | key=1b2f77f8-9d98-41bd-bbf7-38bedc2dd305 | reason=already_added | tmdb=
+- [skipped] row_filter | title=50 | key=81bdf4c3-b033-4742-b0de-cba68169b504 | reason=already_added | tmdb=
+- [skipped] row_filter | title=a brief affair | key=1f71f64a-6424-4a0a-906e-63ed7bad0080 | reason=already_added | tmdb= x2
+- [skipped] row_filter | title=a few good men | key=2a2027d2-f8df-4d54-a7f7-7e32daa2123a | reason=already_added | tmdb=
+- [skipped] row_filter | title=a missing part | key=21e4e2ff-edbc-4f72-bc31-ec935acc33ca | reason=already_added | tmdb=
+- [merged] dedupe | title=anandi gopal | key=72c10e23-993e-4e45-af56-c207f459f8c6 | reason=deduped_into_tmdb | tmdb=584270
+- [mapped] enrich | title=Anandi Gopal | key=72c10e23-993e-4e45-af56-c207f459f8c6 | reason=enriched | tmdb=584270
+- [mapped] tmdb_choice | title=anandi gopal | key=72c10e23-993e-4e45-af56-c207f459f8c6 | reason=title_first_match | tmdb=584270 x2
+- [skipped] row_filter | title=aulcie | key=9c39588f-0923-48da-bbf2-b23e1ced74fd | reason=already_added | tmdb=
+- [skipped] row_filter | title=avengers doomsday | key=dcbf0477-5c20-4b09-a9ad-f59069fad274 | reason=already_added | tmdb=
+- [merged] dedupe | title=band together | key=f0b4674f-dcfb-46ae-a495-a788b22335b1 | reason=deduped_into_tmdb | tmdb=1437873
+- [mapped] enrich | title=Band Together | key=f0b4674f-dcfb-46ae-a495-a788b22335b1 | reason=enriched | tmdb=1437873
+- [skipped] row_filter | title=band together | key=6760250c-73c9-4fcb-8c67-83f12f01187b | reason=already_added | tmdb=
+- [mapped] tmdb_choice | title=band together | key=f0b4674f-dcfb-46ae-a495-a788b22335b1 | reason=title_first_match | tmdb=1437873 x2
+- [skipped] row_filter | title=batman | key=1d1c8e34-725f-4e18-8a65-52ff91e5bf9d | reason=already_added | tmdb=
+- [merged] dedupe | title=berlin hero | key=4442a00d-07ec-40cb-8447-321f7a5bda9e | reason=deduped_into_tmdb | tmdb=1248217
+- [mapped] enrich | title=Berlin Hero | key=4442a00d-07ec-40cb-8447-321f7a5bda9e | reason=enriched | tmdb=1248217
+- [mapped] tmdb_choice | title=berlin hero | key=4442a00d-07ec-40cb-8447-321f7a5bda9e | reason=fallback_first_candidate | tmdb=1248217 x2
+- [skipped] row_filter | title=bitter christmas | key=20d2719b-b95a-4242-9c87-f6c54e5a2e64 | reason=already_added | tmdb= x3
+- [skipped] row_filter | title=by any means | key=006e8296-c10d-44fa-8699-3494d644bcfe | reason=already_added | tmdb=
+- [skipped] row_filter | title=children of blood and bone | key=2e5a02fc-6745-4ba1-b31c-61e6207dcb91 | reason=already_added | tmdb=
+- [skipped] row_filter | title=clayface | key=cd14effd-3b75-413f-80e8-479684018014 | reason=already_added | tmdb=
+- [skipped] row_filter | title=coyote vs acme | key=35828496-e95a-4c1b-9b3e-db0b52599177 | reason=already_added | tmdb= x3
+- [skipped] row_filter | title=cuz youre ugly | key=a5dc506f-05a0-4c35-975b-0b2f345891ee | reason=already_added | tmdb=
+- [skipped] row_filter | title=damned if you do damned if you dont | key=9ea94f06-ca2d-4abb-a0b1-e6e2c5b12686 | reason=already_added | tmdb=
+- [skipped] row_filter | title=digger | key=11ae51dc-f753-43c0-9dbe-08009d90a57c | reason=already_added | tmdb=
+- [skipped] row_filter | title=dog stars | key=8fee3f47-8e12-4d20-8465-f7bc33089222 | reason=already_added | tmdb=
+- [skipped] row_filter | title=dream high | key=ec20a0ad-10d2-4aa9-8087-3676a149edc2 | reason=already_added | tmdb= x2
+- [skipped] row_filter | title=dune part three | key=9cf7fbd3-7a4e-46ef-ad68-b9d4aadfefa6 | reason=already_added | tmdb=
+- [skipped] row_filter | title=ebenezer a christmas carol | key=843e7cec-961e-401e-8808-000a6241966d | reason=already_added | tmdb=
+- [skipped] row_filter | title=edward scissorhands | key=54d70200-6339-4696-a17e-a958ebb2de92 | reason=already_added | tmdb=
+- [skipped] row_filter | title=end of oak street | key=24b29eb6-3831-405f-96eb-cf8af20eab70 | reason=already_added | tmdb=
+- [skipped] row_filter | title=fall 2 | key=1f4183e0-ea14-43f5-85f1-33bb41208e20 | reason=already_added | tmdb=
+- [dropped] tmdb_search | title=fast and the furious 25th anniversary | key=e526ae07-cbee-4bee-aeb4-600d124af856 | reason=no_candidates | tmdb=
+- [skipped] row_filter | title=fast furious | key=b227c74f-2c11-4e16-b7ee-e1c3c9d219d8 | reason=already_added | tmdb=
+- [merged] dedupe | title=fatherland | key=8a1de5b1-644a-4911-8d80-e9dd732b969e | reason=deduped_into_tmdb | tmdb=1437696
+- [mapped] enrich | title=Fatherland | key=8a1de5b1-644a-4911-8d80-e9dd732b969e | reason=enriched | tmdb=1437696
+- [mapped] tmdb_choice | title=fatherland | key=8a1de5b1-644a-4911-8d80-e9dd732b969e | reason=title_first_match | tmdb=1437696 x2
+- [merged] dedupe | title=fjord | key=8a47ed60-407e-4489-ba29-e52ed740e49b | reason=deduped_into_tmdb | tmdb=1401459
+- [mapped] enrich | title=Fjord | key=8a47ed60-407e-4489-ba29-e52ed740e49b | reason=enriched | tmdb=1401459
+- [mapped] tmdb_choice | title=fjord | key=8a47ed60-407e-4489-ba29-e52ed740e49b | reason=title_first_match | tmdb=1401459 x2
+- [skipped] row_filter | title=focker in law | key=fb0f901f-43d1-4e71-8d97-97dca0ddbfec | reason=already_added | tmdb=
+- [skipped] row_filter | title=forgotten island | key=be107cd4-8e7d-4c32-b5c8-78f0a4ba6980 | reason=already_added | tmdb=
+- [skipped] row_filter | title=fuze | key=3b24bfd0-9853-4379-9b21-baaace1f6f9d | reason=already_added | tmdb=
+- [skipped] row_filter | title=gatto | key=2dec7745-9b3a-4cd0-af18-01b74645c6d7 | reason=already_added | tmdb=
+- [skipped] row_filter | title=ghostbusters | key=25373abd-271d-4cee-ba93-75ab6f8708ed | reason=already_added | tmdb=
+- [skipped] row_filter | title=gracie and pedro pets to the rescue | key=14792240-97b5-4c92-90ae-269b4309081e | reason=already_added | tmdb=
+- [skipped] row_filter | title=gracie pedro pets to the rescue | key=7af33d75-ee0a-4ff0-a722-5ac562c02abe | reason=already_added | tmdb=
+- [skipped] row_filter | title=grease | key=5197efca-39c6-46cf-8649-a56fac3dc355 | reason=already_added | tmdb=
+- [skipped] row_filter | title=heart of the beast | key=b3ea269f-a5a9-4dba-9b3e-c0d74629747c | reason=already_added | tmdb=
+- [skipped] row_filter | title=hexed | key=8b0d5b79-e06b-495e-ab5b-5a07b232d6a0 | reason=already_added | tmdb=
+- [skipped] row_filter | title=hill 338 | key=00eb0ece-15af-4418-8e51-050a143771ea | reason=already_added | tmdb=
+- [skipped] row_filter | title=hollywood to broadway | key=42fd51de-ea08-4fb3-850a-8e41c1735ea9 | reason=already_added | tmdb=
+- [skipped] row_filter | title=how to make a killing | key=a6b2f2aa-3213-42c0-8210-e007cbbe88be | reason=already_added | tmdb=
+- [skipped] row_filter | title=how to rob a bank | key=1bd0852c-4462-4b3e-a139-99cdd5f0f9d6 | reason=already_added | tmdb=
+- [skipped] row_filter | title=i want your sex | key=5eec3749-4829-402e-8f6a-39f010252244 | reason=already_added | tmdb=
+- [skipped] row_filter | title=ice age boiling point | key=2d856a90-8fe4-42bb-b131-1b57f3dc4bc3 | reason=already_added | tmdb=
+- [skipped] row_filter | title=ice cream man | key=739e1f02-3b32-44d8-97b0-49a818ccfc63 | reason=already_added | tmdb=
+- [merged] dedupe | title=idiots | key=de08a146-582f-419f-9f13-19a42e5981f4 | reason=deduped_into_tmdb | tmdb=445466
+- [mapped] enrich | title=Idiots | key=de08a146-582f-419f-9f13-19a42e5981f4 | reason=enriched | tmdb=445466
+- [mapped] tmdb_choice | title=idiots | key=de08a146-582f-419f-9f13-19a42e5981f4 | reason=title_first_match | tmdb=445466 x2
+- [dropped] tmdb_search | title=in the hell of kabul 13 days 13 nights | key=8b63db9a-1903-4973-9765-0d3a0e077531 | reason=no_candidates | tmdb=
+- [skipped] row_filter | title=insidious out of the further | key=fa7827a1-6466-463b-8ca1-aaf337fd6e83 | reason=already_added | tmdb=
+- [dropped] tmdb_search | title=investment generation | key=f7d29fbe-bb2f-46d8-bac7-2aef1d082aa7 | reason=no_candidates | tmdb=
+- [skipped] row_filter | title=it takes two to tango | key=7fb061a2-e62c-422c-9de8-ccf89a047b5e | reason=already_added | tmdb=
+- [skipped] row_filter | title=its family fing business il | key=d55f8836-41cf-41fc-acd6-654dd7d4d410 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=jumanji open world | key=d0842c59-df58-4a5c-bb46-dbe1741a865b | reason=already_added | tmdb=
+- [skipped] row_filter | title=just an illusion | key=0c8aefa4-1ccc-4b97-9dda-bd82e64e2f80 | reason=already_added | tmdb= x2
+- [skipped] row_filter | title=Kupa Rashit | key=32da53de-0502-4d03-aaa3-9e821f26f673 | reason=already_added | tmdb=
+- [skipped] row_filter | title=la boheme | key=6bf9c266-50ed-4362-8c84-f3d16f6d923d | reason=already_added | tmdb= x2
+- [dropped] tmdb_search | title=la la land 10th anniversary | key=639f352e-d08a-4c4b-9f1d-29a06bd6aa28 | reason=no_candidates | tmdb=
+- [merged] dedupe | title=la traviata | key=c22c1295-64b0-44f7-8029-3dfbabe3dece | reason=deduped_into_tmdb | tmdb=381916
+- [mapped] enrich | title=La Traviata | key=c22c1295-64b0-44f7-8029-3dfbabe3dece | reason=enriched | tmdb=381916
+- [mapped] tmdb_choice | title=la traviata | key=c22c1295-64b0-44f7-8029-3dfbabe3dece | reason=fallback_first_candidate | tmdb=381916 x4
+- [skipped] row_filter | title=let it rain | key=2fd09e2d-74a4-4af6-b904-5bdbe4872189 | reason=already_added | tmdb=
+- [skipped] row_filter | title=leviticus | key=271498aa-ee38-4cd8-98a9-3e72f9a3d504 | reason=already_added | tmdb=
+- [skipped] row_filter | title=magshimim | key=7b60ce54-cb9b-44ad-90db-ba36719434d9 | reason=already_added | tmdb=
+- [skipped] row_filter | title=mamma mia | key=be7a120b-f778-4f76-8e0e-9de860b88802 | reason=already_added | tmdb=
+- [skipped] row_filter | title=marsupilami | key=3df12017-6058-4eb3-ac56-321909793fa1 | reason=already_added | tmdb=
+- [skipped] row_filter | title=motor city | key=b979e394-55c6-4e85-a1ef-de98fa412ccc | reason=already_added | tmdb=
+- [dropped] tmdb_search | title=movieretro | key=5e6cdb2e-aac2-4e2b-8ada-bae5ff5fe444 | reason=no_candidates | tmdb= x3
+- [skipped] row_filter | title=mutiny | key=fcbae84f-e34b-4484-beb2-171688b472a0 | reason=already_added | tmdb=
+- [skipped] row_filter | title=muzzle city of wolves | key=e4551867-f412-471b-8cb3-d370155d988c | reason=already_added | tmdb=
+- [skipped] row_filter | title=my one and only | key=325f1c49-94bf-437d-ac3f-c053e7e41c5e | reason=already_added | tmdb=
+- [merged] dedupe | title=omaha | key=6560c4b5-a625-4f52-a4a7-1eca98f6f003 | reason=deduped_into_tmdb | tmdb=1233655
+- [mapped] enrich | title=Omaha | key=6560c4b5-a625-4f52-a4a7-1eca98f6f003 | reason=enriched | tmdb=1233655
+- [mapped] tmdb_choice | title=omaha | key=6560c4b5-a625-4f52-a4a7-1eca98f6f003 | reason=title_first_match | tmdb=1233655 x2
+- [skipped] row_filter | title=one night only | key=529ad868-8654-4f66-9078-fff57a7e2a62 | reason=already_added | tmdb= x2
+- [skipped] row_filter | title=other mommy | key=c3819b14-5c74-4075-b491-4b0088938049 | reason=already_added | tmdb=
+- [skipped] row_filter | title=party | key=804ebc8b-8fa9-4364-9cda-ab5cacd41a1e | reason=already_added | tmdb=
+- [skipped] row_filter | title=paw patrol the dino movie | key=47f44038-0348-4a33-82a4-b6b254eaac5e | reason=already_added | tmdb= x3
+- [skipped] row_filter | title=planet final | key=62ead1b3-889a-43f2-b53d-cd340fa55f7c | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=planetshoetime naama | key=b6088028-2246-44a7-a959-905eaa931865 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=practical magic 2 | key=b80a711b-4aba-49f1-80c1-0b34943e555d | reason=already_added | tmdb=
+- [skipped] row_filter | title=pretty woman | key=9850af7d-23ec-4ba1-88df-007800dccb5d | reason=already_added | tmdb=
+- [skipped] row_filter | title=primavera | key=36497ec6-911b-40ad-bfa4-7b6666181d6d | reason=already_added | tmdb= x2
+- [skipped] row_filter | title=raksha bandhan | key=ce495b7f-6c8a-44c8-bedf-ef8ef179ea57 | reason=already_added | tmdb=
+- [skipped] row_filter | title=resident evil | key=bd133e2b-5a4f-406d-aeac-b486e9d59f34 | reason=already_added | tmdb=
+- [skipped] row_filter | title=runner | key=f4828fc2-073f-430b-bc58-49f2d394c72c | reason=already_added | tmdb=
+- [skipped] row_filter | title=saltiz | key=9c2530d9-1ad9-4eec-a8f9-ca02cab451ee | reason=already_added | tmdb=
+- [skipped] row_filter | title=school of magical animals 3 | key=8e7b0958-a5a7-4036-b8a5-a47c83c67996 | reason=already_added | tmdb=
+- [dropped] tmdb_search | title=seestarz | key=4deee9f5-e447-4af7-95de-1904527194b9 | reason=no_candidates | tmdb=
+- [skipped] row_filter | title=shadows edge | key=ac22c0a8-c157-484e-99a2-06fe012cef9e | reason=already_added | tmdb=
+- [skipped] row_filter | title=shrek 5 | key=ee7e6c62-8286-47a8-88c8-a33503b04e80 | reason=already_added | tmdb=
+- [skipped] row_filter | title=sonic the hedgehog 4 | key=cf283cab-4b57-4d1e-ac30-01d5dec94b2b | reason=already_added | tmdb=
+- [skipped] row_filter | title=spa weekend | key=aeffcd33-19eb-450a-ba12-7311a8b449b1 | reason=already_added | tmdb=
+- [skipped] row_filter | title=spider island | key=916fcd23-2527-40cb-a416-4dc7c83bd9c5 | reason=already_added | tmdb=
+- [skipped] row_filter | title=spider man brand new day | key=9942543e-69c9-4d5d-8f73-c98ded62b380 | reason=already_added | tmdb=
+- [skipped] row_filter | title=spider man brand new day vos seances en francais du film | key=89a9d819-21a1-464b-af04-7933ac3167a3 | reason=past_release_date | tmdb=
+- [skipped] row_filter | title=spinned | key=c935b31f-b645-4631-9180-b713314f90d3 | reason=already_added | tmdb=
+- [skipped] row_filter | title=stitch head | key=7108e14d-ef12-4748-a295-91da2836456b | reason=already_added | tmdb=
+- [skipped] row_filter | title=street fighter | key=7c005650-33ab-4c30-91e0-4f0f1c84d3be | reason=already_added | tmdb=
+- [skipped] row_filter | title=sunny dancer | key=59c9f775-29db-496c-b374-a54365036ca1 | reason=already_added | tmdb=
+- [skipped] row_filter | title=Superman - 1978 | key=917ac118-a1bb-4b22-9d25-cd9cd3ea0497 | reason=already_added | tmdb=
+- [skipped] row_filter | title=superman 2 the richard donner cut | key=da6cb427-a8a4-43cf-b891-4cf03187c8b2 | reason=already_added | tmdb=
+- [dropped] tmdb_search | title=superman 2 the richard donner cut 1980 | key=cb9a462f-3d36-4561-bc20-a022c4ad842c | reason=no_candidates | tmdb=
+- [skipped] row_filter | title=sweetheart | key=b4bce0f3-6a27-4c0c-ac27-0747db12d97f | reason=already_added | tmdb=
+- [skipped] row_filter | title=tafiti across the desert | key=615b1e3c-03ca-4921-94e9-db4acb0881de | reason=already_added | tmdb=
+- [skipped] row_filter | title=taxi driver | key=288f5e61-0855-4681-9669-81aba71af3f0 | reason=already_added | tmdb= x2
+- [skipped] row_filter | title=tell me everything | key=9879c85f-f2a0-4d01-9d2d-b8c401bc6b5d | reason=already_added | tmdb=
+- [skipped] row_filter | title=the angry birds movie 3 | key=f11c5463-994a-4bdb-a940-a6d67aa5d7f8 | reason=already_added | tmdb=
+- [merged] dedupe | title=the cat in the hat | key=28cc3255-56be-41aa-bcdc-5a11a8a662e2 | reason=deduped_into_tmdb | tmdb=1117898
+- [mapped] enrich | title=The Cat in the Hat | key=28cc3255-56be-41aa-bcdc-5a11a8a662e2 | reason=enriched | tmdb=1117898
+- [mapped] tmdb_choice | title=the cat in the hat | key=28cc3255-56be-41aa-bcdc-5a11a8a662e2 | reason=title_first_match | tmdb=1117898 x2
+- [skipped] row_filter | title=the christophers | key=6b299dbb-c706-4da1-91b2-64e58fe3eb95 | reason=already_added | tmdb=
+- [skipped] row_filter | title=the croods | key=93f5f63e-31d8-4cd4-9f95-e27c12d87043 | reason=already_added | tmdb=
+- [merged] dedupe | title=the desert child | key=bd05775c-fc38-48c9-9782-48877c730166 | reason=deduped_into_tmdb | tmdb=1266800
+- [mapped] enrich | title=The Desert Child | key=bd05775c-fc38-48c9-9782-48877c730166 | reason=enriched | tmdb=1266800
+- [mapped] tmdb_choice | title=the desert child | key=bd05775c-fc38-48c9-9782-48877c730166 | reason=title_first_match | tmdb=1266800 x2
+- [skipped] row_filter | title=the dog stars | key=96c8a34f-e44d-4067-a79d-0f5ef2d418a2 | reason=already_added | tmdb=
+- [dropped] tmdb_search | title=the fast and the furious 25th anniversary | key=350af660-f13d-41b8-8493-80a076c368b3 | reason=no_candidates | tmdb=
+- [skipped] row_filter | title=the hunger games sunrise on the reaping | key=298f9b59-21df-4a3a-9891-e26e96c7b3aa | reason=already_added | tmdb=
+- [skipped] row_filter | title=the invite | key=3c2ee9da-6037-490c-8520-12e6baea79a3 | reason=already_added | tmdb=
+- [skipped] row_filter | title=the luckiest man in america | key=2241d600-deaf-4134-918d-726016276303 | reason=already_added | tmdb=
+- [skipped] row_filter | title=the magic faraway tree | key=5d660a95-3dbd-4360-a3dc-40a7aebe8745 | reason=already_added | tmdb=
+- [skipped] row_filter | title=the magical faraway tree | key=566f9ecd-928c-45b6-8fc9-a86898f3332a | reason=past_release_date | tmdb=
+- [merged] dedupe | title=the money maker | key=714a0ccb-b303-41b4-a9ca-73f4a820fbc1 | reason=deduped_into_tmdb | tmdb=1376415
+- [mapped] enrich | title=The Money Maker | key=714a0ccb-b303-41b4-a9ca-73f4a820fbc1 | reason=enriched | tmdb=1376415
+- [mapped] tmdb_choice | title=the money maker | key=714a0ccb-b303-41b4-a9ca-73f4a820fbc1 | reason=title_first_match | tmdb=1376415 x2
+- [merged] dedupe | title=The Odyssey | key=78d27242-59b6-4029-8aa8-ff36789f19b7 | reason=deduped_into_tmdb | tmdb=1368337
+- [mapped] enrich | title=The Odyssey | key=78d27242-59b6-4029-8aa8-ff36789f19b7 | reason=enriched | tmdb=1368337
+- [mapped] tmdb_choice | title=The Odyssey | key=78d27242-59b6-4029-8aa8-ff36789f19b7 | reason=tmdb_fix_override | tmdb=1368337
+- [skipped] row_filter | title=the pout pout fish | key=edec078f-b211-440d-9414-268c46206844 | reason=already_added | tmdb=
+- [skipped] row_filter | title=the social reckoning | key=d71b2f0d-697a-476e-92ba-9b3952ef0a03 | reason=already_added | tmdb=
+- [skipped] row_filter | title=the thomas crown affair | key=a6b61864-ce4b-458e-bc7c-45e5526e573e | reason=already_added | tmdb=
+- [skipped] row_filter | title=three wishes for cinderella | key=e91b6595-9b6f-4878-ac9a-bbce8766b73c | reason=already_added | tmdb=
+- [skipped] row_filter | title=turbo | key=33a6f017-e0a3-451c-9f6b-f2995e0c3adc | reason=already_added | tmdb=
+- [skipped] row_filter | title=valley of shadows | key=1e5a37aa-5dfb-4fd8-b7f2-653d994e9643 | reason=already_added | tmdb=
+- [skipped] row_filter | title=verity | key=db78f59b-6e49-4084-961b-e4ee4fa909b3 | reason=already_added | tmdb=
+- [skipped] row_filter | title=violent night 2 | key=0e62564a-77e5-428a-bfe7-70618957e639 | reason=already_added | tmdb=
+- [skipped] row_filter | title=waves | key=3d6d3f36-3ace-4aa5-b7e3-65a7259020ff | reason=already_added | tmdb=
+- [skipped] row_filter | title=werwulf | key=43fb9a40-a451-44a0-b50b-276598cd3a80 | reason=already_added | tmdb=
+- [skipped] row_filter | title=whalefall | key=67689e20-2482-4873-bb02-cf70b47f0603 | reason=already_added | tmdb=
+- [skipped] row_filter | title=wham 10 days in china | key=7868e35d-2169-4fee-a2cb-ccca1629b6b0 | reason=already_added | tmdb=
+- [merged] dedupe | title=what is love | key=959970f1-37d4-4585-bac8-2b39178b6cda | reason=deduped_into_tmdb | tmdb=1732730
+- [mapped] enrich | title=What is love? | key=959970f1-37d4-4585-bac8-2b39178b6cda | reason=enriched | tmdb=1732730
+- [mapped] tmdb_choice | title=what is love | key=959970f1-37d4-4585-bac8-2b39178b6cda | reason=title_first_match | tmdb=1732730 x2
+- [skipped] row_filter | title=what marielle knows | key=e6aebe97-e4b0-455f-a519-a3daead3f03d | reason=already_added | tmdb=
+- [merged] dedupe | title=where to | key=5802fde9-859f-4953-aec8-9c5939a310f6 | reason=deduped_into_tmdb | tmdb=1619818
+- [mapped] enrich | title=Where To? | key=5802fde9-859f-4953-aec8-9c5939a310f6 | reason=enriched | tmdb=1619818
+- [mapped] tmdb_choice | title=where to | key=5802fde9-859f-4953-aec8-9c5939a310f6 | reason=title_first_match | tmdb=1619818 x2
+- [skipped] row_filter | title=wild horse nine | key=8c87b8b7-9c2d-4bb2-9b27-03a6ae1eab7b | reason=already_added | tmdb=
+- [dropped] tmdb_search | title=yoni kletzel ryan williams leave the goats al | key=1eba53b1-c86e-4dc7-89fa-b0f890c5165b | reason=no_candidates | tmdb=
+
+CINEMATHEQUE GROUP DETAILS
+- (none)
+
+NOW PLAYING GROUP DETAILS
+- (none)
+
+UNRESOLVED / DROPPED ITEMS
+- no_candidates | yoni kletzel ryan williams leave the goats al | row_id=1eba53b1-c86e-4dc7-89fa-b0f890c5165b
+- no_candidates | the fast and the furious 25th anniversary | row_id=350af660-f13d-41b8-8493-80a076c368b3
+- no_candidates | seestarz | row_id=4deee9f5-e447-4af7-95de-1904527194b9
+- past_release_date | the magical faraway tree | row_id=566f9ecd-928c-45b6-8fc9-a86898f3332a
+- no_candidates | movieretro | row_id=5e6cdb2e-aac2-4e2b-8ada-bae5ff5fe444
+- past_release_date | planet final | row_id=62ead1b3-889a-43f2-b53d-cd340fa55f7c
+- no_candidates | la la land 10th anniversary | row_id=639f352e-d08a-4c4b-9f1d-29a06bd6aa28
+- past_release_date | spider man brand new day vos seances en francais du film | row_id=89a9d819-21a1-464b-af04-7933ac3167a3
+- no_candidates | in the hell of kabul 13 days 13 nights | row_id=8b63db9a-1903-4973-9765-0d3a0e077531
+- past_release_date | planetshoetime naama | row_id=b6088028-2246-44a7-a959-905eaa931865
+- no_candidates | superman 2 the richard donner cut 1980 | row_id=cb9a462f-3d36-4561-bc20-a022c4ad842c
+- past_release_date | 2 | row_id=cfde40e9-7c45-47c8-9362-dcd4e1b7df44
+- past_release_date | its family fing business il | row_id=d55f8836-41cf-41fc-acd6-654dd7d4d410
+- no_candidates | movieretro | row_id=dda25435-e967-4f0a-a0ad-7d34302752c4
+- no_candidates | movieretro | row_id=e453fc32-e0e7-4997-8929-ee72036dfb91
+- no_candidates | fast and the furious 25th anniversary | row_id=e526ae07-cbee-4bee-aeb4-600d124af856
+- no_candidates | investment generation | row_id=f7d29fbe-bb2f-46d8-bac7-2aef1d082aa7
+
+WRITE/DEDUPE ACTIONS
+- dedupeAllSoons(allSoons)
+- dedupeFinalSoons(finalSoons)
+- upsertUpdates(finalSoons) rows=14
+- ensureMovieCodes(movieCodes) rows=77
+- mark_added(allSoons) rows=15
+- dedupeFinalSoons(finalSoons)
+
+NOTES
+- (none)
