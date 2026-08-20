@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { LogOut, User } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
+import { z } from "zod";
 import "./UserMenu.css";
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import { DEFAULT_LOCATION, loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY } from "../prefs/definitions/locations";
+import { supabaseUserIdSchema, supabaseUserIdentitySchema } from "../lib/supabaseSchemas";
+import { appLocationSchema, DEFAULT_LOCATION, loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY } from "../prefs/definitions/locations";
 import { DEFAULT_RATING_SOURCES } from "../prefs/definitions/ratingSources";
 import { DEFAULT_SITE_COLOR } from "../prefs/definitions/siteColor";
 import { useUserPreferencesContext } from "../prefs/useUserPreferences";
+import { getFirstValidationMessage } from "../validation/runtime";
 
 type AuthMode = "login" | "signup";
 type UserMenuProps = {
@@ -16,16 +19,33 @@ type UserMenuProps = {
 
 const supabase = getSupabaseBrowserClient();
 const PREFERENCES_TABLE = "userPreferences";
+const authCredentialsSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Enter a valid email address."),
+  password: z.string().min(6, "Password must be at least 6 characters."),
+});
+const signupPreferenceDefaultsSchema = z.object({
+  userId: supabaseUserIdSchema,
+  location: appLocationSchema,
+});
 
 async function persistSignupPreferenceDefaults(
   userId: string,
   location: string,
 ): Promise<string | null> {
+  const inputResult = signupPreferenceDefaultsSchema.safeParse({
+    userId,
+    location,
+  });
+
+  if (!inputResult.success) {
+    return "Account data could not be validated before saving preferences.";
+  }
+
   const { error } = await supabase.from(PREFERENCES_TABLE).upsert(
     {
-      user_id: userId,
+      user_id: inputResult.data.userId,
       rating_sources: [...DEFAULT_RATING_SOURCES],
-      location,
+      location: inputResult.data.location,
       site_color: DEFAULT_SITE_COLOR,
     },
     { onConflict: "user_id" },
@@ -88,20 +108,29 @@ export function UserMenu({
     setAuthMessage(null);
     setAuthError(null);
 
-    const trimmedEmail = email.trim().toLowerCase();
+    const credentialsResult = authCredentialsSchema.safeParse({
+      email,
+      password,
+    });
 
-    if (!trimmedEmail || !password) {
-      setAuthError("Enter both email and password.");
+    if (!credentialsResult.success) {
+      setAuthError(
+        getFirstValidationMessage(
+          credentialsResult,
+          "Enter a valid email and password.",
+        ),
+      );
       return;
     }
 
+    const credentials = credentialsResult.data;
     setAuthPending(true);
 
     if (authMode === "signup") {
       const signupLocation = loadGuestLocation() ?? DEFAULT_LOCATION;
       const { data, error } = await supabase.auth.signUp({
-        email: trimmedEmail,
-        password,
+        email: credentials.email,
+        password: credentials.password,
         options: {
           data: {
             [LOCATION_SIGNUP_METADATA_KEY]: signupLocation,
@@ -118,10 +147,13 @@ export function UserMenu({
       let preferenceInitializationError: string | null = null;
 
       if (data.session && data.user) {
-        preferenceInitializationError = await persistSignupPreferenceDefaults(
-          data.user.id,
-          signupLocation,
-        );
+        const userResult = supabaseUserIdentitySchema.safeParse(data.user);
+        preferenceInitializationError = userResult.success
+          ? await persistSignupPreferenceDefaults(
+              userResult.data.id,
+              signupLocation,
+            )
+          : "Account identity could not be validated before saving preferences.";
       }
 
       setAuthPending(false);
@@ -143,8 +175,8 @@ export function UserMenu({
     }
 
     const { error } = await supabase.auth.signInWithPassword({
-      email: trimmedEmail,
-      password,
+      email: credentials.email,
+      password: credentials.password,
     });
 
     setAuthPending(false);

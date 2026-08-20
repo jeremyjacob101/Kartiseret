@@ -1,3 +1,5 @@
+import type { ZodType } from "zod";
+
 export type GuestPreferencePersistence<Value> = {
   load: () => Value | null;
   save?: (value: Value) => void;
@@ -23,6 +25,7 @@ export type UserPreferenceDefinition<
   column: PreferenceColumn;
   defaultValue: Value;
   options?: readonly Option[];
+  schema: ZodType<Value>;
   copy: (value: Value) => Value;
   normalize: (value: unknown) => Value;
   guestPersistence?: GuestPreferencePersistence<Value>;

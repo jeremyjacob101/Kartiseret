@@ -13,6 +13,7 @@ import { DeviceTypeProvider } from "./device/deviceType";
 import { useDeviceInfo } from "./device/useDeviceType";
 import { UserPreferencesProvider } from "./prefs/UserPreferencesContext";
 import { useUserPreferencesContext } from "./prefs/useUserPreferences";
+import { movieCodeSchema } from "./validation/runtime";
 import "./index.css";
 
 const SCROLLER_CARD_WIDTH = 220;
@@ -68,7 +69,10 @@ function isPotentialStandaloneMoviePath(pathname: string): boolean {
 
   const segment = pathname.startsWith("/") ? pathname.slice(1) : pathname;
 
-  return !segment.includes("/") && /^[0-9A-Za-z]{3}/.test(segment);
+  return (
+    !segment.includes("/") &&
+    movieCodeSchema.safeParse(segment.slice(0, 3)).success
+  );
 }
 
 type AppMovieJumpRequest = MovieScrollerJumpRequest & {

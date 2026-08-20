@@ -1,5 +1,6 @@
 import { type Marker, type Offset, type PositionAnchor, LngLat, LngLatBounds, Map as MapLibreMap, Popup } from "maplibre-gl";
 import { type Theater } from "../../data/theaters";
+import { longitudeLatitudeSchema } from "../../validation/runtime";
 
 export const MAP_STYLE_URL =
   "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
@@ -287,11 +288,17 @@ export function getNearestCityLocation(
   point: [number, number],
   entries: readonly CityEntry[],
 ) {
+  const pointResult = longitudeLatitudeSchema.safeParse(point);
+
+  if (!pointResult.success) {
+    return null;
+  }
+
   let nearestLocation: string | null = null;
   let nearestDistance = Number.POSITIVE_INFINITY;
 
   for (const entry of entries) {
-    const distance = getDistanceMeters(point, entry.center);
+    const distance = getDistanceMeters(pointResult.data, entry.center);
 
     if (distance < nearestDistance) {
       nearestDistance = distance;
@@ -641,11 +648,17 @@ export function chooseTheaterPopupAnchor(options: {
     options.address,
     maxWidth,
   );
+  const coordinatesResult = longitudeLatitudeSchema.safeParse([
+    Number(options.currentElement.dataset.lng),
+    Number(options.currentElement.dataset.lat),
+  ]);
+
+  if (!coordinatesResult.success) {
+    return undefined;
+  }
+
   const point = options.map.project(
-    new LngLat(
-      Number(options.currentElement.dataset.lng),
-      Number(options.currentElement.dataset.lat),
-    ),
+    new LngLat(coordinatesResult.data[0], coordinatesResult.data[1]),
   );
   const obstacleRects: RectBounds[] = [];
 

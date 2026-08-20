@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import { z } from "zod";
 
 export type DeviceType = "mobile" | "desktop";
 
@@ -8,14 +9,11 @@ export type DeviceInfo = {
   isDesktop: boolean;
 };
 
-type NavigatorWithUserAgentData = Navigator & {
-  userAgentData?: {
-    mobile?: boolean;
-  };
-};
-
 const MOBILE_USER_AGENT_PATTERN =
   /Android|webOS|iPhone|iPod|iPad|BlackBerry|IEMobile|Opera Mini/i;
+const userAgentDataSchema = z
+  .object({ mobile: z.boolean().optional() })
+  .passthrough();
 
 function buildDeviceInfo(deviceType: DeviceType): DeviceInfo {
   return {
@@ -31,9 +29,11 @@ function detectDeviceType(): DeviceType {
   }
 
   const { userAgent = "", platform = "", maxTouchPoints = 0 } = navigator;
-  const userAgentData = (navigator as NavigatorWithUserAgentData).userAgentData;
+  const userAgentDataResult = userAgentDataSchema.safeParse(
+    Reflect.get(navigator, "userAgentData"),
+  );
 
-  if (userAgentData?.mobile === true) {
+  if (userAgentDataResult.success && userAgentDataResult.data.mobile === true) {
     return "mobile";
   }
 

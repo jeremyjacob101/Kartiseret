@@ -1,42 +1,8 @@
 import { getSupabaseBrowserClient } from "../lib/supabase";
+import { parseRuntimeValue } from "../validation/runtime";
+import { theaterRowSchema, theaterSchema, type City, type Theater, type TheaterRow } from "./externalSchemas";
 
-type TheaterRow = {
-  chain: string;
-  address: string;
-  location: string;
-  theater_name: string;
-  latitude: number;
-  longitude: number;
-  city_details: CityRow;
-};
-
-type CityRow = {
-  name: string;
-  alt_spellings: string[];
-  latitude: number;
-  longitude: number;
-  zoom_layer: number;
-  neighboring_cities: string[];
-};
-
-export type City = {
-  name: string;
-  altSpellings: string[];
-  latitude: number;
-  longitude: number;
-  zoomLayer: number;
-  neighboringCities: string[];
-};
-
-export type Theater = {
-  city: City;
-  chain: string;
-  address: string;
-  theaterName: string;
-  location: string;
-  lat: number;
-  lng: number;
-};
+export type { City, Theater } from "./externalSchemas";
 
 const THEATERS_TABLE_NAME = "theaters";
 const CITY_NAME_JOIN_THEATER_SELECT_COLUMNS = [
@@ -124,7 +90,11 @@ async function fetchTheaterRows(): Promise<TheaterRow[]> {
     throw result.error;
   }
 
-  return result.data as unknown as TheaterRow[];
+  return parseRuntimeValue(
+    theaterRowSchema.array(),
+    result.data ?? [],
+    `${THEATERS_TABLE_NAME} rows`,
+  );
 }
 
 export function preloadTheaters(): void {
@@ -144,9 +114,11 @@ export async function loadTheaters(): Promise<Theater[]> {
 
   loadTheatersPromise = (async () => {
     try {
-      const nextTheaters = (await fetchTheaterRows())
-        .map(mapRowToTheater)
-        .sort(compareTheaters);
+      const nextTheaters = parseRuntimeValue(
+        theaterSchema.array(),
+        (await fetchTheaterRows()).map(mapRowToTheater),
+        "normalized theater catalog",
+      ).sort(compareTheaters);
 
       cachedTheaters = nextTheaters;
 

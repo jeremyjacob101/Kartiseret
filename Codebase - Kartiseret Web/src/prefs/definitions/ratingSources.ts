@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { UserPreferenceDefinition } from "./shared";
 
 export const ALL_RATING_SOURCES = [
@@ -14,15 +15,15 @@ export const DEFAULT_RATING_SOURCES: RatingSource[] = [
   "rtCriticRating",
 ];
 
-export type RatingSource = (typeof ALL_RATING_SOURCES)[number];
+export const ratingSourceSchema = z.enum(ALL_RATING_SOURCES);
+export const ratingSourcesSchema = z.array(ratingSourceSchema);
+export type RatingSource = z.infer<typeof ratingSourceSchema>;
 export const RATING_SOURCES_PREFERENCE_KEY = "ratingSources";
 export const RATING_SOURCES_PREFERENCE_COLUMN = {
   name: "rating_sources",
 } as const;
 export const GUEST_RATING_SOURCES_MESSAGE =
   "You must be logged in to save preferences.";
-
-const ratingSourceSet = new Set<string>(ALL_RATING_SOURCES);
 
 type NormalizeOptions = {
   fallback?: readonly RatingSource[];
@@ -37,12 +38,16 @@ function toNormalizedSources(value: unknown): RatingSource[] {
   const selected = new Set<string>();
 
   for (const item of value) {
-    if (typeof item === "string" && ratingSourceSet.has(item)) {
-      selected.add(item);
+    const result = ratingSourceSchema.safeParse(item);
+
+    if (result.success) {
+      selected.add(result.data);
     }
   }
 
-  return ALL_RATING_SOURCES.filter((source) => selected.has(source));
+  return ratingSourcesSchema.parse(
+    ALL_RATING_SOURCES.filter((source) => selected.has(source)),
+  );
 }
 
 export function normalizeRatingSources(
@@ -68,6 +73,7 @@ export const ratingSourcesPreferenceDefinition: UserPreferenceDefinition<
   column: RATING_SOURCES_PREFERENCE_COLUMN,
   defaultValue: DEFAULT_RATING_SOURCES,
   options: ALL_RATING_SOURCES,
+  schema: ratingSourcesSchema,
   copy: (value) => [...value],
   normalize: (value) =>
     normalizeRatingSources(value, {

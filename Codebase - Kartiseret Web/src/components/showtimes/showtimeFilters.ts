@@ -1,5 +1,6 @@
 import { cloneUncheckedGroups, type ShowtimeFilterState } from "../../domain/showtimeFilters.js";
-import { migrateShowtimeFilterState } from "../../routing/showtimeLinkCodec.js";
+import { migrateShowtimeFilterState, persistedShowtimeFilterInputSchema } from "../../routing/showtimeLinkCodec.js";
+import { parseJsonWithSchema } from "../../validation/runtime.js";
 
 export {
   buildShowtimeFilterSelections,
@@ -30,8 +31,8 @@ function readFilterStateFromStorage(): ShowtimeFilterState | null {
       return null;
     }
 
-    const parsed = JSON.parse(raw) as unknown;
-    return migrateShowtimeFilterState(parsed);
+    const parsed = parseJsonWithSchema(raw, persistedShowtimeFilterInputSchema);
+    return parsed ? migrateShowtimeFilterState(parsed) : null;
   } catch {
     return null;
   }
@@ -100,8 +101,11 @@ export function subscribeToShowtimeFilters(listener: () => void): () => void {
   };
 
   const handleCustomUpdate = (event: Event) => {
-    const customEvent = event as CustomEvent<ShowtimeFilterState | null>;
-    cachedFilterState = customEvent.detail ?? readFilterStateFromStorage();
+    const eventState =
+      event instanceof CustomEvent
+        ? migrateShowtimeFilterState(event.detail)
+        : null;
+    cachedFilterState = eventState ?? readFilterStateFromStorage();
     listener();
   };
 

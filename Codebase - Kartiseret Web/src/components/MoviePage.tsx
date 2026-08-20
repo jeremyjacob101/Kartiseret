@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
+import { z } from "zod";
 
 import { findMovieByCode, isMovieShowtimeDateLoaded, isValidMovieCode, loadMovieShowtimesForDate, prefetchMovieShowtimesAfterDate } from "../data/movieCatalog";
 import { DEFAULT_LOCATION } from "../prefs/definitions/locations";
@@ -11,8 +12,17 @@ import { MovieDetailsContent } from "./scroller/MovieDetailsContent";
 import "./scroller/MovieScroller.css";
 import "./MoviePage.css";
 
+const moviePageRouteParamsSchema = z.object({
+  movieCode: z.string().max(10).optional().default(""),
+});
+
 const MIDNIGHT_CHECK_INTERVAL_MS = 30_000;
 const SHARE_FEEDBACK_DURATION_MS = 2_200;
+
+function parseMoviePageRouteCode(routeParams: unknown): string {
+  const result = moviePageRouteParamsSchema.safeParse(routeParams);
+  return result.success ? result.data.movieCode : "";
+}
 
 type MoviePageProps = {
   catalogError: string | null;
@@ -137,7 +147,11 @@ function useJerusalemToday(): string {
 }
 
 export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
-  const { movieCode: routeCode = "" } = useParams();
+  const { movieCode } = useParams();
+  const routeCode = useMemo(
+    () => parseMoviePageRouteCode({ movieCode }),
+    [movieCode],
+  );
   const navigate = useNavigate();
   const {
     loading: preferencesLoading,

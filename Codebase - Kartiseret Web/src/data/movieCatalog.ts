@@ -1,7 +1,10 @@
+import { z } from "zod";
 import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime as shouldIncludeShowtimeAtInstant, SHOWTIME_TIME_ZONE } from "../domain/showtimeDay.js";
 import { getSupabaseBrowserClient } from "../lib/supabase.js";
 import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/definitions/locations.js";
 import { addCalendarDays, getJerusalemCinemaDate, getTargetedShowtimePrefetchRange, SHOWTIME_LINK_DATE_COUNT } from "../routing/showtimeLinkCodec.js";
+import { movieCodeSchema, parseJsonWithSchema, parseRuntimeValue } from "../validation/runtime.js";
+import { adminMovieEditPayloadSchema, comingSoonMovieRowSchema, existingMovieTargetRowSchema, movieCodeRowSchema, movieRowSchema, movieSchema, showtimeRowSchema, type AdminMovieEditPayload, type ComingSoonMovieRow, type MovieAltOption, type MovieRow, type Movie, type ShowtimeRow } from "./externalSchemas.js";
 
 const SUPABASE_PAGE_SIZE = 1000;
 export const APP_TIME_ZONE = SHOWTIME_TIME_ZONE;
@@ -15,7 +18,6 @@ const COMING_SOON_TABLE_NAME = "finalSoons";
 const SHOWTIMES_TABLE_NAME = "finalShowtimes";
 const MOVIE_CODES_TABLE_NAME = "movieCodes";
 const MOVIE_CODE_QUERY_CHUNK_SIZE = 200;
-const MOVIE_CODE_PATTERN = /^[0-9A-Za-z]{3}$/;
 const MOVIE_SELECT_COLUMNS = [
   "tmdb_id",
   "english_title",
@@ -89,68 +91,9 @@ export const fixedAppDateString = getCinemaDayDate(
 
 type SupabaseValue = unknown;
 type SupabaseRow = Record<string, SupabaseValue | undefined>;
+type CatalogMovieRow = MovieRow | ComingSoonMovieRow;
 
-// Production tables always populate these columns, so downstream consumers do
-// not need to model them as nullable. Some fields like tmdb_id may still arrive
-// as numbers from Supabase, so we normalize them through stringify helpers.
-type MovieRow = SupabaseRow & {
-  tmdb_id: string | number;
-  english_title: string;
-  release_date?: string | null;
-};
-
-type ComingSoonMovieRow = MovieRow & {
-  release_date: string;
-};
-
-type MovieCodeRow = SupabaseRow & {
-  tmdb_id: string | number;
-  movie_code: string;
-};
-
-type ShowtimeRow = SupabaseRow & {
-  tmdb_id: string | number;
-  screening_city: string;
-  date_of_showing: string;
-  cinema: string;
-  showtime: string;
-  screening_tech: string;
-  screening_type: string;
-};
-
-export type Movie = {
-  tmdbId: string;
-  movieCode?: string;
-  imdbId?: string;
-  rtId?: string;
-  title: string;
-  year: number;
-  releaseDate?: string;
-  genres: string[];
-  imageSrc: string;
-  backdropSrc?: string;
-  trailerKey?: string;
-  imdbRating: number | null;
-  lbId?: string;
-  lbRating: number | null;
-  lbVotes: number | null;
-  tmdbRating: number | null;
-  tmdbVotes: number | null;
-  rtCriticRating: number | null;
-  rtCriticVotes: number | null;
-  rtAudienceRating: number | null;
-  rtAudienceVotes: number | null;
-  runtime: number;
-  popularity: number;
-  altOptions: MovieAltOption[];
-};
-
-export type MovieAltOption = {
-  tmdbId: string;
-  title: string;
-  year: number | null;
-  posterUrl: string | null;
-};
+export type { Movie, MovieAltOption } from "./externalSchemas.js";
 
 export type CatalogMode = "nowPlaying" | "comingSoon";
 
@@ -380,20 +323,14 @@ function parseGenres(value: SupabaseValue | undefined): string[] {
       ? `[${normalizedValue.slice(1, -1)}]`
       : normalizedValue;
 
-    try {
-      const parsedValue = JSON.parse(jsonCandidate);
+    const parsedValue = parseJsonWithSchema(jsonCandidate, z.array(z.string()));
 
-      if (Array.isArray(parsedValue)) {
-        for (const item of parsedValue) {
-          if (typeof item === "string") {
-            addGenre(item);
-          }
-        }
-
-        return [...normalizedGenres];
+    if (parsedValue) {
+      for (const item of parsedValue) {
+        addGenre(item);
       }
-    } catch {
-      // Fall through to comma-splitting for non-JSON array strings.
+
+      return [...normalizedGenres];
     }
   }
 
@@ -411,7 +348,7 @@ function getReleaseYearFromDate(releaseDate: string | undefined): number {
   return Number.parseInt(year, 10) || 0;
 }
 
-function parseAltOptions(value: SupabaseValue | undefined): MovieAltOption[] {
+function parseAltOptions(value: MovieRow["alt_options"]): MovieAltOption[] {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -419,15 +356,10 @@ function parseAltOptions(value: SupabaseValue | undefined): MovieAltOption[] {
   const options: MovieAltOption[] = [];
 
   for (const entry of value) {
-    if (!entry || typeof entry !== "object") {
-      continue;
-    }
-
-    const row = entry as Record<string, unknown>;
-    const tmdbId = normalizeText(String(row.tmdb ?? "")).trim();
-    const title = normalizeTitle(String(row.title ?? "")).trim();
-    const yearNumber = Number.parseInt(String(row.year ?? ""), 10);
-    const posterUrl = normalizeText(String(row.poster_url ?? "")).trim();
+    const tmdbId = normalizeText(String(entry.tmdb)).trim();
+    const title = normalizeTitle(entry.title).trim();
+    const yearNumber = Number.parseInt(String(entry.year ?? ""), 10);
+    const posterUrl = normalizeText(entry.poster_url ?? "").trim();
 
     if (!tmdbId || !title) {
       continue;
@@ -546,13 +478,13 @@ type BuildMoviesOptions = {
 };
 
 function buildMovies(
-  rows: MovieRow[],
+  rows: CatalogMovieRow[],
   {
     movieCodesByTmdbId = new Map<string, string>(),
     sortMode = "popularity",
   }: BuildMoviesOptions = {},
 ): Movie[] {
-  return [...rows]
+  const normalizedMovies = [...rows]
     .filter((row) => !parseBooleanValue(row.solo_update))
     .sort((left, right) => {
       if (sortMode === "releaseDate") {
@@ -609,6 +541,12 @@ function buildMovies(
         altOptions: parseAltOptions(row.alt_options),
       };
     });
+
+  return parseRuntimeValue(
+    z.array(movieSchema),
+    normalizedMovies,
+    "normalized movie catalog",
+  );
 }
 
 function buildMovieShowtimesForCity(
@@ -720,10 +658,11 @@ function buildMovieShowtimesForCity(
   );
 }
 
-async function fetchAllTableRows<Row extends SupabaseRow>(
+async function fetchAllTableRows<Row>(
   tableName: string,
   selectColumns: readonly string[],
   orderColumns: readonly string[],
+  rowSchema: z.ZodType<Row>,
 ): Promise<Row[]> {
   const supabase = getSupabaseBrowserClient();
   const allRows: Row[] = [];
@@ -747,7 +686,11 @@ async function fetchAllTableRows<Row extends SupabaseRow>(
       );
     }
 
-    const batchRows = (data ?? []) as unknown as Row[];
+    const batchRows = parseRuntimeValue(
+      z.array(rowSchema),
+      data ?? [],
+      `${tableName} rows`,
+    );
     allRows.push(...batchRows);
 
     if (batchRows.length < SUPABASE_PAGE_SIZE) {
@@ -860,18 +803,22 @@ async function fetchMovieRows(): Promise<MovieRow[]> {
   ];
 
   try {
-    return await fetchAllTableRows<MovieRow>(MOVIES_TABLE_NAME, selectColumns, [
-      "tmdb_id",
-    ]);
+    return await fetchAllTableRows(
+      MOVIES_TABLE_NAME,
+      selectColumns,
+      ["tmdb_id"],
+      movieRowSchema,
+    );
   } catch (error) {
     if (!isMissingOptionalColumnError(error, OPTIONAL_MOVIE_SELECT_COLUMNS)) {
       throw error;
     }
 
-    return fetchAllTableRows<MovieRow>(
+    return fetchAllTableRows(
       MOVIES_TABLE_NAME,
       MOVIE_SELECT_COLUMNS,
       ["tmdb_id"],
+      movieRowSchema,
     );
   }
 }
@@ -883,10 +830,11 @@ async function fetchComingSoonMovieRows(): Promise<ComingSoonMovieRow[]> {
   ];
 
   try {
-    return await fetchAllTableRows<ComingSoonMovieRow>(
+    return await fetchAllTableRows(
       COMING_SOON_TABLE_NAME,
       selectColumns,
       ["tmdb_id"],
+      comingSoonMovieRowSchema,
     );
   } catch (error) {
     if (
@@ -895,16 +843,17 @@ async function fetchComingSoonMovieRows(): Promise<ComingSoonMovieRow[]> {
       throw error;
     }
 
-    return fetchAllTableRows<ComingSoonMovieRow>(
+    return fetchAllTableRows(
       COMING_SOON_TABLE_NAME,
       COMING_SOON_SELECT_COLUMNS,
       ["tmdb_id"],
+      comingSoonMovieRowSchema,
     );
   }
 }
 
 async function fetchMovieCodesByTmdbId(
-  movieRows: readonly MovieRow[],
+  movieRows: readonly CatalogMovieRow[],
 ): Promise<Map<string, string>> {
   const tmdbIds = [
     ...new Set(
@@ -940,7 +889,11 @@ async function fetchMovieCodesByTmdbId(
         );
       }
 
-      return (data ?? []) as unknown as MovieCodeRow[];
+      return parseRuntimeValue(
+        z.array(movieCodeRowSchema),
+        data ?? [],
+        `${MOVIE_CODES_TABLE_NAME} rows`,
+      );
     }),
   );
   const movieCodesByTmdbId = new Map<string, string>();
@@ -949,7 +902,7 @@ async function fetchMovieCodesByTmdbId(
     const tmdbId = normalizeText(stringifySupabaseValue(row.tmdb_id));
     const movieCode = normalizeText(row.movie_code);
 
-    if (tmdbId && MOVIE_CODE_PATTERN.test(movieCode)) {
+    if (tmdbId) {
       movieCodesByTmdbId.set(tmdbId, movieCode);
     }
   }
@@ -965,7 +918,7 @@ function indexMoviesByCode(movieItems: readonly Movie[]): Map<string, Movie> {
 }
 
 export function isValidMovieCode(movieCode: string): boolean {
-  return MOVIE_CODE_PATTERN.test(movieCode);
+  return movieCodeSchema.safeParse(movieCode).success;
 }
 
 export function findMovieByCode(movieCode: string): MovieRouteMatch | null {
@@ -1034,7 +987,11 @@ async function fetchShowtimeRowsForDateRange(
         );
       }
 
-      const batchRows = (data ?? []) as unknown as ShowtimeRow[];
+      const batchRows = parseRuntimeValue(
+        z.array(showtimeRowSchema),
+        data ?? [],
+        `${SHOWTIMES_TABLE_NAME} rows`,
+      );
       allRows.push(...batchRows);
 
       if (batchRows.length < SUPABASE_PAGE_SIZE) {
@@ -1796,28 +1753,21 @@ export async function reloadComingSoonMovies(): Promise<void> {
   await loadComingSoonMovies();
 }
 
-type AdminMovieEditPayload = {
-  mode: CatalogMode;
-  currentTmdbId: string;
-  selectedTmdbId: string;
-  selectedTitle?: string | null;
-  selectedYear?: number | null;
-  selectedPosterUrl?: string | null;
-  isManualEntry: boolean;
-};
-
 export async function applyAdminMovieEdit(
   payload: AdminMovieEditPayload,
 ): Promise<void> {
+  const validatedPayload = parseRuntimeValue(
+    adminMovieEditPayloadSchema,
+    payload,
+    "admin movie edit payload",
+  );
   const supabase = getSupabaseBrowserClient();
   const tableName =
-    payload.mode === "nowPlaying" ? MOVIES_TABLE_NAME : COMING_SOON_TABLE_NAME;
-  const normalizedCurrentTmdbId = normalizeText(payload.currentTmdbId);
-  const normalizedSelectedTmdbId = normalizeText(payload.selectedTmdbId);
-
-  if (!normalizedCurrentTmdbId || !normalizedSelectedTmdbId) {
-    throw new Error("Missing TMDB id for admin movie update.");
-  }
+    validatedPayload.mode === "nowPlaying"
+      ? MOVIES_TABLE_NAME
+      : COMING_SOON_TABLE_NAME;
+  const normalizedCurrentTmdbId = validatedPayload.currentTmdbId;
+  const normalizedSelectedTmdbId = validatedPayload.selectedTmdbId;
 
   if (normalizedCurrentTmdbId === normalizedSelectedTmdbId) {
     return;
@@ -1844,17 +1794,19 @@ export async function applyAdminMovieEdit(
     throw new Error(existingTargetError.message);
   }
 
+  const parsedExistingTarget = existingTarget
+    ? parseRuntimeValue(
+        existingMovieTargetRowSchema,
+        existingTarget,
+        `${tableName} admin target row`,
+      )
+    : null;
   const selectedTitle = normalizeTitle(
-    payload.selectedTitle ??
-      (existingTarget
-        ? stringifySupabaseValue(
-            (existingTarget as SupabaseRow).english_title as SupabaseValue,
-          )
-        : ""),
+    validatedPayload.selectedTitle ?? parsedExistingTarget?.english_title ?? "",
   );
 
-  if (existingTarget) {
-    if (payload.mode === "nowPlaying") {
+  if (parsedExistingTarget) {
+    if (validatedPayload.mode === "nowPlaying") {
       const { error: showtimesUpdateError } = await supabase
         .from(SHOWTIMES_TABLE_NAME)
         .update({
@@ -1891,7 +1843,7 @@ export async function applyAdminMovieEdit(
     genres: [],
   };
 
-  if (payload.mode === "nowPlaying") {
+  if (validatedPayload.mode === "nowPlaying") {
     updatePayload.imdb_id = null;
     updatePayload.imdbRating = null;
     updatePayload.imdbVotes = null;
@@ -1921,7 +1873,7 @@ export async function applyAdminMovieEdit(
     throw new Error(error.message);
   }
 
-  if (payload.mode === "nowPlaying") {
+  if (validatedPayload.mode === "nowPlaying") {
     const { error: showtimesUpdateError } = await supabase
       .from(SHOWTIMES_TABLE_NAME)
       .update({

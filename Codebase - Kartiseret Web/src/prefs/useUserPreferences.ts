@@ -1,6 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
+import { z, type ZodType } from "zod";
 import { getSupabaseBrowserClient } from "../lib/supabase";
+import { adminUserRowSchema, supabaseUserIdSchema, supabaseUserIdentitySchema } from "../lib/supabaseSchemas";
+import { parseRuntimeValue } from "../validation/runtime";
 import { locationPreferenceDefinition, type AppLocation } from "./definitions/locations";
 import { ratingSourcesPreferenceDefinition, type RatingSource } from "./definitions/ratingSources";
 import { DEFAULT_SITE_COLOR, applySiteColor, initializeSiteColorTheme, siteColorPreferenceDefinition, type SiteColorOption, type SiteColor } from "./definitions/siteColor";
@@ -40,9 +43,15 @@ type SavePreference = <Key extends PreferenceKey>(
   key: Key,
   value: UserPreferences[Key],
 ) => Promise<boolean>;
-type UserPreferencesRow = {
-  user_id: string;
-} & Record<string, unknown>;
+const userPreferencesRowSchema = z
+  .object({
+    user_id: supabaseUserIdSchema,
+    rating_sources: z.unknown().optional(),
+    location: z.unknown().optional(),
+    site_color: z.unknown().optional(),
+  })
+  .passthrough();
+type UserPreferencesRow = z.infer<typeof userPreferencesRowSchema>;
 type QueuedPreferenceSaves = Partial<{
   [Key in PreferenceKey]: UserPreferences[Key];
 }>;
@@ -165,8 +174,13 @@ function normalizePreferenceValue<Key extends PreferenceKey>(
   const normalize = getPreferenceDefinition(key).normalize as (
     value: unknown,
   ) => UserPreferences[Key];
+  const normalizedValue = normalize(value);
 
-  return normalize(value);
+  return parseRuntimeValue(
+    getPreferenceDefinition(key).schema as ZodType<UserPreferences[Key]>,
+    normalizedValue,
+    `${key} preference`,
+  );
 }
 
 function getDefaultPreferenceValue<Key extends PreferenceKey>(
@@ -253,10 +267,28 @@ async function loadPreferencesRow(userId: string) {
     .eq("user_id", userId)
     .maybeSingle();
 
-  return {
-    error,
-    row: (data as UserPreferencesRow | null) ?? null,
-  };
+  if (error || data === null) {
+    return { error, row: null };
+  }
+
+  try {
+    return {
+      error: null,
+      row: parseRuntimeValue(
+        userPreferencesRowSchema,
+        data,
+        `${PREFERENCES_TABLE} row`,
+      ),
+    };
+  } catch (validationError) {
+    return {
+      error:
+        validationError instanceof Error
+          ? validationError
+          : new Error("Invalid user preferences row."),
+      row: null,
+    };
+  }
 }
 
 function getGuestPreferences(): UserPreferences {
@@ -366,7 +398,10 @@ export function useUserPreferences(): UserPreferencesState {
         return;
       }
 
-      setIsAdmin(Boolean(data));
+      const adminRowResult = adminUserRowSchema.nullable().safeParse(data);
+      setIsAdmin(
+        adminRowResult.success && adminRowResult.data?.user_id === userId,
+      );
     }
 
     void loadAdminState();
@@ -385,7 +420,13 @@ export function useUserPreferences(): UserPreferencesState {
 
     async function initializeSession() {
       const { data, error: sessionError } = await supabase.auth.getSession();
-      const sessionUser = data.session?.user ?? null;
+      const sessionUserCandidate = data.session?.user ?? null;
+      const sessionUserResult = sessionUserCandidate
+        ? supabaseUserIdentitySchema.safeParse(sessionUserCandidate)
+        : null;
+      const sessionUser = sessionUserResult?.success
+        ? sessionUserCandidate
+        : null;
 
       if (!isActive) {
         return;
@@ -393,6 +434,8 @@ export function useUserPreferences(): UserPreferencesState {
 
       if (sessionError) {
         setError(sessionError.message);
+      } else if (sessionUserCandidate && !sessionUserResult?.success) {
+        setError("Authentication session data failed runtime validation.");
       }
 
       if (!sessionUser) {
@@ -414,7 +457,11 @@ export function useUserPreferences(): UserPreferencesState {
       _event,
       session,
     ) => {
-      const nextUser = session?.user ?? null;
+      const nextUserCandidate = session?.user ?? null;
+      const nextUserResult = nextUserCandidate
+        ? supabaseUserIdentitySchema.safeParse(nextUserCandidate)
+        : null;
+      const nextUser = nextUserResult?.success ? nextUserCandidate : null;
       const nextUserId = nextUser?.id ?? null;
       const didUserIdentityChange = activeUserIdRef.current !== nextUserId;
 
@@ -428,6 +475,10 @@ export function useUserPreferences(): UserPreferencesState {
           confirmedPreferencesRef.current = guestPreferences;
           setPreferences(guestPreferences);
         }
+      }
+
+      if (nextUserCandidate && !nextUserResult?.success) {
+        setError("Authentication state data failed runtime validation.");
       }
 
       setUser(nextUser);

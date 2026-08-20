@@ -3,6 +3,7 @@ import { Pencil } from "lucide-react";
 
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { type Movie } from "../data/movieCatalog";
+import { tmdbIdSchema } from "../validation/runtime";
 
 const POSTER_GRID_MIN_COLUMN_WIDTH_FALLBACK = 150;
 
@@ -319,28 +320,22 @@ export function PosterGridPage({
                     }
 
                     const normalizedManualValue = manualTmdbId.trim();
-                    const manualValueAsNumber = Number.parseInt(
+                    const manualIdResult = tmdbIdSchema.safeParse(
                       normalizedManualValue,
-                      10,
                     );
-                    const hasValidManualValue =
-                      normalizedManualValue.length > 0 &&
-                      Number.isFinite(manualValueAsNumber) &&
-                      manualValueAsNumber > 0;
-                    const activeTmdbId = hasValidManualValue
-                      ? String(manualValueAsNumber)
+                    const activeTmdbId = normalizedManualValue
+                      ? manualIdResult.success
+                        ? manualIdResult.data
+                        : ""
                       : selectedTmdbId;
 
-                    if (!activeTmdbId) {
-                      setError("Choose an option or enter a TMDB ID.");
+                    if (normalizedManualValue && !manualIdResult.success) {
+                      setError("Manual TMDB ID must be a positive integer.");
                       return;
                     }
 
-                    if (
-                      normalizedManualValue.length > 0 &&
-                      !hasValidManualValue
-                    ) {
-                      setError("Manual TMDB ID must be a positive integer.");
+                    if (!tmdbIdSchema.safeParse(activeTmdbId).success) {
+                      setError("Choose an option or enter a TMDB ID.");
                       return;
                     }
 

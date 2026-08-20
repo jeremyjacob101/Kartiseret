@@ -53,6 +53,7 @@ Kartiseret exists to make that flow calmer and more useful:
 - Client-side search across both current and upcoming movies, with title and year-aware ranking.
 - MapLibre-based city and theater picker with search, geolocation, focus controls, and theater marker popups.
 - Supabase Auth-powered user menu with saved preferences for location, rating sources, and site accent color.
+- Zod runtime validation at browser, storage, Supabase, route, environment, and server request boundaries.
 - Guest-friendly local caching for location and theme color.
 - Selenium scrapers for major Israeli cinema chains plus several cinematheques.
 - Multi-stage backend dataflow for cleaning, TMDb matching, metadata enrichment, deduplication, and preview-table generation.
@@ -74,6 +75,7 @@ Kartiseret currently spans two connected layers:
 - Styles are global CSS-driven, accent-color-driven, and motion-heavy rather than Tailwind-based.
 - Code-splits secondary screens with `React.lazy` and `Suspense`.
 - Reads movie data directly from Supabase in the browser rather than through a separate API layer.
+- Derives TypeScript models from Zod schemas where practical and rejects malformed external rows before they enter application state.
 - Loads data in stages for perceived speed: now-playing preview, coming-soon preview, then full datasets and showtimes.
 - Supports homepage, `/movies`, `/soons`, `/showtimes`, and `/user` routes.
 - Treats `/showtimes` as a placeholder route right now rather than a finished page.
@@ -231,6 +233,13 @@ npm run dev
 ```
 
 The app intentionally uses only the publishable key and never a service-role key.
+
+Run the fixture-only runtime-validation suite and the full production build with:
+
+```bash
+npm test
+npm run build
+```
 
 ## Automation
 

@@ -1,83 +1,35 @@
 import { createClient } from "@supabase/supabase-js";
+import { z } from "zod";
 
 import { buildShowtimeFilterSelections, getCanonicalShowtimeMeta } from "../../src/domain/showtimeFilters.js";
 import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime, SHOWTIME_TIME_ZONE } from "../../src/domain/showtimeDay.js";
+import { resolveOptionalSupabaseConfig } from "../../src/lib/supabaseConfig.js";
 import { DEFAULT_LOCATION } from "../../src/prefs/definitions/locations.js";
 import { decodeDateCode, isCanonicalShowtimeFilterMatch, parseMovieRouteCode, resolveCityCode, SHOWTIME_FILTER_OPTIONS, uncheckedFromFilterMask } from "../../src/routing/showtimeLinkCodec.js";
+import { parseJsonWithSchema, parseRuntimeValue } from "../../src/validation/runtime.js";
+import { databaseMovieSchema, databaseShowtimeSchema, movieCodeLookupRowSchema, previewDataSchema, previewRouteSelectionSchema, type DatabaseMovie, type DatabaseShowtime, type PreviewData, type PreviewRouteSelection, type PreviewTheater } from "./schemas.js";
 
-const supabaseUrl =
-  process.env.SUPABASE_URL?.trim() ||
-  process.env.VITE_SUPABASE_URL?.trim() ||
-  "";
-
-const supabaseKey =
-  process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ||
-  process.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ||
-  "";
-
-const supabase =
-  supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+const supabaseConfig = resolveOptionalSupabaseConfig(
+  [process.env.SUPABASE_URL, process.env.VITE_SUPABASE_URL],
+  [
+    process.env.SUPABASE_PUBLISHABLE_KEY,
+    process.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+  ],
+);
+const supabase = supabaseConfig
+  ? createClient(supabaseConfig.url, supabaseConfig.publishableKey)
+  : null;
 type PreviewDataClient = NonNullable<typeof supabase>;
 
-type DatabaseMovie = {
-  english_title: string | null;
-  en_poster: string | null;
-  backdrop: string | null;
-  release_year: number | string | null;
-  release_date?: string | null;
-  runtime: number | string | null;
-  genres: string[] | string | null;
-  imdbRating: number | string | null;
-  rtCriticRating: number | string | null;
-  rtCriticVotes: number | string | null;
-  rtAudienceRating: number | string | null;
-  rtAudienceVotes: number | string | null;
-  lbRating: number | string | null;
-};
+export type {
+  PreviewData,
+  PreviewRouteSelection,
+  PreviewTheater,
+} from "./schemas.js";
 
-type DatabaseShowtime = {
-  cinema: string | null;
-  showtime: string | null;
-  screening_tech: string | null;
-  screening_type: string | null;
-  dub_language: string | null;
-};
-
-export type PreviewTheater = {
-  theater: string;
-  showtimes: string[];
-};
-
-export type PreviewData = {
-  routeCode: string;
-  movieCode: string;
-  tmdbId: string;
-  title: string;
-  city: string;
-  date: string;
-  dateLabel: string;
-  posterUrl: string;
-  backdropUrl: string;
-  isComingSoon: boolean;
-  theaters: PreviewTheater[];
-  year: number | null;
-  releaseDate: string | null;
-  runtime: number | null;
-  genres: string[];
-  imdbRating: number | null;
-  rtCriticRating: number | null;
-  rtCriticVotes: number | null;
-  rtAudienceRating: number | null;
-  rtAudienceVotes: number | null;
-  lbRating: number | null;
-};
-
-export type PreviewRouteSelection = {
-  movieCode: string;
-  city: string;
-  date: string;
-  filterMask: number;
-};
+function parsePreviewData(value: unknown): PreviewData {
+  return parseRuntimeValue(previewDataSchema, value, "Open Graph preview");
+}
 
 function parseNumber(value: number | string | null): number | null {
   const number = Number(value);
@@ -87,24 +39,12 @@ function parseNumber(value: number | string | null): number | null {
 function parseGenres(value: DatabaseMovie["genres"]): string[] {
   if (Array.isArray(value)) return value.filter(Boolean).slice(0, 3);
   if (!value) return [];
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    return Array.isArray(parsed)
-      ? parsed
-          .filter((genre): genre is string => typeof genre === "string")
-          .slice(0, 3)
-      : value
-          .split(",")
-          .map((genre) => genre.trim())
-          .filter(Boolean)
-          .slice(0, 3);
-  } catch {
-    return value
-      .split(",")
-      .map((genre) => genre.trim())
-      .filter(Boolean)
-      .slice(0, 3);
-  }
+  const parsed = parseJsonWithSchema(value, z.array(z.string()));
+
+  return (parsed ?? value.split(","))
+    .map((genre) => genre.trim())
+    .filter(Boolean)
+    .slice(0, 3);
 }
 
 function normalizeShowtime(value: string | null): string {
@@ -150,8 +90,13 @@ async function getMovieByTmdbId(
     );
   }
 
-  const currentMovie = currentMovieResult.data?.[0] as unknown as
-    DatabaseMovie | undefined;
+  const currentMovie = currentMovieResult.data?.[0]
+    ? parseRuntimeValue(
+        databaseMovieSchema,
+        currentMovieResult.data[0],
+        `finalMovies movie ${tmdbId}`,
+      )
+    : undefined;
   if (currentMovie) {
     return { movie: currentMovie, isComingSoon: false };
   }
@@ -162,8 +107,13 @@ async function getMovieByTmdbId(
     );
   }
 
-  const comingSoonMovie = comingSoonResult.data?.[0] as unknown as
-    DatabaseMovie | undefined;
+  const comingSoonMovie = comingSoonResult.data?.[0]
+    ? parseRuntimeValue(
+        databaseMovieSchema,
+        comingSoonResult.data[0],
+        `finalSoons movie ${tmdbId}`,
+      )
+    : undefined;
   return {
     movie: comingSoonMovie || null,
     isComingSoon: Boolean(comingSoonMovie),
@@ -245,6 +195,10 @@ export function resolvePreviewRouteSelection(
   routeCode: string,
   instant: Date = new Date(),
 ): PreviewRouteSelection | null {
+  if (!z.date().safeParse(instant).success) {
+    return null;
+  }
+
   const parsedRoute = parseMovieRouteCode(routeCode);
 
   if (!parsedRoute) {
@@ -270,12 +224,14 @@ export function resolvePreviewRouteSelection(
     filterMask = parsedRoute.filterMask;
   }
 
-  return {
+  const selectionResult = previewRouteSelectionSchema.safeParse({
     movieCode: parsedRoute.movieCode,
     city,
     date,
     filterMask,
-  };
+  });
+
+  return selectionResult.success ? selectionResult.data : null;
 }
 
 export async function getPreviewData(
@@ -304,7 +260,12 @@ export async function getPreviewData(
     return null;
   }
 
-  const tmdbId = String(codeRows?.[0]?.tmdb_id || "").trim();
+  const parsedCodeRows = parseRuntimeValue(
+    movieCodeLookupRowSchema.array(),
+    codeRows ?? [],
+    "movieCodes preview lookup rows",
+  );
+  const tmdbId = String(parsedCodeRows[0]?.tmdb_id || "").trim();
 
   if (!tmdbId) {
     return null;
@@ -326,7 +287,7 @@ export async function getPreviewData(
   }
 
   if (isComingSoon) {
-    return {
+    return parsePreviewData({
       routeCode,
       movieCode: selection.movieCode,
       tmdbId,
@@ -348,7 +309,7 @@ export async function getPreviewData(
       rtAudienceRating: parseNumber(movie.rtAudienceRating),
       rtAudienceVotes: parseNumber(movie.rtAudienceVotes),
       lbRating: parseNumber(movie.lbRating),
-    };
+    });
   }
 
   if (showtimeResult.error) {
@@ -357,10 +318,12 @@ export async function getPreviewData(
     );
   }
 
-  const filteredRows = filterShowtimeRows(
-    (showtimeResult.data || []) as DatabaseShowtime[],
-    selection.filterMask,
+  const showtimeRows = parseRuntimeValue(
+    databaseShowtimeSchema.array(),
+    showtimeResult.data ?? [],
+    "finalShowtimes preview rows",
   );
+  const filteredRows = filterShowtimeRows(showtimeRows, selection.filterMask);
 
   const nonExpiredRows = filterExpiredShowtimes(
     filteredRows,
@@ -368,7 +331,7 @@ export async function getPreviewData(
     instant,
   );
 
-  return {
+  return parsePreviewData({
     routeCode,
     movieCode: selection.movieCode,
     tmdbId,
@@ -390,7 +353,7 @@ export async function getPreviewData(
     rtAudienceRating: parseNumber(movie.rtAudienceRating),
     rtAudienceVotes: parseNumber(movie.rtAudienceVotes),
     lbRating: parseNumber(movie.lbRating),
-  };
+  });
 }
 
 function filterExpiredShowtimes(

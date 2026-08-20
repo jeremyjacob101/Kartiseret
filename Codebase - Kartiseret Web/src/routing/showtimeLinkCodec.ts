@@ -1,4 +1,6 @@
+import { z } from "zod";
 import { getCinemaDayDate, SHOWTIME_TIME_ZONE } from "../domain/showtimeDay.js";
+import { httpUrlSchema, isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema } from "../validation/runtime.js";
 
 export const URL_ALPHABET =
   "1iljIt23457fkrsvxyzFJLT0689abcdeghnopquABCDEGHKNOPQRSUVXYZmwMW";
@@ -14,7 +16,6 @@ export const ALL_FILTERS_SHORTCUT = "j";
 export const EDIT_MODE_MARKER = "i";
 
 const MILLISECONDS_PER_DAY = 86_400_000;
-const MOVIE_CODE_PATTERN = /^[0-9A-Za-z]{3}$/;
 const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const URL_ALPHABET_INDEX = new Map(
   [...URL_ALPHABET].map((character, index) => [character, index] as const),
@@ -178,6 +179,41 @@ export type MovieShowtimeShareState = {
   filterMask: number;
 };
 
+export const persistedShowtimeFilterInputSchema = z
+  .object({
+    version: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+    unchecked: z
+      .object({
+        showType: z.unknown().optional(),
+        screeningTech: z.unknown().optional(),
+        screenFormat: z.unknown().optional(),
+        dubLanguage: z.unknown().optional(),
+      })
+      .optional()
+      .default({}),
+  })
+  .passthrough();
+
+const movieRouteModeSchema = z.enum(["share", "edit"]);
+const supportedFilterMaskSchema = z
+  .number()
+  .int()
+  .min(0)
+  .max(2 ** SHOWTIME_FILTER_BIT_COUNT - 1);
+const encodedMovieRouteStateSchema = z.object({
+  movieCode: movieCodeSchema,
+  cityCode: z.string().length(1),
+  dateCode: z.string().length(1),
+  filterMask: supportedFilterMaskSchema,
+  mode: movieRouteModeSchema,
+});
+const movieShowtimeShareStateSchema = z.object({
+  movieCode: movieCodeSchema,
+  city: nonEmptyTrimmedStringSchema,
+  date: isoDateStringSchema,
+  filterMask: supportedFilterMaskSchema,
+});
+
 function normalizeFilterValue(value: string): string {
   return value.trim().replace(/\s+/g, " ");
 }
@@ -190,7 +226,10 @@ function normalizeUniqueFilterList(value: unknown): string[] {
   return [
     ...new Set(
       value
-        .filter((entry): entry is string => typeof entry === "string")
+        .flatMap((entry) => {
+          const result = z.string().safeParse(entry);
+          return result.success ? [result.data] : [];
+        })
         .map(normalizeFilterValue)
         .filter(Boolean),
     ),
@@ -200,23 +239,13 @@ function normalizeUniqueFilterList(value: unknown): string[] {
 export function migrateShowtimeFilterState(
   value: unknown,
 ): PersistedShowtimeFilterState | null {
-  if (!value || typeof value !== "object") {
+  const result = persistedShowtimeFilterInputSchema.safeParse(value);
+
+  if (!result.success) {
     return null;
   }
 
-  const candidate = value as {
-    version?: unknown;
-    unchecked?: Partial<Record<ShowtimeFilterGroup, unknown>>;
-  };
-
-  if (
-    candidate.version !== 1 &&
-    candidate.version !== 2 &&
-    candidate.version !== 3
-  ) {
-    return null;
-  }
-
+  const candidate = result.data;
   const unchecked = candidate.unchecked;
   const rawScreeningTech = normalizeUniqueFilterList(unchecked?.screeningTech);
   const screenFormat =
@@ -258,6 +287,10 @@ function parseIsoDateParts(dateString: string): {
   month: number;
   year: number;
 } | null {
+  if (!isoDateStringSchema.safeParse(dateString).success) {
+    return null;
+  }
+
   const match = ISO_DATE_PATTERN.exec(dateString);
 
   if (!match) {
@@ -562,36 +595,44 @@ export function uncheckedFromFilterMask(
 }
 
 export function parseMovieRouteCode(value: string): ParsedMovieRoute | null {
-  if (value.length === 3) {
-    return MOVIE_CODE_PATTERN.test(value)
+  const routeCodeResult = z.string().max(10).safeParse(value);
+
+  if (!routeCodeResult.success) {
+    return null;
+  }
+
+  const routeCode = routeCodeResult.data;
+
+  if (routeCode.length === 3) {
+    return movieCodeSchema.safeParse(routeCode).success
       ? { kind: "plain", movieCode: value }
       : null;
   }
 
-  if (![6, 7, 9, 10].includes(value.length)) {
+  if (![6, 7, 9, 10].includes(routeCode.length)) {
     return null;
   }
 
-  const movieCode = value.slice(0, 3);
-  const cityCode = value[3] ?? "";
-  const dateCode = value[4] ?? "";
+  const movieCode = routeCode.slice(0, 3);
+  const cityCode = routeCode[3] ?? "";
+  const dateCode = routeCode[4] ?? "";
 
   if (
-    !MOVIE_CODE_PATTERN.test(movieCode) ||
+    !movieCodeSchema.safeParse(movieCode).success ||
     (cityCode !== CURRENT_CITY_CODE && !(cityCode in CITY_BY_CODE)) ||
     !DATE_CODE_ALPHABET_INDEX.has(dateCode)
   ) {
     return null;
   }
 
-  const usesShortcut = value.length === 6 || value.length === 7;
+  const usesShortcut = routeCode.length === 6 || routeCode.length === 7;
   const mode: MovieRouteMode =
-    value.length === 7 || value.length === 10 ? "edit" : "share";
+    routeCode.length === 7 || routeCode.length === 10 ? "edit" : "share";
 
   if (usesShortcut) {
     if (
-      value[5] !== ALL_FILTERS_SHORTCUT ||
-      (mode === "edit" && value[6] !== EDIT_MODE_MARKER)
+      routeCode[5] !== ALL_FILTERS_SHORTCUT ||
+      (mode === "edit" && routeCode[6] !== EDIT_MODE_MARKER)
     ) {
       return null;
     }
@@ -607,11 +648,11 @@ export function parseMovieRouteCode(value: string): ParsedMovieRoute | null {
     };
   }
 
-  if (mode === "edit" && value[9] !== EDIT_MODE_MARKER) {
+  if (mode === "edit" && routeCode[9] !== EDIT_MODE_MARKER) {
     return null;
   }
 
-  const filterMask = decodeFilterMask(value.slice(5, 9));
+  const filterMask = decodeFilterMask(routeCode.slice(5, 9));
 
   return filterMask === null
     ? null
@@ -629,31 +670,37 @@ export function parseMovieRouteCode(value: string): ParsedMovieRoute | null {
 export function encodeMovieRouteCode(
   state: EncodedMovieRouteState,
 ): string | null {
+  const stateResult = encodedMovieRouteStateSchema.safeParse(state);
+
+  if (!stateResult.success) {
+    return null;
+  }
+
+  const parsedState = stateResult.data;
+
   if (
-    !MOVIE_CODE_PATTERN.test(state.movieCode) ||
-    (state.cityCode !== CURRENT_CITY_CODE &&
-      !(state.cityCode in CITY_BY_CODE)) ||
-    !DATE_CODE_ALPHABET_INDEX.has(state.dateCode) ||
-    !isSupportedFilterMask(state.filterMask)
+    (parsedState.cityCode !== CURRENT_CITY_CODE &&
+      !(parsedState.cityCode in CITY_BY_CODE)) ||
+    !DATE_CODE_ALPHABET_INDEX.has(parsedState.dateCode)
   ) {
     return null;
   }
 
   const filterCode =
-    state.filterMask === 0
+    parsedState.filterMask === 0
       ? ALL_FILTERS_SHORTCUT
-      : encodeFilterMask(state.filterMask);
+      : encodeFilterMask(parsedState.filterMask);
 
   if (!filterCode) {
     return null;
   }
 
   return [
-    state.movieCode,
-    state.cityCode,
-    state.dateCode,
+    parsedState.movieCode,
+    parsedState.cityCode,
+    parsedState.dateCode,
     filterCode,
-    state.mode === "edit" ? EDIT_MODE_MARKER : "",
+    parsedState.mode === "edit" ? EDIT_MODE_MARKER : "",
   ].join("");
 }
 
@@ -661,22 +708,30 @@ export function buildMovieShowtimeShareUrl(
   state: MovieShowtimeShareState,
   siteOrigin = "https://seret.site",
 ): string | null {
-  const cityCode = getExplicitCityCode(state.city);
-  const dateCode = encodeDateCode(state.date);
+  const stateResult = movieShowtimeShareStateSchema.safeParse(state);
+  const originResult = httpUrlSchema.safeParse(siteOrigin);
+
+  if (!stateResult.success || !originResult.success) {
+    return null;
+  }
+
+  const parsedState = stateResult.data;
+  const cityCode = getExplicitCityCode(parsedState.city);
+  const dateCode = encodeDateCode(parsedState.date);
 
   if (!cityCode || !dateCode) {
     return null;
   }
 
   const routeCode = encodeMovieRouteCode({
-    movieCode: state.movieCode,
+    movieCode: parsedState.movieCode,
     cityCode,
     dateCode,
-    filterMask: state.filterMask,
+    filterMask: parsedState.filterMask,
     mode: "share",
   });
 
-  return routeCode ? `${siteOrigin.replace(/\/+$/, "")}/${routeCode}` : null;
+  return routeCode ? `${new URL(originResult.data).origin}/${routeCode}` : null;
 }
 
 export function resolveCityCode(
