@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { Clock8, ExternalLink, MapPin, MoveRight, Star, X } from "lucide-react";
 import { Link } from "react-router";
@@ -6,7 +7,7 @@ import { useShallow } from "zustand/react/shallow";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { TheaterMapDialog } from "../maps/TheaterMapDialog";
 import { APP_TIME_ZONE, fixedAppDateString, getMovieShowtimeCities, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, useMovieCatalogStore, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
-import { loadCities, useTheaterStore, type City } from "../../data/theaters";
+import { selectCities, theaterDataQueryOptions, type City } from "../../data/theaters";
 import { type AppLocation } from "../../prefs/definitions/locations";
 import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
@@ -661,7 +662,11 @@ export function MovieDetailsContent({
       showtimesVersion: state.showtimesVersion,
     })),
   );
-  const cities = useTheaterStore((state) => state.cities);
+  const { data: cities = [] } = useQuery({
+    ...theaterDataQueryOptions(),
+    select: selectCities,
+    enabled: variant === "nowPlaying",
+  });
   const [openTrailerModalId, setOpenTrailerModalId] = useState<string | null>(
     null,
   );
@@ -1209,16 +1214,6 @@ export function MovieDetailsContent({
     targetShowtimeQueries,
     variant,
   ]);
-
-  useEffect(() => {
-    if (variant !== "nowPlaying") {
-      return;
-    }
-
-    void loadCities().catch((error: unknown) => {
-      console.error("Could not load city metadata for detail cards.", error);
-    });
-  }, [variant]);
 
   useEffect(() => {
     if (

@@ -1,18 +1,19 @@
 import { Suspense, StrictMode, lazy, useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { createRoot } from "react-dom/client";
 import { useShallow } from "zustand/react/shallow";
 import { BottomBar } from "./components/bars/BottomBar";
 import { AttributionPage } from "./components/AttributionPage";
-import { MovieScroller } from "./components/scroller/MovieScroller";
+import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
 import { Navbar } from "./components/bars/Navbar";
 import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
 import { type MovieSearchResult } from "./components/MovieSearchMenu";
 import { applyAdminMovieEdit, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, reloadComingSoonMovies, reloadNowPlayingMovies, useMovieCatalogStore, type Movie } from "./data/movieCatalog";
 import { useDeviceStore } from "./device/useDeviceType";
-import { useCatalogUiStore, type CatalogMovieJumpRequest, type CatalogPageView } from "./stores/catalogUiStore";
 import { initializeUserPreferencesStore, useUserPreferencesStore } from "./stores/userPreferencesStore";
+import { queryClient } from "./lib/queryClient";
 import "./index.css";
 
 const SCROLLER_CARD_WIDTH = 220;
@@ -59,6 +60,11 @@ const MoviePage = lazy(async () => {
 });
 
 type MovieSearchMode = "nowPlaying" | "comingSoon";
+type CatalogPageView = "grid" | "scroller";
+
+type CatalogMovieJumpRequest = MovieScrollerJumpRequest & {
+  mode: MovieSearchMode;
+};
 
 function isPotentialStandaloneMoviePath(pathname: string): boolean {
   if (FIXED_APP_PATHS.has(pathname)) {
@@ -294,22 +300,11 @@ export function App() {
       setCatalogError: state.setCatalogError,
     })),
   );
-  const {
-    catalogMovieJumpRequest,
-    moviesPageView,
-    soonsPageView,
-    openCatalogMovieInStore,
-    resetCatalogPage,
-  } = useCatalogUiStore(
-    useShallow((state) => ({
-      catalogMovieJumpRequest: state.movieJumpRequest,
-      moviesPageView: state.moviesPageView,
-      soonsPageView: state.soonsPageView,
-      openCatalogMovieInStore: state.openCatalogMovie,
-      resetCatalogPage: state.resetCatalogPage,
-    })),
-  );
   const pathname = routeLocation.pathname;
+  const [catalogMovieJumpRequest, setCatalogMovieJumpRequest] =
+    useState<CatalogMovieJumpRequest | null>(null);
+  const [moviesPageView, setMoviesPageView] = useState<CatalogPageView>("grid");
+  const [soonsPageView, setSoonsPageView] = useState<CatalogPageView>("grid");
   const [miniNavPortalTarget, setMiniNavPortalTarget] =
     useState<HTMLDivElement | null>(null);
   const nonCriticalPreloadStartedRef = useRef(false);
@@ -573,12 +568,34 @@ export function App() {
     navigate("/user");
   }, [loading, navigate, user]);
 
+  const resetCatalogPage = useCallback((mode: MovieSearchMode) => {
+    if (mode === "nowPlaying") {
+      setMoviesPageView("grid");
+    } else {
+      setSoonsPageView("grid");
+    }
+
+    setCatalogMovieJumpRequest(null);
+  }, []);
+
   const openCatalogMovie = useCallback(
     (mode: MovieSearchMode, tmdbId: string) => {
       handleCatalogLoadRequest();
-      openCatalogMovieInStore(mode, tmdbId);
+
+      setCatalogMovieJumpRequest({
+        tmdbId,
+        mode,
+        nonce: Date.now(),
+        behavior: "smooth",
+      });
+
+      if (mode === "nowPlaying") {
+        setMoviesPageView("scroller");
+      } else {
+        setSoonsPageView("scroller");
+      }
     },
-    [handleCatalogLoadRequest, openCatalogMovieInStore],
+    [handleCatalogLoadRequest],
   );
 
   const handleMovieSearchSelect = useCallback(
@@ -791,8 +808,10 @@ initializeUserPreferencesStore();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </QueryClientProvider>
   </StrictMode>,
 );

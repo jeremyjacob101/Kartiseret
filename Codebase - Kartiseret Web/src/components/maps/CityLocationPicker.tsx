@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Clapperboard, List, Search } from "lucide-react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Map as MapLibreMap, Marker, NavigationControl, Popup } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { loadTheaters, useTheaterStore } from "../../data/theaters";
+import { selectTheaters, theaterDataQueryOptions } from "../../data/theaters";
 import { type AppLocation } from "../../prefs/definitions/locations";
 import { INITIAL_MAP_ZOOM, MAP_MAX_ZOOM, MAP_STYLE_URL, PRIMARY_CITY_COLLISION_PADDING, SECONDARY_CITIES, SELECTED_CITY_Z_INDEX, SINGLE_CITY_FOCUS_ZOOM, THEATER_DOT_COLORS, THEATER_MARKER_Z_INDEX, THEATER_POPUP_OFFSET, buildBounds, buildCityEntries, buildCityRevealConfig, chooseTheaterPopupAnchor, cityMatchesSearchQuery, configureBaseLabels, estimateCityBubbleSize, estimateSecondaryCityLabelSize, getCityLabelOpacity, getCityMarkerZIndex, getCityPriority, getFitPadding, getGeolocationErrorMessage, getInitialMapCenter, getMaxVisibleSecondaryCities, getNearestCityLocation, getSearchCityMarkerZIndex, getSecondaryCityCollisionPadding, getStartBounds, getTheaterPopupMaxWidth, isCityLabelRevealed, isMapAtStartingView, normalizeCitySearchQuery, normalizeTheaterChain, rectanglesOverlap, styleCityLabel, styleSecondaryCityLabel, styleTheaterDot, type CityMarkerState, type SecondaryCityMarkerState, type TheaterMarkerState } from "./cityLocationMapUtils";
 
@@ -42,7 +43,10 @@ export function CityLocationPicker({
   const [mapControlMessage, setMapControlMessage] = useState<string | null>(
     null,
   );
-  const theaters = useTheaterStore((state) => state.theaters);
+  const { data: theaters = [] } = useQuery({
+    ...theaterDataQueryOptions(),
+    select: selectTheaters,
+  });
   const [isBaseMapReady, setIsBaseMapReady] = useState(false);
   const cityListWrapRef = useRef<HTMLDivElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -330,12 +334,6 @@ export function CityLocationPicker({
   useEffect(() => {
     handleLocateNearestCityRef.current = handleLocateNearestCity;
   }, [handleLocateNearestCity]);
-
-  useEffect(() => {
-    void loadTheaters().catch((loadError: unknown) => {
-      console.error("Could not load theaters from Supabase.", loadError);
-    });
-  }, []);
 
   useEffect(() => {
     searchInputRef.current?.setAttribute(

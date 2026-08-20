@@ -1,5 +1,6 @@
-import { create } from "zustand";
+import { queryOptions } from "@tanstack/react-query";
 import { getSupabaseBrowserClient } from "../lib/supabase";
+import { queryClient } from "../lib/queryClient";
 
 type TheaterRow = {
   chain: string;
@@ -50,21 +51,16 @@ const CITY_NAME_JOIN_THEATER_SELECT_COLUMNS = [
   "city_details:cities!theaters_city_name_fkey ( name, alt_spellings, latitude, longitude, zoom_layer, neighboring_cities )",
 ].join(", ");
 
-export type TheaterStoreState = {
+export type TheaterData = {
   theaters: Theater[];
   cities: City[];
-  status: "idle" | "loading" | "ready" | "error";
-  error: string | null;
 };
 
-export const useTheaterStore = create<TheaterStoreState>()(() => ({
-  theaters: [],
-  cities: [],
-  status: "idle",
-  error: null,
-}));
+const THEATER_DATA_STALE_TIME = 24 * 60 * 60 * 1000;
 
-let loadTheatersPromise: Promise<Theater[]> | null = null;
+export const theaterQueryKeys = {
+  all: ["theaters"] as const,
+};
 
 function normalizeText(value: string): string {
   return value.trim().replace(/\s+/g, " ");
@@ -140,62 +136,55 @@ async function fetchTheaterRows(): Promise<TheaterRow[]> {
   return result.data as unknown as TheaterRow[];
 }
 
+async function fetchTheaterData(): Promise<TheaterData> {
+  const theaters = (await fetchTheaterRows())
+    .map(mapRowToTheater)
+    .sort(compareTheaters);
+  const cityByName = new Map<string, City>();
+
+  for (const theater of theaters) {
+    if (!cityByName.has(theater.city.name)) {
+      cityByName.set(theater.city.name, theater.city);
+    }
+  }
+
+  return {
+    theaters,
+    cities: [...cityByName.values()].sort(compareCities),
+  };
+}
+
+export function theaterDataQueryOptions() {
+  return queryOptions({
+    queryKey: theaterQueryKeys.all,
+    queryFn: fetchTheaterData,
+    staleTime: THEATER_DATA_STALE_TIME,
+    gcTime: THEATER_DATA_STALE_TIME,
+  });
+}
+
+export function selectTheaters(data: TheaterData): Theater[] {
+  return data.theaters;
+}
+
+export function selectCities(data: TheaterData): City[] {
+  return data.cities;
+}
+
 export function preloadTheaters(): void {
-  void loadTheaters().catch((error: unknown) => {
+  void queryClient.prefetchQuery(theaterDataQueryOptions()).catch((
+    error: unknown,
+  ) => {
     console.error("Could not preload theaters from Supabase.", error);
   });
 }
 
 export async function loadTheaters(): Promise<Theater[]> {
-  const currentState = useTheaterStore.getState();
-
-  if (currentState.status === "ready") {
-    return currentState.theaters;
-  }
-
-  if (loadTheatersPromise) {
-    return loadTheatersPromise;
-  }
-
-  useTheaterStore.setState({ status: "loading", error: null });
-  loadTheatersPromise = (async () => {
-    const nextTheaters = (await fetchTheaterRows())
-      .map(mapRowToTheater)
-      .sort(compareTheaters);
-    const cityByName = new Map<string, City>();
-
-    for (const theater of nextTheaters) {
-      if (!cityByName.has(theater.city.name)) {
-        cityByName.set(theater.city.name, theater.city);
-      }
-    }
-
-    const nextCities = [...cityByName.values()].sort(compareCities);
-
-    useTheaterStore.setState({
-      theaters: nextTheaters,
-      cities: nextCities,
-      status: "ready",
-      error: null,
-    });
-
-    return nextTheaters;
-  })()
-    .catch((error: unknown) => {
-      const message =
-        error instanceof Error ? error.message : "Could not load theaters.";
-
-      useTheaterStore.setState({ status: "error", error: message });
-      throw error;
-    })
-    .finally(() => {
-      loadTheatersPromise = null;
-    });
-
-  return loadTheatersPromise;
+  const data = await queryClient.ensureQueryData(theaterDataQueryOptions());
+  return data.theaters;
 }
 
 export async function loadCities(): Promise<City[]> {
-  await loadTheaters();
-  return useTheaterStore.getState().cities;
+  const data = await queryClient.ensureQueryData(theaterDataQueryOptions());
+  return data.cities;
 }

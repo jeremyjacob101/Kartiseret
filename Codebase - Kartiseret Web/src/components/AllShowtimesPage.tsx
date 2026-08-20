@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useShallow } from "zustand/react/shallow";
 import { fixedAppDateString, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, useMovieCatalogStore, type Movie, type TheaterShowtimes } from "../data/movieCatalog";
-import { loadCities, useTheaterStore } from "../data/theaters";
+import { selectCities, theaterDataQueryOptions } from "../data/theaters";
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { TheaterMapDialog } from "./maps/TheaterMapDialog";
 import { ShowtimeDayPicker } from "./showtimes/ShowtimeDayPicker";
@@ -123,7 +124,10 @@ export function AllShowtimesPage() {
       showtimesVersion: state.showtimesVersion,
     })),
   );
-  const cities = useTheaterStore((state) => state.cities);
+  const { data: cities = [] } = useQuery({
+    ...theaterDataQueryOptions(),
+    select: selectCities,
+  });
   const [selectedShowtimeDate, setSelectedShowtimeDate] = useState<
     string | null
   >(fixedAppDateString);
@@ -367,12 +371,6 @@ export function AllShowtimesPage() {
       console.error("Could not load showtimes for the selected city.", error);
     });
   }, [location, selectedShowtimeDate]);
-
-  useEffect(() => {
-    void loadCities().catch((error: unknown) => {
-      console.error("Could not load city metadata for all showtimes.", error);
-    });
-  }, []);
 
   useEffect(() => {
     if (
