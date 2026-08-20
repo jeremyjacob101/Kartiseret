@@ -1,9 +1,10 @@
 import { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Link } from "react-router";
+import { useShallow } from "zustand/react/shallow";
 import "./UserPreferencesPage.css";
 import { loadCityLocationPicker } from "./maps/loadCityLocationPicker";
-import { useUserPreferencesContext } from "../prefs/useUserPreferences";
+import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { type RatingSource } from "../prefs/definitions/ratingSources";
 import { type AppLocation } from "../prefs/definitions/locations";
 import { getSiteColorLabel, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
@@ -78,7 +79,23 @@ export function UserPreferencesPage() {
     setLocationPreference,
     saveSiteColor,
     resetSiteColor,
-  } = useUserPreferencesContext();
+  } = useUserPreferencesStore(
+    useShallow((state) => ({
+      user: state.user,
+      sources: state.preferences.ratingSources,
+      location: state.preferences.location,
+      allSources: state.allSources,
+      allSiteColors: state.allSiteColors,
+      siteColor: state.preferences.siteColor,
+      defaultSiteColor: state.defaultSiteColor,
+      syncing: state.syncing,
+      error: state.error,
+      saveSources: state.saveSources,
+      setLocationPreference: state.setLocationPreference,
+      saveSiteColor: state.saveSiteColor,
+      resetSiteColor: state.resetSiteColor,
+    })),
+  );
   const [isSourcesOpen, setIsSourcesOpen] = useState(true);
   const visibleSiteColors = useMemo(
     () => getVisibleSiteColors(siteColor, allSiteColors),

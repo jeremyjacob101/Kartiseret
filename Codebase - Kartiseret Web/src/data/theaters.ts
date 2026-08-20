@@ -1,3 +1,4 @@
+import { create } from "zustand";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 
 type TheaterRow = {
@@ -49,8 +50,20 @@ const CITY_NAME_JOIN_THEATER_SELECT_COLUMNS = [
   "city_details:cities!theaters_city_name_fkey ( name, alt_spellings, latitude, longitude, zoom_layer, neighboring_cities )",
 ].join(", ");
 
-let cachedTheaters: Theater[] | null = null;
-let cachedCities: City[] | null = null;
+export type TheaterStoreState = {
+  theaters: Theater[];
+  cities: City[];
+  status: "idle" | "loading" | "ready" | "error";
+  error: string | null;
+};
+
+export const useTheaterStore = create<TheaterStoreState>()(() => ({
+  theaters: [],
+  cities: [],
+  status: "idle",
+  error: null,
+}));
+
 let loadTheatersPromise: Promise<Theater[]> | null = null;
 
 function normalizeText(value: string): string {
@@ -134,46 +147,55 @@ export function preloadTheaters(): void {
 }
 
 export async function loadTheaters(): Promise<Theater[]> {
-  if (cachedTheaters) {
-    return cachedTheaters;
+  const currentState = useTheaterStore.getState();
+
+  if (currentState.status === "ready") {
+    return currentState.theaters;
   }
 
   if (loadTheatersPromise) {
     return loadTheatersPromise;
   }
 
+  useTheaterStore.setState({ status: "loading", error: null });
   loadTheatersPromise = (async () => {
-    try {
-      const nextTheaters = (await fetchTheaterRows())
-        .map(mapRowToTheater)
-        .sort(compareTheaters);
+    const nextTheaters = (await fetchTheaterRows())
+      .map(mapRowToTheater)
+      .sort(compareTheaters);
+    const cityByName = new Map<string, City>();
 
-      cachedTheaters = nextTheaters;
-
-      return nextTheaters;
-    } finally {
-      loadTheatersPromise = null;
+    for (const theater of nextTheaters) {
+      if (!cityByName.has(theater.city.name)) {
+        cityByName.set(theater.city.name, theater.city);
+      }
     }
-  })();
+
+    const nextCities = [...cityByName.values()].sort(compareCities);
+
+    useTheaterStore.setState({
+      theaters: nextTheaters,
+      cities: nextCities,
+      status: "ready",
+      error: null,
+    });
+
+    return nextTheaters;
+  })()
+    .catch((error: unknown) => {
+      const message =
+        error instanceof Error ? error.message : "Could not load theaters.";
+
+      useTheaterStore.setState({ status: "error", error: message });
+      throw error;
+    })
+    .finally(() => {
+      loadTheatersPromise = null;
+    });
 
   return loadTheatersPromise;
 }
 
 export async function loadCities(): Promise<City[]> {
-  if (cachedCities) {
-    return cachedCities;
-  }
-
-  const theaters = await loadTheaters();
-  const cityByName = new Map<string, City>();
-
-  for (const theater of theaters) {
-    if (!cityByName.has(theater.city.name)) {
-      cityByName.set(theater.city.name, theater.city);
-    }
-  }
-
-  cachedCities = [...cityByName.values()].sort(compareCities);
-
-  return cachedCities;
+  await loadTheaters();
+  return useTheaterStore.getState().cities;
 }

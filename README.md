@@ -12,6 +12,7 @@
   <img alt="React 19.2.7" src="https://img.shields.io/badge/React-19.2.7-0F172A?style=for-the-badge&logo=react&logoColor=61DAFB">
   <img alt="TypeScript 6.0.3" src="https://img.shields.io/badge/TypeScript-6.0.3-1D4ED8?style=for-the-badge&logo=typescript&logoColor=white">
   <img alt="Vite 8.1.4" src="https://img.shields.io/badge/Vite-8.1.4-111827?style=for-the-badge&logo=vite&logoColor=FBBF24">
+  <img alt="Zustand 5" src="https://img.shields.io/badge/Zustand-5-433E38?style=for-the-badge">
   <img alt="Python 3.14+" src="https://img.shields.io/badge/Python-3.14%2B-166534?style=for-the-badge&logo=python&logoColor=white">
   <img alt="Supabase" src="https://img.shields.io/badge/Supabase-Platform-0F172A?style=for-the-badge&logo=supabase&logoColor=3ECF8E">
   <img alt="License MIT" src="https://img.shields.io/badge/License-MIT-15803D?style=for-the-badge">
@@ -70,7 +71,7 @@ Kartiseret currently spans two connected layers:
 
 - Built as a client-side React 19.2.7 + TypeScript 6.0.3 SPA with Vite 8.1.4.
 - Uses custom `window.history` routing instead of React Router.
-- Uses React state/hooks plus a few singleton stores instead of Redux, Zustand, React Query, or SWR.
+- Uses Zustand for shared client state and focused React state for component-local interactions.
 - Styles are global CSS-driven, accent-color-driven, and motion-heavy rather than Tailwind-based.
 - Code-splits secondary screens with `React.lazy` and `Suspense`.
 - Reads movie data directly from Supabase in the browser rather than through a separate API layer.
@@ -78,6 +79,18 @@ Kartiseret currently spans two connected layers:
 - Supports homepage, `/movies`, `/soons`, `/showtimes`, and `/user` routes.
 - Treats `/showtimes` as a placeholder route right now rather than a finished page.
 - Gates `/user` behind authentication and keeps the auth UI inside the user menu rather than on a dedicated auth page.
+
+### Frontend State Architecture
+
+Shared state is split by domain so components subscribe only to the values they render:
+
+- `useMovieCatalogStore` owns movie collections, lookup indexes, showtime caches, readiness/version signals, and catalog errors. Existing request de-duplication stays in the data layer, while successful loads publish atomically to the store.
+- `useUserPreferencesStore` owns the Supabase session, admin status, synchronized preferences, optimistic saves, guest fallbacks, and theme application. It initializes once at application startup and replaces the previous provider/context tree.
+- `useTheaterStore` owns the shared theater and city datasets plus their request status.
+- `useShowtimeFiltersStore` owns saved filter selections, preserves the existing local-storage shape, and synchronizes changes received from other browser tabs.
+- `useCatalogUiStore` owns the cross-route catalog view and movie-jump request, while `useDeviceStore` exposes user-agent and responsive-breakpoint device classification.
+
+Selectors—and shallow selectors when a component needs several related fields—keep updates scoped to their consumers. Form inputs, open/closed animation phases, pointer gestures, DOM measurements, and other component-instance details intentionally remain local React state.
 
 ### Frontend UX Details
 

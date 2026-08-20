@@ -1,18 +1,18 @@
-import { Suspense, StrictMode, lazy, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, StrictMode, lazy, useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { createRoot } from "react-dom/client";
+import { useShallow } from "zustand/react/shallow";
 import { BottomBar } from "./components/bars/BottomBar";
 import { AttributionPage } from "./components/AttributionPage";
-import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
+import { MovieScroller } from "./components/scroller/MovieScroller";
 import { Navbar } from "./components/bars/Navbar";
 import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
 import { type MovieSearchResult } from "./components/MovieSearchMenu";
-import { allComingSoonMovies, allNowPlayingMovies, applyAdminMovieEdit, getMovieCatalogStatusSnapshot, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, reloadComingSoonMovies, reloadNowPlayingMovies, subscribeToMovieCatalog, type Movie } from "./data/movieCatalog";
-import { DeviceTypeProvider } from "./device/deviceType";
-import { useDeviceInfo } from "./device/useDeviceType";
-import { UserPreferencesProvider } from "./prefs/UserPreferencesContext";
-import { useUserPreferencesContext } from "./prefs/useUserPreferences";
+import { applyAdminMovieEdit, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, reloadComingSoonMovies, reloadNowPlayingMovies, useMovieCatalogStore, type Movie } from "./data/movieCatalog";
+import { useDeviceStore } from "./device/useDeviceType";
+import { useCatalogUiStore, type CatalogMovieJumpRequest, type CatalogPageView } from "./stores/catalogUiStore";
+import { initializeUserPreferencesStore, useUserPreferencesStore } from "./stores/userPreferencesStore";
 import "./index.css";
 
 const SCROLLER_CARD_WIDTH = 220;
@@ -59,7 +59,6 @@ const MoviePage = lazy(async () => {
 });
 
 type MovieSearchMode = "nowPlaying" | "comingSoon";
-type CatalogPageView = "grid" | "scroller";
 
 function isPotentialStandaloneMoviePath(pathname: string): boolean {
   if (FIXED_APP_PATHS.has(pathname)) {
@@ -71,12 +70,8 @@ function isPotentialStandaloneMoviePath(pathname: string): boolean {
   return !segment.includes("/") && /^[0-9A-Za-z]{3}/.test(segment);
 }
 
-type AppMovieJumpRequest = MovieScrollerJumpRequest & {
-  mode: MovieSearchMode;
-};
-
 type CatalogRouteProps = {
-  catalogMovieJumpRequest: AppMovieJumpRequest | null;
+  catalogMovieJumpRequest: CatalogMovieJumpRequest | null;
   cardHeight: number;
   cardWidth: number;
   gap: number;
@@ -269,27 +264,52 @@ function UserRoute({ user }: { user: User | null }) {
 export function App() {
   const routeLocation = useLocation();
   const navigate = useNavigate();
-  const { isMobile } = useDeviceInfo();
-  const {
-    user,
-    loading,
-    isAdmin,
-    location: selectedCity,
-  } = useUserPreferencesContext();
-  const catalogStatus = useSyncExternalStore(
-    subscribeToMovieCatalog,
-    getMovieCatalogStatusSnapshot,
+  const isMobile = useDeviceStore((state) => state.isMobile);
+  const { user, loading, isAdmin, selectedCity } = useUserPreferencesStore(
+    useShallow((state) => ({
+      user: state.user,
+      loading: state.loading,
+      isAdmin: state.isAdmin,
+      selectedCity: state.preferences.location,
+    })),
   );
-  const nowPlayingReady = catalogStatus.nowPlayingReady;
-  const comingSoonReady = catalogStatus.comingSoonReady;
-  const showtimesReady = catalogStatus.showtimesReady;
-  const catalogReady = catalogStatus.catalogReady;
+  const {
+    nowPlayingMovies,
+    comingSoonMovies,
+    nowPlayingReady,
+    comingSoonReady,
+    showtimesReady,
+    catalogReady,
+    catalogError,
+    setCatalogError,
+  } = useMovieCatalogStore(
+    useShallow((state) => ({
+      nowPlayingMovies: state.nowPlayingMovies,
+      comingSoonMovies: state.comingSoonMovies,
+      nowPlayingReady: state.nowPlayingReady,
+      comingSoonReady: state.comingSoonReady,
+      showtimesReady: state.showtimesReady,
+      catalogReady: state.catalogReady,
+      catalogError: state.catalogError,
+      setCatalogError: state.setCatalogError,
+    })),
+  );
+  const {
+    catalogMovieJumpRequest,
+    moviesPageView,
+    soonsPageView,
+    openCatalogMovieInStore,
+    resetCatalogPage,
+  } = useCatalogUiStore(
+    useShallow((state) => ({
+      catalogMovieJumpRequest: state.movieJumpRequest,
+      moviesPageView: state.moviesPageView,
+      soonsPageView: state.soonsPageView,
+      openCatalogMovieInStore: state.openCatalogMovie,
+      resetCatalogPage: state.resetCatalogPage,
+    })),
+  );
   const pathname = routeLocation.pathname;
-  const [catalogError, setCatalogError] = useState<string | null>(null);
-  const [catalogMovieJumpRequest, setCatalogMovieJumpRequest] =
-    useState<AppMovieJumpRequest | null>(null);
-  const [moviesPageView, setMoviesPageView] = useState<CatalogPageView>("grid");
-  const [soonsPageView, setSoonsPageView] = useState<CatalogPageView>("grid");
   const [miniNavPortalTarget, setMiniNavPortalTarget] =
     useState<HTMLDivElement | null>(null);
   const nonCriticalPreloadStartedRef = useRef(false);
@@ -400,7 +420,7 @@ export function App() {
     return () => {
       isActive = false;
     };
-  }, [pathname, selectedCity, showtimesReady]);
+  }, [pathname, selectedCity, setCatalogError, showtimesReady]);
 
   useEffect(() => {
     if (
@@ -520,7 +540,7 @@ export function App() {
         console.error("Failed to load movie catalog from Supabase.", error);
         setCatalogError(message);
       });
-  }, []);
+  }, [setCatalogError]);
 
   const handleAdminSaveEdit = useCallback(async (payload: {
     mode: MovieSearchMode;
@@ -553,37 +573,12 @@ export function App() {
     navigate("/user");
   }, [loading, navigate, user]);
 
-  const resetCatalogPage = useCallback((mode: MovieSearchMode) => {
-    if (mode === "nowPlaying") {
-      setMoviesPageView("grid");
-    } else {
-      setSoonsPageView("grid");
-    }
-
-    setCatalogMovieJumpRequest(null);
-  }, []);
-
   const openCatalogMovie = useCallback(
     (mode: MovieSearchMode, tmdbId: string) => {
       handleCatalogLoadRequest();
-
-      const nextRequest: AppMovieJumpRequest = {
-        tmdbId,
-        mode,
-        nonce: Date.now(),
-        behavior: "smooth",
-      };
-
-      setCatalogMovieJumpRequest(nextRequest);
-
-      if (mode === "nowPlaying") {
-        setMoviesPageView("scroller");
-        return;
-      }
-
-      setSoonsPageView("scroller");
+      openCatalogMovieInStore(mode, tmdbId);
     },
-    [handleCatalogLoadRequest],
+    [handleCatalogLoadRequest, openCatalogMovieInStore],
   );
 
   const handleMovieSearchSelect = useCallback(
@@ -647,12 +642,12 @@ export function App() {
     {
       mode: "nowPlaying" as const,
       label: "Now Playing",
-      movies: catalogReady ? allNowPlayingMovies : [],
+      movies: catalogReady ? nowPlayingMovies : [],
     },
     {
       mode: "comingSoon" as const,
       label: "Coming Soon",
-      movies: catalogReady ? allComingSoonMovies : [],
+      movies: catalogReady ? comingSoonMovies : [],
     },
   ];
 
@@ -707,7 +702,7 @@ export function App() {
                     cardWidth={scrollerCardWidth}
                     gap={scrollerGap}
                     jumpMode="nowPlaying"
-                    movies={allNowPlayingMovies}
+                    movies={nowPlayingMovies}
                     onExitDetail={() => {
                       resetCatalogPage("nowPlaying");
                     }}
@@ -745,7 +740,7 @@ export function App() {
                     cardWidth={scrollerCardWidth}
                     gap={scrollerGap}
                     jumpMode="comingSoon"
-                    movies={allComingSoonMovies}
+                    movies={comingSoonMovies}
                     onExitDetail={() => {
                       resetCatalogPage("comingSoon");
                     }}
@@ -792,14 +787,12 @@ export function App() {
   );
 }
 
+initializeUserPreferencesStore();
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
-      <DeviceTypeProvider>
-        <UserPreferencesProvider>
-          <App />
-        </UserPreferencesProvider>
-      </DeviceTypeProvider>
+      <App />
     </BrowserRouter>
   </StrictMode>,
 );

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
+import { useShallow } from "zustand/react/shallow";
 
 import { findMovieByCode, isMovieShowtimeDateLoaded, isValidMovieCode, loadMovieShowtimesForDate, prefetchMovieShowtimesAfterDate } from "../data/movieCatalog";
 import { DEFAULT_LOCATION } from "../prefs/definitions/locations";
-import { useUserPreferencesContext } from "../prefs/useUserPreferences";
+import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { shareLink } from "../routing/shareLink";
 import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, getJerusalemCinemaDate, isDateInShowtimeLinkWindow, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "../routing/showtimeLinkCodec";
 import { getShowtimeFiltersSnapshot, saveShowtimeFilters, type ShowtimeFilterState } from "./showtimes/showtimeFilters";
@@ -143,7 +144,13 @@ export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
     loading: preferencesLoading,
     location: preferenceLocation,
     setLocationPreference,
-  } = useUserPreferencesContext();
+  } = useUserPreferencesStore(
+    useShallow((state) => ({
+      loading: state.loading,
+      location: state.preferences.location,
+      setLocationPreference: state.setLocationPreference,
+    })),
+  );
   const today = useJerusalemToday();
   const todayRef = useRef(today);
   const candidateMovieCode = routeCode.slice(0, 3);

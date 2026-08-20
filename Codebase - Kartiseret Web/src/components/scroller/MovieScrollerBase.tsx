@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, type CSSProperties, type KeyboardEvent, type MouseEvent, useMemo, useRef, useState } from "react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
-import { movies, type Movie } from "../../data/movieCatalog";
-import { useDeviceInfo } from "../../device/useDeviceType";
+import { useMovieCatalogStore, type Movie } from "../../data/movieCatalog";
+import { useDeviceStore } from "../../device/useDeviceType";
 
 export type PosterSourceRect = {
   top: number;
@@ -169,8 +169,10 @@ export function MovieScrollerBase({
   getCardClassName,
   getCardStyle,
 }: MovieScrollerBaseProps) {
-  const { isMobile } = useDeviceInfo();
-  const allMovies = movieItems ?? movies;
+  const isMobile = useDeviceStore((state) => state.isMobile);
+  const allMovies = useMovieCatalogStore(
+    (state) => movieItems ?? state.nowPlayingMovies,
+  );
   const movieCount = allMovies.length;
   const scrollerRef = useRef<HTMLElement | null>(null);
   const rafRef = useRef<number | null>(null);

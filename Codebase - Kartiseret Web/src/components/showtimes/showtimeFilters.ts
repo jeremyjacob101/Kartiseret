@@ -1,3 +1,4 @@
+import { create } from "zustand";
 import { cloneUncheckedGroups, type ShowtimeFilterState } from "../../domain/showtimeFilters.js";
 import { migrateShowtimeFilterState } from "../../routing/showtimeLinkCodec.js";
 
@@ -18,11 +19,21 @@ export type {
 } from "../../domain/showtimeFilters.js";
 
 const SHOWTIME_FILTERS_STORAGE_KEY = "showtime_filters_v1";
-const SHOWTIME_FILTERS_EVENT_NAME = "showtime-filters-updated";
 
-let cachedFilterState: ShowtimeFilterState | null | undefined;
+function copyFilterState(
+  filterState: ShowtimeFilterState,
+): ShowtimeFilterState {
+  return {
+    version: 3,
+    unchecked: cloneUncheckedGroups(filterState.unchecked),
+  };
+}
 
 function readFilterStateFromStorage(): ShowtimeFilterState | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
   try {
     const raw = window.localStorage.getItem(SHOWTIME_FILTERS_STORAGE_KEY);
 
@@ -30,92 +41,67 @@ function readFilterStateFromStorage(): ShowtimeFilterState | null {
       return null;
     }
 
-    const parsed = JSON.parse(raw) as unknown;
-    return migrateShowtimeFilterState(parsed);
+    return migrateShowtimeFilterState(JSON.parse(raw) as unknown);
   } catch {
     return null;
   }
 }
 
-function ensureCachedFilterState(): ShowtimeFilterState | null {
-  if (cachedFilterState !== undefined) {
-    return cachedFilterState;
-  }
+type ShowtimeFiltersStoreState = {
+  filters: ShowtimeFilterState | null;
+  saveFilters: (nextState: ShowtimeFilterState) => void;
+};
 
-  if (typeof window === "undefined") {
-    cachedFilterState = null;
-    return cachedFilterState;
-  }
+export const useShowtimeFiltersStore = create<ShowtimeFiltersStoreState>()((
+  set,
+) => ({
+  filters: readFilterStateFromStorage(),
+  saveFilters: (nextState) => {
+    const filters = copyFilterState(nextState);
 
-  cachedFilterState = readFilterStateFromStorage();
-  return cachedFilterState;
-}
+    set({ filters });
 
-export function loadShowtimeFilters(): ShowtimeFilterState | null {
-  return ensureCachedFilterState();
-}
-
-export function saveShowtimeFilters(nextState: ShowtimeFilterState): void {
-  cachedFilterState = {
-    version: 3,
-    unchecked: cloneUncheckedGroups(nextState.unchecked),
-  };
-
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(
-      SHOWTIME_FILTERS_STORAGE_KEY,
-      JSON.stringify(cachedFilterState),
-    );
-  } catch {
-    // Keep the in-memory state even if localStorage is unavailable.
-  }
-
-  window.dispatchEvent(
-    new CustomEvent<ShowtimeFilterState | null>(SHOWTIME_FILTERS_EVENT_NAME, {
-      detail: cachedFilterState,
-    }),
-  );
-}
-
-export function getShowtimeFiltersSnapshot(): ShowtimeFilterState | null {
-  return ensureCachedFilterState();
-}
-
-export function subscribeToShowtimeFilters(listener: () => void): () => void {
-  if (typeof window === "undefined") {
-    return () => {};
-  }
-
-  const handleStorage = (event: StorageEvent) => {
-    if (event.key && event.key !== SHOWTIME_FILTERS_STORAGE_KEY) {
+    if (typeof window === "undefined") {
       return;
     }
 
-    cachedFilterState = readFilterStateFromStorage();
-    listener();
-  };
+    try {
+      window.localStorage.setItem(
+        SHOWTIME_FILTERS_STORAGE_KEY,
+        JSON.stringify(filters),
+      );
+    } catch {
+      // The in-memory Zustand state remains authoritative for this session.
+    }
+  },
+}));
 
-  const handleCustomUpdate = (event: Event) => {
-    const customEvent = event as CustomEvent<ShowtimeFilterState | null>;
-    cachedFilterState = customEvent.detail ?? readFilterStateFromStorage();
-    listener();
-  };
+export function loadShowtimeFilters(): ShowtimeFilterState | null {
+  return useShowtimeFiltersStore.getState().filters;
+}
 
-  window.addEventListener("storage", handleStorage);
-  window.addEventListener(
-    SHOWTIME_FILTERS_EVENT_NAME,
-    handleCustomUpdate as EventListener,
-  );
+export function saveShowtimeFilters(nextState: ShowtimeFilterState): void {
+  useShowtimeFiltersStore.getState().saveFilters(nextState);
+}
 
-  return () => {
-    window.removeEventListener("storage", handleStorage);
-    window.removeEventListener(
-      SHOWTIME_FILTERS_EVENT_NAME,
-      handleCustomUpdate as EventListener,
-    );
-  };
+export function getShowtimeFiltersSnapshot(): ShowtimeFilterState | null {
+  return useShowtimeFiltersStore.getState().filters;
+}
+
+function handleShowtimeFilterStorage(event: StorageEvent): void {
+  if (event.key && event.key !== SHOWTIME_FILTERS_STORAGE_KEY) {
+    return;
+  }
+
+  useShowtimeFiltersStore.setState({ filters: readFilterStateFromStorage() });
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", handleShowtimeFilterStorage);
+}
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    window.removeEventListener("storage", handleShowtimeFilterStorage);
+  });
 }

@@ -1,3 +1,4 @@
+import { create } from "zustand";
 import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime as shouldIncludeShowtimeAtInstant, SHOWTIME_TIME_ZONE } from "../domain/showtimeDay.js";
 import { getSupabaseBrowserClient } from "../lib/supabase.js";
 import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/definitions/locations.js";
@@ -185,24 +186,68 @@ export type MovieCatalogStatusSnapshot = {
   showtimesVersion: number;
 };
 
-export let movies: Movie[] = [];
-export let allNowPlayingMovies: Movie[] = [];
-export let comingSoonMovies: Movie[] = [];
-export let allComingSoonMovies: Movie[] = [];
-let nowPlayingMoviesByCode = new Map<string, Movie>();
-let comingSoonMoviesByCode = new Map<string, Movie>();
-
 type MovieShowtimesByCity = Record<AppLocation, MovieShowtimeDay[]>;
 
-let movieShowtimesByTmdbId: Record<string, MovieShowtimesByCity> = {};
-let nowPlayingLoaded = false;
-let comingSoonLoaded = false;
+export type MovieCatalogStoreState = MovieCatalogStatusSnapshot & {
+  nowPlayingMovies: Movie[];
+  comingSoonMovies: Movie[];
+  nowPlayingMoviesByCode: Map<string, Movie>;
+  comingSoonMoviesByCode: Map<string, Movie>;
+  movieShowtimesByTmdbId: Record<string, MovieShowtimesByCity>;
+  nowPlayingLoaded: boolean;
+  comingSoonLoaded: boolean;
+  showtimesLoaded: boolean;
+  catalogError: string | null;
+  setCatalogError: (error: string | null) => void;
+};
+
+export const useMovieCatalogStore = create<MovieCatalogStoreState>()((set) => ({
+  nowPlayingMovies: [],
+  comingSoonMovies: [],
+  nowPlayingMoviesByCode: new Map(),
+  comingSoonMoviesByCode: new Map(),
+  movieShowtimesByTmdbId: {},
+  nowPlayingLoaded: false,
+  comingSoonLoaded: false,
+  showtimesLoaded: false,
+  nowPlayingReady: false,
+  comingSoonReady: false,
+  showtimesReady: false,
+  catalogReady: false,
+  showtimesVersion: 0,
+  catalogError: null,
+  setCatalogError: (catalogError) => set({ catalogError }),
+}));
+
+type MovieCatalogDataPatch = Partial<
+  Omit<
+    MovieCatalogStoreState,
+    keyof MovieCatalogStatusSnapshot | "catalogError" | "setCatalogError"
+  >
+> &
+  Partial<Pick<MovieCatalogStoreState, "showtimesVersion">>;
+
+function updateMovieCatalogStore(patch: MovieCatalogDataPatch): void {
+  const current = useMovieCatalogStore.getState();
+  const next = { ...current, ...patch };
+  const nowPlayingReady =
+    next.nowPlayingLoaded && next.nowPlayingMovies.length > 0;
+  const comingSoonReady =
+    next.comingSoonLoaded && next.comingSoonMovies.length > 0;
+
+  useMovieCatalogStore.setState({
+    ...patch,
+    nowPlayingReady,
+    comingSoonReady,
+    showtimesReady: next.showtimesLoaded,
+    catalogReady: nowPlayingReady && comingSoonReady,
+  });
+}
+
 // This readiness flag is intentionally reserved for the broad, all-movies
 // city window consumed by /showtimes and inline movie details. Targeted
 // standalone movie requests publish into the same cache, but must not make the
 // rest of the app believe that broad data is available.
-let showtimesLoaded = false;
-let showtimesVersion = 0;
 let loadNowPlayingMoviesPromise: Promise<void> | null = null;
 let loadComingSoonMoviesPromise: Promise<void> | null = null;
 let loadMovieCatalogPromise: Promise<void> | null = null;
@@ -219,56 +264,7 @@ type ShowtimeCityLoadState = {
 const showtimeLoadStateByCity = new Map<AppLocation, ShowtimeCityLoadState>();
 const targetedMovieShowtimeLoadPromises = new Map<string, Promise<void>>();
 const targetedMovieShowtimeQueues = new Map<string, Promise<void>>();
-const movieCatalogListeners = new Set<() => void>();
 const EMPTY_SHOWTIME_CITIES: readonly AppLocation[] = Object.freeze([]);
-let movieCatalogStatusSnapshot: MovieCatalogStatusSnapshot = {
-  nowPlayingReady: false,
-  comingSoonReady: false,
-  showtimesReady: false,
-  catalogReady: false,
-  showtimesVersion: 0,
-};
-
-function refreshMovieCatalogStatus(): void {
-  const nextStatus: MovieCatalogStatusSnapshot = {
-    nowPlayingReady: nowPlayingLoaded && movies.length > 0,
-    comingSoonReady: comingSoonLoaded && comingSoonMovies.length > 0,
-    showtimesReady: showtimesLoaded,
-    catalogReady:
-      nowPlayingLoaded &&
-      movies.length > 0 &&
-      comingSoonLoaded &&
-      comingSoonMovies.length > 0,
-    showtimesVersion,
-  };
-
-  if (
-    nextStatus.nowPlayingReady === movieCatalogStatusSnapshot.nowPlayingReady &&
-    nextStatus.comingSoonReady === movieCatalogStatusSnapshot.comingSoonReady &&
-    nextStatus.showtimesReady === movieCatalogStatusSnapshot.showtimesReady &&
-    nextStatus.catalogReady === movieCatalogStatusSnapshot.catalogReady &&
-    nextStatus.showtimesVersion === movieCatalogStatusSnapshot.showtimesVersion
-  ) {
-    return;
-  }
-
-  movieCatalogStatusSnapshot = nextStatus;
-  movieCatalogListeners.forEach((listener) => {
-    listener();
-  });
-}
-
-export function subscribeToMovieCatalog(onStoreChange: () => void): () => void {
-  movieCatalogListeners.add(onStoreChange);
-
-  return () => {
-    movieCatalogListeners.delete(onStoreChange);
-  };
-}
-
-export function getMovieCatalogStatusSnapshot(): MovieCatalogStatusSnapshot {
-  return movieCatalogStatusSnapshot;
-}
 
 function stringifySupabaseValue(value: SupabaseValue | undefined): string {
   if (value == null) {
@@ -973,6 +969,8 @@ export function findMovieByCode(movieCode: string): MovieRouteMatch | null {
     return null;
   }
 
+  const { nowPlayingMoviesByCode, comingSoonMoviesByCode } =
+    useMovieCatalogStore.getState();
   const nowPlayingMovie = nowPlayingMoviesByCode.get(movieCode);
 
   if (nowPlayingMovie) {
@@ -1059,7 +1057,7 @@ async function fetchShowtimeRowsForDateRange(
 }
 
 export async function loadNowPlayingMovies(): Promise<void> {
-  if (nowPlayingLoaded) {
+  if (useMovieCatalogStore.getState().nowPlayingLoaded) {
     return;
   }
 
@@ -1078,20 +1076,20 @@ export async function loadNowPlayingMovies(): Promise<void> {
       );
     }
 
-    movies = nextMovies;
-    allNowPlayingMovies = nextMovies;
-    nowPlayingMoviesByCode = indexMoviesByCode(nextMovies);
-    nowPlayingLoaded = true;
-    refreshMovieCatalogStatus();
+    updateMovieCatalogStore({
+      nowPlayingMovies: nextMovies,
+      nowPlayingMoviesByCode: indexMoviesByCode(nextMovies),
+      nowPlayingLoaded: true,
+    });
   })()
     .catch((error) => {
-      if (!nowPlayingLoaded) {
-        movies = [];
-        allNowPlayingMovies = [];
-        nowPlayingMoviesByCode = new Map();
+      if (!useMovieCatalogStore.getState().nowPlayingLoaded) {
+        updateMovieCatalogStore({
+          nowPlayingMovies: [],
+          nowPlayingMoviesByCode: new Map(),
+        });
       }
 
-      refreshMovieCatalogStatus();
       throw error instanceof Error ? error : new Error(String(error));
     })
     .finally(() => {
@@ -1102,7 +1100,7 @@ export async function loadNowPlayingMovies(): Promise<void> {
 }
 
 export async function loadComingSoonMovies(): Promise<void> {
-  if (comingSoonLoaded) {
+  if (useMovieCatalogStore.getState().comingSoonLoaded) {
     return;
   }
 
@@ -1124,20 +1122,20 @@ export async function loadComingSoonMovies(): Promise<void> {
       );
     }
 
-    comingSoonMovies = nextMovies;
-    allComingSoonMovies = nextMovies;
-    comingSoonMoviesByCode = indexMoviesByCode(nextMovies);
-    comingSoonLoaded = true;
-    refreshMovieCatalogStatus();
+    updateMovieCatalogStore({
+      comingSoonMovies: nextMovies,
+      comingSoonMoviesByCode: indexMoviesByCode(nextMovies),
+      comingSoonLoaded: true,
+    });
   })()
     .catch((error) => {
-      if (!comingSoonLoaded) {
-        comingSoonMovies = [];
-        allComingSoonMovies = [];
-        comingSoonMoviesByCode = new Map();
+      if (!useMovieCatalogStore.getState().comingSoonLoaded) {
+        updateMovieCatalogStore({
+          comingSoonMovies: [],
+          comingSoonMoviesByCode: new Map(),
+        });
       }
 
-      refreshMovieCatalogStatus();
       throw error instanceof Error ? error : new Error(String(error));
     })
     .finally(() => {
@@ -1295,8 +1293,6 @@ function queueTargetedMovieShowtimeTask(
       }
     },
     () => {
-      refreshMovieCatalogStatus();
-
       if (targetedMovieShowtimeQueues.get(queueKey) === nextTask) {
         targetedMovieShowtimeQueues.delete(queueKey);
       }
@@ -1323,9 +1319,9 @@ async function loadTargetedMovieShowtimeDateRange(
   }
 
   await loadNowPlayingMovies();
-  const movie = allNowPlayingMovies.find(
-    (candidate) => candidate.tmdbId === tmdbId,
-  );
+  const movie = useMovieCatalogStore
+    .getState()
+    .nowPlayingMovies.find((candidate) => candidate.tmdbId === tmdbId);
 
   if (!movie) {
     return;
@@ -1386,6 +1382,8 @@ function publishShowtimeCityState(
   city: AppLocation,
   cityState: ShowtimeCityLoadState,
 ): void {
+  const { nowPlayingMovies, movieShowtimesByTmdbId, showtimesVersion } =
+    useMovieCatalogStore.getState();
   const visibleDayCount = Math.max(
     INITIAL_SHOWTIME_WINDOW_DAY_COUNT,
     cityState.loadedDayCount,
@@ -1393,13 +1391,13 @@ function publishShowtimeCityState(
   );
   const cityShowtimesByTmdbId = buildMovieShowtimesForCity(
     [...cityState.rowsByKey.values()],
-    allNowPlayingMovies,
+    nowPlayingMovies,
     city,
     getShowtimeWindowEndDateString(visibleDayCount),
   );
 
-  movieShowtimesByTmdbId = Object.fromEntries(
-    allNowPlayingMovies.map((movie) => [
+  const nextMovieShowtimesByTmdbId = Object.fromEntries(
+    nowPlayingMovies.map((movie) => [
       movie.tmdbId,
       {
         ...(movieShowtimesByTmdbId[movie.tmdbId] ??
@@ -1408,9 +1406,11 @@ function publishShowtimeCityState(
       },
     ]),
   );
-  showtimesLoaded = true;
-  showtimesVersion += 1;
-  refreshMovieCatalogStatus();
+  updateMovieCatalogStore({
+    movieShowtimesByTmdbId: nextMovieShowtimesByTmdbId,
+    showtimesLoaded: true,
+    showtimesVersion: showtimesVersion + 1,
+  });
 }
 
 function publishTargetedMovieShowtimeState(
@@ -1419,6 +1419,8 @@ function publishTargetedMovieShowtimeState(
   movie: Movie,
   visibleDayCount: number,
 ): void {
+  const { movieShowtimesByTmdbId, showtimesVersion } =
+    useMovieCatalogStore.getState();
   const normalizedTmdbId = normalizeText(movie.tmdbId);
   const movieRows = [...cityState.rowsByKey.values()].filter(
     (row) =>
@@ -1433,15 +1435,17 @@ function publishTargetedMovieShowtimeState(
   const existingMovieShowtimes =
     movieShowtimesByTmdbId[movie.tmdbId] ?? createEmptyMovieShowtimesByCity();
 
-  movieShowtimesByTmdbId = {
+  const nextMovieShowtimesByTmdbId = {
     ...movieShowtimesByTmdbId,
     [movie.tmdbId]: {
       ...existingMovieShowtimes,
       [city]: movieShowtimesById[movie.tmdbId] ?? [],
     },
   };
-  showtimesVersion += 1;
-  refreshMovieCatalogStatus();
+  updateMovieCatalogStore({
+    movieShowtimesByTmdbId: nextMovieShowtimesByTmdbId,
+    showtimesVersion: showtimesVersion + 1,
+  });
 }
 
 export async function loadShowtimes(
@@ -1554,9 +1558,9 @@ async function ensureMovieShowtimeWindowLoaded(
 
   const loadPromise = (async () => {
     await loadNowPlayingMovies();
-    const movie = allNowPlayingMovies.find(
-      (candidate) => candidate.tmdbId === tmdbId,
-    );
+    const movie = useMovieCatalogStore
+      .getState()
+      .nowPlayingMovies.find((candidate) => candidate.tmdbId === tmdbId);
 
     if (!movie) {
       return;
@@ -1578,7 +1582,6 @@ async function ensureMovieShowtimeWindowLoaded(
     publishTargetedMovieShowtimeState(city, cityState, movie, targetDayCount);
   })()
     .catch((error) => {
-      refreshMovieCatalogStatus();
       throw error instanceof Error ? error : new Error(String(error));
     })
     .finally(() => {
@@ -1633,7 +1636,6 @@ async function ensureShowtimeWindowLoaded(
     publishShowtimeCityState(city, cityState);
   })()
     .catch((error) => {
-      refreshMovieCatalogStatus();
       throw error instanceof Error ? error : new Error(String(error));
     })
     .finally(() => {
@@ -1683,7 +1685,6 @@ async function loadFocusedShowtimeDate(
     publishShowtimeCityState(city, cityState);
   })()
     .catch((error) => {
-      refreshMovieCatalogStatus();
       throw error instanceof Error ? error : new Error(String(error));
     })
     .finally(() => {
@@ -1759,6 +1760,9 @@ export async function loadAdditionalShowtimeDays(
 export async function loadMovieCatalog(
   city: AppLocation = defaultCity,
 ): Promise<void> {
+  const { nowPlayingLoaded, comingSoonLoaded, showtimesLoaded } =
+    useMovieCatalogStore.getState();
+
   if (nowPlayingLoaded && comingSoonLoaded && showtimesLoaded) {
     return;
   }
@@ -1779,20 +1783,20 @@ export async function loadMovieCatalog(
 }
 
 export async function reloadNowPlayingMovies(): Promise<void> {
-  nowPlayingLoaded = false;
-  movies = [];
-  allNowPlayingMovies = [];
-  nowPlayingMoviesByCode = new Map();
-  refreshMovieCatalogStatus();
+  updateMovieCatalogStore({
+    nowPlayingLoaded: false,
+    nowPlayingMovies: [],
+    nowPlayingMoviesByCode: new Map(),
+  });
   await loadNowPlayingMovies();
 }
 
 export async function reloadComingSoonMovies(): Promise<void> {
-  comingSoonLoaded = false;
-  comingSoonMovies = [];
-  allComingSoonMovies = [];
-  comingSoonMoviesByCode = new Map();
-  refreshMovieCatalogStatus();
+  updateMovieCatalogStore({
+    comingSoonLoaded: false,
+    comingSoonMovies: [],
+    comingSoonMoviesByCode: new Map(),
+  });
   await loadComingSoonMovies();
 }
 
@@ -1940,10 +1944,13 @@ export function getMovieShowtimeDays(
   tmdbId: string,
   city: AppLocation = defaultCity,
 ): readonly MovieShowtimeDay[] {
+  const { movieShowtimesByTmdbId } = useMovieCatalogStore.getState();
+
   return movieShowtimesByTmdbId[tmdbId]?.[city] ?? [];
 }
 
 export function getMovieShowtimeCities(tmdbId: string): readonly AppLocation[] {
+  const { movieShowtimesByTmdbId } = useMovieCatalogStore.getState();
   const cityShowtimes = movieShowtimesByTmdbId[tmdbId];
 
   if (!cityShowtimes) {

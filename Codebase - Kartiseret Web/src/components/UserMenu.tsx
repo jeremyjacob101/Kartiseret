@@ -6,7 +6,7 @@ import { getSupabaseBrowserClient } from "../lib/supabase";
 import { DEFAULT_LOCATION, loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY } from "../prefs/definitions/locations";
 import { DEFAULT_RATING_SOURCES } from "../prefs/definitions/ratingSources";
 import { DEFAULT_SITE_COLOR } from "../prefs/definitions/siteColor";
-import { useUserPreferencesContext } from "../prefs/useUserPreferences";
+import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 
 type AuthMode = "login" | "signup";
 type UserMenuProps = {
@@ -40,7 +40,7 @@ export function UserMenu({
 }: UserMenuProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useUserPreferencesContext();
+  const user = useUserPreferencesStore((state) => state.user);
   const [isOpen, setIsOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");

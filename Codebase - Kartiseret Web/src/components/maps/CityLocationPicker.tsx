@@ -1,9 +1,9 @@
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Clapperboard, List, Search } from "lucide-react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Map as MapLibreMap, Marker, NavigationControl, Popup } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { loadTheaters, type Theater } from "../../data/theaters";
+import { loadTheaters, useTheaterStore } from "../../data/theaters";
 import { type AppLocation } from "../../prefs/definitions/locations";
 import { INITIAL_MAP_ZOOM, MAP_MAX_ZOOM, MAP_STYLE_URL, PRIMARY_CITY_COLLISION_PADDING, SECONDARY_CITIES, SELECTED_CITY_Z_INDEX, SINGLE_CITY_FOCUS_ZOOM, THEATER_DOT_COLORS, THEATER_MARKER_Z_INDEX, THEATER_POPUP_OFFSET, buildBounds, buildCityEntries, buildCityRevealConfig, chooseTheaterPopupAnchor, cityMatchesSearchQuery, configureBaseLabels, estimateCityBubbleSize, estimateSecondaryCityLabelSize, getCityLabelOpacity, getCityMarkerZIndex, getCityPriority, getFitPadding, getGeolocationErrorMessage, getInitialMapCenter, getMaxVisibleSecondaryCities, getNearestCityLocation, getSearchCityMarkerZIndex, getSecondaryCityCollisionPadding, getStartBounds, getTheaterPopupMaxWidth, isCityLabelRevealed, isMapAtStartingView, normalizeCitySearchQuery, normalizeTheaterChain, rectanglesOverlap, styleCityLabel, styleSecondaryCityLabel, styleTheaterDot, type CityMarkerState, type SecondaryCityMarkerState, type TheaterMarkerState } from "./cityLocationMapUtils";
 
@@ -42,7 +42,7 @@ export function CityLocationPicker({
   const [mapControlMessage, setMapControlMessage] = useState<string | null>(
     null,
   );
-  const [theaters, setTheaters] = useState<Theater[]>([]);
+  const theaters = useTheaterStore((state) => state.theaters);
   const [isBaseMapReady, setIsBaseMapReady] = useState(false);
   const cityListWrapRef = useRef<HTMLDivElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -332,29 +332,9 @@ export function CityLocationPicker({
   }, [handleLocateNearestCity]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    void loadTheaters()
-      .then((nextTheaters) => {
-        if (cancelled) {
-          return;
-        }
-
-        startTransition(() => {
-          setTheaters(nextTheaters);
-        });
-      })
-      .catch((loadError: unknown) => {
-        if (cancelled) {
-          return;
-        }
-
-        console.error("Could not load theaters from Supabase.", loadError);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    void loadTheaters().catch((loadError: unknown) => {
+      console.error("Could not load theaters from Supabase.", loadError);
+    });
   }, []);
 
   useEffect(() => {
