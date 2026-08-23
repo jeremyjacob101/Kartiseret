@@ -71,29 +71,32 @@ Kartiseret currently spans two connected layers:
 ### Frontend Experience
 
 - Built as a client-side React 19.2.7 + TypeScript 6.0.3 SPA with Vite 8.1.4.
-- Uses custom `window.history` routing instead of React Router.
-- Uses Zustand for shared client state, TanStack Query for migrated server-state caches, and focused React state for component-local interactions.
+- Uses React Router for browser navigation and standalone movie/share routes.
+- Uses Zustand for shared synchronous client state, TanStack Query for remote server state, and focused React state for component-local interactions.
 - Styles are global CSS-driven, accent-color-driven, and motion-heavy rather than Tailwind-based.
 - Code-splits secondary screens with `React.lazy` and `Suspense`.
 - Reads movie data directly from Supabase in the browser rather than through a separate API layer.
-- Loads data in stages for perceived speed: now-playing preview, coming-soon preview, then full datasets and showtimes.
+- Loads movie collections in parallel, then fetches showtimes incrementally by city and date window.
 - Supports homepage, `/movies`, `/soons`, `/showtimes`, and `/user` routes.
-- Treats `/showtimes` as a placeholder route right now rather than a finished page.
+- Provides a full `/showtimes` browser with incremental day loading, city switching, filters, and nearby-city suggestions.
 - Gates `/user` behind authentication and keeps the auth UI inside the user menu rather than on a dedicated auth page.
 
 ### Frontend State Architecture
 
-Shared state is split by domain so components subscribe only to the values they render:
+State ownership follows one rule: the system that owns the source of truth also owns its loading, error, freshness, and update lifecycle. Remote data is never copied into a Zustand cache.
 
-- `useMovieCatalogStore` owns movie collections, lookup indexes, showtime caches, readiness/version signals, and catalog errors. Existing request de-duplication stays in the data layer, while successful loads publish atomically to the store.
-- `useUserPreferencesStore` owns the Supabase session, admin status, synchronized preferences, optimistic saves, guest fallbacks, and theme application. It initializes once at application startup and replaces the previous provider/context tree.
-- TanStack Query owns the theater/city server-state cache through one co-located `theaterDataQueryOptions` definition; preloaders and components share the same key, fetcher, freshness policy, and request deduplication.
-- `useShowtimeFiltersStore` owns saved filter selections, preserves the existing local-storage shape, and synchronizes changes received from other browser tabs.
-- Catalog view/jump state remains local to its single `App` owner, while `useDeviceStore` exposes user-agent and responsive-breakpoint device classification to its multiple consumers.
+- TanStack Query owns movie collections, permanent movie-code indexes, city/theater data, admin membership, and all showtime request/cache state. Each vertical slice co-locates its query-key factory, fetcher, `queryOptions`, selectors, freshness policy, and invalidation rules.
+- Movie collection queries are keyed by catalog mode. Their data includes both the ordered movie list and its code index, so route lookups cannot drift from the rendered catalog.
+- Showtime network queries are keyed by city, inclusive start/end dates, and a normalized optional TMDb ID. Identical requests deduplicate automatically. Results merge immutably into a per-city Query cache that records broad and movie-targeted coverage separately; a targeted load therefore cannot mark the full city catalog ready.
+- Incremental showtime extension, targeted movie prefetch, and arbitrary-date jumps all reuse those range queries. Coverage metadata prevents known dates from being requested again, while exact range keys handle in-flight request sharing.
+- Admin movie edits use a TanStack mutation. Coming-soon edits invalidate only that collection; now-playing edits invalidate that collection and reset the showtime subtree because movie identifiers can change and old coverage metadata is no longer trustworthy.
+- `useShowtimeFiltersStore` remains Zustand state because saved filter selections are synchronous, shared by unrelated screens, and synchronized through local storage across tabs.
+- `useDeviceStore` remains Zustand state because responsive/user-agent classification is synchronous and shared by multiple distant consumers.
+- Catalog view mode, jump requests, forms, dialogs, animation phases, gestures, measurements, and other single-owner values remain local React state.
 
-The movie/showtime cache and authenticated preference synchronization still have specialized loading and optimistic-write behavior. They remain in their existing domain stores until they can be migrated as complete vertical slices; TanStack Query is not layered on top of those caches in the meantime.
+`useUserPreferencesStore` is a deliberate synchronization exception. Supabase auth events, the active session, guest preference persistence, cached theme bootstrap, immediate theme application, optimistic saves, rollback, auth-generation guards, and rapid-save coalescing form one small protocol. Splitting the authenticated preference row into a query plus a second client store would create two competing owners and make rollback ordering harder to trace. Admin membership is not part of that protocol and is therefore a normal user-keyed query. Revisit the preference exception only if the entire synchronization protocol can move as one vertical slice without weakening guest behavior or save coalescing.
 
-Selectors—and shallow selectors when a component needs several related fields—keep updates scoped to their consumers. Form inputs, open/closed animation phases, pointer gestures, DOM measurements, and other component-instance details intentionally remain local React state.
+Focused tests cover query-key dimensions, immutable showtime cache merging, targeted invalidation, and preference rollback/coalescing policy. Browser QA must use a local read-only Supabase fixture; production data, deployments, and authenticated writes are outside the frontend verification workflow.
 
 ### Frontend UX Details
 

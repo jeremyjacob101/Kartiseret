@@ -1,6 +1,6 @@
 import { Suspense, StrictMode, lazy, useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useMutation, useQuery } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { createRoot } from "react-dom/client";
 import { useShallow } from "zustand/react/shallow";
@@ -10,7 +10,8 @@ import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scrol
 import { Navbar } from "./components/bars/Navbar";
 import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
 import { type MovieSearchResult } from "./components/MovieSearchMenu";
-import { applyAdminMovieEdit, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, reloadComingSoonMovies, reloadNowPlayingMovies, useMovieCatalogStore, type Movie } from "./data/movieCatalog";
+import { adminStatusQueryOptions } from "./data/adminStatus";
+import { adminMovieEditMutationOptions, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, movieCollectionQueryOptions, reloadComingSoonMovies, reloadNowPlayingMovies, selectMovies, showtimeCityQueryOptions, type Movie } from "./data/movieCatalog";
 import { useDeviceStore } from "./device/useDeviceType";
 import { initializeUserPreferencesStore, useUserPreferencesStore } from "./stores/userPreferencesStore";
 import { queryClient } from "./lib/queryClient";
@@ -271,36 +272,53 @@ export function App() {
   const routeLocation = useLocation();
   const navigate = useNavigate();
   const isMobile = useDeviceStore((state) => state.isMobile);
-  const { user, loading, isAdmin, selectedCity } = useUserPreferencesStore(
+  const { user, loading, selectedCity } = useUserPreferencesStore(
     useShallow((state) => ({
       user: state.user,
       loading: state.loading,
-      isAdmin: state.isAdmin,
       selectedCity: state.preferences.location,
     })),
   );
-  const {
-    nowPlayingMovies,
-    comingSoonMovies,
-    nowPlayingReady,
-    comingSoonReady,
-    showtimesReady,
-    catalogReady,
-    catalogError,
-    setCatalogError,
-  } = useMovieCatalogStore(
-    useShallow((state) => ({
-      nowPlayingMovies: state.nowPlayingMovies,
-      comingSoonMovies: state.comingSoonMovies,
-      nowPlayingReady: state.nowPlayingReady,
-      comingSoonReady: state.comingSoonReady,
-      showtimesReady: state.showtimesReady,
-      catalogReady: state.catalogReady,
-      catalogError: state.catalogError,
-      setCatalogError: state.setCatalogError,
-    })),
-  );
   const pathname = routeLocation.pathname;
+  const { data: isAdmin = false } = useQuery({
+    ...adminStatusQueryOptions(user?.id ?? "anonymous"),
+    enabled: Boolean(user),
+  });
+  const shouldLoadCatalog = pathname !== "/user" && pathname !== "/attribution";
+  const nowPlayingQuery = useQuery({
+    ...movieCollectionQueryOptions("nowPlaying"),
+    select: selectMovies,
+    enabled: shouldLoadCatalog,
+  });
+  const comingSoonQuery = useQuery({
+    ...movieCollectionQueryOptions("comingSoon"),
+    select: selectMovies,
+    enabled: shouldLoadCatalog,
+  });
+  const showtimeCityQuery = useQuery({
+    ...showtimeCityQueryOptions(selectedCity),
+    enabled: pathname === "/showtimes",
+  });
+  const { mutateAsync: saveAdminMovieEdit } = useMutation(
+    adminMovieEditMutationOptions(),
+  );
+  const nowPlayingMovies = nowPlayingQuery.data ?? [];
+  const comingSoonMovies = comingSoonQuery.data ?? [];
+  const nowPlayingReady =
+    nowPlayingQuery.isSuccess && nowPlayingMovies.length > 0;
+  const comingSoonReady =
+    comingSoonQuery.isSuccess && comingSoonMovies.length > 0;
+  const catalogReady = nowPlayingReady && comingSoonReady;
+  const showtimesReady = showtimeCityQuery.data?.broadReady ?? false;
+  const catalogQueryError =
+    nowPlayingQuery.error ??
+    comingSoonQuery.error ??
+    (pathname === "/showtimes" ? showtimeCityQuery.error : null);
+  const catalogError = catalogQueryError
+    ? catalogQueryError instanceof Error
+      ? catalogQueryError.message
+      : "Failed to load movie data from Supabase."
+    : null;
   const [catalogMovieJumpRequest, setCatalogMovieJumpRequest] =
     useState<CatalogMovieJumpRequest | null>(null);
   const [moviesPageView, setMoviesPageView] = useState<CatalogPageView>("grid");
@@ -375,47 +393,6 @@ export function App() {
       }
     };
   }, [comingSoonReady, nowPlayingReady, pathname]);
-
-  useEffect(() => {
-    let isActive = true;
-
-    if (pathname === "/user" || pathname === "/attribution") {
-      return;
-    }
-
-    const catalogLoadPromise =
-      pathname === "/showtimes" && !showtimesReady
-        ? Promise.all([
-            loadNowPlayingMovies(),
-            loadComingSoonMovies(),
-            loadShowtimes(selectedCity),
-          ])
-        : Promise.all([loadNowPlayingMovies(), loadComingSoonMovies()]);
-
-    catalogLoadPromise
-      .then(() => {
-        if (isActive) {
-          setCatalogError(null);
-        }
-      })
-      .catch((error: unknown) => {
-        if (!isActive) {
-          return;
-        }
-
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Failed to load movie data from Supabase.";
-
-        console.error("Failed to load movie catalog from Supabase.", error);
-        setCatalogError(message);
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [pathname, selectedCity, setCatalogError, showtimesReady]);
 
   useEffect(() => {
     if (
@@ -522,32 +499,27 @@ export function App() {
   }, [pathname, showtimesReady]);
 
   const handleCatalogLoadRequest = useCallback(() => {
-    void Promise.all([loadNowPlayingMovies(), loadComingSoonMovies()])
-      .then(() => {
-        setCatalogError(null);
-      })
-      .catch((error: unknown) => {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Failed to load movie data from Supabase.";
-
-        console.error("Failed to load movie catalog from Supabase.", error);
-        setCatalogError(message);
-      });
-  }, [setCatalogError]);
-
-  const handleAdminSaveEdit = useCallback(async (payload: {
-    mode: MovieSearchMode;
-    currentTmdbId: string;
-    selectedTmdbId: string;
-    selectedTitle?: string | null;
-    selectedYear?: number | null;
-    selectedPosterUrl?: string | null;
-    isManualEntry: boolean;
-  }) => {
-    await applyAdminMovieEdit(payload);
+    void Promise.all([loadNowPlayingMovies(), loadComingSoonMovies()]).catch((
+      error: unknown,
+    ) => {
+      console.error("Failed to load movie catalog from Supabase.", error);
+    });
   }, []);
+
+  const handleAdminSaveEdit = useCallback(
+    async (payload: {
+      mode: MovieSearchMode;
+      currentTmdbId: string;
+      selectedTmdbId: string;
+      selectedTitle?: string | null;
+      selectedYear?: number | null;
+      selectedPosterUrl?: string | null;
+      isManualEntry: boolean;
+    }) => {
+      await saveAdminMovieEdit(payload);
+    },
+    [saveAdminMovieEdit],
+  );
 
   const handleAdminRefreshRequested = useCallback(async (
     mode: MovieSearchMode,

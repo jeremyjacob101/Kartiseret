@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type WheelEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
-import { loadShowtimes, loadShowtimesAroundDate, useMovieCatalogStore, type Movie } from "../../data/movieCatalog";
+import { loadShowtimes, loadShowtimesAroundDate, movieCollectionQueryOptions, selectMovies, type Movie } from "../../data/movieCatalog";
 import { useDeviceStore } from "../../device/useDeviceType";
 import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
 import { shareLink } from "../../routing/shareLink";
@@ -529,13 +530,12 @@ export function MovieScroller({
   ...props
 }: MovieScrollerProps) {
   const resolvedVariant = mode ?? detailVariant ?? "nowPlaying";
-  const resolvedMovieItems = useMovieCatalogStore(
-    (state) =>
-      movieItems ??
-      (resolvedVariant === "comingSoon"
-        ? state.comingSoonMovies
-        : state.nowPlayingMovies),
-  );
+  const { data: queriedMovieItems = [] } = useQuery({
+    ...movieCollectionQueryOptions(resolvedVariant),
+    select: selectMovies,
+    enabled: movieItems === undefined,
+  });
+  const resolvedMovieItems = movieItems ?? queriedMovieItems;
 
   if (resolvedMovieItems.length === 0) {
     return null;

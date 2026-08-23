@@ -6,7 +6,7 @@ import { Link } from "react-router";
 import { useShallow } from "zustand/react/shallow";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { TheaterMapDialog } from "../maps/TheaterMapDialog";
-import { APP_TIME_ZONE, fixedAppDateString, getMovieShowtimeCities, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, useMovieCatalogStore, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
+import { APP_TIME_ZONE, fixedAppDateString, getMovieShowtimeCities, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, selectMovieShowtimeDays, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
 import { selectCities, theaterDataQueryOptions, type City } from "../../data/theaters";
 import { type AppLocation } from "../../prefs/definitions/locations";
 import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
@@ -656,12 +656,11 @@ export function MovieDetailsContent({
     },
     [locationOverride, onLocationOverrideChange, setLocationPreference],
   );
-  const { showtimesReady, showtimesVersion } = useMovieCatalogStore(
-    useShallow((state) => ({
-      showtimesReady: state.showtimesReady,
-      showtimesVersion: state.showtimesVersion,
-    })),
-  );
+  const { data: showtimeCityData } = useQuery({
+    ...showtimeCityQueryOptions(location),
+    enabled: false,
+  });
+  const showtimesReady = showtimeCityData?.broadReady ?? false;
   const { data: cities = [] } = useQuery({
     ...theaterDataQueryOptions(),
     select: selectCities,
@@ -689,14 +688,10 @@ export function MovieDetailsContent({
       return false;
     }
 
-    // Targeted showtime loads publish into the shared cache without changing
-    // the broad showtimes-ready flag, so the version token is the rerender
-    // signal for this Coming Soon-only lookup.
-    void showtimesVersion;
-    return getMovieShowtimeDays(movie.tmdbId, location).some(
+    return selectMovieShowtimeDays(showtimeCityData, movie.tmdbId).some(
       (day) => day.theaters.length > 0,
     );
-  }, [location, movie.tmdbId, showtimesVersion, variant]);
+  }, [movie.tmdbId, showtimeCityData, variant]);
   const shouldRenderShowtimes =
     variant === "nowPlaying" || hasComingSoonShowtimes;
   const showtimeDays = useMemo(() => {
@@ -704,11 +699,8 @@ export function MovieDetailsContent({
       return EMPTY_SHOWTIME_DAYS;
     }
 
-    // Incremental showtime loading updates the shared store in place, so this
-    // version token is the signal that cached day data should be re-cloned.
-    void showtimesVersion;
     const loadedShowtimeDays = cloneShowtimeDays(
-      getMovieShowtimeDays(movie.tmdbId, location),
+      selectMovieShowtimeDays(showtimeCityData, movie.tmdbId),
     );
 
     if (!exactDateShowtimeQueries || !showtimeDateWindowStart) {
@@ -729,10 +721,9 @@ export function MovieDetailsContent({
     );
   }, [
     exactDateShowtimeQueries,
-    location,
     movie.tmdbId,
     showtimeDateWindowStart,
-    showtimesVersion,
+    showtimeCityData,
     shouldRenderShowtimes,
   ]);
   const metrics =
@@ -897,11 +888,23 @@ export function MovieDetailsContent({
     hasLoadedShowtimeWindow &&
     showtimeDays.length > 0 &&
     !shouldShowCityUnavailableState;
-  const playingCities = useMemo(
-    () =>
-      hasLoadedShowtimeWindow ? [...getMovieShowtimeCities(movie.tmdbId)] : [],
-    [hasLoadedShowtimeWindow, movie.tmdbId],
-  );
+  const playingCities = useMemo(() => {
+    if (!hasLoadedShowtimeWindow) {
+      return [];
+    }
+
+    const cachedCities = [...getMovieShowtimeCities(movie.tmdbId)];
+    const currentCityHasShowtimes = selectMovieShowtimeDays(
+      showtimeCityData,
+      movie.tmdbId,
+    ).some((day) => day.theaters.length > 0);
+
+    if (currentCityHasShowtimes && !cachedCities.includes(location)) {
+      cachedCities.push(location);
+    }
+
+    return cachedCities;
+  }, [hasLoadedShowtimeWindow, location, movie.tmdbId, showtimeCityData]);
   const nearbyCityChoices = useMemo<NearbyCityChoice[]>(() => {
     if (!hasLoadedShowtimeWindow || playingCities.length === 0) {
       return [];

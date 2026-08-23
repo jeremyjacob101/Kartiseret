@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, type CSSProperties, type KeyboardEvent, type MouseEvent, useMemo, useRef, useState } from "react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
-import { useMovieCatalogStore, type Movie } from "../../data/movieCatalog";
+import { type Movie } from "../../data/movieCatalog";
 import { useDeviceStore } from "../../device/useDeviceType";
 
 export type PosterSourceRect = {
@@ -74,6 +74,7 @@ const INTRO_LEADING_CARD_COUNT = 1;
 const TARGET_ITEMS_PER_SIDE = 280;
 const MIN_REPEAT_SETS = 5;
 const MOBILE_COLLAPSED_RIGHT_BIAS_PX = 125;
+const EMPTY_MOVIES: readonly Movie[] = Object.freeze([]);
 
 function getRepeatSetCount(_itemSpan: number, movieCount: number): number {
   const safeMovieCount = Math.max(movieCount, 1);
@@ -170,9 +171,7 @@ export function MovieScrollerBase({
   getCardStyle,
 }: MovieScrollerBaseProps) {
   const isMobile = useDeviceStore((state) => state.isMobile);
-  const allMovies = useMovieCatalogStore(
-    (state) => movieItems ?? state.nowPlayingMovies,
-  );
+  const allMovies = movieItems ?? EMPTY_MOVIES;
   const movieCount = allMovies.length;
   const scrollerRef = useRef<HTMLElement | null>(null);
   const rafRef = useRef<number | null>(null);

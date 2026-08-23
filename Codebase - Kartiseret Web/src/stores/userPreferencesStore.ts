@@ -5,6 +5,7 @@ import { locationPreferenceDefinition, type AppLocation } from "../prefs/definit
 import { ratingSourcesPreferenceDefinition, type RatingSource } from "../prefs/definitions/ratingSources";
 import { DEFAULT_SITE_COLOR, applySiteColor, initializeSiteColorTheme, siteColorPreferenceDefinition, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
 import type { UserPreferenceDefinition } from "../prefs/definitions/shared";
+import { shouldRollbackOptimisticSave } from "./preferenceSavePolicy";
 
 const PREFERENCES_TABLE = "userPreferences";
 const supabase = getSupabaseBrowserClient();
@@ -55,7 +56,6 @@ type QueuedPreferenceSaves = Partial<{
 
 export type UserPreferencesStoreState = {
   user: User | null;
-  isAdmin: boolean;
   preferences: UserPreferences;
   preferenceOptions: UserPreferenceOptions;
   allSources: readonly RatingSource[];
@@ -286,7 +286,6 @@ let queuedPreferenceSaves: QueuedPreferenceSaves = {};
 let savingPreferenceKeys = createPreferenceKeyRecord(() => false);
 let saveGeneration = 0;
 let preferenceSyncGeneration = 0;
-let adminLoadGeneration = 0;
 let initializationStarted = false;
 let disposeAuthSubscription: (() => void) | null = null;
 
@@ -344,15 +343,18 @@ async function flushQueuedPreferenceSave(key: PreferenceKey): Promise<void> {
 
       if (upsertError) {
         useUserPreferencesStore.setState({ error: upsertError.message });
-
-        if (queuedPreferenceSaves[key] !== undefined) {
-          continue;
-        }
-
         const currentValue =
           useUserPreferencesStore.getState().preferences[key];
 
-        if (arePreferenceValuesEqual(key, currentValue, nextValue)) {
+        if (
+          shouldRollbackOptimisticSave({
+            currentValue,
+            failedValue: nextValue,
+            hasQueuedSave: queuedPreferenceSaves[key] !== undefined,
+            valuesEqual: (left, right) =>
+              arePreferenceValuesEqual(key, left, right),
+          })
+        ) {
           const confirmedValue = confirmedPreferences[key];
           saveCachedPreference(key, confirmedValue);
           commitPreferences(
@@ -362,6 +364,10 @@ async function flushQueuedPreferenceSave(key: PreferenceKey): Promise<void> {
               confirmedValue,
             ),
           );
+        }
+
+        if (queuedPreferenceSaves[key] !== undefined) {
+          continue;
         }
 
         continue;
@@ -437,7 +443,6 @@ async function savePreferenceValue<Key extends PreferenceKey>(
 export const useUserPreferencesStore = create<UserPreferencesStoreState>()(
   () => ({
     user: null,
-    isAdmin: false,
     preferences: initialPreferences,
     preferenceOptions,
     allSources: preferenceOptions.ratingSources ?? [],
@@ -536,27 +541,6 @@ async function syncPreferencesWithUser(userId: string | null): Promise<void> {
   useUserPreferencesStore.setState({ syncing: false, loading: false });
 }
 
-async function loadAdminState(userId: string | null): Promise<void> {
-  const generation = ++adminLoadGeneration;
-
-  if (!userId) {
-    useUserPreferencesStore.setState({ isAdmin: false });
-    return;
-  }
-
-  const { data, error } = await supabase
-    .from("admin_users")
-    .select("user_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (generation !== adminLoadGeneration || userId !== activeUserId) {
-    return;
-  }
-
-  useUserPreferencesStore.setState({ isAdmin: !error && Boolean(data) });
-}
-
 function activateUser(nextUser: User | null, forceSync = false): void {
   const nextUserId = nextUser?.id ?? null;
   const didIdentityChange = nextUserId !== activeUserId;
@@ -569,7 +553,6 @@ function activateUser(nextUser: User | null, forceSync = false): void {
 
   activeUserId = nextUserId;
   resetPendingPreferenceSaves();
-  void loadAdminState(nextUserId);
   void syncPreferencesWithUser(nextUserId);
 }
 
@@ -606,6 +589,5 @@ if (import.meta.hot) {
     disposeAuthSubscription = null;
     initializationStarted = false;
     preferenceSyncGeneration += 1;
-    adminLoadGeneration += 1;
   });
 }
