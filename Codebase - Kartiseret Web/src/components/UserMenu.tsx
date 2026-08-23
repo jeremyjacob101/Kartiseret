@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router";
 import { z } from "zod";
 import "./UserMenu.css";
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import { supabaseUserIdSchema, supabaseUserIdentitySchema } from "../lib/supabaseSchemas";
+import { supabaseUserIdentitySchema } from "../lib/supabaseSchemas";
 import { appLocationSchema, DEFAULT_LOCATION, loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY } from "../prefs/definitions/locations";
 import { DEFAULT_RATING_SOURCES } from "../prefs/definitions/ratingSources";
 import { DEFAULT_SITE_COLOR } from "../prefs/definitions/siteColor";
@@ -24,26 +24,26 @@ const authCredentialsSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters."),
 });
 const signupPreferenceDefaultsSchema = z.object({
-  userId: supabaseUserIdSchema,
+  user: supabaseUserIdentitySchema,
   location: appLocationSchema,
 });
 
 async function persistSignupPreferenceDefaults(
-  userId: string,
-  location: string,
+  user: unknown,
+  location: unknown,
 ): Promise<string | null> {
   const inputResult = signupPreferenceDefaultsSchema.safeParse({
-    userId,
+    user,
     location,
   });
 
   if (!inputResult.success) {
-    return "Account data could not be validated before saving preferences.";
+    return "Account identity could not be validated before saving preferences.";
   }
 
   const { error } = await supabase.from(PREFERENCES_TABLE).upsert(
     {
-      user_id: inputResult.data.userId,
+      user_id: inputResult.data.user.id,
       rating_sources: [...DEFAULT_RATING_SOURCES],
       location: inputResult.data.location,
       site_color: DEFAULT_SITE_COLOR,
@@ -147,13 +147,10 @@ export function UserMenu({
       let preferenceInitializationError: string | null = null;
 
       if (data.session && data.user) {
-        const userResult = supabaseUserIdentitySchema.safeParse(data.user);
-        preferenceInitializationError = userResult.success
-          ? await persistSignupPreferenceDefaults(
-              userResult.data.id,
-              signupLocation,
-            )
-          : "Account identity could not be validated before saving preferences.";
+        preferenceInitializationError = await persistSignupPreferenceDefaults(
+          data.user,
+          signupLocation,
+        );
       }
 
       setAuthPending(false);

@@ -1,5 +1,3 @@
-import type { ZodType } from "zod";
-
 export type GuestPreferencePersistence<Value> = {
   load: () => Value | null;
   save?: (value: Value) => void;
@@ -25,9 +23,9 @@ export type UserPreferenceDefinition<
   column: PreferenceColumn;
   defaultValue: Value;
   options?: readonly Option[];
-  schema: ZodType<Value>;
   copy: (value: Value) => Value;
-  normalize: (value: unknown) => Value;
+  /** Convert unknown storage, database, or UI input into a safe domain value. */
+  parse: (value: unknown) => Value;
   guestPersistence?: GuestPreferencePersistence<Value>;
   clientCache?: PreferenceClientCache<Value>;
 };

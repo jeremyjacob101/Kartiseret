@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { getCinemaDayDate, SHOWTIME_TIME_ZONE } from "../domain/showtimeDay.js";
-import { httpUrlSchema, isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema } from "../validation/runtime.js";
+import { httpUrlSchema, isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema, safeParseJson } from "../validation/runtime.js";
 
 export const URL_ALPHABET =
   "1iljIt23457fkrsvxyzFJLT0689abcdeghnopquABCDEGHKNOPQRSUVXYZmwMW";
@@ -146,54 +146,6 @@ export const CITY_CODE_BY_NAME: Readonly<Record<string, string>> =
     ),
   );
 
-export type MovieRouteMode = "share" | "edit";
-
-export type ParsedMovieRoute =
-
-    | {
-        kind: "plain";
-        movieCode: string;
-      }
-    | {
-        kind: "encoded";
-        movieCode: string;
-        cityCode: string;
-        dateCode: string;
-        filterMask: number;
-        mode: MovieRouteMode;
-        usedFilterShortcut: boolean;
-      };
-
-export type EncodedMovieRouteState = {
-  movieCode: string;
-  cityCode: string;
-  dateCode: string;
-  filterMask: number;
-  mode: MovieRouteMode;
-};
-
-export type MovieShowtimeShareState = {
-  movieCode: string;
-  city: string;
-  date: string;
-  filterMask: number;
-};
-
-export const persistedShowtimeFilterInputSchema = z
-  .object({
-    version: z.union([z.literal(1), z.literal(2), z.literal(3)]),
-    unchecked: z
-      .object({
-        showType: z.unknown().optional(),
-        screeningTech: z.unknown().optional(),
-        screenFormat: z.unknown().optional(),
-        dubLanguage: z.unknown().optional(),
-      })
-      .optional()
-      .default({}),
-  })
-  .passthrough();
-
 const movieRouteModeSchema = z.enum(["share", "edit"]);
 const supportedFilterMaskSchema = z
   .number()
@@ -213,6 +165,55 @@ const movieShowtimeShareStateSchema = z.object({
   date: isoDateStringSchema,
   filterMask: supportedFilterMaskSchema,
 });
+const filterValueSchema = z.string();
+const movieRouteCodeInputSchema = z.string().max(10);
+
+export type MovieRouteMode = z.infer<typeof movieRouteModeSchema>;
+
+export type ParsedMovieRoute =
+
+    | {
+        kind: "plain";
+        movieCode: string;
+      }
+    | {
+        kind: "encoded";
+        movieCode: string;
+        cityCode: string;
+        dateCode: string;
+        filterMask: number;
+        mode: MovieRouteMode;
+        usedFilterShortcut: boolean;
+      };
+
+export type EncodedMovieRouteState = z.input<
+  typeof encodedMovieRouteStateSchema
+>;
+
+export type MovieShowtimeShareState = z.input<
+  typeof movieShowtimeShareStateSchema
+>;
+
+export const persistedShowtimeFilterInputSchema = z
+  .object({
+    version: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+    unchecked: z
+      .object({
+        showType: z.unknown().optional(),
+        screeningTech: z.unknown().optional(),
+        screenFormat: z.unknown().optional(),
+        dubLanguage: z.unknown().optional(),
+      })
+      .optional()
+      .default({}),
+  })
+  .passthrough();
+type PersistedShowtimeFilterInput = z.output<
+  typeof persistedShowtimeFilterInputSchema
+>;
+type ValidatedEncodedMovieRouteState = z.output<
+  typeof encodedMovieRouteStateSchema
+>;
 
 function normalizeFilterValue(value: string): string {
   return value.trim().replace(/\s+/g, " ");
@@ -227,7 +228,7 @@ function normalizeUniqueFilterList(value: unknown): string[] {
     ...new Set(
       value
         .flatMap((entry) => {
-          const result = z.string().safeParse(entry);
+          const result = filterValueSchema.safeParse(entry);
           return result.success ? [result.data] : [];
         })
         .map(normalizeFilterValue)
@@ -236,16 +237,9 @@ function normalizeUniqueFilterList(value: unknown): string[] {
   ].sort((left, right) => left.localeCompare(right));
 }
 
-export function migrateShowtimeFilterState(
-  value: unknown,
-): PersistedShowtimeFilterState | null {
-  const result = persistedShowtimeFilterInputSchema.safeParse(value);
-
-  if (!result.success) {
-    return null;
-  }
-
-  const candidate = result.data;
+function normalizePersistedShowtimeFilterState(
+  candidate: PersistedShowtimeFilterInput,
+): PersistedShowtimeFilterState {
   const unchecked = candidate.unchecked;
   const rawScreeningTech = normalizeUniqueFilterList(unchecked?.screeningTech);
   const screenFormat =
@@ -265,6 +259,22 @@ export function migrateShowtimeFilterState(
       dubLanguage: normalizeUniqueFilterList(unchecked?.dubLanguage),
     },
   };
+}
+
+export function migrateShowtimeFilterState(
+  value: unknown,
+): PersistedShowtimeFilterState | null {
+  const result = persistedShowtimeFilterInputSchema.safeParse(value);
+  return result.success
+    ? normalizePersistedShowtimeFilterState(result.data)
+    : null;
+}
+
+export function migrateShowtimeFilterJson(
+  rawValue: string,
+): PersistedShowtimeFilterState | null {
+  const parsed = safeParseJson(rawValue, persistedShowtimeFilterInputSchema);
+  return parsed ? normalizePersistedShowtimeFilterState(parsed) : null;
 }
 
 export function isCanonicalShowtimeFilterMatch(
@@ -595,7 +605,7 @@ export function uncheckedFromFilterMask(
 }
 
 export function parseMovieRouteCode(value: string): ParsedMovieRoute | null {
-  const routeCodeResult = z.string().max(10).safeParse(value);
+  const routeCodeResult = movieRouteCodeInputSchema.safeParse(value);
 
   if (!routeCodeResult.success) {
     return null;
@@ -667,17 +677,9 @@ export function parseMovieRouteCode(value: string): ParsedMovieRoute | null {
       };
 }
 
-export function encodeMovieRouteCode(
-  state: EncodedMovieRouteState,
+function encodeValidatedMovieRouteCode(
+  parsedState: ValidatedEncodedMovieRouteState,
 ): string | null {
-  const stateResult = encodedMovieRouteStateSchema.safeParse(state);
-
-  if (!stateResult.success) {
-    return null;
-  }
-
-  const parsedState = stateResult.data;
-
   if (
     (parsedState.cityCode !== CURRENT_CITY_CODE &&
       !(parsedState.cityCode in CITY_BY_CODE)) ||
@@ -704,6 +706,15 @@ export function encodeMovieRouteCode(
   ].join("");
 }
 
+export function encodeMovieRouteCode(
+  state: EncodedMovieRouteState,
+): string | null {
+  const stateResult = encodedMovieRouteStateSchema.safeParse(state);
+  return stateResult.success
+    ? encodeValidatedMovieRouteCode(stateResult.data)
+    : null;
+}
+
 export function buildMovieShowtimeShareUrl(
   state: MovieShowtimeShareState,
   siteOrigin = "https://seret.site",
@@ -723,7 +734,7 @@ export function buildMovieShowtimeShareUrl(
     return null;
   }
 
-  const routeCode = encodeMovieRouteCode({
+  const routeCode = encodeValidatedMovieRouteCode({
     movieCode: parsedState.movieCode,
     cityCode,
     dateCode,

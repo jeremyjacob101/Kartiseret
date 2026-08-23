@@ -1,8 +1,9 @@
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import { parseRuntimeValue } from "../validation/runtime";
-import { theaterRowSchema, theaterSchema, type City, type Theater, type TheaterRow } from "./externalSchemas";
+import { parseBoundary } from "../validation/runtime";
+import type { City, Theater } from "./applicationSchemas";
+import { theaterRowSchema, type TheaterRow } from "./externalSchemas";
 
-export type { City, Theater } from "./externalSchemas";
+export type { City, Theater } from "./applicationSchemas";
 
 const THEATERS_TABLE_NAME = "theaters";
 const CITY_NAME_JOIN_THEATER_SELECT_COLUMNS = [
@@ -90,7 +91,7 @@ async function fetchTheaterRows(): Promise<TheaterRow[]> {
     throw result.error;
   }
 
-  return parseRuntimeValue(
+  return parseBoundary(
     theaterRowSchema.array(),
     result.data ?? [],
     `${THEATERS_TABLE_NAME} rows`,
@@ -114,11 +115,9 @@ export async function loadTheaters(): Promise<Theater[]> {
 
   loadTheatersPromise = (async () => {
     try {
-      const nextTheaters = parseRuntimeValue(
-        theaterSchema.array(),
-        (await fetchTheaterRows()).map(mapRowToTheater),
-        "normalized theater catalog",
-      ).sort(compareTheaters);
+      const nextTheaters = (await fetchTheaterRows())
+        .map(mapRowToTheater)
+        .sort(compareTheaters);
 
       cachedTheaters = nextTheaters;
 

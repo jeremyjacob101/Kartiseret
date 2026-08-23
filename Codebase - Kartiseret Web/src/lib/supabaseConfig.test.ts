@@ -25,13 +25,13 @@ describe("Supabase environment validation", () => {
       resolveOptionalSupabaseConfig(
         ["https://example.supabase.co"],
         [undefined],
-      )).toThrow(/Invalid optional Supabase configuration runtime data/);
+      )).toThrow(/Invalid optional Supabase configuration boundary data/);
     expect(() =>
       requireSupabaseConfig(
         ["not-a-url"],
         ["publishable-key"],
         "test config",
-      )).toThrow(/Invalid test config runtime data/);
+      )).toThrow(/Invalid test config boundary data/);
   });
 });
 

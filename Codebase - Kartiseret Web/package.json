@@ -9,11 +9,13 @@
   "scripts": {
     "dev": "vite --config config/vite.config.ts",
     "build": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p config/tsconfig.node.json && tsc --noEmit -p config/tsconfig.server.json && vite build --config config/vite.config.ts",
+    "bundle:check": "node scripts/check-client-bundle.mjs",
     "test": "vitest run",
     "lint": "eslint .",
     "format": "prettier --ignore-path ../.gitignore --cache --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts}\"",
     "format:check": "prettier --ignore-path ../.gitignore --check \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts}\"",
-    "preview": "vite preview --config config/vite.config.ts"
+    "preview": "vite preview --config config/vite.config.ts",
+    "verify": "npm run lint && npm run format:check && npm test && npm run build && npm run bundle:check"
   },
   "prettier": {
     "plugins": [

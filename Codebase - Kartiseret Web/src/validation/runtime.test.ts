@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { httpUrlSchema, httpsUrlSchema, isoDateStringSchema, longitudeLatitudeSchema, movieCodeSchema, parseJsonWithSchema, parseRuntimeValue, tmdbIdSchema } from "./runtime.js";
+import { httpUrlSchema, httpsUrlSchema, isoDateStringSchema, longitudeLatitudeSchema, movieCodeSchema, parseBoundary, safeParseJson, tmdbIdSchema } from "./runtime.js";
 
 describe("runtime boundary schemas", () => {
   it("accepts valid movie codes and rejects malformed route prefixes", () => {
@@ -51,20 +51,20 @@ describe("runtime boundary schemas", () => {
 
   it("parses JSON only when the decoded value matches its schema", () => {
     const schema = z.array(z.string());
-    expect(parseJsonWithSchema('["Drama","Comedy"]', schema)).toEqual([
+    expect(safeParseJson('["Drama","Comedy"]', schema)).toEqual([
       "Drama",
       "Comedy",
     ]);
-    expect(parseJsonWithSchema('["Drama",4]', schema)).toBeNull();
-    expect(parseJsonWithSchema("not json", schema)).toBeNull();
+    expect(safeParseJson('["Drama",4]', schema)).toBeNull();
+    expect(safeParseJson("not json", schema)).toBeNull();
   });
 
   it("throws contextual errors for invalid trusted-boundary parsing", () => {
     expect(() =>
-      parseRuntimeValue(
+      parseBoundary(
         z.object({ id: tmdbIdSchema }),
         { id: null },
         "fixture",
-      )).toThrow(/Invalid fixture runtime data/);
+      )).toThrow(/Invalid fixture boundary data/);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMovieShowtimeShareUrl, encodeDateCode, encodeMovieRouteCode, migrateShowtimeFilterState, parseMovieRouteCode } from "./showtimeLinkCodec.js";
+import { buildMovieShowtimeShareUrl, encodeDateCode, encodeMovieRouteCode, migrateShowtimeFilterJson, migrateShowtimeFilterState, parseMovieRouteCode } from "./showtimeLinkCodec.js";
 
 describe("showtime filter persistence validation", () => {
   it("migrates legacy version-one screen formats and drops invalid entries", () => {
@@ -29,6 +29,21 @@ describe("showtime filter persistence validation", () => {
     ).toBeNull();
     expect(migrateShowtimeFilterState([])).toBeNull();
     expect(migrateShowtimeFilterState(null)).toBeNull();
+  });
+
+  it("decodes and validates persisted JSON in one migration pass", () => {
+    expect(
+      migrateShowtimeFilterJson(
+        JSON.stringify({ version: 3, unchecked: { showType: ["VIP"] } }),
+      ),
+    ).toMatchObject({
+      version: 3,
+      unchecked: { showType: ["VIP"] },
+    });
+    expect(migrateShowtimeFilterJson("not json")).toBeNull();
+    expect(
+      migrateShowtimeFilterJson(JSON.stringify({ version: 9 })),
+    ).toBeNull();
   });
 });
 

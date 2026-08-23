@@ -82,7 +82,11 @@ export function formatValidationIssues(error: z.ZodError): string {
     .join("; ");
 }
 
-export function parseRuntimeValue<Schema extends z.ZodType>(
+/**
+ * Parse an unknown value exactly where it crosses a required trust boundary.
+ * Internal callers should consume the inferred output type without reparsing it.
+ */
+export function parseBoundary<Schema extends z.ZodType>(
   schema: Schema,
   value: unknown,
   context: string,
@@ -91,7 +95,7 @@ export function parseRuntimeValue<Schema extends z.ZodType>(
 
   if (!result.success) {
     throw new Error(
-      `Invalid ${context} runtime data: ${formatValidationIssues(result.error)}`,
+      `Invalid ${context} boundary data: ${formatValidationIssues(result.error)}`,
       { cause: result.error },
     );
   }
@@ -99,7 +103,8 @@ export function parseRuntimeValue<Schema extends z.ZodType>(
   return result.data;
 }
 
-export function parseJsonWithSchema<Schema extends z.ZodType>(
+/** Parse optional JSON-backed input, returning null when decoding or validation fails. */
+export function safeParseJson<Schema extends z.ZodType>(
   rawValue: string,
   schema: Schema,
 ): z.output<Schema> | null {

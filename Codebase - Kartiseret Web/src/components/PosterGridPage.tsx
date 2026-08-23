@@ -320,25 +320,20 @@ export function PosterGridPage({
                     }
 
                     const normalizedManualValue = manualTmdbId.trim();
-                    const manualIdResult = tmdbIdSchema.safeParse(
-                      normalizedManualValue,
+                    const activeIdResult = tmdbIdSchema.safeParse(
+                      normalizedManualValue || selectedTmdbId,
                     );
-                    const activeTmdbId = normalizedManualValue
-                      ? manualIdResult.success
-                        ? manualIdResult.data
-                        : ""
-                      : selectedTmdbId;
 
-                    if (normalizedManualValue && !manualIdResult.success) {
-                      setError("Manual TMDB ID must be a positive integer.");
+                    if (!activeIdResult.success) {
+                      setError(
+                        normalizedManualValue
+                          ? "Manual TMDB ID must be a positive integer."
+                          : "Choose an option or enter a TMDB ID.",
+                      );
                       return;
                     }
 
-                    if (!tmdbIdSchema.safeParse(activeTmdbId).success) {
-                      setError("Choose an option or enter a TMDB ID.");
-                      return;
-                    }
-
+                    const activeTmdbId = activeIdResult.data;
                     const selectedOption = editOptions.find(
                       (option) => option.tmdbId === activeTmdbId,
                     );

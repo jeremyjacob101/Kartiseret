@@ -16,7 +16,6 @@ export const DEFAULT_RATING_SOURCES: RatingSource[] = [
 ];
 
 export const ratingSourceSchema = z.enum(ALL_RATING_SOURCES);
-export const ratingSourcesSchema = z.array(ratingSourceSchema);
 export type RatingSource = z.infer<typeof ratingSourceSchema>;
 export const RATING_SOURCES_PREFERENCE_KEY = "ratingSources";
 export const RATING_SOURCES_PREFERENCE_COLUMN = {
@@ -45,9 +44,7 @@ function toNormalizedSources(value: unknown): RatingSource[] {
     }
   }
 
-  return ratingSourcesSchema.parse(
-    ALL_RATING_SOURCES.filter((source) => selected.has(source)),
-  );
+  return ALL_RATING_SOURCES.filter((source) => selected.has(source));
 }
 
 export function normalizeRatingSources(
@@ -73,9 +70,8 @@ export const ratingSourcesPreferenceDefinition: UserPreferenceDefinition<
   column: RATING_SOURCES_PREFERENCE_COLUMN,
   defaultValue: DEFAULT_RATING_SOURCES,
   options: ALL_RATING_SOURCES,
-  schema: ratingSourcesSchema,
   copy: (value) => [...value],
-  normalize: (value) =>
+  parse: (value) =>
     normalizeRatingSources(value, {
       allowEmpty: true,
       fallback: DEFAULT_RATING_SOURCES,

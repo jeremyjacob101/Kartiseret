@@ -86,8 +86,11 @@ export function loadGuestLocation(): AppLocation | null {
 
 export function saveGuestLocation(location: AppLocation): void {
   try {
-    const normalizedLocation = appLocationSchema.parse(location);
-    window.localStorage.setItem(GUEST_LOCATION_KEY, normalizedLocation);
+    const result = appLocationSchema.safeParse(location);
+
+    if (result.success) {
+      window.localStorage.setItem(GUEST_LOCATION_KEY, result.data);
+    }
   } catch {
     // Keep the in-memory preference when storage is unavailable or invalid.
   }
@@ -102,9 +105,8 @@ export const locationPreferenceDefinition: UserPreferenceDefinition<
   column: LOCATION_PREFERENCE_COLUMN,
   defaultValue: DEFAULT_LOCATION,
   options: ALL_LOCATIONS,
-  schema: appLocationSchema,
   copy: (value) => value,
-  normalize: (value) => normalizeLocation(value, DEFAULT_LOCATION),
+  parse: (value) => normalizeLocation(value, DEFAULT_LOCATION),
   guestPersistence: {
     load: loadGuestLocation,
     save: saveGuestLocation,

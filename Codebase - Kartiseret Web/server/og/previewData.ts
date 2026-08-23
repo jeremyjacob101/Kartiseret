@@ -6,8 +6,11 @@ import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime, SHOWTIME
 import { resolveOptionalSupabaseConfig } from "../../src/lib/supabaseConfig.js";
 import { DEFAULT_LOCATION } from "../../src/prefs/definitions/locations.js";
 import { decodeDateCode, isCanonicalShowtimeFilterMatch, parseMovieRouteCode, resolveCityCode, SHOWTIME_FILTER_OPTIONS, uncheckedFromFilterMask } from "../../src/routing/showtimeLinkCodec.js";
-import { parseJsonWithSchema, parseRuntimeValue } from "../../src/validation/runtime.js";
-import { databaseMovieSchema, databaseShowtimeSchema, movieCodeLookupRowSchema, previewDataSchema, previewRouteSelectionSchema, type DatabaseMovie, type DatabaseShowtime, type PreviewData, type PreviewRouteSelection, type PreviewTheater } from "./schemas.js";
+import { parseBoundary, safeParseJson } from "../../src/validation/runtime.js";
+import { databaseMovieSchema, databaseShowtimeSchema, movieCodeLookupRowSchema, previewDataSchema, type DatabaseMovie, type DatabaseShowtime, type PreviewData, type PreviewRouteSelection, type PreviewTheater } from "./schemas.js";
+
+const genreListSchema = z.array(z.string());
+const instantSchema = z.date();
 
 const supabaseConfig = resolveOptionalSupabaseConfig(
   [process.env.SUPABASE_URL, process.env.VITE_SUPABASE_URL],
@@ -28,7 +31,7 @@ export type {
 } from "./schemas.js";
 
 function parsePreviewData(value: unknown): PreviewData {
-  return parseRuntimeValue(previewDataSchema, value, "Open Graph preview");
+  return parseBoundary(previewDataSchema, value, "Open Graph preview");
 }
 
 function parseNumber(value: number | string | null): number | null {
@@ -39,7 +42,7 @@ function parseNumber(value: number | string | null): number | null {
 function parseGenres(value: DatabaseMovie["genres"]): string[] {
   if (Array.isArray(value)) return value.filter(Boolean).slice(0, 3);
   if (!value) return [];
-  const parsed = parseJsonWithSchema(value, z.array(z.string()));
+  const parsed = safeParseJson(value, genreListSchema);
 
   return (parsed ?? value.split(","))
     .map((genre) => genre.trim())
@@ -91,7 +94,7 @@ async function getMovieByTmdbId(
   }
 
   const currentMovie = currentMovieResult.data?.[0]
-    ? parseRuntimeValue(
+    ? parseBoundary(
         databaseMovieSchema,
         currentMovieResult.data[0],
         `finalMovies movie ${tmdbId}`,
@@ -108,7 +111,7 @@ async function getMovieByTmdbId(
   }
 
   const comingSoonMovie = comingSoonResult.data?.[0]
-    ? parseRuntimeValue(
+    ? parseBoundary(
         databaseMovieSchema,
         comingSoonResult.data[0],
         `finalSoons movie ${tmdbId}`,
@@ -195,7 +198,7 @@ export function resolvePreviewRouteSelection(
   routeCode: string,
   instant: Date = new Date(),
 ): PreviewRouteSelection | null {
-  if (!z.date().safeParse(instant).success) {
+  if (!instantSchema.safeParse(instant).success) {
     return null;
   }
 
@@ -224,14 +227,12 @@ export function resolvePreviewRouteSelection(
     filterMask = parsedRoute.filterMask;
   }
 
-  const selectionResult = previewRouteSelectionSchema.safeParse({
+  return {
     movieCode: parsedRoute.movieCode,
     city,
     date,
     filterMask,
-  });
-
-  return selectionResult.success ? selectionResult.data : null;
+  };
 }
 
 export async function getPreviewData(
@@ -260,7 +261,7 @@ export async function getPreviewData(
     return null;
   }
 
-  const parsedCodeRows = parseRuntimeValue(
+  const parsedCodeRows = parseBoundary(
     movieCodeLookupRowSchema.array(),
     codeRows ?? [],
     "movieCodes preview lookup rows",
@@ -318,7 +319,7 @@ export async function getPreviewData(
     );
   }
 
-  const showtimeRows = parseRuntimeValue(
+  const showtimeRows = parseBoundary(
     databaseShowtimeSchema.array(),
     showtimeResult.data ?? [],
     "finalShowtimes preview rows",

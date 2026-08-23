@@ -104,19 +104,17 @@ export function applySiteColor(siteColor: SiteColor): void {
     return;
   }
 
-  const normalizedColor = normalizeSiteColor(siteColor, DEFAULT_SITE_COLOR);
   const root = document.documentElement;
   initializeSiteColorTheme();
-  setSiteColorVariables(root, normalizedColor);
+  setSiteColorVariables(root, siteColor);
 }
 
 export function getSiteColorLabel(siteColor: SiteColor): string {
-  const normalizedColor = normalizeSiteColor(siteColor, DEFAULT_SITE_COLOR);
   const matchingOption = SITE_COLOR_OPTIONS.find(
-    (option) => option.value === normalizedColor,
+    (option) => option.value === siteColor,
   );
 
-  return matchingOption?.label ?? normalizedColor.toUpperCase();
+  return matchingOption?.label ?? siteColor.toUpperCase();
 }
 
 export const siteColorPreferenceDefinition: UserPreferenceDefinition<
@@ -128,9 +126,8 @@ export const siteColorPreferenceDefinition: UserPreferenceDefinition<
   column: SITE_COLOR_PREFERENCE_COLUMN,
   defaultValue: DEFAULT_SITE_COLOR,
   options: SITE_COLOR_OPTIONS,
-  schema: siteColorSchema,
-  copy: (value) => normalizeSiteColor(value, DEFAULT_SITE_COLOR),
-  normalize: (value) => normalizeSiteColor(value, DEFAULT_SITE_COLOR),
+  copy: (value) => value,
+  parse: (value) => normalizeSiteColor(value, DEFAULT_SITE_COLOR),
   clientCache: {
     load: loadCachedSiteColor,
     save: saveCachedSiteColor,

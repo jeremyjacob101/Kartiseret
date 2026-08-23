@@ -239,10 +239,14 @@ Run the fixture-only runtime-validation suite and the full production build with
 ```bash
 npm test
 npm run build
+npm run bundle:check
 ```
+
+The validation architecture and one-parse-per-boundary convention are documented in [`Codebase - Kartiseret Web/docs/runtime-validation.md`](Codebase%20-%20Kartiseret%20Web/docs/runtime-validation.md). Run `npm run verify` for the complete lint, formatting, fixture-test, build, and eager-bundle validation sequence.
 
 ## Automation
 
+- `.github/workflows/web_checks.yml` runs fixture-only web linting, formatting, tests, builds, and bundle-budget checks on relevant pull requests and `main` pushes; it does not receive Supabase credentials.
 - `.github/workflows/run_main.yml` runs the main backend pipeline manually in GitHub Actions and uploads run artifacts.
 - `.github/workflows/daily_sweep.yml` clears old showtimes and soon entries on a daily schedule.
 - `backend/config/cron/run_weekly.sh` is a local weekly shell runner that syncs the repo, runs the full job, commits artifacts/logs, and pushes them back to `main`.

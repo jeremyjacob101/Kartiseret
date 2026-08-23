@@ -3,8 +3,9 @@ import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime as should
 import { getSupabaseBrowserClient } from "../lib/supabase.js";
 import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/definitions/locations.js";
 import { addCalendarDays, getJerusalemCinemaDate, getTargetedShowtimePrefetchRange, SHOWTIME_LINK_DATE_COUNT } from "../routing/showtimeLinkCodec.js";
-import { movieCodeSchema, parseJsonWithSchema, parseRuntimeValue } from "../validation/runtime.js";
-import { adminMovieEditPayloadSchema, comingSoonMovieRowSchema, existingMovieTargetRowSchema, movieCodeRowSchema, movieRowSchema, movieSchema, showtimeRowSchema, type AdminMovieEditPayload, type ComingSoonMovieRow, type MovieAltOption, type MovieRow, type Movie, type ShowtimeRow } from "./externalSchemas.js";
+import { movieCodeSchema, parseBoundary, safeParseJson } from "../validation/runtime.js";
+import type { Movie, MovieAltOption } from "./applicationSchemas.js";
+import { adminMovieEditPayloadSchema, comingSoonMovieRowSchema, existingMovieTargetRowSchema, movieCodeRowSchema, movieRowSchema, showtimeRowSchema, type AdminMovieEditPayload, type ComingSoonMovieRow, type MovieRow, type ShowtimeRow } from "./externalSchemas.js";
 
 const SUPABASE_PAGE_SIZE = 1000;
 export const APP_TIME_ZONE = SHOWTIME_TIME_ZONE;
@@ -18,6 +19,9 @@ const COMING_SOON_TABLE_NAME = "finalSoons";
 const SHOWTIMES_TABLE_NAME = "finalShowtimes";
 const MOVIE_CODES_TABLE_NAME = "movieCodes";
 const MOVIE_CODE_QUERY_CHUNK_SIZE = 200;
+const genreListSchema = z.array(z.string());
+const movieCodeRowsSchema = z.array(movieCodeRowSchema);
+const showtimeRowsSchema = z.array(showtimeRowSchema);
 const MOVIE_SELECT_COLUMNS = [
   "tmdb_id",
   "english_title",
@@ -93,7 +97,7 @@ type SupabaseValue = unknown;
 type SupabaseRow = Record<string, SupabaseValue | undefined>;
 type CatalogMovieRow = MovieRow | ComingSoonMovieRow;
 
-export type { Movie, MovieAltOption } from "./externalSchemas.js";
+export type { Movie, MovieAltOption } from "./applicationSchemas.js";
 
 export type CatalogMode = "nowPlaying" | "comingSoon";
 
@@ -291,7 +295,9 @@ function getFirstNormalizedText(
 }
 
 function normalizeTitle(value: string): string {
-  return normalizeText(value).replace(/^"+|"+$/g, "");
+  return normalizeText(value)
+    .replace(/^"+|"+$/g, "")
+    .trim();
 }
 
 function parseGenres(value: SupabaseValue | undefined): string[] {
@@ -323,7 +329,7 @@ function parseGenres(value: SupabaseValue | undefined): string[] {
       ? `[${normalizedValue.slice(1, -1)}]`
       : normalizedValue;
 
-    const parsedValue = parseJsonWithSchema(jsonCandidate, z.array(z.string()));
+    const parsedValue = safeParseJson(jsonCandidate, genreListSchema);
 
     if (parsedValue) {
       for (const item of parsedValue) {
@@ -356,7 +362,7 @@ function parseAltOptions(value: MovieRow["alt_options"]): MovieAltOption[] {
   const options: MovieAltOption[] = [];
 
   for (const entry of value) {
-    const tmdbId = normalizeText(String(entry.tmdb)).trim();
+    const tmdbId = entry.tmdb;
     const title = normalizeTitle(entry.title).trim();
     const yearNumber = Number.parseInt(String(entry.year ?? ""), 10);
     const posterUrl = normalizeText(entry.poster_url ?? "").trim();
@@ -368,7 +374,7 @@ function parseAltOptions(value: MovieRow["alt_options"]): MovieAltOption[] {
     options.push({
       tmdbId,
       title,
-      year: Number.isFinite(yearNumber) ? yearNumber : null,
+      year: Number.isFinite(yearNumber) && yearNumber >= 0 ? yearNumber : null,
       posterUrl: posterUrl || null,
     });
   }
@@ -381,7 +387,7 @@ function compareByReleaseDate(
   right: ComingSoonMovieRow,
 ): number {
   return (
-    left.release_date.localeCompare(right.release_date) ||
+    (left.release_date ?? "").localeCompare(right.release_date ?? "") ||
     parseNumberValue(right.popularity) - parseNumberValue(left.popularity) ||
     normalizeTitle(left.english_title).localeCompare(
       normalizeTitle(right.english_title),
@@ -498,7 +504,7 @@ function buildMovies(
         parseNumberValue(right.popularity) - parseNumberValue(left.popularity)
       );
     })
-    .map((row) => {
+    .map((row): Movie => {
       const imageSrc = getFirstNormalizedText(row, [
         "en_poster",
         "poster",
@@ -510,9 +516,18 @@ function buildMovies(
       const trailerKey = getFirstNormalizedText(row, ["en_trailer"]);
       const releaseDate =
         normalizeText(stringifySupabaseValue(row.release_date)) || undefined;
-      const parsedReleaseYear =
-        Number.parseInt(stringifySupabaseValue(row.release_year), 10) || 0;
-      const tmdbId = normalizeText(stringifySupabaseValue(row.tmdb_id));
+      const rawReleaseYear = Number.parseInt(
+        stringifySupabaseValue(row.release_year),
+        10,
+      );
+      const parsedReleaseYear = Number.isFinite(rawReleaseYear)
+        ? Math.max(0, rawReleaseYear)
+        : 0;
+      const rawRuntime = Number.parseInt(
+        stringifySupabaseValue(row.runtime),
+        10,
+      );
+      const tmdbId = row.tmdb_id;
 
       return {
         tmdbId,
@@ -536,17 +551,13 @@ function buildMovies(
         rtCriticVotes: parseOptionalNumberValue(row.rtCriticVotes),
         rtAudienceRating: parseOptionalNumberValue(row.rtAudienceRating),
         rtAudienceVotes: parseOptionalNumberValue(row.rtAudienceVotes),
-        runtime: Number.parseInt(stringifySupabaseValue(row.runtime), 10) || 0,
+        runtime: Number.isFinite(rawRuntime) ? Math.max(0, rawRuntime) : 0,
         popularity: parseNumberValue(row.popularity),
         altOptions: parseAltOptions(row.alt_options),
       };
     });
 
-  return parseRuntimeValue(
-    z.array(movieSchema),
-    normalizedMovies,
-    "normalized movie catalog",
-  );
+  return normalizedMovies;
 }
 
 function buildMovieShowtimesForCity(
@@ -666,6 +677,7 @@ async function fetchAllTableRows<Row>(
 ): Promise<Row[]> {
   const supabase = getSupabaseBrowserClient();
   const allRows: Row[] = [];
+  const pageSchema = z.array(rowSchema);
   let fromIndex = 0;
 
   while (true) {
@@ -686,8 +698,8 @@ async function fetchAllTableRows<Row>(
       );
     }
 
-    const batchRows = parseRuntimeValue(
-      z.array(rowSchema),
+    const batchRows = parseBoundary(
+      pageSchema,
       data ?? [],
       `${tableName} rows`,
     );
@@ -889,8 +901,8 @@ async function fetchMovieCodesByTmdbId(
         );
       }
 
-      return parseRuntimeValue(
-        z.array(movieCodeRowSchema),
+      return parseBoundary(
+        movieCodeRowsSchema,
         data ?? [],
         `${MOVIE_CODES_TABLE_NAME} rows`,
       );
@@ -987,8 +999,8 @@ async function fetchShowtimeRowsForDateRange(
         );
       }
 
-      const batchRows = parseRuntimeValue(
-        z.array(showtimeRowSchema),
+      const batchRows = parseBoundary(
+        showtimeRowsSchema,
         data ?? [],
         `${SHOWTIMES_TABLE_NAME} rows`,
       );
@@ -1756,7 +1768,7 @@ export async function reloadComingSoonMovies(): Promise<void> {
 export async function applyAdminMovieEdit(
   payload: AdminMovieEditPayload,
 ): Promise<void> {
-  const validatedPayload = parseRuntimeValue(
+  const validatedPayload = parseBoundary(
     adminMovieEditPayloadSchema,
     payload,
     "admin movie edit payload",
@@ -1795,7 +1807,7 @@ export async function applyAdminMovieEdit(
   }
 
   const parsedExistingTarget = existingTarget
-    ? parseRuntimeValue(
+    ? parseBoundary(
         existingMovieTargetRowSchema,
         existingTarget,
         `${tableName} admin target row`,

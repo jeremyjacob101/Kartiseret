@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { z, type ZodType } from "zod";
+import { z } from "zod";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 import { adminUserRowSchema, supabaseUserIdSchema, supabaseUserIdentitySchema } from "../lib/supabaseSchemas";
-import { parseRuntimeValue } from "../validation/runtime";
+import { parseBoundary } from "../validation/runtime";
 import { locationPreferenceDefinition, type AppLocation } from "./definitions/locations";
 import { ratingSourcesPreferenceDefinition, type RatingSource } from "./definitions/ratingSources";
 import { DEFAULT_SITE_COLOR, applySiteColor, initializeSiteColorTheme, siteColorPreferenceDefinition, type SiteColorOption, type SiteColor } from "./definitions/siteColor";
@@ -51,6 +51,7 @@ const userPreferencesRowSchema = z
     site_color: z.unknown().optional(),
   })
   .passthrough();
+const nullableAdminUserRowSchema = adminUserRowSchema.nullable();
 type UserPreferencesRow = z.infer<typeof userPreferencesRowSchema>;
 type QueuedPreferenceSaves = Partial<{
   [Key in PreferenceKey]: UserPreferences[Key];
@@ -167,20 +168,14 @@ function copyPreferenceValue<Key extends PreferenceKey>(
   return copy(value);
 }
 
-function normalizePreferenceValue<Key extends PreferenceKey>(
+function parsePreferenceValue<Key extends PreferenceKey>(
   key: Key,
   value: unknown,
 ): UserPreferences[Key] {
-  const normalize = getPreferenceDefinition(key).normalize as (
+  const parse = getPreferenceDefinition(key).parse as (
     value: unknown,
   ) => UserPreferences[Key];
-  const normalizedValue = normalize(value);
-
-  return parseRuntimeValue(
-    getPreferenceDefinition(key).schema as ZodType<UserPreferences[Key]>,
-    normalizedValue,
-    `${key} preference`,
-  );
+  return parse(value);
 }
 
 function getDefaultPreferenceValue<Key extends PreferenceKey>(
@@ -230,7 +225,7 @@ function getBootstrappedPreferences(): UserPreferences {
       return getDefaultPreferenceValue(key);
     }
 
-    return normalizePreferenceValue(key, cachedValue);
+    return copyPreferenceValue(key, cachedValue);
   });
 }
 
@@ -274,7 +269,7 @@ async function loadPreferencesRow(userId: string) {
   try {
     return {
       error: null,
-      row: parseRuntimeValue(
+      row: parseBoundary(
         userPreferencesRowSchema,
         data,
         `${PREFERENCES_TABLE} row`,
@@ -299,13 +294,13 @@ function getGuestPreferences(): UserPreferences {
       return getDefaultPreferenceValue(key);
     }
 
-    return normalizePreferenceValue(key, guestValue);
+    return copyPreferenceValue(key, guestValue);
   });
 }
 
 function normalizePreferencesRow(row: UserPreferencesRow): UserPreferences {
   return createPreferenceValues((key, definition) =>
-    normalizePreferenceValue(key, row[definition.column.name]));
+    parsePreferenceValue(key, row[definition.column.name]));
 }
 
 function shouldPersistPreferenceDefault(value: unknown): boolean {
@@ -398,7 +393,7 @@ export function useUserPreferences(): UserPreferencesState {
         return;
       }
 
-      const adminRowResult = adminUserRowSchema.nullable().safeParse(data);
+      const adminRowResult = nullableAdminUserRowSchema.safeParse(data);
       setIsAdmin(
         adminRowResult.success && adminRowResult.data?.user_id === userId,
       );
@@ -667,7 +662,7 @@ export function useUserPreferences(): UserPreferencesState {
   const savePreference = useCallback(
     async (key: PreferenceKey, nextInput: UserPreferences[PreferenceKey]) => {
       const definition = preferenceDefinitions[key];
-      const normalized = normalizePreferenceValue(key, nextInput);
+      const normalized = parsePreferenceValue(key, nextInput);
       setError(null);
 
       if (!userId) {

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { httpUrlSchema, nonEmptyTrimmedStringSchema, parseRuntimeValue } from "../validation/runtime.js";
+import { httpUrlSchema, nonEmptyTrimmedStringSchema, parseBoundary } from "../validation/runtime.js";
 
 export const supabaseConfigSchema = z.object({
   url: httpUrlSchema,
@@ -29,7 +29,7 @@ export function requireSupabaseConfig(
   publishableKeyValues: readonly (string | undefined)[],
   context: string,
 ): SupabaseRuntimeConfig {
-  return parseRuntimeValue(
+  return parseBoundary(
     supabaseConfigSchema,
     getConfigCandidate(urlValues, publishableKeyValues),
     context,
@@ -46,7 +46,7 @@ export function resolveOptionalSupabaseConfig(
     return null;
   }
 
-  return parseRuntimeValue(
+  return parseBoundary(
     supabaseConfigSchema,
     candidate,
     "optional Supabase configuration",

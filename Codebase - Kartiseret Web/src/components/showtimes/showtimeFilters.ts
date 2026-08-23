@@ -1,6 +1,5 @@
 import { cloneUncheckedGroups, type ShowtimeFilterState } from "../../domain/showtimeFilters.js";
-import { migrateShowtimeFilterState, persistedShowtimeFilterInputSchema } from "../../routing/showtimeLinkCodec.js";
-import { parseJsonWithSchema } from "../../validation/runtime.js";
+import { migrateShowtimeFilterJson, migrateShowtimeFilterState } from "../../routing/showtimeLinkCodec.js";
 
 export {
   buildShowtimeFilterSelections,
@@ -31,8 +30,7 @@ function readFilterStateFromStorage(): ShowtimeFilterState | null {
       return null;
     }
 
-    const parsed = parseJsonWithSchema(raw, persistedShowtimeFilterInputSchema);
-    return parsed ? migrateShowtimeFilterState(parsed) : null;
+    return migrateShowtimeFilterJson(raw);
   } catch {
     return null;
   }
@@ -57,9 +55,15 @@ export function loadShowtimeFilters(): ShowtimeFilterState | null {
 }
 
 export function saveShowtimeFilters(nextState: ShowtimeFilterState): void {
+  const parsedState = migrateShowtimeFilterState(nextState);
+
+  if (!parsedState) {
+    return;
+  }
+
   cachedFilterState = {
-    version: 3,
-    unchecked: cloneUncheckedGroups(nextState.unchecked),
+    version: parsedState.version,
+    unchecked: cloneUncheckedGroups(parsedState.unchecked),
   };
 
   if (typeof window === "undefined") {

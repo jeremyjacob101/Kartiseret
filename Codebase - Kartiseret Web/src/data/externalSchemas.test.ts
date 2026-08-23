@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminMovieEditPayloadSchema, comingSoonMovieRowSchema, movieRowSchema, movieSchema, showtimeRowSchema, theaterRowSchema } from "./externalSchemas.js";
+import { adminMovieEditPayloadSchema, comingSoonMovieRowSchema, movieRowSchema, showtimeRowSchema, theaterRowSchema } from "./externalSchemas.js";
 
 const validMovieRow = {
   tmdb_id: 693134,
@@ -19,12 +19,51 @@ const validMovieRow = {
 };
 
 describe("Supabase row schemas", () => {
-  it("accepts the supported number/string representations for movie rows", () => {
+  it("normalizes supported number/string representations at ingress", () => {
     expect(movieRowSchema.parse(validMovieRow)).toMatchObject({
-      tmdb_id: 693134,
+      tmdb_id: "693134",
       english_title: "Dune: Part Three",
       runtime: "165",
     });
+  });
+
+  it("rejects invalid movie identities before internal normalization", () => {
+    expect(
+      movieRowSchema.safeParse({ ...validMovieRow, tmdb_id: "0" }).success,
+    ).toBe(false);
+    expect(
+      movieRowSchema.safeParse({ ...validMovieRow, english_title: ' " " ' })
+        .success,
+    ).toBe(false);
+    expect(
+      movieRowSchema.safeParse({
+        ...validMovieRow,
+        release_date: "2026-02-30",
+      }).success,
+    ).toBe(false);
+    expect(
+      movieRowSchema.safeParse({ ...validMovieRow, release_year: -1 }).success,
+    ).toBe(false);
+    expect(
+      movieRowSchema.safeParse({ ...validMovieRow, runtime: "-10" }).success,
+    ).toBe(false);
+  });
+
+  it("allows intentionally incomplete rows only while solo enrichment is pending", () => {
+    expect(
+      movieRowSchema.safeParse({
+        ...validMovieRow,
+        english_title: "",
+        solo_update: true,
+      }).success,
+    ).toBe(true);
+    expect(
+      movieRowSchema.safeParse({
+        ...validMovieRow,
+        english_title: "",
+        solo_update: false,
+      }).success,
+    ).toBe(false);
   });
 
   it("rejects a missing required movie column", () => {
@@ -38,6 +77,12 @@ describe("Supabase row schemas", () => {
       movieRowSchema.safeParse({
         ...validMovieRow,
         alt_options: [{ tmdb: 42, title: null }],
+      }).success,
+    ).toBe(false);
+    expect(
+      movieRowSchema.safeParse({
+        ...validMovieRow,
+        alt_options: [{ tmdb: 42, title: "Valid title", year: -1 }],
       }).success,
     ).toBe(false);
   });
@@ -63,6 +108,21 @@ describe("Supabase row schemas", () => {
       comingSoonMovieRowSchema.safeParse({
         ...comingSoonRow,
         release_date: "2026-02-30",
+      }).success,
+    ).toBe(false);
+    expect(
+      comingSoonMovieRowSchema.safeParse({
+        ...comingSoonRow,
+        english_title: "",
+        release_date: null,
+        solo_update: true,
+      }).success,
+    ).toBe(true);
+    expect(
+      comingSoonMovieRowSchema.safeParse({
+        ...comingSoonRow,
+        release_date: null,
+        solo_update: false,
       }).success,
     ).toBe(false);
   });
@@ -97,6 +157,12 @@ describe("Supabase row schemas", () => {
     expect(
       showtimeRowSchema.safeParse({
         ...baseRow,
+        showtime: "19:30<script>",
+      }).success,
+    ).toBe(false);
+    expect(
+      showtimeRowSchema.safeParse({
+        ...baseRow,
         date_of_showing: "2026-02-30",
       }).success,
     ).toBe(false);
@@ -127,31 +193,7 @@ describe("Supabase row schemas", () => {
   });
 });
 
-describe("application model schemas", () => {
-  it("validates normalized movie models", () => {
-    expect(
-      movieSchema.safeParse({
-        tmdbId: "693134",
-        title: "Dune: Part Three",
-        year: 2026,
-        genres: ["Science Fiction"],
-        imageSrc: "/poster.jpg",
-        imdbRating: null,
-        lbRating: null,
-        lbVotes: null,
-        tmdbRating: null,
-        tmdbVotes: null,
-        rtCriticRating: null,
-        rtCriticVotes: null,
-        rtAudienceRating: null,
-        rtAudienceVotes: null,
-        runtime: 165,
-        popularity: 120,
-        altOptions: [],
-      }).success,
-    ).toBe(true);
-  });
-
+describe("mutation input schemas", () => {
   it("validates and normalizes admin edit payload ids before any write path", () => {
     expect(
       adminMovieEditPayloadSchema.parse({
