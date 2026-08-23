@@ -476,6 +476,126 @@
   color: rgba(233, 226, 245, 0.78);
 }
 
+.ticket-alert-control {
+  display: grid;
+  justify-items: start;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.ticket-alert-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0.64rem 0.9rem;
+  border: 1px solid
+    color-mix(in srgb, var(--main-app-color) 46%, transparent);
+  border-radius: 999px;
+  background: color-mix(
+    in srgb,
+    var(--main-app-color) 13%,
+    rgba(14, 11, 20, 0.86)
+  );
+  color: #f6f0ff;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 750;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    transform 150ms ease,
+    opacity 150ms ease;
+}
+
+.ticket-alert-button:hover:not(:disabled),
+.ticket-alert-button:focus-visible {
+  border-color: color-mix(in srgb, var(--main-app-color) 78%, white 12%);
+  background: color-mix(
+    in srgb,
+    var(--main-app-color) 22%,
+    rgba(14, 11, 20, 0.9)
+  );
+  transform: translateY(-1px);
+}
+
+.ticket-alert-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--main-app-color) 68%, white 20%);
+  outline-offset: 3px;
+}
+
+.ticket-alert-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.ticket-alert-button.is-active,
+.ticket-alert-button--available {
+  border-color: color-mix(in srgb, var(--main-app-color) 72%, white 10%);
+  background: color-mix(
+    in srgb,
+    var(--main-app-color) 25%,
+    rgba(14, 11, 20, 0.9)
+  );
+}
+
+.ticket-alert-icon {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+}
+
+.ticket-alert-icon.is-spinning {
+  animation: ticket-alert-spin 850ms linear infinite;
+}
+
+.ticket-alert-hint,
+.ticket-alert-error {
+  max-width: 34rem;
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.ticket-alert-hint {
+  color: rgba(233, 226, 245, 0.68);
+}
+
+.ticket-alert-error {
+  color: #ffb7c3;
+}
+
+@keyframes ticket-alert-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 700px) {
+  html[data-device-type="desktop"] .ticket-alert-button {
+    gap: 3px;
+    min-height: 36px;
+    padding: 0.46rem 0.35rem;
+    font-size: 0.68rem;
+    white-space: nowrap;
+  }
+
+  html[data-device-type="desktop"] .ticket-alert-icon {
+    width: 13px;
+    height: 13px;
+  }
+
+  html[data-device-type="desktop"] .ticket-alert-hint,
+  html[data-device-type="desktop"] .ticket-alert-error {
+    font-size: 0.7rem;
+  }
+}
+
 .details-metrics-row {
   display: flex;
   align-items: stretch;

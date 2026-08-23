@@ -53,6 +53,7 @@ Kartiseret exists to make that flow calmer and more useful:
 - Client-side search across both current and upcoming movies, with title and year-aware ranking.
 - MapLibre-based city and theater picker with search, geolocation, focus controls, and theater marker popups.
 - Supabase Auth-powered user menu with saved preferences for location, rating sources, and site accent color.
+- One-shot Coming Soon ticket alerts that group newly available movies into a single email per user.
 - Guest-friendly local caching for location and theme color.
 - Selenium scrapers for major Israeli cinema chains plus several cinematheques.
 - Multi-stage backend dataflow for cleaning, TMDb matching, metadata enrichment, deduplication, and preview-table generation.
@@ -154,6 +155,7 @@ Within that plan, the backend currently does the following:
 - `movieCodes` maps each TMDb ID to its permanent three-character Base62 code.
 - `theaters`
 - `userPreferences`
+- `ticket_alert_subscriptions` stores one-shot Coming Soon alert requests and retry-safe delivery snapshots.
 
 **Helper / ops tables**
 
@@ -184,6 +186,9 @@ Environment variables:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `TMDB_API_KEY`
+- `RESEND_API_KEY` (required only when a pending alert is ready to send)
+- `RESEND_FROM_EMAIL` optional; defaults to `Kartiseret <notifications@seret.site>`
+- `SITE_URL` optional; defaults to `https://seret.site`
 - `RUNNER_MACHINE` optional, but useful for local timing statistics
 
 Setup and run:
@@ -198,6 +203,7 @@ export PYTHONPATH="$PWD"
 export SUPABASE_URL="https://your-project.supabase.co"
 export SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
 export TMDB_API_KEY="your-tmdb-api-key"
+export RESEND_API_KEY="re_your_resend_api_key"
 export RUNNER_MACHINE="local"
 
 python -m backend.config.runner
@@ -231,6 +237,20 @@ npm run dev
 ```
 
 The app intentionally uses only the publishable key and never a service-role key.
+
+### Coming Soon Ticket Alerts
+
+Apply [`supabase/migrations/20260823000000_create_ticket_alert_subscriptions.sql`](supabase/migrations/20260823000000_create_ticket_alert_subscriptions.sql) before deploying the alert-enabled frontend or backend. The migration creates the owner-only RLS policies used by the browser and service-role-only functions used to claim retry-safe delivery batches.
+
+The final step of the now-playing dataflow checks pending subscriptions after fresh showtimes have been published. A showtime qualifies only when it is still upcoming and contains a real HTTP(S) ticket URL. All newly available subscribed movies are grouped into one Resend email per user for that run, with links preferring the user's saved city and falling back to the earliest linked showtime elsewhere.
+
+Keep `RESEND_API_KEY` server-side in the local runner or GitHub Actions secret store. Never prefix it with `VITE_`; Vercel does not send these emails in v1. Production delivery from the default address also requires `seret.site` to be verified in Resend. Resend's shared `resend.dev` domain can only send to the Resend account owner.
+
+Recommended rollout order:
+
+1. Apply the Supabase migration.
+2. Deploy the backend runner with `RESEND_API_KEY` and a verified sending domain.
+3. Deploy the frontend.
 
 ## Automation
 
