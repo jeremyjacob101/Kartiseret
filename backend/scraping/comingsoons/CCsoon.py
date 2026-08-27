@@ -21,7 +21,7 @@ class CCsoon(BaseCinema):
             self.driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", element)
             self.sleep(1)
             try:
-                element.click()
+                self.driver.execute_script("arguments[0].click();", element)
                 self.sleep(3)
             except:
                 break
