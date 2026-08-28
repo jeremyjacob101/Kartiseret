@@ -2,7 +2,7 @@
   --navbar-reveal-duration: 760ms;
   --navbar-reveal-ease: cubic-bezier(0.38, 0.02, 0.2, 1);
   --navbar-intro-core-size: 74px;
-  --navbar-intro-side-inset: calc(50% - (var(--navbar-intro-core-size) / 2));
+  --navbar-intro-core-inset: calc(50% - (var(--navbar-intro-core-size) / 2));
 }
 
 .navbar-shell {
@@ -82,7 +82,7 @@
 
 @supports (clip-path: inset(0 0 0 0 round 20px)) {
   .navbar.is-intro {
-    clip-path: inset(0 var(--navbar-intro-side-inset) 0 var(--navbar-intro-side-inset) round 999px);
+    clip-path: inset(var(--navbar-intro-core-inset) round 999px);
     animation-name: navbar-reveal-clip;
   }
 }
@@ -106,11 +106,11 @@
 
 @keyframes navbar-reveal-clip {
   0% {
-    clip-path: inset(0 var(--navbar-intro-side-inset) 0 var(--navbar-intro-side-inset) round 999px);
+    clip-path: inset(var(--navbar-intro-core-inset) round 999px);
   }
 
   39% {
-    clip-path: inset(0 var(--navbar-intro-side-inset) 0 var(--navbar-intro-side-inset) round 999px);
+    clip-path: inset(var(--navbar-intro-core-inset) round 999px);
   }
 
   100% {
