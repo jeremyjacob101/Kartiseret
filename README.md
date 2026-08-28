@@ -238,6 +238,11 @@ npm run dev
 
 The app intentionally uses only the publishable key and never a service-role key.
 
+Email signups are handled by Supabase Auth. When Confirm Email is enabled, new
+users must confirm their address before logging in or creating a ticket alert;
+the first confirmed session initializes their saved preferences from the signup
+location.
+
 ### Coming Soon Ticket Alerts
 
 Apply [`supabase/migrations/20260823000000_create_ticket_alert_subscriptions.sql`](supabase/migrations/20260823000000_create_ticket_alert_subscriptions.sql) before deploying the alert-enabled frontend or backend. The migration creates the owner-only RLS policies used by the browser and service-role-only functions used to claim retry-safe delivery batches.
