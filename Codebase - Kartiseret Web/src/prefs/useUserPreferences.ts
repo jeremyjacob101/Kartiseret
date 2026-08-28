@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import { locationPreferenceDefinition, type AppLocation } from "./definitions/locations";
+import { DEFAULT_LOCATION, loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY, locationPreferenceDefinition, type AppLocation } from "./definitions/locations";
 import { ratingSourcesPreferenceDefinition, type RatingSource } from "./definitions/ratingSources";
 import { DEFAULT_SITE_COLOR, applySiteColor, initializeSiteColorTheme, siteColorPreferenceDefinition, type SiteColorOption, type SiteColor } from "./definitions/siteColor";
 import type { UserPreferenceDefinition } from "./definitions/shared";
@@ -77,6 +77,37 @@ const defaultPreferences = createPreferenceValues((key) =>
   getDefaultPreferenceValue(key));
 const preferenceOptions = createPreferenceOptions();
 const fallbackSavePreference: SavePreference = async () => false;
+
+function getInitialPreferenceLocation(
+  signupLocationMetadata: unknown,
+): AppLocation {
+  if (
+    typeof signupLocationMetadata === "string" &&
+    signupLocationMetadata.trim()
+  ) {
+    return normalizePreferenceValue("location", signupLocationMetadata);
+  }
+
+  return normalizePreferenceValue(
+    "location",
+    loadGuestLocation() ?? DEFAULT_LOCATION,
+  );
+}
+
+function buildDefaultPreferencesRow(
+  userId: string,
+  location: AppLocation,
+): UserPreferencesRow {
+  return {
+    user_id: userId,
+    rating_sources: copyPreferenceValue(
+      "ratingSources",
+      defaultPreferences.ratingSources,
+    ),
+    location,
+    site_color: copyPreferenceValue("siteColor", defaultPreferences.siteColor),
+  };
+}
 
 const fallbackValue: UserPreferencesContextValue = {
   user: null,
@@ -316,6 +347,8 @@ export function useUserPreferences(): UserPreferencesState {
   const [error, setError] = useState<string | null>(null);
   const [sessionResolved, setSessionResolved] = useState(false);
   const userId = user?.id ?? null;
+  const signupLocationMetadata =
+    user?.user_metadata?.[LOCATION_SIGNUP_METADATA_KEY];
   const preferencesRef = useRef<UserPreferences>(preferences);
   const confirmedPreferencesRef = useRef<UserPreferences>(preferences);
   const activeUserIdRef = useRef<string | null>(userId);
@@ -477,7 +510,29 @@ export function useUserPreferences(): UserPreferencesState {
       }
 
       if (!row) {
-        setError("Missing user preferences row.");
+        const initialRow = buildDefaultPreferencesRow(
+          userId,
+          getInitialPreferenceLocation(signupLocationMetadata),
+        );
+        const { error: createError } = await supabase
+          .from(PREFERENCES_TABLE)
+          .upsert(initialRow, { onConflict: "user_id" });
+
+        if (cancelled) {
+          return;
+        }
+
+        if (createError) {
+          setError(createError.message);
+          setSyncing(false);
+          setLoading(false);
+          return;
+        }
+
+        const normalizedPreferences = normalizePreferencesRow(initialRow);
+        saveCachedPreferences(normalizedPreferences);
+        confirmedPreferencesRef.current = normalizedPreferences;
+        setPreferences(normalizedPreferences);
         setSyncing(false);
         setLoading(false);
         return;
@@ -525,7 +580,12 @@ export function useUserPreferences(): UserPreferencesState {
     return () => {
       cancelled = true;
     };
-  }, [resetPendingPreferenceSaves, sessionResolved, userId]);
+  }, [
+    resetPendingPreferenceSaves,
+    sessionResolved,
+    signupLocationMetadata,
+    userId,
+  ]);
 
   const flushQueuedPreferenceSave = useCallback(async (key: PreferenceKey) => {
     const requestUserId = activeUserIdRef.current;

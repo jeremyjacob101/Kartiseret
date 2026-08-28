@@ -1,8 +1,10 @@
-import { Suspense, lazy, useCallback, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Link } from "react-router";
 import "./UserPreferencesPage.css";
 import { loadCityLocationPicker } from "./maps/loadCityLocationPicker";
+import { allComingSoonMovies, allNowPlayingMovies, subscribeToMovieCatalog, type Movie } from "../data/movieCatalog";
+import { cancelTicketAlert, loadUserTicketAlertSubscriptions, type UserTicketAlertSubscription } from "../data/ticketAlerts";
 import { useUserPreferencesContext } from "../prefs/useUserPreferences";
 import { type RatingSource } from "../prefs/definitions/ratingSources";
 import { type AppLocation } from "../prefs/definitions/locations";
@@ -52,6 +54,31 @@ function getVisibleSiteColors(
   ];
 }
 
+const alertDateFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+function findAlertMovie(tmdbId: string): Movie | null {
+  return (
+    allComingSoonMovies.find((movie) => movie.tmdbId === tmdbId) ??
+    allNowPlayingMovies.find((movie) => movie.tmdbId === tmdbId) ??
+    null
+  );
+}
+
+function formatAlertDate(value: string | null | undefined): string {
+  if (!value) {
+    return "Release date pending";
+  }
+
+  const parsed = new Date(`${value.slice(0, 10)}T12:00:00`);
+  return Number.isNaN(parsed.getTime())
+    ? value
+    : alertDateFormatter.format(parsed);
+}
+
 function EmbeddedCityLocationPickerLoading() {
   return (
     <div
@@ -80,9 +107,82 @@ export function UserPreferencesPage() {
     resetSiteColor,
   } = useUserPreferencesContext();
   const [isSourcesOpen, setIsSourcesOpen] = useState(true);
+  const [ticketAlerts, setTicketAlerts] = useState<
+    UserTicketAlertSubscription[]
+  >([]);
+  const [ticketAlertsLoading, setTicketAlertsLoading] = useState(true);
+  const [ticketAlertsError, setTicketAlertsError] = useState<string | null>(
+    null,
+  );
+  const [removingAlertId, setRemovingAlertId] = useState<string | null>(null);
+  const [, setCatalogRevision] = useState(0);
+  const userId = user?.id ?? null;
   const visibleSiteColors = useMemo(
     () => getVisibleSiteColors(siteColor, allSiteColors),
     [allSiteColors, siteColor],
+  );
+
+  useEffect(() => {
+    return subscribeToMovieCatalog(() => {
+      setCatalogRevision((revision) => revision + 1);
+    });
+  }, []);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    if (!userId) {
+      return () => {
+        isCurrent = false;
+      };
+    }
+
+    void loadUserTicketAlertSubscriptions(userId)
+      .then((alerts) => {
+        if (isCurrent) {
+          setTicketAlerts(alerts);
+          setTicketAlertsLoading(false);
+        }
+      })
+      .catch((loadError: unknown) => {
+        if (isCurrent) {
+          setTicketAlertsError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Could not load your coming soon alerts.",
+          );
+          setTicketAlertsLoading(false);
+        }
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [userId]);
+
+  const handleRemoveAlert = useCallback(
+    async (tmdbId: string) => {
+      if (!userId || removingAlertId) {
+        return;
+      }
+
+      setRemovingAlertId(tmdbId);
+      setTicketAlertsError(null);
+      try {
+        await cancelTicketAlert(userId, tmdbId);
+        setTicketAlerts((alerts) =>
+          alerts.filter((alert) => alert.tmdbId !== tmdbId));
+      } catch (removeError: unknown) {
+        setTicketAlertsError(
+          removeError instanceof Error
+            ? removeError.message
+            : "Could not cancel this coming soon alert.",
+        );
+      } finally {
+        setRemovingAlertId(null);
+      }
+    },
+    [removingAlertId, userId],
   );
 
   const handleSourceToggle = useCallback(
@@ -250,6 +350,99 @@ export function UserPreferencesPage() {
                 </div>
               </div>
             ) : null}
+          </section>
+
+          <section className="prefs-setting prefs-alerts-setting">
+            <div className="prefs-setting-content prefs-setting-content--static">
+              <div className="prefs-alerts-header">
+                <div className="prefs-setting-copy">
+                  <span className="prefs-setting-label">
+                    Coming Soon Alerts
+                  </span>
+                  <span className="prefs-setting-summary">
+                    {ticketAlerts.length === 0
+                      ? "No movies being watched"
+                      : `${ticketAlerts.length} movie${ticketAlerts.length === 1 ? "" : "s"} being watched`}
+                  </span>
+                </div>
+              </div>
+
+              {ticketAlertsLoading ? (
+                <p className="prefs-alerts-empty" role="status">
+                  Loading your alerts…
+                </p>
+              ) : ticketAlerts.length === 0 ? (
+                <p className="prefs-alerts-empty">
+                  Click Notify me on a coming soon movie to see it here.
+                </p>
+              ) : (
+                <ul className="prefs-alerts-list">
+                  {ticketAlerts.map((alert) => {
+                    const movie = findAlertMovie(alert.tmdbId);
+                    const title =
+                      movie?.title ??
+                      alert.deliveryTitle ??
+                      "Coming soon movie";
+                    const releaseDate =
+                      movie?.releaseDate ?? alert.deliveryDate ?? null;
+
+                    return (
+                      <li className="prefs-alert-row" key={alert.tmdbId}>
+                        <div className="prefs-alert-poster-shell">
+                          {movie?.imageSrc ? (
+                            <img
+                              className="prefs-alert-poster"
+                              src={movie.imageSrc}
+                              alt=""
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span className="prefs-alert-poster-fallback">
+                              {title.slice(0, 1)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="prefs-alert-copy">
+                          {movie?.movieCode ? (
+                            <Link
+                              className="prefs-alert-title"
+                              to={`/${movie.movieCode}`}
+                              aria-label={`Edit alert for ${title}`}
+                            >
+                              {title}
+                            </Link>
+                          ) : (
+                            <span className="prefs-alert-title">{title}</span>
+                          )}
+                          <span className="prefs-alert-date">
+                            {formatAlertDate(releaseDate)}
+                            {alert.notifiedAt ? " · Alert sent" : " · Watching"}
+                          </span>
+                        </div>
+                        <button
+                          className="prefs-alert-remove"
+                          type="button"
+                          disabled={removingAlertId === alert.tmdbId}
+                          onClick={() => {
+                            void handleRemoveAlert(alert.tmdbId);
+                          }}
+                        >
+                          {removingAlertId === alert.tmdbId
+                            ? "Removing…"
+                            : "Undo"}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              {ticketAlertsError ? (
+                <p className="prefs-alerts-error" role="alert">
+                  {ticketAlertsError}
+                </p>
+              ) : null}
+            </div>
           </section>
         </div>
       </div>
