@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTicketAlertShowtimePath, getValidTicketHref, selectTicketAlertShowtime, type TicketAlertShowtimeRow } from "./ticketAlerts";
+import { buildTicketAlertShowtimePath, getValidTicketHref, isValidTicketAlertEmail, loadGuestTicketAlert, selectTicketAlertShowtime, type TicketAlertShowtimeRow } from "./ticketAlerts";
 
 const TEST_INSTANT = new Date("2026-08-23T12:00:00.000Z");
 
@@ -117,5 +117,18 @@ describe("ticket alert links", () => {
         TEST_INSTANT,
       ),
     ).toBe("/showtimes");
+  });
+});
+
+describe("guest ticket alerts", () => {
+  it("accepts ordinary email addresses and rejects unsafe values", () => {
+    expect(isValidTicketAlertEmail("person@example.com")).toBe(true);
+    expect(isValidTicketAlertEmail(" PERSON@example.com ")).toBe(true);
+    expect(isValidTicketAlertEmail("not-an-email")).toBe(false);
+    expect(isValidTicketAlertEmail("<script>@example.com")).toBe(false);
+  });
+
+  it("does not read guest subscriptions during server rendering", () => {
+    expect(loadGuestTicketAlert("123")).toBeNull();
   });
 });

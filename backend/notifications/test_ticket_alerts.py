@@ -56,16 +56,24 @@ class FakeHttpClient:
 
 
 class FakeRepository:
-    def __init__(self, pending_rows, showtimes=None):
+    def __init__(self, pending_rows, showtimes=None, guest_rows=None):
         self.pending_rows = list(pending_rows)
+        self.guest_rows = list(guest_rows or [])
         self.showtimes = list(showtimes or [])
         self.attempts = []
         self.claims = []
         self.successes = []
         self.failures = []
+        self.guest_attempts = []
+        self.guest_claims = []
+        self.guest_successes = []
+        self.guest_failures = []
 
     def load_pending_subscriptions(self):
         return list(self.pending_rows)
+
+    def load_pending_guest_subscriptions(self):
+        return list(self.guest_rows)
 
     def load_showtimes(self, tmdb_ids, earliest_date):
         return [row for row in self.showtimes if int(row["tmdb_id"]) in tmdb_ids]
@@ -109,6 +117,36 @@ class FakeRepository:
 
     def mark_failure(self, user_id, delivery_id, error):
         self.failures.append((user_id, delivery_id, error))
+
+    def claim_guest_delivery(self, guest_token, delivery_id, items):
+        self.guest_claims.append((guest_token, delivery_id, items))
+        return [
+            {
+                "guest_token": guest_token,
+                "tmdb_id": item.tmdb_id,
+                "created_at": "2026-08-23T12:00:00+00:00",
+                "delivery_id": delivery_id,
+                "delivery_title": item.title,
+                "delivery_city": item.city,
+                "delivery_date": item.date,
+                "delivery_href": item.ticket_href,
+                "delivery_movie_code": item.movie_code,
+            }
+            for item in items
+        ]
+
+    def record_guest_attempt(self, guest_token, delivery_id):
+        self.guest_attempts.append((guest_token, delivery_id))
+
+    def mark_guest_success(
+        self, guest_token, delivery_id, resend_email_id, delivered_at
+    ):
+        self.guest_successes.append(
+            (guest_token, delivery_id, resend_email_id, delivered_at)
+        )
+
+    def mark_guest_failure(self, guest_token, delivery_id, error):
+        self.guest_failures.append((guest_token, delivery_id, error))
 
 
 def pending_subscription(tmdb_id, *, delivery_id=None, title=None):
@@ -330,6 +368,55 @@ class TicketAlertDispatcherTests(TestCase):
                 "ticket-alert-stable-delivery",
             ],
         )
+
+    def test_guest_delivery_uses_submitted_email_and_batches_movies(self):
+        repository = FakeRepository(
+            [],
+            [
+                showtime_row(
+                    tmdb_id=1,
+                    english_title="Dune Part Three",
+                    screening_city="Jerusalem",
+                ),
+                showtime_row(
+                    tmdb_id=2,
+                    english_title="Movie Two",
+                    screening_city="Tel Aviv",
+                    english_href="https://tickets.example/showing/2",
+                ),
+            ],
+            guest_rows=[
+                {
+                    "guest_token": "guest-1",
+                    "tmdb_id": 1,
+                    "email": "guest@example.com",
+                    "preferred_city": "Jerusalem",
+                    "created_at": "2026-08-23T12:00:00+00:00",
+                    "notified_at": None,
+                    "delivery_id": None,
+                },
+                {
+                    "guest_token": "guest-1",
+                    "tmdb_id": 2,
+                    "email": "guest@example.com",
+                    "preferred_city": "Jerusalem",
+                    "created_at": "2026-08-23T12:01:00+00:00",
+                    "notified_at": None,
+                    "delivery_id": None,
+                },
+            ],
+        )
+        http_client = FakeHttpClient()
+
+        summary = self.make_dispatcher(repository, http_client).dispatch()
+
+        self.assertEqual(summary.pending_subscriptions, 2)
+        self.assertEqual(summary.emails_sent, 1)
+        self.assertEqual(summary.movies_notified, 2)
+        self.assertEqual(len(repository.guest_claims), 1)
+        self.assertEqual(len(repository.guest_successes), 1)
+        _, request = http_client.calls[0]
+        self.assertEqual(request["json"]["to"], ["guest@example.com"])
 
 
 if __name__ == "__main__":

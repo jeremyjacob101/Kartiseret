@@ -550,6 +550,32 @@
   flex: 0 0 auto;
 }
 
+.ticket-alert-bell {
+  position: relative;
+  display: inline-flex;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+}
+
+.ticket-alert-bell .ticket-alert-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.ticket-alert-bell-check {
+  position: absolute;
+  right: -4px;
+  bottom: -3px;
+  width: 10px;
+  height: 10px;
+  padding: 1px;
+  border-radius: 999px;
+  background: var(--main-app-color);
+  color: #fff;
+  stroke-width: 3;
+}
+
 .ticket-alert-icon.is-spinning {
   animation: ticket-alert-spin 850ms linear infinite;
 }
@@ -570,6 +596,81 @@
   color: #ffb7c3;
 }
 
+.ticket-alert-form {
+  display: grid;
+  gap: 9px;
+  width: min(100%, 360px);
+  padding: 11px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 28%, transparent);
+  border-radius: 14px;
+  background: rgba(14, 11, 20, 0.62);
+}
+
+.ticket-alert-form-label {
+  display: grid;
+  gap: 5px;
+  color: rgba(246, 240, 255, 0.82);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.ticket-alert-form-input {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 32%, transparent);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.ticket-alert-form-input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--main-app-color) 68%, white 20%);
+  outline-offset: 2px;
+}
+
+.ticket-alert-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.ticket-alert-form-submit,
+.ticket-alert-form-cancel {
+  min-height: 31px;
+  padding: 0.42rem 0.68rem;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 48%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--main-app-color) 18%, transparent);
+  color: #f6f0ff;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.ticket-alert-form-cancel {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ticket-alert-form-cancel--danger {
+  color: #ffb7c3;
+}
+
+.ticket-alert-form-submit:hover:not(:disabled),
+.ticket-alert-form-cancel:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--main-app-color) 76%, white 10%);
+}
+
+.ticket-alert-form-submit:disabled,
+.ticket-alert-form-cancel:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 @keyframes ticket-alert-spin {
   to {
     transform: rotate(360deg);
@@ -586,6 +687,12 @@
   }
 
   html[data-device-type="desktop"] .ticket-alert-icon {
+    width: 13px;
+    height: 13px;
+  }
+
+  html[data-device-type="desktop"] .ticket-alert-bell,
+  html[data-device-type="desktop"] .ticket-alert-bell .ticket-alert-icon {
     width: 13px;
     height: 13px;
   }

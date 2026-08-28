@@ -15,6 +15,7 @@ from supabase import create_client
 
 
 TICKET_ALERTS_TABLE = "ticket_alert_subscriptions"
+GUEST_TICKET_ALERTS_TABLE = "ticket_alert_guest_subscriptions"
 SHOWTIMES_TABLE = "finalShowtimes"
 PREFERENCES_TABLE = "userPreferences"
 MOVIE_CODES_TABLE = "movieCodes"
@@ -30,7 +31,7 @@ DATE_CODE_ALPHABET = (
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 )
 MOVIE_CODE_PATTERN = re.compile(r"^[0-9A-Za-z]{3}$")
-EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+EMAIL_PATTERN = re.compile(r"^[^\s@<>()\"'\\]+@[^\s@<>()\"'\\]+\.[^\s@<>()\"'\\]+$")
 CITY_CODE_BY_NAME = {
     "Jerusalem": "i",
     "Tel Aviv": "l",
@@ -65,6 +66,10 @@ CITY_CODE_BY_NAME = {
 
 def _text(value: Any) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def _email(value: Any) -> str:
+    return _text(value).lower()
 
 
 def _positive_int(value: Any) -> int | None:
@@ -287,9 +292,11 @@ class DeliveryItem:
 
 @dataclass(frozen=True)
 class DeliveryBatch:
-    user_id: str
+    user_id: str | None
     delivery_id: str
     items: tuple[DeliveryItem, ...]
+    guest_token: str | None = None
+    recipient_email: str | None = None
 
 
 @dataclass(frozen=True)
@@ -537,6 +544,35 @@ class SupabaseTicketAlertRepository:
             .range(start, end)
         )
 
+    def load_pending_guest_subscriptions(self) -> list[dict[str, Any]]:
+        columns = ",".join(
+            [
+                "guest_token",
+                "tmdb_id",
+                "email",
+                "preferred_city",
+                "created_at",
+                "notified_at",
+                "delivery_id",
+                "delivery_title",
+                "delivery_city",
+                "delivery_date",
+                "delivery_href",
+                "delivery_movie_code",
+                "delivery_attempts",
+                "last_delivery_attempt_at",
+            ]
+        )
+        return self._collect_pages(
+            lambda start, end: self.supabase.table(GUEST_TICKET_ALERTS_TABLE)
+            .select(columns)
+            .is_("notified_at", "null")
+            .order("created_at")
+            .order("guest_token")
+            .order("tmdb_id")
+            .range(start, end)
+        )
+
     def _load_rows_for_ids(
         self,
         table_name: str,
@@ -683,6 +719,66 @@ class SupabaseTicketAlertRepository:
             .execute()
         )
 
+    def claim_guest_delivery(
+        self,
+        guest_token: str,
+        delivery_id: str,
+        items: tuple[DeliveryItem, ...],
+    ) -> list[dict[str, Any]]:
+        response = self.supabase.rpc(
+            "claim_guest_ticket_alert_delivery",
+            {
+                "p_guest_token": guest_token,
+                "p_delivery_id": delivery_id,
+                "p_items": [item.as_claim_item() for item in items],
+            },
+        ).execute()
+        return list(response.data or [])
+
+    def record_guest_attempt(self, guest_token: str, delivery_id: str) -> None:
+        response = self.supabase.rpc(
+            "record_guest_ticket_alert_delivery_attempt",
+            {"p_guest_token": guest_token, "p_delivery_id": delivery_id},
+        ).execute()
+        updated_count = int(response.data or 0)
+        if updated_count <= 0:
+            raise RuntimeError("The guest ticket alert delivery batch is no longer pending.")
+
+    def mark_guest_success(
+        self,
+        guest_token: str,
+        delivery_id: str,
+        resend_email_id: str,
+        delivered_at: datetime,
+    ) -> None:
+        (
+            self.supabase.table(GUEST_TICKET_ALERTS_TABLE)
+            .update(
+                {
+                    "notified_at": delivered_at.isoformat(),
+                    "resend_email_id": resend_email_id,
+                    "last_delivery_error": None,
+                }
+            )
+            .eq("guest_token", guest_token)
+            .eq("delivery_id", delivery_id)
+            .is_("notified_at", "null")
+            .execute()
+        )
+
+    def mark_guest_failure(
+        self, guest_token: str, delivery_id: str, error: str
+    ) -> None:
+        safe_error = _text(error)[:2_000] or "Unknown ticket alert delivery failure"
+        (
+            self.supabase.table(GUEST_TICKET_ALERTS_TABLE)
+            .update({"last_delivery_error": safe_error})
+            .eq("guest_token", guest_token)
+            .eq("delivery_id", delivery_id)
+            .is_("notified_at", "null")
+            .execute()
+        )
+
 
 class TicketAlertDispatcher:
     driver = None
@@ -750,6 +846,47 @@ class TicketAlertDispatcher:
                     user_id=user_id,
                     delivery_id=delivery_id,
                     items=items,
+                )
+            )
+        return batches
+
+    @staticmethod
+    def _retry_guest_batches(
+        pending_rows: list[dict[str, Any]],
+    ) -> list[DeliveryBatch]:
+        groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        for row in pending_rows:
+            guest_token = _text(row.get("guest_token"))
+            delivery_id = _text(row.get("delivery_id"))
+            if guest_token and delivery_id:
+                groups.setdefault((guest_token, delivery_id), []).append(row)
+
+        earliest_by_guest: dict[str, tuple[str, list[dict[str, Any]]]] = {}
+        for (guest_token, delivery_id), rows in groups.items():
+            created_at = min(_text(row.get("created_at")) for row in rows)
+            current = earliest_by_guest.get(guest_token)
+            if current is None or (created_at, delivery_id) < (
+                min(_text(row.get("created_at")) for row in current[1]),
+                current[0],
+            ):
+                earliest_by_guest[guest_token] = (delivery_id, rows)
+
+        batches: list[DeliveryBatch] = []
+        for guest_token, (delivery_id, rows) in sorted(earliest_by_guest.items()):
+            parsed_items = [delivery_item_from_snapshot(row) for row in rows]
+            items = (
+                tuple(item for item in parsed_items if item is not None)
+                if all(item is not None for item in parsed_items)
+                else ()
+            )
+            recipient_email = _email(rows[0].get("email"))
+            batches.append(
+                DeliveryBatch(
+                    user_id=None,
+                    delivery_id=delivery_id,
+                    items=items,
+                    guest_token=guest_token,
+                    recipient_email=recipient_email or None,
                 )
             )
         return batches
@@ -851,26 +988,161 @@ class TicketAlertDispatcher:
                 )
         return batches
 
+    def _new_guest_batches(
+        self,
+        pending_rows: list[dict[str, Any]],
+        retry_guest_tokens: set[str],
+        now: datetime,
+    ) -> list[DeliveryBatch]:
+        unclaimed_rows = [
+            row
+            for row in pending_rows
+            if not _text(row.get("delivery_id"))
+            and _text(row.get("guest_token")) not in retry_guest_tokens
+        ]
+        tmdb_ids = sorted(
+            {
+                tmdb_id
+                for tmdb_id in (
+                    _positive_int(row.get("tmdb_id")) for row in unclaimed_rows
+                )
+                if tmdb_id is not None
+            }
+        )
+        guest_tokens = sorted(
+            {
+                _text(row.get("guest_token"))
+                for row in unclaimed_rows
+                if _text(row.get("guest_token"))
+            }
+        )
+        if not tmdb_ids or not guest_tokens:
+            return []
+
+        showtime_rows = self.repository.load_showtimes(
+            tmdb_ids, get_cinema_date(now).isoformat()
+        )
+        titles = self.repository.load_titles(tmdb_ids)
+        movie_codes = self.repository.load_movie_codes(tmdb_ids)
+        showtimes_by_tmdb: dict[int, list[dict[str, Any]]] = {}
+        for row in showtime_rows:
+            tmdb_id = _positive_int(row.get("tmdb_id"))
+            if tmdb_id:
+                showtimes_by_tmdb.setdefault(tmdb_id, []).append(row)
+
+        items_by_guest: dict[str, list[DeliveryItem]] = {}
+        emails_by_guest: dict[str, str] = {}
+        for subscription in unclaimed_rows:
+            guest_token = _text(subscription.get("guest_token"))
+            tmdb_id = _positive_int(subscription.get("tmdb_id"))
+            email = _email(subscription.get("email"))
+            if not guest_token or not tmdb_id or not EMAIL_PATTERN.fullmatch(email):
+                continue
+            preferred_city = _text(subscription.get("preferred_city")) or DEFAULT_LOCATION
+            linked_showtime = select_linked_showtime(
+                showtimes_by_tmdb.get(tmdb_id, []), preferred_city, now
+            )
+            if linked_showtime is None:
+                continue
+            title = linked_showtime.title or titles.get(tmdb_id, "")
+            if not title:
+                continue
+            emails_by_guest[guest_token] = email
+            items_by_guest.setdefault(guest_token, []).append(
+                DeliveryItem(
+                    tmdb_id=tmdb_id,
+                    title=title,
+                    city=linked_showtime.city,
+                    date=linked_showtime.date,
+                    ticket_href=linked_showtime.ticket_href,
+                    movie_code=movie_codes.get(tmdb_id),
+                )
+            )
+
+        batches: list[DeliveryBatch] = []
+        for guest_token, items in sorted(items_by_guest.items()):
+            delivery_id = str(self.delivery_id_factory())
+            deduped_items = tuple(
+                sorted(
+                    {item.tmdb_id: item for item in items}.values(),
+                    key=lambda item: (item.title.casefold(), item.tmdb_id),
+                )
+            )
+            claimed_rows = self.repository.claim_guest_delivery(
+                guest_token, delivery_id, deduped_items
+            )
+            parsed_claimed_items = [
+                delivery_item_from_snapshot(row) for row in claimed_rows
+            ]
+            claimed_items = (
+                tuple(item for item in parsed_claimed_items if item is not None)
+                if all(item is not None for item in parsed_claimed_items)
+                else ()
+            )
+            if claimed_rows:
+                batches.append(
+                    DeliveryBatch(
+                        user_id=None,
+                        delivery_id=delivery_id,
+                        items=claimed_items,
+                        guest_token=guest_token,
+                        recipient_email=emails_by_guest.get(guest_token),
+                    )
+                )
+        return batches
+
     def dispatch(self) -> DispatchSummary:
         now = _jerusalem_now(self.now_factory())
         pending_rows = self.repository.load_pending_subscriptions()
-        retry_batches = self._retry_batches(pending_rows)
-        retry_user_ids = {batch.user_id for batch in retry_batches}
-        batches = retry_batches + self._new_batches(
-            pending_rows, retry_user_ids, now
+        load_pending_guest = getattr(
+            self.repository, "load_pending_guest_subscriptions", lambda: []
         )
+        pending_guest_rows = load_pending_guest()
+        retry_batches = self._retry_batches(pending_rows)
+        retry_user_ids = {
+            batch.user_id for batch in retry_batches if batch.user_id is not None
+        }
+        retry_guest_batches = self._retry_guest_batches(pending_guest_rows)
+        retry_guest_tokens = {
+            batch.guest_token
+            for batch in retry_guest_batches
+            if batch.guest_token is not None
+        }
+        new_batches = self._new_batches(pending_rows, retry_user_ids, now)
+        new_guest_batches = (
+            self._new_guest_batches(
+                pending_guest_rows, retry_guest_tokens, now
+            )
+            if hasattr(self.repository, "claim_guest_delivery")
+            else []
+        )
+        batches = retry_batches + retry_guest_batches + new_batches + new_guest_batches
         emails_sent = 0
         movies_notified = 0
         failures: list[str] = []
 
         for batch in batches:
             try:
-                self.repository.record_attempt(batch.user_id, batch.delivery_id)
+                if batch.user_id is not None:
+                    self.repository.record_attempt(batch.user_id, batch.delivery_id)
+                elif batch.guest_token is not None:
+                    self.repository.record_guest_attempt(
+                        batch.guest_token, batch.delivery_id
+                    )
+                else:
+                    raise RuntimeError("The ticket alert recipient is missing.")
                 if not batch.items:
                     raise RuntimeError(
                         "The ticket alert delivery snapshot is incomplete."
                     )
-                to_email = self.repository.canonical_email(batch.user_id)
+                if batch.user_id is not None:
+                    to_email = self.repository.canonical_email(batch.user_id)
+                else:
+                    to_email = _email(batch.recipient_email)
+                    if not EMAIL_PATTERN.fullmatch(to_email):
+                        raise ValueError(
+                            "Guest ticket alert has no deliverable email address."
+                        )
                 rendered_email = render_ticket_alert_email(
                     batch.items,
                     self.config.site_url,
@@ -884,20 +1156,33 @@ class TicketAlertDispatcher:
                     delivery_id=batch.delivery_id,
                     email=rendered_email,
                 )
-                self.repository.mark_success(
-                    batch.user_id,
-                    batch.delivery_id,
-                    resend_email_id,
-                    now,
-                )
+                if batch.user_id is not None:
+                    self.repository.mark_success(
+                        batch.user_id,
+                        batch.delivery_id,
+                        resend_email_id,
+                        now,
+                    )
+                elif batch.guest_token is not None:
+                    self.repository.mark_guest_success(
+                        batch.guest_token,
+                        batch.delivery_id,
+                        resend_email_id,
+                        now,
+                    )
                 emails_sent += 1
                 movies_notified += len(batch.items)
             except Exception as exc:
                 error_message = f"{type(exc).__name__}: {exc}"
                 try:
-                    self.repository.mark_failure(
-                        batch.user_id, batch.delivery_id, error_message
-                    )
+                    if batch.user_id is not None:
+                        self.repository.mark_failure(
+                            batch.user_id, batch.delivery_id, error_message
+                        )
+                    elif batch.guest_token is not None:
+                        self.repository.mark_guest_failure(
+                            batch.guest_token, batch.delivery_id, error_message
+                        )
                 except Exception as mark_exc:
                     error_message = (
                         f"{error_message}; could not record failure: "
@@ -912,7 +1197,7 @@ class TicketAlertDispatcher:
             )
 
         return DispatchSummary(
-            pending_subscriptions=len(pending_rows),
+            pending_subscriptions=len(pending_rows) + len(pending_guest_rows),
             emails_sent=emails_sent,
             movies_notified=movies_notified,
         )
