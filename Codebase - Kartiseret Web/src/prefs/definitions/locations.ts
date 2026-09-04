@@ -84,6 +84,15 @@ export function loadGuestLocation(): AppLocation | null {
   }
 }
 
+export function loadInitialPreferenceLocation(
+  signupLocationMetadata: unknown,
+): AppLocation {
+  const result = appLocationSchema.safeParse(signupLocationMetadata);
+  return result.success
+    ? result.data
+    : (loadGuestLocation() ?? DEFAULT_LOCATION);
+}
+
 export function saveGuestLocation(location: AppLocation): void {
   try {
     const result = appLocationSchema.safeParse(location);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMovieShowtimeShareUrl, encodeDateCode, encodeMovieRouteCode, migrateShowtimeFilterJson, migrateShowtimeFilterState, parseMovieRouteCode } from "./showtimeLinkCodec.js";
+import { buildMovieShowtimeSharePath, buildMovieShowtimeShareUrl, encodeDateCode, encodeMovieRouteCode, migrateShowtimeFilterJson, migrateShowtimeFilterState, parseMovieRouteCode } from "./showtimeLinkCodec.js";
 
 describe("showtime filter persistence validation", () => {
   it("migrates legacy version-one screen formats and drops invalid entries", () => {
@@ -48,6 +48,33 @@ describe("showtime filter persistence validation", () => {
 });
 
 describe("movie route runtime validation", () => {
+  it("builds relative share paths without weakening absolute URL validation", () => {
+    const state = {
+      movieCode: "A7z",
+      city: "Tel Aviv",
+      date: "2026-09-04",
+      filterMask: 0,
+    };
+    const path = buildMovieShowtimeSharePath(state);
+    const url = buildMovieShowtimeShareUrl(state, "https://seret.site");
+
+    expect(path).not.toBeNull();
+    expect(new URL(url ?? "https://invalid.example.test").pathname).toBe(path);
+    expect(parseMovieRouteCode(path?.slice(1) ?? "")).toMatchObject({
+      kind: "encoded",
+      cityCode: "l",
+      dateCode: encodeDateCode(state.date),
+      mode: "share",
+    });
+    expect(buildMovieShowtimeShareUrl(state, "")).toBeNull();
+    expect(
+      buildMovieShowtimeSharePath({ ...state, date: "2026-02-30" }),
+    ).toBeNull();
+    expect(
+      buildMovieShowtimeSharePath({ ...state, movieCode: "bad-code" }),
+    ).toBeNull();
+  });
+
   it("round-trips validated encoded route state", () => {
     const routeCode = encodeMovieRouteCode({
       movieCode: "A7z",

@@ -54,6 +54,14 @@ export const isoDateStringSchema = z
   .regex(ISO_DATE_PATTERN, "Expected an ISO date in YYYY-MM-DD format.")
   .refine(isRealIsoDate, "Expected a real calendar date.");
 
+export const showtimeStringSchema = z
+  .string()
+  .trim()
+  .regex(
+    /^(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/,
+    "Expected a valid showtime.",
+  );
+
 export const longitudeLatitudeSchema = z.tuple([
   z.number().finite().min(-180).max(180),
   z.number().finite().min(-90).max(90),

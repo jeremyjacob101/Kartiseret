@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 import { adminUserRowSchema, supabaseUserIdSchema, supabaseUserIdentitySchema } from "../lib/supabaseSchemas";
 import { parseBoundary } from "../validation/runtime";
-import { DEFAULT_LOCATION, loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY, locationPreferenceDefinition, type AppLocation } from "./definitions/locations";
+import { loadInitialPreferenceLocation, LOCATION_SIGNUP_METADATA_KEY, locationPreferenceDefinition, type AppLocation } from "./definitions/locations";
 import { ratingSourcesPreferenceDefinition, type RatingSource } from "./definitions/ratingSources";
 import { DEFAULT_SITE_COLOR, applySiteColor, initializeSiteColorTheme, siteColorPreferenceDefinition, type SiteColorOption, type SiteColor } from "./definitions/siteColor";
 import type { UserPreferenceDefinition } from "./definitions/shared";
@@ -88,34 +88,18 @@ const defaultPreferences = createPreferenceValues((key) =>
 const preferenceOptions = createPreferenceOptions();
 const fallbackSavePreference: SavePreference = async () => false;
 
-function getInitialPreferenceLocation(
-  signupLocationMetadata: unknown,
-): AppLocation {
-  if (
-    typeof signupLocationMetadata === "string" &&
-    signupLocationMetadata.trim()
-  ) {
-    return parsePreferenceValue("location", signupLocationMetadata);
-  }
-
-  return parsePreferenceValue(
-    "location",
-    loadGuestLocation() ?? DEFAULT_LOCATION,
-  );
-}
-
 function buildDefaultPreferencesRow(
   userId: string,
-  location: AppLocation,
+  preferences: UserPreferences,
 ): UserPreferencesRow {
   return {
     user_id: userId,
     rating_sources: copyPreferenceValue(
       "ratingSources",
-      defaultPreferences.ratingSources,
+      preferences.ratingSources,
     ),
-    location,
-    site_color: copyPreferenceValue("siteColor", defaultPreferences.siteColor),
+    location: preferences.location,
+    site_color: preferences.siteColor,
   };
 }
 
@@ -556,9 +540,16 @@ export function useUserPreferences(): UserPreferencesState {
       }
 
       if (!row) {
+        const initialLocation = loadInitialPreferenceLocation(
+          signupLocationMetadata,
+        );
+        const initialPreferences = createPreferenceValues((key) =>
+          key === "location"
+            ? initialLocation
+            : getDefaultPreferenceValue(key));
         const initialRow = buildDefaultPreferencesRow(
           userId,
-          getInitialPreferenceLocation(signupLocationMetadata),
+          initialPreferences,
         );
         const { error: createError } = await supabase
           .from(PREFERENCES_TABLE)
@@ -575,10 +566,9 @@ export function useUserPreferences(): UserPreferencesState {
           return;
         }
 
-        const normalizedPreferences = normalizePreferencesRow(initialRow);
-        saveCachedPreferences(normalizedPreferences);
-        confirmedPreferencesRef.current = normalizedPreferences;
-        setPreferences(normalizedPreferences);
+        saveCachedPreferences(initialPreferences);
+        confirmedPreferencesRef.current = initialPreferences;
+        setPreferences(initialPreferences);
         setSyncing(false);
         setLoading(false);
         return;

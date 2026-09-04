@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema, tmdbIdSchema } from "../validation/runtime.js";
+import { isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema, showtimeStringSchema, tmdbIdSchema } from "../validation/runtime.js";
 
 const nullableTextSchema = z.string().nullable();
 const nullableNumberishSchema = z.union([
@@ -160,13 +160,7 @@ export const showtimeRowSchema = z
     screening_city: nonEmptyTrimmedStringSchema,
     date_of_showing: isoDateStringSchema,
     cinema: nonEmptyTrimmedStringSchema,
-    showtime: z
-      .string()
-      .trim()
-      .regex(
-        /^(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/,
-        "Expected a valid showtime.",
-      ),
+    showtime: showtimeStringSchema,
     english_href: nullableTextSchema,
     screening_tech: optionalShowtimeTextSchema,
     screening_type: optionalShowtimeTextSchema,

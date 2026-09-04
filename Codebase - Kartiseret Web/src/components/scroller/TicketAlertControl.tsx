@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Bell, Check, LoaderCircle, Ticket } from "lucide-react";
 import { Link } from "react-router";
-import { cancelGuestTicketAlert, cancelTicketAlert, isValidTicketAlertEmail, loadTicketAlertState, subscribeGuestToTicketAlert, subscribeToTicketAlert, type TicketAlertAvailability } from "../../data/ticketAlerts";
+import { cancelGuestTicketAlert, cancelTicketAlert, loadTicketAlertState, subscribeGuestToTicketAlert, subscribeToTicketAlert, type TicketAlertState } from "../../data/ticketAlerts";
 import type { Movie } from "../../data/movieCatalog";
 import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
 
@@ -9,15 +9,10 @@ type TicketAlertControlProps = {
   movie: Movie;
 };
 
-type TicketAlertControlState = {
-  availability: TicketAlertAvailability | null;
+type TicketAlertControlState = TicketAlertState & {
   error: string | null;
-  guestEmail: string | null;
-  guestSubscribed: boolean;
   loading: boolean;
-  notified: boolean;
   pending: boolean;
-  subscribed: boolean;
 };
 
 const INITIAL_STATE: TicketAlertControlState = {
@@ -174,15 +169,6 @@ export function TicketAlertControl({ movie }: TicketAlertControlProps) {
       return;
     }
 
-    const normalizedEmail = guestEmailDraft.trim().toLowerCase();
-    if (!isValidTicketAlertEmail(normalizedEmail)) {
-      setState((currentState) => ({
-        ...currentState,
-        error: "Enter a valid email address for this alert.",
-      }));
-      return;
-    }
-
     const requestGeneration = requestGenerationRef.current + 1;
     requestGenerationRef.current = requestGeneration;
     setState((currentState) => ({
@@ -196,7 +182,7 @@ export function TicketAlertControl({ movie }: TicketAlertControlProps) {
         movieCode: movie.movieCode,
         preferredCity,
         tmdbId: movie.tmdbId,
-        email: normalizedEmail,
+        email: guestEmailDraft,
       });
 
       if (requestGenerationRef.current === requestGeneration) {
@@ -206,7 +192,7 @@ export function TicketAlertControl({ movie }: TicketAlertControlProps) {
           loading: false,
           pending: false,
         });
-        setGuestEmailDraft(ticketAlertState.guestEmail ?? normalizedEmail);
+        setGuestEmailDraft(ticketAlertState.guestEmail ?? "");
         setGuestFormOpen(false);
       }
     } catch (error: unknown) {

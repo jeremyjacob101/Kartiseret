@@ -715,18 +715,9 @@ export function encodeMovieRouteCode(
     : null;
 }
 
-export function buildMovieShowtimeShareUrl(
-  state: MovieShowtimeShareState,
-  siteOrigin = "https://seret.site",
+function buildValidatedMovieShowtimeSharePath(
+  parsedState: z.output<typeof movieShowtimeShareStateSchema>,
 ): string | null {
-  const stateResult = movieShowtimeShareStateSchema.safeParse(state);
-  const originResult = httpUrlSchema.safeParse(siteOrigin);
-
-  if (!stateResult.success || !originResult.success) {
-    return null;
-  }
-
-  const parsedState = stateResult.data;
   const cityCode = getExplicitCityCode(parsedState.city);
   const dateCode = encodeDateCode(parsedState.date);
 
@@ -742,7 +733,31 @@ export function buildMovieShowtimeShareUrl(
     mode: "share",
   });
 
-  return routeCode ? `${new URL(originResult.data).origin}/${routeCode}` : null;
+  return routeCode ? `/${routeCode}` : null;
+}
+
+export function buildMovieShowtimeSharePath(
+  state: MovieShowtimeShareState,
+): string | null {
+  const result = movieShowtimeShareStateSchema.safeParse(state);
+  return result.success
+    ? buildValidatedMovieShowtimeSharePath(result.data)
+    : null;
+}
+
+export function buildMovieShowtimeShareUrl(
+  state: MovieShowtimeShareState,
+  siteOrigin = "https://seret.site",
+): string | null {
+  const stateResult = movieShowtimeShareStateSchema.safeParse(state);
+  const originResult = httpUrlSchema.safeParse(siteOrigin);
+
+  if (!stateResult.success || !originResult.success) {
+    return null;
+  }
+
+  const path = buildValidatedMovieShowtimeSharePath(stateResult.data);
+  return path ? `${new URL(originResult.data).origin}${path}` : null;
 }
 
 export function resolveCityCode(
