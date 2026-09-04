@@ -1,0 +1,523 @@
+- - -
+DATAFLOW SUMMARY
+- - -
+Name: CinemathequesTmdb
+Run ID: 615
+Attempt: 1
+Result: SUCCESS
+Started (UTC): 2026-08-27T10:17:37.415968+00:00
+Finished (UTC): 2026-08-27T10:31:39.239468+00:00
+Duration Seconds: 841.8235
+Generated At (UTC): 2026-08-27T10:31:39.239583+00:00
+
+SUMMARY COUNTS
+- dropped: 7
+- mapped: 229
+- merged: 216
+
+STAGE BREAKDOWN
+- dedupe|merged|deduped_into_tmdb: 216
+- tmdb_choice|mapped|director_match: 4
+- tmdb_choice|mapped|fallback_first_candidate: 15
+- tmdb_choice|mapped|runtime_match: 5
+- tmdb_choice|mapped|title_first_match: 184
+- tmdb_choice|mapped|tmdb_fix_id_match: 7
+- tmdb_choice|mapped|tmdb_fix_override: 3
+- tmdb_search|dropped|no_candidates: 7
+- write|mapped|marked_added: 5
+- write|mapped|upserted: 6
+
+COMING SOONS DETAILS
+- (none)
+
+CINEMATHEQUE GROUP DETAILS
+- key=woman in white | status=mapped | reason=title_first_match | rep_title=the woman in white | rows=6 | parsed_year=2026 | candidates=10 | chosen_tmdb=1685075 | path=title_first_match
+- key=damned if you do damned if you dont | status=mapped | reason=title_first_match | rep_title=damned if you do damned if you dont | rows=7 | parsed_year=2025 | candidates=1 | chosen_tmdb=1520507 | path=title_first_match
+- key=moshe mizrahi climbing the mountain | status=mapped | reason=title_first_match | rep_title=moshe mizrahi climbing the mountain | rows=1 | parsed_year=2026 | candidates=1 | chosen_tmdb=1685122 | path=title_first_match
+- key=sleepless in seattle | status=mapped | reason=title_first_match | rep_title=sleepless in seattle | rows=1 | parsed_year=1993 | candidates=1 | chosen_tmdb=858 | path=title_first_match
+- key=amelie | status=mapped | reason=title_first_match | rep_title=amelie | rows=2 | parsed_year=2001 | candidates=20 | chosen_tmdb=194 | path=title_first_match
+- key=mon oncle | status=mapped | reason=title_first_match | rep_title=mon oncle | rows=2 | parsed_year=1958 | candidates=20 | chosen_tmdb=427 | path=title_first_match
+- key=shalom | status=mapped | reason=title_first_match | rep_title=shalom | rows=3 | parsed_year=2026 | candidates=20 | chosen_tmdb=1694083 | path=title_first_match
+- key=mama | status=mapped | reason=tmdb_fix_id_match | rep_title=mama | rows=10 | parsed_year=2025 | candidates=24 | chosen_tmdb=1469464 | path=tmdb_fix_id_match
+- key=tina | status=mapped | reason=title_first_match | rep_title=tina | rows=1 | parsed_year=2025 | candidates=20 | chosen_tmdb=1262426 | path=title_first_match
+- key=sentimental value | status=mapped | reason=title_first_match | rep_title=sentimental value | rows=23 | parsed_year=2025 | candidates=4 | chosen_tmdb=1124566 | path=title_first_match
+- key=wedding entertainer the tale of moishe badhan | status=mapped | reason=director_match | rep_title=the wedding entertainer the tale of moishe badhan | rows=2 | parsed_year=2026 | candidates=1 | chosen_tmdb=1573783 | path=director_match
+- key=brutalist | status=mapped | reason=title_first_match | rep_title=the brutalist | rows=2 | parsed_year=2024 | candidates=3 | chosen_tmdb=549509 | path=title_first_match
+- key=valley of shadows | status=mapped | reason=title_first_match | rep_title=valley of shadows | rows=11 | parsed_year=2024 | candidates=6 | chosen_tmdb=1145857 | path=title_first_match
+- key=torso | status=mapped | reason=title_first_match | rep_title=torso | rows=1 | parsed_year=1973 | candidates=20 | chosen_tmdb=31624 | path=title_first_match
+- key=cuz youre ugly | status=mapped | reason=fallback_first_candidate | rep_title=cuz youre ugly | rows=8 | parsed_year=2025 | candidates=1 | chosen_tmdb=1177748 | path=fallback_first_candidate
+- key=missing part | status=mapped | reason=title_first_match | rep_title=a missing part | rows=7 | parsed_year=2024 | candidates=4 | chosen_tmdb=1021643 | path=title_first_match
+- key=stranger than fiction | status=mapped | reason=title_first_match | rep_title=stranger than fiction | rows=1 | parsed_year=2006 | candidates=15 | chosen_tmdb=1262 | path=title_first_match
+- key=jurassic park | status=mapped | reason=title_first_match | rep_title=jurassic park | rows=4 | parsed_year=1993 | candidates=20 | chosen_tmdb=329 | path=title_first_match
+- key=coyote vs acme | status=mapped | reason=title_first_match | rep_title=coyote vs acme | rows=14 | parsed_year=2026 | candidates=1 | chosen_tmdb=1204680 | path=title_first_match
+- key=great arch | status=mapped | reason=title_first_match | rep_title=the great arch | rows=2 | parsed_year=2025 | candidates=6 | chosen_tmdb=1290424 | path=title_first_match
+- key=sliding doors | status=mapped | reason=title_first_match | rep_title=sliding doors | rows=1 | parsed_year=1998 | candidates=1 | chosen_tmdb=10215 | path=title_first_match
+- key=per te | status=mapped | reason=title_first_match | rep_title=per te | rows=2 | parsed_year=2026 | candidates=20 | chosen_tmdb=1729544 | path=title_first_match
+- key=cabinet of dr caligari | status=mapped | reason=runtime_match | rep_title=the cabinet of dr caligari | rows=2 | parsed_year=1919 | candidates=3 | chosen_tmdb=234 | path=runtime_match
+- key=landslide | status=mapped | reason=title_first_match | rep_title=landslide | rows=4 | parsed_year=2026 | candidates=20 | chosen_tmdb=1653391 | path=title_first_match
+- key=fountainhead | status=mapped | reason=title_first_match | rep_title=the fountainhead | rows=2 | parsed_year=1949 | candidates=3 | chosen_tmdb=24650 | path=title_first_match
+- key=saved by the ball | status=mapped | reason=title_first_match | rep_title=saved by the ball | rows=2 | parsed_year=2026 | candidates=1 | chosen_tmdb=1685087 | path=title_first_match
+- key=lips | status=mapped | reason=title_first_match | rep_title=lips | rows=4 | parsed_year=2026 | candidates=20 | chosen_tmdb=1685115 | path=title_first_match
+- key=inception | status=mapped | reason=title_first_match | rep_title=inception | rows=2 | parsed_year=2010 | candidates=12 | chosen_tmdb=27205 | path=title_first_match
+- key=diamonds | status=mapped | reason=title_first_match | rep_title=diamonds | rows=1 | parsed_year=2024 | candidates=20 | chosen_tmdb=1299046 | path=title_first_match
+- key=esther | status=mapped | reason=title_first_match | rep_title=esther | rows=4 | parsed_year=2026 | candidates=20 | chosen_tmdb=1685080 | path=title_first_match
+- key=come drink with me | status=mapped | reason=title_first_match | rep_title=come drink with me | rows=1 | parsed_year=1966 | candidates=1 | chosen_tmdb=26259 | path=title_first_match
+- key=adventures of picasso | status=mapped | reason=title_first_match | rep_title=the adventures of picasso | rows=1 | parsed_year=1978 | candidates=1 | chosen_tmdb=45691 | path=title_first_match
+- key=andrei rublev | status=mapped | reason=title_first_match | rep_title=andrei rublev | rows=1 | parsed_year=1966 | candidates=3 | chosen_tmdb=895 | path=title_first_match
+- key=out of love | status=mapped | reason=title_first_match | rep_title=out of love | rows=1 | parsed_year=2025 | candidates=20 | chosen_tmdb=1277882 | path=title_first_match
+- key=muriels wedding | status=mapped | reason=title_first_match | rep_title=muriels wedding | rows=1 | parsed_year=1994 | candidates=1 | chosen_tmdb=236 | path=title_first_match
+- key=belly of an architect | status=mapped | reason=title_first_match | rep_title=the belly of an architect | rows=2 | parsed_year=1987 | candidates=2 | chosen_tmdb=17238 | path=title_first_match
+- key=fist of fury | status=mapped | reason=title_first_match | rep_title=fist of fury | rows=1 | parsed_year=1972 | candidates=20 | chosen_tmdb=11713 | path=title_first_match
+- key=daughters daughters | status=mapped | reason=fallback_first_candidate | rep_title=daughters daughters | rows=1 | parsed_year=1973 | candidates=20 | chosen_tmdb=1509164 | path=fallback_first_candidate
+- key=women | status=mapped | reason=runtime_match | rep_title=women | rows=1 | parsed_year=1996 | candidates=24 | chosen_tmdb=334418 | path=runtime_match
+- key=good morning gaza | status=mapped | reason=title_first_match | rep_title=good morning gaza | rows=3 | parsed_year=2026 | candidates=1 | chosen_tmdb=1715484 | path=title_first_match
+- key=blue velvet | status=mapped | reason=title_first_match | rep_title=blue velvet | rows=1 | parsed_year=1986 | candidates=8 | chosen_tmdb=793 | path=title_first_match
+- key=tell me everyting | status=dropped | reason=no_candidates | rep_title=tell me everyting | rows=1 | parsed_year=2026 | candidates=0 | chosen_tmdb= | path=
+- key=great beauty | status=mapped | reason=title_first_match | rep_title=the great beauty | rows=1 | parsed_year=2013 | candidates=6 | chosen_tmdb=179144 | path=title_first_match
+- key=searching for haifa the story of shimon holly | status=mapped | reason=fallback_first_candidate | rep_title=searching for haifa the story of shimon holly | rows=2 | parsed_year=2026 | candidates=1 | chosen_tmdb=1685116 | path=fallback_first_candidate
+- key=new dawn | status=mapped | reason=fallback_first_candidate | rep_title=a new dawn | rows=1 | parsed_year=2025 | candidates=19 | chosen_tmdb=1751168 | path=fallback_first_candidate
+- key=spy kids | status=mapped | reason=title_first_match | rep_title=spy kids | rows=1 | parsed_year=2001 | candidates=7 | chosen_tmdb=10054 | path=title_first_match
+- key=alice in wonderland | status=mapped | reason=title_first_match | rep_title=alice in wonderland | rows=1 | parsed_year=1951 | candidates=20 | chosen_tmdb=12092 | path=title_first_match
+- key=madly | status=mapped | reason=title_first_match | rep_title=madly | rows=2 | parsed_year=2025 | candidates=20 | chosen_tmdb=1500272 | path=title_first_match
+- key=i swear | status=mapped | reason=title_first_match | rep_title=i swear | rows=5 | parsed_year=2025 | candidates=20 | chosen_tmdb=1317149 | path=title_first_match
+- key=tmdb_fix:1368337 | status=mapped | reason=tmdb_fix_override | rep_title=The Odyssey | rows=15 | parsed_year=2026 | candidates=0 | chosen_tmdb=1368337 | path=tmdb_fix_override
+- key=drive | status=mapped | reason=title_first_match | rep_title=drive | rows=1 | parsed_year=2011 | candidates=24 | chosen_tmdb=64690 | path=title_first_match
+- key=bram stokers dracula | status=mapped | reason=title_first_match | rep_title=bram stokers dracula | rows=1 | parsed_year=1992 | candidates=11 | chosen_tmdb=6114 | path=title_first_match
+- key=waves | status=mapped | reason=title_first_match | rep_title=waves | rows=2 | parsed_year=2024 | candidates=24 | chosen_tmdb=1251621 | path=title_first_match
+- key=possession | status=mapped | reason=title_first_match | rep_title=possession | rows=1 | parsed_year=1981 | candidates=20 | chosen_tmdb=21484 | path=title_first_match
+- key=eiffel | status=mapped | reason=title_first_match | rep_title=eiffel | rows=2 | parsed_year=2021 | candidates=20 | chosen_tmdb=655082 | path=title_first_match
+- key=vivre sa vie | status=mapped | reason=title_first_match | rep_title=vivre sa vie | rows=1 | parsed_year=1962 | candidates=8 | chosen_tmdb=1626 | path=title_first_match
+- key=legally blonde | status=mapped | reason=title_first_match | rep_title=legally blonde | rows=1 | parsed_year=2001 | candidates=5 | chosen_tmdb=8835 | path=title_first_match
+- key=brown bunny | status=mapped | reason=title_first_match | rep_title=the brown bunny | rows=1 | parsed_year=2003 | candidates=2 | chosen_tmdb=12703 | path=title_first_match
+- key=where to | status=mapped | reason=title_first_match | rep_title=where to | rows=2 | parsed_year=2026 | candidates=20 | chosen_tmdb=1619818 | path=title_first_match
+- key=one hundred and one dalmatians | status=mapped | reason=title_first_match | rep_title=one hundred and one dalmatians | rows=2 | parsed_year=1961 | candidates=4 | chosen_tmdb=12230 | path=title_first_match
+- key=ulysses gaze | status=mapped | reason=title_first_match | rep_title=ulysses gaze | rows=1 | parsed_year=1995 | candidates=1 | chosen_tmdb=22549 | path=title_first_match
+- key=my great big daddy | status=mapped | reason=runtime_match | rep_title=my great big daddy | rows=2 | parsed_year=1993 | candidates=1 | chosen_tmdb=103901 | path=runtime_match
+- key=house in chlouche street | status=dropped | reason=no_candidates | rep_title=the house in chlouche street | rows=1 | parsed_year=1973 | candidates=0 | chosen_tmdb= | path=
+- key=robin hood | status=mapped | reason=title_first_match | rep_title=robin hood | rows=2 | parsed_year=1973 | candidates=20 | chosen_tmdb=11886 | path=title_first_match
+- key=orphan | status=mapped | reason=title_first_match | rep_title=orphan | rows=2 | parsed_year=2025 | candidates=20 | chosen_tmdb=803208 | path=title_first_match
+- key=i am neo | status=mapped | reason=title_first_match | rep_title=i am neo | rows=4 | parsed_year=2026 | candidates=2 | chosen_tmdb=1715485 | path=title_first_match
+- key=gabbeh | status=mapped | reason=title_first_match | rep_title=gabbeh | rows=2 | parsed_year=1996 | candidates=1 | chosen_tmdb=43771 | path=title_first_match
+- key=what marielle knows | status=mapped | reason=tmdb_fix_id_match | rep_title=what marielle knows | rows=11 | parsed_year=2025 | candidates=1 | chosen_tmdb=1416893 | path=tmdb_fix_id_match
+- key=i love you rosa | status=mapped | reason=title_first_match | rep_title=i love you rosa | rows=1 | parsed_year=1972 | candidates=3 | chosen_tmdb=140423 | path=title_first_match
+- key=our loves | status=mapped | reason=title_first_match | rep_title=our loves | rows=2 | parsed_year=2026 | candidates=3 | chosen_tmdb=1239958 | path=title_first_match
+- key=her private hell | status=mapped | reason=title_first_match | rep_title=her private hell | rows=1 | parsed_year=2026 | candidates=2 | chosen_tmdb=1469342 | path=title_first_match
+- key=for the love of a woman | status=mapped | reason=runtime_match | rep_title=for the love of a woman | rows=2 | parsed_year=2025 | candidates=1 | chosen_tmdb=1143204 | path=runtime_match
+- key=spider man brand new day | status=mapped | reason=title_first_match | rep_title=spider man brand new day | rows=3 | parsed_year=2026 | candidates=1 | chosen_tmdb=969681 | path=title_first_match
+- key=blade runner the final cut | status=mapped | reason=fallback_first_candidate | rep_title=blade runner the final cut | rows=1 | parsed_year=1982 | candidates=1 | chosen_tmdb=78 | path=fallback_first_candidate
+- key=groundhog day | status=mapped | reason=title_first_match | rep_title=groundhog day | rows=1 | parsed_year=1993 | candidates=10 | chosen_tmdb=137 | path=title_first_match
+- key=leviticus | status=mapped | reason=title_first_match | rep_title=leviticus | rows=1 | parsed_year=2026 | candidates=10 | chosen_tmdb=1564614 | path=title_first_match
+- key=stalker | status=mapped | reason=title_first_match | rep_title=stalker | rows=2 | parsed_year=1979 | candidates=20 | chosen_tmdb=1398 | path=title_first_match
+- key=tootsie | status=mapped | reason=title_first_match | rep_title=tootsie | rows=1 | parsed_year=1982 | candidates=12 | chosen_tmdb=9576 | path=title_first_match
+- key=sunny dancer | status=mapped | reason=title_first_match | rep_title=sunny dancer | rows=1 | parsed_year=2026 | candidates=1 | chosen_tmdb=1280015 | path=title_first_match
+- key=homo argentum | status=mapped | reason=title_first_match | rep_title=homo argentum | rows=4 | parsed_year=2025 | candidates=2 | chosen_tmdb=1471345 | path=title_first_match
+- key=rufus really unusual fucked up shit | status=dropped | reason=no_candidates | rep_title=rufus really unusual fucked up shit | rows=1 | parsed_year=2025 | candidates=0 | chosen_tmdb= | path=
+- key=honey i shrunk the kids | status=mapped | reason=title_first_match | rep_title=honey i shrunk the kids | rows=1 | parsed_year=1989 | candidates=3 | chosen_tmdb=9354 | path=title_first_match
+- key=choral | status=mapped | reason=title_first_match | rep_title=the choral | rows=2 | parsed_year=2025 | candidates=12 | chosen_tmdb=1262815 | path=title_first_match
+- key=mulholland drive | status=mapped | reason=title_first_match | rep_title=mulholland drive | rows=1 | parsed_year=2001 | candidates=6 | chosen_tmdb=1018 | path=title_first_match
+- key=band together | status=mapped | reason=title_first_match | rep_title=band together | rows=1 | parsed_year=2025 | candidates=10 | chosen_tmdb=1437873 | path=title_first_match
+- key=and her body was never found | status=mapped | reason=title_first_match | rep_title=and her body was never found | rows=1 | parsed_year=2026 | candidates=1 | chosen_tmdb=1617364 | path=title_first_match
+- key=little mermaid | status=mapped | reason=title_first_match | rep_title=the little mermaid | rows=2 | parsed_year=1989 | candidates=20 | chosen_tmdb=10144 | path=title_first_match
+- key=36th chamber of shaolin | status=mapped | reason=title_first_match | rep_title=the 36th chamber of shaolin | rows=1 | parsed_year=1978 | candidates=3 | chosen_tmdb=11841 | path=title_first_match
+- key=gruffalo | status=mapped | reason=title_first_match | rep_title=the gruffalo | rows=1 | parsed_year= | candidates=4 | chosen_tmdb=28118 | path=title_first_match
+- key=no cakes from the homefront | status=mapped | reason=title_first_match | rep_title=no cakes from the homefront | rows=1 | parsed_year=2025 | candidates=1 | chosen_tmdb=1550290 | path=title_first_match
+- key=arrival | status=mapped | reason=title_first_match | rep_title=arrival | rows=1 | parsed_year=2016 | candidates=20 | chosen_tmdb=329865 | path=title_first_match
+- key=woman who didnt know how to love | status=mapped | reason=title_first_match | rep_title=the woman who didnt know how to love | rows=1 | parsed_year=2026 | candidates=1 | chosen_tmdb=1685078 | path=title_first_match
+- key=afterthought | status=mapped | reason=title_first_match | rep_title=afterthought | rows=1 | parsed_year=2015 | candidates=14 | chosen_tmdb=336196 | path=title_first_match
+- key=cinderella | status=mapped | reason=title_first_match | rep_title=cinderella | rows=2 | parsed_year=1950 | candidates=20 | chosen_tmdb=11224 | path=title_first_match
+- key=holding for ground | status=dropped | reason=no_candidates | rep_title=holding for ground | rows=1 | parsed_year=2025 | candidates=0 | chosen_tmdb= | path=
+- key=beau is afraid | status=mapped | reason=title_first_match | rep_title=beau is afraid | rows=1 | parsed_year=2023 | candidates=2 | chosen_tmdb=798286 | path=title_first_match
+- key=petes dragon | status=mapped | reason=title_first_match | rep_title=petes dragon | rows=1 | parsed_year=1977 | candidates=2 | chosen_tmdb=11114 | path=title_first_match
+- key=i want your sex | status=mapped | reason=title_first_match | rep_title=i want your sex | rows=4 | parsed_year=2026 | candidates=1 | chosen_tmdb=1288059 | path=title_first_match
+- key=find me ok | status=mapped | reason=runtime_match | rep_title=find me ok | rows=2 | parsed_year=2026 | candidates=1 | chosen_tmdb=1715482 | path=runtime_match
+- key=moana | status=mapped | reason=tmdb_fix_id_match | rep_title=moana | rows=1 | parsed_year=2026 | candidates=20 | chosen_tmdb=1108427 | path=tmdb_fix_id_match
+- key=bound | status=mapped | reason=title_first_match | rep_title=bound | rows=1 | parsed_year=1996 | candidates=20 | chosen_tmdb=9303 | path=title_first_match
+- key=koln 75 | status=mapped | reason=title_first_match | rep_title=koln 75 | rows=1 | parsed_year=2025 | candidates=1 | chosen_tmdb=1171153 | path=title_first_match
+- key=weekend in the galilee | status=mapped | reason=title_first_match | rep_title=weekend in the galilee | rows=1 | parsed_year=2008 | candidates=1 | chosen_tmdb=758561 | path=title_first_match
+- key=young girls of rochefort | status=mapped | reason=title_first_match | rep_title=the young girls of rochefort | rows=2 | parsed_year= | candidates=3 | chosen_tmdb=2433 | path=title_first_match
+- key=invite | status=mapped | reason=title_first_match | rep_title=the invite | rows=5 | parsed_year=2026 | candidates=20 | chosen_tmdb=950028 | path=title_first_match
+- key=disclosure day | status=mapped | reason=title_first_match | rep_title=disclosure day | rows=2 | parsed_year= | candidates=5 | chosen_tmdb=1275779 | path=title_first_match
+- key=real women have curves | status=mapped | reason=title_first_match | rep_title=real women have curves | rows=1 | parsed_year= | candidates=1 | chosen_tmdb=30309 | path=title_first_match
+- key=high tide | status=mapped | reason=title_first_match | rep_title=high tide | rows=1 | parsed_year= | candidates=20 | chosen_tmdb=1067719 | path=title_first_match
+- key=tulpan | status=mapped | reason=title_first_match | rep_title=tulpan | rows=1 | parsed_year= | candidates=6 | chosen_tmdb=8939 | path=title_first_match
+- key=willy wonka the chocolate factory | status=mapped | reason=title_first_match | rep_title=willy wonka the chocolate factory | rows=1 | parsed_year= | candidates=3 | chosen_tmdb=252 | path=title_first_match
+- key=checkout the movie | status=mapped | reason=tmdb_fix_id_match | rep_title=checkout the movie | rows=2 | parsed_year= | candidates=1 | chosen_tmdb=1568027 | path=tmdb_fix_id_match
+- key=burnt by the sun | status=mapped | reason=title_first_match | rep_title=burnt by the sun | rows=1 | parsed_year= | candidates=4 | chosen_tmdb=50797 | path=title_first_match
+- key=besieged | status=mapped | reason=title_first_match | rep_title=besieged | rows=1 | parsed_year= | candidates=20 | chosen_tmdb=44297 | path=title_first_match
+- key=mary poppins | status=mapped | reason=title_first_match | rep_title=mary poppins | rows=2 | parsed_year= | candidates=17 | chosen_tmdb=433 | path=title_first_match
+- key=haute couture | status=mapped | reason=title_first_match | rep_title=haute couture | rows=2 | parsed_year= | candidates=15 | chosen_tmdb=719463 | path=title_first_match
+- key=venus beauty institute | status=mapped | reason=title_first_match | rep_title=venus beauty institute | rows=1 | parsed_year= | candidates=1 | chosen_tmdb=33491 | path=title_first_match
+- key=piano | status=mapped | reason=title_first_match | rep_title=the piano | rows=1 | parsed_year= | candidates=20 | chosen_tmdb=713 | path=title_first_match
+- key=long hot summer | status=mapped | reason=title_first_match | rep_title=the long hot summer | rows=2 | parsed_year= | candidates=4 | chosen_tmdb=40085 | path=title_first_match
+- key=hustler | status=mapped | reason=title_first_match | rep_title=the hustler | rows=2 | parsed_year= | candidates=20 | chosen_tmdb=990 | path=title_first_match
+- key=circus | status=mapped | reason=title_first_match | rep_title=the circus | rows=1 | parsed_year= | candidates=20 | chosen_tmdb=28978 | path=title_first_match
+- key=hysteria | status=mapped | reason=title_first_match | rep_title=hysteria | rows=1 | parsed_year= | candidates=20 | chosen_tmdb=75802 | path=title_first_match
+- key=whisky | status=mapped | reason=fallback_first_candidate | rep_title=whisky | rows=1 | parsed_year= | candidates=20 | chosen_tmdb=16665 | path=fallback_first_candidate
+- key=fiorile | status=mapped | reason=title_first_match | rep_title=fiorile | rows=1 | parsed_year= | candidates=1 | chosen_tmdb=41648 | path=title_first_match
+- key=our precious children | status=dropped | reason=no_candidates | rep_title=our precious children | rows=1 | parsed_year= | candidates=0 | chosen_tmdb= | path=
+- key=bright young things | status=mapped | reason=title_first_match | rep_title=bright young things | rows=1 | parsed_year= | candidates=1 | chosen_tmdb=15271 | path=title_first_match
+- key=touching the void | status=mapped | reason=title_first_match | rep_title=touching the void | rows=1 | parsed_year= | candidates=4 | chosen_tmdb=11194 | path=title_first_match
+- key=tmdb_fix:1140521 | status=mapped | reason=tmdb_fix_override | rep_title=The Magical Faraway Tree | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1140521 | path=tmdb_fix_override
+- key=my favorite season | status=mapped | reason=title_first_match | rep_title=my favorite season | rows=1 | parsed_year= | candidates=2 | chosen_tmdb=52873 | path=title_first_match
+- key=affair of love | status=mapped | reason=title_first_match | rep_title=an affair of love | rows=1 | parsed_year= | candidates=3 | chosen_tmdb=46991 | path=title_first_match
+- key=marsupilami | status=mapped | reason=title_first_match | rep_title=marsupilami | rows=2 | parsed_year= | candidates=12 | chosen_tmdb=1145899 | path=title_first_match
+- key=this is sodom | status=mapped | reason=title_first_match | rep_title=this is sodom | rows=1 | parsed_year= | candidates=1 | chosen_tmdb=43083 | path=title_first_match
+- key=one street in silwan | status=mapped | reason=title_first_match | rep_title=one street in silwan | rows=1 | parsed_year= | candidates=1 | chosen_tmdb=1509899 | path=title_first_match
+- key=hunt for the wilderpeople | status=mapped | reason=title_first_match | rep_title=hunt for the wilderpeople | rows=2 | parsed_year= | candidates=1 | chosen_tmdb=371645 | path=title_first_match
+- key=cat on a hot tin roof | status=mapped | reason=title_first_match | rep_title=cat on a hot tin roof | rows=2 | parsed_year= | candidates=7 | chosen_tmdb=261 | path=title_first_match
+- key=fantastic mr fox | status=mapped | reason=title_first_match | rep_title=fantastic mr fox | rows=1 | parsed_year= | candidates=1 | chosen_tmdb=10315 | path=title_first_match
+- key=we dont live here anymore | status=mapped | reason=title_first_match | rep_title=we dont live here anymore | rows=1 | parsed_year= | candidates=2 | chosen_tmdb=23601 | path=title_first_match
+- key=run lola run | status=mapped | reason=title_first_match | rep_title=run lola run | rows=1 | parsed_year= | candidates=2 | chosen_tmdb=104 | path=title_first_match
+- key=la la land | status=mapped | reason=tmdb_fix_id_match | rep_title=la la land | rows=2 | parsed_year= | candidates=20 | chosen_tmdb=313369 | path=tmdb_fix_id_match
+- key=once upon a time in china | status=mapped | reason=title_first_match | rep_title=once upon a time in china | rows=1 | parsed_year= | candidates=19 | chosen_tmdb=10617 | path=title_first_match
+- key=open hearts | status=mapped | reason=title_first_match | rep_title=open hearts | rows=1 | parsed_year= | candidates=3 | chosen_tmdb=102 | path=title_first_match
+- key=cool hand luke | status=mapped | reason=title_first_match | rep_title=cool hand luke | rows=2 | parsed_year= | candidates=2 | chosen_tmdb=903 | path=title_first_match
+- key=shower | status=mapped | reason=title_first_match | rep_title=the shower | rows=1 | parsed_year= | candidates=20 | chosen_tmdb=550439 | path=title_first_match
+- key=tell me everything | status=mapped | reason=title_first_match | rep_title=tell me everything | rows=1 | parsed_year= | candidates=5 | chosen_tmdb=1404400 | path=title_first_match
+- key=shakespeare wallah | status=mapped | reason=title_first_match | rep_title=shakespeare wallah | rows=1 | parsed_year= | candidates=1 | chosen_tmdb=109600 | path=title_first_match
+- key=matilda | status=mapped | reason=title_first_match | rep_title=matilda | rows=1 | parsed_year= | candidates=20 | chosen_tmdb=10830 | path=title_first_match
+- key=find me okay | status=mapped | reason=title_first_match | rep_title=find me okay | rows=3 | parsed_year=2026 | candidates=1 | chosen_tmdb=1715482 | path=title_first_match
+- key=somebody up there likes me | status=mapped | reason=title_first_match | rep_title=somebody up there likes me | rows=2 | parsed_year= | candidates=4 | chosen_tmdb=28000 | path=title_first_match
+- key=face value | status=mapped | reason=title_first_match | rep_title=face value | rows=2 | parsed_year= | candidates=18 | chosen_tmdb=292664 | path=title_first_match
+- key=ties that bind us | status=mapped | reason=title_first_match | rep_title=the ties that bind us | rows=3 | parsed_year= | candidates=2 | chosen_tmdb=1460982 | path=title_first_match
+- key=tasters | status=mapped | reason=title_first_match | rep_title=the tasters | rows=2 | parsed_year= | candidates=2 | chosen_tmdb=1291712 | path=title_first_match
+- key=proof | status=mapped | reason=director_match | rep_title=proof | rows=1 | parsed_year= | candidates=20 | chosen_tmdb=14904 | path=director_match
+- key=water | status=mapped | reason=director_match | rep_title=water | rows=1 | parsed_year= | candidates=20 | chosen_tmdb=7509 | path=director_match
+- key=my brilliant career | status=mapped | reason=title_first_match | rep_title=my brilliant career | rows=1 | parsed_year= | candidates=1 | chosen_tmdb=16659 | path=title_first_match
+- key=juste la fin du monde | status=mapped | reason=director_match | rep_title=juste la fin du monde | rows=1 | parsed_year= | candidates=4 | chosen_tmdb=338189 | path=director_match
+- key=patty hearst | status=mapped | reason=title_first_match | rep_title=patty hearst | rows=1 | parsed_year= | candidates=5 | chosen_tmdb=70202 | path=title_first_match
+- key=return of martin guerre | status=mapped | reason=title_first_match | rep_title=the return of martin guerre | rows=2 | parsed_year= | candidates=1 | chosen_tmdb=4483 | path=title_first_match
+- key=yentl | status=mapped | reason=title_first_match | rep_title=yentl | rows=1 | parsed_year= | candidates=3 | chosen_tmdb=10269 | path=title_first_match
+- key=flower of evil | status=mapped | reason=title_first_match | rep_title=the flower of evil | rows=1 | parsed_year= | candidates=3 | chosen_tmdb=10930 | path=title_first_match
+- key=wings of desire | status=mapped | reason=title_first_match | rep_title=wings of desire | rows=1 | parsed_year=1987 | candidates=2 | chosen_tmdb=144 | path=title_first_match
+- key=at work | status=mapped | reason=fallback_first_candidate | rep_title=at work | rows=1 | parsed_year=2025 | candidates=20 | chosen_tmdb=1528597 | path=fallback_first_candidate
+- key=minions monsters | status=mapped | reason=tmdb_fix_id_match | rep_title=minions monsters | rows=3 | parsed_year=2026 | candidates=2 | chosen_tmdb=1315772 | path=tmdb_fix_id_match
+- key=homo sapiens | status=mapped | reason=fallback_first_candidate | rep_title=homo sapiens | rows=1 | parsed_year=2025 | candidates=20 | chosen_tmdb=1554696 | path=fallback_first_candidate
+- key=sabrina | status=mapped | reason=title_first_match | rep_title=sabrina | rows=1 | parsed_year=1954 | candidates=20 | chosen_tmdb=6620 | path=title_first_match
+- key=toy story 5 | status=mapped | reason=tmdb_fix_id_match | rep_title=toy story 5 | rows=4 | parsed_year=2026 | candidates=2 | chosen_tmdb=1084244 | path=tmdb_fix_id_match
+- key=hairspray | status=mapped | reason=title_first_match | rep_title=hairspray | rows=1 | parsed_year=2007 | candidates=16 | chosen_tmdb=2976 | path=title_first_match
+- key=trolls | status=mapped | reason=title_first_match | rep_title=trolls | rows=1 | parsed_year=2016 | candidates=20 | chosen_tmdb=136799 | path=title_first_match
+- key=only lovers left alive | status=mapped | reason=title_first_match | rep_title=only lovers left alive | rows=1 | parsed_year=2013 | candidates=2 | chosen_tmdb=152603 | path=title_first_match
+- key=it takes two to tango | status=mapped | reason=title_first_match | rep_title=it takes two to tango | rows=5 | parsed_year=2025 | candidates=4 | chosen_tmdb=1306293 | path=title_first_match
+- key=chasing amy | status=mapped | reason=title_first_match | rep_title=chasing amy | rows=1 | parsed_year=1997 | candidates=3 | chosen_tmdb=2255 | path=title_first_match
+- key=to our loves | status=mapped | reason=fallback_first_candidate | rep_title=to our loves | rows=1 | parsed_year=1983 | candidates=1 | chosen_tmdb=2282 | path=fallback_first_candidate
+- key=inglourious basterds | status=mapped | reason=title_first_match | rep_title=inglourious basterds | rows=1 | parsed_year=2009 | candidates=1 | chosen_tmdb=16869 | path=title_first_match
+- key=van gogh | status=mapped | reason=title_first_match | rep_title=van gogh | rows=1 | parsed_year=1991 | candidates=20 | chosen_tmdb=4734 | path=title_first_match
+- key=paw patrol the dino movie | status=mapped | reason=title_first_match | rep_title=paw patrol the dino movie | rows=1 | parsed_year=2026 | candidates=1 | chosen_tmdb=1185806 | path=title_first_match
+- key=all that heaven allows | status=mapped | reason=title_first_match | rep_title=all that heaven allows | rows=1 | parsed_year=1955 | candidates=2 | chosen_tmdb=43316 | path=title_first_match
+- key=chocolat | status=mapped | reason=title_first_match | rep_title=chocolat | rows=1 | parsed_year=1988 | candidates=20 | chosen_tmdb=41951 | path=title_first_match
+- key=pout pout fish | status=mapped | reason=title_first_match | rep_title=the pout pout fish | rows=3 | parsed_year=2026 | candidates=1 | chosen_tmdb=1146058 | path=title_first_match
+- key=ali fear eats the soul | status=mapped | reason=title_first_match | rep_title=ali fear eats the soul | rows=1 | parsed_year=1974 | candidates=1 | chosen_tmdb=216 | path=title_first_match
+- key=souvenirs | status=mapped | reason=title_first_match | rep_title=souvenirs | rows=1 | parsed_year=2006 | candidates=20 | chosen_tmdb=951093 | path=title_first_match
+- key=clerks | status=mapped | reason=title_first_match | rep_title=clerks | rows=1 | parsed_year=1994 | candidates=20 | chosen_tmdb=2292 | path=title_first_match
+- key=nashville | status=mapped | reason=title_first_match | rep_title=nashville | rows=1 | parsed_year=1975 | candidates=20 | chosen_tmdb=3121 | path=title_first_match
+- key=best little whorehouse in texas | status=mapped | reason=title_first_match | rep_title=the best little whorehouse in texas | rows=1 | parsed_year=1982 | candidates=2 | chosen_tmdb=16363 | path=title_first_match
+- key=king of comedy | status=mapped | reason=title_first_match | rep_title=the king of comedy | rows=1 | parsed_year=1982 | candidates=8 | chosen_tmdb=262 | path=title_first_match
+- key=summers tale | status=mapped | reason=title_first_match | rep_title=a summers tale | rows=1 | parsed_year=1996 | candidates=4 | chosen_tmdb=37563 | path=title_first_match
+- key=drama | status=mapped | reason=title_first_match | rep_title=the drama | rows=2 | parsed_year=2026 | candidates=20 | chosen_tmdb=1325734 | path=title_first_match
+- key=pink flamingos | status=mapped | reason=title_first_match | rep_title=pink flamingos | rows=1 | parsed_year=1972 | candidates=2 | chosen_tmdb=692 | path=title_first_match
+- key=big lebowski | status=mapped | reason=title_first_match | rep_title=the big lebowski | rows=1 | parsed_year=1998 | candidates=2 | chosen_tmdb=115 | path=title_first_match
+- key=goodfellas | status=mapped | reason=title_first_match | rep_title=goodfellas | rows=1 | parsed_year=1990 | candidates=9 | chosen_tmdb=769 | path=title_first_match
+- key=city of god | status=mapped | reason=fallback_first_candidate | rep_title=city of god | rows=1 | parsed_year=2003 | candidates=13 | chosen_tmdb=598 | path=fallback_first_candidate
+- key=rear window | status=mapped | reason=title_first_match | rep_title=rear window | rows=1 | parsed_year=1954 | candidates=13 | chosen_tmdb=567 | path=title_first_match
+- key=rosemarys baby | status=mapped | reason=title_first_match | rep_title=rosemarys baby | rows=1 | parsed_year=1968 | candidates=5 | chosen_tmdb=805 | path=title_first_match
+- key=buffalo 66 | status=mapped | reason=title_first_match | rep_title=buffalo 66 | rows=1 | parsed_year=1998 | candidates=1 | chosen_tmdb=9464 | path=title_first_match
+- key=fallen angels | status=mapped | reason=title_first_match | rep_title=fallen angels | rows=1 | parsed_year=1995 | candidates=20 | chosen_tmdb=11220 | path=title_first_match
+- key=tokyo godfathers | status=mapped | reason=title_first_match | rep_title=tokyo godfathers | rows=1 | parsed_year=2003 | candidates=2 | chosen_tmdb=13398 | path=title_first_match
+- key=florida project | status=mapped | reason=title_first_match | rep_title=the florida project | rows=1 | parsed_year=2017 | candidates=3 | chosen_tmdb=394117 | path=title_first_match
+- key=big | status=mapped | reason=title_first_match | rep_title=big | rows=1 | parsed_year=1988 | candidates=24 | chosen_tmdb=2280 | path=title_first_match
+- key=and your mother too | status=mapped | reason=fallback_first_candidate | rep_title=and your mother too | rows=1 | parsed_year=2001 | candidates=1 | chosen_tmdb=1391 | path=fallback_first_candidate
+- key=o brother where art thou | status=mapped | reason=title_first_match | rep_title=o brother where art thou | rows=1 | parsed_year=2000 | candidates=1 | chosen_tmdb=134 | path=title_first_match
+- key=square | status=mapped | reason=title_first_match | rep_title=the square | rows=1 | parsed_year=2017 | candidates=20 | chosen_tmdb=401246 | path=title_first_match
+- key=chungking express | status=mapped | reason=title_first_match | rep_title=chungking express | rows=1 | parsed_year=1994 | candidates=4 | chosen_tmdb=11104 | path=title_first_match
+- key=and breathe normally | status=mapped | reason=title_first_match | rep_title=and breathe normally | rows=1 | parsed_year=2018 | candidates=1 | chosen_tmdb=489982 | path=title_first_match
+- key=umbrellas of cherbourg | status=mapped | reason=title_first_match | rep_title=the umbrellas of cherbourg | rows=1 | parsed_year=1964 | candidates=2 | chosen_tmdb=5967 | path=title_first_match
+- key=germaine acogny the essence of dance | status=mapped | reason=title_first_match | rep_title=germaine acogny the essence of dance | rows=1 | parsed_year=2025 | candidates=1 | chosen_tmdb=1507476 | path=title_first_match
+- key=primavera | status=mapped | reason=title_first_match | rep_title=primavera | rows=2 | parsed_year=2025 | candidates=20 | chosen_tmdb=1365683 | path=title_first_match
+- key=when the light breaks | status=mapped | reason=title_first_match | rep_title=when the light breaks | rows=1 | parsed_year=2024 | candidates=1 | chosen_tmdb=1257407 | path=title_first_match
+- key=bonne pomme | status=mapped | reason=fallback_first_candidate | rep_title=bonne pomme | rows=1 | parsed_year=2017 | candidates=1 | chosen_tmdb=428558 | path=fallback_first_candidate
+- key=mosquito in the ear | status=mapped | reason=title_first_match | rep_title=a mosquito in the ear | rows=1 | parsed_year=2026 | candidates=1 | chosen_tmdb=1288220 | path=title_first_match
+- key=woman in the line director | status=dropped | reason=no_candidates | rep_title=the woman in the line director | rows=2 | parsed_year=2025 | candidates=0 | chosen_tmdb= | path=
+- key=our girls | status=mapped | reason=title_first_match | rep_title=our girls | rows=2 | parsed_year=2025 | candidates=13 | chosen_tmdb=1457705 | path=title_first_match
+- key=husbands | status=mapped | reason=title_first_match | rep_title=husbands | rows=1 | parsed_year=1970 | candidates=20 | chosen_tmdb=52105 | path=title_first_match
+- key=midwife | status=mapped | reason=title_first_match | rep_title=the midwife | rows=1 | parsed_year=2017 | candidates=18 | chosen_tmdb=439154 | path=title_first_match
+- key=hill 338 | status=mapped | reason=title_first_match | rep_title=hill 338 | rows=1 | parsed_year=2026 | candidates=1 | chosen_tmdb=1693984 | path=title_first_match
+- key=la derniere folie de claire darling | status=mapped | reason=fallback_first_candidate | rep_title=la derniere folie de claire darling | rows=1 | parsed_year=2019 | candidates=1 | chosen_tmdb=482710 | path=fallback_first_candidate
+- key=savage years | status=dropped | reason=no_candidates | rep_title=savage years | rows=1 | parsed_year=1990 | candidates=0 | chosen_tmdb= | path=
+- key=virgin mountain | status=mapped | reason=title_first_match | rep_title=virgin mountain | rows=1 | parsed_year=2015 | candidates=1 | chosen_tmdb=320736 | path=title_first_match
+- key=bird people | status=mapped | reason=title_first_match | rep_title=bird people | rows=1 | parsed_year=2014 | candidates=4 | chosen_tmdb=266040 | path=title_first_match
+- key=money maker | status=mapped | reason=title_first_match | rep_title=the money maker | rows=2 | parsed_year=2026 | candidates=3 | chosen_tmdb=1376415 | path=title_first_match
+- key=fires | status=mapped | reason=fallback_first_candidate | rep_title=fires | rows=2 | parsed_year=2026 | candidates=20 | chosen_tmdb=1691350 | path=fallback_first_candidate
+- key=musician and the whale | status=mapped | reason=fallback_first_candidate | rep_title=the musician and the whale | rows=1 | parsed_year=2026 | candidates=1 | chosen_tmdb=1364275 | path=fallback_first_candidate
+- key=maya angelou and still i rise | status=mapped | reason=title_first_match | rep_title=maya angelou and still i rise | rows=1 | parsed_year=2016 | candidates=1 | chosen_tmdb=376519 | path=title_first_match
+- key=in the mood for love | status=mapped | reason=title_first_match | rep_title=in the mood for love | rows=1 | parsed_year=2000 | candidates=11 | chosen_tmdb=843 | path=title_first_match
+- key=my one and only | status=mapped | reason=title_first_match | rep_title=my one and only | rows=1 | parsed_year=2025 | candidates=9 | chosen_tmdb=1509959 | path=title_first_match
+- key=tmdb_fix:1568027 | status=mapped | reason=tmdb_fix_override | rep_title=KUPA RASHIT | rows=2 | parsed_year=2026 | candidates=0 | chosen_tmdb=1568027 | path=tmdb_fix_override
+- key=gloria | status=mapped | reason=title_first_match | rep_title=gloria | rows=1 | parsed_year=1980 | candidates=20 | chosen_tmdb=10889 | path=title_first_match
+- key=truth | status=mapped | reason=title_first_match | rep_title=the truth | rows=1 | parsed_year=2019 | candidates=24 | chosen_tmdb=517468 | path=title_first_match
+- key=mysterious gaze of the flamingo | status=mapped | reason=title_first_match | rep_title=the mysterious gaze of the flamingo | rows=1 | parsed_year=2025 | candidates=2 | chosen_tmdb=896096 | path=title_first_match
+- key=woman in white | status=merged | reason=deduped_into_tmdb | rep_title= | rows=6 | parsed_year= | candidates=0 | chosen_tmdb=1685075 | path=deduped_into_tmdb
+- key=damned if you do damned if you dont | status=merged | reason=deduped_into_tmdb | rep_title= | rows=7 | parsed_year= | candidates=0 | chosen_tmdb=1520507 | path=deduped_into_tmdb
+- key=moshe mizrahi climbing the mountain | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1685122 | path=deduped_into_tmdb
+- key=sleepless in seattle | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=858 | path=deduped_into_tmdb
+- key=amelie | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=194 | path=deduped_into_tmdb
+- key=mon oncle | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=427 | path=deduped_into_tmdb
+- key=shalom | status=merged | reason=deduped_into_tmdb | rep_title= | rows=3 | parsed_year= | candidates=0 | chosen_tmdb=1694083 | path=deduped_into_tmdb
+- key=mama | status=merged | reason=deduped_into_tmdb | rep_title= | rows=10 | parsed_year= | candidates=0 | chosen_tmdb=1469464 | path=deduped_into_tmdb
+- key=tina | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1262426 | path=deduped_into_tmdb
+- key=sentimental value | status=merged | reason=deduped_into_tmdb | rep_title= | rows=23 | parsed_year= | candidates=0 | chosen_tmdb=1124566 | path=deduped_into_tmdb
+- key=wedding entertainer the tale of moishe badhan | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1573783 | path=deduped_into_tmdb
+- key=brutalist | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=549509 | path=deduped_into_tmdb
+- key=valley of shadows | status=merged | reason=deduped_into_tmdb | rep_title= | rows=11 | parsed_year= | candidates=0 | chosen_tmdb=1145857 | path=deduped_into_tmdb
+- key=torso | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=31624 | path=deduped_into_tmdb
+- key=cuz youre ugly | status=merged | reason=deduped_into_tmdb | rep_title= | rows=8 | parsed_year= | candidates=0 | chosen_tmdb=1177748 | path=deduped_into_tmdb
+- key=missing part | status=merged | reason=deduped_into_tmdb | rep_title= | rows=7 | parsed_year= | candidates=0 | chosen_tmdb=1021643 | path=deduped_into_tmdb
+- key=stranger than fiction | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1262 | path=deduped_into_tmdb
+- key=jurassic park | status=merged | reason=deduped_into_tmdb | rep_title= | rows=4 | parsed_year= | candidates=0 | chosen_tmdb=329 | path=deduped_into_tmdb
+- key=coyote vs acme | status=merged | reason=deduped_into_tmdb | rep_title= | rows=14 | parsed_year= | candidates=0 | chosen_tmdb=1204680 | path=deduped_into_tmdb
+- key=great arch | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1290424 | path=deduped_into_tmdb
+- key=sliding doors | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=10215 | path=deduped_into_tmdb
+- key=per te | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1729544 | path=deduped_into_tmdb
+- key=cabinet of dr caligari | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=234 | path=deduped_into_tmdb
+- key=landslide | status=merged | reason=deduped_into_tmdb | rep_title= | rows=4 | parsed_year= | candidates=0 | chosen_tmdb=1653391 | path=deduped_into_tmdb
+- key=fountainhead | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=24650 | path=deduped_into_tmdb
+- key=saved by the ball | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1685087 | path=deduped_into_tmdb
+- key=lips | status=merged | reason=deduped_into_tmdb | rep_title= | rows=4 | parsed_year= | candidates=0 | chosen_tmdb=1685115 | path=deduped_into_tmdb
+- key=inception | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=27205 | path=deduped_into_tmdb
+- key=diamonds | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1299046 | path=deduped_into_tmdb
+- key=esther | status=merged | reason=deduped_into_tmdb | rep_title= | rows=4 | parsed_year= | candidates=0 | chosen_tmdb=1685080 | path=deduped_into_tmdb
+- key=come drink with me | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=26259 | path=deduped_into_tmdb
+- key=adventures of picasso | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=45691 | path=deduped_into_tmdb
+- key=andrei rublev | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=895 | path=deduped_into_tmdb
+- key=out of love | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1277882 | path=deduped_into_tmdb
+- key=muriels wedding | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=236 | path=deduped_into_tmdb
+- key=belly of an architect | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=17238 | path=deduped_into_tmdb
+- key=fist of fury | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=11713 | path=deduped_into_tmdb
+- key=daughters daughters | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1509164 | path=deduped_into_tmdb
+- key=women | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=334418 | path=deduped_into_tmdb
+- key=good morning gaza | status=merged | reason=deduped_into_tmdb | rep_title= | rows=3 | parsed_year= | candidates=0 | chosen_tmdb=1715484 | path=deduped_into_tmdb
+- key=blue velvet | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=793 | path=deduped_into_tmdb
+- key=great beauty | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=179144 | path=deduped_into_tmdb
+- key=searching for haifa the story of shimon holly | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1685116 | path=deduped_into_tmdb
+- key=new dawn | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1751168 | path=deduped_into_tmdb
+- key=spy kids | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=10054 | path=deduped_into_tmdb
+- key=alice in wonderland | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=12092 | path=deduped_into_tmdb
+- key=madly | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1500272 | path=deduped_into_tmdb
+- key=i swear | status=merged | reason=deduped_into_tmdb | rep_title= | rows=5 | parsed_year= | candidates=0 | chosen_tmdb=1317149 | path=deduped_into_tmdb
+- key=tmdb_fix:1368337 | status=merged | reason=deduped_into_tmdb | rep_title= | rows=15 | parsed_year= | candidates=0 | chosen_tmdb=1368337 | path=deduped_into_tmdb
+- key=drive | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=64690 | path=deduped_into_tmdb
+- key=bram stokers dracula | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=6114 | path=deduped_into_tmdb
+- key=waves | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1251621 | path=deduped_into_tmdb
+- key=possession | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=21484 | path=deduped_into_tmdb
+- key=eiffel | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=655082 | path=deduped_into_tmdb
+- key=vivre sa vie | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1626 | path=deduped_into_tmdb
+- key=legally blonde | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=8835 | path=deduped_into_tmdb
+- key=brown bunny | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=12703 | path=deduped_into_tmdb
+- key=where to | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1619818 | path=deduped_into_tmdb
+- key=one hundred and one dalmatians | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=12230 | path=deduped_into_tmdb
+- key=ulysses gaze | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=22549 | path=deduped_into_tmdb
+- key=my great big daddy | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=103901 | path=deduped_into_tmdb
+- key=robin hood | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=11886 | path=deduped_into_tmdb
+- key=orphan | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=803208 | path=deduped_into_tmdb
+- key=i am neo | status=merged | reason=deduped_into_tmdb | rep_title= | rows=4 | parsed_year= | candidates=0 | chosen_tmdb=1715485 | path=deduped_into_tmdb
+- key=gabbeh | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=43771 | path=deduped_into_tmdb
+- key=what marielle knows | status=merged | reason=deduped_into_tmdb | rep_title= | rows=11 | parsed_year= | candidates=0 | chosen_tmdb=1416893 | path=deduped_into_tmdb
+- key=i love you rosa | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=140423 | path=deduped_into_tmdb
+- key=our loves | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1239958 | path=deduped_into_tmdb
+- key=her private hell | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1469342 | path=deduped_into_tmdb
+- key=for the love of a woman | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1143204 | path=deduped_into_tmdb
+- key=spider man brand new day | status=merged | reason=deduped_into_tmdb | rep_title= | rows=3 | parsed_year= | candidates=0 | chosen_tmdb=969681 | path=deduped_into_tmdb
+- key=blade runner the final cut | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=78 | path=deduped_into_tmdb
+- key=groundhog day | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=137 | path=deduped_into_tmdb
+- key=leviticus | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1564614 | path=deduped_into_tmdb
+- key=stalker | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1398 | path=deduped_into_tmdb
+- key=tootsie | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=9576 | path=deduped_into_tmdb
+- key=sunny dancer | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1280015 | path=deduped_into_tmdb
+- key=homo argentum | status=merged | reason=deduped_into_tmdb | rep_title= | rows=4 | parsed_year= | candidates=0 | chosen_tmdb=1471345 | path=deduped_into_tmdb
+- key=honey i shrunk the kids | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=9354 | path=deduped_into_tmdb
+- key=choral | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1262815 | path=deduped_into_tmdb
+- key=mulholland drive | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1018 | path=deduped_into_tmdb
+- key=band together | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1437873 | path=deduped_into_tmdb
+- key=and her body was never found | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1617364 | path=deduped_into_tmdb
+- key=little mermaid | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=10144 | path=deduped_into_tmdb
+- key=36th chamber of shaolin | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=11841 | path=deduped_into_tmdb
+- key=gruffalo | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=28118 | path=deduped_into_tmdb
+- key=no cakes from the homefront | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1550290 | path=deduped_into_tmdb
+- key=arrival | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=329865 | path=deduped_into_tmdb
+- key=woman who didnt know how to love | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1685078 | path=deduped_into_tmdb
+- key=afterthought | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=336196 | path=deduped_into_tmdb
+- key=cinderella | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=11224 | path=deduped_into_tmdb
+- key=beau is afraid | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=798286 | path=deduped_into_tmdb
+- key=petes dragon | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=11114 | path=deduped_into_tmdb
+- key=i want your sex | status=merged | reason=deduped_into_tmdb | rep_title= | rows=4 | parsed_year= | candidates=0 | chosen_tmdb=1288059 | path=deduped_into_tmdb
+- key=find me ok | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1715482 | path=deduped_into_tmdb
+- key=moana | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1108427 | path=deduped_into_tmdb
+- key=bound | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=9303 | path=deduped_into_tmdb
+- key=koln 75 | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1171153 | path=deduped_into_tmdb
+- key=weekend in the galilee | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=758561 | path=deduped_into_tmdb
+- key=young girls of rochefort | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=2433 | path=deduped_into_tmdb
+- key=invite | status=merged | reason=deduped_into_tmdb | rep_title= | rows=5 | parsed_year= | candidates=0 | chosen_tmdb=950028 | path=deduped_into_tmdb
+- key=disclosure day | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1275779 | path=deduped_into_tmdb
+- key=real women have curves | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=30309 | path=deduped_into_tmdb
+- key=high tide | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1067719 | path=deduped_into_tmdb
+- key=tulpan | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=8939 | path=deduped_into_tmdb
+- key=willy wonka the chocolate factory | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=252 | path=deduped_into_tmdb
+- key=checkout the movie | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1568027 | path=deduped_into_tmdb
+- key=burnt by the sun | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=50797 | path=deduped_into_tmdb
+- key=besieged | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=44297 | path=deduped_into_tmdb
+- key=mary poppins | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=433 | path=deduped_into_tmdb
+- key=haute couture | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=719463 | path=deduped_into_tmdb
+- key=venus beauty institute | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=33491 | path=deduped_into_tmdb
+- key=piano | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=713 | path=deduped_into_tmdb
+- key=long hot summer | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=40085 | path=deduped_into_tmdb
+- key=hustler | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=990 | path=deduped_into_tmdb
+- key=circus | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=28978 | path=deduped_into_tmdb
+- key=hysteria | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=75802 | path=deduped_into_tmdb
+- key=whisky | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=16665 | path=deduped_into_tmdb
+- key=fiorile | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=41648 | path=deduped_into_tmdb
+- key=bright young things | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=15271 | path=deduped_into_tmdb
+- key=touching the void | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=11194 | path=deduped_into_tmdb
+- key=tmdb_fix:1140521 | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1140521 | path=deduped_into_tmdb
+- key=my favorite season | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=52873 | path=deduped_into_tmdb
+- key=affair of love | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=46991 | path=deduped_into_tmdb
+- key=marsupilami | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1145899 | path=deduped_into_tmdb
+- key=this is sodom | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=43083 | path=deduped_into_tmdb
+- key=one street in silwan | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1509899 | path=deduped_into_tmdb
+- key=hunt for the wilderpeople | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=371645 | path=deduped_into_tmdb
+- key=cat on a hot tin roof | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=261 | path=deduped_into_tmdb
+- key=fantastic mr fox | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=10315 | path=deduped_into_tmdb
+- key=we dont live here anymore | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=23601 | path=deduped_into_tmdb
+- key=run lola run | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=104 | path=deduped_into_tmdb
+- key=la la land | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=313369 | path=deduped_into_tmdb
+- key=once upon a time in china | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=10617 | path=deduped_into_tmdb
+- key=open hearts | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=102 | path=deduped_into_tmdb
+- key=cool hand luke | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=903 | path=deduped_into_tmdb
+- key=shower | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=550439 | path=deduped_into_tmdb
+- key=tell me everything | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1404400 | path=deduped_into_tmdb
+- key=shakespeare wallah | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=109600 | path=deduped_into_tmdb
+- key=matilda | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=10830 | path=deduped_into_tmdb
+- key=somebody up there likes me | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=28000 | path=deduped_into_tmdb
+- key=face value | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=292664 | path=deduped_into_tmdb
+- key=ties that bind us | status=merged | reason=deduped_into_tmdb | rep_title= | rows=3 | parsed_year= | candidates=0 | chosen_tmdb=1460982 | path=deduped_into_tmdb
+- key=tasters | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1291712 | path=deduped_into_tmdb
+- key=proof | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=14904 | path=deduped_into_tmdb
+- key=water | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=7509 | path=deduped_into_tmdb
+- key=my brilliant career | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=16659 | path=deduped_into_tmdb
+- key=juste la fin du monde | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=338189 | path=deduped_into_tmdb
+- key=patty hearst | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=70202 | path=deduped_into_tmdb
+- key=return of martin guerre | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=4483 | path=deduped_into_tmdb
+- key=yentl | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=10269 | path=deduped_into_tmdb
+- key=flower of evil | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=10930 | path=deduped_into_tmdb
+- key=wings of desire | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=144 | path=deduped_into_tmdb
+- key=at work | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1528597 | path=deduped_into_tmdb
+- key=minions monsters | status=merged | reason=deduped_into_tmdb | rep_title= | rows=3 | parsed_year= | candidates=0 | chosen_tmdb=1315772 | path=deduped_into_tmdb
+- key=homo sapiens | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1554696 | path=deduped_into_tmdb
+- key=sabrina | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=6620 | path=deduped_into_tmdb
+- key=toy story 5 | status=merged | reason=deduped_into_tmdb | rep_title= | rows=4 | parsed_year= | candidates=0 | chosen_tmdb=1084244 | path=deduped_into_tmdb
+- key=hairspray | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=2976 | path=deduped_into_tmdb
+- key=trolls | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=136799 | path=deduped_into_tmdb
+- key=only lovers left alive | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=152603 | path=deduped_into_tmdb
+- key=it takes two to tango | status=merged | reason=deduped_into_tmdb | rep_title= | rows=5 | parsed_year= | candidates=0 | chosen_tmdb=1306293 | path=deduped_into_tmdb
+- key=chasing amy | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=2255 | path=deduped_into_tmdb
+- key=to our loves | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=2282 | path=deduped_into_tmdb
+- key=inglourious basterds | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=16869 | path=deduped_into_tmdb
+- key=van gogh | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=4734 | path=deduped_into_tmdb
+- key=paw patrol the dino movie | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1185806 | path=deduped_into_tmdb
+- key=all that heaven allows | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=43316 | path=deduped_into_tmdb
+- key=chocolat | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=41951 | path=deduped_into_tmdb
+- key=pout pout fish | status=merged | reason=deduped_into_tmdb | rep_title= | rows=3 | parsed_year= | candidates=0 | chosen_tmdb=1146058 | path=deduped_into_tmdb
+- key=ali fear eats the soul | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=216 | path=deduped_into_tmdb
+- key=souvenirs | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=951093 | path=deduped_into_tmdb
+- key=clerks | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=2292 | path=deduped_into_tmdb
+- key=nashville | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=3121 | path=deduped_into_tmdb
+- key=best little whorehouse in texas | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=16363 | path=deduped_into_tmdb
+- key=king of comedy | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=262 | path=deduped_into_tmdb
+- key=summers tale | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=37563 | path=deduped_into_tmdb
+- key=drama | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1325734 | path=deduped_into_tmdb
+- key=pink flamingos | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=692 | path=deduped_into_tmdb
+- key=big lebowski | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=115 | path=deduped_into_tmdb
+- key=goodfellas | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=769 | path=deduped_into_tmdb
+- key=city of god | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=598 | path=deduped_into_tmdb
+- key=rear window | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=567 | path=deduped_into_tmdb
+- key=rosemarys baby | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=805 | path=deduped_into_tmdb
+- key=buffalo 66 | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=9464 | path=deduped_into_tmdb
+- key=fallen angels | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=11220 | path=deduped_into_tmdb
+- key=tokyo godfathers | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=13398 | path=deduped_into_tmdb
+- key=florida project | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=394117 | path=deduped_into_tmdb
+- key=big | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=2280 | path=deduped_into_tmdb
+- key=and your mother too | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1391 | path=deduped_into_tmdb
+- key=o brother where art thou | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=134 | path=deduped_into_tmdb
+- key=square | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=401246 | path=deduped_into_tmdb
+- key=chungking express | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=11104 | path=deduped_into_tmdb
+- key=and breathe normally | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=489982 | path=deduped_into_tmdb
+- key=umbrellas of cherbourg | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=5967 | path=deduped_into_tmdb
+- key=germaine acogny the essence of dance | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1507476 | path=deduped_into_tmdb
+- key=primavera | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1365683 | path=deduped_into_tmdb
+- key=when the light breaks | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1257407 | path=deduped_into_tmdb
+- key=bonne pomme | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=428558 | path=deduped_into_tmdb
+- key=mosquito in the ear | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1288220 | path=deduped_into_tmdb
+- key=our girls | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1457705 | path=deduped_into_tmdb
+- key=husbands | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=52105 | path=deduped_into_tmdb
+- key=midwife | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=439154 | path=deduped_into_tmdb
+- key=hill 338 | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1693984 | path=deduped_into_tmdb
+- key=la derniere folie de claire darling | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=482710 | path=deduped_into_tmdb
+- key=virgin mountain | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=320736 | path=deduped_into_tmdb
+- key=bird people | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=266040 | path=deduped_into_tmdb
+- key=money maker | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1376415 | path=deduped_into_tmdb
+- key=fires | status=merged | reason=deduped_into_tmdb | rep_title= | rows=2 | parsed_year= | candidates=0 | chosen_tmdb=1691350 | path=deduped_into_tmdb
+- key=musician and the whale | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1364275 | path=deduped_into_tmdb
+- key=maya angelou and still i rise | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=376519 | path=deduped_into_tmdb
+- key=in the mood for love | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=843 | path=deduped_into_tmdb
+- key=my one and only | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1509959 | path=deduped_into_tmdb
+- key=gloria | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=10889 | path=deduped_into_tmdb
+- key=truth | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=517468 | path=deduped_into_tmdb
+- key=mysterious gaze of the flamingo | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=896096 | path=deduped_into_tmdb
+- key=Tel Aviv Cinematheque | status=mapped | reason=upserted | rep_title= | rows=184 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_by_cinema
+- key=Jerusalem Cinematheque | status=mapped | reason=upserted | rep_title= | rows=108 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_by_cinema
+- key=Haifa Cinematheque | status=mapped | reason=upserted | rep_title= | rows=41 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_by_cinema
+- key=Herziliya Cinematheque | status=mapped | reason=upserted | rep_title= | rows=66 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_by_cinema
+- key=Jaffa Cinema | status=mapped | reason=upserted | rep_title= | rows=21 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_by_cinema
+- key=finalThequeMovies | status=mapped | reason=upserted | rep_title= | rows=216 | parsed_year= | candidates=0 | chosen_tmdb= | path=final_movies
+- key=Tel Aviv Cinematheque | status=mapped | reason=marked_added | rep_title= | rows=188 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_after_final_movies
+- key=Jerusalem Cinematheque | status=mapped | reason=marked_added | rep_title= | rows=109 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_after_final_movies
+- key=Haifa Cinematheque | status=mapped | reason=marked_added | rep_title= | rows=44 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_after_final_movies
+- key=Herziliya Cinematheque | status=mapped | reason=marked_added | rep_title= | rows=66 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_after_final_movies
+- key=Jaffa Cinema | status=mapped | reason=marked_added | rep_title= | rows=21 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_after_final_movies
+
+NOW PLAYING GROUP DETAILS
+- (none)
+
+UNRESOLVED / DROPPED ITEMS
+- no_candidates | group=tell me everyting | title=tell me everyting
+- no_candidates | group=house in chlouche street | title=the house in chlouche street
+- no_candidates | group=rufus really unusual fucked up shit | title=rufus really unusual fucked up shit
+- no_candidates | group=holding for ground | title=holding for ground
+- no_candidates | group=our precious children | title=our precious children
+- no_candidates | group=woman in the line director | title=the woman in the line director
+- no_candidates | group=savage years | title=savage years
+
+WRITE/DEDUPE ACTIONS
+- dedupeFinalShowtimes(finalTheques)
+- dedupeFinalMovies(finalThequeMovies)
+- upsertUpdates(finalTheques) cinema=Tel Aviv Cinematheque rows=184
+- delete_stale(finalTheques) cinema=Tel Aviv Cinematheque rows=178
+- upsertUpdates(finalTheques) cinema=Jerusalem Cinematheque rows=108
+- delete_stale(finalTheques) cinema=Jerusalem Cinematheque rows=107
+- upsertUpdates(finalTheques) cinema=Haifa Cinematheque rows=41
+- delete_stale(finalTheques) cinema=Haifa Cinematheque rows=41
+- upsertUpdates(finalTheques) cinema=Herziliya Cinematheque rows=66
+- delete_stale(finalTheques) cinema=Herziliya Cinematheque rows=67
+- upsertUpdates(finalTheques) cinema=Jaffa Cinema rows=21
+- delete_stale(finalTheques) cinema=Jaffa Cinema rows=21
+- dedupeFinalShowtimes(finalTheques)
+- upsertUpdates(finalThequeMovies) rows=216
+- ensureMovieCodes(movieCodes) rows=216
+- dedupeFinalMovies(finalThequeMovies)
+- mark_added(allTheques) cinema=Tel Aviv Cinematheque rows=188
+- mark_added(allTheques) cinema=Jerusalem Cinematheque rows=109
+- mark_added(allTheques) cinema=Haifa Cinematheque rows=44
+- mark_added(allTheques) cinema=Herziliya Cinematheque rows=66
+- mark_added(allTheques) cinema=Jaffa Cinema rows=21
+
+NOTES
+- (none)

@@ -1,0 +1,11 @@
+- - -
+ERROR
+- - -
+Name: HERZtheque
+URL: https://www.hcinema.org.il/
+Exception: WebDriverException - Message: unknown error: net::ERR_INTERNET_DISCONNECTED
+  (Session info: chrome=152.0.7977.82)
+Call Chain: runners.py:43 > runners.py:19 > BaseCinema.py:27 > InitializeBaseCinema.py:17
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/622/unsuccessful/HERZtheque-3.png
+CSV: 

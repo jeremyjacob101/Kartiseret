@@ -166,7 +166,7 @@ export function UserMenu({
           ? preferenceInitializationError
             ? "Account created. You are signed in, but default preferences could not be finalized."
             : "Account created. You are signed in."
-          : "Account created. Set Confirm Email OFF for instant sign-in.",
+          : "Account created. Check your email to confirm, then log in.",
       );
       return;
     }
@@ -230,7 +230,7 @@ export function UserMenu({
         >
           <div className="user-menu-header">
             <p className="user-menu-title">
-              {user ? "Account" : "Auth testing"}
+              {user ? "Account" : "Sign up or log in"}
             </p>
             <p className="user-menu-subtitle">
               {user ? user.email : "Create an account or log in"}

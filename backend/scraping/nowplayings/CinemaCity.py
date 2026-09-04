@@ -13,8 +13,7 @@ class CinemaCity(BaseCinema):
     def logic(self):
         for css in ("body > flashy-popup", "#popupVSChat", "#gdpr-module-message"):
             try:
-                elementToRemove = WebDriverWait(self.driver, 5).until(lambda _, s=css: self.element(s))
-                self.driver.execute_script("arguments[0].remove();", elementToRemove)
+                self.driver.execute_script("document.querySelectorAll(arguments[0]).forEach(element => element.remove());", css)
             except:
                 pass
         self.zoomOut(50)
@@ -24,7 +23,7 @@ class CinemaCity(BaseCinema):
             self.driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", scroll_button)
             self.sleep(0.5)
             try:
-                scroll_button.click()
+                self.driver.execute_script("arguments[0].click();", scroll_button)
                 self.sleep(0.5)
             except:
                 break

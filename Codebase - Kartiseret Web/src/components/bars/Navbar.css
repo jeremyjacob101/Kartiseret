@@ -2,7 +2,6 @@
   --navbar-reveal-duration: 760ms;
   --navbar-reveal-ease: cubic-bezier(0.38, 0.02, 0.2, 1);
   --navbar-intro-core-size: 74px;
-  --navbar-intro-side-inset: calc(50% - (var(--navbar-intro-core-size) / 2));
 }
 
 .navbar-shell {
@@ -50,8 +49,26 @@
 }
 
 .navbar.is-intro {
-  overflow: hidden;
-  animation: navbar-reveal-fallback var(--navbar-reveal-duration) var(--navbar-reveal-ease) both;
+  border-color: transparent;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.navbar.is-intro::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 0;
+  box-sizing: border-box;
+  width: var(--navbar-intro-core-size);
+  height: var(--navbar-intro-core-size);
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  backdrop-filter: blur(22px);
+  transform: translate(-50%, -50%);
+  animation: navbar-reveal-surface var(--navbar-reveal-duration) var(--navbar-reveal-ease) both;
 }
 
 .navbar.is-intro .navbar-intro-mark {
@@ -80,41 +97,23 @@
   animation-name: navbar-content-reveal-actions;
 }
 
-@supports (clip-path: inset(0 0 0 0 round 20px)) {
-  .navbar.is-intro {
-    clip-path: inset(0 var(--navbar-intro-side-inset) 0 var(--navbar-intro-side-inset) round 999px);
-    animation-name: navbar-reveal-clip;
-  }
-}
-
-@keyframes navbar-reveal-fallback {
+@keyframes navbar-reveal-surface {
   0% {
-    transform: scaleX(0.06);
+    width: var(--navbar-intro-core-size);
+    height: var(--navbar-intro-core-size);
     border-radius: 999px;
   }
 
   39% {
-    transform: scaleX(0.06);
+    width: var(--navbar-intro-core-size);
+    height: var(--navbar-intro-core-size);
     border-radius: 999px;
   }
 
   100% {
-    transform: scaleX(1);
+    width: calc(100% + 4px);
+    height: calc(100% + 4px);
     border-radius: 20px;
-  }
-}
-
-@keyframes navbar-reveal-clip {
-  0% {
-    clip-path: inset(0 var(--navbar-intro-side-inset) 0 var(--navbar-intro-side-inset) round 999px);
-  }
-
-  39% {
-    clip-path: inset(0 var(--navbar-intro-side-inset) 0 var(--navbar-intro-side-inset) round 999px);
-  }
-
-  100% {
-    clip-path: inset(0 0 0 0 round 20px);
   }
 }
 
@@ -740,12 +739,21 @@ html[data-device-type="mobile"] .movie-search-results {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .navbar.is-intro,
+  .navbar.is-intro {
+    border-color: var(--border);
+    background: var(--surface);
+    backdrop-filter: blur(22px);
+  }
+
+  .navbar.is-intro::before,
+  .navbar.is-intro .navbar-intro-mark {
+    display: none;
+  }
+
   .navbar.is-intro .navbar-content > .brand,
   .navbar.is-intro .navbar-content > .topnav,
   .navbar.is-intro .navbar-content > .navbar-actions {
     animation: none;
-    clip-path: none;
     opacity: 1;
     transform: none;
   }

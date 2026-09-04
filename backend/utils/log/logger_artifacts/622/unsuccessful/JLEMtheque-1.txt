@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: JLEMtheque
+URL: https://jer-cin.org.il/en/article/4284
+Exception: TimeoutException - Message: 
+Call Chain: runners.py:43 > runners.py:19 > BaseCinema.py:28 > JLEMtheque.py:60
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/622/unsuccessful/JLEMtheque-1.png
+CSV: 

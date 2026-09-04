@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: TicketAlertDispatcher
+URL: ?
+Exception: RuntimeError - Ticket alert delivery failed for 1 batch(es): 7be09ffc-3a3f-4229-8175-d1aae3804c9d: RuntimeError: RESEND_API_KEY is required for ticket alert delivery.
+Call Chain: runners.py:43 > runners.py:20 > ticket_alerts.py:1206 > ticket_alerts.py:1194
+Selector: 
+Screenshot: 
+CSV: 
