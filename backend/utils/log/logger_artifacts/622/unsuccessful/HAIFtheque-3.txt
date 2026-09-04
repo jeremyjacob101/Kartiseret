@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: HAIFtheque
+URL: https://www.haifacin.co.il/Event/17354/%D7%94%D7%96%D7%99%D7%99%D7%A4%D7%9F
+Exception: TimeoutException - Message: 
+Call Chain: runners.py:43 > runners.py:19 > BaseCinema.py:28 > HAIFtheque.py:30 > ScrapingHelpers.py:21
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/622/unsuccessful/HAIFtheque-3.png
+CSV: backend/utils/log/logger_artifacts/622/unsuccessful/HAIFtheque-3.csv

@@ -4,9 +4,7 @@ import { useLocation, useNavigate } from "react-router";
 import "./UserMenu.css";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 import { DEFAULT_LOCATION, loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY } from "../prefs/definitions/locations";
-import { DEFAULT_RATING_SOURCES } from "../prefs/definitions/ratingSources";
-import { DEFAULT_SITE_COLOR } from "../prefs/definitions/siteColor";
-import { useUserPreferencesStore } from "../stores/userPreferencesStore";
+import { persistSignupPreferenceDefaults, useUserPreferencesStore } from "../stores/userPreferencesStore";
 
 type AuthMode = "login" | "signup";
 type UserMenuProps = {
@@ -15,24 +13,6 @@ type UserMenuProps = {
 };
 
 const supabase = getSupabaseBrowserClient();
-const PREFERENCES_TABLE = "userPreferences";
-
-async function persistSignupPreferenceDefaults(
-  userId: string,
-  location: string,
-): Promise<string | null> {
-  const { error } = await supabase.from(PREFERENCES_TABLE).upsert(
-    {
-      user_id: userId,
-      rating_sources: [...DEFAULT_RATING_SOURCES],
-      location,
-      site_color: DEFAULT_SITE_COLOR,
-    },
-    { onConflict: "user_id" },
-  );
-
-  return error?.message ?? null;
-}
 
 export function UserMenu({
   panelDirection = "down",
@@ -137,7 +117,7 @@ export function UserMenu({
           ? preferenceInitializationError
             ? "Account created. You are signed in, but default preferences could not be finalized."
             : "Account created. You are signed in."
-          : "Account created. Set Confirm Email OFF for instant sign-in.",
+          : "Account created. Check your email to confirm, then log in.",
       );
       return;
     }
@@ -201,7 +181,7 @@ export function UserMenu({
         >
           <div className="user-menu-header">
             <p className="user-menu-title">
-              {user ? "Account" : "Auth testing"}
+              {user ? "Account" : "Sign up or log in"}
             </p>
             <p className="user-menu-subtitle">
               {user ? user.email : "Create an account or log in"}

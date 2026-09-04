@@ -1,11 +1,12 @@
 import type { User } from "@supabase/supabase-js";
 import { create } from "zustand";
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import { locationPreferenceDefinition, type AppLocation } from "../prefs/definitions/locations";
+import { loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY, locationPreferenceDefinition, type AppLocation } from "../prefs/definitions/locations";
 import { ratingSourcesPreferenceDefinition, type RatingSource } from "../prefs/definitions/ratingSources";
 import { DEFAULT_SITE_COLOR, applySiteColor, initializeSiteColorTheme, siteColorPreferenceDefinition, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
 import type { UserPreferenceDefinition } from "../prefs/definitions/shared";
 import { shouldRollbackOptimisticSave } from "./preferenceSavePolicy";
+import { buildInitialPreferencesRow } from "../prefs/initialPreferences";
 
 const PREFERENCES_TABLE = "userPreferences";
 const supabase = getSupabaseBrowserClient();
@@ -226,6 +227,24 @@ async function loadPreferencesRow(userId: string) {
     error,
     row: (data as UserPreferencesRow | null) ?? null,
   };
+}
+
+export async function persistSignupPreferenceDefaults(
+  userId: string,
+  signupLocationMetadata: unknown,
+  { onlyIfMissing = false }: { onlyIfMissing?: boolean } = {},
+): Promise<string | null> {
+  const { error } = await supabase.from(PREFERENCES_TABLE).upsert(
+    buildInitialPreferencesRow(
+      userId,
+      signupLocationMetadata,
+      loadGuestLocation(),
+    ),
+    // Missing-row repair must not replace an existing row. Explicit signup
+    // still applies the chosen location to any trigger-created default row.
+    { onConflict: "user_id", ignoreDuplicates: onlyIfMissing },
+  );
+  return error?.message ?? null;
 }
 
 function getGuestPreferences(): UserPreferences {
@@ -485,7 +504,7 @@ async function syncPreferencesWithUser(userId: string | null): Promise<void> {
   }
 
   useUserPreferencesStore.setState({ syncing: true });
-  const { row, error: loadError } = await loadPreferencesRow(userId);
+  let { row, error: loadError } = await loadPreferencesRow(userId);
 
   if (!isCurrentPreferenceSync(generation, userId)) {
     return;
@@ -501,12 +520,40 @@ async function syncPreferencesWithUser(userId: string | null): Promise<void> {
   }
 
   if (!row) {
-    useUserPreferencesStore.setState({
-      error: "Missing user preferences row.",
-      syncing: false,
-      loading: false,
-    });
-    return;
+    const signupLocationMetadata =
+      useUserPreferencesStore.getState().user?.user_metadata?.[
+        LOCATION_SIGNUP_METADATA_KEY
+      ];
+    const createError = await persistSignupPreferenceDefaults(
+      userId,
+      signupLocationMetadata,
+      { onlyIfMissing: true },
+    );
+    if (!isCurrentPreferenceSync(generation, userId)) {
+      return;
+    }
+    if (createError) {
+      useUserPreferencesStore.setState({
+        error: createError,
+        syncing: false,
+        loading: false,
+      });
+      return;
+    }
+
+    // Read back the actual row, including one concurrently created by signup.
+    ({ row, error: loadError } = await loadPreferencesRow(userId));
+    if (!isCurrentPreferenceSync(generation, userId)) {
+      return;
+    }
+    if (loadError || !row) {
+      useUserPreferencesStore.setState({
+        error: loadError?.message ?? "Missing user preferences row.",
+        syncing: false,
+        loading: false,
+      });
+      return;
+    }
   }
 
   const defaultPatch = buildMissingPreferenceDefaultsPatch(row);

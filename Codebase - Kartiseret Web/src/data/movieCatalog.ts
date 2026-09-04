@@ -4,6 +4,7 @@ import { queryClient } from "../lib/queryClient.js";
 import { getSupabaseBrowserClient } from "../lib/supabase.js";
 import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/definitions/locations.js";
 import { addCalendarDays, getJerusalemCinemaDate, getTargetedShowtimePrefetchRange, SHOWTIME_LINK_DATE_COUNT } from "../routing/showtimeLinkCodec.js";
+import { ticketAlertQueryKeys } from "./ticketAlerts";
 
 const SUPABASE_PAGE_SIZE = 1000;
 export const APP_TIME_ZONE = SHOWTIME_TIME_ZONE;
@@ -1987,6 +1988,11 @@ export function getAdminMovieEditInvalidationRules(
           queryKey: movieCatalogQueryKeys.showtimes(),
           exact: false,
           strategy: "reset",
+        },
+        {
+          queryKey: ticketAlertQueryKeys.availabilities(),
+          exact: false,
+          strategy: "invalidate",
         },
       ]
     : [collectionRule];

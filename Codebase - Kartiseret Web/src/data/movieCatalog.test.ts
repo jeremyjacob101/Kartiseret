@@ -1,6 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import { fixedAppDateString, invalidateAdminMovieEditQueries, mergeShowtimeCityData, movieCatalogQueryKeys, type Movie, type ShowtimeRow } from "./movieCatalog";
+import { ticketAlertQueryKeys } from "./ticketAlerts";
 
 function addDay(date: string): string {
   const value = new Date(`${date}T12:00:00.000Z`);
@@ -198,6 +199,13 @@ describe("admin invalidation", () => {
     client.setQueryData(movieCatalogQueryKeys.collection("comingSoon"), {});
     client.setQueryData(cityKey, {});
     client.setQueryData(rangeKey, []);
+    const availabilityKey = ticketAlertQueryKeys.availability(
+      "101",
+      fixedAppDateString,
+    );
+    const subscriptionsKey = ticketAlertQueryKeys.subscriptions("user-a");
+    client.setQueryData(availabilityKey, []);
+    client.setQueryData(subscriptionsKey, []);
 
     await invalidateAdminMovieEditQueries(client, "nowPlaying", "none");
 
@@ -207,6 +215,8 @@ describe("admin invalidation", () => {
     ).toBe(true);
     expect(client.getQueryData(cityKey)).toBeUndefined();
     expect(client.getQueryData(rangeKey)).toBeUndefined();
+    expect(client.getQueryState(availabilityKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(subscriptionsKey)?.isInvalidated).toBe(false);
     expect(
       client.getQueryState(movieCatalogQueryKeys.collection("comingSoon"))
         ?.isInvalidated,

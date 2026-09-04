@@ -15,6 +15,7 @@ import { addCalendarDays, SHOWTIME_LINK_DATE_COUNT } from "../../routing/showtim
 import { ShowtimeDayPicker } from "../showtimes/ShowtimeDayPicker";
 import { ShowtimeFilterMenu } from "../showtimes/ShowtimeFilterMenu";
 import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, saveShowtimeFilters, updateShowtimeFilterState, useShowtimeFiltersStore, type ShowtimeFilterOptions, type ShowtimeFilterSelections, type ShowtimeFilterState } from "../showtimes/showtimeFilters";
+import { TicketAlertControl } from "./TicketAlertControl";
 
 type TheaterTheme = {
   accent: string;
@@ -1389,6 +1390,10 @@ export function MovieDetailsContent({
             <p className="details-release-date">
               Release date: {releaseDateLabel}
             </p>
+          ) : null}
+
+          {variant === "comingSoon" ? (
+            <TicketAlertControl movie={movie} />
           ) : null}
 
           {renderMetricsRow("details-metrics-row--copy")}

@@ -5,6 +5,7 @@ import { useShallow } from "zustand/react/shallow";
 import "./UserPreferencesPage.css";
 import { loadCityLocationPicker } from "./maps/loadCityLocationPicker";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
+import { UserTicketAlerts } from "./UserTicketAlerts";
 import { type RatingSource } from "../prefs/definitions/ratingSources";
 import { type AppLocation } from "../prefs/definitions/locations";
 import { getSiteColorLabel, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
@@ -268,6 +269,11 @@ export function UserPreferencesPage() {
               </div>
             ) : null}
           </section>
+
+          <UserTicketAlerts
+            key={user?.id ?? "guest"}
+            userId={user?.id ?? null}
+          />
         </div>
       </div>
       {error ? (
