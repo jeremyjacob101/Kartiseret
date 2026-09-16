@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { accountTicketAlertInputSchema, cancelledGuestTicketAlertCountSchema, guestTicketAlertInputSchema, guestTicketAlertResponseSchema, guestTicketAlertsStorageSchema, guestTicketAlertTokenSchema, nullableTicketAlertSubscriptionSchema, ticketAlertEmailSchema, ticketAlertMovieIdSchema, ticketAlertShowtimePageSchema, ticketAlertShowtimeRowSchema, userTicketAlertSubscriptionRowsSchema } from "../src/data/ticketAlertSchemas";
+import { accountTicketAlertInputSchema, nullableTicketAlertSubscriptionSchema, ticketAlertMovieIdSchema, ticketAlertShowtimePageSchema, ticketAlertShowtimeRowSchema, userTicketAlertSubscriptionRowsSchema } from "../src/data/ticketAlertSchemas";
 
 const userId = "11111111-1111-4111-8111-111111111111";
-const guestToken = "abcdefab-1234-4123-8123-abcdefabcdef";
 const timestamp = "2026-09-04T09:00:00.123456+00:00";
 const subscription = {
   tmdb_id: 42,
@@ -19,21 +18,7 @@ const showtime = {
 };
 
 describe("ticket alert input schemas", () => {
-  it("normalizes inputs once into numeric RPC IDs and canonical form values", () => {
-    expect(
-      guestTicketAlertInputSchema.parse({
-        tmdbId: " 42 ",
-        email: " Viewer+Alerts@Example.TEST ",
-        preferredCity: " Tel   Aviv ",
-        movieCode: "A7z",
-        ignored: true,
-      }),
-    ).toEqual({
-      tmdbId: 42,
-      email: "viewer+alerts@example.test",
-      preferredCity: "Tel Aviv",
-      movieCode: "A7z",
-    });
+  it("normalizes account inputs once into numeric IDs and canonical form values", () => {
     expect(
       accountTicketAlertInputSchema.parse({
         tmdbId: 42,
@@ -57,42 +42,12 @@ describe("ticket alert input schemas", () => {
     expect(ticketAlertMovieIdSchema.safeParse(value).success).toBe(false);
   });
 
-  it("keeps the SQL email contract, including international addresses", () => {
-    expect(ticketAlertEmailSchema.parse(" שלום@דוגמה.ישראל ")).toBe(
-      "שלום@דוגמה.ישראל",
-    );
-    for (const email of [
-      "",
-      "viewer",
-      "a b@example.test",
-      "a<@example.test",
-      'a"@example.test',
-      "a\\b@example.test",
-      `${"a".repeat(310)}@example.test`,
-    ]) {
-      expect(ticketAlertEmailSchema.safeParse(email).success).toBe(false);
-    }
-  });
-
   it("requires UUID identities and nonblank locations", () => {
-    expect(
-      guestTicketAlertTokenSchema.parse(` ${guestToken.toUpperCase()} `),
-    ).toBe(guestToken);
-    expect(guestTicketAlertTokenSchema.safeParse("browser-token").success).toBe(
-      false,
-    );
     expect(
       accountTicketAlertInputSchema.safeParse({
         tmdbId: 42,
         userId: "wrong",
         preferredCity: "Jerusalem",
-      }).success,
-    ).toBe(false);
-    expect(
-      guestTicketAlertInputSchema.safeParse({
-        tmdbId: 42,
-        email: "a@example.test",
-        preferredCity: " ",
       }).success,
     ).toBe(false);
   });
@@ -154,40 +109,9 @@ describe("ticket alert response schemas", () => {
       userTicketAlertSubscriptionRowsSchema.safeParse([subscription]).success,
     ).toBe(false);
   });
-
-  it("requires exactly one complete guest creation response and an integer cancellation result", () => {
-    const created = {
-      ...subscription,
-      guest_token: guestToken,
-      email: "a@example.test",
-      preferred_city: "Jerusalem",
-    };
-    expect(guestTicketAlertResponseSchema.parse([created])[0].tmdb_id).toBe(
-      "42",
-    );
-    for (const response of [
-      null,
-      [],
-      [created, created],
-      created,
-      [{ ...created, guest_token: "invalid" }],
-      [{ ...created, preferred_city: null }],
-    ]) {
-      expect(guestTicketAlertResponseSchema.safeParse(response).success).toBe(
-        false,
-      );
-    }
-    expect(cancelledGuestTicketAlertCountSchema.parse(0)).toBe(0);
-    expect(cancelledGuestTicketAlertCountSchema.parse(1)).toBe(1);
-    for (const count of [null, "1", -1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
-      expect(
-        cancelledGuestTicketAlertCountSchema.safeParse(count).success,
-      ).toBe(false);
-    }
-  });
 });
 
-describe("recoverable ticket alert source and storage schemas", () => {
+describe("recoverable ticket alert source schemas", () => {
   it("normalizes showtimes and falls back to a valid Hebrew ticket link", () => {
     expect(ticketAlertShowtimeRowSchema.parse(showtime)).toEqual({
       city: "Jerusalem",
@@ -222,28 +146,5 @@ describe("recoverable ticket alert source and storage schemas", () => {
     expect(
       ticketAlertShowtimePageSchema.safeParse({ rows: [showtime] }).success,
     ).toBe(false);
-  });
-
-  it("recovers valid stored entries without trusting malformed IDs or values", () => {
-    const stored = {
-      email: " Viewer@Example.TEST ",
-      subscribedAt: timestamp,
-      ignored: true,
-    };
-    expect(
-      guestTicketAlertsStorageSchema.parse({
-        " 42 ": stored,
-        "43": { ...stored, subscribedAt: "not-a-date" },
-        "44": { ...stored, email: "invalid" },
-        "45": null,
-        "46": { email: "a@example.test" },
-        "42oops": stored,
-        "9007199254740992": stored,
-      }),
-    ).toEqual({
-      "42": { email: "viewer@example.test", subscribedAt: timestamp },
-    });
-    expect(guestTicketAlertsStorageSchema.safeParse([]).success).toBe(false);
-    expect(guestTicketAlertsStorageSchema.safeParse(null).success).toBe(false);
   });
 });

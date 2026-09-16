@@ -3,7 +3,6 @@ import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getSupabaseBrowserClient } from "../src/lib/supabase";
 import { addCalendarDays, getJerusalemCinemaDate } from "../src/routing/showtimeLinkCodec";
-import { useGuestTicketAlertsStore } from "../src/stores/guestTicketAlertsStore";
 import { invalidateUserTicketAlertQueries, mergeUserTicketAlert, selectTicketAlertAvailability, selectUserTicketAlert, ticketAlertAvailabilityQueryOptions, ticketAlertMutationOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions, type TicketAlertShowtimeRow, type UserTicketAlertSubscription } from "../src/data/ticketAlerts";
 
 vi.mock("../src/lib/supabase", () => ({ getSupabaseBrowserClient: vi.fn() }));
@@ -64,7 +63,6 @@ beforeEach(() => {
   subscriptions = [];
   failWrites = false;
   duplicateInsert = false;
-  useGuestTicketAlertsStore.setState({ receipts: {} });
   const storage = new Map<string, string>();
   vi.stubGlobal("window", {
     localStorage: {
@@ -92,22 +90,6 @@ beforeEach(() => {
         }
         if (url.pathname.endsWith("/finalShowtimes")) {
           return reply(rows);
-        }
-        if (url.pathname.includes("/rpc/")) {
-          const body = (await request.json()) as Record<string, unknown>;
-          if (url.pathname.endsWith("/create_guest_ticket_alert")) {
-            return reply([
-              {
-                guest_token: body.p_guest_token,
-                tmdb_id: body.p_tmdb_id,
-                email: body.p_email,
-                preferred_city: body.p_preferred_city,
-                created_at: "2026-09-01T12:00:00Z",
-                notified_at: null,
-              },
-            ]);
-          }
-          return reply(1);
         }
         if (!url.pathname.endsWith("/ticket_alert_subscriptions")) {
           throw new Error(
@@ -342,6 +324,17 @@ describe("ticket alert mutation ownership", () => {
     ).toHaveLength(1);
   });
 
+  it("requires an account before creating or canceling an alert", async () => {
+    const mutation = client
+      .getMutationCache()
+      .build(client, ticketAlertMutationOptions(null, "101", client));
+
+    await expect(
+      mutation.execute({ action: "subscribe", preferredCity: "Jerusalem" }),
+    ).rejects.toThrow("Create an account or log in");
+    expect(requests).toHaveLength(0);
+  });
+
   it("does not register an alert if tickets become available during the pre-save check", async () => {
     rows = [
       {
@@ -448,35 +441,5 @@ describe("ticket alert mutation ownership", () => {
       .execute({ action: "subscribe", preferredCity: "Jerusalem" });
     expect(client.getQueryData(otherKey)).toEqual([subscription("202")]);
     expect(client.getQueryState(otherKey)?.isInvalidated).toBe(false);
-  });
-
-  it("updates guest receipts only after a successful RPC and preserves them on failure", async () => {
-    const execute = (
-      action: "subscribe" | "cancel",
-      email = "Guest@Example.test",
-    ) =>
-      client
-        .getMutationCache()
-        .build(client, ticketAlertMutationOptions(null, "101", client))
-        .execute(
-          action === "subscribe"
-            ? { action, preferredCity: "Jerusalem", email }
-            : { action },
-        );
-    await execute("subscribe");
-    expect(useGuestTicketAlertsStore.getState().receipts["101"]?.email).toBe(
-      "guest@example.test",
-    );
-    failWrites = true;
-    await expect(execute("subscribe", "new@example.test")).rejects.toThrow();
-    await expect(execute("cancel")).rejects.toThrow();
-    expect(useGuestTicketAlertsStore.getState().receipts["101"]?.email).toBe(
-      "guest@example.test",
-    );
-    failWrites = false;
-    await execute("cancel");
-    expect(
-      useGuestTicketAlertsStore.getState().receipts["101"],
-    ).toBeUndefined();
   });
 });

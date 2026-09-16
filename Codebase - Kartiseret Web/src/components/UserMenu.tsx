@@ -4,6 +4,7 @@ import { LogOut, User } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 import "./UserMenu.css";
 import { getSupabaseBrowserClient } from "../lib/supabase";
+import { OPEN_AUTH_MENU_EVENT } from "../lib/authMenu";
 import { DEFAULT_LOCATION, loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY } from "../prefs/definitions/locations";
 import { persistSignupPreferenceDefaults, useUserPreferencesStore } from "../stores/userPreferencesStore";
 
@@ -67,6 +68,22 @@ export function UserMenu({
       window.removeEventListener("keydown", handleEscape);
     };
   }, [isOpen]);
+
+  useEffect(() => {
+    const handleAuthMenuRequest = () => {
+      if (!user) {
+        setAuthMode("signup");
+      }
+      setAuthMessage(null);
+      setAuthError(null);
+      setIsOpen(true);
+    };
+
+    window.addEventListener(OPEN_AUTH_MENU_EVENT, handleAuthMenuRequest);
+    return () => {
+      window.removeEventListener(OPEN_AUTH_MENU_EVENT, handleAuthMenuRequest);
+    };
+  }, [user]);
 
   async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

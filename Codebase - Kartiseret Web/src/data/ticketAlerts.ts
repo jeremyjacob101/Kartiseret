@@ -4,10 +4,9 @@ import { normalizeTicketAlertTmdbId } from "../domain/ticketAlerts";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 import { queryClient } from "../lib/queryClient";
 import { buildMovieShowtimeSharePath, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "../routing/showtimeLinkCodec";
-import { getOrCreateGuestTicketAlertToken, readGuestTicketAlertToken, useGuestTicketAlertsStore } from "../stores/guestTicketAlertsStore";
 import { isoDateStringSchema, movieCodeSchema, parseBoundary } from "../validation/runtime";
 import { supabaseUserIdSchema } from "../lib/supabaseSchemas";
-import { cancelledGuestTicketAlertCountSchema, guestTicketAlertResponseSchema, guestTicketAlertInputSchema, ticketAlertChangeSchema, ticketAlertMovieIdSchema, ticketAlertShowtimePageSchema, ticketAlertShowtimeRowSchema, userTicketAlertSubscriptionRowSchema, type TicketAlertChange, type TicketAlertShowtime, type UserTicketAlertSubscription } from "./ticketAlertSchemas";
+import { ticketAlertChangeSchema, ticketAlertMovieIdSchema, ticketAlertShowtimePageSchema, ticketAlertShowtimeRowSchema, userTicketAlertSubscriptionRowSchema, type TicketAlertChange, type TicketAlertShowtime, type UserTicketAlertSubscription } from "./ticketAlertSchemas";
 
 export type { UserTicketAlertSubscription } from "./ticketAlertSchemas";
 
@@ -34,8 +33,7 @@ export type TicketAlertAvailability = TicketAlertShowtime & { path: string };
 type TicketAlertChangeResult =
 
     | { kind: "available" }
-    | { kind: "account"; subscription: UserTicketAlertSubscription | null }
-    | { kind: "guest"; email: string | null };
+    | { kind: "account"; subscription: UserTicketAlertSubscription | null };
 
 type ParsedUserTicketAlertRow = ReturnType<
   typeof userTicketAlertSubscriptionRowSchema.parse
@@ -385,55 +383,24 @@ async function changeTicketAlert(
   const supabase = getSupabaseBrowserClient();
 
   if (parsedChange.action === "cancel") {
-    if (validatedUserId) {
-      const { error } = await supabase
-        .from(TICKET_ALERTS_TABLE_NAME)
-        .delete()
-        .eq("user_id", validatedUserId)
-        .eq("tmdb_id", numericTmdbId);
-      if (error) {
-        throw new Error(`Could not cancel this ticket alert: ${error.message}`);
-      }
-      return { kind: "account", subscription: null };
+    if (!validatedUserId) {
+      throw new Error("Create an account or log in to manage ticket alerts.");
     }
 
-    const guestToken = readGuestTicketAlertToken();
-    if (guestToken) {
-      const { data, error } = await supabase.rpc("cancel_guest_ticket_alert", {
-        p_guest_token: guestToken,
-        p_tmdb_id: numericTmdbId,
-      });
-      if (error) {
-        throw new Error(`Could not cancel this ticket alert: ${error.message}`);
-      }
-      parseBoundary(
-        cancelledGuestTicketAlertCountSchema,
-        data,
-        "guest ticket alert cancellation response",
-      );
-      return { kind: "guest", email: null };
+    const { error } = await supabase
+      .from(TICKET_ALERTS_TABLE_NAME)
+      .delete()
+      .eq("user_id", validatedUserId)
+      .eq("tmdb_id", numericTmdbId);
+    if (error) {
+      throw new Error(`Could not cancel this ticket alert: ${error.message}`);
     }
-
-    if (useGuestTicketAlertsStore.getState().receipts[String(numericTmdbId)]) {
-      throw new Error(
-        "Guest ticket alert credentials are unavailable in this browser.",
-      );
-    }
-    return { kind: "guest", email: null };
+    return { kind: "account", subscription: null };
   }
 
-  const guestChange = validatedUserId
-    ? null
-    : parseBoundary(
-        guestTicketAlertInputSchema,
-        {
-          tmdbId,
-          preferredCity: parsedChange.preferredCity,
-          email: parsedChange.email,
-        },
-        "guest ticket alert input",
-      );
-  const email = guestChange?.email ?? parsedChange.email;
+  if (!validatedUserId) {
+    throw new Error("Create an account or log in to receive ticket alerts.");
+  }
 
   const instant = new Date();
   const [showtimes, alerts] = await Promise.all([
@@ -444,12 +411,10 @@ async function changeTicketAlert(
       ),
       staleTime: 0,
     }),
-    validatedUserId
-      ? client.fetchQuery({
-          ...userTicketAlertSubscriptionsQueryOptions(validatedUserId),
-          staleTime: 0,
-        })
-      : Promise.resolve([] as UserTicketAlertSubscription[]),
+    client.fetchQuery({
+      ...userTicketAlertSubscriptionsQueryOptions(validatedUserId),
+      staleTime: 0,
+    }),
   ]);
 
   if (
@@ -458,65 +423,42 @@ async function changeTicketAlert(
     return { kind: "available" };
   }
 
-  if (validatedUserId) {
-    const existing = selectUserTicketAlert(alerts, tmdbId);
-    if (existing) {
-      return { kind: "account", subscription: existing };
-    }
-
-    const { data, error } = await supabase
-      .from(TICKET_ALERTS_TABLE_NAME)
-      .insert({ user_id: validatedUserId, tmdb_id: numericTmdbId })
-      .select(SUBSCRIPTION_COLUMNS)
-      .single();
-
-    if (error?.code === "23505") {
-      const current = await client.fetchQuery({
-        ...userTicketAlertSubscriptionsQueryOptions(validatedUserId),
-        staleTime: 0,
-      });
-      return {
-        kind: "account",
-        subscription: selectUserTicketAlert(current, tmdbId),
-      };
-    }
-    if (error) {
-      throw new Error(`Could not create this ticket alert: ${error.message}`);
-    }
-
-    const [insertedRow] = parseBoundary(
-      userTicketAlertSubscriptionRowSchema.array(),
-      [data],
-      "ticket alert subscription insert response",
-    );
-    if (!insertedRow || insertedRow.user_id !== validatedUserId) {
-      throw new Error("Ticket alert insert response did not match this user.");
-    }
-    return {
-      kind: "account",
-      subscription: mapUserTicketAlertSubscriptionRow(insertedRow),
-    };
+  const existing = selectUserTicketAlert(alerts, tmdbId);
+  if (existing) {
+    return { kind: "account", subscription: existing };
   }
 
-  const guestToken = getOrCreateGuestTicketAlertToken();
-  const { data, error } = await supabase.rpc("create_guest_ticket_alert", {
-    p_guest_token: guestToken,
-    p_tmdb_id: numericTmdbId,
-    p_email: email,
-    p_preferred_city: parsedChange.preferredCity,
-  });
+  const { data, error } = await supabase
+    .from(TICKET_ALERTS_TABLE_NAME)
+    .insert({ user_id: validatedUserId, tmdb_id: numericTmdbId })
+    .select(SUBSCRIPTION_COLUMNS)
+    .single();
+
+  if (error?.code === "23505") {
+    const current = await client.fetchQuery({
+      ...userTicketAlertSubscriptionsQueryOptions(validatedUserId),
+      staleTime: 0,
+    });
+    return {
+      kind: "account",
+      subscription: selectUserTicketAlert(current, tmdbId),
+    };
+  }
   if (error) {
     throw new Error(`Could not create this ticket alert: ${error.message}`);
   }
-  const [response] = parseBoundary(
-    guestTicketAlertResponseSchema,
-    data,
-    "guest ticket alert creation response",
+  const [insertedRow] = parseBoundary(
+    userTicketAlertSubscriptionRowSchema.array(),
+    [data],
+    "ticket alert subscription insert response",
   );
-  if (!response || response.guest_token !== guestToken) {
-    throw new Error("Guest ticket alert response did not match this browser.");
+  if (!insertedRow || insertedRow.user_id !== validatedUserId) {
+    throw new Error("Ticket alert insert response did not match this user.");
   }
-  return { kind: "guest", email: response.email };
+  return {
+    kind: "account",
+    subscription: mapUserTicketAlertSubscriptionRow(insertedRow),
+  };
 }
 
 export function ticketAlertMutationOptions(
@@ -533,14 +475,7 @@ export function ticketAlertMutationOptions(
     mutationFn: (change: TicketAlertChange) =>
       changeTicketAlert(client, userId, id, change),
     onSuccess: async (result) => {
-      const store = useGuestTicketAlertsStore.getState();
-      if (result.kind === "guest") {
-        if (result.email === null) {
-          store.removeReceipt(id);
-        } else {
-          store.saveReceipt(id, result.email);
-        }
-      } else if (result.kind === "account" && userId) {
+      if (result.kind === "account" && userId) {
         const validatedUserId = parseBoundary(
           supabaseUserIdSchema,
           userId,

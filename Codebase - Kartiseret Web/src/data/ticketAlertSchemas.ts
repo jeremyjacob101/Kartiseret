@@ -3,26 +3,10 @@ import { supabaseUserIdSchema } from "../lib/supabaseSchemas";
 import { appLocationSchema } from "../prefs/definitions/locations";
 import { httpUrlSchema, isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema, showtimeStringSchema, tmdbIdSchema } from "../validation/runtime";
 
-// Match the guest-alert SQL constraint, including its international-email support.
-export const ticketAlertEmailSchema = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .max(320, "Enter a valid email address for this alert.")
-  .regex(
-    /^[^\s@<>()"'\\]+@[^\s@<>()"'\\]+\.[^\s@<>()"'\\]+$/,
-    "Enter a valid email address for this alert.",
-  );
-
-// RPCs use numeric bigint arguments. Reject partial or unsafe IDs before conversion.
+// The database uses bigint movie IDs. Reject partial or unsafe IDs before conversion.
 export const ticketAlertMovieIdSchema = tmdbIdSchema
   .transform(Number)
   .pipe(z.number().int().positive().safe());
-export const guestTicketAlertTokenSchema = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .uuid();
 const timestampSchema = z.iso.datetime({ offset: true });
 
 const ticketAlertContextSchema = z.object({
@@ -36,9 +20,6 @@ export const ticketAlertStateInputSchema = ticketAlertContextSchema.extend({
 export const accountTicketAlertInputSchema = ticketAlertContextSchema.extend({
   userId: supabaseUserIdSchema,
 });
-export const guestTicketAlertInputSchema = ticketAlertContextSchema.extend({
-  email: ticketAlertEmailSchema,
-});
 export const accountTicketAlertIdentitySchema =
   accountTicketAlertInputSchema.pick({
     userId: true,
@@ -49,7 +30,6 @@ export const ticketAlertChangeSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("subscribe"),
     preferredCity: appLocationSchema,
-    email: ticketAlertEmailSchema.optional(),
   }),
 ]);
 
@@ -80,20 +60,6 @@ export const userTicketAlertSubscriptionSchema =
   }));
 export const userTicketAlertSubscriptionRowsSchema =
   userTicketAlertSubscriptionSchema.array();
-export const guestTicketAlertResponseSchema = z.tuple([
-  z.object({
-    ...subscriptionColumns,
-    guest_token: guestTicketAlertTokenSchema,
-    email: ticketAlertEmailSchema,
-    preferred_city: appLocationSchema,
-  }),
-]);
-export const cancelledGuestTicketAlertCountSchema = z
-  .number()
-  .int()
-  .nonnegative()
-  .safe();
-
 // Source listings are recoverable: invalid links fall back to the other language,
 // and an unusable row is skipped without hiding valid listings on the same page.
 const optionalTicketHrefSchema = httpUrlSchema.nullish().catch(null);
@@ -131,30 +97,6 @@ export const ticketAlertShowtimePageSchema = ticketAlertShowtimeRowSchema
   .catch(null)
   .array();
 
-const storedGuestTicketAlertSchema = z.object({
-  email: ticketAlertEmailSchema,
-  subscribedAt: timestampSchema,
-});
-const storedGuestTicketAlertEntrySchema = z.object({
-  tmdbId: ticketAlertMovieIdSchema.transform(String),
-  subscription: storedGuestTicketAlertSchema,
-});
-export const guestTicketAlertsStorageSchema = z
-  .record(z.string(), z.unknown())
-  .transform((entries) => {
-    const subscriptions: Record<string, StoredGuestTicketAlert> = {};
-    for (const [tmdbId, subscription] of Object.entries(entries)) {
-      const result = storedGuestTicketAlertEntrySchema.safeParse({
-        tmdbId,
-        subscription,
-      });
-      if (result.success) {
-        subscriptions[result.data.tmdbId] = result.data.subscription;
-      }
-    }
-    return subscriptions;
-  });
-
 export type TicketAlertSubscriptionRow = z.infer<
   typeof ticketAlertSubscriptionRowSchema
 >;
@@ -162,9 +104,6 @@ export type UserTicketAlertSubscription = z.infer<
   typeof userTicketAlertSubscriptionSchema
 >;
 export type TicketAlertShowtime = z.infer<typeof ticketAlertShowtimeRowSchema>;
-export type StoredGuestTicketAlert = z.infer<
-  typeof storedGuestTicketAlertSchema
->;
 export type TicketAlertStateOptions = z.input<
   typeof ticketAlertStateInputSchema
 >;
@@ -173,8 +112,5 @@ export type ValidatedTicketAlertStateOptions = z.output<
 >;
 export type TicketAlertActionOptions = z.input<
   typeof accountTicketAlertInputSchema
->;
-export type GuestTicketAlertActionOptions = z.input<
-  typeof guestTicketAlertInputSchema
 >;
 export type TicketAlertChange = z.input<typeof ticketAlertChangeSchema>;

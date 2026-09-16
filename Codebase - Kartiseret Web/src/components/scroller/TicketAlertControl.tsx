@@ -1,13 +1,13 @@
-import { useState, type FormEvent, type ReactNode } from "react";
 import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
 import { Bell, Check, LoaderCircle, Ticket } from "lucide-react";
 import { Link } from "react-router";
+import type { ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { selectTicketAlertAvailability, selectUserTicketAlert, ticketAlertAvailabilityQueryOptions, ticketAlertMutationOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions } from "../../data/ticketAlerts";
-import { isValidTicketAlertEmail, normalizeTicketAlertEmail, normalizeTicketAlertTmdbId } from "../../domain/ticketAlerts";
+import { normalizeTicketAlertTmdbId } from "../../domain/ticketAlerts";
 import type { Movie } from "../../data/movieCatalog";
+import { requestAuthMenuOpen } from "../../lib/authMenu";
 import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
-import { useGuestTicketAlertsStore } from "../../stores/guestTicketAlertsStore";
 
 type TicketAlertControlProps = {
   movie: Movie;
@@ -66,17 +66,12 @@ function TicketAlertControlContent({
     ...userTicketAlertSubscriptionsQueryOptions(userId),
     enabled: Boolean(userId) && !preferencesLoading,
   });
-  const guestReceipt = useGuestTicketAlertsStore((store) =>
-    userId ? undefined : store.receipts[tmdbId]);
   const mutation = useMutation(ticketAlertMutationOptions(userId, tmdbId));
   const pending =
     useIsMutating({
       mutationKey: ticketAlertQueryKeys.change(userId, tmdbId),
       exact: true,
     }) > 0;
-  const [guestFormOpen, setGuestFormOpen] = useState(false);
-  const [guestEmailDraft, setGuestEmailDraft] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
   const subscription = selectUserTicketAlert(subscriptionsQuery.data, tmdbId);
   const loadFailed =
     (availabilityQuery.isError && !availabilityQuery.data) ||
@@ -94,10 +89,7 @@ function TicketAlertControlContent({
     pending,
     subscribed: Boolean(subscription && !subscription.notifiedAt),
     notified: Boolean(subscription?.notifiedAt),
-    guestEmail: guestReceipt?.email ?? null,
-    guestSubscribed: Boolean(guestReceipt),
     error:
-      formError ??
       mutation.error?.message ??
       availabilityQuery.error?.message ??
       (userId ? subscriptionsQuery.error?.message : null),
@@ -111,47 +103,6 @@ function TicketAlertControlContent({
       state.subscribed
         ? { action: "cancel" }
         : { action: "subscribe", preferredCity },
-    );
-  };
-
-  const handleGuestSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (state.loading || pending) {
-      return;
-    }
-
-    const email = normalizeTicketAlertEmail(guestEmailDraft);
-    if (!isValidTicketAlertEmail(email)) {
-      setFormError("Enter a valid email address for this alert.");
-      return;
-    }
-
-    setFormError(null);
-    mutation.mutate(
-      { action: "subscribe", preferredCity, email },
-      {
-        onSuccess: () => {
-          setGuestEmailDraft(email);
-          setGuestFormOpen(false);
-        },
-      },
-    );
-  };
-
-  const handleGuestCancel = () => {
-    if (state.loading || pending) {
-      return;
-    }
-
-    setFormError(null);
-    mutation.mutate(
-      { action: "cancel" },
-      {
-        onSuccess: () => {
-          setGuestEmailDraft("");
-          setGuestFormOpen(false);
-        },
-      },
     );
   };
 
@@ -207,31 +158,16 @@ function TicketAlertControlContent({
   } else if (!userId) {
     control = (
       <button
-        className={`ticket-alert-button${state.guestSubscribed ? " is-active" : ""}`}
+        className="ticket-alert-button"
         type="button"
-        aria-label={
-          state.guestSubscribed
-            ? `Edit or cancel ticket alert for ${movie.title}`
-            : `Notify me when tickets for ${movie.title} go on sale`
-        }
-        aria-pressed={state.guestSubscribed}
-        disabled={state.pending}
-        onClick={() => {
-          setGuestEmailDraft(state.guestEmail ?? "");
-          setGuestFormOpen((open) => !open);
-        }}
+        aria-label={`Create an account to get a ticket alert for ${movie.title}`}
+        onClick={requestAuthMenuOpen}
       >
-        {state.pending ? (
-          <LoaderCircle className="ticket-alert-icon is-spinning" aria-hidden />
-        ) : (
-          <TicketAlertBellIcon checked={state.guestSubscribed} />
-        )}
-        {state.guestSubscribed ? "Email alert on" : "Notify me"}
+        <TicketAlertBellIcon checked={false} />
+        Notify me
       </button>
     );
-    hint = state.guestSubscribed
-      ? "We’ll send one email to the saved address. Click to edit or cancel."
-      : "Enter an email to get one alert when tickets appear.";
+    hint = "Create an account or log in to receive a ticket alert.";
   } else {
     control = (
       <button
@@ -274,72 +210,6 @@ function TicketAlertControlContent({
       <p className="ticket-alert-hint" aria-live="polite">
         {hint}
       </p>
-      {!userId && !state.availability && guestFormOpen ? (
-        <form
-          className="ticket-alert-form"
-          onSubmit={(event) => void handleGuestSubmit(event)}
-        >
-          <label
-            className="ticket-alert-form-label"
-            htmlFor={`ticket-alert-email-${movie.tmdbId}`}
-          >
-            Email for this alert
-            <input
-              id={`ticket-alert-email-${movie.tmdbId}`}
-              className="ticket-alert-form-input"
-              type="email"
-              autoComplete="email"
-              value={guestEmailDraft}
-              placeholder="you@example.com"
-              required
-              disabled={state.pending}
-              onChange={(event) => {
-                setGuestEmailDraft(event.target.value);
-                setFormError(null);
-                mutation.reset();
-              }}
-            />
-          </label>
-          <div className="ticket-alert-form-actions">
-            <button
-              className="ticket-alert-form-submit"
-              type="submit"
-              disabled={state.pending}
-            >
-              {state.pending
-                ? "Saving…"
-                : state.guestSubscribed
-                  ? "Update email"
-                  : "Save alert"}
-            </button>
-            {state.guestSubscribed ? (
-              <button
-                className="ticket-alert-form-cancel ticket-alert-form-cancel--danger"
-                type="button"
-                disabled={state.pending}
-                onClick={() => {
-                  void handleGuestCancel();
-                }}
-              >
-                Cancel alert
-              </button>
-            ) : (
-              <button
-                className="ticket-alert-form-cancel"
-                type="button"
-                disabled={state.pending}
-                onClick={() => {
-                  setGuestFormOpen(false);
-                  setFormError(null);
-                  mutation.reset();
-                }}
-              >
-                Not now
-              </button>
-            )}
-          </div>
-        </form>
-      ) : null}
       {state.error ? (
         <p className="ticket-alert-error" role="alert">
           {state.error}
