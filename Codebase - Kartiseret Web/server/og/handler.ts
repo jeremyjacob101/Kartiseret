@@ -1,4 +1,3 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
@@ -7,6 +6,7 @@ import { NO_STORE_CACHE_CONTROL, PREVIEW_CACHE_CONTROL } from "./cacheControl.js
 import { getPreviewData } from "./previewData.js";
 import { injectOpenGraphTags } from "./previewHtml.js";
 import { ogRequestQuerySchema } from "./schemas.js";
+import type { VercelRequest, VercelResponse } from "./vercelTypes.js";
 
 const indexPath = resolve(
   process.cwd(),
