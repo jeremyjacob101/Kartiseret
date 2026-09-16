@@ -1,24 +1,14 @@
-name: Web checks
+name: Full checks
 
 on:
-  pull_request:
-    paths:
-      - "Codebase - Kartiseret Web/**"
-      - ".github/workflows/web_checks.yml"
-      - "README.md"
-  push:
-    branches:
-      - main
-    paths:
-      - "Codebase - Kartiseret Web/**"
-      - ".github/workflows/web_checks.yml"
-      - "README.md"
+  pull_request: {}
+  push: {}
 
 permissions:
   contents: read
 
 jobs:
-  verify:
+  web:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -39,3 +29,17 @@ jobs:
 
       - name: Verify web application
         run: npm run verify
+
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14.2"
+
+      - name: Compile backend
+        run: python -m compileall -q backend
