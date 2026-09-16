@@ -54,6 +54,8 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@emnapi/core": "^1.11.3",
+    "@emnapi/runtime": "^1.11.3",
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.5",
     "@types/react": "^19.2.17",
