@@ -15,6 +15,7 @@ import { adminMovieEditMutationOptions, loadComingSoonMovies, loadNowPlayingMovi
 import { useDeviceStore } from "./device/useDeviceType";
 import { initializeUserPreferencesStore, useUserPreferencesStore } from "./stores/userPreferencesStore";
 import { queryClient } from "./lib/queryClient";
+import { movieCodeSchema } from "./validation/runtime";
 import "./index.css";
 
 const SCROLLER_CARD_WIDTH = 220;
@@ -74,7 +75,10 @@ function isPotentialStandaloneMoviePath(pathname: string): boolean {
 
   const segment = pathname.startsWith("/") ? pathname.slice(1) : pathname;
 
-  return !segment.includes("/") && /^[0-9A-Za-z]{3}/.test(segment);
+  return (
+    !segment.includes("/") &&
+    movieCodeSchema.safeParse(segment.slice(0, 3)).success
+  );
 }
 
 type CatalogRouteProps = {
@@ -281,7 +285,7 @@ export function App() {
   );
   const pathname = routeLocation.pathname;
   const { data: isAdmin = false } = useQuery({
-    ...adminStatusQueryOptions(user?.id ?? "anonymous"),
+    ...adminStatusQueryOptions(user?.id ?? null),
     enabled: Boolean(user),
   });
   const shouldLoadCatalog = pathname !== "/user" && pathname !== "/attribution";

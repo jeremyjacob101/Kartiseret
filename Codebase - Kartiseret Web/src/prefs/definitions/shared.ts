@@ -24,7 +24,8 @@ export type UserPreferenceDefinition<
   defaultValue: Value;
   options?: readonly Option[];
   copy: (value: Value) => Value;
-  normalize: (value: unknown) => Value;
+  /** Convert unknown storage, database, or UI input into a safe domain value. */
+  parse: (value: unknown) => Value;
   guestPersistence?: GuestPreferencePersistence<Value>;
   clientCache?: PreferenceClientCache<Value>;
 };

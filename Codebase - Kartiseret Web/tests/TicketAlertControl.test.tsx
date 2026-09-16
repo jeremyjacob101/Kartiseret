@@ -33,6 +33,27 @@ function createSupabaseFixture() {
         const url = new URL(request.url);
 
         if (url.pathname.includes("/rpc/")) {
+          if (url.pathname.endsWith("/rpc/create_guest_ticket_alert")) {
+            const body = JSON.parse(await request.clone().text()) as {
+              p_email: string;
+              p_guest_token: string;
+              p_preferred_city: string;
+              p_tmdb_id: number;
+            };
+            return new Response(
+              JSON.stringify([
+                {
+                  tmdb_id: body.p_tmdb_id,
+                  created_at: "2026-09-16T12:00:00Z",
+                  notified_at: null,
+                  guest_token: body.p_guest_token,
+                  email: body.p_email,
+                  preferred_city: body.p_preferred_city,
+                },
+              ]),
+              { status: 200 },
+            );
+          }
           return new Response("null", { status: 200 });
         }
 
@@ -176,15 +197,16 @@ describe("TicketAlertControl", () => {
   });
 
   it("renders already-notified account alerts as terminal and disabled", () => {
+    const userId = "550e8400-e29b-41d4-a716-446655440000";
     useUserPreferencesStore.setState({
-      user: { id: "user-a" } as never,
+      user: { id: userId } as never,
     });
     const date = getJerusalemCinemaDate();
     queryClient.setQueryData(
       ticketAlertQueryKeys.availability("101", date),
       [],
     );
-    queryClient.setQueryData(ticketAlertQueryKeys.subscriptions("user-a"), [
+    queryClient.setQueryData(ticketAlertQueryKeys.subscriptions(userId), [
       {
         tmdbId: "101",
         createdAt: "2026-09-01T12:00:00Z",

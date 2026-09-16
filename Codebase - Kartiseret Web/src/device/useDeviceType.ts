@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { z } from "zod";
 
 export type DeviceType = "mobile" | "desktop";
 
@@ -8,11 +9,10 @@ export type DeviceInfo = {
   isDesktop: boolean;
 };
 
-type NavigatorWithUserAgentData = Navigator & {
-  userAgentData?: {
-    mobile?: boolean;
-  };
-};
+const userAgentDataSchema = z
+  .object({ mobile: z.boolean().optional() })
+  .passthrough();
+type NavigatorWithUserAgentData = Navigator & { userAgentData?: unknown };
 
 const MOBILE_USER_AGENT_PATTERN =
   /Android|webOS|iPhone|iPod|iPad|BlackBerry|IEMobile|Opera Mini/i;
@@ -32,9 +32,11 @@ function detectDeviceType(): DeviceType {
   }
 
   const { userAgent = "", platform = "", maxTouchPoints = 0 } = navigator;
-  const userAgentData = (navigator as NavigatorWithUserAgentData).userAgentData;
+  const userAgentData = userAgentDataSchema.safeParse(
+    (navigator as NavigatorWithUserAgentData).userAgentData,
+  );
 
-  if (userAgentData?.mobile === true) {
+  if (userAgentData.success && userAgentData.data.mobile === true) {
     return "mobile";
   }
 

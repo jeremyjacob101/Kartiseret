@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { z } from "zod";
 import { LogOut, User } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 import "./UserMenu.css";
@@ -13,6 +14,10 @@ type UserMenuProps = {
 };
 
 const supabase = getSupabaseBrowserClient();
+const authCredentialsSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Enter a valid email address."),
+  password: z.string().min(1, "Enter both email and password."),
+});
 
 export function UserMenu({
   panelDirection = "down",
@@ -68,12 +73,15 @@ export function UserMenu({
     setAuthMessage(null);
     setAuthError(null);
 
-    const trimmedEmail = email.trim().toLowerCase();
-
-    if (!trimmedEmail || !password) {
-      setAuthError("Enter both email and password.");
+    const credentials = authCredentialsSchema.safeParse({ email, password });
+    if (!credentials.success) {
+      setAuthError(
+        credentials.error.issues[0]?.message ?? "Enter valid credentials.",
+      );
       return;
     }
+    const { email: trimmedEmail, password: validatedPassword } =
+      credentials.data;
 
     setAuthPending(true);
 
@@ -81,7 +89,7 @@ export function UserMenu({
       const signupLocation = loadGuestLocation() ?? DEFAULT_LOCATION;
       const { data, error } = await supabase.auth.signUp({
         email: trimmedEmail,
-        password,
+        password: validatedPassword,
         options: {
           data: {
             [LOCATION_SIGNUP_METADATA_KEY]: signupLocation,
@@ -124,7 +132,7 @@ export function UserMenu({
 
     const { error } = await supabase.auth.signInWithPassword({
       email: trimmedEmail,
-      password,
+      password: validatedPassword,
     });
 
     setAuthPending(false);

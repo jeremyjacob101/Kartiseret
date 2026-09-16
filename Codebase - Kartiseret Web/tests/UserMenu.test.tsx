@@ -77,6 +77,7 @@ describe("UserMenu", () => {
     await user.click(screen.getByRole("button", { name: "Sign up or log in" }));
     const form = document.querySelector("form.user-menu-auth-form");
     expect(form).not.toBeNull();
+    await user.type(screen.getByLabelText("Email"), "user@example.com");
     fireEvent.submit(form!);
     expect(
       screen.getByText("Enter both email and password."),

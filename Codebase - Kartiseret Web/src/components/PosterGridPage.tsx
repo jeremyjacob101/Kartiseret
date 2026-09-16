@@ -3,6 +3,7 @@ import { Pencil } from "lucide-react";
 
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { type Movie } from "../data/movieCatalog";
+import { tmdbIdSchema } from "../validation/runtime";
 
 const POSTER_GRID_MIN_COLUMN_WIDTH_FALLBACK = 150;
 
@@ -326,31 +327,20 @@ export function PosterGridPage({
                     }
 
                     const normalizedManualValue = manualTmdbId.trim();
-                    const manualValueAsNumber = Number.parseInt(
-                      normalizedManualValue,
-                      10,
+                    const activeIdResult = tmdbIdSchema.safeParse(
+                      normalizedManualValue || selectedTmdbId,
                     );
-                    const hasValidManualValue =
-                      normalizedManualValue.length > 0 &&
-                      Number.isFinite(manualValueAsNumber) &&
-                      manualValueAsNumber > 0;
-                    const activeTmdbId = hasValidManualValue
-                      ? String(manualValueAsNumber)
-                      : selectedTmdbId;
 
-                    if (!activeTmdbId) {
-                      setError("Choose an option or enter a TMDB ID.");
+                    if (!activeIdResult.success) {
+                      setError(
+                        normalizedManualValue
+                          ? "Manual TMDB ID must be a positive integer."
+                          : "Choose an option or enter a TMDB ID.",
+                      );
                       return;
                     }
 
-                    if (
-                      normalizedManualValue.length > 0 &&
-                      !hasValidManualValue
-                    ) {
-                      setError("Manual TMDB ID must be a positive integer.");
-                      return;
-                    }
-
+                    const activeTmdbId = activeIdResult.data;
                     const selectedOption = editOptions.find(
                       (option) => option.tmdbId === activeTmdbId,
                     );

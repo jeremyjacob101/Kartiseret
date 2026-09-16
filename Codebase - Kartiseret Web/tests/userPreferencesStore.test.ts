@@ -5,7 +5,7 @@ import { getSupabaseBrowserClient } from "../src/lib/supabase";
 vi.mock("../src/lib/supabase", () => ({ getSupabaseBrowserClient: vi.fn() }));
 
 const fixtureUser: User = {
-  id: "user-a",
+  id: "00000000-0000-4000-8000-000000000001",
   aud: "authenticated",
   email: "qa@example.test",
   created_at: "2026-09-01T12:00:00Z",
@@ -34,7 +34,7 @@ beforeEach(async () => {
   writes = [];
   pauseSaves = false;
   row = {
-    user_id: "user-a",
+    user_id: "00000000-0000-4000-8000-000000000001",
     rating_sources: ["imdbRating"],
     location: "Jerusalem",
     site_color: "#a66ae3",
@@ -106,15 +106,22 @@ describe("preference synchronization protocol", () => {
 
   it("does not overwrite an existing preference row from concurrent signup initialization", async () => {
     await initialize();
-    await storeModule.persistSignupPreferenceDefaults("user-a", "Haifa", {
-      onlyIfMissing: true,
-    });
+    await storeModule.persistSignupPreferenceDefaults(
+      "00000000-0000-4000-8000-000000000001",
+      "Haifa",
+      {
+        onlyIfMissing: true,
+      },
+    );
     expect(row?.location).toBe("Jerusalem");
   });
 
   it("preserves explicit instant-signup location initialization for trigger-created rows", async () => {
     await initialize();
-    await storeModule.persistSignupPreferenceDefaults("user-a", "Haifa");
+    await storeModule.persistSignupPreferenceDefaults(
+      "00000000-0000-4000-8000-000000000001",
+      "Haifa",
+    );
     expect(row?.location).toBe("Haifa");
   });
 

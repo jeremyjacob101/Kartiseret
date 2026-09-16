@@ -88,8 +88,6 @@ const baseMovieRow = {
   popularity: "42.5",
   alt_options: [
     { tmdb: "202", title: " Alt Movie ", year: "2027", poster_url: "alt.jpg" },
-    { tmdb: "", title: "Invalid" },
-    null,
   ],
 };
 

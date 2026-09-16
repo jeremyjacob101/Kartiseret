@@ -1,10 +1,17 @@
+import { z } from "zod";
 import type { UserPreferenceDefinition } from "./shared";
 
-export type SiteColor = string;
-export type SiteColorOption = {
-  label: string;
-  value: SiteColor;
-};
+export const siteColorSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(/^#[\da-f]{6}$/);
+export const siteColorOptionSchema = z.object({
+  label: z.string().min(1),
+  value: siteColorSchema,
+});
+export type SiteColor = z.infer<typeof siteColorSchema>;
+export type SiteColorOption = z.infer<typeof siteColorOptionSchema>;
 
 export const DEFAULT_SITE_COLOR: SiteColor = "#a66ae3";
 export const SITE_COLOR_PREFERENCE_KEY = "siteColor";
@@ -26,23 +33,12 @@ const CACHED_SITE_COLOR_KEY = "cached_site_color_v1";
 const SITE_COLOR_TRANSITIONS_ENABLED_CLASS = "site-color-transitions-enabled";
 const SITE_COLOR_INITIALIZED_ATTRIBUTE = "data-site-color-initialized";
 
-const SIX_DIGIT_HEX_COLOR = /^#([\da-f]{6})$/i;
-
 export function normalizeSiteColor(
   value: unknown,
   fallback: SiteColor = DEFAULT_SITE_COLOR,
 ): SiteColor {
-  if (typeof value !== "string") {
-    return fallback;
-  }
-
-  const normalizedValue = value.trim().toLowerCase();
-
-  if (SIX_DIGIT_HEX_COLOR.test(normalizedValue)) {
-    return normalizedValue;
-  }
-
-  return fallback;
+  const result = siteColorSchema.safeParse(value);
+  return result.success ? result.data : fallback;
 }
 
 export function loadCachedSiteColor(): SiteColor | null {
@@ -108,19 +104,17 @@ export function applySiteColor(siteColor: SiteColor): void {
     return;
   }
 
-  const normalizedColor = normalizeSiteColor(siteColor, DEFAULT_SITE_COLOR);
   const root = document.documentElement;
   initializeSiteColorTheme();
-  setSiteColorVariables(root, normalizedColor);
+  setSiteColorVariables(root, siteColor);
 }
 
 export function getSiteColorLabel(siteColor: SiteColor): string {
-  const normalizedColor = normalizeSiteColor(siteColor, DEFAULT_SITE_COLOR);
   const matchingOption = SITE_COLOR_OPTIONS.find(
-    (option) => option.value === normalizedColor,
+    (option) => option.value === siteColor,
   );
 
-  return matchingOption?.label ?? normalizedColor.toUpperCase();
+  return matchingOption?.label ?? siteColor.toUpperCase();
 }
 
 export const siteColorPreferenceDefinition: UserPreferenceDefinition<
@@ -132,8 +126,8 @@ export const siteColorPreferenceDefinition: UserPreferenceDefinition<
   column: SITE_COLOR_PREFERENCE_COLUMN,
   defaultValue: DEFAULT_SITE_COLOR,
   options: SITE_COLOR_OPTIONS,
-  copy: (value) => normalizeSiteColor(value, DEFAULT_SITE_COLOR),
-  normalize: (value) => normalizeSiteColor(value, DEFAULT_SITE_COLOR),
+  copy: (value) => value,
+  parse: (value) => normalizeSiteColor(value, DEFAULT_SITE_COLOR),
   clientCache: {
     load: loadCachedSiteColor,
     save: saveCachedSiteColor,

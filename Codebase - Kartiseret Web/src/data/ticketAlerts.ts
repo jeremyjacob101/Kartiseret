@@ -1,17 +1,21 @@
 import { mutationOptions, queryOptions, skipToken, type QueryClient } from "@tanstack/react-query";
 import { getShowtimeSortValue, shouldIncludeShowtime } from "../domain/showtimeDay";
-import { isValidTicketAlertEmail, normalizeTicketAlertEmail, normalizeTicketAlertTmdbId } from "../domain/ticketAlerts";
+import { normalizeTicketAlertTmdbId } from "../domain/ticketAlerts";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 import { queryClient } from "../lib/queryClient";
-import { buildMovieShowtimeShareUrl, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "../routing/showtimeLinkCodec";
+import { buildMovieShowtimeSharePath, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "../routing/showtimeLinkCodec";
 import { getOrCreateGuestTicketAlertToken, readGuestTicketAlertToken, useGuestTicketAlertsStore } from "../stores/guestTicketAlertsStore";
+import { isoDateStringSchema, movieCodeSchema, parseBoundary } from "../validation/runtime";
+import { supabaseUserIdSchema } from "../lib/supabaseSchemas";
+import { cancelledGuestTicketAlertCountSchema, guestTicketAlertResponseSchema, guestTicketAlertInputSchema, ticketAlertChangeSchema, ticketAlertMovieIdSchema, ticketAlertShowtimePageSchema, ticketAlertShowtimeRowSchema, userTicketAlertSubscriptionRowSchema, type TicketAlertChange, type TicketAlertShowtime, type UserTicketAlertSubscription } from "./ticketAlertSchemas";
+
+export type { UserTicketAlertSubscription } from "./ticketAlertSchemas";
 
 const TICKET_ALERTS_TABLE_NAME = "ticket_alert_subscriptions";
 const SHOWTIMES_TABLE_NAME = "finalShowtimes";
 const SUBSCRIPTION_COLUMNS =
-  "tmdb_id,created_at,notified_at,delivery_title,delivery_date";
+  "user_id,tmdb_id,created_at,notified_at,delivery_title,delivery_date";
 const SUPABASE_PAGE_SIZE = 1_000;
-const MOVIE_CODE_PATTERN = /^[0-9A-Za-z]{3}$/;
 const TICKET_ALERT_STALE_TIME = 60 * 1000;
 const TICKET_ALERT_GC_TIME = 5 * 60 * 1000;
 
@@ -25,42 +29,29 @@ export type TicketAlertShowtimeRow = {
   english_href?: string | null;
   hebrew_href?: string | null;
 };
-
-export type TicketAlertAvailability = {
-  city: string;
-  cinema: string;
-  date: string;
-  time: string;
-  ticketHref: string;
-  path: string;
-};
-
-export type UserTicketAlertSubscription = {
-  tmdbId: string;
-  createdAt: string;
-  notifiedAt: string | null;
-  deliveryTitle: string | null;
-  deliveryDate: string | null;
-};
-
-type TicketAlertSubscriptionRow = {
-  tmdb_id: string | number;
-  created_at: string;
-  notified_at: string | null;
-  delivery_title?: string | null;
-  delivery_date?: string | null;
-};
-
-type TicketAlertChange =
-
-    | { action: "cancel" }
-    | { action: "subscribe"; preferredCity: string; email?: string };
+export type TicketAlertAvailability = TicketAlertShowtime & { path: string };
 
 type TicketAlertChangeResult =
 
     | { kind: "available" }
     | { kind: "account"; subscription: UserTicketAlertSubscription | null }
     | { kind: "guest"; email: string | null };
+
+type ParsedUserTicketAlertRow = ReturnType<
+  typeof userTicketAlertSubscriptionRowSchema.parse
+>;
+
+function mapUserTicketAlertSubscriptionRow(
+  row: ParsedUserTicketAlertRow,
+): UserTicketAlertSubscription {
+  return {
+    tmdbId: row.tmdb_id,
+    createdAt: row.created_at,
+    notifiedAt: row.notified_at,
+    deliveryTitle: row.delivery_title,
+    deliveryDate: row.delivery_date,
+  };
+}
 
 export const ticketAlertQueryKeys = {
   all: ["ticketAlerts"] as const,
@@ -71,7 +62,14 @@ export const ticketAlertQueryKeys = {
     [
       "ticketAlerts",
       "availability",
-      { tmdbId: normalizeTicketAlertTmdbId(tmdbId), cinemaDate },
+      {
+        tmdbId: normalizeTicketAlertTmdbId(tmdbId),
+        cinemaDate: parseBoundary(
+          isoDateStringSchema,
+          cinemaDate,
+          "ticket alert cinema date",
+        ),
+      },
     ] as const,
   change: (userId: string | null, tmdbId: string) =>
     [
@@ -82,52 +80,17 @@ export const ticketAlertQueryKeys = {
     ] as const,
 };
 
-function normalizeText(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function normalizeShowtime(value: unknown): string | null {
-  const match = /^(\d{1,2}):(\d{2})/.exec(normalizeText(value));
-
-  if (!match) {
-    return null;
-  }
-
-  const hour = Number.parseInt(match[1] ?? "", 10);
-  const minute = Number.parseInt(match[2] ?? "", 10);
-
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
-    return null;
-  }
-
-  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-}
-
 export function getValidTicketHref(
-  row: Pick<TicketAlertShowtimeRow, "english_href" | "hebrew_href">,
+  row:
+    | Pick<TicketAlertShowtime, "ticketHref">
+    | Pick<TicketAlertShowtimeRow, "english_href" | "hebrew_href">,
 ): string | null {
-  for (const value of [row.english_href, row.hebrew_href]) {
-    const href = normalizeText(value);
-
-    if (!href) {
-      continue;
-    }
-
-    try {
-      const url = new URL(href);
-
-      if (
-        (url.protocol === "http:" || url.protocol === "https:") &&
-        Boolean(url.hostname)
-      ) {
-        return href;
-      }
-    } catch {
-      // Ignore source placeholders and malformed links.
-    }
+  if ("ticketHref" in row) {
+    return row.ticketHref || null;
   }
 
-  return null;
+  const result = ticketAlertShowtimeRowSchema.safeParse(row);
+  return result.success ? result.data.ticketHref : null;
 }
 
 type SelectedTicketShowtime = Omit<TicketAlertAvailability, "path">;
@@ -146,35 +109,32 @@ function compareSelectedShowtimes(
 }
 
 export function selectTicketAlertShowtime(
-  rows: readonly TicketAlertShowtimeRow[],
+  rows: readonly (TicketAlertShowtime | TicketAlertShowtimeRow)[],
   preferredCity: string,
   instant: Date = new Date(),
 ): SelectedTicketShowtime | null {
   let earliestPreferred: SelectedTicketShowtime | null = null;
   let earliestAnywhere: SelectedTicketShowtime | null = null;
 
-  for (const row of rows) {
-    const city = normalizeText(row.screening_city);
-    const date = normalizeText(row.date_of_showing);
-    const time = normalizeShowtime(row.showtime);
-    const ticketHref = getValidTicketHref(row);
-
-    if (
-      !city ||
-      !date ||
-      !time ||
-      !ticketHref ||
-      !shouldIncludeShowtime(date, time, instant)
-    ) {
+  for (const candidateRow of rows) {
+    const row =
+      "city" in candidateRow && "ticketHref" in candidateRow
+        ? candidateRow
+        : (() => {
+            const result = ticketAlertShowtimeRowSchema.safeParse(candidateRow);
+            return result.success ? result.data : null;
+          })();
+    if (!row) continue;
+    if (!shouldIncludeShowtime(row.date, row.time, instant)) {
       continue;
     }
 
     const candidate: SelectedTicketShowtime = {
-      city,
-      cinema: normalizeText(row.cinema),
-      date,
-      time,
-      ticketHref,
+      city: row.city,
+      cinema: row.cinema,
+      date: row.date,
+      time: row.time,
+      ticketHref: row.ticketHref,
     };
 
     if (
@@ -185,7 +145,7 @@ export function selectTicketAlertShowtime(
     }
 
     if (
-      city === preferredCity &&
+      row.city === preferredCity &&
       (!earliestPreferred ||
         compareSelectedShowtimes(candidate, earliestPreferred) < 0)
     ) {
@@ -201,11 +161,12 @@ export function buildTicketAlertShowtimePath(
   showtime: Pick<SelectedTicketShowtime, "city" | "date">,
   instant: Date = new Date(),
 ): string {
-  if (!movieCode || !MOVIE_CODE_PATTERN.test(movieCode)) {
+  const movieCodeResult = movieCodeSchema.safeParse(movieCode);
+  if (!movieCodeResult.success) {
     return "/showtimes";
   }
 
-  const plainMoviePath = `/${movieCode}`;
+  const plainMoviePath = `/${movieCodeResult.data}`;
   const cinemaToday = getJerusalemCinemaDate(instant);
 
   if (!isDateInShowtimeLinkWindow(showtime.date, cinemaToday)) {
@@ -213,20 +174,17 @@ export function buildTicketAlertShowtimePath(
   }
 
   return (
-    buildMovieShowtimeShareUrl(
-      {
-        movieCode,
-        city: showtime.city,
-        date: showtime.date,
-        filterMask: 0,
-      },
-      "",
-    ) ?? plainMoviePath
+    buildMovieShowtimeSharePath({
+      movieCode: movieCodeResult.data,
+      city: showtime.city,
+      date: showtime.date,
+      filterMask: 0,
+    }) ?? plainMoviePath
   );
 }
 
 export function selectTicketAlertAvailability(
-  rows: readonly TicketAlertShowtimeRow[],
+  rows: readonly (TicketAlertShowtime | TicketAlertShowtimeRow)[],
   preferredCity: string,
   movieCode?: string,
   instant: Date = new Date(),
@@ -244,9 +202,9 @@ async function fetchLinkedShowtimeRows(
   tmdbId: string,
   cinemaDate: string,
   signal: AbortSignal,
-): Promise<TicketAlertShowtimeRow[]> {
+): Promise<TicketAlertShowtime[]> {
   const supabase = getSupabaseBrowserClient();
-  const allRows: TicketAlertShowtimeRow[] = [];
+  const allRows: TicketAlertShowtime[] = [];
   let fromIndex = 0;
 
   while (true) {
@@ -267,31 +225,29 @@ async function fetchLinkedShowtimeRows(
       throw new Error(`Could not check ticket availability: ${error.message}`);
     }
 
-    const rows = (data ?? []) as TicketAlertShowtimeRow[];
+    const rawRows = data ?? [];
+    const rows = parseBoundary(
+      ticketAlertShowtimePageSchema,
+      rawRows,
+      "ticket availability response",
+    ).filter((row): row is TicketAlertShowtime => row !== null);
     allRows.push(...rows);
-    if (rows.length < SUPABASE_PAGE_SIZE) {
+    if (rawRows.length < SUPABASE_PAGE_SIZE) {
       return allRows;
     }
     fromIndex += SUPABASE_PAGE_SIZE;
   }
 }
 
-function normalizeSubscription(
-  row: TicketAlertSubscriptionRow,
-): UserTicketAlertSubscription {
-  return {
-    tmdbId: normalizeTicketAlertTmdbId(String(row.tmdb_id)),
-    createdAt: row.created_at,
-    notifiedAt: row.notified_at,
-    deliveryTitle: row.delivery_title ?? null,
-    deliveryDate: row.delivery_date ?? null,
-  };
-}
-
 async function fetchUserTicketAlertSubscriptions(
   userId: string,
   signal: AbortSignal,
 ): Promise<UserTicketAlertSubscription[]> {
+  const validatedUserId = parseBoundary(
+    supabaseUserIdSchema,
+    userId,
+    "ticket alert user ID",
+  );
   const supabase = getSupabaseBrowserClient();
   const alerts: UserTicketAlertSubscription[] = [];
   let fromIndex = 0;
@@ -300,7 +256,7 @@ async function fetchUserTicketAlertSubscriptions(
     const { data, error } = await supabase
       .from(TICKET_ALERTS_TABLE_NAME)
       .select(SUBSCRIPTION_COLUMNS)
-      .eq("user_id", userId)
+      .eq("user_id", validatedUserId)
       .order("created_at", { ascending: false })
       .order("tmdb_id", { ascending: true })
       .range(fromIndex, fromIndex + SUPABASE_PAGE_SIZE - 1)
@@ -310,9 +266,18 @@ async function fetchUserTicketAlertSubscriptions(
       throw new Error(`Could not load your ticket alerts: ${error.message}`);
     }
 
-    const rows = (data ?? []) as TicketAlertSubscriptionRow[];
-    alerts.push(...rows.map(normalizeSubscription));
-    if (rows.length < SUPABASE_PAGE_SIZE) {
+    const parsedRows = parseBoundary(
+      userTicketAlertSubscriptionRowSchema.array(),
+      data ?? [],
+      "ticket alert subscription response",
+    );
+    if (parsedRows.some((row) => row.user_id !== validatedUserId)) {
+      throw new Error(
+        "Ticket alert response contained another user's subscription.",
+      );
+    }
+    alerts.push(...parsedRows.map(mapUserTicketAlertSubscriptionRow));
+    if ((data ?? []).length < SUPABASE_PAGE_SIZE) {
       return alerts;
     }
     fromIndex += SUPABASE_PAGE_SIZE;
@@ -324,10 +289,18 @@ export function ticketAlertAvailabilityQueryOptions(
   cinemaDate = getJerusalemCinemaDate(),
 ) {
   const normalizedTmdbId = normalizeTicketAlertTmdbId(tmdbId);
+  const normalizedCinemaDate = parseBoundary(
+    isoDateStringSchema,
+    cinemaDate,
+    "ticket alert cinema date",
+  );
   return queryOptions({
-    queryKey: ticketAlertQueryKeys.availability(normalizedTmdbId, cinemaDate),
+    queryKey: ticketAlertQueryKeys.availability(
+      normalizedTmdbId,
+      normalizedCinemaDate,
+    ),
     queryFn: ({ signal }) =>
-      fetchLinkedShowtimeRows(normalizedTmdbId, cinemaDate, signal),
+      fetchLinkedShowtimeRows(normalizedTmdbId, normalizedCinemaDate, signal),
     staleTime: TICKET_ALERT_STALE_TIME,
     gcTime: TICKET_ALERT_GC_TIME,
   });
@@ -336,10 +309,14 @@ export function ticketAlertAvailabilityQueryOptions(
 export function userTicketAlertSubscriptionsQueryOptions(
   userId: string | null,
 ) {
+  const normalizedUserId = userId
+    ? parseBoundary(supabaseUserIdSchema, userId, "ticket alert user ID")
+    : null;
   return queryOptions({
-    queryKey: ticketAlertQueryKeys.subscriptions(userId),
-    queryFn: userId
-      ? ({ signal }) => fetchUserTicketAlertSubscriptions(userId, signal)
+    queryKey: ticketAlertQueryKeys.subscriptions(normalizedUserId),
+    queryFn: normalizedUserId
+      ? ({ signal }) =>
+          fetchUserTicketAlertSubscriptions(normalizedUserId, signal)
       : skipToken,
     staleTime: TICKET_ALERT_STALE_TIME,
     gcTime: TICKET_ALERT_GC_TIME,
@@ -375,8 +352,13 @@ export function invalidateUserTicketAlertQueries(
   client: QueryClient,
   userId: string,
 ) {
+  const validatedUserId = parseBoundary(
+    supabaseUserIdSchema,
+    userId,
+    "ticket alert user ID",
+  );
   return client.invalidateQueries({
-    queryKey: ticketAlertQueryKeys.subscriptions(userId),
+    queryKey: ticketAlertQueryKeys.subscriptions(validatedUserId),
     exact: true,
   });
 }
@@ -387,15 +369,27 @@ async function changeTicketAlert(
   tmdbId: string,
   change: TicketAlertChange,
 ): Promise<TicketAlertChangeResult> {
+  const validatedUserId = userId
+    ? parseBoundary(supabaseUserIdSchema, userId, "ticket alert user ID")
+    : null;
+  const parsedChange = parseBoundary(
+    ticketAlertChangeSchema,
+    change,
+    "ticket alert mutation input",
+  );
+  const numericTmdbId = parseBoundary(
+    ticketAlertMovieIdSchema,
+    tmdbId,
+    "ticket alert movie ID",
+  );
   const supabase = getSupabaseBrowserClient();
-  const numericTmdbId = Number(tmdbId);
 
-  if (change.action === "cancel") {
-    if (userId) {
+  if (parsedChange.action === "cancel") {
+    if (validatedUserId) {
       const { error } = await supabase
         .from(TICKET_ALERTS_TABLE_NAME)
         .delete()
-        .eq("user_id", userId)
+        .eq("user_id", validatedUserId)
         .eq("tmdb_id", numericTmdbId);
       if (error) {
         throw new Error(`Could not cancel this ticket alert: ${error.message}`);
@@ -405,24 +399,42 @@ async function changeTicketAlert(
 
     const guestToken = readGuestTicketAlertToken();
     if (guestToken) {
-      const { error } = await supabase.rpc("cancel_guest_ticket_alert", {
+      const { data, error } = await supabase.rpc("cancel_guest_ticket_alert", {
         p_guest_token: guestToken,
         p_tmdb_id: numericTmdbId,
       });
       if (error) {
         throw new Error(`Could not cancel this ticket alert: ${error.message}`);
       }
+      parseBoundary(
+        cancelledGuestTicketAlertCountSchema,
+        data,
+        "guest ticket alert cancellation response",
+      );
+      return { kind: "guest", email: null };
+    }
+
+    if (useGuestTicketAlertsStore.getState().receipts[String(numericTmdbId)]) {
+      throw new Error(
+        "Guest ticket alert credentials are unavailable in this browser.",
+      );
     }
     return { kind: "guest", email: null };
   }
 
-  const email = normalizeTicketAlertEmail(change.email ?? "");
-  if (!userId && !isValidTicketAlertEmail(email)) {
-    throw new Error("Enter a valid email address for this alert.");
-  }
+  const guestChange = validatedUserId
+    ? null
+    : parseBoundary(
+        guestTicketAlertInputSchema,
+        {
+          tmdbId,
+          preferredCity: parsedChange.preferredCity,
+          email: parsedChange.email,
+        },
+        "guest ticket alert input",
+      );
+  const email = guestChange?.email ?? parsedChange.email;
 
-  // Recheck before writing. These are the same Query-owned reads used by the UI,
-  // not a second request/promise cache.
   const instant = new Date();
   const [showtimes, alerts] = await Promise.all([
     client.fetchQuery({
@@ -432,19 +444,21 @@ async function changeTicketAlert(
       ),
       staleTime: 0,
     }),
-    userId
+    validatedUserId
       ? client.fetchQuery({
-          ...userTicketAlertSubscriptionsQueryOptions(userId),
+          ...userTicketAlertSubscriptionsQueryOptions(validatedUserId),
           staleTime: 0,
         })
-      : Promise.resolve([]),
+      : Promise.resolve([] as UserTicketAlertSubscription[]),
   ]);
 
-  if (selectTicketAlertShowtime(showtimes, change.preferredCity, instant)) {
+  if (
+    selectTicketAlertShowtime(showtimes, parsedChange.preferredCity, instant)
+  ) {
     return { kind: "available" };
   }
 
-  if (userId) {
+  if (validatedUserId) {
     const existing = selectUserTicketAlert(alerts, tmdbId);
     if (existing) {
       return { kind: "account", subscription: existing };
@@ -452,13 +466,13 @@ async function changeTicketAlert(
 
     const { data, error } = await supabase
       .from(TICKET_ALERTS_TABLE_NAME)
-      .insert({ user_id: userId, tmdb_id: numericTmdbId })
+      .insert({ user_id: validatedUserId, tmdb_id: numericTmdbId })
       .select(SUBSCRIPTION_COLUMNS)
       .single();
 
     if (error?.code === "23505") {
       const current = await client.fetchQuery({
-        ...userTicketAlertSubscriptionsQueryOptions(userId),
+        ...userTicketAlertSubscriptionsQueryOptions(validatedUserId),
         staleTime: 0,
       });
       return {
@@ -469,22 +483,40 @@ async function changeTicketAlert(
     if (error) {
       throw new Error(`Could not create this ticket alert: ${error.message}`);
     }
+
+    const [insertedRow] = parseBoundary(
+      userTicketAlertSubscriptionRowSchema.array(),
+      [data],
+      "ticket alert subscription insert response",
+    );
+    if (!insertedRow || insertedRow.user_id !== validatedUserId) {
+      throw new Error("Ticket alert insert response did not match this user.");
+    }
     return {
       kind: "account",
-      subscription: normalizeSubscription(data as TicketAlertSubscriptionRow),
+      subscription: mapUserTicketAlertSubscriptionRow(insertedRow),
     };
   }
 
-  const { error } = await supabase.rpc("create_guest_ticket_alert", {
-    p_guest_token: getOrCreateGuestTicketAlertToken(),
+  const guestToken = getOrCreateGuestTicketAlertToken();
+  const { data, error } = await supabase.rpc("create_guest_ticket_alert", {
+    p_guest_token: guestToken,
     p_tmdb_id: numericTmdbId,
     p_email: email,
-    p_preferred_city: change.preferredCity.trim(),
+    p_preferred_city: parsedChange.preferredCity,
   });
   if (error) {
     throw new Error(`Could not create this ticket alert: ${error.message}`);
   }
-  return { kind: "guest", email };
+  const [response] = parseBoundary(
+    guestTicketAlertResponseSchema,
+    data,
+    "guest ticket alert creation response",
+  );
+  if (!response || response.guest_token !== guestToken) {
+    throw new Error("Guest ticket alert response did not match this browser.");
+  }
+  return { kind: "guest", email: response.email };
 }
 
 export function ticketAlertMutationOptions(
@@ -501,15 +533,20 @@ export function ticketAlertMutationOptions(
     mutationFn: (change: TicketAlertChange) =>
       changeTicketAlert(client, userId, id, change),
     onSuccess: async (result) => {
+      const store = useGuestTicketAlertsStore.getState();
       if (result.kind === "guest") {
-        const store = useGuestTicketAlertsStore.getState();
         if (result.email === null) {
           store.removeReceipt(id);
         } else {
           store.saveReceipt(id, result.email);
         }
       } else if (result.kind === "account" && userId) {
-        const queryKey = ticketAlertQueryKeys.subscriptions(userId);
+        const validatedUserId = parseBoundary(
+          supabaseUserIdSchema,
+          userId,
+          "ticket alert user ID",
+        );
+        const queryKey = ticketAlertQueryKeys.subscriptions(validatedUserId);
         await client.cancelQueries({ queryKey, exact: true });
         client.setQueryData<UserTicketAlertSubscription[]>(queryKey, (
           current,
@@ -517,7 +554,7 @@ export function ticketAlertMutationOptions(
           current
             ? mergeUserTicketAlert(current, id, result.subscription)
             : undefined);
-        await invalidateUserTicketAlertQueries(client, userId);
+        await invalidateUserTicketAlertQueries(client, validatedUserId);
       }
     },
   });
