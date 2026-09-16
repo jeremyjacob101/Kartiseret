@@ -13,7 +13,9 @@ import { type MovieSearchResult } from "./components/MovieSearchMenu";
 import { adminStatusQueryOptions } from "./data/adminStatus";
 import { adminMovieEditMutationOptions, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, movieCollectionQueryOptions, reloadComingSoonMovies, reloadNowPlayingMovies, showtimeCityQueryOptions, type Movie } from "./data/movieCatalog";
 import { useDeviceStore } from "./device/useDeviceType";
+import { PasswordResetPage } from "./components/PasswordResetPage";
 import { initializeUserPreferencesStore, useUserPreferencesStore } from "./stores/userPreferencesStore";
+import { PASSWORD_RESET_PATH } from "./lib/authRoutes";
 import { queryClient } from "./lib/queryClient";
 import { movieCodeSchema } from "./validation/runtime";
 import "./index.css";
@@ -34,6 +36,7 @@ const FIXED_APP_PATHS = new Set([
   "/soons",
   "/user",
   "/attribution",
+  PASSWORD_RESET_PATH,
 ]);
 const loadUserPreferencesPage = () =>
   import("./components/UserPreferencesPage");
@@ -288,7 +291,10 @@ export function App() {
     ...adminStatusQueryOptions(user?.id ?? null),
     enabled: Boolean(user),
   });
-  const shouldLoadCatalog = pathname !== "/user" && pathname !== "/attribution";
+  const shouldLoadCatalog =
+    pathname !== "/user" &&
+    pathname !== "/attribution" &&
+    pathname !== PASSWORD_RESET_PATH;
   const nowPlayingQuery = useQuery({
     ...movieCollectionQueryOptions("nowPlaying"),
     enabled: shouldLoadCatalog,
@@ -407,6 +413,7 @@ export function App() {
       pathname === "/showtimes" ||
       pathname === "/user" ||
       pathname === "/attribution" ||
+      pathname === PASSWORD_RESET_PATH ||
       isPotentialStandaloneMoviePath(pathname) ||
       !nowPlayingReady ||
       !comingSoonReady ||
@@ -755,6 +762,14 @@ export function App() {
             }
           />
           <Route path="/user" element={<UserRoute user={user} />} />
+          <Route
+            path={PASSWORD_RESET_PATH}
+            element={
+              <section className="page-panel">
+                <PasswordResetPage />
+              </section>
+            }
+          />
           <Route
             path="/attribution"
             element={

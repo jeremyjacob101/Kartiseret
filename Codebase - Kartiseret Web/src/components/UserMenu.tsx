@@ -3,20 +3,26 @@ import { z } from "zod";
 import { LogOut, User } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 import "./UserMenu.css";
+import { getPasswordResetRedirectUrl } from "../lib/authRoutes";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 import { OPEN_AUTH_MENU_EVENT } from "../lib/authMenu";
 import { DEFAULT_LOCATION, loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY } from "../prefs/definitions/locations";
 import { persistSignupPreferenceDefaults, useUserPreferencesStore } from "../stores/userPreferencesStore";
 
-type AuthMode = "login" | "signup";
+type AuthMode = "login" | "signup" | "forgotPassword";
 type UserMenuProps = {
   panelDirection?: "down" | "up";
   triggerTabIndex?: number;
 };
 
 const supabase = getSupabaseBrowserClient();
+const emailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .email("Enter a valid email address.");
 const authCredentialsSchema = z.object({
-  email: z.string().trim().toLowerCase().email("Enter a valid email address."),
+  email: emailSchema,
   password: z.string().min(1, "Enter both email and password."),
 });
 
@@ -90,7 +96,39 @@ export function UserMenu({
     setAuthMessage(null);
     setAuthError(null);
 
-    const credentials = authCredentialsSchema.safeParse({ email, password });
+    const emailResult = emailSchema.safeParse(email);
+    if (!emailResult.success) {
+      setAuthError(
+        emailResult.error.issues[0]?.message ?? "Enter a valid email address.",
+      );
+      return;
+    }
+
+    if (authMode === "forgotPassword") {
+      setAuthPending(true);
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        emailResult.data,
+        { redirectTo: getPasswordResetRedirectUrl() },
+      );
+
+      setAuthPending(false);
+
+      if (error) {
+        setAuthError(error.message);
+        return;
+      }
+
+      setPassword("");
+      setAuthMessage(
+        "If an account exists for that email, you’ll receive a reset link.",
+      );
+      return;
+    }
+
+    const credentials = authCredentialsSchema.safeParse({
+      email: emailResult.data,
+      password,
+    });
     if (!credentials.success) {
       setAuthError(
         credentials.error.issues[0]?.message ?? "Enter valid credentials.",
@@ -215,38 +253,52 @@ export function UserMenu({
 
           {!user ? (
             <form className="user-menu-auth-form" onSubmit={handleAuthSubmit}>
-              <div
-                className="user-menu-auth-toggle"
-                role="tablist"
-                aria-label="Auth mode"
-              >
+              {authMode === "forgotPassword" ? (
                 <button
                   type="button"
-                  className={`user-menu-mode${authMode === "login" ? " is-active" : ""}`}
-                  role="tab"
-                  aria-selected={authMode === "login"}
+                  className="user-menu-back-link"
                   onClick={() => {
                     setAuthMode("login");
                     setAuthMessage(null);
                     setAuthError(null);
                   }}
                 >
-                  Log in
+                  Back to log in
                 </button>
-                <button
-                  type="button"
-                  className={`user-menu-mode${authMode === "signup" ? " is-active" : ""}`}
-                  role="tab"
-                  aria-selected={authMode === "signup"}
-                  onClick={() => {
-                    setAuthMode("signup");
-                    setAuthMessage(null);
-                    setAuthError(null);
-                  }}
+              ) : (
+                <div
+                  className="user-menu-auth-toggle"
+                  role="tablist"
+                  aria-label="Auth mode"
                 >
-                  Sign up
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    className={`user-menu-mode${authMode === "login" ? " is-active" : ""}`}
+                    role="tab"
+                    aria-selected={authMode === "login"}
+                    onClick={() => {
+                      setAuthMode("login");
+                      setAuthMessage(null);
+                      setAuthError(null);
+                    }}
+                  >
+                    Log in
+                  </button>
+                  <button
+                    type="button"
+                    className={`user-menu-mode${authMode === "signup" ? " is-active" : ""}`}
+                    role="tab"
+                    aria-selected={authMode === "signup"}
+                    onClick={() => {
+                      setAuthMode("signup");
+                      setAuthMessage(null);
+                      setAuthError(null);
+                    }}
+                  >
+                    Sign up
+                  </button>
+                </div>
+              )}
 
               <label className="user-menu-field">
                 <span>Email</span>
@@ -262,22 +314,31 @@ export function UserMenu({
                 />
               </label>
 
-              <label className="user-menu-field">
-                <span>Password</span>
-                <input
-                  type="password"
-                  autoComplete={
-                    authMode === "signup" ? "new-password" : "current-password"
-                  }
-                  value={password}
-                  onChange={(event) => {
-                    setPassword(event.target.value);
-                  }}
-                  placeholder="••••••••"
-                  minLength={6}
-                  required
-                />
-              </label>
+              {authMode === "forgotPassword" ? (
+                <p className="user-menu-form-note">
+                  Enter your email and we&apos;ll send a password reset link if
+                  an account exists.
+                </p>
+              ) : (
+                <label className="user-menu-field">
+                  <span>Password</span>
+                  <input
+                    type="password"
+                    autoComplete={
+                      authMode === "signup"
+                        ? "new-password"
+                        : "current-password"
+                    }
+                    value={password}
+                    onChange={(event) => {
+                      setPassword(event.target.value);
+                    }}
+                    placeholder="••••••••"
+                    minLength={6}
+                    required
+                  />
+                </label>
+              )}
 
               <button
                 type="submit"
@@ -287,11 +348,30 @@ export function UserMenu({
                 {authPending
                   ? authMode === "signup"
                     ? "Creating..."
-                    : "Signing in..."
+                    : authMode === "forgotPassword"
+                      ? "Sending..."
+                      : "Signing in..."
                   : authMode === "signup"
                     ? "Create account"
-                    : "Log in"}
+                    : authMode === "forgotPassword"
+                      ? "Send reset link"
+                      : "Log in"}
               </button>
+
+              {authMode === "login" ? (
+                <button
+                  type="button"
+                  className="user-menu-forgot-link"
+                  onClick={() => {
+                    setAuthMode("forgotPassword");
+                    setPassword("");
+                    setAuthMessage(null);
+                    setAuthError(null);
+                  }}
+                >
+                  Forgot password?
+                </button>
+              ) : null}
             </form>
           ) : (
             <div className="user-menu-authenticated">

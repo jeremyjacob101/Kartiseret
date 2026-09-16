@@ -11,6 +11,7 @@ const { supabaseMock } = vi.hoisted(() => ({
     auth: {
       signInWithPassword: vi.fn(),
       signUp: vi.fn(),
+      resetPasswordForEmail: vi.fn(),
       signOut: vi.fn(),
     },
   },
@@ -50,6 +51,7 @@ beforeEach(() => {
     data: { session: null, user: null },
     error: null,
   });
+  supabaseMock.auth.resetPasswordForEmail.mockResolvedValue({ error: null });
   supabaseMock.auth.signOut.mockResolvedValue({ error: null });
   useUserPreferencesStore.setState({
     user: null,
@@ -133,6 +135,29 @@ describe("UserMenu", () => {
     expect(
       screen.getByText(
         "Account created. Check your email to confirm, then log in.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("requests password resets without requiring a password or revealing account existence", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await user.click(screen.getByRole("button", { name: "Sign up or log in" }));
+    await user.click(screen.getByRole("button", { name: "Forgot password?" }));
+    expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Email"), " USER@Example.COM ");
+    await user.click(screen.getByRole("button", { name: "Send reset link" }));
+
+    await waitFor(() =>
+      expect(supabaseMock.auth.resetPasswordForEmail).toHaveBeenCalledWith(
+        "user@example.com",
+        { redirectTo: `${window.location.origin}/reset-password` },
+      ));
+    expect(
+      screen.getByText(
+        "If an account exists for that email, you’ll receive a reset link.",
       ),
     ).toBeInTheDocument();
   });

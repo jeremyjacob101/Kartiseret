@@ -6,6 +6,7 @@ import "./UserPreferencesPage.css";
 import { loadCityLocationPicker } from "./maps/loadCityLocationPicker";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { UserTicketAlerts } from "./UserTicketAlerts";
+import { PasswordSecurityForm } from "./PasswordSecurityForm";
 import { type RatingSource } from "../prefs/definitions/ratingSources";
 import { type AppLocation } from "../prefs/definitions/locations";
 import { getSiteColorLabel, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
@@ -274,6 +275,15 @@ export function UserPreferencesPage() {
             key={user?.id ?? "guest"}
             userId={user?.id ?? null}
           />
+
+          {user ? (
+            <PasswordSecurityForm
+              description="Update the password used to sign in to Kartiseret."
+              requireCurrentPassword
+              submitLabel="Change password"
+              title="Change password"
+            />
+          ) : null}
         </div>
       </div>
       {error ? (
