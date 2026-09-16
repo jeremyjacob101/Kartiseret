@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Clapperboard, List, Search } from "lucide-react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Map as MapLibreMap, Marker, NavigationControl, Popup } from "maplibre-gl";
+import { Map as MapLibreMap, Marker, NavigationControl, Popup, setWorkerUrl } from "maplibre-gl";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { selectTheaters, theaterDataQueryOptions } from "../../data/theaters";
 import { type AppLocation } from "../../prefs/definitions/locations";
@@ -15,6 +16,8 @@ import { LOCATION_DISABLED_MESSAGE, LOCATION_UNSUPPORTED_MESSAGE, TheaterMapActi
 import "./CityLocationPicker.layout.css";
 import "./CityLocationPicker.markers.css";
 import "./CityLocationPicker.controls.css";
+
+setWorkerUrl(maplibreWorkerUrl);
 
 export type CityLocationPickerProps = {
   className?: string;
