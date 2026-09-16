@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router";
-import { z } from "zod";
+import { useShallow } from "zustand/react/shallow";
 
-import { findMovieByCode, isMovieShowtimeDateLoaded, isValidMovieCode, loadMovieShowtimesForDate, prefetchMovieShowtimesAfterDate } from "../data/movieCatalog";
+import { findMovieByCode, isMovieShowtimeDateCovered, isValidMovieCode, mergeMovieShowtimeRangeResult, prefetchMovieShowtimesAfterDate, showtimeCityQueryOptions, showtimeRangeQueryOptions, type ShowtimeRange } from "../data/movieCatalog";
 import { DEFAULT_LOCATION } from "../prefs/definitions/locations";
-import { useUserPreferencesContext } from "../prefs/useUserPreferences";
+import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { shareLink } from "../routing/shareLink";
 import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, getJerusalemCinemaDate, isDateInShowtimeLinkWindow, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "../routing/showtimeLinkCodec";
 import { getShowtimeFiltersSnapshot, saveShowtimeFilters, type ShowtimeFilterState } from "./showtimes/showtimeFilters";
@@ -12,17 +13,8 @@ import { MovieDetailsContent } from "./scroller/MovieDetailsContent";
 import "./scroller/MovieScroller.css";
 import "./MoviePage.css";
 
-const moviePageRouteParamsSchema = z.object({
-  movieCode: z.string().max(10).optional().default(""),
-});
-
 const MIDNIGHT_CHECK_INTERVAL_MS = 30_000;
 const SHARE_FEEDBACK_DURATION_MS = 2_200;
-
-function parseMoviePageRouteCode(routeParams: unknown): string {
-  const result = moviePageRouteParamsSchema.safeParse(routeParams);
-  return result.success ? result.data.movieCode : "";
-}
 
 type MoviePageProps = {
   catalogError: string | null;
@@ -42,18 +34,6 @@ type MoviePageQueryState = {
   filterMask: number;
   filterState: ShowtimeFilterState;
   mode: MovieRouteMode;
-};
-
-type ShowtimeRequestState = {
-  key: string;
-  loading: boolean;
-  error: string | null;
-};
-
-const IDLE_SHOWTIME_REQUEST: ShowtimeRequestState = {
-  key: "",
-  loading: false,
-  error: null,
 };
 
 function MoviePageState({ message, title }: MoviePageStateProps) {
@@ -147,17 +127,19 @@ function useJerusalemToday(): string {
 }
 
 export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
-  const { movieCode } = useParams();
-  const routeCode = useMemo(
-    () => parseMoviePageRouteCode({ movieCode }),
-    [movieCode],
-  );
+  const { movieCode: routeCode = "" } = useParams();
   const navigate = useNavigate();
   const {
     loading: preferencesLoading,
     location: preferenceLocation,
     setLocationPreference,
-  } = useUserPreferencesContext();
+  } = useUserPreferencesStore(
+    useShallow((state) => ({
+      loading: state.loading,
+      location: state.preferences.location,
+      setLocationPreference: state.setLocationPreference,
+    })),
+  );
   const today = useJerusalemToday();
   const todayRef = useRef(today);
   const candidateMovieCode = routeCode.slice(0, 3);
@@ -177,10 +159,44 @@ export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
     queryState?.movieCode === candidateMovieCode
       ? queryState
       : null;
-  const queryStateRef = useRef<MoviePageQueryState | null>(null);
-  const [showtimeRequest, setShowtimeRequest] = useState<ShowtimeRequestState>(
-    IDLE_SHOWTIME_REQUEST,
+  const activeShowtimeRange = useMemo(
+    () =>
+      activeQueryState && routeMovie
+        ? ({
+            city: activeQueryState.location,
+            startDate: activeQueryState.date,
+            endDate: activeQueryState.date,
+            tmdbId: routeMovie.tmdbId,
+          } satisfies ShowtimeRange & { tmdbId: string })
+        : null,
+    [activeQueryState, routeMovie],
   );
+  const { data: activeShowtimeCityData } = useQuery({
+    ...showtimeCityQueryOptions(
+      activeShowtimeRange?.city ?? preferenceLocation ?? DEFAULT_LOCATION,
+    ),
+    enabled: false,
+  });
+  const isActiveShowtimeDateLoaded = activeShowtimeRange
+    ? isMovieShowtimeDateCovered(
+        activeShowtimeCityData,
+        activeShowtimeRange.tmdbId,
+        activeShowtimeRange.startDate,
+      )
+    : false;
+  const exactShowtimeRange =
+    activeShowtimeRange ??
+    ({
+      city: DEFAULT_LOCATION,
+      startDate: today,
+      endDate: today,
+      tmdbId: "__inactive__",
+    } satisfies ShowtimeRange & { tmdbId: string });
+  const exactShowtimeQuery = useQuery({
+    ...showtimeRangeQueryOptions(exactShowtimeRange),
+    enabled: Boolean(activeShowtimeRange) && !isActiveShowtimeDateLoaded,
+  });
+  const queryStateRef = useRef<MoviePageQueryState | null>(null);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
   const shareFeedbackTimeoutRef = useRef<number | null>(null);
 
@@ -338,66 +354,22 @@ export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
   }, [catalogReady, movieTitle]);
 
   useEffect(() => {
-    const nowPlayingTmdbId =
-      routeCatalogMode === "nowPlaying" ? routeMovie?.tmdbId : null;
-
-    if (!nowPlayingTmdbId || !activeQueryState) {
+    if (!activeShowtimeRange || !exactShowtimeQuery.data) {
       return;
     }
 
-    const requestKey = [
-      activeQueryState.location,
-      nowPlayingTmdbId,
-      activeQueryState.date,
-    ].join(":");
-    let isActive = true;
-
-    void loadMovieShowtimesForDate(
-      activeQueryState.location,
-      nowPlayingTmdbId,
-      activeQueryState.date,
-    )
-      .then(() => {
-        if (isActive) {
-          setShowtimeRequest({
-            key: requestKey,
-            loading: false,
-            error: null,
-          });
-          void prefetchMovieShowtimesAfterDate(
-            activeQueryState.location,
-            nowPlayingTmdbId,
-            activeQueryState.date,
-          ).catch((error: unknown) => {
-            console.error(
-              "Failed to prefetch subsequent movie-page showtimes.",
-              error,
-            );
-          });
-        }
-      })
-      .catch((error: unknown) => {
-        if (!isActive) {
-          return;
-        }
-
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Could not load showtimes for this date.";
-
-        console.error("Failed to load movie-page showtimes.", error);
-        setShowtimeRequest({
-          key: requestKey,
-          loading: false,
-          error: message,
-        });
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [activeQueryState, routeCatalogMode, routeMovie?.tmdbId, today]);
+    mergeMovieShowtimeRangeResult(activeShowtimeRange, exactShowtimeQuery.data);
+    void prefetchMovieShowtimesAfterDate(
+      activeShowtimeRange.city,
+      activeShowtimeRange.tmdbId,
+      activeShowtimeRange.startDate,
+    ).catch((error: unknown) => {
+      console.error(
+        "Failed to prefetch subsequent movie-page showtimes.",
+        error,
+      );
+    });
+  }, [activeShowtimeRange, exactShowtimeQuery.data]);
 
   useEffect(
     () => () => {
@@ -570,27 +542,10 @@ export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
 
   const { movie, mode } = routeMatch;
   const titleId = `movie-page-title-${movie.movieCode ?? movie.tmdbId}`;
-  const requestKey = activeQueryState
-    ? [activeQueryState.location, movie.tmdbId, activeQueryState.date].join(":")
-    : "";
-  const isActiveShowtimeDateLoaded = activeQueryState
-    ? isMovieShowtimeDateLoaded(
-        activeQueryState.location,
-        movie.tmdbId,
-        activeQueryState.date,
-      )
-    : false;
-  const activeShowtimeRequest =
-    showtimeRequest.key === requestKey
-      ? showtimeRequest
-      : {
-          key: requestKey,
-          loading:
-            mode === "nowPlaying" &&
-            Boolean(queryState) &&
-            !isActiveShowtimeDateLoaded,
-          error: null,
-        };
+  const activeShowtimeError =
+    activeShowtimeRange && !isActiveShowtimeDateLoaded
+      ? exactShowtimeQuery.error
+      : null;
 
   return (
     <section className="movie-page" aria-labelledby={titleId}>
@@ -644,8 +599,18 @@ export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
                 ? handleShowtimeFilterStateChange
                 : undefined
             }
-            showtimeDateLoading={activeShowtimeRequest.loading}
-            showtimeDateError={activeShowtimeRequest.error}
+            showtimeDateLoading={
+              Boolean(activeShowtimeRange) &&
+              !isActiveShowtimeDateLoaded &&
+              exactShowtimeQuery.isFetching
+            }
+            showtimeDateError={
+              activeShowtimeError instanceof Error
+                ? activeShowtimeError.message
+                : activeShowtimeError
+                  ? "Could not load showtimes for this date."
+                  : null
+            }
             showtimeDateWindowStart={today}
             onShareShowtimes={
               mode === "nowPlaying" && activeQueryState

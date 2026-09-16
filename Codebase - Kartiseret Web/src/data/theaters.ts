@@ -1,7 +1,9 @@
+import { queryOptions } from "@tanstack/react-query";
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import { parseBoundary } from "../validation/runtime";
-import type { City, Theater } from "./applicationSchemas";
+import { queryClient } from "../lib/queryClient";
 import { theaterRowSchema, type TheaterRow } from "./externalSchemas";
+import type { City, Theater } from "./applicationSchemas";
+import { parseBoundary } from "../validation/runtime";
 
 export type { City, Theater } from "./applicationSchemas";
 
@@ -16,9 +18,16 @@ const CITY_NAME_JOIN_THEATER_SELECT_COLUMNS = [
   "city_details:cities!theaters_city_name_fkey ( name, alt_spellings, latitude, longitude, zoom_layer, neighboring_cities )",
 ].join(", ");
 
-let cachedTheaters: Theater[] | null = null;
-let cachedCities: City[] | null = null;
-let loadTheatersPromise: Promise<Theater[]> | null = null;
+export type TheaterData = {
+  theaters: Theater[];
+  cities: City[];
+};
+
+const THEATER_DATA_STALE_TIME = 24 * 60 * 60 * 1000;
+
+export const theaterQueryKeys = {
+  all: ["theaters"] as const,
+};
 
 function normalizeText(value: string): string {
   return value.trim().replace(/\s+/g, " ");
@@ -94,48 +103,14 @@ async function fetchTheaterRows(): Promise<TheaterRow[]> {
   return parseBoundary(
     theaterRowSchema.array(),
     result.data ?? [],
-    `${THEATERS_TABLE_NAME} rows`,
+    "theater response",
   );
 }
 
-export function preloadTheaters(): void {
-  void loadTheaters().catch((error: unknown) => {
-    console.error("Could not preload theaters from Supabase.", error);
-  });
-}
-
-export async function loadTheaters(): Promise<Theater[]> {
-  if (cachedTheaters) {
-    return cachedTheaters;
-  }
-
-  if (loadTheatersPromise) {
-    return loadTheatersPromise;
-  }
-
-  loadTheatersPromise = (async () => {
-    try {
-      const nextTheaters = (await fetchTheaterRows())
-        .map(mapRowToTheater)
-        .sort(compareTheaters);
-
-      cachedTheaters = nextTheaters;
-
-      return nextTheaters;
-    } finally {
-      loadTheatersPromise = null;
-    }
-  })();
-
-  return loadTheatersPromise;
-}
-
-export async function loadCities(): Promise<City[]> {
-  if (cachedCities) {
-    return cachedCities;
-  }
-
-  const theaters = await loadTheaters();
+async function fetchTheaterData(): Promise<TheaterData> {
+  const theaters = (await fetchTheaterRows())
+    .map(mapRowToTheater)
+    .sort(compareTheaters);
   const cityByName = new Map<string, City>();
 
   for (const theater of theaters) {
@@ -144,7 +119,43 @@ export async function loadCities(): Promise<City[]> {
     }
   }
 
-  cachedCities = [...cityByName.values()].sort(compareCities);
+  return {
+    theaters,
+    cities: [...cityByName.values()].sort(compareCities),
+  };
+}
 
-  return cachedCities;
+export function theaterDataQueryOptions() {
+  return queryOptions({
+    queryKey: theaterQueryKeys.all,
+    queryFn: fetchTheaterData,
+    staleTime: THEATER_DATA_STALE_TIME,
+    gcTime: THEATER_DATA_STALE_TIME,
+  });
+}
+
+export function selectTheaters(data: TheaterData): Theater[] {
+  return data.theaters;
+}
+
+export function selectCities(data: TheaterData): City[] {
+  return data.cities;
+}
+
+export function preloadTheaters(): void {
+  void queryClient.prefetchQuery(theaterDataQueryOptions()).catch((
+    error: unknown,
+  ) => {
+    console.error("Could not preload theaters from Supabase.", error);
+  });
+}
+
+export async function loadTheaters(): Promise<Theater[]> {
+  const data = await queryClient.ensureQueryData(theaterDataQueryOptions());
+  return data.theaters;
+}
+
+export async function loadCities(): Promise<City[]> {
+  const data = await queryClient.ensureQueryData(theaterDataQueryOptions());
+  return data.cities;
 }

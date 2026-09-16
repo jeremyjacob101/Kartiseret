@@ -1,36 +1,17 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
+import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
 import { Bell, Check, LoaderCircle, Ticket } from "lucide-react";
 import { Link } from "react-router";
-import { cancelGuestTicketAlert, cancelTicketAlert, loadTicketAlertState, subscribeGuestToTicketAlert, subscribeToTicketAlert, type TicketAlertState } from "../../data/ticketAlerts";
+import { useShallow } from "zustand/react/shallow";
+import { selectTicketAlertAvailability, selectUserTicketAlert, ticketAlertAvailabilityQueryOptions, ticketAlertMutationOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions } from "../../data/ticketAlerts";
+import { isValidTicketAlertEmail, normalizeTicketAlertEmail, normalizeTicketAlertTmdbId } from "../../domain/ticketAlerts";
 import type { Movie } from "../../data/movieCatalog";
-import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
+import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
+import { useGuestTicketAlertsStore } from "../../stores/guestTicketAlertsStore";
 
 type TicketAlertControlProps = {
   movie: Movie;
 };
-
-type TicketAlertControlState = TicketAlertState & {
-  error: string | null;
-  loading: boolean;
-  pending: boolean;
-};
-
-const INITIAL_STATE: TicketAlertControlState = {
-  availability: null,
-  error: null,
-  guestEmail: null,
-  guestSubscribed: false,
-  loading: true,
-  notified: false,
-  pending: false,
-  subscribed: false,
-};
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error
-    ? error.message
-    : "Could not update this ticket alert.";
-}
 
 function TicketAlertBellIcon({ checked }: { checked: boolean }) {
   return (
@@ -42,206 +23,136 @@ function TicketAlertBellIcon({ checked }: { checked: boolean }) {
 }
 
 export function TicketAlertControl({ movie }: TicketAlertControlProps) {
-  const {
-    user,
-    location: preferredCity,
-    loading: preferencesLoading,
-  } = useUserPreferencesContext();
-  const [state, setState] = useState<TicketAlertControlState>(INITIAL_STATE);
+  const { userId, preferredCity, preferencesLoading } = useUserPreferencesStore(
+    useShallow((state) => ({
+      userId: state.user?.id ?? null,
+      preferredCity: state.preferences.location,
+      preferencesLoading: state.loading,
+    })),
+  );
+
+  return (
+    <TicketAlertControlContent
+      key={JSON.stringify([
+        movie.tmdbId,
+        userId,
+        preferredCity,
+        preferencesLoading,
+      ])}
+      movie={movie}
+      userId={userId}
+      preferredCity={preferredCity}
+      preferencesLoading={preferencesLoading}
+    />
+  );
+}
+
+function TicketAlertControlContent({
+  movie,
+  userId,
+  preferredCity,
+  preferencesLoading,
+}: TicketAlertControlProps & {
+  userId: string | null;
+  preferredCity: string;
+  preferencesLoading: boolean;
+}) {
+  const tmdbId = normalizeTicketAlertTmdbId(movie.tmdbId);
+  const availabilityQuery = useQuery({
+    ...ticketAlertAvailabilityQueryOptions(tmdbId),
+    enabled: !preferencesLoading,
+  });
+  const subscriptionsQuery = useQuery({
+    ...userTicketAlertSubscriptionsQueryOptions(userId),
+    enabled: Boolean(userId) && !preferencesLoading,
+  });
+  const guestReceipt = useGuestTicketAlertsStore((store) =>
+    userId ? undefined : store.receipts[tmdbId]);
+  const mutation = useMutation(ticketAlertMutationOptions(userId, tmdbId));
+  const pending =
+    useIsMutating({
+      mutationKey: ticketAlertQueryKeys.change(userId, tmdbId),
+      exact: true,
+    }) > 0;
   const [guestFormOpen, setGuestFormOpen] = useState(false);
   const [guestEmailDraft, setGuestEmailDraft] = useState("");
-  const requestGenerationRef = useRef(0);
-  const userId = user?.id ?? null;
-
-  useEffect(() => {
-    const requestGeneration = requestGenerationRef.current + 1;
-    requestGenerationRef.current = requestGeneration;
-
-    if (preferencesLoading) {
-      setState(INITIAL_STATE);
-      setGuestFormOpen(false);
-      return;
-    }
-
-    setState(INITIAL_STATE);
-    setGuestFormOpen(false);
-    setGuestEmailDraft("");
-
-    void loadTicketAlertState({
-      movieCode: movie.movieCode,
+  const [formError, setFormError] = useState<string | null>(null);
+  const subscription = selectUserTicketAlert(subscriptionsQuery.data, tmdbId);
+  const loadFailed =
+    (availabilityQuery.isError && !availabilityQuery.data) ||
+    (Boolean(userId) && subscriptionsQuery.isError && !subscriptionsQuery.data);
+  const state = {
+    availability: selectTicketAlertAvailability(
+      availabilityQuery.data ?? [],
       preferredCity,
-      tmdbId: movie.tmdbId,
-      userId,
-    })
-      .then((ticketAlertState) => {
-        if (requestGenerationRef.current !== requestGeneration) {
-          return;
-        }
-
-        setState({
-          ...ticketAlertState,
-          error: null,
-          loading: false,
-          pending: false,
-        });
-        setGuestEmailDraft(ticketAlertState.guestEmail ?? "");
-      })
-      .catch((error: unknown) => {
-        if (requestGenerationRef.current !== requestGeneration) {
-          return;
-        }
-
-        setState({
-          ...INITIAL_STATE,
-          error: getErrorMessage(error),
-          loading: false,
-        });
-      });
-
-    return () => {
-      requestGenerationRef.current += 1;
-    };
-  }, [
-    movie.movieCode,
-    movie.tmdbId,
-    preferredCity,
-    preferencesLoading,
-    userId,
-  ]);
-
-  const handleAccountToggle = async () => {
-    if (!userId || state.loading || state.pending || state.notified) {
-      return;
-    }
-
-    const requestGeneration = requestGenerationRef.current + 1;
-    requestGenerationRef.current = requestGeneration;
-    setState((currentState) => ({
-      ...currentState,
-      error: null,
-      pending: true,
-    }));
-
-    try {
-      if (state.subscribed) {
-        await cancelTicketAlert(userId, movie.tmdbId);
-
-        if (requestGenerationRef.current === requestGeneration) {
-          setState((currentState) => ({
-            ...currentState,
-            pending: false,
-            subscribed: false,
-          }));
-        }
-        return;
-      }
-
-      const ticketAlertState = await subscribeToTicketAlert({
-        movieCode: movie.movieCode,
-        preferredCity,
-        tmdbId: movie.tmdbId,
-        userId,
-      });
-
-      if (requestGenerationRef.current === requestGeneration) {
-        setState({
-          ...ticketAlertState,
-          error: null,
-          loading: false,
-          pending: false,
-        });
-      }
-    } catch (error: unknown) {
-      if (requestGenerationRef.current === requestGeneration) {
-        setState((currentState) => ({
-          ...currentState,
-          error: getErrorMessage(error),
-          pending: false,
-        }));
-      }
-    }
+      movie.movieCode,
+    ),
+    loading:
+      preferencesLoading ||
+      availabilityQuery.isPending ||
+      (Boolean(userId) && subscriptionsQuery.isPending),
+    pending,
+    subscribed: Boolean(subscription && !subscription.notifiedAt),
+    notified: Boolean(subscription?.notifiedAt),
+    guestEmail: guestReceipt?.email ?? null,
+    guestSubscribed: Boolean(guestReceipt),
+    error:
+      formError ??
+      mutation.error?.message ??
+      availabilityQuery.error?.message ??
+      (userId ? subscriptionsQuery.error?.message : null),
   };
 
-  const handleGuestSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleAccountToggle = () => {
+    if (!userId || state.loading || pending || state.notified) {
+      return;
+    }
+    mutation.mutate(
+      state.subscribed
+        ? { action: "cancel" }
+        : { action: "subscribe", preferredCity },
+    );
+  };
+
+  const handleGuestSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
-    if (state.loading || state.pending) {
+    if (state.loading || pending) {
       return;
     }
 
-    const requestGeneration = requestGenerationRef.current + 1;
-    requestGenerationRef.current = requestGeneration;
-    setState((currentState) => ({
-      ...currentState,
-      error: null,
-      pending: true,
-    }));
-
-    try {
-      const ticketAlertState = await subscribeGuestToTicketAlert({
-        movieCode: movie.movieCode,
-        preferredCity,
-        tmdbId: movie.tmdbId,
-        email: guestEmailDraft,
-      });
-
-      if (requestGenerationRef.current === requestGeneration) {
-        setState({
-          ...ticketAlertState,
-          error: null,
-          loading: false,
-          pending: false,
-        });
-        setGuestEmailDraft(ticketAlertState.guestEmail ?? "");
-        setGuestFormOpen(false);
-      }
-    } catch (error: unknown) {
-      if (requestGenerationRef.current === requestGeneration) {
-        setState((currentState) => ({
-          ...currentState,
-          error: getErrorMessage(error),
-          pending: false,
-        }));
-      }
+    const email = normalizeTicketAlertEmail(guestEmailDraft);
+    if (!isValidTicketAlertEmail(email)) {
+      setFormError("Enter a valid email address for this alert.");
+      return;
     }
+
+    setFormError(null);
+    mutation.mutate(
+      { action: "subscribe", preferredCity, email },
+      {
+        onSuccess: () => {
+          setGuestEmailDraft(email);
+          setGuestFormOpen(false);
+        },
+      },
+    );
   };
 
-  const handleGuestCancel = async () => {
-    if (state.loading || state.pending) {
+  const handleGuestCancel = () => {
+    if (state.loading || pending) {
       return;
     }
 
-    const requestGeneration = requestGenerationRef.current + 1;
-    requestGenerationRef.current = requestGeneration;
-    setState((currentState) => ({
-      ...currentState,
-      error: null,
-      pending: true,
-    }));
-
-    try {
-      await cancelGuestTicketAlert(movie.tmdbId);
-
-      if (requestGenerationRef.current === requestGeneration) {
-        setState((currentState) => ({
-          ...currentState,
-          error: null,
-          guestEmail: null,
-          guestSubscribed: false,
-          pending: false,
-        }));
-        setGuestEmailDraft("");
-        setGuestFormOpen(false);
-      }
-    } catch (error: unknown) {
-      if (requestGenerationRef.current === requestGeneration) {
-        setState((currentState) => ({
-          ...currentState,
-          error: getErrorMessage(error),
-          pending: false,
-        }));
-      }
-    }
+    setFormError(null);
+    mutation.mutate(
+      { action: "cancel" },
+      {
+        onSuccess: () => {
+          setGuestEmailDraft("");
+          setGuestFormOpen(false);
+        },
+      },
+    );
   };
 
   let control: ReactNode;
@@ -255,6 +166,22 @@ export function TicketAlertControl({ movie }: TicketAlertControlProps) {
       </button>
     );
     hint = "Checking ticket availability.";
+  } else if (loadFailed) {
+    control = (
+      <button
+        className="ticket-alert-button"
+        type="button"
+        onClick={() => {
+          void availabilityQuery.refetch();
+          if (userId) {
+            void subscriptionsQuery.refetch();
+          }
+        }}
+      >
+        Retry checking tickets
+      </button>
+    );
+    hint = "Ticket alerts are temporarily unavailable.";
   } else if (state.availability) {
     control = (
       <Link
@@ -368,7 +295,8 @@ export function TicketAlertControl({ movie }: TicketAlertControlProps) {
               disabled={state.pending}
               onChange={(event) => {
                 setGuestEmailDraft(event.target.value);
-                setState((currentState) => ({ ...currentState, error: null }));
+                setFormError(null);
+                mutation.reset();
               }}
             />
           </label>
@@ -402,10 +330,8 @@ export function TicketAlertControl({ movie }: TicketAlertControlProps) {
                 disabled={state.pending}
                 onClick={() => {
                   setGuestFormOpen(false);
-                  setState((currentState) => ({
-                    ...currentState,
-                    error: null,
-                  }));
+                  setFormError(null);
+                  mutation.reset();
                 }}
               >
                 Not now

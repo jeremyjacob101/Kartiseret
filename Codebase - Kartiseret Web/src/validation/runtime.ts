@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const MOVIE_CODE_PATTERN = /^[0-9A-Za-z]{3}$/;
 const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
-const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
+const INTEGER_TEXT_PATTERN = /^\d+$/;
 
 function isRealIsoDate(value: string): boolean {
   const match = ISO_DATE_PATTERN.exec(value);
@@ -44,10 +44,14 @@ export const movieCodeSchema = z
 
 export const tmdbIdSchema = z
   .union([
-    z.string().trim().regex(POSITIVE_INTEGER_PATTERN),
+    z
+      .string()
+      .trim()
+      .regex(INTEGER_TEXT_PATTERN)
+      .refine((value) => /[1-9]/.test(value)),
     z.number().int().positive().safe(),
   ])
-  .transform(String);
+  .transform((value) => String(value).replace(/^0+(?=\d)/, ""));
 
 export const isoDateStringSchema = z
   .string()

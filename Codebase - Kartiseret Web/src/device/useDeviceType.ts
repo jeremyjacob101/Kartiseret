@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { create } from "zustand";
 import { z } from "zod";
 
 export type DeviceType = "mobile" | "desktop";
@@ -9,11 +9,14 @@ export type DeviceInfo = {
   isDesktop: boolean;
 };
 
-const MOBILE_USER_AGENT_PATTERN =
-  /Android|webOS|iPhone|iPod|iPad|BlackBerry|IEMobile|Opera Mini/i;
 const userAgentDataSchema = z
   .object({ mobile: z.boolean().optional() })
   .passthrough();
+type NavigatorWithUserAgentData = Navigator & { userAgentData?: unknown };
+
+const MOBILE_USER_AGENT_PATTERN =
+  /Android|webOS|iPhone|iPod|iPad|BlackBerry|IEMobile|Opera Mini/i;
+const MOBILE_VIEWPORT_QUERY = "(max-width: 699px)";
 
 function buildDeviceInfo(deviceType: DeviceType): DeviceInfo {
   return {
@@ -29,11 +32,11 @@ function detectDeviceType(): DeviceType {
   }
 
   const { userAgent = "", platform = "", maxTouchPoints = 0 } = navigator;
-  const userAgentDataResult = userAgentDataSchema.safeParse(
-    Reflect.get(navigator, "userAgentData"),
+  const userAgentData = userAgentDataSchema.safeParse(
+    (navigator as NavigatorWithUserAgentData).userAgentData,
   );
 
-  if (userAgentDataResult.success && userAgentDataResult.data.mobile === true) {
+  if (userAgentData.success && userAgentData.data.mobile === true) {
     return "mobile";
   }
 
@@ -46,6 +49,10 @@ function detectDeviceType(): DeviceType {
   }
 
   if (MOBILE_USER_AGENT_PATTERN.test(userAgent)) {
+    return "mobile";
+  }
+
+  if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) {
     return "mobile";
   }
 
@@ -64,24 +71,60 @@ const bootstrappedDeviceInfo = buildDeviceInfo(detectDeviceType());
 
 applyDeviceTypeToDocument(bootstrappedDeviceInfo.deviceType);
 
-export const DeviceTypeContext = createContext<DeviceInfo | null>(null);
+export const useDeviceStore = create<DeviceInfo>()(
+  () => bootstrappedDeviceInfo,
+);
+
+let mobileViewportMediaQuery: MediaQueryList | null = null;
+
+function synchronizeDeviceType(): void {
+  const nextDeviceInfo = buildDeviceInfo(detectDeviceType());
+
+  if (nextDeviceInfo.deviceType === useDeviceStore.getState().deviceType) {
+    return;
+  }
+
+  applyDeviceTypeToDocument(nextDeviceInfo.deviceType);
+  useDeviceStore.setState(nextDeviceInfo);
+}
+
+function initializeDeviceStore(): void {
+  if (typeof window === "undefined" || mobileViewportMediaQuery) {
+    return;
+  }
+
+  mobileViewportMediaQuery = window.matchMedia(MOBILE_VIEWPORT_QUERY);
+  mobileViewportMediaQuery.addEventListener("change", synchronizeDeviceType);
+}
+
+initializeDeviceStore();
 
 export function applyBootstrappedDeviceTypeToDocument(): void {
-  applyDeviceTypeToDocument(bootstrappedDeviceInfo.deviceType);
+  applyDeviceTypeToDocument(useDeviceStore.getState().deviceType);
 }
 
 export function getDeviceType(): DeviceType {
-  return bootstrappedDeviceInfo.deviceType;
+  return useDeviceStore.getState().deviceType;
 }
 
 export function getDeviceInfo(): DeviceInfo {
-  return bootstrappedDeviceInfo;
+  return useDeviceStore.getState();
 }
 
 export function useDeviceInfo(): DeviceInfo {
-  return useContext(DeviceTypeContext) ?? bootstrappedDeviceInfo;
+  return useDeviceStore();
 }
 
 export function useDeviceType(): DeviceType {
-  return useDeviceInfo().deviceType;
+  return useDeviceStore((state) => state.deviceType);
+}
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    mobileViewportMediaQuery?.removeEventListener(
+      "change",
+      synchronizeDeviceType,
+    );
+    mobileViewportMediaQuery = null;
+  });
 }

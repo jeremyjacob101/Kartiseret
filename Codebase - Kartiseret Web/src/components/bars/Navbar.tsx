@@ -6,7 +6,7 @@ import { MiniNavBar } from "./MiniNavBar";
 import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "../MovieSearchMenu";
 import { TheaterMapDialog } from "../maps/TheaterMapDialog";
 import { UserMenu } from "../UserMenu";
-import { useDeviceInfo } from "../../device/useDeviceType";
+import { useDeviceStore } from "../../device/useDeviceType";
 
 const NAVBAR_INTRO_DURATION_MS = 760;
 const MINI_NAVBAR_TRANSITION_MS = 620;
@@ -151,7 +151,7 @@ export function Navbar({
   onSoonsNavClick,
 }: NavbarProps) {
   const location = useLocation();
-  const { isMobile } = useDeviceInfo();
+  const isMobile = useDeviceStore((state) => state.isMobile);
   const [showNavbarIntro, setShowNavbarIntro] = useState(true);
   const [showMiniNavBar, setShowMiniNavBar] = useState(false);
   const [renderMiniNavBar, setRenderMiniNavBar] = useState(false);

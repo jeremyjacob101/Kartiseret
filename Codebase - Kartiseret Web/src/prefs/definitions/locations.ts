@@ -71,6 +71,10 @@ export function normalizeLocation(
 }
 
 export function loadGuestLocation(): AppLocation | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
   try {
     const raw = window.localStorage.getItem(GUEST_LOCATION_KEY);
 

@@ -1,15 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { z } from "zod";
 import { LogOut, User } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
-import { z } from "zod";
 import "./UserMenu.css";
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import { supabaseUserIdentitySchema } from "../lib/supabaseSchemas";
-import { appLocationSchema, DEFAULT_LOCATION, loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY } from "../prefs/definitions/locations";
-import { DEFAULT_RATING_SOURCES } from "../prefs/definitions/ratingSources";
-import { DEFAULT_SITE_COLOR } from "../prefs/definitions/siteColor";
-import { useUserPreferencesContext } from "../prefs/useUserPreferences";
-import { getFirstValidationMessage } from "../validation/runtime";
+import { DEFAULT_LOCATION, loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY } from "../prefs/definitions/locations";
+import { persistSignupPreferenceDefaults, useUserPreferencesStore } from "../stores/userPreferencesStore";
 
 type AuthMode = "login" | "signup";
 type UserMenuProps = {
@@ -18,41 +14,10 @@ type UserMenuProps = {
 };
 
 const supabase = getSupabaseBrowserClient();
-const PREFERENCES_TABLE = "userPreferences";
 const authCredentialsSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email address."),
-  password: z.string().min(6, "Password must be at least 6 characters."),
+  password: z.string().min(1, "Enter both email and password."),
 });
-const signupPreferenceDefaultsSchema = z.object({
-  user: supabaseUserIdentitySchema,
-  location: appLocationSchema,
-});
-
-async function persistSignupPreferenceDefaults(
-  user: unknown,
-  location: unknown,
-): Promise<string | null> {
-  const inputResult = signupPreferenceDefaultsSchema.safeParse({
-    user,
-    location,
-  });
-
-  if (!inputResult.success) {
-    return "Account identity could not be validated before saving preferences.";
-  }
-
-  const { error } = await supabase.from(PREFERENCES_TABLE).upsert(
-    {
-      user_id: inputResult.data.user.id,
-      rating_sources: [...DEFAULT_RATING_SOURCES],
-      location: inputResult.data.location,
-      site_color: DEFAULT_SITE_COLOR,
-    },
-    { onConflict: "user_id" },
-  );
-
-  return error?.message ?? null;
-}
 
 export function UserMenu({
   panelDirection = "down",
@@ -60,7 +25,7 @@ export function UserMenu({
 }: UserMenuProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useUserPreferencesContext();
+  const user = useUserPreferencesStore((state) => state.user);
   const [isOpen, setIsOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
@@ -108,29 +73,23 @@ export function UserMenu({
     setAuthMessage(null);
     setAuthError(null);
 
-    const credentialsResult = authCredentialsSchema.safeParse({
-      email,
-      password,
-    });
-
-    if (!credentialsResult.success) {
+    const credentials = authCredentialsSchema.safeParse({ email, password });
+    if (!credentials.success) {
       setAuthError(
-        getFirstValidationMessage(
-          credentialsResult,
-          "Enter a valid email and password.",
-        ),
+        credentials.error.issues[0]?.message ?? "Enter valid credentials.",
       );
       return;
     }
+    const { email: trimmedEmail, password: validatedPassword } =
+      credentials.data;
 
-    const credentials = credentialsResult.data;
     setAuthPending(true);
 
     if (authMode === "signup") {
       const signupLocation = loadGuestLocation() ?? DEFAULT_LOCATION;
       const { data, error } = await supabase.auth.signUp({
-        email: credentials.email,
-        password: credentials.password,
+        email: trimmedEmail,
+        password: validatedPassword,
         options: {
           data: {
             [LOCATION_SIGNUP_METADATA_KEY]: signupLocation,
@@ -148,7 +107,7 @@ export function UserMenu({
 
       if (data.session && data.user) {
         preferenceInitializationError = await persistSignupPreferenceDefaults(
-          data.user,
+          data.user.id,
           signupLocation,
         );
       }
@@ -172,8 +131,8 @@ export function UserMenu({
     }
 
     const { error } = await supabase.auth.signInWithPassword({
-      email: credentials.email,
-      password: credentials.password,
+      email: trimmedEmail,
+      password: validatedPassword,
     });
 
     setAuthPending(false);

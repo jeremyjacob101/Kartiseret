@@ -1,18 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type Ref } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { Clock8, ExternalLink, MapPin, MoveRight, Star, X } from "lucide-react";
 import { Link } from "react-router";
+import { useShallow } from "zustand/react/shallow";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { TheaterMapDialog } from "../maps/TheaterMapDialog";
-import { APP_TIME_ZONE, fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeCities, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, subscribeToMovieCatalog, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
-import { loadCities, type City } from "../../data/theaters";
+import { APP_TIME_ZONE, fixedAppDateString, getMovieShowtimeCities, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, selectMovieShowtimeDays, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
+import { selectCities, theaterDataQueryOptions, type City } from "../../data/theaters";
 import { type AppLocation } from "../../prefs/definitions/locations";
-import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
+import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
 import { addCalendarDays, SHOWTIME_LINK_DATE_COUNT } from "../../routing/showtimeLinkCodec";
 import { ShowtimeDayPicker } from "../showtimes/ShowtimeDayPicker";
 import { ShowtimeFilterMenu } from "../showtimes/ShowtimeFilterMenu";
-import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, getShowtimeFiltersSnapshot, saveShowtimeFilters, subscribeToShowtimeFilters, updateShowtimeFilterState, type ShowtimeFilterOptions, type ShowtimeFilterSelections, type ShowtimeFilterState } from "../showtimes/showtimeFilters";
+import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, saveShowtimeFilters, updateShowtimeFilterState, useShowtimeFiltersStore, type ShowtimeFilterOptions, type ShowtimeFilterSelections, type ShowtimeFilterState } from "../showtimes/showtimeFilters";
 import { TicketAlertControl } from "./TicketAlertControl";
 
 type TheaterTheme = {
@@ -635,7 +637,13 @@ export function MovieDetailsContent({
     sources,
     location: preferenceLocation,
     setLocationPreference,
-  } = useUserPreferencesContext();
+  } = useUserPreferencesStore(
+    useShallow((state) => ({
+      sources: state.preferences.ratingSources,
+      location: state.preferences.location,
+      setLocationPreference: state.setLocationPreference,
+    })),
+  );
   const location = locationOverride ?? preferenceLocation;
   const updateLocation = useCallback(
     async (nextLocation: AppLocation) => {
@@ -649,15 +657,16 @@ export function MovieDetailsContent({
     },
     [locationOverride, onLocationOverrideChange, setLocationPreference],
   );
-  const showtimesReady = useSyncExternalStore(
-    subscribeToMovieCatalog,
-    () => getMovieCatalogStatusSnapshot().showtimesReady,
-  );
-  const showtimesVersion = useSyncExternalStore(
-    subscribeToMovieCatalog,
-    () => getMovieCatalogStatusSnapshot().showtimesVersion,
-  );
-  const [cities, setCities] = useState<readonly City[]>([]);
+  const { data: showtimeCityData } = useQuery({
+    ...showtimeCityQueryOptions(location),
+    enabled: false,
+  });
+  const showtimesReady = showtimeCityData?.broadReady ?? false;
+  const { data: cities = [] } = useQuery({
+    ...theaterDataQueryOptions(),
+    select: selectCities,
+    enabled: variant === "nowPlaying",
+  });
   const [openTrailerModalId, setOpenTrailerModalId] = useState<string | null>(
     null,
   );
@@ -680,14 +689,10 @@ export function MovieDetailsContent({
       return false;
     }
 
-    // Targeted showtime loads publish into the shared cache without changing
-    // the broad showtimes-ready flag, so the version token is the rerender
-    // signal for this Coming Soon-only lookup.
-    void showtimesVersion;
-    return getMovieShowtimeDays(movie.tmdbId, location).some(
+    return selectMovieShowtimeDays(showtimeCityData, movie.tmdbId).some(
       (day) => day.theaters.length > 0,
     );
-  }, [location, movie.tmdbId, showtimesVersion, variant]);
+  }, [movie.tmdbId, showtimeCityData, variant]);
   const shouldRenderShowtimes =
     variant === "nowPlaying" || hasComingSoonShowtimes;
   const showtimeDays = useMemo(() => {
@@ -695,11 +700,8 @@ export function MovieDetailsContent({
       return EMPTY_SHOWTIME_DAYS;
     }
 
-    // Incremental showtime loading updates the shared store in place, so this
-    // version token is the signal that cached day data should be re-cloned.
-    void showtimesVersion;
     const loadedShowtimeDays = cloneShowtimeDays(
-      getMovieShowtimeDays(movie.tmdbId, location),
+      selectMovieShowtimeDays(showtimeCityData, movie.tmdbId),
     );
 
     if (!exactDateShowtimeQueries || !showtimeDateWindowStart) {
@@ -720,10 +722,9 @@ export function MovieDetailsContent({
     );
   }, [
     exactDateShowtimeQueries,
-    location,
     movie.tmdbId,
     showtimeDateWindowStart,
-    showtimesVersion,
+    showtimeCityData,
     shouldRenderShowtimes,
   ]);
   const metrics =
@@ -762,10 +763,8 @@ export function MovieDetailsContent({
     showtimeDays.find((day) => day.date === effectiveVisibleShowtimeDate) ??
     showtimeDays[0] ??
     null;
-  const savedShowtimeFilterState = useSyncExternalStore(
-    subscribeToShowtimeFilters,
-    getShowtimeFiltersSnapshot,
-    getShowtimeFiltersSnapshot,
+  const savedShowtimeFilterState = useShowtimeFiltersStore(
+    (state) => state.filters,
   );
   const showtimeFilterState =
     showtimeFilterStateOverride ?? savedShowtimeFilterState;
@@ -890,11 +889,23 @@ export function MovieDetailsContent({
     hasLoadedShowtimeWindow &&
     showtimeDays.length > 0 &&
     !shouldShowCityUnavailableState;
-  const playingCities = useMemo(
-    () =>
-      hasLoadedShowtimeWindow ? [...getMovieShowtimeCities(movie.tmdbId)] : [],
-    [hasLoadedShowtimeWindow, movie.tmdbId],
-  );
+  const playingCities = useMemo(() => {
+    if (!hasLoadedShowtimeWindow) {
+      return [];
+    }
+
+    const cachedCities = [...getMovieShowtimeCities(movie.tmdbId)];
+    const currentCityHasShowtimes = selectMovieShowtimeDays(
+      showtimeCityData,
+      movie.tmdbId,
+    ).some((day) => day.theaters.length > 0);
+
+    if (currentCityHasShowtimes && !cachedCities.includes(location)) {
+      cachedCities.push(location);
+    }
+
+    return cachedCities;
+  }, [hasLoadedShowtimeWindow, location, movie.tmdbId, showtimeCityData]);
   const nearbyCityChoices = useMemo<NearbyCityChoice[]>(() => {
     if (!hasLoadedShowtimeWindow || playingCities.length === 0) {
       return [];
@@ -1207,28 +1218,6 @@ export function MovieDetailsContent({
     targetShowtimeQueries,
     variant,
   ]);
-
-  useEffect(() => {
-    if (variant !== "nowPlaying") {
-      return;
-    }
-
-    let isActive = true;
-
-    void loadCities()
-      .then((nextCities) => {
-        if (isActive) {
-          setCities(nextCities);
-        }
-      })
-      .catch((error: unknown) => {
-        console.error("Could not load city metadata for detail cards.", error);
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [variant]);
 
   useEffect(() => {
     if (

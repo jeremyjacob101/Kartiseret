@@ -1,507 +1,482 @@
+import { createClient } from "@supabase/supabase-js";
+import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import { encodeDateCode, parseMovieRouteCode } from "../routing/showtimeLinkCodec";
-import { buildTicketAlertShowtimePath, cancelGuestTicketAlert, cancelTicketAlert, GUEST_TICKET_ALERTS_STORAGE_KEY, GUEST_TICKET_ALERT_TOKEN_STORAGE_KEY, loadGuestTicketAlert, loadTicketAlertState, loadUserTicketAlertSubscriptions, selectTicketAlertShowtime, subscribeGuestToTicketAlert, subscribeToTicketAlert } from "./ticketAlerts";
+import { addCalendarDays, getJerusalemCinemaDate } from "../routing/showtimeLinkCodec";
+import { useGuestTicketAlertsStore } from "../stores/guestTicketAlertsStore";
+import { invalidateUserTicketAlertQueries, mergeUserTicketAlert, selectTicketAlertAvailability, selectUserTicketAlert, ticketAlertAvailabilityQueryOptions, ticketAlertMutationOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions, type TicketAlertShowtimeRow, type UserTicketAlertSubscription } from "./ticketAlerts";
 
-// Importing this service must never initialize or call a real Supabase client.
 vi.mock("../lib/supabase", () => ({ getSupabaseBrowserClient: vi.fn() }));
 
-const userId = "11111111-1111-4111-8111-111111111111";
-const guestToken = "abcdefab-1234-4123-8123-abcdefabcdef";
-const timestamp = "2026-09-01T09:00:00.123456+00:00";
-const guestInput = {
-  tmdbId: "42",
-  movieCode: "A7z",
-  preferredCity: "Jerusalem",
-  email: " Viewer@Example.TEST ",
-};
-const accountInput = {
-  tmdbId: "42",
-  movieCode: "A7z",
-  preferredCity: "Jerusalem",
-  userId,
-};
-const storedAlert = { email: "viewer@example.test", subscribedAt: timestamp };
-const subscription = {
-  user_id: userId,
-  tmdb_id: 42,
-  created_at: timestamp,
-  notified_at: null,
-};
-const guestResponse = {
-  ...subscription,
-  guest_token: guestToken,
-  email: "viewer@example.test",
-  preferred_city: "Jerusalem",
-};
-const showtimeRow = {
-  screening_city: "Jerusalem",
-  date_of_showing: "2026-09-04",
-  showtime: "20:30:00",
-  cinema: "Cinema City",
-  english_href: "https://tickets.example.test/42",
-  hebrew_href: null,
+type StoredSubscription = {
+  user_id: string;
+  tmdb_id: number;
+  created_at: string;
+  notified_at: string | null;
+  delivery_title: string | null;
+  delivery_date: string | null;
 };
 
-type QueryResult = {
-  data: unknown;
-  error: { message: string; code?: string } | null;
-};
-type QueryStep = { table: string; data: unknown; error?: QueryResult["error"] };
+let client: QueryClient;
+let requests: Request[];
+let rows: TicketAlertShowtimeRow[];
+let subscriptions: StoredSubscription[];
+let failWrites: boolean;
+let duplicateInsert: boolean;
 
-function mockClient(...steps: QueryStep[]) {
-  const queries = steps.map((step) => {
-    const result = Promise.resolve({
-      data: step.data,
-      error: step.error ?? null,
-    });
-    return {
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      gte: vi.fn().mockReturnThis(),
-      order: vi.fn().mockReturnThis(),
-      range: vi.fn().mockReturnThis(),
-      maybeSingle: vi.fn().mockReturnThis(),
-      insert: vi.fn().mockReturnThis(),
-      delete: vi.fn().mockReturnThis(),
-      then: result.then.bind(result),
-    };
-  });
-  let index = 0;
-  const client = {
-    from: vi.fn((table: string) => {
-      expect(steps[index]?.table, "Unexpected database query").toBe(table);
-      return queries[index++];
-    }),
-    rpc: vi
-      .fn<
-        (name: string, args: Record<string, unknown>) => Promise<QueryResult>
-      >()
-      .mockRejectedValue(new Error("Unexpected RPC")),
+function storedSubscription(
+  userId = "00000000-0000-4000-8000-000000000001",
+  tmdbId = 101,
+): StoredSubscription {
+  return {
+    user_id: userId,
+    tmdb_id: tmdbId,
+    created_at: "2026-09-01T12:00:00Z",
+    notified_at: null,
+    delivery_title: null,
+    delivery_date: null,
   };
-  vi.mocked(getSupabaseBrowserClient).mockReturnValue(
-    client as unknown as ReturnType<typeof getSupabaseBrowserClient>,
-  );
-  return { ...client, queries };
 }
 
-let storage: Storage;
+function subscription(tmdbId = "101"): UserTicketAlertSubscription {
+  return {
+    tmdbId,
+    createdAt: "2026-09-01T12:00:00Z",
+    notifiedAt: null,
+    deliveryTitle: null,
+    deliveryDate: null,
+  };
+}
+
+function reply(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
 
 beforeEach(() => {
-  vi.resetAllMocks();
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date("2026-09-04T09:00:00Z"));
-  const values = new Map<string, string>();
-  storage = {
-    getItem: vi.fn((key: string) => values.get(key) ?? null),
-    setItem: vi.fn((key: string, value: string) => {
-      values.set(key, value);
-    }),
-    removeItem: vi.fn((key: string) => {
-      values.delete(key);
-    }),
-    clear: vi.fn(() => values.clear()),
-    key: vi.fn((index: number) => [...values.keys()][index] ?? null),
-    get length() {
-      return values.size;
+  client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  requests = [];
+  rows = [];
+  subscriptions = [];
+  failWrites = false;
+  duplicateInsert = false;
+  useGuestTicketAlertsStore.setState({ receipts: {} });
+  const storage = new Map<string, string>();
+  vi.stubGlobal("window", {
+    localStorage: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
     },
-  };
-  vi.stubGlobal("window", { localStorage: storage });
-  vi.stubGlobal("crypto", { randomUUID: vi.fn(() => guestToken) });
-  vi.stubGlobal(
-    "fetch",
-    vi
-      .fn()
-      .mockRejectedValue(new Error("Network is forbidden in fixture tests")),
-  );
+  });
+  // Real Supabase request construction; all transport is in-memory. No network.
+  const supabase = createClient("http://127.0.0.1:54321", "local-test-only", {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+    global: {
+      fetch: async (input, init) => {
+        const request = new Request(input, init);
+        requests.push(request);
+        const url = new URL(request.url);
+        if (request.method !== "GET" && failWrites) {
+          return reply(
+            { message: "Fixture write rejected", code: "42501" },
+            403,
+          );
+        }
+        if (url.pathname.endsWith("/finalShowtimes")) {
+          return reply(rows);
+        }
+        if (url.pathname.includes("/rpc/")) {
+          const body = (await request.json()) as Record<string, unknown>;
+          if (url.pathname.endsWith("/create_guest_ticket_alert")) {
+            return reply([
+              {
+                guest_token: body.p_guest_token,
+                tmdb_id: body.p_tmdb_id,
+                email: body.p_email,
+                preferred_city: body.p_preferred_city,
+                created_at: "2026-09-01T12:00:00Z",
+                notified_at: null,
+              },
+            ]);
+          }
+          return reply(1);
+        }
+        if (!url.pathname.endsWith("/ticket_alert_subscriptions")) {
+          throw new Error(
+            `Unexpected fixture request: ${request.method} ${url.pathname}`,
+          );
+        }
+        const userId = url.searchParams.get("user_id")?.replace("eq.", "");
+        const tmdbId = Number(
+          url.searchParams.get("tmdb_id")?.replace("eq.", ""),
+        );
+        if (request.method === "DELETE") {
+          subscriptions = subscriptions.filter(
+            (row) => row.user_id !== userId || row.tmdb_id !== tmdbId,
+          );
+          return reply(null);
+        }
+        if (request.method === "POST") {
+          const body = (await request.json()) as {
+            user_id: string;
+            tmdb_id: number;
+          };
+          const row = storedSubscription(body.user_id, body.tmdb_id);
+          subscriptions.push(row);
+          return duplicateInsert
+            ? reply({ code: "23505", message: "duplicate" }, 409)
+            : reply(row, 201);
+        }
+        const offset = Number(url.searchParams.get("offset") ?? 0);
+        const limit = Number(url.searchParams.get("limit") ?? 1000);
+        return reply(
+          subscriptions
+            .filter((row) => row.user_id === userId)
+            .slice(offset, offset + limit),
+        );
+      },
+    },
+  });
+  vi.mocked(getSupabaseBrowserClient).mockReturnValue(supabase);
 });
 
 afterEach(() => {
-  expect(globalThis.fetch).not.toHaveBeenCalled();
-  vi.useRealTimers();
-  vi.restoreAllMocks();
+  client.clear();
   vi.unstubAllGlobals();
 });
 
-describe("ticket alert ingress and account operations", () => {
-  it("rejects invalid inputs before obtaining a client or making any query", async () => {
-    await expect(
-      loadTicketAlertState({ ...accountInput, tmdbId: "42oops" }),
-    ).rejects.toThrow("boundary data");
-    await expect(
-      subscribeToTicketAlert({ ...accountInput, userId: "not-a-uuid" }),
-    ).rejects.toThrow("boundary data");
-    await expect(
-      subscribeGuestToTicketAlert({ ...guestInput, email: "invalid" }),
-    ).rejects.toThrow("valid email address");
-    await expect(cancelTicketAlert(userId, "9007199254740992")).rejects.toThrow(
-      "boundary data",
+describe("ticket alert queries", () => {
+  it("normalizes movie keys, isolates identities, and separates cinema dates", () => {
+    expect(ticketAlertQueryKeys.availability(" 00101 ", "2026-09-04")).toEqual(
+      ticketAlertQueryKeys.availability("101", "2026-09-04"),
     );
-    await expect(cancelGuestTicketAlert("42oops")).rejects.toThrow(
-      "boundary data",
+    expect(ticketAlertQueryKeys.availability("101", "2026-09-04")).not.toEqual(
+      ticketAlertQueryKeys.availability("101", "2026-09-05"),
     );
-    await expect(loadUserTicketAlertSubscriptions("invalid")).rejects.toThrow(
-      "boundary data",
-    );
-    expect(getSupabaseBrowserClient).not.toHaveBeenCalled();
-  });
-
-  it("validates and maps account list rows and preserves nullable columns", async () => {
-    const client = mockClient({
-      table: "ticket_alert_subscriptions",
-      data: [{ ...subscription, delivery_title: null, delivery_date: null }],
-    });
-    await expect(loadUserTicketAlertSubscriptions(userId)).resolves.toEqual([
-      {
-        tmdbId: "42",
-        createdAt: timestamp,
-        notifiedAt: null,
-        deliveryTitle: null,
-        deliveryDate: null,
-      },
-    ]);
-    expect(client.queries[0].eq).toHaveBeenCalledWith("user_id", userId);
-  });
-
-  it("rejects malformed account rows instead of silently inventing missing values", async () => {
-    mockClient({ table: "ticket_alert_subscriptions", data: [subscription] });
-    await expect(loadUserTicketAlertSubscriptions(userId)).rejects.toThrow(
-      "account ticket alert rows",
-    );
-  });
-
-  it("rejects a subscription response for a different account or movie", async () => {
-    for (const row of [
-      { ...subscription, tmdb_id: 99 },
-      { ...subscription, user_id: guestToken },
-    ]) {
-      mockClient(
-        { table: "ticket_alert_subscriptions", data: row },
-        { table: "finalShowtimes", data: [] },
-      );
-      await expect(loadTicketAlertState(accountInput)).rejects.toThrow(
-        "did not match the requested account and movie",
-      );
-    }
-  });
-
-  it("does not insert if account subscription data is malformed", async () => {
-    const client = mockClient(
-      {
-        table: "ticket_alert_subscriptions",
-        data: { ...subscription, created_at: null },
-      },
-      { table: "finalShowtimes", data: [] },
-    );
-    await expect(subscribeToTicketAlert(accountInput)).rejects.toThrow(
-      "ticket alert subscription",
-    );
-    expect(client.from).toHaveBeenCalledTimes(2);
     expect(
-      client.queries.every((query) => query.insert.mock.calls.length === 0),
-    ).toBe(true);
+      ticketAlertQueryKeys.subscriptions(
+        "00000000-0000-4000-8000-000000000001",
+      ),
+    ).not.toEqual(
+      ticketAlertQueryKeys.subscriptions(
+        "00000000-0000-4000-8000-000000000002",
+      ),
+    );
+    expect(ticketAlertQueryKeys.subscriptions(null)).not.toEqual(
+      ticketAlertQueryKeys.subscriptions(
+        "00000000-0000-4000-8000-000000000001",
+      ),
+    );
+    expect(() => ticketAlertAvailabilityQueryOptions("101oops")).toThrow();
+    expect(() => ticketAlertAvailabilityQueryOptions("0")).toThrow();
   });
 
-  it("preserves the account insert contract and tolerates an existing subscription race", async () => {
-    const client = mockClient(
-      { table: "ticket_alert_subscriptions", data: null },
-      { table: "finalShowtimes", data: [] },
+  it("deduplicates availability reads and reuses raw rows across city selectors", async () => {
+    const options = ticketAlertAvailabilityQueryOptions("101", "2026-09-04");
+    await Promise.all([client.fetchQuery(options), client.fetchQuery(options)]);
+    expect(requests).toHaveLength(1);
+    const url = new URL(requests[0].url);
+    expect(url.searchParams.get("tmdb_id")).toBe("eq.101");
+    expect(url.searchParams.get("date_of_showing")).toBe("gte.2026-09-04");
+    expect(url.searchParams.has("screening_city")).toBe(false);
+  });
+
+  it("paginates the shared account list and uses its cached result for movie lookup", async () => {
+    subscriptions = Array.from({ length: 1001 }, (_, index) =>
+      storedSubscription("00000000-0000-4000-8000-000000000001", index + 1));
+    const options = userTicketAlertSubscriptionsQueryOptions(
+      "00000000-0000-4000-8000-000000000001",
+    );
+    const alerts = await client.fetchQuery(options);
+    expect(alerts).toHaveLength(1001);
+    expect(selectUserTicketAlert(alerts, "00101")).toEqual(subscription());
+    await client.fetchQuery(options);
+    expect(requests).toHaveLength(2);
+    expect(new URL(requests[0].url).searchParams.get("order")).toBe(
+      "created_at.desc,tmdb_id.asc",
+    );
+  });
+
+  it("aborts in-flight reads when their query is cancelled", async () => {
+    let requestSignal: AbortSignal | undefined;
+    vi.mocked(getSupabaseBrowserClient).mockReturnValue(
+      createClient("http://127.0.0.1:54321", "local-test-only", {
+        auth: { persistSession: false, autoRefreshToken: false },
+        global: {
+          fetch: (_input, init) =>
+            new Promise((_resolve, reject) => {
+              requestSignal = init?.signal as AbortSignal;
+              requestSignal.addEventListener("abort", () =>
+                reject(new DOMException("Aborted", "AbortError")));
+            }),
+        },
+      }),
+    );
+    const options = ticketAlertAvailabilityQueryOptions("101");
+    const pending = client.fetchQuery(options);
+    const rejected = expect(pending).rejects.toThrow();
+    await vi.waitFor(() => expect(requestSignal).toBeDefined());
+    await client.cancelQueries({ queryKey: options.queryKey });
+    await rejected;
+    expect(requestSignal?.aborted).toBe(true);
+    expect(client.getQueryData(options.queryKey)).toBeUndefined();
+  });
+
+  it("selects a preferred city with fallback, discarding expired or unlinked showtimes", () => {
+    const instant = new Date("2026-09-04T16:00:00Z");
+    const linkedRows: TicketAlertShowtimeRow[] = [
       {
-        table: "ticket_alert_subscriptions",
-        data: null,
-        error: { code: "23505", message: "duplicate" },
+        screening_city: "Haifa",
+        date_of_showing: "2026-09-04",
+        showtime: "20:00",
+        english_href: "https://example.test/haifa",
       },
-    );
-    await expect(
-      subscribeToTicketAlert({ ...accountInput, tmdbId: " 42 " }),
-    ).resolves.toMatchObject({ subscribed: true });
-    expect(client.queries[2].insert).toHaveBeenCalledWith({
-      user_id: userId,
-      tmdb_id: 42,
-    });
-  });
-
-  it("keeps account cancellation scoped to the validated account and movie", async () => {
-    const client = mockClient({
-      table: "ticket_alert_subscriptions",
-      data: null,
-    });
-    await cancelTicketAlert(userId, " 42 ");
-    expect(client.queries[0].delete).toHaveBeenCalledOnce();
-    expect(client.queries[0].eq.mock.calls).toEqual([
-      ["user_id", userId],
-      ["tmdb_id", 42],
-    ]);
-  });
-});
-
-describe("ticket availability and routes", () => {
-  it("continues pagination after a full page of unusable rows", async () => {
-    const client = mockClient(
       {
-        table: "finalShowtimes",
-        data: Array.from({ length: 1000 }, () => ({
-          ...showtimeRow,
-          english_href: null,
-        })),
+        screening_city: "Jerusalem",
+        date_of_showing: "2026-09-05",
+        showtime: "20:00",
+        english_href: "https://example.test/jerusalem",
       },
-      { table: "finalShowtimes", data: [showtimeRow] },
-    );
-    const state = await loadTicketAlertState({ ...accountInput, userId: null });
-    expect(client.queries[0].range).toHaveBeenCalledWith(0, 999);
-    expect(client.queries[1].range).toHaveBeenCalledWith(1000, 1999);
-    expect(state.availability).toMatchObject({
-      city: "Jerusalem",
-      date: "2026-09-04",
-      time: "20:30",
-      ticketHref: showtimeRow.english_href,
-    });
-    expect(
-      parseMovieRouteCode(state.availability?.path.slice(1) ?? ""),
-    ).toMatchObject({
-      kind: "encoded",
-      movieCode: "A7z",
-      cityCode: "i",
-      dateCode: encodeDateCode("2026-09-04"),
-    });
-  });
-
-  it("rejects a malformed showtime envelope and makes no guest subscription RPC", async () => {
-    const client = mockClient({ table: "finalShowtimes", data: { rows: [] } });
-    await expect(subscribeGuestToTicketAlert(guestInput)).rejects.toThrow(
-      "ticket alert showtime page",
-    );
-    expect(client.rpc).not.toHaveBeenCalled();
-  });
-
-  it("returns available tickets without creating a guest token or subscription", async () => {
-    const client = mockClient({ table: "finalShowtimes", data: [showtimeRow] });
-    await expect(
-      subscribeGuestToTicketAlert(guestInput),
-    ).resolves.toMatchObject({
-      availability: { city: "Jerusalem" },
-      guestSubscribed: false,
-    });
-    expect(client.rpc).not.toHaveBeenCalled();
-    expect(storage.getItem(GUEST_TICKET_ALERT_TOKEN_STORAGE_KEY)).toBeNull();
-  });
-
-  it("selects trusted showtimes by preferred city, time, and cinema-day rules", () => {
-    const base = {
-      city: "Tel Aviv",
-      date: "2026-09-04",
-      time: "19:00",
-      cinema: "Cinema City",
-      ticketHref: showtimeRow.english_href,
-    };
-    const rows = [
-      base,
-      { ...base, city: "Jerusalem", time: "20:00" },
-      { ...base, city: "Jerusalem", time: "09:00" },
+      {
+        screening_city: "Jerusalem",
+        date_of_showing: "2026-09-04",
+        showtime: "10:00",
+        english_href: "https://example.test/expired",
+      },
+      {
+        screening_city: "Jerusalem",
+        date_of_showing: "2026-09-04",
+        showtime: "20:00",
+        english_href: "javascript:invalid",
+      },
     ];
-    expect(selectTicketAlertShowtime(rows, "Jerusalem")?.time).toBe("20:00");
-    expect(selectTicketAlertShowtime(rows, "Haifa")?.time).toBe("19:00");
     expect(
-      selectTicketAlertShowtime([{ ...base, time: "00:30" }], "Tel Aviv")?.time,
-    ).toBe("00:30");
-  });
-
-  it("falls back safely when a movie code, city, or date cannot be encoded", () => {
+      selectTicketAlertAvailability(linkedRows, "Jerusalem", "Ab1", instant)
+        ?.city,
+    ).toBe("Jerusalem");
     expect(
-      buildTicketAlertShowtimePath(undefined, {
-        city: "Jerusalem",
-        date: "2026-09-04",
-      }),
+      selectTicketAlertAvailability(linkedRows, "Tel Aviv", "Ab1", instant)
+        ?.city,
+    ).toBe("Haifa");
+    expect(
+      selectTicketAlertAvailability(linkedRows, "Haifa", undefined, instant)
+        ?.path,
     ).toBe("/showtimes");
-    expect(
-      buildTicketAlertShowtimePath("A7z", {
-        city: "Jerusalem",
-        date: "2027-09-04",
-      }),
-    ).toBe("/A7z");
-    expect(
-      buildTicketAlertShowtimePath("A7z", {
-        city: "Unknown city",
-        date: "2026-09-04",
-      }),
-    ).toBe("/A7z");
   });
 });
 
-describe("guest ticket alert mutations and browser storage", () => {
-  it("saves only validated server values after successful creation", async () => {
-    const client = mockClient({ table: "finalShowtimes", data: [] });
-    client.rpc.mockResolvedValue({ data: [guestResponse], error: null });
+describe("ticket alert mutation ownership", () => {
+  it("invalidates only the affected account list", async () => {
+    const firstKey = ticketAlertQueryKeys.subscriptions(
+      "00000000-0000-4000-8000-000000000001",
+    );
+    const secondKey = ticketAlertQueryKeys.subscriptions(
+      "00000000-0000-4000-8000-000000000002",
+    );
+    const availabilityKey = ticketAlertQueryKeys.availability(
+      "101",
+      "2026-09-04",
+    );
+    client.setQueryData(firstKey, [subscription()]);
+    client.setQueryData(secondKey, []);
+    client.setQueryData(availabilityKey, []);
+    await invalidateUserTicketAlertQueries(
+      client,
+      "00000000-0000-4000-8000-000000000001",
+    );
+    expect(client.getQueryState(firstKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(secondKey)?.isInvalidated).toBe(false);
+    expect(client.getQueryState(availabilityKey)?.isInvalidated).toBe(false);
+  });
+
+  it("merges confirmed changes immutably without losing unrelated subscriptions", () => {
+    const before = [subscription(), subscription("202")];
+    expect(mergeUserTicketAlert(before, "101", null)).toEqual([
+      subscription("202"),
+    ]);
+    const notified = { ...subscription(), notifiedAt: "2026-09-04T12:00:00Z" };
+    expect(mergeUserTicketAlert(before, "101", notified)).toEqual([
+      notified,
+      subscription("202"),
+    ]);
+    expect(before).toEqual([subscription(), subscription("202")]);
+  });
+
+  it("creates and cancels an account alert through the shared cache", async () => {
+    const key = ticketAlertQueryKeys.subscriptions(
+      "00000000-0000-4000-8000-000000000001",
+    );
+    const execute = (action: "subscribe" | "cancel") =>
+      client
+        .getMutationCache()
+        .build(
+          client,
+          ticketAlertMutationOptions(
+            "00000000-0000-4000-8000-000000000001",
+            "101",
+            client,
+          ),
+        )
+        .execute(
+          action === "subscribe"
+            ? { action, preferredCity: "Jerusalem" }
+            : { action },
+        );
+    await execute("subscribe");
+    expect(client.getQueryData(key)).toEqual([subscription()]);
+    await execute("cancel");
+    expect(client.getQueryData(key)).toEqual([]);
+    expect(
+      requests.filter((request) => request.method === "POST"),
+    ).toHaveLength(1);
+    expect(
+      requests.filter((request) => request.method === "DELETE"),
+    ).toHaveLength(1);
+  });
+
+  it("does not register an alert if tickets become available during the pre-save check", async () => {
+    rows = [
+      {
+        screening_city: "Haifa",
+        date_of_showing: addCalendarDays(getJerusalemCinemaDate(), 1),
+        showtime: "20:00",
+        english_href: "https://example.test/tickets",
+      },
+    ];
+    const result = await client
+      .getMutationCache()
+      .build(
+        client,
+        ticketAlertMutationOptions(
+          "00000000-0000-4000-8000-000000000001",
+          "101",
+          client,
+        ),
+      )
+      .execute({ action: "subscribe", preferredCity: "Jerusalem" });
+    expect(result.kind).toBe("available");
+    expect(requests.every((request) => request.method === "GET")).toBe(true);
+  });
+
+  it("preserves sent alerts and handles a concurrent duplicate insert", async () => {
+    subscriptions = [
+      { ...storedSubscription(), notified_at: "2026-09-02T12:00:00Z" },
+    ];
+    await client
+      .getMutationCache()
+      .build(
+        client,
+        ticketAlertMutationOptions(
+          "00000000-0000-4000-8000-000000000001",
+          "101",
+          client,
+        ),
+      )
+      .execute({ action: "subscribe", preferredCity: "Jerusalem" });
+    expect(requests.every((request) => request.method === "GET")).toBe(true);
+    subscriptions = [];
+    duplicateInsert = true;
+    await client
+      .getMutationCache()
+      .build(
+        client,
+        ticketAlertMutationOptions(
+          "00000000-0000-4000-8000-000000000001",
+          "202",
+          client,
+        ),
+      )
+      .execute({ action: "subscribe", preferredCity: "Jerusalem" });
+    expect(
+      selectUserTicketAlert(
+        client.getQueryData(
+          ticketAlertQueryKeys.subscriptions(
+            "00000000-0000-4000-8000-000000000001",
+          ),
+        ),
+        "202",
+      ),
+    ).toEqual(subscription("202"));
+  });
+
+  it("leaves confirmed cache data unchanged on cancellation failure and never retries writes", async () => {
+    const key = ticketAlertQueryKeys.subscriptions(
+      "00000000-0000-4000-8000-000000000001",
+    );
+    client.setQueryData(key, [subscription()]);
+    failWrites = true;
     await expect(
-      subscribeGuestToTicketAlert(guestInput),
-    ).resolves.toMatchObject({
-      guestEmail: "viewer@example.test",
-      guestSubscribed: true,
-      subscribed: false,
-      notified: false,
-    });
-    expect(client.rpc).toHaveBeenCalledWith("create_guest_ticket_alert", {
-      p_guest_token: guestToken,
-      p_tmdb_id: 42,
-      p_email: "viewer@example.test",
-      p_preferred_city: "Jerusalem",
-    });
-    expect(loadGuestTicketAlert("42")).toEqual({
-      tmdbId: "42",
-      ...storedAlert,
-    });
-    expect(storage.getItem(GUEST_TICKET_ALERT_TOKEN_STORAGE_KEY)).toBe(
-      guestToken,
-    );
+      client
+        .getMutationCache()
+        .build(
+          client,
+          ticketAlertMutationOptions(
+            "00000000-0000-4000-8000-000000000001",
+            "101",
+            client,
+          ),
+        )
+        .execute({ action: "cancel" }),
+    ).rejects.toThrow("Fixture write rejected");
+    expect(client.getQueryData(key)).toEqual([subscription()]);
+    expect(requests).toHaveLength(1);
   });
 
-  it("preserves a valid existing bearer token instead of replacing it", async () => {
-    storage.setItem(
-      GUEST_TICKET_ALERT_TOKEN_STORAGE_KEY,
-      ` ${guestToken.toUpperCase()} `,
+  it("keeps delayed account results isolated when another account is displayed", async () => {
+    const otherKey = ticketAlertQueryKeys.subscriptions(
+      "00000000-0000-4000-8000-000000000002",
     );
-    const client = mockClient({ table: "finalShowtimes", data: [] });
-    client.rpc.mockResolvedValue({ data: [guestResponse], error: null });
-    await subscribeGuestToTicketAlert(guestInput);
-    expect(globalThis.crypto.randomUUID).not.toHaveBeenCalled();
-    expect(client.rpc).toHaveBeenCalledWith(
-      "create_guest_ticket_alert",
-      expect.objectContaining({ p_guest_token: guestToken }),
-    );
+    client.setQueryData(otherKey, [subscription("202")]);
+    await client
+      .getMutationCache()
+      .build(
+        client,
+        ticketAlertMutationOptions(
+          "00000000-0000-4000-8000-000000000001",
+          "101",
+          client,
+        ),
+      )
+      .execute({ action: "subscribe", preferredCity: "Jerusalem" });
+    expect(client.getQueryData(otherKey)).toEqual([subscription("202")]);
+    expect(client.getQueryState(otherKey)?.isInvalidated).toBe(false);
   });
 
-  it.each([
-    null,
-    [],
-    [{ ...guestResponse, created_at: "yesterday" }],
-    [{ ...guestResponse, tmdb_id: 99 }],
-    [{ ...guestResponse, guest_token: userId }],
-  ])(
-    "does not cache malformed or mismatched guest creation responses: %j",
-    async (response) => {
-      const client = mockClient({ table: "finalShowtimes", data: [] });
-      client.rpc.mockResolvedValue({ data: response, error: null });
-      await expect(subscribeGuestToTicketAlert(guestInput)).rejects.toThrow();
-      expect(storage.getItem(GUEST_TICKET_ALERTS_STORAGE_KEY)).toBeNull();
-    },
-  );
-
-  it("retains local subscription state if cancellation cannot be confirmed", async () => {
-    storage.setItem(GUEST_TICKET_ALERT_TOKEN_STORAGE_KEY, guestToken);
-    storage.setItem(
-      GUEST_TICKET_ALERTS_STORAGE_KEY,
-      JSON.stringify({ "42": storedAlert }),
+  it("updates guest receipts only after a successful RPC and preserves them on failure", async () => {
+    const execute = (
+      action: "subscribe" | "cancel",
+      email = "Guest@Example.test",
+    ) =>
+      client
+        .getMutationCache()
+        .build(client, ticketAlertMutationOptions(null, "101", client))
+        .execute(
+          action === "subscribe"
+            ? { action, preferredCity: "Jerusalem", email }
+            : { action },
+        );
+    await execute("subscribe");
+    expect(useGuestTicketAlertsStore.getState().receipts["101"]?.email).toBe(
+      "guest@example.test",
     );
-    const client = mockClient();
-    client.rpc.mockResolvedValue({ data: null, error: null });
-    await expect(cancelGuestTicketAlert("42")).rejects.toThrow(
-      "cancellation response",
+    failWrites = true;
+    await expect(execute("subscribe", "new@example.test")).rejects.toThrow();
+    await expect(execute("cancel")).rejects.toThrow();
+    expect(useGuestTicketAlertsStore.getState().receipts["101"]?.email).toBe(
+      "guest@example.test",
     );
-    expect(loadGuestTicketAlert("42")).not.toBeNull();
-    client.rpc.mockResolvedValue({ data: null, error: { message: "offline" } });
-    await expect(cancelGuestTicketAlert("42")).rejects.toThrow("offline");
-    expect(loadGuestTicketAlert("42")).not.toBeNull();
-  });
-
-  it.each([0, 1])(
-    "removes only the requested local entry after a valid cancellation result (%s)",
-    async (count) => {
-      storage.setItem(GUEST_TICKET_ALERT_TOKEN_STORAGE_KEY, guestToken);
-      storage.setItem(
-        GUEST_TICKET_ALERTS_STORAGE_KEY,
-        JSON.stringify({ "42": storedAlert, "43": storedAlert }),
-      );
-      const client = mockClient();
-      client.rpc.mockResolvedValue({ data: count, error: null });
-      await cancelGuestTicketAlert("42");
-      expect(client.rpc).toHaveBeenCalledWith("cancel_guest_ticket_alert", {
-        p_guest_token: guestToken,
-        p_tmdb_id: 42,
-      });
-      expect(loadGuestTicketAlert("42")).toBeNull();
-      expect(loadGuestTicketAlert("43")).not.toBeNull();
-      expect(storage.getItem(GUEST_TICKET_ALERT_TOKEN_STORAGE_KEY)).toBe(
-        guestToken,
-      );
-    },
-  );
-
-  it("does not silently replace a malformed token or discard an uncancellable subscription", async () => {
-    storage.setItem(
-      GUEST_TICKET_ALERTS_STORAGE_KEY,
-      JSON.stringify({ "42": storedAlert }),
-    );
-    const client = mockClient({ table: "finalShowtimes", data: [] });
-    await expect(cancelGuestTicketAlert("42")).rejects.toThrow(
-      "token for this guest ticket alert is missing",
-    );
-    storage.setItem(GUEST_TICKET_ALERT_TOKEN_STORAGE_KEY, "invalid");
-    await expect(cancelGuestTicketAlert("42")).rejects.toThrow(
-      "stored guest ticket alert token",
-    );
-    await expect(subscribeGuestToTicketAlert(guestInput)).rejects.toThrow(
-      "stored guest ticket alert token",
-    );
-    expect(client.rpc).not.toHaveBeenCalled();
-    expect(loadGuestTicketAlert("42")).not.toBeNull();
-    expect(storage.getItem(GUEST_TICKET_ALERT_TOKEN_STORAGE_KEY)).toBe(
-      "invalid",
-    );
-  });
-
-  it("requires readable and writable token storage before issuing a creation RPC", async () => {
-    const client = mockClient(
-      { table: "finalShowtimes", data: [] },
-      { table: "finalShowtimes", data: [] },
-    );
-    const getItem = vi.spyOn(storage, "getItem");
-    getItem.mockImplementation(() => {
-      throw new Error("blocked");
-    });
-    await expect(subscribeGuestToTicketAlert(guestInput)).rejects.toThrow(
-      "readable browser storage",
-    );
-    getItem.mockReturnValue(null);
-    vi.spyOn(storage, "setItem").mockImplementation(() => {
-      throw new Error("full");
-    });
-    await expect(subscribeGuestToTicketAlert(guestInput)).rejects.toThrow(
-      "writable browser storage",
-    );
-    expect(client.rpc).not.toHaveBeenCalled();
-  });
-
-  it("rejects missing storage or insecure randomness before a guest mutation", async () => {
-    const client = mockClient({ table: "finalShowtimes", data: [] });
-    vi.stubGlobal("crypto", undefined);
-    await expect(subscribeGuestToTicketAlert(guestInput)).rejects.toThrow(
-      "secure browser randomness",
-    );
-    vi.stubGlobal("window", undefined);
-    await expect(cancelGuestTicketAlert("42")).rejects.toThrow(
-      "browser storage",
-    );
-    expect(client.rpc).not.toHaveBeenCalled();
-  });
-
-  it("does not fail a completed RPC when optional subscription-cache storage is full", async () => {
-    storage.setItem(GUEST_TICKET_ALERT_TOKEN_STORAGE_KEY, guestToken);
-    vi.spyOn(storage, "setItem").mockImplementation(() => {
-      throw new Error("full");
-    });
-    const client = mockClient({ table: "finalShowtimes", data: [] });
-    client.rpc.mockResolvedValue({ data: [guestResponse], error: null });
-    await expect(
-      subscribeGuestToTicketAlert(guestInput),
-    ).resolves.toMatchObject({ guestSubscribed: true });
-  });
-
-  it("treats invalid JSON and unavailable optional cache storage as empty", () => {
-    storage.setItem(GUEST_TICKET_ALERTS_STORAGE_KEY, "invalid JSON");
-    expect(loadGuestTicketAlert("42")).toBeNull();
-    vi.spyOn(storage, "getItem").mockImplementation(() => {
-      throw new Error("blocked");
-    });
-    expect(loadGuestTicketAlert("42")).toBeNull();
+    failWrites = false;
+    await execute("cancel");
+    expect(
+      useGuestTicketAlertsStore.getState().receipts["101"],
+    ).toBeUndefined();
   });
 });

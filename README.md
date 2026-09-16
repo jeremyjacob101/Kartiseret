@@ -12,6 +12,8 @@
   <img alt="React 19.2.7" src="https://img.shields.io/badge/React-19.2.7-0F172A?style=for-the-badge&logo=react&logoColor=61DAFB">
   <img alt="TypeScript 6.0.3" src="https://img.shields.io/badge/TypeScript-6.0.3-1D4ED8?style=for-the-badge&logo=typescript&logoColor=white">
   <img alt="Vite 8.1.4" src="https://img.shields.io/badge/Vite-8.1.4-111827?style=for-the-badge&logo=vite&logoColor=FBBF24">
+  <img alt="Zustand 5" src="https://img.shields.io/badge/Zustand-5-433E38?style=for-the-badge">
+  <img alt="TanStack Query 5" src="https://img.shields.io/badge/TanStack_Query-5-EF4444?style=for-the-badge">
   <img alt="Python 3.14+" src="https://img.shields.io/badge/Python-3.14%2B-166534?style=for-the-badge&logo=python&logoColor=white">
   <img alt="Supabase" src="https://img.shields.io/badge/Supabase-Platform-0F172A?style=for-the-badge&logo=supabase&logoColor=3ECF8E">
   <img alt="License MIT" src="https://img.shields.io/badge/License-MIT-15803D?style=for-the-badge">
@@ -71,16 +73,37 @@ Kartiseret currently spans two connected layers:
 ### Frontend Experience
 
 - Built as a client-side React 19.2.7 + TypeScript 6.0.3 SPA with Vite 8.1.4.
-- Uses custom `window.history` routing instead of React Router.
-- Uses React state/hooks plus a few singleton stores instead of Redux, Zustand, React Query, or SWR.
+- Uses React Router for browser navigation and standalone movie/share routes.
+- Uses Zustand for shared synchronous client state, TanStack Query for remote server state, and focused React state for component-local interactions.
 - Styles are global CSS-driven, accent-color-driven, and motion-heavy rather than Tailwind-based.
 - Code-splits secondary screens with `React.lazy` and `Suspense`.
 - Reads movie data directly from Supabase in the browser rather than through a separate API layer.
 - Derives TypeScript models from Zod schemas where practical and rejects malformed external rows before they enter application state.
 - Loads data in stages for perceived speed: now-playing preview, coming-soon preview, then full datasets and showtimes.
+- Loads movie collections in parallel, then fetches showtimes incrementally by city and date window.
 - Supports homepage, `/movies`, `/soons`, `/showtimes`, and `/user` routes.
-- Treats `/showtimes` as a placeholder route right now rather than a finished page.
+- Provides a full `/showtimes` browser with incremental day loading, city switching, filters, and nearby-city suggestions.
 - Gates `/user` behind authentication and keeps the auth UI inside the user menu rather than on a dedicated auth page.
+
+### Frontend State Architecture
+
+State ownership follows one rule: the system that owns the source of truth also owns its loading, error, freshness, and update lifecycle. Remote data is never copied into a Zustand cache.
+
+- TanStack Query (React Query, `@tanstack/react-query`) owns movie collections, permanent movie-code indexes, city/theater data, admin membership, ticket-alert subscriptions/availability, and all showtime request/cache state. Each vertical slice co-locates its query-key factory, fetcher, `queryOptions`, selectors, freshness policy, and invalidation rules.
+- Movie collection queries are keyed by catalog mode. Their data includes both the ordered movie list and its code index, so route lookups cannot drift from the rendered catalog.
+- Showtime network queries are keyed by city, inclusive start/end dates, and a normalized optional TMDb ID. Identical requests deduplicate automatically. Results merge immutably into a per-city Query cache that records broad and movie-targeted coverage separately; a targeted load therefore cannot mark the full city catalog ready.
+- Incremental showtime extension, targeted movie prefetch, and arbitrary-date jumps all reuse those range queries. Coverage metadata prevents known dates from being requested again, while exact range keys handle in-flight request sharing.
+- Admin movie edits use a TanStack mutation. Coming-soon edits invalidate only that collection; now-playing edits invalidate that collection, reset the showtime subtree, and invalidate ticket availability because movie identifiers can change. Account alert subscriptions are not invalidated by movie edits.
+- Ticket alerts are one vertical slice in `src/data/ticketAlerts.ts`. The movie control and settings list share a paginated, user-keyed subscription query. Availability reads are keyed by normalized movie ID and cinema date, span all cities, and stay separate from the city browser's coverage cache. City preference and movie-code links are selectors over raw availability rows, not extra request keys or persisted derived state. Queries have one-minute freshness, five-minute garbage collection, and abortable reads.
+- Account and guest alert mutations share per-identity/movie keys and serialization. Subscription creation rechecks current availability and membership through those same queries. Successful account changes merge the confirmed row into the affected user's list and invalidate only that list; failures leave confirmed data unchanged. Writes are not automatically retried. This deliberately preserves the existing confirmed-save UX instead of adding optimistic notification state or rollback bookkeeping.
+- `useShowtimeFiltersStore` remains Zustand state because saved filter selections are synchronous, shared by unrelated screens, and synchronized through local storage across tabs.
+- `useDeviceStore` remains Zustand state because responsive/user-agent classification is synchronous and shared by multiple distant consumers.
+- `useGuestTicketAlertsStore` owns only browser-local guest receipts, shared by movie views and synchronized across tabs using the existing versioned storage keys. There is no guest subscription read API: these receipts remember the email the browser successfully submitted, not authoritative server delivery status. Query mutations perform every RPC and own pending/error state; receipt actions are synchronous and run only after success. The guest capability token stays in browser storage and never enters query keys.
+- Catalog view mode, jump requests, forms, dialogs, animation phases, gestures, measurements, and other single-owner values remain local React state.
+
+`useUserPreferencesStore` is a deliberate synchronization exception. Supabase auth events, the active session, guest preference persistence, cached theme bootstrap, immediate theme application, optimistic saves, rollback, auth-generation guards, and rapid-save coalescing form one small protocol. Splitting the authenticated preference row into a query plus a second client store would create two competing owners and make rollback ordering harder to trace. Confirmed-email signups use the same default-row builder as instant signups, honor signup location metadata before guest location, and initialize missing rows without overwriting existing preferences. Admin membership is not part of that protocol and is therefore a normal user-keyed query. Revisit the preference exception only if the entire synchronization protocol can move as one vertical slice without weakening guest behavior or save coalescing.
+
+Run `npm test`, `npm run lint`, `npm run format:check`, and `npm run build` from the frontend directory. Focused tests cover query-key dimensions, immutable showtime/alert cache merging, request deduplication/cancellation, targeted invalidation, account isolation, failed account/guest writes, storage compatibility, signup defaults, and preference rollback/coalescing policy. Tests use in-memory Supabase transport, never real credentials or network writes. Browser QA must use a local read-only Supabase fixture; production data, deployments, and authenticated remote writes are outside the frontend verification workflow.
 
 ### Frontend UX Details
 
@@ -257,7 +280,7 @@ location.
 
 ### Coming Soon Ticket Alerts
 
-Apply [`supabase/migrations/20260823000000_create_ticket_alert_subscriptions.sql`](supabase/migrations/20260823000000_create_ticket_alert_subscriptions.sql) and then [`supabase/migrations/20260828000000_add_guest_ticket_alert_subscriptions.sql`](supabase/migrations/20260828000000_add_guest_ticket_alert_subscriptions.sql) before deploying the alert-enabled frontend or backend. The first migration creates owner-only RLS policies for account alerts; the second adds token-scoped guest subscriptions and service-role-only functions used to claim retry-safe delivery batches.
+Apply [`supabase/migrations/20260823000000_create_ticket_alert_subscriptions.sql`](supabase/migrations/20260823000000_create_ticket_alert_subscriptions.sql), then [`supabase/migrations/20260828000000_add_guest_ticket_alert_subscriptions.sql`](supabase/migrations/20260828000000_add_guest_ticket_alert_subscriptions.sql), and finally [`supabase/migrations/20260906000000_fix_guest_ticket_alert_function_column_ambiguity.sql`](supabase/migrations/20260906000000_fix_guest_ticket_alert_function_column_ambiguity.sql) before deploying the alert-enabled frontend or backend. The first migration creates owner-only RLS policies for account alerts; the second adds token-scoped guest subscriptions and service-role-only functions used to claim retry-safe delivery batches; the third makes the guest RPCs unambiguous under PL/pgSQL variable resolution.
 
 The final step of the now-playing dataflow checks pending subscriptions after fresh showtimes have been published. A showtime qualifies only when it is still upcoming and contains a real HTTP(S) ticket URL. All newly available subscribed movies are grouped into one Resend email per account (or per guest browser token) for that run, with links preferring the saved/current city and falling back to the earliest linked showtime elsewhere. Guests manage their email alert locally from the movie detail; signed-in users can review and undo account alerts under `/user`.
 
@@ -326,7 +349,7 @@ Recommended rollout order:
 ## Current Limitations
 
 - The frontend is tightly coupled to its Supabase table names and column assumptions.
-- No automated tests are configured in this repo right now.
+- Focused frontend state tests are configured; broader end-to-end and scraper coverage remains limited.
 - Scrapers depend on third-party cinema DOMs, so upstream site changes can break individual sources without warning.
 
 ## Links

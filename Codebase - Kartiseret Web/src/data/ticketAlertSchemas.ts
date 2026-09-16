@@ -44,6 +44,14 @@ export const accountTicketAlertIdentitySchema =
     userId: true,
     tmdbId: true,
   });
+export const ticketAlertChangeSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("cancel") }),
+  z.object({
+    action: z.literal("subscribe"),
+    preferredCity: appLocationSchema,
+    email: ticketAlertEmailSchema.optional(),
+  }),
+]);
 
 const subscriptionColumns = {
   tmdb_id: tmdbIdSchema,
@@ -58,10 +66,11 @@ export const nullableTicketAlertSubscriptionSchema =
   ticketAlertSubscriptionRowSchema.nullable();
 export const userTicketAlertSubscriptionRowSchema = z.object({
   ...subscriptionColumns,
+  user_id: supabaseUserIdSchema,
   delivery_title: z.string().nullable(),
   delivery_date: isoDateStringSchema.nullable(),
 });
-const userTicketAlertSubscriptionSchema =
+export const userTicketAlertSubscriptionSchema =
   userTicketAlertSubscriptionRowSchema.transform((row) => ({
     tmdbId: row.tmdb_id,
     createdAt: row.created_at,
@@ -168,3 +177,4 @@ export type TicketAlertActionOptions = z.input<
 export type GuestTicketAlertActionOptions = z.input<
   typeof guestTicketAlertInputSchema
 >;
+export type TicketAlertChange = z.input<typeof ticketAlertChangeSchema>;

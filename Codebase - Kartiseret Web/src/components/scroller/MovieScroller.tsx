@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type WheelEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
-import { comingSoonMovies, loadShowtimes, loadShowtimesAroundDate, movies, type Movie } from "../../data/movieCatalog";
-import { useDeviceInfo } from "../../device/useDeviceType";
-import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
+import { loadShowtimes, loadShowtimesAroundDate, movieCollectionQueryOptions, selectMovies, type Movie } from "../../data/movieCatalog";
+import { useDeviceStore } from "../../device/useDeviceType";
+import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
 import { shareLink } from "../../routing/shareLink";
 import { buildMovieShowtimeShareUrl, filterMaskFromUnchecked, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "../../routing/showtimeLinkCodec";
 import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
@@ -529,9 +530,12 @@ export function MovieScroller({
   ...props
 }: MovieScrollerProps) {
   const resolvedVariant = mode ?? detailVariant ?? "nowPlaying";
-  const resolvedMovieItems =
-    movieItems ??
-    (resolvedVariant === "comingSoon" ? comingSoonMovies : movies);
+  const { data: queriedMovieItems = [] } = useQuery({
+    ...movieCollectionQueryOptions(resolvedVariant),
+    select: selectMovies,
+    enabled: movieItems === undefined,
+  });
+  const resolvedMovieItems = movieItems ?? queriedMovieItems;
 
   if (resolvedMovieItems.length === 0) {
     return null;
@@ -566,8 +570,10 @@ function MovieScrollerContent({
   maxWidth = "100%",
   className,
 }: MovieScrollerContentProps) {
-  const { location: selectedCity } = useUserPreferencesContext();
-  const { isMobile } = useDeviceInfo();
+  const selectedCity = useUserPreferencesStore(
+    (state) => state.preferences.location,
+  );
+  const isMobile = useDeviceStore((state) => state.isMobile);
   const movieCount = movieItems.length;
   const collapsedRepeatSets = getRepeatSetCount(cardWidth + gap, movieCount);
   const collapsedMiddleStartIndex = getCollapsedMiddleStartIndex(

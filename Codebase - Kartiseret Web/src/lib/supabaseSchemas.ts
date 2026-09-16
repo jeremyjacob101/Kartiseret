@@ -5,7 +5,7 @@ export const supabaseUserIdSchema = z.string().uuid();
 export const supabaseUserIdentitySchema = z
   .object({
     id: supabaseUserIdSchema,
-    email: z.string().email().optional(),
+    email: z.string().email().nullable().optional(),
   })
   .passthrough();
 

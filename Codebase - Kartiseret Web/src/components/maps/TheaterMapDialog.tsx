@@ -1,8 +1,9 @@
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MapPin } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 import { loadCityLocationPicker, preloadCityLocationPicker } from "./loadCityLocationPicker";
-import { useUserPreferencesContext } from "../../prefs/useUserPreferences";
+import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
 import { type AppLocation } from "../../prefs/definitions/locations";
 import "./TheaterMapDialog.css";
 
@@ -77,7 +78,14 @@ export function TheaterMapDialog({
     syncing: preferenceSyncing,
     setLocationPreference,
     error: preferenceError,
-  } = useUserPreferencesContext();
+  } = useUserPreferencesStore(
+    useShallow((state) => ({
+      location: state.preferences.location,
+      syncing: state.syncing,
+      setLocationPreference: state.setLocationPreference,
+      error: state.error,
+    })),
+  );
   const location = locationOverride ?? preferenceLocation;
   const syncing = locationOverride === undefined ? preferenceSyncing : false;
   const error = locationOverride === undefined ? preferenceError : null;

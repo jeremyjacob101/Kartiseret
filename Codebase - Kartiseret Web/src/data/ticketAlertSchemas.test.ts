@@ -111,6 +111,7 @@ describe("ticket alert response schemas", () => {
       userTicketAlertSubscriptionRowsSchema.parse([
         {
           ...subscription,
+          user_id: userId,
           notified_at: "2026-09-04T12:00:00+03:00",
           delivery_title: "A movie",
           delivery_date: "2026-09-05",
@@ -141,7 +142,12 @@ describe("ticket alert response schemas", () => {
     }
     expect(
       userTicketAlertSubscriptionRowsSchema.safeParse([
-        { ...subscription, delivery_title: null, delivery_date: "2026-02-30" },
+        {
+          ...subscription,
+          user_id: userId,
+          delivery_title: null,
+          delivery_date: "2026-02-30",
+        },
       ]).success,
     ).toBe(false);
     expect(

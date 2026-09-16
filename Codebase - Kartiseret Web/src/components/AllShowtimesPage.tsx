@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { allNowPlayingMovies, fixedAppDateString, getMovieCatalogStatusSnapshot, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, subscribeToMovieCatalog, type Movie, type TheaterShowtimes } from "../data/movieCatalog";
-import { loadCities, type City } from "../data/theaters";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { useShallow } from "zustand/react/shallow";
+import { fixedAppDateString, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, movieCollectionQueryOptions, selectBroadMovieShowtimeDays, selectCityHasAnyShowtimesOnDate, selectMovies, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, type Movie, type ShowtimeCityData, type TheaterShowtimes } from "../data/movieCatalog";
+import { selectCities, theaterDataQueryOptions } from "../data/theaters";
+import { ALL_LOCATIONS } from "../prefs/definitions/locations";
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { TheaterMapDialog } from "./maps/TheaterMapDialog";
 import { ShowtimeDayPicker } from "./showtimes/ShowtimeDayPicker";
 import { MovieMetricsRow, MovieTrailerModal, ShowtimeTheaters } from "./showtimes/ShowtimeShared";
 import { ShowtimeFilterMenu } from "./showtimes/ShowtimeFilterMenu";
 import { getMetricDisplays, getMovieInfoParts, getShowtimeDateLabel, getShowtimeTargetDate, getTrailerEmbedUrl } from "./showtimes/showtimeUtils";
-import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, getShowtimeFiltersSnapshot, saveShowtimeFilters, subscribeToShowtimeFilters, updateShowtimeFilterState, type ShowtimeFilterOptions, type ShowtimeFilterSelections } from "./showtimes/showtimeFilters";
+import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, saveShowtimeFilters, updateShowtimeFilterState, useShowtimeFiltersStore, type ShowtimeFilterOptions, type ShowtimeFilterSelections } from "./showtimes/showtimeFilters";
 import { type RatingSource } from "../prefs/definitions/ratingSources";
-import { useUserPreferencesContext } from "../prefs/useUserPreferences";
+import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import "./AllShowtimesPage.css";
 import { MapPin } from "lucide-react";
 
@@ -31,13 +34,6 @@ type ShowtimesDayPanel = {
 type NearbyCityChoice = {
   name: string;
 };
-
-function cityHasAnyShowtimesOnDate(cityName: string, date: string): boolean {
-  return allNowPlayingMovies.some((movie) =>
-    getMovieShowtimeDays(movie.tmdbId, cityName).some(
-      (day) => day.date === date && day.theaters.length > 0,
-    ));
-}
 
 function ShowtimesMovieRow({
   movie,
@@ -107,13 +103,44 @@ function ShowtimesMovieRow({
 }
 
 export function AllShowtimesPage() {
-  const { location, sources, setLocationPreference } =
-    useUserPreferencesContext();
-  const showtimesVersion = useSyncExternalStore(
-    subscribeToMovieCatalog,
-    () => getMovieCatalogStatusSnapshot().showtimesVersion,
+  const { location, sources, setLocationPreference } = useUserPreferencesStore(
+    useShallow((state) => ({
+      location: state.preferences.location,
+      sources: state.preferences.ratingSources,
+      setLocationPreference: state.setLocationPreference,
+    })),
   );
-  const [cities, setCities] = useState<readonly City[]>([]);
+  const { data: nowPlayingMovies = [] } = useQuery({
+    ...movieCollectionQueryOptions("nowPlaying"),
+    select: selectMovies,
+  });
+  const showtimeCities = useMemo(
+    () => [...new Set<string>([...ALL_LOCATIONS, location])],
+    [location],
+  );
+  const showtimeCityQueries = useQueries({
+    queries: showtimeCities.map((city) => ({
+      ...showtimeCityQueryOptions(city),
+      enabled: city === location,
+    })),
+  });
+  const showtimeDataByCity = useMemo(
+    () =>
+      new Map<string, ShowtimeCityData>(
+        showtimeCities.flatMap((city, index) => {
+          const data = showtimeCityQueries[index]?.data as
+            ShowtimeCityData | undefined;
+
+          return data ? [[city, data] as const] : [];
+        }),
+      ),
+    [showtimeCities, showtimeCityQueries],
+  );
+  const selectedCityShowtimeData = showtimeDataByCity.get(location);
+  const { data: cities = [] } = useQuery({
+    ...theaterDataQueryOptions(),
+    select: selectCities,
+  });
   const [selectedShowtimeDate, setSelectedShowtimeDate] = useState<
     string | null
   >(fixedAppDateString);
@@ -126,25 +153,22 @@ export function AllShowtimesPage() {
   const previousShowtimeLocationRef = useRef(location);
   const requestedShowtimePrefetchRef = useRef<string | null>(null);
   const dayPanels = useMemo<ShowtimesDayPanel[]>(() => {
-    if (allNowPlayingMovies.length === 0) {
+    if (nowPlayingMovies.length === 0) {
       return [];
     }
 
-    // Incremental showtime loading updates the shared store in place, so this
-    // version token is the signal that the derived day panels should refresh.
-    void showtimesVersion;
     const showtimeDaysByMovieId = new Map(
-      allNowPlayingMovies.map((movie) => [
+      nowPlayingMovies.map((movie) => [
         movie.tmdbId,
-        getMovieShowtimeDays(movie.tmdbId, location),
+        selectBroadMovieShowtimeDays(selectedCityShowtimeData, movie.tmdbId),
       ]),
     );
     const referenceDays =
-      showtimeDaysByMovieId.get(allNowPlayingMovies[0].tmdbId) ?? [];
+      showtimeDaysByMovieId.get(nowPlayingMovies[0].tmdbId) ?? [];
 
     return referenceDays.map((day, index) => ({
       date: day.date,
-      movies: allNowPlayingMovies.flatMap((movie) => {
+      movies: nowPlayingMovies.flatMap((movie) => {
         const movieDay = showtimeDaysByMovieId.get(movie.tmdbId)?.[index];
 
         return movieDay && movieDay.theaters.length > 0
@@ -152,7 +176,7 @@ export function AllShowtimesPage() {
           : [];
       }),
     }));
-  }, [location, showtimesVersion]);
+  }, [nowPlayingMovies, selectedCityShowtimeData]);
   const resolvedShowtimeDate = getShowtimeTargetDate(
     dayPanels,
     selectedShowtimeDate ?? fixedAppDateString,
@@ -164,11 +188,7 @@ export function AllShowtimesPage() {
       null,
     [dayPanels, resolvedShowtimeDate],
   );
-  const showtimeFilterState = useSyncExternalStore(
-    subscribeToShowtimeFilters,
-    getShowtimeFiltersSnapshot,
-    getShowtimeFiltersSnapshot,
-  );
+  const showtimeFilterState = useShowtimeFiltersStore((state) => state.filters);
   const allLoadedTheaters = useMemo(
     () =>
       dayPanels.flatMap((day) =>
@@ -266,11 +286,9 @@ export function AllShowtimesPage() {
   const openTrailerMovie = useMemo(
     () =>
       openTrailerMovieId
-        ? allNowPlayingMovies.find(
-            (movie) => movie.tmdbId === openTrailerMovieId,
-          )
+        ? nowPlayingMovies.find((movie) => movie.tmdbId === openTrailerMovieId)
         : null,
-    [openTrailerMovieId],
+    [nowPlayingMovies, openTrailerMovieId],
   );
   const openTrailerEmbedUrl = getTrailerEmbedUrl(openTrailerMovie?.trailerKey);
   const cityByName = useMemo(
@@ -286,13 +304,19 @@ export function AllShowtimesPage() {
       cityByName
         .get(location)
         ?.neighboringCities.filter((cityName) =>
-          cityHasAnyShowtimesOnDate(cityName, selectedDayPanel.date)) ?? [];
+          selectCityHasAnyShowtimesOnDate(
+            showtimeDataByCity.get(cityName),
+            selectedDayPanel.date,
+          )) ?? [];
     const fallbackCityNames = cities
       .map((city) => city.name)
       .filter(
         (cityName) =>
           cityName !== location &&
-          cityHasAnyShowtimesOnDate(cityName, selectedDayPanel.date),
+          selectCityHasAnyShowtimesOnDate(
+            showtimeDataByCity.get(cityName),
+            selectedDayPanel.date,
+          ),
       );
     const cityNamesToShow =
       neighboringCityNames.length > 0
@@ -302,7 +326,7 @@ export function AllShowtimesPage() {
     return [...new Set(cityNamesToShow)].map((name) => ({
       name,
     }));
-  }, [cities, cityByName, location, selectedDayPanel]);
+  }, [cities, cityByName, location, selectedDayPanel, showtimeDataByCity]);
 
   const handleNearbyCityClick = useCallback(
     async (cityName: string) => {
@@ -363,24 +387,6 @@ export function AllShowtimesPage() {
       console.error("Could not load showtimes for the selected city.", error);
     });
   }, [location, selectedShowtimeDate]);
-
-  useEffect(() => {
-    let isActive = true;
-
-    void loadCities()
-      .then((nextCities) => {
-        if (isActive) {
-          setCities(nextCities);
-        }
-      })
-      .catch((error: unknown) => {
-        console.error("Could not load city metadata for all showtimes.", error);
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
 
   useEffect(() => {
     if (

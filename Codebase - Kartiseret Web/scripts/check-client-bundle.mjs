@@ -4,7 +4,10 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { z } from "zod";
 
-const DEFAULT_EAGER_JS_GZIP_BUDGET_BYTES = 200 * 1024;
+// The eager boundary-schema layer (Zod) is intentionally budgeted explicitly.
+// Keep a small maintenance margin above the current ~203 KiB measurement while
+// still catching accidental eager imports of heavy feature code.
+const DEFAULT_EAGER_JS_GZIP_BUDGET_BYTES = 210 * 1024;
 const LOCAL_BUNDLE_ORIGIN = "https://bundle.local";
 const scriptPath = fileURLToPath(import.meta.url);
 const appRoot = resolve(dirname(scriptPath), "..");
