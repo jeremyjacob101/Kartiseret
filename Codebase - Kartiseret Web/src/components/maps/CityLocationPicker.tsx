@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Clapperboard, List, Search } from "lucide-react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Map as MapLibreMap, Marker, NavigationControl, Popup, setWorkerUrl } from "maplibre-gl";
-import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { selectTheaters, theaterDataQueryOptions } from "../../data/theaters";
 import { type AppLocation } from "../../prefs/definitions/locations";
