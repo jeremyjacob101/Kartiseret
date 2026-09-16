@@ -322,7 +322,9 @@ function getFirstNormalizedText(
 }
 
 function normalizeTitle(value: string): string {
-  return normalizeText(value).replace(/^"+|"+$/g, "");
+  return normalizeText(value)
+    .replace(/^"+|"+$/g, "")
+    .trim();
 }
 
 function parseGenres(value: SupabaseValue | undefined): string[] {

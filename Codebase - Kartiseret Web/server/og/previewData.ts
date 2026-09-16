@@ -5,14 +5,20 @@ import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime, SHOWTIME
 import { DEFAULT_LOCATION } from "../../src/prefs/definitions/locations.js";
 import { decodeDateCode, isCanonicalShowtimeFilterMatch, parseMovieRouteCode, resolveCityCode, SHOWTIME_FILTER_OPTIONS, uncheckedFromFilterMask } from "../../src/routing/showtimeLinkCodec.js";
 
+const runtimeEnv = (
+  globalThis as typeof globalThis & {
+    process?: { env?: Record<string, string | undefined> };
+  }
+).process?.env;
+
 const supabaseUrl =
-  process.env.SUPABASE_URL?.trim() ||
-  process.env.VITE_SUPABASE_URL?.trim() ||
+  runtimeEnv?.SUPABASE_URL?.trim() ||
+  runtimeEnv?.VITE_SUPABASE_URL?.trim() ||
   "";
 
 const supabaseKey =
-  process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ||
-  process.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ||
+  runtimeEnv?.SUPABASE_PUBLISHABLE_KEY?.trim() ||
+  runtimeEnv?.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ||
   "";
 
 const supabase =

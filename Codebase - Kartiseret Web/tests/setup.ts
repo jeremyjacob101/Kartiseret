@@ -2,6 +2,16 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 
+Object.defineProperty(globalThis, "__SUPABASE_URL__", {
+  configurable: true,
+  value: "http://127.0.0.1:54321",
+});
+
+Object.defineProperty(globalThis, "__SUPABASE_PUBLISHABLE_KEY__", {
+  configurable: true,
+  value: "local-test-only",
+});
+
 Object.defineProperty(window, "matchMedia", {
   configurable: true,
   writable: true,
@@ -37,6 +47,18 @@ Object.defineProperty(window, "scrollTo", {
 });
 
 Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+  configurable: true,
+  writable: true,
+  value: vi.fn(),
+});
+
+Object.defineProperty(HTMLElement.prototype, "hasPointerCapture", {
+  configurable: true,
+  writable: true,
+  value: vi.fn(() => false),
+});
+
+Object.defineProperty(HTMLElement.prototype, "releasePointerCapture", {
   configurable: true,
   writable: true,
   value: vi.fn(),

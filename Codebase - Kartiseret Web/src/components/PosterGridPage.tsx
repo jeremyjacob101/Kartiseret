@@ -152,10 +152,11 @@ export function PosterGridPage({
     <section className="poster-grid-page" aria-label={title}>
       <div ref={gridRef} className="poster-grid-page-grid" aria-label={title}>
         {posterEntries.map(({ movie, rowIndex }) => (
-          <button
+          <div
             key={movie.tmdbId}
-            type="button"
             className="poster-grid-page-tile"
+            role="button"
+            tabIndex={0}
             aria-label={`Open ${movie.title} in scroller view`}
             title={movie.title}
             style={
@@ -165,6 +166,12 @@ export function PosterGridPage({
             }
             onClick={() => {
               onPosterSelect(movie);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onPosterSelect(movie);
+              }
             }}
           >
             {isAdmin ? (
@@ -194,7 +201,7 @@ export function PosterGridPage({
               decoding="async"
               className="poster-grid-page-image"
             />
-          </button>
+          </div>
         ))}
       </div>
       {editingMovie ? (

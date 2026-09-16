@@ -3,6 +3,9 @@ import type { PreviewData } from "./previewData.js";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { formatPreviewReleaseDate } from "./previewFormat.js";
+
+export { formatPreviewReleaseDate } from "./previewFormat.js";
 
 const IMAGE_TIMEOUT_MS = 8_000;
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -131,24 +134,6 @@ function formatRuntime(runtime: number | null): string | null {
   const hours = Math.floor(runtime / 60);
   const minutes = runtime % 60;
   return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
-}
-
-export function formatPreviewReleaseDate(releaseDate: string | null): string {
-  if (!releaseDate) {
-    return "TBA";
-  }
-
-  const parsedDate = new Date(`${releaseDate}T12:00:00Z`);
-  if (Number.isNaN(parsedDate.getTime())) {
-    return releaseDate;
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(parsedDate);
 }
 
 function getCriticLogo(score: number | null, votes: number | null): string {
