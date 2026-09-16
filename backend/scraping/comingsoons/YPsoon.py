@@ -13,7 +13,7 @@ class YPsoon(BaseCinema):
 
     def logic(self):
         self.sleep(5)
-        self.waitAndClick("#onetrust-accept-btn-handler", 1)
+        self.driver.execute_script("document.querySelector('#usercentrics-cmp-ui')?.shadowRoot?.querySelector('#accept')?.click()")
 
         for film_card in range(1, self.lenElements("/html/body/div[6]/section/div[4]/div/div/div/div[2]/div/div/div/div[1]/div") + 1):
             self.english_hrefs.append(self.element(f"/html/body/div[6]/section/div[4]/div/div/div/div[2]/div/div/div/div[1]/div[{film_card}]/a").get_attribute("href"))
