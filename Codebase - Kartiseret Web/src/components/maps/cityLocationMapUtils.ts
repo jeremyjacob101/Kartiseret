@@ -91,14 +91,16 @@ export const NON_ROAD_LABEL_KEYWORDS = [
   "boundary",
   "housenumber",
 ];
-export const ENGLISH_LABEL_TEXT_FIELD = [
+type EnglishLabelTextFieldExpression = ["coalesce", ...Array<["get", string]>];
+
+export const ENGLISH_LABEL_TEXT_FIELD: EnglishLabelTextFieldExpression = [
   "coalesce",
   ["get", "name_en"],
   ["get", "name:en"],
   ["get", "name:latin"],
   ["get", "name_int"],
   ["get", "name"],
-] as const;
+];
 export const SECONDARY_CITIES: ReadonlyArray<{
   name: string;
   center: [number, number];
