@@ -279,7 +279,7 @@ location.
 
 ### Coming Soon Ticket Alerts
 
-Apply the ticket-alert migrations in timestamp order, ending with [`supabase/migrations/20260916000000_remove_ticket_alert_rpcs_and_guest_subscriptions.sql`](supabase/migrations/20260916000000_remove_ticket_alert_rpcs_and_guest_subscriptions.sql), before deploying the account-only alert-enabled frontend or backend. The account subscription table uses owner-only RLS policies. The final migration removes the retired guest table and all ticket-alert RPCs; the frontend and backend use direct table access.
+Apply the ticket-alert migrations in timestamp order, ending with [`supabase/migrations/20260916010000_restore_ticket_alert_batch_rpcs.sql`](supabase/migrations/20260916010000_restore_ticket_alert_batch_rpcs.sql), before deploying the account-only alert-enabled frontend or backend. The account subscription table uses owner-only RLS policies. The guest cleanup migration removes the retired guest table and old RPCs; the latest migration restores only the two `service_role`-only RPCs required for atomic backend batch claiming and attempt counting. The frontend continues to use direct table access.
 
 The final step of the now-playing dataflow checks pending account subscriptions after fresh showtimes have been published. A showtime qualifies only when it is still upcoming and contains a real HTTP(S) ticket URL. All newly available subscribed movies are grouped into one Resend email per account for that run, with links preferring the saved/current city and falling back to the earliest linked showtime elsewhere. Signed-in users can review and undo account alerts under `/user`.
 
