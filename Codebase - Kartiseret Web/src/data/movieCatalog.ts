@@ -106,6 +106,8 @@ export type MovieAltOption = z.infer<typeof movieAltOptionSchema>;
 
 export type CatalogMode = "nowPlaying" | "comingSoon";
 
+export type MovieCodesStatus = "pending" | "ready" | "failed";
+
 export type MovieRouteMatch = {
   movie: Movie;
   mode: CatalogMode;
@@ -135,6 +137,7 @@ export type MovieCollectionData = {
   mode: CatalogMode;
   movies: Movie[];
   moviesByCode: Record<string, Movie>;
+  movieCodesStatus: MovieCodesStatus;
 };
 
 export type ShowtimeRange = {
@@ -912,17 +915,135 @@ function indexMoviesByCode(
   );
 }
 
+type MovieCodeHydrationRevision = Record<CatalogMode, number>;
+
+const movieCodeHydrationRevisions = new WeakMap<
+  QueryClient,
+  MovieCodeHydrationRevision
+>();
+
+function nextMovieCodeHydrationRevision(
+  client: QueryClient,
+  mode: CatalogMode,
+): number {
+  const revisions =
+    movieCodeHydrationRevisions.get(client) ??
+    ({ nowPlaying: 0, comingSoon: 0 } satisfies MovieCodeHydrationRevision);
+  const nextRevision = revisions[mode] + 1;
+
+  revisions[mode] = nextRevision;
+  movieCodeHydrationRevisions.set(client, revisions);
+
+  return nextRevision;
+}
+
+function isCurrentMovieCodeHydrationRevision(
+  client: QueryClient,
+  mode: CatalogMode,
+  revision: number,
+): boolean {
+  return movieCodeHydrationRevisions.get(client)?.[mode] === revision;
+}
+
+function scheduleMovieCodeHydrationUpdate(
+  client: QueryClient,
+  mode: CatalogMode,
+  revision: number,
+  update: (current: MovieCollectionData) => MovieCollectionData,
+): void {
+  const queryKey = movieCatalogQueryKeys.collection(mode);
+  let retryCount = 0;
+
+  const applyUpdate = () => {
+    if (!isCurrentMovieCodeHydrationRevision(client, mode, revision)) {
+      return;
+    }
+
+    if (!client.getQueryData<MovieCollectionData>(queryKey)) {
+      if (retryCount < 1) {
+        retryCount += 1;
+        globalThis.setTimeout(applyUpdate, 0);
+      }
+
+      return;
+    }
+
+    client.setQueryData<MovieCollectionData>(queryKey, (current) =>
+      current ? update(current) : current);
+  };
+
+  applyUpdate();
+}
+
+function beginMovieCodeHydration(
+  client: QueryClient,
+  mode: CatalogMode,
+  baseCollection: MovieCollectionData,
+  movieCodesPromise: Promise<Map<string, string>>,
+  signal?: AbortSignal,
+): void {
+  const revision = nextMovieCodeHydrationRevision(client, mode);
+  const baseMovieIds = baseCollection.movies.map((movie) => movie.tmdbId);
+
+  const matchesBaseCollection = (current: MovieCollectionData): boolean =>
+    current.mode === mode &&
+    current.movies.length === baseMovieIds.length &&
+    current.movies.every(
+      (movie, index) => movie.tmdbId === baseMovieIds[index],
+    );
+
+  void movieCodesPromise
+    .then((movieCodesByTmdbId) => {
+      if (signal?.aborted) {
+        return;
+      }
+
+      scheduleMovieCodeHydrationUpdate(client, mode, revision, (current) => {
+        if (!matchesBaseCollection(current)) {
+          return current;
+        }
+
+        const movies = current.movies.map((movie) => ({
+          ...movie,
+          movieCode: movieCodesByTmdbId.get(movie.tmdbId),
+        }));
+
+        return {
+          ...current,
+          movies,
+          moviesByCode: indexMoviesByCode(movies),
+          movieCodesStatus: "ready",
+        };
+      });
+    })
+    .catch((error: unknown) => {
+      if (signal?.aborted) {
+        return;
+      }
+
+      console.error(
+        `Failed to hydrate ${MOVIE_CODES_TABLE_NAME} for ${mode}.`,
+        error,
+      );
+      scheduleMovieCodeHydrationUpdate(client, mode, revision, (current) =>
+        matchesBaseCollection(current)
+          ? { ...current, movieCodesStatus: "failed" }
+          : current);
+    });
+}
+
 async function fetchMovieCollection(
   mode: CatalogMode,
   signal?: AbortSignal,
+  client: QueryClient = queryClient,
 ): Promise<MovieCollectionData> {
   const movieRows =
     mode === "nowPlaying"
       ? await fetchMovieRows(signal)
       : await fetchComingSoonMovieRows(signal);
-  const movieCodesByTmdbId = await fetchMovieCodesByTmdbId(movieRows, signal);
+
+  const movieCodesPromise = fetchMovieCodesByTmdbId(movieRows, signal);
   const movies = buildMovies(movieRows, {
-    movieCodesByTmdbId,
     sortMode: mode === "comingSoon" ? "releaseDate" : "popularity",
   });
 
@@ -933,17 +1054,28 @@ async function fetchMovieCollection(
     throw new Error(`Supabase table ${tableName} returned no movie rows.`);
   }
 
-  return {
+  const baseCollection = {
     mode,
     movies,
-    moviesByCode: indexMoviesByCode(movies),
-  };
+    moviesByCode: {},
+    movieCodesStatus: "pending" as const,
+  } satisfies MovieCollectionData;
+
+  beginMovieCodeHydration(
+    client,
+    mode,
+    baseCollection,
+    movieCodesPromise,
+    signal,
+  );
+
+  return baseCollection;
 }
 
 export function movieCollectionQueryOptions(mode: CatalogMode) {
   return queryOptions({
     queryKey: movieCatalogQueryKeys.collection(mode),
-    queryFn: ({ signal }) => fetchMovieCollection(mode, signal),
+    queryFn: ({ signal, client }) => fetchMovieCollection(mode, signal, client),
     staleTime: MOVIE_COLLECTION_STALE_TIME,
     gcTime: MOVIE_COLLECTION_GC_TIME,
   });

@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fixedAppDateString, findMovieByCode, movieCatalogQueryKeys, movieCollectionQueryOptions, selectCityHasAnyShowtimesOnDate, showtimeRangeQueryOptions } from "../src/data/movieCatalog";
+import { fixedAppDateString, findMovieByCode, movieCatalogQueryKeys, movieCollectionQueryOptions, selectCityHasAnyShowtimesOnDate, showtimeRangeQueryOptions, type MovieCollectionData } from "../src/data/movieCatalog";
 import { queryClient } from "../src/lib/queryClient";
 
 const { getSupabaseBrowserClientMock } = vi.hoisted(() => ({
@@ -25,6 +25,8 @@ function createCatalogClient(options: {
   codes?: unknown[];
   showtimes?: unknown[];
   failOptionalMovieColumns?: boolean;
+  failCodes?: boolean;
+  codesGate?: Promise<void>;
   requests?: Request[];
 }) {
   let optionalMovieFailureUsed = false;
@@ -54,7 +56,15 @@ function createCatalogClient(options: {
 
         if (table === "finalMovies") return response(options.movies ?? []);
         if (table === "finalSoons") return response(options.comingSoon ?? []);
-        if (table === "movieCodes") return response(options.codes ?? []);
+        if (table === "movieCodes") {
+          if (options.codesGate) {
+            await options.codesGate;
+          }
+
+          return options.failCodes
+            ? response({ message: "movieCodes unavailable" }, 400)
+            : response(options.codes ?? []);
+        }
         if (table === "finalShowtimes")
           return response(options.showtimes ?? []);
         return response({ message: `Unexpected table ${table}` }, 500);
@@ -97,7 +107,12 @@ beforeEach(() => {
 });
 
 describe("movie catalog Supabase hydration", () => {
-  it("normalizes fields, filters solo updates, maps movie codes, and sorts popularity", async () => {
+  it("renders the base catalog before mapping movie codes, then hydrates the cache", async () => {
+    let releaseCodes!: () => void;
+    const codesGate = new Promise<void>((resolve) => {
+      releaseCodes = resolve;
+    });
+
     getSupabaseBrowserClientMock.mockReturnValue(
       createCatalogClient({
         movies: [
@@ -115,15 +130,34 @@ describe("movie catalog Supabase hydration", () => {
           { tmdb_id: 101, movie_code: "Ab1" },
           { tmdb_id: 303, movie_code: "bad" },
         ],
+        codesGate,
       }),
     );
 
-    const data = await new QueryClient().fetchQuery(
+    const client = new QueryClient();
+    const data = await client.fetchQuery(
       movieCollectionQueryOptions("nowPlaying"),
     );
 
     expect(data.movies.map((movie) => movie.tmdbId)).toEqual(["101", "303"]);
-    expect(data.movies[0]).toMatchObject({
+    expect(data.movies[0]?.movieCode).toBeUndefined();
+    expect(data.movieCodesStatus).toBe("pending");
+
+    releaseCodes();
+
+    await vi.waitFor(() => {
+      expect(
+        client.getQueryData<MovieCollectionData>(
+          movieCatalogQueryKeys.collection("nowPlaying"),
+        )?.movieCodesStatus,
+      ).toBe("ready");
+    });
+
+    const hydratedData = client.getQueryData<MovieCollectionData>(
+      movieCatalogQueryKeys.collection("nowPlaying"),
+    );
+
+    expect(hydratedData?.movies[0]).toMatchObject({
       tmdbId: "101",
       movieCode: "Ab1",
       title: "A Sample Movie",
@@ -139,8 +173,8 @@ describe("movie catalog Supabase hydration", () => {
         { tmdbId: "202", title: "Alt Movie", year: 2027, posterUrl: "alt.jpg" },
       ],
     });
-    expect(data.moviesByCode.Ab1?.tmdbId).toBe("101");
-    expect(data.moviesByCode.bad?.tmdbId).toBe("303");
+    expect(hydratedData?.moviesByCode.Ab1?.tmdbId).toBe("101");
+    expect(hydratedData?.moviesByCode.bad?.tmdbId).toBe("303");
   });
 
   it("retries without optional columns when an older Supabase schema rejects them", async () => {
@@ -163,6 +197,38 @@ describe("movie catalog Supabase hydration", () => {
       requests.filter((request) => request.url.includes("finalMovies")),
     ).toHaveLength(2);
     expect(requests[1]?.url).not.toContain("imdb_id");
+  });
+
+  it("keeps the base catalog usable when movie code hydration fails", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    getSupabaseBrowserClientMock.mockReturnValue(
+      createCatalogClient({ movies: [baseMovieRow], failCodes: true }),
+    );
+
+    const client = new QueryClient();
+    const data = await client.fetchQuery(
+      movieCollectionQueryOptions("nowPlaying"),
+    );
+
+    expect(data.movies).toHaveLength(1);
+    expect(data.movies[0]?.movieCode).toBeUndefined();
+
+    await vi.waitFor(() => {
+      expect(
+        client.getQueryData<MovieCollectionData>(
+          movieCatalogQueryKeys.collection("nowPlaying"),
+        )?.movieCodesStatus,
+      ).toBe("failed");
+    });
+
+    expect(
+      client.getQueryData<MovieCollectionData>(
+        movieCatalogQueryKeys.collection("nowPlaying"),
+      )?.movies,
+    ).toHaveLength(1);
+    consoleError.mockRestore();
   });
 
   it("sorts coming-soon movies by release date and falls back to release year", async () => {
@@ -215,6 +281,7 @@ describe("movie catalog cache selectors", () => {
       mode: "nowPlaying",
       movies: [movie],
       moviesByCode: { Ab1: movie },
+      movieCodesStatus: "ready",
     });
 
     expect(findMovieByCode("not-valid")).toBeNull();

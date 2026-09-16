@@ -19,6 +19,7 @@ const SHARE_FEEDBACK_DURATION_MS = 2_200;
 type MoviePageProps = {
   catalogError: string | null;
   catalogReady: boolean;
+  movieCodesReady: boolean;
 };
 
 type MoviePageStateProps = {
@@ -126,7 +127,11 @@ function useJerusalemToday(): string {
   return today;
 }
 
-export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
+export function MoviePage({
+  catalogError,
+  catalogReady,
+  movieCodesReady,
+}: MoviePageProps) {
   const { movieCode: routeCode = "" } = useParams();
   const navigate = useNavigate();
   const {
@@ -145,7 +150,7 @@ export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
   const candidateMovieCode = routeCode.slice(0, 3);
   const hasValidMovieCode = isValidMovieCode(candidateMovieCode);
   const routeMatch =
-    catalogReady && hasValidMovieCode
+    catalogReady && movieCodesReady && hasValidMovieCode
       ? findMovieByCode(candidateMovieCode)
       : null;
   const routeMovie = routeMatch?.movie ?? null;
@@ -243,7 +248,12 @@ export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
   );
 
   useEffect(() => {
-    if (!catalogReady || catalogError || preferencesLoading) {
+    if (
+      !catalogReady ||
+      !movieCodesReady ||
+      catalogError ||
+      preferencesLoading
+    ) {
       return;
     }
 
@@ -319,6 +329,7 @@ export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
     commitQueryState,
     hasValidMovieCode,
     navigate,
+    movieCodesReady,
     preferenceLocation,
     preferencesLoading,
     routeCode,
@@ -344,14 +355,14 @@ export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
 
     document.title = movieTitle
       ? `${movieTitle} | Kartiseret`
-      : catalogReady
+      : catalogReady && movieCodesReady
         ? "Movie not found | Kartiseret"
         : "Loading movie | Kartiseret";
 
     return () => {
       document.title = previousTitle;
     };
-  }, [catalogReady, movieTitle]);
+  }, [catalogReady, movieCodesReady, movieTitle]);
 
   useEffect(() => {
     if (!activeShowtimeRange || !exactShowtimeQuery.data) {
@@ -522,7 +533,7 @@ export function MoviePage({ catalogError, catalogReady }: MoviePageProps) {
     return <MoviePageState title="Movie unavailable" message={catalogError} />;
   }
 
-  if (!catalogReady || preferencesLoading) {
+  if (!catalogReady || !movieCodesReady || preferencesLoading) {
     return (
       <MoviePageState
         title="Loading movie"

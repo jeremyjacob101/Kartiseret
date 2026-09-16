@@ -745,24 +745,26 @@ function MovieScrollerContent({
       const movieCode = movie.movieCode;
       const today = getJerusalemCinemaDate();
 
-      if (!movieCode || !isDateInShowtimeLinkWindow(selection.date, today)) {
+      if (!isDateInShowtimeLinkWindow(selection.date, today)) {
         showShareFeedback("Unable to share this selection");
         return;
       }
 
-      const url = buildMovieShowtimeShareUrl({
-        movieCode,
-        city: selection.location,
-        date: selection.date,
-        filterMask: filterMaskFromUnchecked(
-          selection.filterState?.unchecked ?? {
-            showType: [],
-            screenFormat: [],
-            screeningTech: [],
-            dubLanguage: [],
-          },
-        ),
-      });
+      const url = movieCode
+        ? buildMovieShowtimeShareUrl({
+            movieCode,
+            city: selection.location,
+            date: selection.date,
+            filterMask: filterMaskFromUnchecked(
+              selection.filterState?.unchecked ?? {
+                showType: [],
+                screenFormat: [],
+                screeningTech: [],
+                dubLanguage: [],
+              },
+            ),
+          })
+        : new URL("/showtimes", window.location.origin).toString();
 
       if (!url) {
         showShareFeedback("Unable to share this selection");

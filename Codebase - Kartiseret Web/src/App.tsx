@@ -11,7 +11,7 @@ import { Navbar } from "./components/bars/Navbar";
 import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
 import { type MovieSearchResult } from "./components/MovieSearchMenu";
 import { adminStatusQueryOptions } from "./data/adminStatus";
-import { adminMovieEditMutationOptions, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, movieCollectionQueryOptions, reloadComingSoonMovies, reloadNowPlayingMovies, selectMovies, showtimeCityQueryOptions, type Movie } from "./data/movieCatalog";
+import { adminMovieEditMutationOptions, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, movieCollectionQueryOptions, reloadComingSoonMovies, reloadNowPlayingMovies, showtimeCityQueryOptions, type Movie } from "./data/movieCatalog";
 import { useDeviceStore } from "./device/useDeviceType";
 import { initializeUserPreferencesStore, useUserPreferencesStore } from "./stores/userPreferencesStore";
 import { queryClient } from "./lib/queryClient";
@@ -291,12 +291,10 @@ export function App() {
   const shouldLoadCatalog = pathname !== "/user" && pathname !== "/attribution";
   const nowPlayingQuery = useQuery({
     ...movieCollectionQueryOptions("nowPlaying"),
-    select: selectMovies,
     enabled: shouldLoadCatalog,
   });
   const comingSoonQuery = useQuery({
     ...movieCollectionQueryOptions("comingSoon"),
-    select: selectMovies,
     enabled: shouldLoadCatalog,
   });
   const showtimeCityQuery = useQuery({
@@ -306,13 +304,19 @@ export function App() {
   const { mutateAsync: saveAdminMovieEdit } = useMutation(
     adminMovieEditMutationOptions(),
   );
-  const nowPlayingMovies = nowPlayingQuery.data ?? [];
-  const comingSoonMovies = comingSoonQuery.data ?? [];
+  const nowPlayingMovies = nowPlayingQuery.data?.movies ?? [];
+  const comingSoonMovies = comingSoonQuery.data?.movies ?? [];
   const nowPlayingReady =
     nowPlayingQuery.isSuccess && nowPlayingMovies.length > 0;
   const comingSoonReady =
     comingSoonQuery.isSuccess && comingSoonMovies.length > 0;
   const catalogReady = nowPlayingReady && comingSoonReady;
+  const movieCodesReady =
+    catalogReady &&
+    (nowPlayingQuery.data?.movieCodesStatus === "ready" ||
+      nowPlayingQuery.data?.movieCodesStatus === "failed") &&
+    (comingSoonQuery.data?.movieCodesStatus === "ready" ||
+      comingSoonQuery.data?.movieCodesStatus === "failed");
   const showtimesReady = showtimeCityQuery.data?.broadReady ?? false;
   const catalogQueryError =
     nowPlayingQuery.error ??
@@ -766,6 +770,7 @@ export function App() {
                 <MoviePage
                   catalogError={catalogError}
                   catalogReady={catalogReady}
+                  movieCodesReady={movieCodesReady}
                 />
               </Suspense>
             }
