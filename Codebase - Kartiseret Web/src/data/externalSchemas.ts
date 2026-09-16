@@ -8,7 +8,8 @@ const nullableNumberishSchema = z.union([
   z.null(),
 ]);
 const nonnegativeNumberishSchema = nullableNumberishSchema.refine((value) => {
-  const parsedValue = Number.parseInt(String(value ?? ""), 10);
+  const parsedValue =
+    typeof value === "number" ? value : Number(String(value ?? "").trim());
   return !Number.isFinite(parsedValue) || parsedValue >= 0;
 }, "Expected a non-negative numeric value.");
 const nullableBooleanishSchema = z.union([
@@ -75,6 +76,11 @@ export const movieAltOptionInputSchema = z
   })
   .passthrough();
 
+const movieAltOptionsInputSchema = z
+  .array(movieAltOptionInputSchema)
+  .nullable()
+  .transform((value) => value?.slice(0, 10) ?? null);
+
 const optionalMovieColumns = {
   imdb_id: nullableNumberishSchema.optional(),
   rt_id: nullableTextSchema.optional(),
@@ -96,7 +102,7 @@ export const movieRowSchema = z
     solo_update: nullableBooleanishSchema,
     genres: genresValueSchema,
     en_poster: nullableTextSchema,
-    alt_options: z.array(movieAltOptionInputSchema).nullable(),
+    alt_options: movieAltOptionsInputSchema,
     en_trailer: nullableTextSchema,
     backdrop: nullableTextSchema,
     imdbRating: nullableNumberishSchema,
@@ -118,7 +124,7 @@ export const comingSoonMovieRowSchema = z
     solo_update: nullableBooleanishSchema,
     genres: genresValueSchema,
     en_poster: nullableTextSchema,
-    alt_options: z.array(movieAltOptionInputSchema).nullable(),
+    alt_options: movieAltOptionsInputSchema,
     backdrop: nullableTextSchema,
     en_trailer: nullableTextSchema,
     imdbRating: nullableNumberishSchema.optional().default(null),

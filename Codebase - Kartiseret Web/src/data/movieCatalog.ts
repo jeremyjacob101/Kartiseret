@@ -332,19 +332,21 @@ function getReleaseYearFromDate(releaseDate: string | undefined): number {
 
 function parseAltOptions(value: SupabaseValue | undefined): MovieAltOption[] {
   if (!Array.isArray(value)) return [];
-  return value.flatMap((entry) => {
-    const result = movieAltOptionInputSchema.safeParse(entry);
-    if (!result.success) return [];
-    const year = parseOptionalNumberValue(result.data.year);
-    return [
-      {
-        tmdbId: result.data.tmdb,
-        title: normalizeTitle(result.data.title),
-        year: year === null ? null : Math.trunc(year),
-        posterUrl: normalizeText(result.data.poster_url ?? "") || null,
-      },
-    ];
-  });
+  return value
+    .flatMap((entry) => {
+      const result = movieAltOptionInputSchema.safeParse(entry);
+      if (!result.success) return [];
+      const year = parseOptionalNumberValue(result.data.year);
+      return [
+        {
+          tmdbId: result.data.tmdb,
+          title: normalizeTitle(result.data.title),
+          year: year === null ? null : Math.trunc(year),
+          posterUrl: normalizeText(result.data.poster_url ?? "") || null,
+        },
+      ];
+    })
+    .slice(0, 10);
 }
 
 function compareByReleaseDate(

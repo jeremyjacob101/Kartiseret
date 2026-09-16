@@ -87,6 +87,32 @@ describe("Supabase row schemas", () => {
     ).toBe(false);
   });
 
+  it("keeps alternate movie options bounded at the ingress boundary", () => {
+    const options = Array.from({ length: 12 }, (_, index) => ({
+      tmdb: String(index + 1),
+      title: `Alternative title ${index + 1}`,
+      year: 2026,
+      poster_url: null,
+    }));
+
+    const result = movieRowSchema.parse({
+      ...validMovieRow,
+      alt_options: options,
+    });
+
+    expect(result.alt_options).toHaveLength(10);
+  });
+
+  it("rejects negative fractional values for nonnegative numeric fields", () => {
+    expect(
+      movieRowSchema.safeParse({ ...validMovieRow, runtime: "-0.5" }).success,
+    ).toBe(false);
+    expect(
+      movieRowSchema.safeParse({ ...validMovieRow, release_year: -0.5 })
+        .success,
+    ).toBe(false);
+  });
+
   it("requires a real release date for coming-soon rows", () => {
     const comingSoonRow = {
       tmdb_id: "693134",
