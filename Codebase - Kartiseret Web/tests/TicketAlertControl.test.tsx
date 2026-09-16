@@ -1,14 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TicketAlertControl } from "../src/components/scroller/TicketAlertControl";
 import { getJerusalemCinemaDate } from "../src/routing/showtimeLinkCodec";
 import { queryClient } from "../src/lib/queryClient";
+import { OPEN_AUTH_MENU_EVENT } from "../src/lib/authMenu";
 import { ticketAlertQueryKeys } from "../src/data/ticketAlerts";
-import { useGuestTicketAlertsStore } from "../src/stores/guestTicketAlertsStore";
 import { useUserPreferencesStore } from "../src/stores/userPreferencesStore";
 import { sampleMovie } from "./fixtures";
 
@@ -31,31 +31,6 @@ function createSupabaseFixture() {
       fetch: async (input, init) => {
         const request = new Request(input, init);
         const url = new URL(request.url);
-
-        if (url.pathname.includes("/rpc/")) {
-          if (url.pathname.endsWith("/rpc/create_guest_ticket_alert")) {
-            const body = JSON.parse(await request.clone().text()) as {
-              p_email: string;
-              p_guest_token: string;
-              p_preferred_city: string;
-              p_tmdb_id: number;
-            };
-            return new Response(
-              JSON.stringify([
-                {
-                  tmdb_id: body.p_tmdb_id,
-                  created_at: "2026-09-16T12:00:00Z",
-                  notified_at: null,
-                  guest_token: body.p_guest_token,
-                  email: body.p_email,
-                  preferred_city: body.p_preferred_city,
-                },
-              ]),
-              { status: 200 },
-            );
-          }
-          return new Response("null", { status: 200 });
-        }
 
         if (url.pathname.endsWith("/finalShowtimes")) {
           return new Response("[]", { status: 200 });
@@ -106,7 +81,6 @@ beforeEach(() => {
       clear: () => storageValues.clear(),
     },
   });
-  useGuestTicketAlertsStore.setState({ receipts: {} });
   useUserPreferencesStore.setState({
     user: null,
     loading: false,
@@ -120,7 +94,6 @@ beforeEach(() => {
 
 afterEach(() => {
   queryClient.clear();
-  useGuestTicketAlertsStore.setState({ receipts: {} });
 });
 
 describe("TicketAlertControl", () => {
@@ -159,41 +132,30 @@ describe("TicketAlertControl", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("validates guest email input before invoking the mutation", async () => {
+  it("directs logged-out users to account auth instead of a guest alert form", async () => {
     const user = userEvent.setup();
+    const authMenuRequest = vi.fn();
+    window.addEventListener(OPEN_AUTH_MENU_EVENT, authMenuRequest);
     renderControl();
-    await user.click(await screen.findByRole("button", { name: /Notify me/ }));
-    await user.type(
-      screen.getByLabelText("Email for this alert"),
-      "invalid@domain",
-    );
-    await user.click(screen.getByRole("button", { name: "Save alert" }));
+    try {
+      await user.click(
+        await screen.findByRole("button", {
+          name: /Create an account to get a ticket alert/,
+        }),
+      );
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Enter a valid email address for this alert.",
-    );
-  });
-
-  it("saves and displays a normalized guest receipt after the server confirms", async () => {
-    const user = userEvent.setup();
-    renderControl();
-    await user.click(await screen.findByRole("button", { name: /Notify me/ }));
-    await user.type(
-      screen.getByLabelText("Email for this alert"),
-      " Guest@Example.com ",
-    );
-    await user.click(screen.getByRole("button", { name: "Save alert" }));
-
-    await waitFor(() =>
-      expect(useGuestTicketAlertsStore.getState().receipts["101"]?.email).toBe(
-        "guest@example.com",
-      ));
-    expect(
-      screen.getByRole("button", { name: /Edit or cancel ticket alert/ }),
-    ).toHaveTextContent("Email alert on");
-    expect(
-      screen.queryByLabelText("Email for this alert"),
-    ).not.toBeInTheDocument();
+      expect(authMenuRequest).toHaveBeenCalledTimes(1);
+      expect(
+        screen.getByText(
+          "Create an account or log in to receive a ticket alert.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByLabelText("Email for this alert"),
+      ).not.toBeInTheDocument();
+    } finally {
+      window.removeEventListener(OPEN_AUTH_MENU_EVENT, authMenuRequest);
+    }
   });
 
   it("renders already-notified account alerts as terminal and disabled", () => {
