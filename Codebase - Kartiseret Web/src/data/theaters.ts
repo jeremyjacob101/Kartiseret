@@ -1,44 +1,11 @@
 import { queryOptions } from "@tanstack/react-query";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 import { queryClient } from "../lib/queryClient";
+import { theaterRowSchema, type TheaterRow } from "./externalSchemas";
+import type { City, Theater } from "./applicationSchemas";
+import { parseBoundary } from "../validation/runtime";
 
-type TheaterRow = {
-  chain: string;
-  address: string;
-  location: string;
-  theater_name: string;
-  latitude: number;
-  longitude: number;
-  city_details: CityRow;
-};
-
-type CityRow = {
-  name: string;
-  alt_spellings: string[];
-  latitude: number;
-  longitude: number;
-  zoom_layer: number;
-  neighboring_cities: string[];
-};
-
-export type City = {
-  name: string;
-  altSpellings: string[];
-  latitude: number;
-  longitude: number;
-  zoomLayer: number;
-  neighboringCities: string[];
-};
-
-export type Theater = {
-  city: City;
-  chain: string;
-  address: string;
-  theaterName: string;
-  location: string;
-  lat: number;
-  lng: number;
-};
+export type { City, Theater } from "./applicationSchemas";
 
 const THEATERS_TABLE_NAME = "theaters";
 const CITY_NAME_JOIN_THEATER_SELECT_COLUMNS = [
@@ -133,7 +100,11 @@ async function fetchTheaterRows(): Promise<TheaterRow[]> {
     throw result.error;
   }
 
-  return result.data as unknown as TheaterRow[];
+  return parseBoundary(
+    theaterRowSchema.array(),
+    result.data ?? [],
+    "theater response",
+  );
 }
 
 async function fetchTheaterData(): Promise<TheaterData> {

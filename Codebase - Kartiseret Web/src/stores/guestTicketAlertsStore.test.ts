@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { parseGuestTicketAlertReceipts } from "./guestTicketAlertsStore";
+import { describe, expect, it, vi } from "vitest";
+import { getOrCreateGuestTicketAlertToken, GUEST_TICKET_ALERT_TOKEN_STORAGE_KEY, parseGuestTicketAlertReceipts, readGuestTicketAlertToken } from "./guestTicketAlertsStore";
 
 describe("guest receipt storage compatibility", () => {
   it("reads the existing versioned shape and discards malformed entries individually", () => {
@@ -27,5 +27,24 @@ describe("guest receipt storage compatibility", () => {
     for (const raw of [null, "{bad json", "[]", "null", "42"]) {
       expect(parseGuestTicketAlertReceipts(raw)).toEqual({});
     }
+  });
+
+  it("does not silently replace a malformed bearer token", () => {
+    const storage = new Map([
+      [GUEST_TICKET_ALERT_TOKEN_STORAGE_KEY, "bad-token"],
+    ]);
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => storage.set(key, value),
+      },
+    });
+
+    expect(readGuestTicketAlertToken()).toBeNull();
+    expect(() => getOrCreateGuestTicketAlertToken()).toThrow(
+      "credentials are invalid",
+    );
+    expect(storage.get(GUEST_TICKET_ALERT_TOKEN_STORAGE_KEY)).toBe("bad-token");
+    vi.unstubAllGlobals();
   });
 });

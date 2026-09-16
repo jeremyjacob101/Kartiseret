@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { cloneUncheckedGroups, type ShowtimeFilterState } from "../../domain/showtimeFilters.js";
-import { migrateShowtimeFilterState } from "../../routing/showtimeLinkCodec.js";
+import { migrateShowtimeFilterJson } from "../../routing/showtimeLinkCodec.js";
 
 export {
   buildShowtimeFilterSelections,
@@ -41,7 +41,7 @@ function readFilterStateFromStorage(): ShowtimeFilterState | null {
       return null;
     }
 
-    return migrateShowtimeFilterState(JSON.parse(raw) as unknown);
+    return migrateShowtimeFilterJson(raw);
   } catch {
     return null;
   }

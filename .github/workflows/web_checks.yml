@@ -1,0 +1,41 @@
+name: Web checks
+
+on:
+  pull_request:
+    paths:
+      - "Codebase - Kartiseret Web/**"
+      - ".github/workflows/web_checks.yml"
+      - "README.md"
+  push:
+    branches:
+      - main
+    paths:
+      - "Codebase - Kartiseret Web/**"
+      - ".github/workflows/web_checks.yml"
+      - "README.md"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "Codebase - Kartiseret Web"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: "Codebase - Kartiseret Web/package-lock.json"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify web application
+        run: npm run verify

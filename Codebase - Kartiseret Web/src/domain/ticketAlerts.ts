@@ -1,22 +1,21 @@
+import { ticketAlertEmailSchema, ticketAlertMovieIdSchema } from "../data/ticketAlertSchemas";
+
 export function normalizeTicketAlertEmail(value: string): string {
-  return value.trim().toLowerCase();
+  const result = ticketAlertEmailSchema.safeParse(value);
+  return result.success ? result.data : value.trim().toLowerCase();
 }
 
 export function isValidTicketAlertEmail(value: string): boolean {
-  const email = normalizeTicketAlertEmail(value);
-  return (
-    email.length <= 320 &&
-    /^[^\s@<>()"'\\]+@[^\s@<>()"'\\]+\.[^\s@<>()"'\\]+$/.test(email)
-  );
+  return ticketAlertEmailSchema.safeParse(value).success;
 }
 
 export function normalizeTicketAlertTmdbId(value: string): string {
-  const trimmed = value.trim();
-  const id = Number(trimmed);
-
-  if (!/^\d+$/.test(trimmed) || !Number.isSafeInteger(id) || id <= 0) {
-    throw new Error("This movie cannot be used for ticket alerts.");
+  const result = ticketAlertMovieIdSchema.safeParse(value);
+  if (!result.success) {
+    throw new Error("This movie cannot be used for ticket alerts.", {
+      cause: result.error,
+    });
   }
 
-  return String(id);
+  return String(result.data);
 }

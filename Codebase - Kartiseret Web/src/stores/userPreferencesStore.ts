@@ -1,15 +1,22 @@
 import type { User } from "@supabase/supabase-js";
 import { create } from "zustand";
+import { z } from "zod";
 import { getSupabaseBrowserClient } from "../lib/supabase";
+import { supabaseUserIdSchema, supabaseUserIdentitySchema } from "../lib/supabaseSchemas";
 import { loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY, locationPreferenceDefinition, type AppLocation } from "../prefs/definitions/locations";
 import { ratingSourcesPreferenceDefinition, type RatingSource } from "../prefs/definitions/ratingSources";
 import { DEFAULT_SITE_COLOR, applySiteColor, initializeSiteColorTheme, siteColorPreferenceDefinition, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
 import type { UserPreferenceDefinition } from "../prefs/definitions/shared";
 import { shouldRollbackOptimisticSave } from "./preferenceSavePolicy";
 import { buildInitialPreferencesRow } from "../prefs/initialPreferences";
+import { parseBoundary } from "../validation/runtime";
 
 const PREFERENCES_TABLE = "userPreferences";
 const supabase = getSupabaseBrowserClient();
+
+const userPreferencesRowSchema = z
+  .object({ user_id: supabaseUserIdSchema })
+  .passthrough();
 
 initializeSiteColorTheme();
 
@@ -134,11 +141,11 @@ function normalizePreferenceValue<Key extends PreferenceKey>(
   key: Key,
   value: unknown,
 ): UserPreferences[Key] {
-  const normalize = getPreferenceDefinition(key).normalize as (
+  const parse = getPreferenceDefinition(key).parse as (
     value: unknown,
   ) => UserPreferences[Key];
 
-  return normalize(value);
+  return parse(value);
 }
 
 function getDefaultPreferenceValue<Key extends PreferenceKey>(
@@ -223,10 +230,32 @@ async function loadPreferencesRow(userId: string) {
     .eq("user_id", userId)
     .maybeSingle();
 
-  return {
-    error,
-    row: (data as UserPreferencesRow | null) ?? null,
-  };
+  if (error) {
+    return { error, row: null as UserPreferencesRow | null };
+  }
+
+  if (data === null) {
+    return { error: null, row: null };
+  }
+
+  try {
+    return {
+      error: null,
+      row: parseBoundary(
+        userPreferencesRowSchema,
+        data,
+        "user preferences response",
+      ) as UserPreferencesRow,
+    };
+  } catch (validationError) {
+    return {
+      error:
+        validationError instanceof Error
+          ? validationError
+          : new Error("Invalid user preferences row."),
+      row: null as UserPreferencesRow | null,
+    };
+  }
 }
 
 export async function persistSignupPreferenceDefaults(
@@ -234,9 +263,14 @@ export async function persistSignupPreferenceDefaults(
   signupLocationMetadata: unknown,
   { onlyIfMissing = false }: { onlyIfMissing?: boolean } = {},
 ): Promise<string | null> {
+  const validatedUserId = parseBoundary(
+    supabaseUserIdSchema,
+    userId,
+    "user preferences user ID",
+  );
   const { error } = await supabase.from(PREFERENCES_TABLE).upsert(
     buildInitialPreferencesRow(
-      userId,
+      validatedUserId,
       signupLocationMetadata,
       loadGuestLocation(),
     ),
@@ -603,6 +637,15 @@ function activateUser(nextUser: User | null, forceSync = false): void {
   void syncPreferencesWithUser(nextUserId);
 }
 
+function parseAuthUser(value: unknown): User | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const result = supabaseUserIdentitySchema.safeParse(value);
+  return result.success ? (value as User) : null;
+}
+
 export function initializeUserPreferencesStore(): void {
   if (initializationStarted) {
     return;
@@ -615,13 +658,13 @@ export function initializeUserPreferencesStore(): void {
       useUserPreferencesStore.setState({ error: error.message });
     }
 
-    activateUser(data.session?.user ?? null, true);
+    activateUser(parseAuthUser(data.session?.user), true);
 
     const { data: authSubscription } = supabase.auth.onAuthStateChange((
       _event,
       session,
     ) => {
-      activateUser(session?.user ?? null);
+      activateUser(parseAuthUser(session?.user));
     });
 
     disposeAuthSubscription = () => {

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { UserPreferenceDefinition } from "./shared.js";
 
 export const ALL_LOCATIONS = [
@@ -31,9 +32,8 @@ export const ALL_LOCATIONS = [
   "Holon",
 ] as const;
 
-export type CanonicalAppLocation = (typeof ALL_LOCATIONS)[number];
-
-export type AppLocation = string;
+export const canonicalAppLocationSchema = z.enum(ALL_LOCATIONS);
+export type CanonicalAppLocation = z.infer<typeof canonicalAppLocationSchema>;
 
 export const DEFAULT_LOCATION: AppLocation = "Jerusalem";
 export const LOCATION_PREFERENCE_KEY = "location";
@@ -51,26 +51,30 @@ function normalizeLocationValue(value: string): string {
   return value.trim().replace(/\s+/g, " ");
 }
 
+export const appLocationSchema = z
+  .string()
+  .transform(normalizeLocationValue)
+  .pipe(z.string().min(1));
+export type AppLocation = z.infer<typeof appLocationSchema>;
+
 export function normalizeLocation(
   value: unknown,
   fallback: AppLocation = DEFAULT_LOCATION,
 ): AppLocation {
-  if (typeof value === "string") {
-    const normalizedValue = normalizeLocationValue(value);
+  const result = appLocationSchema.safeParse(value);
 
-    if (!normalizedValue) {
-      return fallback;
-    }
-
-    return (
-      canonicalLocationByNormalizedValue.get(normalizedValue) ?? normalizedValue
-    );
+  if (!result.success) {
+    return fallback;
   }
 
-  return fallback;
+  return canonicalLocationByNormalizedValue.get(result.data) ?? result.data;
 }
 
 export function loadGuestLocation(): AppLocation | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
   try {
     const raw = window.localStorage.getItem(GUEST_LOCATION_KEY);
 
@@ -84,8 +88,25 @@ export function loadGuestLocation(): AppLocation | null {
   }
 }
 
+export function loadInitialPreferenceLocation(
+  signupLocationMetadata: unknown,
+): AppLocation {
+  const result = appLocationSchema.safeParse(signupLocationMetadata);
+  return result.success
+    ? result.data
+    : (loadGuestLocation() ?? DEFAULT_LOCATION);
+}
+
 export function saveGuestLocation(location: AppLocation): void {
-  window.localStorage.setItem(GUEST_LOCATION_KEY, location);
+  try {
+    const result = appLocationSchema.safeParse(location);
+
+    if (result.success) {
+      window.localStorage.setItem(GUEST_LOCATION_KEY, result.data);
+    }
+  } catch {
+    // Keep the in-memory preference when storage is unavailable or invalid.
+  }
 }
 
 export const locationPreferenceDefinition: UserPreferenceDefinition<
@@ -98,7 +119,7 @@ export const locationPreferenceDefinition: UserPreferenceDefinition<
   defaultValue: DEFAULT_LOCATION,
   options: ALL_LOCATIONS,
   copy: (value) => value,
-  normalize: (value) => normalizeLocation(value, DEFAULT_LOCATION),
+  parse: (value) => normalizeLocation(value, DEFAULT_LOCATION),
   guestPersistence: {
     load: loadGuestLocation,
     save: saveGuestLocation,

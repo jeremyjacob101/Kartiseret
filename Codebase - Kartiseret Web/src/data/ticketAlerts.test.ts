@@ -13,6 +13,8 @@ type StoredSubscription = {
   tmdb_id: number;
   created_at: string;
   notified_at: string | null;
+  delivery_title: string | null;
+  delivery_date: string | null;
 };
 
 let client: QueryClient;
@@ -23,7 +25,7 @@ let failWrites: boolean;
 let duplicateInsert: boolean;
 
 function storedSubscription(
-  userId = "user-a",
+  userId = "00000000-0000-4000-8000-000000000001",
   tmdbId = 101,
 ): StoredSubscription {
   return {
@@ -31,6 +33,8 @@ function storedSubscription(
     tmdb_id: tmdbId,
     created_at: "2026-09-01T12:00:00Z",
     notified_at: null,
+    delivery_title: null,
+    delivery_date: null,
   };
 }
 
@@ -90,7 +94,20 @@ beforeEach(() => {
           return reply(rows);
         }
         if (url.pathname.includes("/rpc/")) {
-          return reply(null);
+          const body = (await request.json()) as Record<string, unknown>;
+          if (url.pathname.endsWith("/create_guest_ticket_alert")) {
+            return reply([
+              {
+                guest_token: body.p_guest_token,
+                tmdb_id: body.p_tmdb_id,
+                email: body.p_email,
+                preferred_city: body.p_preferred_city,
+                created_at: "2026-09-01T12:00:00Z",
+                notified_at: null,
+              },
+            ]);
+          }
+          return reply(1);
         }
         if (!url.pathname.endsWith("/ticket_alert_subscriptions")) {
           throw new Error(
@@ -144,11 +161,19 @@ describe("ticket alert queries", () => {
     expect(ticketAlertQueryKeys.availability("101", "2026-09-04")).not.toEqual(
       ticketAlertQueryKeys.availability("101", "2026-09-05"),
     );
-    expect(ticketAlertQueryKeys.subscriptions("user-a")).not.toEqual(
-      ticketAlertQueryKeys.subscriptions("user-b"),
+    expect(
+      ticketAlertQueryKeys.subscriptions(
+        "00000000-0000-4000-8000-000000000001",
+      ),
+    ).not.toEqual(
+      ticketAlertQueryKeys.subscriptions(
+        "00000000-0000-4000-8000-000000000002",
+      ),
     );
     expect(ticketAlertQueryKeys.subscriptions(null)).not.toEqual(
-      ticketAlertQueryKeys.subscriptions("user-a"),
+      ticketAlertQueryKeys.subscriptions(
+        "00000000-0000-4000-8000-000000000001",
+      ),
     );
     expect(() => ticketAlertAvailabilityQueryOptions("101oops")).toThrow();
     expect(() => ticketAlertAvailabilityQueryOptions("0")).toThrow();
@@ -166,8 +191,10 @@ describe("ticket alert queries", () => {
 
   it("paginates the shared account list and uses its cached result for movie lookup", async () => {
     subscriptions = Array.from({ length: 1001 }, (_, index) =>
-      storedSubscription("user-a", index + 1));
-    const options = userTicketAlertSubscriptionsQueryOptions("user-a");
+      storedSubscription("00000000-0000-4000-8000-000000000001", index + 1));
+    const options = userTicketAlertSubscriptionsQueryOptions(
+      "00000000-0000-4000-8000-000000000001",
+    );
     const alerts = await client.fetchQuery(options);
     expect(alerts).toHaveLength(1001);
     expect(selectUserTicketAlert(alerts, "00101")).toEqual(subscription());
@@ -248,8 +275,12 @@ describe("ticket alert queries", () => {
 
 describe("ticket alert mutation ownership", () => {
   it("invalidates only the affected account list", async () => {
-    const firstKey = ticketAlertQueryKeys.subscriptions("user-a");
-    const secondKey = ticketAlertQueryKeys.subscriptions("user-b");
+    const firstKey = ticketAlertQueryKeys.subscriptions(
+      "00000000-0000-4000-8000-000000000001",
+    );
+    const secondKey = ticketAlertQueryKeys.subscriptions(
+      "00000000-0000-4000-8000-000000000002",
+    );
     const availabilityKey = ticketAlertQueryKeys.availability(
       "101",
       "2026-09-04",
@@ -257,7 +288,10 @@ describe("ticket alert mutation ownership", () => {
     client.setQueryData(firstKey, [subscription()]);
     client.setQueryData(secondKey, []);
     client.setQueryData(availabilityKey, []);
-    await invalidateUserTicketAlertQueries(client, "user-a");
+    await invalidateUserTicketAlertQueries(
+      client,
+      "00000000-0000-4000-8000-000000000001",
+    );
     expect(client.getQueryState(firstKey)?.isInvalidated).toBe(true);
     expect(client.getQueryState(secondKey)?.isInvalidated).toBe(false);
     expect(client.getQueryState(availabilityKey)?.isInvalidated).toBe(false);
@@ -277,11 +311,20 @@ describe("ticket alert mutation ownership", () => {
   });
 
   it("creates and cancels an account alert through the shared cache", async () => {
-    const key = ticketAlertQueryKeys.subscriptions("user-a");
+    const key = ticketAlertQueryKeys.subscriptions(
+      "00000000-0000-4000-8000-000000000001",
+    );
     const execute = (action: "subscribe" | "cancel") =>
       client
         .getMutationCache()
-        .build(client, ticketAlertMutationOptions("user-a", "101", client))
+        .build(
+          client,
+          ticketAlertMutationOptions(
+            "00000000-0000-4000-8000-000000000001",
+            "101",
+            client,
+          ),
+        )
         .execute(
           action === "subscribe"
             ? { action, preferredCity: "Jerusalem" }
@@ -310,7 +353,14 @@ describe("ticket alert mutation ownership", () => {
     ];
     const result = await client
       .getMutationCache()
-      .build(client, ticketAlertMutationOptions("user-a", "101", client))
+      .build(
+        client,
+        ticketAlertMutationOptions(
+          "00000000-0000-4000-8000-000000000001",
+          "101",
+          client,
+        ),
+      )
       .execute({ action: "subscribe", preferredCity: "Jerusalem" });
     expect(result.kind).toBe("available");
     expect(requests.every((request) => request.method === "GET")).toBe(true);
@@ -322,31 +372,58 @@ describe("ticket alert mutation ownership", () => {
     ];
     await client
       .getMutationCache()
-      .build(client, ticketAlertMutationOptions("user-a", "101", client))
+      .build(
+        client,
+        ticketAlertMutationOptions(
+          "00000000-0000-4000-8000-000000000001",
+          "101",
+          client,
+        ),
+      )
       .execute({ action: "subscribe", preferredCity: "Jerusalem" });
     expect(requests.every((request) => request.method === "GET")).toBe(true);
     subscriptions = [];
     duplicateInsert = true;
     await client
       .getMutationCache()
-      .build(client, ticketAlertMutationOptions("user-a", "202", client))
+      .build(
+        client,
+        ticketAlertMutationOptions(
+          "00000000-0000-4000-8000-000000000001",
+          "202",
+          client,
+        ),
+      )
       .execute({ action: "subscribe", preferredCity: "Jerusalem" });
     expect(
       selectUserTicketAlert(
-        client.getQueryData(ticketAlertQueryKeys.subscriptions("user-a")),
+        client.getQueryData(
+          ticketAlertQueryKeys.subscriptions(
+            "00000000-0000-4000-8000-000000000001",
+          ),
+        ),
         "202",
       ),
     ).toEqual(subscription("202"));
   });
 
   it("leaves confirmed cache data unchanged on cancellation failure and never retries writes", async () => {
-    const key = ticketAlertQueryKeys.subscriptions("user-a");
+    const key = ticketAlertQueryKeys.subscriptions(
+      "00000000-0000-4000-8000-000000000001",
+    );
     client.setQueryData(key, [subscription()]);
     failWrites = true;
     await expect(
       client
         .getMutationCache()
-        .build(client, ticketAlertMutationOptions("user-a", "101", client))
+        .build(
+          client,
+          ticketAlertMutationOptions(
+            "00000000-0000-4000-8000-000000000001",
+            "101",
+            client,
+          ),
+        )
         .execute({ action: "cancel" }),
     ).rejects.toThrow("Fixture write rejected");
     expect(client.getQueryData(key)).toEqual([subscription()]);
@@ -354,11 +431,20 @@ describe("ticket alert mutation ownership", () => {
   });
 
   it("keeps delayed account results isolated when another account is displayed", async () => {
-    const otherKey = ticketAlertQueryKeys.subscriptions("user-b");
+    const otherKey = ticketAlertQueryKeys.subscriptions(
+      "00000000-0000-4000-8000-000000000002",
+    );
     client.setQueryData(otherKey, [subscription("202")]);
     await client
       .getMutationCache()
-      .build(client, ticketAlertMutationOptions("user-a", "101", client))
+      .build(
+        client,
+        ticketAlertMutationOptions(
+          "00000000-0000-4000-8000-000000000001",
+          "101",
+          client,
+        ),
+      )
       .execute({ action: "subscribe", preferredCity: "Jerusalem" });
     expect(client.getQueryData(otherKey)).toEqual([subscription("202")]);
     expect(client.getQueryState(otherKey)?.isInvalidated).toBe(false);

@@ -55,6 +55,7 @@ Kartiseret exists to make that flow calmer and more useful:
 - Client-side search across both current and upcoming movies, with title and year-aware ranking.
 - MapLibre-based city and theater picker with search, geolocation, focus controls, and theater marker popups.
 - Supabase Auth-powered user menu with saved preferences for location, rating sources, and site accent color.
+- Zod runtime validation at browser, storage, Supabase, route, environment, and server request boundaries.
 - One-shot Coming Soon ticket alerts that group newly available movies into a single email per user, with guest email capture and account-managed alert settings.
 - Guest-friendly local caching for location and theme color.
 - Selenium scrapers for major Israeli cinema chains plus several cinematheques.
@@ -77,6 +78,8 @@ Kartiseret currently spans two connected layers:
 - Styles are global CSS-driven, accent-color-driven, and motion-heavy rather than Tailwind-based.
 - Code-splits secondary screens with `React.lazy` and `Suspense`.
 - Reads movie data directly from Supabase in the browser rather than through a separate API layer.
+- Derives TypeScript models from Zod schemas where practical and rejects malformed external rows before they enter application state.
+- Loads data in stages for perceived speed: now-playing preview, coming-soon preview, then full datasets and showtimes.
 - Loads movie collections in parallel, then fetches showtimes incrementally by city and date window.
 - Supports homepage, `/movies`, `/soons`, `/showtimes`, and `/user` routes.
 - Provides a full `/showtimes` browser with incremental day loading, city switching, filters, and nearby-city suggestions.
@@ -260,6 +263,16 @@ npm run dev
 
 The app intentionally uses only the publishable key and never a service-role key.
 
+Run the fixture-only runtime-validation suite and the full production build with:
+
+```bash
+npm test
+npm run build
+npm run bundle:check
+```
+
+The validation architecture and one-parse-per-boundary convention are documented in [`Codebase - Kartiseret Web/docs/runtime-validation.md`](Codebase%20-%20Kartiseret%20Web/docs/runtime-validation.md). Run `npm run verify` for the complete lint, formatting, fixture-test, build, and eager-bundle validation sequence.
+
 Email signups are handled by Supabase Auth. When Confirm Email is enabled, new
 users must confirm their address before logging in or creating a ticket alert;
 the first confirmed session initializes their saved preferences from the signup
@@ -281,6 +294,7 @@ Recommended rollout order:
 
 ## Automation
 
+- `.github/workflows/web_checks.yml` runs fixture-only web linting, formatting, tests, builds, and bundle-budget checks on relevant pull requests and `main` pushes; it does not receive Supabase credentials.
 - `.github/workflows/run_main.yml` runs the main backend pipeline manually in GitHub Actions and uploads run artifacts.
 - `.github/workflows/daily_sweep.yml` clears old showtimes and soon entries on a daily schedule.
 - `backend/config/cron/run_weekly.sh` is a local weekly shell runner that syncs the repo, runs the full job, commits artifacts/logs, and pushes them back to `main`.

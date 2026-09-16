@@ -1,4 +1,6 @@
 import sharp, { type OverlayOptions } from "sharp";
+import { z } from "zod";
+import { httpsUrlSchema } from "../../src/validation/runtime.js";
 import type { PreviewData } from "./previewData.js";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -6,6 +8,15 @@ import { fileURLToPath } from "node:url";
 
 const IMAGE_TIMEOUT_MS = 8_000;
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const imageContentTypeSchema = z
+  .string()
+  .transform((value) => value.split(";", 1)[0]?.trim().toLowerCase() ?? "")
+  .pipe(z.string().regex(/^image\//));
+const imageContentLengthSchema = z
+  .string()
+  .regex(/^\d+$/)
+  .transform(Number)
+  .pipe(z.number().int().min(0).max(MAX_IMAGE_BYTES));
 
 const assetsDir = fileURLToPath(new URL("./assets/", import.meta.url));
 const INTER_REGULAR_PATH = resolve(assetsDir, "Inter-Regular.ttf");
@@ -352,50 +363,41 @@ async function createLogoLayer(): Promise<OverlayOptions | null> {
   }
 }
 
-function isHttpsUrl(value: string): boolean {
-  try {
-    return new URL(value).protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
 export async function downloadImage(
   url: string,
   fetchImage: typeof fetch = fetch,
 ): Promise<Buffer | null> {
-  if (!isHttpsUrl(url)) {
+  const urlResult = httpsUrlSchema.safeParse(url);
+
+  if (!urlResult.success) {
     return null;
   }
 
   try {
-    const response = await fetchImage(url, {
+    const response = await fetchImage(urlResult.data, {
       signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
     });
 
-    if (!response.ok || (response.url && !isHttpsUrl(response.url))) {
+    if (
+      !response.ok ||
+      (response.url && !httpsUrlSchema.safeParse(response.url).success)
+    ) {
       return null;
     }
 
-    const contentType = response.headers
-      .get("content-type")
-      ?.split(";", 1)[0]
-      ?.trim()
-      .toLowerCase();
-    if (!contentType?.startsWith("image/")) {
+    if (
+      !imageContentTypeSchema.safeParse(response.headers.get("content-type"))
+        .success
+    ) {
       return null;
     }
 
     const declaredLength = response.headers.get("content-length");
-    if (declaredLength !== null) {
-      const parsedLength = Number(declaredLength);
-      if (
-        !Number.isFinite(parsedLength) ||
-        parsedLength < 0 ||
-        parsedLength > MAX_IMAGE_BYTES
-      ) {
-        return null;
-      }
+    if (
+      declaredLength !== null &&
+      !imageContentLengthSchema.safeParse(declaredLength).success
+    ) {
+      return null;
     }
 
     if (!response.body) {
