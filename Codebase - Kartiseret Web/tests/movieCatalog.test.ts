@@ -1,7 +1,21 @@
 import { QueryClient } from "@tanstack/react-query";
-import { describe, expect, it } from "vitest";
-import { fixedAppDateString, invalidateAdminMovieEditQueries, mergeShowtimeCityData, movieCatalogQueryKeys, type Movie, type ShowtimeRow } from "../src/data/movieCatalog";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { ticketAlertQueryKeys } from "../src/data/ticketAlerts";
+import type { Movie, ShowtimeRow } from "../src/data/movieCatalog";
+
+vi.useFakeTimers();
+vi.setSystemTime(new Date("2026-09-16T16:30:00.000Z"));
+
+const {
+  fixedAppDateString,
+  invalidateAdminMovieEditQueries,
+  mergeShowtimeCityData,
+  movieCatalogQueryKeys,
+} = await import("../src/data/movieCatalog");
+
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 function addDay(date: string): string {
   const value = new Date(`${date}T12:00:00.000Z`);
