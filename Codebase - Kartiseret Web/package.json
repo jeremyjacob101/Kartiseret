@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite --config config/vite.config.ts",
     "build": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p config/tsconfig.node.json && tsc --noEmit -p config/tsconfig.server.json && vite build --config config/vite.config.ts",
-    "bundle:check": "node scripts/check-client-bundle.mjs",
+    "bundle:check": "node tests/check-client-bundle.mjs",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
-import { collectEagerJavaScriptUrls, measureEagerJavaScript } from "../scripts/check-client-bundle.mjs";
+import { collectEagerJavaScriptUrls, measureEagerJavaScript } from "./check-client-bundle.mjs";
 
 const temporaryDirectories = [];
 
