@@ -408,6 +408,79 @@ html[data-device-type="mobile"] .app-shell {
   gap: 24px;
 }
 
+.catalog-page-header {
+  width: 100%;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 16px;
+}
+
+.catalog-release-switcher {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(233, 218, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.catalog-release-switcher-button {
+  min-height: 38px;
+  padding: 7px 14px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(233, 218, 255, 0.74);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.catalog-release-switcher-button:hover,
+.catalog-release-switcher-button:focus-visible {
+  color: #f6f0ff;
+}
+
+.catalog-release-switcher-button:focus-visible {
+  outline: 2px solid rgba(191, 150, 255, 0.95);
+  outline-offset: 2px;
+}
+
+.catalog-release-switcher-button.is-active {
+  background: var(--surface-strong);
+  color: var(--text-main);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+
+.catalog-empty-state {
+  margin: 0 16px;
+  color: rgba(233, 218, 255, 0.76);
+}
+
+@media (max-width: 600px) {
+  .catalog-page-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .catalog-release-switcher {
+    width: 100%;
+  }
+
+  .catalog-release-switcher-button {
+    flex: 1 1 0;
+  }
+}
+
 .showtimes-placeholder {
   width: min(100%, 1000px);
   display: grid;
