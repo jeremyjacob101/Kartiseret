@@ -637,7 +637,6 @@ class SupabaseTicketAlertRepository:
                 .eq("tmdb_id", item.tmdb_id)
                 .is_("notified_at", "null")
                 .is_("delivery_id", "null")
-                .select("*")
                 .execute()
             )
             claimed_rows.extend(response.data or [])
@@ -676,7 +675,6 @@ class SupabaseTicketAlertRepository:
                 .eq("delivery_id", delivery_id)
                 .eq("delivery_attempts", attempts)
                 .is_("notified_at", "null")
-                .select("tmdb_id")
                 .execute()
             )
             if update_response.data:
