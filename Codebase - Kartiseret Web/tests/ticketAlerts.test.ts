@@ -1,12 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getSupabaseBrowserClient } from "../lib/supabase";
-import { addCalendarDays, getJerusalemCinemaDate } from "../routing/showtimeLinkCodec";
-import { useGuestTicketAlertsStore } from "../stores/guestTicketAlertsStore";
-import { invalidateUserTicketAlertQueries, mergeUserTicketAlert, selectTicketAlertAvailability, selectUserTicketAlert, ticketAlertAvailabilityQueryOptions, ticketAlertMutationOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions, type TicketAlertShowtimeRow, type UserTicketAlertSubscription } from "./ticketAlerts";
+import { getSupabaseBrowserClient } from "../src/lib/supabase";
+import { addCalendarDays, getJerusalemCinemaDate } from "../src/routing/showtimeLinkCodec";
+import { useGuestTicketAlertsStore } from "../src/stores/guestTicketAlertsStore";
+import { invalidateUserTicketAlertQueries, mergeUserTicketAlert, selectTicketAlertAvailability, selectUserTicketAlert, ticketAlertAvailabilityQueryOptions, ticketAlertMutationOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions, type TicketAlertShowtimeRow, type UserTicketAlertSubscription } from "../src/data/ticketAlerts";
 
-vi.mock("../lib/supabase", () => ({ getSupabaseBrowserClient: vi.fn() }));
+vi.mock("../src/lib/supabase", () => ({ getSupabaseBrowserClient: vi.fn() }));
 
 type StoredSubscription = {
   user_id: string;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseGuestTicketAlertReceipts } from "./guestTicketAlertsStore";
+import { parseGuestTicketAlertReceipts } from "../src/stores/guestTicketAlertsStore";
 
 describe("guest receipt storage compatibility", () => {
   it("reads the existing versioned shape and discards malformed entries individually", () => {

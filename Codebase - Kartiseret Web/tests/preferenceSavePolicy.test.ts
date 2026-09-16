@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shouldRollbackOptimisticSave } from "./preferenceSavePolicy";
+import { shouldRollbackOptimisticSave } from "../src/stores/preferenceSavePolicy";
 
 describe("optimistic preference rollback", () => {
   const valuesEqual = (left: string, right: string) => left === right;

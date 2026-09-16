@@ -1,8 +1,8 @@
 import { createClient, type Session, type User } from "@supabase/supabase-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getSupabaseBrowserClient } from "../lib/supabase";
+import { getSupabaseBrowserClient } from "../src/lib/supabase";
 
-vi.mock("../lib/supabase", () => ({ getSupabaseBrowserClient: vi.fn() }));
+vi.mock("../src/lib/supabase", () => ({ getSupabaseBrowserClient: vi.fn() }));
 
 const fixtureUser: User = {
   id: "user-a",
@@ -20,7 +20,7 @@ let writes: Array<{
   prefer: string;
   finish: (fail?: boolean) => void;
 }>;
-let storeModule: typeof import("./userPreferencesStore");
+let storeModule: typeof import("../src/stores/userPreferencesStore");
 
 function reply(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -80,7 +80,7 @@ beforeEach(async () => {
     },
   }));
   vi.mocked(getSupabaseBrowserClient).mockReturnValue(supabase);
-  storeModule = await import("./userPreferencesStore");
+  storeModule = await import("../src/stores/userPreferencesStore");
 });
 
 afterEach(() => {

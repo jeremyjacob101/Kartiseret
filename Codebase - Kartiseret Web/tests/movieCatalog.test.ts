@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
-import { fixedAppDateString, invalidateAdminMovieEditQueries, mergeShowtimeCityData, movieCatalogQueryKeys, type Movie, type ShowtimeRow } from "./movieCatalog";
-import { ticketAlertQueryKeys } from "./ticketAlerts";
+import { fixedAppDateString, invalidateAdminMovieEditQueries, mergeShowtimeCityData, movieCatalogQueryKeys, type Movie, type ShowtimeRow } from "../src/data/movieCatalog";
+import { ticketAlertQueryKeys } from "../src/data/ticketAlerts";
 
 function addDay(date: string): string {
   const value = new Date(`${date}T12:00:00.000Z`);
