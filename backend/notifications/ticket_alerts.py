@@ -15,8 +15,6 @@ from supabase import create_client
 
 
 TICKET_ALERTS_TABLE = "ticket_alert_subscriptions"
-CLAIM_TICKET_ALERT_RPC = "claim_ticket_alert_delivery"
-RECORD_TICKET_ALERT_ATTEMPT_RPC = "record_ticket_alert_delivery_attempt"
 SHOWTIMES_TABLE = "finalShowtimes"
 PREFERENCES_TABLE = "userPreferences"
 MOVIE_CODES_TABLE = "movieCodes"
@@ -276,16 +274,6 @@ class DeliveryItem:
     ticket_href: str
     movie_code: str | None
 
-    def as_claim_item(self) -> dict[str, Any]:
-        return {
-            "tmdb_id": self.tmdb_id,
-            "title": self.title,
-            "city": self.city,
-            "showing_date": self.date,
-            "ticket_href": self.ticket_href,
-            "movie_code": self.movie_code,
-        }
-
 
 @dataclass(frozen=True)
 class DeliveryBatch:
@@ -498,6 +486,15 @@ class SupabaseTicketAlertRepository:
         self.supabase = supabase_client
 
     @staticmethod
+    def _response_rows(response: Any) -> list[dict[str, Any]]:
+        data = getattr(response, "data", None)
+        if isinstance(data, dict):
+            return [data]
+        if isinstance(data, list):
+            return [row for row in data if isinstance(row, dict)]
+        return []
+
+    @staticmethod
     def _collect_pages(
         query_for_range: Callable[[int, int], Any],
         page_size: int = 500,
@@ -630,23 +627,84 @@ class SupabaseTicketAlertRepository:
         delivery_id: str,
         items: tuple[DeliveryItem, ...],
     ) -> list[dict[str, Any]]:
-        response = self.supabase.rpc(
-            CLAIM_TICKET_ALERT_RPC,
-            {
-                "p_user_id": user_id,
-                "p_delivery_id": delivery_id,
-                "p_items": [item.as_claim_item() for item in items],
-            },
-        ).execute()
-        return list(response.data or [])
+        # PostgREST updates can return their representation directly. Each
+        # guarded update is one item in the user's delivery batch; the shared
+        # delivery_id makes a partial REST failure recoverable on the next run.
+        claimed_rows: list[dict[str, Any]] = []
+        for item in items:
+            response = (
+                self.supabase.table(TICKET_ALERTS_TABLE)
+                .update(
+                    {
+                        "delivery_id": delivery_id,
+                        "delivery_title": item.title,
+                        "delivery_city": item.city,
+                        "delivery_date": item.date,
+                        "delivery_href": item.ticket_href,
+                        "delivery_movie_code": item.movie_code,
+                        "last_delivery_error": None,
+                    },
+                    returning="representation",
+                )
+                .eq("user_id", user_id)
+                .eq("tmdb_id", item.tmdb_id)
+                .is_("notified_at", "null")
+                .is_("delivery_id", "null")
+                .execute()
+            )
+            item_rows = self._response_rows(response)
+            if not item_rows:
+                raise RuntimeError(
+                    f"Could not claim ticket alert movie {item.tmdb_id} "
+                    "for the delivery batch."
+                )
+            claimed_rows.extend(item_rows)
+        return claimed_rows
 
     def record_attempt(self, user_id: str, delivery_id: str) -> None:
-        response = self.supabase.rpc(
-            RECORD_TICKET_ALERT_ATTEMPT_RPC,
-            {"p_user_id": user_id, "p_delivery_id": delivery_id},
-        ).execute()
-        if int(response.data or 0) <= 0:
+        response = (
+            self.supabase.table(TICKET_ALERTS_TABLE)
+            .select("tmdb_id,delivery_attempts")
+            .eq("user_id", user_id)
+            .eq("delivery_id", delivery_id)
+            .is_("notified_at", "null")
+            .execute()
+        )
+        rows = self._response_rows(response)
+        if not rows:
             raise RuntimeError("The ticket alert delivery batch is no longer pending.")
+
+        attempted_at = datetime.now(JERUSALEM_TIME_ZONE).isoformat()
+        updated_count = 0
+        for row in rows:
+            tmdb_id = _positive_int(row.get("tmdb_id"))
+            attempts = int(row.get("delivery_attempts") or 0)
+            if tmdb_id is None:
+                continue
+
+            update_response = (
+                self.supabase.table(TICKET_ALERTS_TABLE)
+                .update(
+                    {
+                        "delivery_attempts": attempts + 1,
+                        "last_delivery_attempt_at": attempted_at,
+                        "last_delivery_error": None,
+                    },
+                    returning="representation",
+                )
+                .eq("user_id", user_id)
+                .eq("tmdb_id", tmdb_id)
+                .eq("delivery_id", delivery_id)
+                .eq("delivery_attempts", attempts)
+                .is_("notified_at", "null")
+                .execute()
+            )
+            updated_count += len(self._response_rows(update_response))
+
+        if updated_count != len(rows):
+            raise RuntimeError(
+                "Could not record every attempt in the ticket alert delivery batch."
+            )
 
     def canonical_email(self, user_id: str) -> str:
         return get_canonical_auth_email(self.supabase, user_id)
