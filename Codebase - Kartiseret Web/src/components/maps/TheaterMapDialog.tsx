@@ -1,10 +1,10 @@
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { MapPin } from "lucide-react";
-import { useShallow } from "zustand/react/shallow";
 import { loadCityLocationPicker, preloadCityLocationPicker } from "./loadCityLocationPicker";
 import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
 import { type AppLocation } from "../../prefs/definitions/locations";
+import { useShallow } from "zustand/react/shallow";
+import { createPortal } from "react-dom";
+import { MapPin } from "lucide-react";
 import "./TheaterMapDialog.css";
 
 const OPEN_TRANSITION_MS = 420;

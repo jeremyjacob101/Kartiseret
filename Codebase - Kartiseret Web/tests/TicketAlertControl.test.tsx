@@ -1,15 +1,15 @@
-import { createClient } from "@supabase/supabase-js";
+import { TicketAlertControl } from "../src/components/scroller/TicketAlertControl";
+import { useUserPreferencesStore } from "../src/stores/userPreferencesStore";
+import { getJerusalemCinemaDate } from "../src/routing/showtimeLinkCodec";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ticketAlertQueryKeys } from "../src/data/ticketAlerts";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { OPEN_AUTH_MENU_EVENT } from "../src/lib/authMenu";
 import { render, screen } from "@testing-library/react";
+import { createClient } from "@supabase/supabase-js";
+import { queryClient } from "../src/lib/queryClient";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TicketAlertControl } from "../src/components/scroller/TicketAlertControl";
-import { getJerusalemCinemaDate } from "../src/routing/showtimeLinkCodec";
-import { queryClient } from "../src/lib/queryClient";
-import { OPEN_AUTH_MENU_EVENT } from "../src/lib/authMenu";
-import { ticketAlertQueryKeys } from "../src/data/ticketAlerts";
-import { useUserPreferencesStore } from "../src/stores/userPreferencesStore";
 import { sampleMovie } from "./fixtures";
 
 const { getSupabaseBrowserClientMock } = vi.hoisted(() => ({

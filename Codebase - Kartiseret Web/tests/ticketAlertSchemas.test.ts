@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { accountTicketAlertInputSchema, nullableTicketAlertSubscriptionSchema, ticketAlertMovieIdSchema, ticketAlertShowtimePageSchema, ticketAlertShowtimeRowSchema, userTicketAlertSubscriptionRowsSchema } from "../src/data/ticketAlertSchemas";
+import { describe, expect, it } from "vitest";
 
 const userId = "11111111-1111-4111-8111-111111111111";
 const timestamp = "2026-09-04T09:00:00.123456+00:00";

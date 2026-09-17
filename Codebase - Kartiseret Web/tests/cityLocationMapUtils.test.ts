@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
 import { CITY_OPACITY_BASE, CITY_OPACITY_STEP, buildBounds, buildCityEntries, buildCityRevealConfig, chooseTheaterPopupAnchor, cityMatchesSearchQuery, estimateCityBubbleSize, getAutoTheaterPopupAnchor, getCityLabelOpacity, getDistanceMeters, getNearestCityLocation, getSecondaryCityCollisionPadding, normalizeCitySearchQuery, normalizeTheaterChain, parsePixelValue, rectanglesOverlap, styleCityLabel, styleSecondaryCityLabel, styleTheaterDot } from "../src/components/maps/cityLocationMapUtils";
 import type { Theater } from "../src/data/theaters";
+import { describe, expect, it } from "vitest";
 
 function theater(
   city: string,

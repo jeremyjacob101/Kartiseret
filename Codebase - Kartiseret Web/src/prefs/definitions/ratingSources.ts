@@ -1,5 +1,5 @@
-import { z } from "zod";
 import type { UserPreferenceDefinition } from "./shared";
+import { z } from "zod";
 
 export const ALL_RATING_SOURCES = [
   "imdbRating",

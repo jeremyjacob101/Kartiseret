@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { DEFAULT_LOCATION } from "../src/prefs/definitions/locations";
 import { DEFAULT_RATING_SOURCES } from "../src/prefs/definitions/ratingSources";
 import { buildInitialPreferencesRow } from "../src/prefs/initialPreferences";
+import { DEFAULT_LOCATION } from "../src/prefs/definitions/locations";
+import { describe, expect, it } from "vitest";
 
 describe("confirmed signup preference initialization", () => {
   it("uses signup metadata before guest storage, then falls back to the default", () => {

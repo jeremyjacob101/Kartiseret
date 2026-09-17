@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type WheelEvent } from "react";
+import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
+import { buildMovieShowtimeShareUrl, filterMaskFromUnchecked, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "../../routing/showtimeLinkCodec";
+import { loadShowtimes, loadShowtimesAroundDate, movieCollectionQueryOptions, selectMovies, type Movie } from "../../data/movieCatalog";
+import { MovieDetailsContent, type MovieDetailsShareSelection, type MovieDetailsVariant } from "./MovieDetailsContent";
+import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
+import { useDeviceStore } from "../../device/useDeviceType";
+import { MoviePosterArtwork } from "../MoviePosterArtwork";
+import { shareLink } from "../../routing/shareLink";
 import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
-import { MoviePosterArtwork } from "../MoviePosterArtwork";
-import { loadShowtimes, loadShowtimesAroundDate, movieCollectionQueryOptions, selectMovies, type Movie } from "../../data/movieCatalog";
-import { useDeviceStore } from "../../device/useDeviceType";
-import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
-import { shareLink } from "../../routing/shareLink";
-import { buildMovieShowtimeShareUrl, filterMaskFromUnchecked, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "../../routing/showtimeLinkCodec";
-import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
-import { MovieDetailsContent, type MovieDetailsShareSelection, type MovieDetailsVariant } from "./MovieDetailsContent";
 import "./MovieScroller.css";
 
 type FocusPhase = "collapsed" | "opening" | "open" | "closing";

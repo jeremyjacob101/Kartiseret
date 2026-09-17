@@ -1,13 +1,13 @@
-import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
-import { Bell, Check, LoaderCircle, Ticket } from "lucide-react";
-import { Link } from "react-router";
-import type { ReactNode } from "react";
-import { useShallow } from "zustand/react/shallow";
 import { selectTicketAlertAvailability, selectUserTicketAlert, ticketAlertAvailabilityQueryOptions, ticketAlertMutationOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions } from "../../data/ticketAlerts";
-import { normalizeTicketAlertTmdbId } from "../../domain/ticketAlerts";
-import type { Movie } from "../../data/movieCatalog";
-import { requestAuthMenuOpen } from "../../lib/authMenu";
+import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
 import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
+import { normalizeTicketAlertTmdbId } from "../../domain/ticketAlerts";
+import { Bell, Check, LoaderCircle, Ticket } from "lucide-react";
+import { requestAuthMenuOpen } from "../../lib/authMenu";
+import type { Movie } from "../../data/movieCatalog";
+import { useShallow } from "zustand/react/shallow";
+import type { ReactNode } from "react";
+import { Link } from "react-router";
 
 type TicketAlertControlProps = {
   movie: Movie;

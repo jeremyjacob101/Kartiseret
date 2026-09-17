@@ -1,7 +1,7 @@
-import { Link } from "react-router";
-import { useShallow } from "zustand/react/shallow";
-import { PasswordSecurityForm } from "./PasswordSecurityForm";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
+import { PasswordSecurityForm } from "./PasswordSecurityForm";
+import { useShallow } from "zustand/react/shallow";
+import { Link } from "react-router";
 import "./PasswordResetPage.css";
 
 export function PasswordResetPage() {

@@ -1,9 +1,9 @@
-import { queryOptions } from "@tanstack/react-query";
-import { getSupabaseBrowserClient } from "../lib/supabase";
-import { queryClient } from "../lib/queryClient";
 import { theaterRowSchema, type TheaterRow } from "./externalSchemas";
+import { getSupabaseBrowserClient } from "../lib/supabase";
 import type { City, Theater } from "./applicationSchemas";
 import { parseBoundary } from "../validation/runtime";
+import { queryOptions } from "@tanstack/react-query";
+import { queryClient } from "../lib/queryClient";
 
 export type { City, Theater } from "./applicationSchemas";
 

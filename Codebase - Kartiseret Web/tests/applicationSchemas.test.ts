@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { movieSchema, theaterSchema } from "../src/data/applicationSchemas.js";
+import { describe, expect, it } from "vitest";
 
 describe("application model schemas", () => {
   it("validates normalized movie models", () => {

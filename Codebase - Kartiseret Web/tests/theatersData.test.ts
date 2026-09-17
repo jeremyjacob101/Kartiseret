@@ -1,7 +1,7 @@
+import { theaterDataQueryOptions } from "../src/data/theaters";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { QueryClient } from "@tanstack/react-query";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { theaterDataQueryOptions } from "../src/data/theaters";
 
 const { getSupabaseBrowserClientMock } = vi.hoisted(() => ({
   getSupabaseBrowserClientMock: vi.fn(),

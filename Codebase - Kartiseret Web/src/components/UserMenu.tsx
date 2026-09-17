@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { z } from "zod";
-import { LogOut, User } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
+import { LogOut, User } from "lucide-react";
+import { z } from "zod";
 import "./UserMenu.css";
+import { DEFAULT_LOCATION, loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY } from "../prefs/definitions/locations";
+import { persistSignupPreferenceDefaults, useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { getPasswordResetRedirectUrl } from "../lib/authRoutes";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 import { OPEN_AUTH_MENU_EVENT } from "../lib/authMenu";
-import { DEFAULT_LOCATION, loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY } from "../prefs/definitions/locations";
-import { persistSignupPreferenceDefaults, useUserPreferencesStore } from "../stores/userPreferencesStore";
 
 type AuthMode = "login" | "signup" | "forgotPassword";
 type UserMenuProps = {

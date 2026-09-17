@@ -1,7 +1,7 @@
-import { QueryClient } from "@tanstack/react-query";
-import { afterAll, describe, expect, it, vi } from "vitest";
-import { ticketAlertQueryKeys } from "../src/data/ticketAlerts";
 import type { Movie, ShowtimeRow } from "../src/data/movieCatalog";
+import { ticketAlertQueryKeys } from "../src/data/ticketAlerts";
+import { afterAll, describe, expect, it, vi } from "vitest";
+import { QueryClient } from "@tanstack/react-query";
 
 vi.useFakeTimers();
 vi.setSystemTime(new Date("2026-09-16T16:30:00.000Z"));

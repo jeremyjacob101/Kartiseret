@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
 import { requireSupabaseConfig, resolveOptionalSupabaseConfig } from "../src/lib/supabaseConfig.js";
 import { adminUserRowSchema, supabaseUserIdentitySchema } from "../src/lib/supabaseSchemas.js";
+import { describe, expect, it } from "vitest";
 
 describe("Supabase environment validation", () => {
   it("selects and trims the first non-empty values", () => {

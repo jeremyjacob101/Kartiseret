@@ -1,15 +1,15 @@
+import { DEFAULT_SITE_COLOR, applySiteColor, initializeSiteColorTheme, siteColorPreferenceDefinition, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
+import { loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY, locationPreferenceDefinition, type AppLocation } from "../prefs/definitions/locations";
+import { ratingSourcesPreferenceDefinition, type RatingSource } from "../prefs/definitions/ratingSources";
+import { supabaseUserIdSchema, supabaseUserIdentitySchema } from "../lib/supabaseSchemas";
+import type { UserPreferenceDefinition } from "../prefs/definitions/shared";
+import { buildInitialPreferencesRow } from "../prefs/initialPreferences";
+import { shouldRollbackOptimisticSave } from "./preferenceSavePolicy";
+import { getSupabaseBrowserClient } from "../lib/supabase";
+import { parseBoundary } from "../validation/runtime";
 import type { User } from "@supabase/supabase-js";
 import { create } from "zustand";
 import { z } from "zod";
-import { getSupabaseBrowserClient } from "../lib/supabase";
-import { supabaseUserIdSchema, supabaseUserIdentitySchema } from "../lib/supabaseSchemas";
-import { loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY, locationPreferenceDefinition, type AppLocation } from "../prefs/definitions/locations";
-import { ratingSourcesPreferenceDefinition, type RatingSource } from "../prefs/definitions/ratingSources";
-import { DEFAULT_SITE_COLOR, applySiteColor, initializeSiteColorTheme, siteColorPreferenceDefinition, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
-import type { UserPreferenceDefinition } from "../prefs/definitions/shared";
-import { shouldRollbackOptimisticSave } from "./preferenceSavePolicy";
-import { buildInitialPreferencesRow } from "../prefs/initialPreferences";
-import { parseBoundary } from "../validation/runtime";
 
 const PREFERENCES_TABLE = "userPreferences";
 const supabase = getSupabaseBrowserClient();

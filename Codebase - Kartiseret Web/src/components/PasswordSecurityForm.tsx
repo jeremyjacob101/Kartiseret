@@ -1,6 +1,6 @@
+import { getSupabaseBrowserClient } from "../lib/supabase";
 import { useState, type FormEvent } from "react";
 import { z } from "zod";
-import { getSupabaseBrowserClient } from "../lib/supabase";
 import "./PasswordSecurityForm.css";
 
 type PasswordSecurityFormProps = {

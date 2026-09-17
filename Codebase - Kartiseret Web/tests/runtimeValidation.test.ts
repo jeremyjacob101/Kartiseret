@@ -1,6 +1,6 @@
+import { httpUrlSchema, httpsUrlSchema, isoDateStringSchema, longitudeLatitudeSchema, movieCodeSchema, parseBoundary, safeParseJson, tmdbIdSchema } from "../src/validation/runtime.js";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { httpUrlSchema, httpsUrlSchema, isoDateStringSchema, longitudeLatitudeSchema, movieCodeSchema, parseBoundary, safeParseJson, tmdbIdSchema } from "../src/validation/runtime.js";
 
 describe("runtime boundary schemas", () => {
   it("accepts valid movie codes and rejects malformed route prefixes", () => {

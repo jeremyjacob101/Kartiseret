@@ -1,5 +1,5 @@
-import { z } from "zod";
 import { httpUrlSchema, nonEmptyTrimmedStringSchema, parseBoundary } from "../validation/runtime.js";
+import { z } from "zod";
 
 export const supabaseConfigSchema = z.object({
   url: httpUrlSchema,

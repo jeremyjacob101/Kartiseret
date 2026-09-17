@@ -1,8 +1,8 @@
+import { PasswordResetPage } from "../src/components/PasswordResetPage";
 import { render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PasswordResetPage } from "../src/components/PasswordResetPage";
 
 const { supabaseMock, storeState } = vi.hoisted(() => ({
   supabaseMock: {

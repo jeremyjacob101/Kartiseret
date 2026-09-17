@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, type CSSProperties, type KeyboardEvent, type MouseEvent, useMemo, useRef, useState } from "react";
+import { useDeviceStore } from "../../device/useDeviceType";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { type Movie } from "../../data/movieCatalog";
-import { useDeviceStore } from "../../device/useDeviceType";
 
 export type PosterSourceRect = {
   top: number;

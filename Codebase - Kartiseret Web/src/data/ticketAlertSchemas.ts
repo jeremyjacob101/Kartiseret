@@ -1,7 +1,7 @@
-import { z } from "zod";
-import { supabaseUserIdSchema } from "../lib/supabaseSchemas";
-import { appLocationSchema } from "../prefs/definitions/locations";
 import { httpUrlSchema, isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema, showtimeStringSchema, tmdbIdSchema } from "../validation/runtime";
+import { appLocationSchema } from "../prefs/definitions/locations";
+import { supabaseUserIdSchema } from "../lib/supabaseSchemas";
+import { z } from "zod";
 
 // The database uses bigint movie IDs. Reject partial or unsafe IDs before conversion.
 export const ticketAlertMovieIdSchema = tmdbIdSchema
@@ -60,6 +60,7 @@ export const userTicketAlertSubscriptionSchema =
   }));
 export const userTicketAlertSubscriptionRowsSchema =
   userTicketAlertSubscriptionSchema.array();
+
 // Source listings are recoverable: invalid links fall back to the other language,
 // and an unusable row is skipped without hiding valid listings on the same page.
 const optionalTicketHrefSchema = httpUrlSchema.nullish().catch(null);

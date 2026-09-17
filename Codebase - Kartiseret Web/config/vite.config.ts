@@ -1,8 +1,8 @@
-import { defineConfig, loadEnv } from "vite";
-import react from "@vitejs/plugin-react";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { resolveOptionalSupabaseConfig } from "../src/lib/supabaseConfig.js";
+import { defineConfig, loadEnv } from "vite";
+import { dirname, resolve } from "node:path";
+import react from "@vitejs/plugin-react";
+import { fileURLToPath } from "node:url";
 
 const configDir = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(configDir, "..");

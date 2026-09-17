@@ -1,21 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { createPortal } from "react-dom";
-import { Clock8, ExternalLink, MapPin, MoveRight, Star, X } from "lucide-react";
-import { Link } from "react-router";
-import { useShallow } from "zustand/react/shallow";
-import { MoviePosterArtwork } from "../MoviePosterArtwork";
-import { TheaterMapDialog } from "../maps/TheaterMapDialog";
 import { APP_TIME_ZONE, fixedAppDateString, getMovieShowtimeCities, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, selectMovieShowtimeDays, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
+import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, saveShowtimeFilters, updateShowtimeFilterState, useShowtimeFiltersStore, type ShowtimeFilterOptions, type ShowtimeFilterSelections, type ShowtimeFilterState } from "../showtimes/showtimeFilters";
+import { addCalendarDays, SHOWTIME_LINK_DATE_COUNT } from "../../routing/showtimeLinkCodec";
 import { selectCities, theaterDataQueryOptions, type City } from "../../data/theaters";
-import { type AppLocation } from "../../prefs/definitions/locations";
+import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from "react";
+import { Clock8, ExternalLink, MapPin, MoveRight, Star, X } from "lucide-react";
 import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
-import { addCalendarDays, SHOWTIME_LINK_DATE_COUNT } from "../../routing/showtimeLinkCodec";
-import { ShowtimeDayPicker } from "../showtimes/ShowtimeDayPicker";
+import { type AppLocation } from "../../prefs/definitions/locations";
 import { ShowtimeFilterMenu } from "../showtimes/ShowtimeFilterMenu";
-import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, saveShowtimeFilters, updateShowtimeFilterState, useShowtimeFiltersStore, type ShowtimeFilterOptions, type ShowtimeFilterSelections, type ShowtimeFilterState } from "../showtimes/showtimeFilters";
+import { ShowtimeDayPicker } from "../showtimes/ShowtimeDayPicker";
+import { TheaterMapDialog } from "../maps/TheaterMapDialog";
+import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { TicketAlertControl } from "./TicketAlertControl";
+import { useShallow } from "zustand/react/shallow";
+import { useQuery } from "@tanstack/react-query";
+import { createPortal } from "react-dom";
+import { Link } from "react-router";
 
 type TheaterTheme = {
   accent: string;

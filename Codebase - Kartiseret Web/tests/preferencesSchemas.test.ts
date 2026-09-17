@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_LOCATION, loadInitialPreferenceLocation, normalizeLocation } from "../src/prefs/definitions/locations.js";
 import { DEFAULT_RATING_SOURCES, normalizeRatingSources, ratingSourceSchema } from "../src/prefs/definitions/ratingSources.js";
+import { DEFAULT_LOCATION, loadInitialPreferenceLocation, normalizeLocation } from "../src/prefs/definitions/locations.js";
 import { DEFAULT_SITE_COLOR, normalizeSiteColor, siteColorSchema } from "../src/prefs/definitions/siteColor.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => vi.unstubAllGlobals());
 

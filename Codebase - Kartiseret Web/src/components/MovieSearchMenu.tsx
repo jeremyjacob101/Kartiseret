@@ -1,7 +1,7 @@
-import { Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { type Movie } from "../data/movieCatalog";
+import { Search } from "lucide-react";
 
 export type MovieSearchMode = "nowPlaying" | "comingSoon";
 

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { DATE_CODE_ALPHABET, SHOWTIME_FILTER_BIT_COUNT, SHOWTIME_FILTER_BIT_ASSIGNMENTS, addCalendarDays, decodeBase62, decodeDateCode, decodeFilterMask, encodeBase62Fixed, encodeDateCode, encodeFilterMask, filterMaskFromUnchecked, isCanonicalShowtimeFilterMatch, isDateInShowtimeLinkWindow, isSupportedFilterMask, uncheckedFromFilterMask } from "../src/routing/showtimeLinkCodec";
+import { describe, expect, it } from "vitest";
 
 const today = "2026-09-16";
 const dateCases = Array.from({ length: 62 }, (_, offset) => {

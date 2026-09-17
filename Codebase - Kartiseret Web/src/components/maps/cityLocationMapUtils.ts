@@ -1,6 +1,6 @@
 import { type Marker, type Offset, type PositionAnchor, LngLat, LngLatBounds, Map as MapLibreMap, Popup } from "maplibre-gl";
-import { type Theater } from "../../data/theaters";
 import { longitudeLatitudeSchema } from "../../validation/runtime";
+import { type Theater } from "../../data/theaters";
 
 export const MAP_STYLE_URL =
   "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";

@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { DEFAULT_SITE_COLOR, SITE_COLOR_OPTIONS, applySiteColor, clearCachedSiteColor, getSiteColorLabel, initializeSiteColorTheme, loadCachedSiteColor, normalizeSiteColor, saveCachedSiteColor } from "../src/prefs/definitions/siteColor";
 import { DEFAULT_LOCATION, loadGuestLocation, normalizeLocation, saveGuestLocation } from "../src/prefs/definitions/locations";
 import { ALL_RATING_SOURCES, DEFAULT_RATING_SOURCES, normalizeRatingSources } from "../src/prefs/definitions/ratingSources";
-import { DEFAULT_SITE_COLOR, SITE_COLOR_OPTIONS, applySiteColor, clearCachedSiteColor, getSiteColorLabel, initializeSiteColorTheme, loadCachedSiteColor, normalizeSiteColor, saveCachedSiteColor } from "../src/prefs/definitions/siteColor";
+import { describe, expect, it, vi } from "vitest";
 
 function installStorage() {
   const values = new Map<string, string>();

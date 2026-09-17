@@ -1,9 +1,8 @@
 import { type CSSProperties, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Pencil } from "lucide-react";
-
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
-import { type Movie } from "../data/movieCatalog";
 import { tmdbIdSchema } from "../validation/runtime";
+import { type Movie } from "../data/movieCatalog";
+import { Pencil } from "lucide-react";
 
 const POSTER_GRID_MIN_COLUMN_WIDTH_FALLBACK = 150;
 

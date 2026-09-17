@@ -1,8 +1,8 @@
-import { useEffect } from "react";
-import { createPortal } from "react-dom";
-import { Star, X } from "lucide-react";
 import { type Movie, type ShowtimeEntry, type TheaterShowtimes } from "../../data/movieCatalog";
 import { type MetricDisplay } from "./showtimeUtils";
+import { createPortal } from "react-dom";
+import { Star, X } from "lucide-react";
+import { useEffect } from "react";
 import "./ShowtimeShared.css";
 
 type TheaterTheme = {

@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import { buildShowtimeFilterSelections, cloneUncheckedGroups, filterTheatersBySelections, getCanonicalShowtimeMeta, getShowtimeFilterOptions, normalizeScreeningTech, normalizeScreeningType, updateShowtimeFilterState, type FilterableShowtime, type FilterableTheater } from "../src/domain/showtimeFilters";
+import { describe, expect, it, vi } from "vitest";
 
 describe("showtime filter normalization", () => {
   it("normalizes missing display values to the app defaults", () => {

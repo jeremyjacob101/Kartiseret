@@ -1,15 +1,15 @@
 import { Suspense, lazy, useCallback, useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { ChevronDown } from "lucide-react";
 import { Link } from "react-router";
-import { useShallow } from "zustand/react/shallow";
 import "./UserPreferencesPage.css";
-import { loadCityLocationPicker } from "./maps/loadCityLocationPicker";
+import { getSiteColorLabel, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
-import { UserTicketAlerts } from "./UserTicketAlerts";
-import { PasswordSecurityForm } from "./PasswordSecurityForm";
+import { loadCityLocationPicker } from "./maps/loadCityLocationPicker";
 import { type RatingSource } from "../prefs/definitions/ratingSources";
 import { type AppLocation } from "../prefs/definitions/locations";
-import { getSiteColorLabel, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
+import { PasswordSecurityForm } from "./PasswordSecurityForm";
+import { UserTicketAlerts } from "./UserTicketAlerts";
 
 const CityLocationPicker = lazy(async () => {
   const module = await loadCityLocationPicker();

@@ -23,6 +23,7 @@
       "./config/prettier-plugin-single-line-imports.mjs"
     ],
     "singleLineImports": true,
+    "sortTopImportsByLength": true,
     "overrides": [
       {
         "files": [

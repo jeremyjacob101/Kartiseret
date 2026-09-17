@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { ticketAlertMutationOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions, type UserTicketAlertSubscription } from "../data/ticketAlerts";
+import { movieCollectionQueryOptions, selectMovies, type Movie } from "../data/movieCatalog";
 import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
-import { movieCollectionQueryOptions, selectMovies, type Movie } from "../data/movieCatalog";
-import { ticketAlertMutationOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions, type UserTicketAlertSubscription } from "../data/ticketAlerts";
+import { useMemo } from "react";
 
 const EMPTY_MOVIES: Movie[] = [];
 const EMPTY_ALERTS: UserTicketAlertSubscription[] = [];

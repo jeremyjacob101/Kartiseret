@@ -1,8 +1,8 @@
+import type { ShowtimeFilterOptions, ShowtimeFilterSelections } from "../src/components/showtimes/showtimeFilters";
+import { ShowtimeFilterMenu } from "../src/components/showtimes/ShowtimeFilterMenu";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { ShowtimeFilterMenu } from "../src/components/showtimes/ShowtimeFilterMenu";
-import type { ShowtimeFilterOptions, ShowtimeFilterSelections } from "../src/components/showtimes/showtimeFilters";
 
 const options: ShowtimeFilterOptions = {
   showType: ["Regular", "VIP"],

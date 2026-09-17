@@ -1,8 +1,8 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Navbar } from "../src/components/bars/Navbar";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useDeviceStore } from "../src/device/useDeviceType";
+import { Navbar } from "../src/components/bars/Navbar";
+import { MemoryRouter } from "react-router";
 
 vi.mock("../src/components/MovieSearchMenu", () => ({
   MovieSearchMenu: ({ onOpen }: { onOpen: () => void }) => (

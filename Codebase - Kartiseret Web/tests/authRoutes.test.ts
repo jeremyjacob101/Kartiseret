@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { getPasswordResetRedirectUrl, PASSWORD_RESET_PATH } from "../src/lib/authRoutes";
+import { describe, expect, it } from "vitest";
 
 describe("auth routes", () => {
   it("builds the exact password reset redirect URL for each app origin", () => {

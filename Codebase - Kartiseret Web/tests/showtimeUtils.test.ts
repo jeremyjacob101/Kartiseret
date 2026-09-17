@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
 import { cloneShowtimeDays, extractYouTubeVideoKey, findShowtimePanel, formatReleaseDate, formatRuntime, getFirstShowtimeDate, getMetricDisplays, getMovieInfoParts, getNearestShowtimeDate, getScrollBehavior, getShowtimeDateLabel, getShowtimeTargetDate, getTrailerEmbedUrl } from "../src/components/showtimes/showtimeUtils";
-import { fixedAppDateString } from "../src/data/movieCatalog";
 import { addCalendarDays } from "../src/routing/showtimeLinkCodec";
+import { fixedAppDateString } from "../src/data/movieCatalog";
 import { sampleMovie, sampleShowtimeDays } from "./fixtures";
+import { describe, expect, it, vi } from "vitest";
 
 describe("showtime presentation utilities", () => {
   it("formats movie runtime, metadata, and release dates", () => {

@@ -1,5 +1,5 @@
-import { z } from "zod";
 import type { UserPreferenceDefinition } from "./shared.js";
+import { z } from "zod";
 
 export const ALL_LOCATIONS = [
   "Afula",

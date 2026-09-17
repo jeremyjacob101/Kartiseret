@@ -1,8 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
-import { QueryClient } from "@tanstack/react-query";
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fixedAppDateString, findMovieByCode, movieCatalogQueryKeys, movieCollectionQueryOptions, selectCityHasAnyShowtimesOnDate, showtimeRangeQueryOptions, type MovieCollectionData } from "../src/data/movieCatalog";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createClient } from "@supabase/supabase-js";
 import { queryClient } from "../src/lib/queryClient";
+import { QueryClient } from "@tanstack/react-query";
 
 const { getSupabaseBrowserClientMock } = vi.hoisted(() => ({
   getSupabaseBrowserClientMock: vi.fn(),
