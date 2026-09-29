@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: HCsoon
+URL: https://hotcinema.co.il/movie/3937/?ali-g-who-iz-i
+Exception: TimeoutException - Message: 
+Call Chain: runners.py:43 > runners.py:19 > BaseCinema.py:28 > HCsoon.py:32 > ScrapingHelpers.py:21
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/631/unsuccessful/HCsoon-2.png
+CSV: backend/utils/log/logger_artifacts/631/unsuccessful/HCsoon-2.csv
