@@ -70,6 +70,8 @@ function renderControl() {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-16T12:00:00.000Z"));
   queryClient.clear();
   const storageValues = new Map<string, string>();
   Object.defineProperty(window, "localStorage", {
@@ -94,6 +96,7 @@ beforeEach(() => {
 
 afterEach(() => {
   queryClient.clear();
+  vi.useRealTimers();
 });
 
 describe("TicketAlertControl", () => {
