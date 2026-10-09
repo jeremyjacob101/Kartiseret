@@ -1,12 +1,17 @@
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import StaleElementReferenceException
 
 from datetime import datetime
 import pytz, secrets, string, time
 
 
 class ScrapingHelpers:
+    def waitForElement(self, path: str):
+        locator = (By.XPATH if path.startswith(("/", ".//")) else By.CSS_SELECTOR, path)
+        return WebDriverWait(self.driver, 15, poll_frequency=0.05, ignored_exceptions=(StaleElementReferenceException,)).until(EC.presence_of_element_located(locator))
+
     def element(self, path: str, prevSelectorToReclick: str | None = None):
         try:
             return self.driver.find_element(By.XPATH if path.startswith(("/", ".//")) else By.CSS_SELECTOR, path)
