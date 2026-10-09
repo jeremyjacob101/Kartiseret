@@ -25,7 +25,7 @@ class HCsoon(BaseCinema):
                 self.english_hrefs.append(self.element(f"/html/body/div[2]/div[4]/div[2]/div/div/div[{film_block}]/div[{film_card}]/div[1]/a").get_attribute("href"))
         for href in self.english_hrefs:
             self.driver.get(href)
-            if self.is_forbidden_page():
+            if self.is_forbidden_page() or "ERR_TOO_MANY_REDIRECTS" in self.driver.page_source:
                 continue
             self.sleep(0.25)
 
