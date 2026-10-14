@@ -10,6 +10,7 @@ import { shareLink } from "../../routing/shareLink";
 import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import "./MovieScroller.css";
+import { backdropPreloader } from "./backdropPreloader";
 
 type FocusPhase = "collapsed" | "opening" | "open" | "closing";
 type NavigationDirection = -1 | 1;
@@ -2075,6 +2076,11 @@ function MovieScrollerContent({
     }
 
     const preloadMovieIndexes = new Set<number>();
+    const selectedBackdrop = movieItems[displayMovieIndex].backdropSrc;
+    if (selectedBackdrop) {
+      backdropPreloader.requestBackdropNow(selectedBackdrop);
+      seenPosterSrcRef.current.add(selectedBackdrop);
+    }
 
     for (
       let offset = -DETAIL_PRELOAD_RADIUS;
@@ -2214,6 +2220,7 @@ function MovieScrollerContent({
               }`}
               decoding="async"
               loading="eager"
+              fetchPriority="high"
             />
           </div>
         ) : null}

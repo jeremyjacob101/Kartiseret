@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, type CSSProperties, type KeyboardEvent, type MouseEvent, useMemo, useRef, useState } from "react";
 import { useDeviceStore } from "../../device/useDeviceType";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
+import { backdropPreloader } from "./backdropPreloader";
 import { type Movie } from "../../data/movieCatalog";
 
 export type PosterSourceRect = {
@@ -579,9 +580,7 @@ export function MovieScrollerBase({
 
     for (let i = effectiveRange.start; i <= effectiveRange.end; i += 1) {
       const movie = allMovies[i % movieCount];
-      const imageSources = [movie.imageSrc, movie.backdropSrc].filter(
-        Boolean,
-      ) as string[];
+      const imageSources = [movie.imageSrc].filter(Boolean) as string[];
 
       for (const src of imageSources) {
         if (seenPosterSrcRef.current.has(src)) {
@@ -598,6 +597,61 @@ export function MovieScrollerBase({
     effectiveRange.start,
     movieCount,
     preloadImageSource,
+  ]);
+
+  useEffect(() => {
+    if (movieCount === 0) return;
+    const criticalSources = new Set<string>();
+    for (
+      let i = effectiveRange.firstVisible;
+      i < effectiveRange.firstVisible + effectiveRange.visibleCount;
+      i += 1
+    ) {
+      const src = allMovies[i % movieCount]?.imageSrc;
+      if (src) criticalSources.add(src);
+    }
+    if (introPhase !== "done") {
+      for (
+        let offset = -INTRO_LEADING_CARD_COUNT;
+        offset < INTRO_TARGET_CARD_COUNT - INTRO_LEADING_CARD_COUNT;
+        offset += 1
+      ) {
+        const src =
+          allMovies[
+            clamp(centeredAnchorIndex + offset, 0, totalItems - 1) % movieCount
+          ]?.imageSrc;
+        if (src) criticalSources.add(src);
+      }
+    }
+    return backdropPreloader.protectPosters(
+      allMovies.map((movie) => movie.imageSrc),
+      Promise.all([...criticalSources].map((src) => preloadImageSource(src))),
+    );
+  }, [
+    allMovies,
+    centeredAnchorIndex,
+    effectiveRange.firstVisible,
+    effectiveRange.visibleCount,
+    introPhase,
+    movieCount,
+    preloadImageSource,
+    totalItems,
+  ]);
+
+  useEffect(() => {
+    if (introPhase !== "done" || movieCount === 0) return;
+    const sources = new Set<string>();
+    for (let i = effectiveRange.start; i <= effectiveRange.end; i += 1) {
+      const src = allMovies[i % movieCount].backdropSrc;
+      if (src) sources.add(src);
+    }
+    return backdropPreloader.warmBackdrops([...sources]);
+  }, [
+    allMovies,
+    effectiveRange.end,
+    effectiveRange.start,
+    introPhase,
+    movieCount,
   ]);
 
   const visibleStart = effectiveRange.firstVisible;
