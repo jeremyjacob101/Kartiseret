@@ -1,6 +1,7 @@
 from backend.scraping.BaseCinema import BaseCinema
 
-from datetime import datetime
+from datetime import datetime, date
+from selenium.webdriver.common.by import By
 import re
 
 
@@ -9,17 +10,13 @@ class HotCinema(BaseCinema):
     URL = "https://hotcinema.co.il/ShowingNow"
 
     def logic(self):
-        self.sleep(3)
-        try:
-            self.waitAndClick("/html/body/div[7]/div/button", 3)
-        except:
-            self.tryExceptPass(lambda: self.waitAndClick("/html/body/div[7]/div/div/button", 3))
-        self.waitAndClick("/html/body/div[3]/div/div/div[1]/a", 3)
-
-        try:
-            self.driver.execute_script("arguments[0].remove();", self.element("#liteboxFormat14"))
-        except:
-            pass
+        self.driver.set_page_load_timeout(45)
+        self.driver.set_script_timeout(15)
+        self.waitForVisible("/html/body/div[2]/div[4]/div[2]/div/div/div[2]/div/div/a")
+        self.driver.execute_script("document.querySelectorAll('#liteboxFormat14, .pp-backdrop').forEach(element => element.remove())")
+        self.tryExceptPass(lambda: self.click("/html/body/div[7]/div/button"))
+        self.tryExceptPass(lambda: self.click("/html/body/div[7]/div/div/button"))
+        self.clickWhenReady("/html/body/div[3]/div/div/div[1]/a")
 
         for film_card in range(1, self.lenElements("/html/body/div[2]/div[4]/div[2]/div/div/div[2]/div/div/a") + 1):
             self.hebrew_hrefs.append(self.element(f"/html/body/div[2]/div[4]/div[2]/div/div/div[2]/div[{film_card}]/div/a").get_attribute("href"))
@@ -27,7 +24,7 @@ class HotCinema(BaseCinema):
             self.driver.get(href)
             if self.is_forbidden_page():
                 continue
-            self.sleep(0.2)
+            self.waitForVisible("/html/body/div[2]/div[4]/div[2]/div[1]/div[1]/div[2]/div[2]/div[1]/div[1]/h1")
             raw_text = (self.element("/html/body/div[2]/div[4]/div[2]/div[1]/div[1]/div[2]/div[2]/div[2]/div[1]/div[2]").text or "").strip()
             last_token = raw_text.split()[-1] if raw_text else ""
             if last_token.isdigit() and len(last_token) == 4:
@@ -49,26 +46,37 @@ class HotCinema(BaseCinema):
 
         for cinema in range(1, self.lenElements("/html/body/div[2]/div[1]/div/div/div[1]/div[3]/div[2]/div[2]/a") + 1):
             self.driver.get(self.element(f"/html/body/div[2]/div[1]/div/div/div[1]/div[3]/div[2]/div[2]/a[{cinema}]").get_attribute("href"))
-            self.sleep(2)
-            self.zoomOut(50)
-
-            self.tryExceptPass(lambda: self.driver.execute_script("document.querySelector('.pp-backdrop').remove();"))
-            self.tryExceptPass(lambda: self.driver.execute_script("document.querySelector('.pp-backdrop').style.display='none';"))
-            self.sleep(2)
+            self.waitForElement(".order-panel.d-md-block table")
+            self.zoomOut(50, 0)
+            self.driver.execute_script("document.querySelectorAll('.pp-backdrop').forEach(element => element.remove())")
 
             self.screening_city = self.element("/html/body/div[2]/div[4]/div[1]/div/div/div/div[2]/h1").text.strip()
 
             for checking_month in range(1, 3):
                 if checking_month == 2:
                     self.driver.execute_script("$('.datepicker-wrapper input').datepicker('show')")
-                    self.jsClick("/html/body/div[6]/div[1]/table/thead/tr[2]/th[3]")
+                    self.waitForVisible(".datepicker-dropdown .datepicker-days")
+                    previous_month = self.element(".datepicker-dropdown .datepicker-switch").text
+                    self.clickWhenReady(".datepicker-dropdown .datepicker-days th.next")
+                    self.waitUntil(lambda driver: driver.find_element(By.CSS_SELECTOR, ".datepicker-dropdown .datepicker-switch").text != previous_month)
                 for week in range(1, 7):
                     for day in range(1, 8):
                         self.driver.execute_script("$('.datepicker-wrapper input').datepicker('show')")
-                        day_class_label = self.element(f"/html/body/div[6]/div[1]/table/tbody/tr[{week}]/td[{day}]").get_attribute("class").strip()
+                        self.waitForVisible(".datepicker-dropdown .datepicker-days")
+                        day_class_label = self.element(f".datepicker-dropdown .datepicker-days tbody > tr:nth-child({week}) > td:nth-child({day})").get_attribute("class").strip()
                         if day_class_label == "day disabled" or day_class_label == "old day" or day_class_label == "old day disabled" or day_class_label == "old active day" or day_class_label == "new day disabled" or day_class_label == "new day":
                             continue
-                        self.click(f"/html/body/div[6]/div[1]/table/tbody/tr[{week}]/td[{day}]", 0.25)
+                        date_element = self.element(f".datepicker-dropdown .datepicker-days tbody > tr:nth-child({week}) > td:nth-child({day})")
+                        selected_date = date(int(self.element(".datepicker-dropdown .datepicker-days .datepicker-switch").text.split()[-1]), (int(self.current_month) + checking_month - 2) % 12 + 1, int(date_element.text)).strftime("%d/%m/%Y")
+                        previous_showtime = next(iter(self.elements(".order-panel.d-md-block table td.dates a")), None)
+                        same_date = self.element("/html/body/div[2]/div[4]/div[2]/div/div[3]/div/div/div/div[1]/div").get_attribute("innerHTML").strip().split("\n")[0].strip() == selected_date
+                        self.driver.execute_script("document.querySelectorAll('.pp-backdrop').forEach(element => element.remove())")
+                        date_element.click()
+                        self.waitUntil(lambda driver: driver.find_element(By.XPATH, "/html/body/div[2]/div[4]/div[2]/div/div[3]/div/div/div/div[1]/div").get_attribute("innerHTML").strip().split("\n")[0].strip() == selected_date)
+                        if not same_date:
+                            self.waitForStale(previous_showtime)
+                        self.waitForElement(".order-panel.d-md-block table")
+                        self.waitUntil(lambda driver: driver.execute_script("return window.jQuery && jQuery.active === 0"))
                         self.date_of_showing = self.element("/html/body/div[2]/div[4]/div[2]/div/div[3]/div/div/div/div[1]/div").get_attribute("innerHTML").strip().split("\n")[0].strip()
                         self.date_of_showing = datetime.strptime(self.date_of_showing, "%d/%m/%Y").date().isoformat()
 

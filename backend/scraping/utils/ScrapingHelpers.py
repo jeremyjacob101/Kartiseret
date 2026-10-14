@@ -8,6 +8,23 @@ import pytz, secrets, string, time
 
 
 class ScrapingHelpers:
+    def waitUntil(self, condition, timeout: float = 15):
+        return WebDriverWait(self.driver, timeout, poll_frequency=0.1, ignored_exceptions=(StaleElementReferenceException,)).until(condition)
+
+    def waitForVisible(self, path: str):
+        return self.waitUntil(EC.visibility_of_element_located((By.XPATH if path.startswith(("/", ".//")) else By.CSS_SELECTOR, path)))
+
+    def clickWhenReady(self, path: str):
+        self.waitUntil(EC.element_to_be_clickable((By.XPATH if path.startswith(("/", ".//")) else By.CSS_SELECTOR, path))).click()
+
+    def waitForStale(self, element):
+        if element is not None:
+            self.waitUntil(EC.staleness_of(element))
+
+    def waitForResponse(self, url_part: str):
+        # Observe the page's own request; do not fetch metadata separately.
+        self.waitUntil(lambda driver: driver.execute_script("return performance.getEntriesByType('resource').some(entry => entry.name.includes(arguments[0]) && entry.responseEnd > 0)", url_part))
+
     def waitForElement(self, path: str):
         locator = (By.XPATH if path.startswith(("/", ".//")) else By.CSS_SELECTOR, path)
         return WebDriverWait(self.driver, 15, poll_frequency=0.05, ignored_exceptions=(StaleElementReferenceException,)).until(EC.presence_of_element_located(locator))
