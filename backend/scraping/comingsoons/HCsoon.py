@@ -9,16 +9,14 @@ class HCsoon(BaseCinema):
     URL = "https://hotcinema.co.il/ComingSoon"
 
     def logic(self):
-        self.sleep(3)
-        try:
-            self.waitAndClick("/html/body/div[7]/div/button", 3)
-        except:
-            self.tryExceptPass(lambda: self.waitAndClick("/html/body/div[7]/div/div/button", 3))
-        self.waitAndClick("/html/body/div[3]/div/div/div[1]/a", 3)
-        self.zoomOut(50)
-
-        self.tryExceptPass(lambda: self.driver.execute_script("document.querySelector('.pp-backdrop').remove();"))
-        self.tryExceptPass(lambda: self.driver.execute_script("document.querySelector('.pp-backdrop').style.display='none';"))
+        self.driver.set_page_load_timeout(45)
+        self.driver.set_script_timeout(15)
+        self.waitForVisible("/html/body/div[2]/div[4]/div[2]/div/div/div[2]/div[1]/div[1]/a")
+        self.jsRemoveAll("#liteboxFormat14, .pp-backdrop")
+        self.tryExceptPass(lambda: self.click("/html/body/div[7]/div/button"))
+        self.tryExceptPass(lambda: self.click("/html/body/div[7]/div/div/button"))
+        self.clickWhenReady("/html/body/div[3]/div/div/div[1]/a")
+        self.zoomOut(50, 0)
 
         for film_block in range(2, self.lenElements("/html/body/div[2]/div[4]/div[2]/div/div/div") + 1, 2):
             for film_card in range(1, self.lenElements(f"/html/body/div[2]/div[4]/div[2]/div/div/div[{film_block}]/div/h4")):
@@ -27,7 +25,7 @@ class HCsoon(BaseCinema):
             self.driver.get(href)
             if self.is_forbidden_page() or "ERR_TOO_MANY_REDIRECTS" in self.driver.page_source:
                 continue
-            self.sleep(0.25)
+            self.waitForVisible("/html/body/div[2]/div[4]/div[2]/div[1]/div[1]/div[2]/div[2]/div[1]/div[1]/h1")
 
             self.english_title = self.element("/html/body/div[2]/div[4]/div[2]/div[1]/div[1]/div[2]/div[2]/div[1]/div[2]/h2").text.strip()
             self.hebrew_title = self.element("/html/body/div[2]/div[4]/div[2]/div[1]/div[1]/div[2]/div[2]/div[1]/div[1]/h1").text.strip()
