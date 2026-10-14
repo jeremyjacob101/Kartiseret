@@ -105,6 +105,9 @@ class ScrapingHelpers:
         self.driver.execute_script("document.querySelector(arguments[0]).remove();", path)
         self.sleep(sleepafter)
 
+    def jsRemoveAll(self, path: str):
+        self.driver.execute_script("document.querySelectorAll(arguments[0]).forEach(element => element.remove())", path)
+
     def waitAndClick(self, path: str, sleepafter: float = 0.5):
         WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable((By.XPATH if path.startswith(("/", ".//")) else By.CSS_SELECTOR, path))).click()
         self.sleep(sleepafter)

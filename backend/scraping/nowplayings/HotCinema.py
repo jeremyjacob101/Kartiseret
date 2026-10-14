@@ -13,7 +13,7 @@ class HotCinema(BaseCinema):
         self.driver.set_page_load_timeout(45)
         self.driver.set_script_timeout(15)
         self.waitForVisible("/html/body/div[2]/div[4]/div[2]/div/div/div[2]/div/div/a")
-        self.driver.execute_script("document.querySelectorAll('#liteboxFormat14, .pp-backdrop').forEach(element => element.remove())")
+        self.jsRemoveAll("#liteboxFormat14, .pp-backdrop")
         self.tryExceptPass(lambda: self.click("/html/body/div[7]/div/button"))
         self.tryExceptPass(lambda: self.click("/html/body/div[7]/div/div/button"))
         self.clickWhenReady("/html/body/div[3]/div/div/div[1]/a")
@@ -48,7 +48,7 @@ class HotCinema(BaseCinema):
             self.driver.get(self.element(f"/html/body/div[2]/div[1]/div/div/div[1]/div[3]/div[2]/div[2]/a[{cinema}]").get_attribute("href"))
             self.waitForElement(".order-panel.d-md-block table")
             self.zoomOut(50, 0)
-            self.driver.execute_script("document.querySelectorAll('.pp-backdrop').forEach(element => element.remove())")
+            self.jsRemoveAll(".pp-backdrop")
 
             self.screening_city = self.element("/html/body/div[2]/div[4]/div[1]/div/div/div/div[2]/h1").text.strip()
 
@@ -57,10 +57,12 @@ class HotCinema(BaseCinema):
                     self.driver.execute_script("$('.datepicker-wrapper input').datepicker('show')")
                     self.waitForVisible(".datepicker-dropdown .datepicker-days")
                     previous_month = self.element(".datepicker-dropdown .datepicker-switch").text
+                    self.jsRemoveAll(".pp-backdrop")
                     self.clickWhenReady(".datepicker-dropdown .datepicker-days th.next")
                     self.waitUntil(lambda driver: driver.find_element(By.CSS_SELECTOR, ".datepicker-dropdown .datepicker-switch").text != previous_month)
                 for week in range(1, 7):
                     for day in range(1, 8):
+                        self.jsRemoveAll(".pp-backdrop")
                         self.driver.execute_script("$('.datepicker-wrapper input').datepicker('show')")
                         self.waitForVisible(".datepicker-dropdown .datepicker-days")
                         day_class_label = self.element(f".datepicker-dropdown .datepicker-days tbody > tr:nth-child({week}) > td:nth-child({day})").get_attribute("class").strip()
@@ -70,7 +72,7 @@ class HotCinema(BaseCinema):
                         selected_date = date(int(self.element(".datepicker-dropdown .datepicker-days .datepicker-switch").text.split()[-1]), (int(self.current_month) + checking_month - 2) % 12 + 1, int(date_element.text)).strftime("%d/%m/%Y")
                         previous_showtime = next(iter(self.elements(".order-panel.d-md-block table td.dates a")), None)
                         same_date = self.element("/html/body/div[2]/div[4]/div[2]/div/div[3]/div/div/div/div[1]/div").get_attribute("innerHTML").strip().split("\n")[0].strip() == selected_date
-                        self.driver.execute_script("document.querySelectorAll('.pp-backdrop').forEach(element => element.remove())")
+                        self.jsRemoveAll(".pp-backdrop")
                         date_element.click()
                         self.waitUntil(lambda driver: driver.find_element(By.XPATH, "/html/body/div[2]/div[4]/div[2]/div/div[3]/div/div/div/div[1]/div").get_attribute("innerHTML").strip().split("\n")[0].strip() == selected_date)
                         if not same_date:
@@ -81,7 +83,7 @@ class HotCinema(BaseCinema):
                         self.date_of_showing = datetime.strptime(self.date_of_showing, "%d/%m/%Y").date().isoformat()
 
                         for film_index in range(1, self.lenElements("/html/body/div[2]/div[4]/div[2]/div/div[2]/div/div/div/div/table/tbody/tr") + 1):
-                            checking_film_name = str(self.element(f"/html/body/div[2]/div[4]/div[2]/div/div[2]/div/div/div/div/table/tbody/tr[{film_index}]/td[1]").text)
+                            checking_film_name = str(self.element(f"/html/body/div[2]/div[4]/div[2]/div/div[2]/div/div/div/div/table/tbody/tr[{film_index}]/td[1]").get_attribute("textContent").strip())
                             checking_film = name_to_idx.get(checking_film_name)
                             if checking_film is None:
                                 continue

@@ -1,4 +1,5 @@
 from backend.scraping.BaseCinema import BaseCinema
+from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 
@@ -11,6 +12,8 @@ class CinemaCity(BaseCinema):
     URL = "https://www.cinema-city.co.il/"
 
     def logic(self):
+        self.driver.set_page_load_timeout(45)
+        self.driver.set_script_timeout(15)
         self.sleep(3)
         self.zoomOut(50)
         self.element("[id^='comp-mpkxxq0h__']")
@@ -70,7 +73,7 @@ class CinemaCity(BaseCinema):
                 tech_prefix = "2D"
 
             self.click(cinema_selector)
-            WebDriverWait(self.driver, 15, poll_frequency=0.1).until(lambda driver: self.lenElements(cinema_selector + ' option:not([value=""])') or not self.waitForElement(cinema_selector).is_enabled())
+            self.waitUntil(lambda driver: driver.find_elements(By.CSS_SELECTOR, cinema_selector + ' option:not([value=""])') or not driver.find_element(By.CSS_SELECTOR, cinema_selector).is_enabled())
             if not self.waitForElement(cinema_selector).is_enabled():
                 continue
             self.waitForElement(cinema_selector).send_keys(Keys.ESCAPE)
@@ -80,7 +83,7 @@ class CinemaCity(BaseCinema):
                 self.waitForElement(cinema_selector).send_keys(Keys.ENTER)
                 self.screening_city = self.waitForElement(f"#menuitem-{cinema}").get_attribute("textContent").strip()
                 self.jsClick(f"#menuitem-{cinema}", 0)
-                WebDriverWait(self.driver, 15, poll_frequency=0.1).until(lambda driver: self.waitForElement(showtype_selector).is_enabled() and self.waitForElement(showtype_selector).get_attribute("value") == "" and self.lenElements(showtype_selector + ' option:not([value=""])'))
+                self.waitUntil(lambda driver: driver.find_element(By.CSS_SELECTOR, showtype_selector).is_enabled() and driver.find_element(By.CSS_SELECTOR, showtype_selector).get_attribute("value") == "" and driver.find_elements(By.CSS_SELECTOR, showtype_selector + ' option:not([value=""])'))
 
                 # Regular also includes ONYX screenings; keep the specific format first.
                 for showtype in range(self.lenElements(showtype_selector + ' option:not([value=""])'), 0, -1):
@@ -91,7 +94,7 @@ class CinemaCity(BaseCinema):
                     self.screening_type = base_showtech or None
                     self.screening_tech = f"{tech_prefix} {base_showtech}".strip()
                     self.jsClick(f"#menuitem-{showtype}", 0)
-                    WebDriverWait(self.driver, 15, poll_frequency=0.1).until(lambda driver: self.waitForElement(date_selector).is_enabled() and self.waitForElement(date_selector).get_attribute("value") == "" and self.lenElements(date_selector + ' option:not([value=""])'))
+                    self.waitUntil(lambda driver: driver.find_element(By.CSS_SELECTOR, date_selector).is_enabled() and driver.find_element(By.CSS_SELECTOR, date_selector).get_attribute("value") == "" and driver.find_elements(By.CSS_SELECTOR, date_selector + ' option:not([value=""])'))
 
                     for day in range(1, self.lenElements(date_selector + ' option:not([value=""])') + 1):
                         previous_times = [option.get_attribute("value") for option in self.elements(time_selector + ' option:not([value=""])')]
@@ -100,7 +103,7 @@ class CinemaCity(BaseCinema):
                         date_text = re.search(r"\d{1,2}/\d{1,2}/\d{2,4}", date_text).group()
                         self.date_of_showing = datetime.strptime(date_text, "%d/%m/%y" if len(date_text.split("/")[-1]) == 2 else "%d/%m/%Y").date().isoformat()
                         self.jsClick(f"#menuitem-{day}", 0)
-                        WebDriverWait(self.driver, 15, poll_frequency=0.1).until(lambda driver: self.waitForElement(time_selector).is_enabled() and self.lenElements(time_selector + ' option:not([value=""])') and [option.get_attribute("value") for option in self.elements(time_selector + ' option:not([value=""])')] != previous_times)
+                        self.waitUntil(lambda driver: driver.find_element(By.CSS_SELECTOR, time_selector).is_enabled() and driver.find_elements(By.CSS_SELECTOR, time_selector + ' option:not([value=""])') and [option.get_attribute("value") for option in driver.find_elements(By.CSS_SELECTOR, time_selector + ' option:not([value=""])')] != previous_times)
 
                         # Choosing a time opens checkout; its option already contains the event ID.
                         for time_option in self.elements(time_selector + ' option:not([value=""])'):

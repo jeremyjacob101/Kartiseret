@@ -8,6 +8,10 @@ class QuickbookHelpers:
     date_heading_selector = "section.npm-quickbook .qb-calendar-widget h5"
     tickets_selector = "section.npm-quickbook a[data-url]"
 
+    def reloadQuickbookErrorPage(self):
+        if self.driver.execute_script("return document.querySelector('link[rel=canonical]')?.href.endsWith('/500')"):
+            self.driver.refresh()
+
     def acceptQuickbookCookies(self):
         button = self.tryExceptNone(lambda: self.waitUntil(lambda driver: (button := driver.execute_script("return document.querySelector('#usercentrics-cmp-ui')?.shadowRoot?.querySelector('#accept')")) and button.is_displayed() and button.is_enabled() and button, 10))
         if button is not None:

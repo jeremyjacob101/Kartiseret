@@ -13,13 +13,13 @@ class MovieLand(BaseCinema):
         self.driver.set_page_load_timeout(45)
         self.driver.set_script_timeout(15)
         self.sleep(5)
-        self.waitForVisible("/html/body/div[1]/div[10]/div[2]/div/div/div")
+        self.waitForVisible("#change-bg .movies-page a[poster-summary]")
         self.tryExceptPass(lambda: self.waitAndClick("#sbuzz-confirm", 2))
         self.tryExceptPass(lambda: self.waitAndClick("#gdpr-module-message > div > div > div.gdpr-content-part.gdpr-accept > a", 2))
-        self.click("/html/body/div[1]/div[13]/div/div/a")
+        self.tryExceptPass(lambda: self.click("#chooseTheaterModalCenter a[data-dismiss='modal']"))
 
-        for film_card in range(1, self.lenElements(f"/html/body/div[1]/div[10]/div[2]/div/div/div") + 1):
-            self.hebrew_hrefs.append(self.element(f"/html/body/div[1]/div[10]/div[2]/div/div/div[{film_card}]/div/div/div/div[1]/a[1]").get_attribute("href"))
+        for film_card in self.elements("#change-bg .movies-page a[poster-summary]"):
+            self.hebrew_hrefs.append(film_card.get_attribute("href"))
 
         for href in range(len(self.hebrew_hrefs)):
             self.driver.get(self.hebrew_hrefs[href])
@@ -27,17 +27,17 @@ class MovieLand(BaseCinema):
             hebrew_name = self.element("#change-bg > div > div:nth-child(3) > div > div.col-12.col-sm-8.col-md-8.col-lg-9 > div > div > div.bg-more-b > span:nth-child(1)").text.strip()
             self.hebrew_titles.append(hebrew_name)
             self.english_titles.append(self.element("#change-bg > div > div:nth-child(3) > div > div.col-12.col-sm-8.col-md-8.col-lg-9 > div > div > div.bg-more-b > span:nth-child(3)").text.strip() or hebrew_name)
-            self.original_languages.append(str(self.element(f"/html/body/div[1]/div[10]/div/div[3]/div/div[2]/div/div/div[2]/span[16]").text.split(":", 1)[-1].strip()))
-            release_year = self.element(f"/html/body/div[1]/div[10]/div/div[3]/div/div[2]/div/div/div[2]/span[15]").text
+            self.original_languages.append(str(self.element(f"//*[@id='change-bg']/div/div[3]/div/div[2]/div/div/div[2]/span[16]").text.split(":", 1)[-1].strip()))
+            release_year = self.element(f"//*[@id='change-bg']/div/div[3]/div/div[2]/div/div/div[2]/span[15]").text
             if re.search(r"\b\d{4}\b", release_year):
                 self.release_years.append(int(re.search(r"\b\d{4}\b", release_year).group(0)))
             else:
                 self.release_years.append(None)
-            self.ratings.append(str(self.element(f"/html/body/div[1]/div[10]/div/div[3]/div/div[2]/div/div/div[2]/span[10]").text))
+            self.ratings.append(str(self.element(f"//*[@id='change-bg']/div/div[3]/div/div[2]/div/div/div[2]/span[10]").text))
         name_to_idx = {str(name): i for i, name in enumerate(self.hebrew_titles)}
 
-        for cinema in range(1, self.lenElements("/html/body/div[1]/div[7]/ul/li[2]/div/div[1]/a") + 1):
-            self.driver.get(self.element(f"/html/body/div[1]/div[7]/ul/li[2]/div/div[1]/a[{cinema}]").get_attribute("href"))
+        for cinema in range(1, self.lenElements(".newnav-upper-menu a.dropdown-item[href^='/theater/']") + 1):
+            self.driver.get(self.element(f".newnav-upper-menu a.dropdown-item[href^='/theater/']:nth-of-type({cinema})").get_attribute("href"))
             self.waitForVisible("#events-list .bg-choose > div")
             self.waitUntil(lambda driver: driver.execute_script("return window.jQuery && jQuery.active === 0"))
             self.zoomOut(30, 0)
@@ -123,10 +123,10 @@ class MovieLand(BaseCinema):
                                 date_part = full_text.split()[-1].replace(".", "/", 1) + f"/{checking_year}"
                                 self.date_of_showing = datetime.strptime(date_part, "%d/%m/%Y").date().isoformat()
 
-                                for screening_time in range(1, self.lenElements(f"/html/body/div[1]/div[10]/div[2]/div[1]/div/div/div/div[2]/div[4]/div[{film_index}]/div/div[3]/div[2]/div/div[2]/a") + 1):
-                                    self.showtime = self.element(f"/html/body/div[1]/div[10]/div[2]/div[1]/div/div/div/div[2]/div[4]/div[{film_index}]/div/div[3]/div[2]/div/div[2]/a[{screening_time}]/div/span").text
-                                    self.english_href = self.element(f"/html/body/div[1]/div[10]/div[2]/div[1]/div/div/div/div[2]/div[4]/div[{film_index}]/div/div[3]/div[2]/div/div[2]/a[{screening_time}]").get_attribute("href")
-                                    self.hebrew_href = self.element(f"/html/body/div[1]/div[10]/div[2]/div[1]/div/div/div/div[2]/div[4]/div[{film_index}]/div/div[3]/div[2]/div/div[2]/a[{screening_time}]").get_attribute("href")
-                                    self.screening_type = "Upgrade" if self.lenElements(f"/html/body/div[1]/div[10]/div[2]/div[1]/div/div/div/div[2]/div[4]/div[{film_index}]/div/div[3]/div[2]/div/div[2]/a[{screening_time}]/div/img", "vip") else "Regular"
+                                for screening_time in range(1, self.lenElements(f"//*[@id='change-bg']/div[2]/div[1]/div/div/div/div[2]/div[4]/div[{film_index}]/div/div[3]/div[2]/div/div[2]/a") + 1):
+                                    self.showtime = self.element(f"//*[@id='change-bg']/div[2]/div[1]/div/div/div/div[2]/div[4]/div[{film_index}]/div/div[3]/div[2]/div/div[2]/a[{screening_time}]/div/span").text
+                                    self.english_href = self.element(f"//*[@id='change-bg']/div[2]/div[1]/div/div/div/div[2]/div[4]/div[{film_index}]/div/div[3]/div[2]/div/div[2]/a[{screening_time}]").get_attribute("href")
+                                    self.hebrew_href = self.element(f"//*[@id='change-bg']/div[2]/div[1]/div/div/div/div[2]/div[4]/div[{film_index}]/div/div[3]/div[2]/div/div[2]/a[{screening_time}]").get_attribute("href")
+                                    self.screening_type = "Upgrade" if self.lenElements(f"//*[@id='change-bg']/div[2]/div[1]/div/div/div/div[2]/div[4]/div[{film_index}]/div/div[3]/div[2]/div/div[2]/a[{screening_time}]/div/img", "vip") else "Regular"
 
                                     self.appendToGatheringInfo()

@@ -41,6 +41,7 @@ class YesPlanet(QuickbookHelpers, BaseCinema):
 
         for href in self.english_hrefs:
             self.driver.get(href)
+            self.reloadQuickbookErrorPage()
             self.waitUntil(lambda driver: driver.find_element(By.CSS_SELECTOR, "#more-info dd").get_attribute("textContent").strip())
             self.waitForResponse("/films/byDistributorCode/" + self.driver.execute_script("return window.filmDetails.id"))
 
