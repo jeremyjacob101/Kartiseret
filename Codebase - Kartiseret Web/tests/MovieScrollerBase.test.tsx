@@ -1,7 +1,11 @@
 import { MovieScrollerBase } from "../src/components/scroller/MovieScrollerBase";
+import { backdropPreloader } from "../src/components/scroller/backdropPreloader";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { act } from "@testing-library/react";
 import { sampleMovie } from "./fixtures";
+
+afterEach(() => vi.useRealTimers());
 
 function configureReducedMotion(matches: boolean) {
   vi.mocked(window.matchMedia).mockImplementation(
@@ -20,6 +24,77 @@ function configureReducedMotion(matches: boolean) {
 }
 
 describe("MovieScrollerBase virtualization and interaction", () => {
+  it("retains the entrance timing and warms backdrops only after it finishes", async () => {
+    configureReducedMotion(false);
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "Image",
+      class {
+        complete = true;
+        src = "";
+        decoding = "";
+        fetchPriority = "";
+      },
+    );
+    const cancel = vi.fn();
+    const warm = vi
+      .spyOn(backdropPreloader, "warmBackdrops")
+      .mockReturnValue(cancel);
+    const { container, unmount } = render(
+      <MovieScrollerBase movieItems={[sampleMovie]} onSelectMovie={() => {}} />,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(warm).not.toHaveBeenCalled();
+    expect(container.querySelector("section")).toHaveStyle({
+      pointerEvents: "none",
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1450);
+    });
+    expect(warm).toHaveBeenCalledWith([sampleMovie.backdropSrc]);
+    expect(container.querySelector("section")).not.toHaveStyle({
+      pointerEvents: "none",
+    });
+    unmount();
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it("registers critical poster readiness even when the entrance image timeout fires", async () => {
+    configureReducedMotion(false);
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "Image",
+      class {
+        complete = false;
+        src = "";
+        decoding = "";
+        fetchPriority = "";
+      },
+    );
+    const protect = vi.spyOn(backdropPreloader, "protectPosters");
+    const warm = vi
+      .spyOn(backdropPreloader, "warmBackdrops")
+      .mockReturnValue(() => {});
+    render(
+      <MovieScrollerBase movieItems={[sampleMovie]} onSelectMovie={() => {}} />,
+    );
+    let ready = false;
+    void protect.mock.calls[0][1].then(() => {
+      ready = true;
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2800);
+    });
+    expect(warm).toHaveBeenCalledWith([sampleMovie.backdropSrc]);
+    expect(ready).toBe(false);
+    expect(protect).toHaveBeenCalledWith(
+      [sampleMovie.imageSrc],
+      expect.any(Promise),
+    );
+  });
+
   it("keeps cards interactive immediately when reduced motion is requested", () => {
     configureReducedMotion(true);
     const onSelectMovie = vi.fn();
