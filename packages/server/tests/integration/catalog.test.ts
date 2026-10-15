@@ -139,7 +139,7 @@ describe("PostgreSQL 17 integration", () => {
     try {
       await expect(
         rawClient.query(
-          "INSERT INTO public.\"movieCodes\" (tmdb_id, movie_code) VALUES (9199999, 'bad')",
+          "INSERT INTO public.\"movieCodes\" (tmdb_id, movie_code) VALUES (9199999, 'bad!')",
         ),
       ).rejects.toThrow();
       const absent = await rawClient.query(
