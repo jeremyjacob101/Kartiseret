@@ -109,6 +109,15 @@ class RequestTests(TestCase):
                 self.assertEqual(session.get.call_count, calls)
                 self.client._tmdb_cache.clear()
 
+    def test_rate_limit_queue_cannot_sleep_past_the_request_budget(self):
+        self.client._request_next["example.com"] = time.monotonic() + 120
+        self.client.requestSession = Mock()
+        with patch("backend.dataflow.utils.DataflowRequests.time.sleep") as sleep:
+            with self.assertRaises(DataflowRequestError):
+                self.client.requestGet("https://example.com/movie")
+        sleep.assert_not_called()
+        self.client.requestSession.assert_not_called()
+
     def test_malformed_payload_and_wrong_movie_id_are_retried_before_use(self):
         for data in ([], {"id": 2}, b"invalid json"):
             with self.subTest(data=data):
@@ -135,6 +144,15 @@ class RequestTests(TestCase):
             self.assertEqual(self.client.resolveLetterboxd(1), "https://letterboxd.com/film/example/")
         self.assertEqual(self.client.requestGet.call_count, 1)
         sleep.assert_not_called()
+
+    def test_letterboxd_recovery_can_discard_a_challenged_session(self):
+        challenged, recovered = Mock(), Mock()
+        challenged.get.return_value = response(b"Just a moment", 403)
+        recovered.get.side_effect = [response(b"homepage"), response({}, 302, {"Location": "/film/example/"})]
+        with patch("backend.dataflow.utils.DataflowRequests.requests.Session", side_effect=[challenged, recovered]) as factory:
+            self.assertEqual(self.client.resolveLetterboxd(1), "https://letterboxd.com/film/example/")
+        self.assertEqual(factory.call_count, 2)
+        challenged.close.assert_called_once()
 
     def test_letterboxd_tenth_legacy_bootstrap_still_succeeds(self):
         homes = 0
@@ -221,6 +239,17 @@ class ImdbTests(TestCase):
         with patch("backend.dataflow.utils.ImdbRatings.time.sleep"):
             result = self.client.loadImdbRatings([{"imdb_id": "tt1"}])
         self.assertEqual(result["tt1"]["rating"], 7.1)
+        self.assertEqual(self.client.requestGet.call_count, 2)
+
+    def test_valid_gzip_with_wrong_content_cannot_use_another_versions_validator(self):
+        self.client.requestGet = Mock(return_value=response(self.dataset, headers={"ETag": "version1"}))
+        self.client.loadImdbRatings([{"imdb_id": "tt1"}])
+        cached = next(Path(self.directory.name).glob("*.tsv.gz"))
+        cached.write_bytes(gzip.compress(b"tconst\taverageRating\tnumVotes\ntt2\t1.0\t1\n"))
+        self.client.requestGet = Mock(side_effect=[response(b"", 304), response(self.dataset, headers={"ETag": "version1"})])
+        with patch("backend.dataflow.utils.ImdbRatings.time.sleep"):
+            result = self.client.loadImdbRatings([{"imdb_id": "tt2"}])
+        self.assertEqual(result["tt2"], {"rating": 8.2, "votes": 200})
         self.assertEqual(self.client.requestGet.call_count, 2)
 
     def test_bad_cache_metadata_is_repaired_by_download(self):

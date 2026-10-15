@@ -38,6 +38,14 @@ class DataflowRequests:
                 self._request_sessions.append(session)
         return self._request_local.sessions[host]
 
+    def resetRequestSession(self, url):
+        sessions = getattr(self._request_local, "sessions", {})
+        session = sessions.pop(urlsplit(url).netloc, None)
+        if session is not None:
+            session.close()
+            with self._request_lock:
+                self._request_sessions.remove(session)
+
     def retryDelay(self, response, attempt):
         value = response.headers.get("Retry-After") if response is not None else None
         if value:
@@ -59,6 +67,8 @@ class DataflowRequests:
                 with self._request_lock:
                     now = time.monotonic()
                     delay = max(0, self._request_next.get(host, now) - now)
+                    if delay >= deadline - now:
+                        break
                     self._request_next[host] = max(now, self._request_next.get(host, now)) + 1 / self.REQUESTS_PER_SECOND
                 if delay:
                     time.sleep(delay)
@@ -175,6 +185,7 @@ class DataflowRequests:
             if delay:
                 time.sleep(delay)
             if attempt:
+                self.resetRequestSession(url)
                 try:
                     self.requestGet("https://letterboxd.com/", headers=self.requests_headers, timeout=20, attempts=1, check_status=False).close()
                 except DataflowRequestError:

@@ -35,6 +35,10 @@ class ImdbRatings:
                 except ValueError:
                     continue
         # Read to EOF so gzip truncation/CRC errors cannot enter the shared cache.
+        if len(path.name) == 71 and path.name.endswith(".tsv.gz"):
+            with path.open("rb") as compressed_file:
+                if hashlib.file_digest(compressed_file, "sha256").hexdigest() != path.name[:64]:
+                    raise ValueError("IMDb cache digest mismatch")
         _ratings_validated.add(self.imdbFileSignature(path))
         return ratings
 
