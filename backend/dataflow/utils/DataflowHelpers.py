@@ -4,6 +4,10 @@ import re, unicodedata, json
 
 class DataflowHelpers:
 
+    def protectUnresolvedSnapshot(self, rows):
+        self.unhealthy_cinemas.update(self.clean_str(row.get("cinema")).strip() for row in rows)
+        self.unresolved_snapshot_ids.update(row.get("id") for row in rows)
+
     def dateToDate(self, v):
         if isinstance(v, date):
             return v

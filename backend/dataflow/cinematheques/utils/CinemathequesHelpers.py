@@ -1,13 +1,10 @@
-import csv, gzip, os, requests, time
+import os
 
 from backend.dataflow.utils.InitializeBaseDataflow import logSuccessfulRun, runningGithubActions
 from backend.dataflow.utils.SupabaseTables import SupabaseTables
 
 
 class CinemathequesHelpers:
-    IMDB_RATINGS_URL = "https://datasets.imdbws.com/title.ratings.tsv.gz"
-    IMDB_RATINGS_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "title.ratings.tsv.gz")
-
     PRIMARY_KEY_BY_TABLE = {
         **SupabaseTables.PRIMARY_KEY_BY_TABLE,
         "allTheques": "id",
@@ -38,6 +35,8 @@ class CinemathequesHelpers:
         except Exception:
             self.flush_summary(successful=False)
             raise
+        finally:
+            self.closeDataflowRequests()
 
     def _all_theque_key(self, row: dict) -> tuple:
         # Raw history is deduplicated only inside a scraper snapshot. Including
@@ -80,52 +79,6 @@ class CinemathequesHelpers:
             "backdrop": self.clean_str(res.get("backdrop")).strip() or None,
             "alt_options": res.get("alt_options") if isinstance(res.get("alt_options"), list) else [],
         }
-
-    def loadImdbRatings(self, rows):
-        imdb_ids = {self.clean_str(row.get("imdb_id")).strip() for row in rows if self.clean_str(row.get("imdb_id")).strip()}
-        if not imdb_ids:
-            return {}
-
-        ratings = {}
-        try:
-            for attempt in range(3):
-                try:
-                    with requests.get(self.IMDB_RATINGS_URL, stream=True, timeout=(10, 120)) as response:
-                        response.raise_for_status()
-                        with open(self.IMDB_RATINGS_PATH, "wb") as ratings_file:
-                            for chunk in response.iter_content(chunk_size=1024 * 1024):
-                                if chunk:
-                                    ratings_file.write(chunk)
-                    break
-                except Exception:
-                    if attempt == 2:
-                        return {}
-                    time.sleep(1)
-
-            with gzip.open(self.IMDB_RATINGS_PATH, "rt", encoding="utf-8") as ratings_file:
-                dataset_rows = csv.DictReader(ratings_file, delimiter="\t")
-                if not {"tconst", "averageRating", "numVotes"}.issubset(dataset_rows.fieldnames or []):
-                    return {}
-                for row in dataset_rows:
-                    imdb_id = row.get("tconst")
-                    if imdb_id not in imdb_ids:
-                        continue
-                    try:
-                        ratings[imdb_id] = {"rating": float(row["averageRating"]), "votes": int(row["numVotes"])}
-                    except Exception:
-                        continue
-                    if len(ratings) == len(imdb_ids):
-                        break
-        except Exception:
-            return {}
-
-        return ratings
-
-    def deleteImdbRatingsFile(self):
-        try:
-            os.remove(self.IMDB_RATINGS_PATH)
-        except OSError:
-            pass
 
     def normalizeUpdateRuntime(self, result):
         if not isinstance(result, dict):
