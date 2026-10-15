@@ -1,5 +1,6 @@
 from backend.dataflow.BaseDataflow import BaseDataflow
 from backend.dataflow.cinematheques.utils.CinemathequesHelpers import CinemathequesHelpers
+from backend.dataflow.utils.RottenTomatoesScores import parse_rotten_tomatoes_scorecard
 
 from urllib.parse import quote_plus
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -133,18 +134,8 @@ class CinemathequesUpdate(CinemathequesHelpers, BaseDataflow):
                     except Exception:
                         scorecard = {}
 
-                overlay = scorecard.get("overlay") or {}
-                critics = scorecard.get("criticsScore") or overlay.get("criticsAll") or {}
-                audience = scorecard.get("audienceScore") or overlay.get("audienceVerified") or overlay.get("audienceAll") or {}
-                critic_rating = (lambda s: int(s) if s else None)(re.sub(r"[^\d]", "", str((critics.get("score") or critics.get("scorePercent") or ""))))
-                critic_votes = (lambda s: int(s) if s else None)(re.sub(r"[^\d]", "", str((critics.get("ratingCount") or critics.get("reviewCount") or ""))))
-                audience_rating = (lambda s: int(s) if s else None)(re.sub(r"[^\d]", "", str((audience.get("score") or audience.get("scorePercent") or ""))))
-                audience_votes = (lambda s: int(s) if s else None)(re.sub(r"[^\d]", "", str((audience.get("bandedRatingCount") or audience.get("ratingCount") or audience.get("reviewCount") or ""))))
-
-                new_row["rtCriticRating"] = critic_rating if critic_rating is not None else existing["rtCriticRating"]
-                new_row["rtCriticVotes"] = critic_votes if critic_votes is not None else existing["rtCriticVotes"]
-                new_row["rtAudienceRating"] = audience_rating if audience_rating is not None else existing["rtAudienceRating"]
-                new_row["rtAudienceVotes"] = audience_votes if audience_votes is not None else existing["rtAudienceVotes"]
+                for field, value in parse_rotten_tomatoes_scorecard(scorecard).items():
+                    new_row[field] = value if value is not None else existing[field]
 
     def beginSharedUpdate(self):
         self.dedupeFinalMovies(self.MAIN_TABLE_NAME)
