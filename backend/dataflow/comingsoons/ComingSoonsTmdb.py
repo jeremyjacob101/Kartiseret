@@ -62,6 +62,11 @@ class ComingSoonsTmdb(BaseDataflow):
                 self.trace_event("row_filter", "skipped", "already_added", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
                 continue
 
+            if not self.release_date:
+                self.trace_event("row_filter", "skipped", "missing_release_date", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
+                self.trace_unresolved(f"missing_release_date | {self.english_title} | row_id={row.get('id')}")
+                continue
+
             if self.release_date and self.dateToDate(self.release_date) < date.today():
                 self.trace_event("row_filter", "skipped", "past_release_date", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
                 self.trace_unresolved(f"past_release_date | {self.english_title} | row_id={row.get('id')}")

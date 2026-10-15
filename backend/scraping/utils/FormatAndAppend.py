@@ -1,4 +1,5 @@
 import csv, json, pathlib
+from datetime import date
 
 ARTIFACT_ROOT = pathlib.Path("backend/utils/log/logger_artifacts")
 
@@ -81,6 +82,9 @@ def formatAndUpload(self):
     rows, _columns = _format_rows_from_gathering_info(self)
     if not rows:
         raise Exception("Empty gathering_info table")
+    if self.supabase_table_name == "allSoons":
+        for row in rows:
+            date.fromisoformat(row.get("release_date") or "")
     return self.supabase.table(self.supabase_table_name).insert(rows).execute()
 
 

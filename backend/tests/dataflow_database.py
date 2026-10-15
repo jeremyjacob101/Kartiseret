@@ -44,6 +44,8 @@ class Query:
         return self
 
     def execute(self):
+        if self.operation == "upsert" and self.table == "finalSoons" and any(row.get("release_date") is None for row in self.payload):
+            raise ValueError('null value in column "release_date" of relation "finalSoons" violates not-null constraint')
         rows = self.database.tables.setdefault(self.table, [])
         selected = [row for row in rows if all(predicate(row) for predicate in self.predicates)]
         if self.order_column:

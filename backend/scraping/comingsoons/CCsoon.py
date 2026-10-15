@@ -9,6 +9,14 @@ class CCsoon(BaseCinema):
     CINEMA_NAME = "Cinema City"
     URL = "https://www.cinema-city.co.il/movie-categories/coming-soon"
 
+    def parseReleaseDate(self, value):
+        release_date = re.sub(r"[\u200b-\u200f\u202a-\u202e\u2066-\u2069]", "", value or "").strip().replace(".", "/")
+        if match := re.fullmatch(r"(\d{1,2})\s+ב?([א-ת]+)\s+(\d{4})", release_date):
+            day, month, year = match.groups()
+            months = ("ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר")
+            release_date = f"{day}/{months.index(month) + 1}/{year}"
+        return datetime.strptime(release_date, "%d/%m/%y" if len(release_date.split("/")[-1]) == 2 else "%d/%m/%Y").date().isoformat()
+
     def logic(self):
         self.driver.set_page_load_timeout(45)
         self.driver.set_script_timeout(15)
@@ -44,7 +52,7 @@ class CCsoon(BaseCinema):
             self.runtime = self.tryExceptNone(lambda: int(re.sub(r"\D", "", self.waitForElement("#comp-mkbdaczu").get_attribute("textContent"))))
             self.rating = self.waitForElement("#comp-mkbdcdtv").get_attribute("textContent").split(":", 1)[-1].strip()
 
-            release_date = self.waitForElement("#comp-mkbdbb73").get_attribute("textContent").split(":", 1)[-1].strip().replace(".", "/")
-            self.release_date = self.tryExceptNone(lambda: datetime.strptime(release_date, "%d/%m/%y" if len(release_date.split("/")[-1]) == 2 else "%d/%m/%Y").date().isoformat())
+            release_date = self.waitForElement("#comp-mkbdbb73").get_attribute("textContent").split(":", 1)[-1].strip()
+            self.release_date = self.parseReleaseDate(release_date)
 
             self.appendToGatheringInfo()

@@ -149,6 +149,44 @@ class PublicationTests(TestCase):
                 flow.logic()
                 self.assertEqual(flow.supabase.tables[flow.MOVING_TO_TABLE_NAME_2][0]["tmdb_id"], 101)
 
+    def test_undated_soons_cannot_block_dated_movies_or_overwrite_existing_metadata(self):
+        for missing_date in (None, "", "null", "unknown", "2026-02-30"):
+            for override in (False, True):
+                with self.subTest(release_date=missing_date, override=override):
+                    undated = {**raw_row("1", "Alpha"), "release_date": missing_date}
+                    dated = raw_row("2", "Beta")
+                    flow = self.build_flow(FLOWS[0], [undated, dated])
+                    existing = {"tmdb_id": 101, "english_title": "Existing Alpha", "release_date": dated["release_date"], "imdb_id": "tt101"}
+                    flow.supabase.tables[flow.MOVING_TO_TABLE_NAME] = [existing.copy()]
+                    if override:
+                        flow.tmdbFixForTitle = lambda title, fixes: 101 if title == "Alpha" else None
+                    flow.refreshAllTables()
+                    flow.logic()
+                    raw = {row["id"]: row for row in flow.supabase.tables[flow.MAIN_TABLE_NAME]}
+                    final = {row["tmdb_id"]: row for row in flow.supabase.tables[flow.MOVING_TO_TABLE_NAME]}
+                    self.assertFalse(raw["1"]["added"])
+                    self.assertTrue(raw["2"]["added"])
+                    self.assertEqual(final[101], existing)
+                    self.assertEqual(final[102]["release_date"], dated["release_date"])
+
+    def test_all_undated_soons_stay_pending_without_inventing_a_tmdb_release_date(self):
+        flow = self.build_flow(FLOWS[0], [{**raw_row("1", "Alpha"), "release_date": None}])
+        flow.logic()
+        self.assertFalse(flow.supabase.tables[flow.MAIN_TABLE_NAME][0]["added"])
+        self.assertFalse(flow.supabase.tables[flow.MOVING_TO_TABLE_NAME])
+        self.assertFalse(any(action["op"] == "upsert" for action in flow.supabase.actions))
+
+    def test_dated_soon_duplicate_does_not_mark_undated_source_complete(self):
+        undated = {**raw_row("1", "Alpha"), "release_date": None}
+        dated = raw_row("2", "Alpha")
+        flow = self.build_flow(FLOWS[0], [undated, dated])
+        flow.logic()
+        raw = {row["id"]: row for row in flow.supabase.tables[flow.MAIN_TABLE_NAME]}
+        self.assertFalse(raw["1"]["added"])
+        self.assertTrue(raw["2"]["added"])
+        self.assertEqual(len(flow.supabase.tables[flow.MOVING_TO_TABLE_NAME]), 1)
+        self.assertEqual(flow.supabase.tables[flow.MOVING_TO_TABLE_NAME][0]["release_date"], dated["release_date"])
+
 
 if __name__ == "__main__":
     main()
