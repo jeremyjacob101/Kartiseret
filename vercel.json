@@ -9,6 +9,13 @@
     "api/og-image.ts": {
       "maxDuration": 30,
       "includeFiles": "Codebase - Kartiseret Web/server/og/assets/**"
+    },
+    "api/[...path].ts": {
+      "includeFiles": [
+        "packages/server/dist/**",
+        "packages/contracts/dist/**"
+      ],
+      "maxDuration": 30
     }
   },
   "rewrites": [

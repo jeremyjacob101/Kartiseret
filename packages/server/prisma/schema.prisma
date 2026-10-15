@@ -1,0 +1,324 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// This schema is a mapped query/client contract. SQL in supabase/migrations is the
+// sole authority for DDL, RLS, provider FKs, partial indexes, and CHECK constraints.
+// PostgreSQL nullable scalar lists cannot be represented by Prisma. finalMovies.genres
+// is mapped as String[]; API mapping safely treats a database NULL as an empty list.
+
+model AdminUser {
+  userId    String   @id(map: "admin_users_pkey") @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("admin_users")
+}
+
+model AllShowtime {
+  id               String    @id(map: "allShowtimes_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt        DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  englishTitle     String?   @map("english_title") @db.Text
+  releaseYear      Int?      @map("release_year") @db.SmallInt
+  originalLanguage String?   @map("original_language") @db.Text
+  screeningCity    String?   @map("screening_city") @db.Text
+  dateOfShowing    DateTime? @map("date_of_showing") @db.Date
+  showtime         DateTime? @db.Time(6)
+  cinema           String?   @db.Text
+  englishHref      String?   @map("english_href") @db.Text
+  screeningType    String?   @map("screening_type") @db.Text
+  hebrewTitle      String?   @map("hebrew_title") @db.Text
+  hebrewHref       String?   @map("hebrew_href") @db.Text
+  dubLanguage      String?   @map("dub_language") @db.Text
+  rating           String?   @db.Text
+  directedBy       String?   @map("directed_by") @db.Text
+  runtime          Int?      @db.SmallInt
+  screeningTech    String?   @map("screening_tech") @db.Text
+  tmdbId           Int?      @map("tmdb_id") @db.Integer
+  runId            Int?      @map("run_id") @db.Integer
+  cleaned          Boolean?  @default(false) @db.Boolean
+  added            Boolean?  @db.Boolean
+
+  @@map("allShowtimes")
+}
+
+model AllSoon {
+  id               String    @id(map: "allsoons_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt        DateTime  @default(dbgenerated("(now() AT TIME ZONE 'Asia/Jerusalem'::text)")) @map("created_at") @db.Timestamptz(6)
+  hebrewTitle      String?   @map("hebrew_title") @db.Text
+  englishTitle     String?   @map("english_title") @db.Text
+  releaseDate      DateTime? @map("release_date") @db.Date
+  originalLanguage String?   @map("original_language") @db.Text
+  releaseYear      Int?      @map("release_year") @db.SmallInt
+  rating           String?   @db.Text
+  directedBy       String?   @map("directed_by") @db.Text
+  runtime          Int?      @db.SmallInt
+  cinema           String?   @db.Text
+  runId            Int?      @map("run_id") @db.Integer
+  cleaned          Boolean   @default(false) @db.Boolean
+  added            Boolean   @default(false) @db.Boolean
+
+  @@map("allSoons")
+}
+
+model AllTheque {
+  id               String    @id(map: "allTheques_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  englishTitle     String?   @map("english_title") @db.Text
+  hebrewTitle      String?   @map("hebrew_title") @db.Text
+  englishHref      String?   @map("english_href") @db.Text
+  hebrewHref       String?   @map("hebrew_href") @db.Text
+  screeningType    String?   @map("screening_type") @db.Text
+  screeningTech    String?   @map("screening_tech") @db.Text
+  originalLanguage String?   @map("original_language") @db.Text
+  dubLanguage      String?   @map("dub_language") @db.Text
+  dateOfShowing    DateTime? @map("date_of_showing") @db.Date
+  showtime         DateTime? @db.Time(6)
+  releaseYear      Int?      @map("release_year") @db.SmallInt
+  releaseDate      DateTime? @map("release_date") @db.Date
+  directedBy       String?   @map("directed_by") @db.Text
+  runtime          Int?      @db.SmallInt
+  rating           String?   @db.Text
+  screeningCity    String?   @map("screening_city") @db.Text
+  cinema           String?   @db.Text
+  tmdbId           Int?      @map("tmdb_id") @db.Integer
+  runId            Int?      @map("run_id") @db.Integer
+  cleaned          Boolean   @default(false) @db.Boolean
+  added            Boolean   @default(false) @db.Boolean
+
+  @@map("allTheques")
+}
+
+model City {
+  name              String   @id(map: "cities_pkey") @db.Text
+  altSpellings      String[] @default([]) @map("alt_spellings") @db.Text
+  zoomLayer         Float?   @map("zoom_layer") @db.Real
+  latitude          Float?   @db.DoublePrecision
+  longitude         Float?   @db.DoublePrecision
+  neighboringCities String[] @default([]) @map("neighboring_cities") @db.Text
+
+  @@map("cities")
+}
+
+model FinalMovie {
+  popularity       Float?    @db.DoublePrecision
+  englishTitle     String    @map("english_title") @db.Text
+  releaseYear      BigInt?   @map("release_year") @db.BigInt
+  runtime          Float?    @db.Real
+  tmdbId           Int       @id(map: "finalmovies_pkey") @map("tmdb_id") @db.Integer
+  imdbRating       Float?    @db.DoublePrecision
+  imdbVotes        String?   @default("") @db.Text
+  rtAudienceRating String?   @default("") @db.Text
+  enPoster         String?   @map("en_poster") @db.Text
+  backdrop         String?   @db.Text
+  imdbId           String?   @map("imdb_id") @db.Text
+  createdAt        DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  runId            Int?      @map("run_id") @db.Integer
+  rtAudienceVotes  Int?      @db.Integer
+  rtId             String?   @map("rt_id") @db.Text
+  lbId             String?   @map("lb_id") @db.Text
+  lbRating         Float?    @db.Real
+  lbVotes          Int?      @db.Integer
+  tmdbRating       Int?      @db.Integer
+  tmdbVotes        Int?      @db.Integer
+  rtCriticRating   Int?      @db.Integer
+  rtCriticVotes    Int?      @db.Integer
+  enTrailer        String?   @map("en_trailer") @db.Text
+  genres           String[]  @db.Text
+  altOptions       Json      @default("[]") @map("alt_options") @db.JsonB
+  soloUpdate       Boolean   @default(false) @map("solo_update") @db.Boolean
+
+  @@map("finalMovies")
+}
+
+model FinalShowtime {
+  id               String    @id(map: "finalshowtimes_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt        DateTime? @default(dbgenerated("(now() AT TIME ZONE 'Asia/Jerusalem'::text)")) @map("created_at") @db.Timestamptz(6)
+  englishTitle     String?   @map("english_title") @db.Text
+  originalLanguage String?   @map("original_language") @db.Text
+  screeningCity    String?   @map("screening_city") @db.Text
+  dateOfShowing    DateTime? @map("date_of_showing") @db.Date
+  showtime         DateTime? @db.Time(6)
+  cinema           String?   @db.Text
+  englishHref      String?   @map("english_href") @db.Text
+  screeningType    String?   @map("screening_type") @db.Text
+  hebrewTitle      String?   @map("hebrew_title") @db.Text
+  hebrewHref       String?   @map("hebrew_href") @db.Text
+  dubLanguage      String?   @map("dub_language") @db.Text
+  screeningTech    String?   @map("screening_tech") @db.Text
+  tmdbId           Int?      @map("tmdb_id") @db.Integer
+  runId            Int?      @map("run_id") @db.Integer
+
+  @@map("finalShowtimes")
+}
+
+model FinalSoon {
+  imdbId       String?   @map("imdb_id") @db.Text
+  englishTitle String    @map("english_title") @db.Text
+  hebrewTitle  String    @map("hebrew_title") @db.Text
+  releaseDate  DateTime  @map("release_date") @db.Date
+  enPoster     String?   @map("en_poster") @db.Text
+  backdrop     String?   @db.Text
+  tmdbId       Int       @map("tmdb_id") @db.Integer
+  oldUuid      String?   @map("old_uuid") @db.Uuid
+  id           String    @id(map: "finalsoons_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt    DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  runId        Int?      @map("run_id") @db.Integer
+  releaseYear  Int?      @map("release_year") @db.SmallInt
+  enTrailer    String?   @map("en_trailer") @db.Text
+  genres       String[]  @db.Text
+  runtime      Int?      @db.Integer
+  altOptions   Json      @default("[]") @map("alt_options") @db.JsonB
+  soloUpdate   Boolean   @default(false) @map("solo_update") @db.Boolean
+  popularity   Float?    @db.DoublePrecision
+
+  @@map("finalSoons")
+}
+
+model FinalThequeMovie {
+  tmdbId           Int      @id(map: "finalThequeMovies_pkey") @map("tmdb_id") @db.Integer
+  englishTitle     String   @map("english_title") @db.Text
+  hebrewTitle      String?  @map("hebrew_title") @db.Text
+  releaseYear      Int?     @map("release_year") @db.SmallInt
+  runtime          Int?     @db.SmallInt
+  popularity       Float?   @db.DoublePrecision
+  imdbId           String?  @map("imdb_id") @db.Text
+  imdbRating       Decimal? @db.Decimal(3, 1)
+  imdbVotes        BigInt?  @db.BigInt
+  rtId             String?  @map("rt_id") @db.Text
+  rtAudienceRating Int?     @db.SmallInt
+  rtAudienceVotes  BigInt?  @db.BigInt
+  rtCriticRating   Int?     @db.SmallInt
+  rtCriticVotes    BigInt?  @db.BigInt
+  lbId             String?  @map("lb_id") @db.Text
+  lbRating         Decimal? @db.Decimal(2, 1)
+  lbVotes          BigInt?  @db.BigInt
+  tmdbRating       Int?     @db.SmallInt
+  tmdbVotes        BigInt?  @db.BigInt
+  enPoster         String?  @map("en_poster") @db.Text
+  backdrop         String?  @db.Text
+  enTrailer        String?  @map("en_trailer") @db.Text
+  genres           String[] @default([]) @db.Text
+  altOptions       Json     @default("[]") @map("alt_options") @db.JsonB
+  soloUpdate       Boolean  @default(false) @map("solo_update") @db.Boolean
+  runId            Int?     @map("run_id") @db.Integer
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("finalThequeMovies")
+}
+
+model FinalTheque {
+  id               String    @id(map: "finalTheques_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  tmdbId           Int?      @map("tmdb_id") @db.Integer
+  englishTitle     String    @map("english_title") @db.Text
+  hebrewTitle      String?   @map("hebrew_title") @db.Text
+  englishHref      String?   @map("english_href") @db.Text
+  hebrewHref       String?   @map("hebrew_href") @db.Text
+  screeningType    String?   @map("screening_type") @db.Text
+  screeningTech    String?   @map("screening_tech") @db.Text
+  originalLanguage String?   @map("original_language") @db.Text
+  dubLanguage      String?   @map("dub_language") @db.Text
+  dateOfShowing    DateTime  @map("date_of_showing") @db.Date
+  showtime         DateTime  @db.Time(6)
+  releaseYear      Int?      @map("release_year") @db.SmallInt
+  releaseDate      DateTime? @map("release_date") @db.Date
+  directedBy       String?   @map("directed_by") @db.Text
+  runtime          Int?      @db.SmallInt
+  rating           String?   @db.Text
+  screeningCity    String    @map("screening_city") @db.Text
+  cinema           String    @db.Text
+  runId            Int       @map("run_id") @db.Integer
+
+  @@map("finalTheques")
+}
+
+model MovieCode {
+  tmdbId    BigInt   @id(map: "movieCodes_pkey") @map("tmdb_id") @db.BigInt
+  movieCode String   @unique(map: "movieCodes_movie_code_key") @map("movie_code") @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("movieCodes")
+}
+
+model TableFix {
+  tmdbId   String @map("tmdb_id") @db.Text
+  titleFix String @map("title_fix") @db.Text
+  id       String @id(map: "tableFixes_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  @@map("tableFixes")
+}
+
+model TableSkip {
+  nameOrTmdbId String @id(map: "tableskips_pkey") @map("name_or_tmdb_id") @db.Text
+
+  @@map("tableSkips")
+}
+
+model Theater {
+  chain       String? @db.Text
+  address     String? @db.Text
+  location    String  @id(map: "theaters_pkey") @db.Text
+  latitude    Float?  @db.DoublePrecision
+  longitude   Float?  @db.DoublePrecision
+  theaterName String? @map("theater_name") @db.Text
+  cityName    String  @map("city_name") @db.Text
+
+  @@map("theaters")
+}
+
+model TicketAlertSubscription {
+  userId                String    @map("user_id") @db.Uuid
+  tmdbId                BigInt    @map("tmdb_id") @db.BigInt
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  notifiedAt            DateTime? @map("notified_at") @db.Timestamptz(6)
+  deliveryId            String?   @map("delivery_id") @db.Uuid
+  deliveryTitle         String?   @map("delivery_title") @db.Text
+  deliveryCity          String?   @map("delivery_city") @db.Text
+  deliveryDate          DateTime? @map("delivery_date") @db.Date
+  deliveryHref          String?   @map("delivery_href") @db.Text
+  deliveryMovieCode     String?   @map("delivery_movie_code") @db.Text
+  deliveryAttempts      Int       @default(0) @map("delivery_attempts") @db.Integer
+  lastDeliveryAttemptAt DateTime? @map("last_delivery_attempt_at") @db.Timestamptz(6)
+  lastDeliveryError     String?   @map("last_delivery_error") @db.Text
+  resendEmailId         String?   @map("resend_email_id") @db.Text
+
+  @@id([userId, tmdbId], map: "ticket_alert_subscriptions_pkey")
+  @@map("ticket_alert_subscriptions")
+}
+
+model UserPreference {
+  userId        String   @id(map: "userpreferences_pkey") @map("user_id") @db.Uuid
+  ratingSources String[] @default([]) @map("rating_sources") @db.Text
+  location      String?  @db.Text
+  siteColor     String?  @map("site_color") @db.Text
+
+  @@map("userPreferences")
+}
+
+model UtilAvgTime {
+  name            String  @id(map: "utilavgtime_pkey") @db.Text
+  avgTimeIntelMac Float?  @default(0) @map("avg_time_intel_mac") @db.DoublePrecision
+  numRunsIntelMac Int?    @default(0) @map("num_runs_intel_mac") @db.Integer
+  type            String? @db.Text
+  numRunsM5Mac    Int?    @default(0) @map("num_runs_m5_mac") @db.Integer
+  avgTimeM5Mac    Float?  @default(0) @map("avg_time_m5_mac") @db.DoublePrecision
+
+  @@map("utilAvgTime")
+}
+
+model UtilRunLog {
+  runId           Int      @id(map: "utilrunlogs_pkey") @map("run_id") @db.Integer
+  selectedRunners Json     @default("[]") @map("selected_runners") @db.JsonB
+  successful      Boolean? @db.Boolean
+  totalTime       Float?   @map("total_time") @db.DoublePrecision
+  dateCreated     DateTime @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jerusalem'::text)")) @map("date_created") @db.Timestamp(6)
+  runningNow      Boolean  @default(false) @map("running_now") @db.Boolean
+  runFrom         String?  @map("run_from") @db.Text
+
+  @@map("utilRunLogs")
+}

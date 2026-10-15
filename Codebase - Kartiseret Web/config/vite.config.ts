@@ -27,6 +27,8 @@ export default defineConfig(({ mode }) => {
   const supabaseOrigin = supabaseConfig
     ? new URL(supabaseConfig.url).origin
     : "";
+  const apiProxyTarget =
+    process.env.VITE_API_PROXY_TARGET ?? env.VITE_API_PROXY_TARGET ?? "";
 
   return {
     envDir: repoRoot,
@@ -70,5 +72,15 @@ export default defineConfig(({ mode }) => {
         supabaseConfig?.publishableKey ?? "",
       ),
     },
+    server: apiProxyTarget
+      ? {
+          proxy: {
+            "/api": {
+              target: apiProxyTarget,
+              changeOrigin: true,
+            },
+          },
+        }
+      : undefined,
   };
 });
