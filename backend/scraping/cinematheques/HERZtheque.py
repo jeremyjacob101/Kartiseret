@@ -10,7 +10,9 @@ class HERZtheque(BaseCinema):
     URL = "https://www.hcinema.org.il/"
 
     def logic(self):
-        self.sleep(2)
+        self.driver.set_page_load_timeout(45)
+        self.driver.set_script_timeout(15)
+        self.waitForElement("//*[@id='movie-screenings']//div[@data-swiper-slide-index='0']")
 
         seen_first_zero = False
         film_cards = self.elements("//*[@id='movie-screenings']//div[@data-post-id]")
@@ -31,12 +33,13 @@ class HERZtheque(BaseCinema):
 
         for idx, href in enumerate(self.hebrew_hrefs):
             self.driver.get(href)
-            self.sleep(0.2)
+            self.waitForElement("//*[@data-elementor-type='single-post']//h1[contains(@class, 'elementor-heading-title')]")
+            self.release_year, self.runtime = None, None
 
-            try:
-                self.english_title = self.element("//*[@data-elementor-type='single-post']/div/div/div[1]/div[2]//h3").text.strip()
-            except:
+            english_titles = self.elements("//*[@data-elementor-type='single-post']/div/div/div[1]/div[2]//h3")
+            if not english_titles:
                 continue
+            self.english_title = english_titles[0].text.strip()
             self.hebrew_title = self.element("//*[@data-elementor-type='single-post']//h1[contains(@class, 'elementor-heading-title')]").text.strip()
             if not re.search(r"[A-Za-z]", self.english_title):
                 self.english_title = self.hebrew_title
