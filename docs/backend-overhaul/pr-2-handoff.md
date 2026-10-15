@@ -60,13 +60,13 @@ There is no `db:test:up` script and PR 2 does not require Docker on Jeremy's Mac
 - After merging current `main`, `python3 -m compileall -q backend` and `python3 -m unittest discover -s backend/tests -v` passed; all **55 Python tests** passed, including the Rotten Tomatoes score/count preservation tests.
 - The six-file legacy migration SHA-256 manifest passes. The source branch has been merged with current `origin/main` commit `3a10e0fc07559e718f5e45c1b1779bda7759abdc`; the merge brings the independent Rotten Tomatoes update and its run artifacts. No Python behavior was changed by PR 2. Re-run staged `git diff --check` immediately before committing.
 - `npm run api:test:integration` was not run locally: this machine has no running local PostgreSQL 17 service/Docker daemon, and the command requires a disposable local `kartiseret_test`. The mandatory CI PostgreSQL 17 job remains the evidence gate for all real schema, permission, native-type, SQL constraint, transaction rollback and driver-error cases. Record its run URL/result against the final pushed source commit below.
-- Vercel Preview: Jeremy privately configured the runtime URL. Record the Preview URL/source commit and actual API route/fixture, unknown API, SPA and OG assertions after a Preview build for the final Drizzle commit. A build status alone is not runtime proof. Production remains untouched.
+- Vercel Preview for the first Drizzle push reported **Ready** at `https://kartiseret-git-codex-backend-02-api-2b25e7-jeremyjacob-projects.vercel.app`. Direct read-only GETs from this environment receive Vercel's SSO protection redirect (HTTP 302), so the deployed runtime/API response is not verified here. Once logged into Vercel, Jeremy can use the PR's current **Preview** link and check `/api/v1/catalog/now-playing` (200 JSON including `Dev Catalog Film`), `/api/not-a-route` (JSON 404), `/` (SPA HTML), `/api/og` (HTML) and `/api/og-image?home=true` (JPEG). Repeat on the final deployment after the corrected integration job is pushed. Production remains untouched.
 
 ### Final pushed commit and external verification
 
 - Final source commit: pending commit and push.
 - GitHub PostgreSQL 17/API/Python workflow: pending final-commit CI.
-- Vercel Preview runtime assertions: pending final-commit deployment.
+- Vercel Preview build: Ready for the first Drizzle push; runtime checks are blocked here by Vercel SSO (302), and must be completed by Jeremy in an authenticated browser on the final deployment.
 - Legacy checksum and whitespace checks: pending immediately before commit.
 
 ### Historical Prisma-only evidence

@@ -159,7 +159,7 @@ describe("PostgreSQL 17 integration", () => {
       const tableConfig = getTableConfig(table);
       const mappedPrimaryKeys = [
         ...mappedColumns
-          .filter((column) => column.isPrimaryKey)
+          .filter((column) => column.primary)
           .map((column) => column.name),
         ...tableConfig.primaryKeys.flatMap((key) =>
           key.columns.map((column) => column.name),
@@ -455,13 +455,7 @@ describe("PostgreSQL 17 integration", () => {
     try {
       await adminDatabase.pool.query(`
         CREATE VIEW ${schemaName}."finalMovies" AS
-        SELECT
-          tmdb_id, english_title, release_year, genres, en_poster, backdrop,
-          en_trailer, imdb_id, rt_id, "imdbRating", imdbVotes,
-          "rtAudienceRating", "rtAudienceVotes", "rtCriticRating",
-          "rtCriticVotes", lb_id, "lbRating", "lbVotes", "tmdbRating",
-          "tmdbVotes", runtime, popularity, alt_options, solo_update
-        FROM public."finalMovies"
+        SELECT * FROM public."finalMovies"
         WHERE false
       `);
       await adminDatabase.pool.query(
