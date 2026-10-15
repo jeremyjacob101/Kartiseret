@@ -7,9 +7,10 @@ import copy, requests, time
 
 
 class DataflowRequestError(RuntimeError):
-    def __init__(self, message, status=None):
+    def __init__(self, message, status=None, retry_after=None):
         super().__init__(message)
         self.status = status
+        self.retry_after = retry_after
 
 
 class DataflowRequests:
@@ -97,7 +98,8 @@ class DataflowRequests:
                 time.sleep(delay)
         # Never include query strings or the API key in exception artifacts.
         self.trace_note(f"provider_unavailable | host={host} | attempts={attempt + 1}")
-        raise DataflowRequestError(f"{host} request failed after bounded retries", status=response.status_code if response is not None else None)
+        retry_after = self.retryDelay(response, attempt) if response is not None and response.headers.get("Retry-After") else None
+        raise DataflowRequestError(f"{host} request failed after bounded retries", status=response.status_code if response is not None else None, retry_after=retry_after)
 
     def tmdbGet(self, path, params=None, allow_missing=False):
         params = dict(params or {})
@@ -114,7 +116,7 @@ class DataflowRequests:
             return copy.deepcopy(data)
 
         def validate(data):
-            if not isinstance(data, dict):
+            if not isinstance(data, dict) or data.get("success") is False:
                 raise ValueError("invalid TMDB object")
             if path == "search/movie":
                 if not isinstance(data.get("results"), list) or any(not isinstance(row, dict) for row in data["results"]):

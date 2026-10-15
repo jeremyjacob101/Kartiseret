@@ -99,8 +99,11 @@ class ImdbRatings:
                     break
                 headers = {}
                 has_cache = False
+                delay = error.retry_after if isinstance(error, DataflowRequestError) and error.retry_after is not None else 0.5 * 2 ** attempt
+                if delay > 20:
+                    break
                 if attempt < 2:
-                    time.sleep(0.5 * 2 ** attempt)
+                    time.sleep(delay)
             finally:
                 if temporary is not None:
                     temporary.unlink(missing_ok=True)

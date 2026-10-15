@@ -109,6 +109,15 @@ class RequestTests(TestCase):
                 self.assertEqual(session.get.call_count, calls)
                 self.client._tmdb_cache.clear()
 
+    def test_single_attempt_preserves_server_retry_feedback_for_stream_recovery(self):
+        session = Mock()
+        session.get.return_value = response({}, 429, {"Retry-After": "2"})
+        self.client.requestSession = lambda url: session
+        with self.assertRaises(DataflowRequestError) as failure:
+            self.client.requestGet("https://example.com/dataset", attempts=1)
+        self.assertEqual(failure.exception.status, 429)
+        self.assertEqual(failure.exception.retry_after, 2)
+
     def test_rate_limit_queue_cannot_sleep_past_the_request_budget(self):
         self.client._request_next["example.com"] = time.monotonic() + 120
         self.client.requestSession = Mock()
@@ -128,6 +137,14 @@ class RequestTests(TestCase):
                     self.assertEqual(self.client.tmdbGet("movie/1"), {"id": 1})
                 self.assertEqual(session.get.call_count, 2)
                 self.client._tmdb_cache.clear()
+
+    def test_declared_api_error_cannot_be_cached_as_a_genuine_empty_search(self):
+        session = Mock()
+        session.get.side_effect = [response({"success": False, "status_code": 25, "results": []}), response({"results": []})]
+        self.client.requestSession = lambda url: session
+        with patch("backend.dataflow.utils.DataflowRequests.time.sleep"):
+            self.assertEqual(self.client.tmdbGet("search/movie", {"query": "Alpha"}), {"results": []})
+        self.assertEqual(session.get.call_count, 2)
 
     def test_missing_candidate_is_not_a_cached_success_or_required_enrichment(self):
         session = Mock()
@@ -251,6 +268,27 @@ class ImdbTests(TestCase):
             result = self.client.loadImdbRatings([{"imdb_id": "tt2"}])
         self.assertEqual(result["tt2"], {"rating": 8.2, "votes": 200})
         self.assertEqual(self.client.requestGet.call_count, 2)
+
+    def test_stream_recovery_honors_server_delay_or_retains_old_cache(self):
+        for delay in (2, 120):
+            with self.subTest(delay=delay):
+                self.client.requestGet = Mock(side_effect=[DataflowRequestError("rate limited", status=429, retry_after=delay), response(self.dataset)])
+                with patch("backend.dataflow.utils.ImdbRatings.time.sleep") as sleep:
+                    ratings = self.client.loadImdbRatings([{"imdb_id": "tt1"}])
+                    if delay == 2:
+                        self.assertEqual(ratings["tt1"]["rating"], 7.1)
+                        sleep.assert_called_once_with(2)
+                    else:
+                        self.assertEqual(ratings, {})
+                        sleep.assert_not_called()
+                self.assertEqual(self.client.requestGet.call_count, 2 if delay == 2 else 1)
+
+    def test_missing_ids_are_checked_again_when_the_dataset_version_changes(self):
+        newer = gzip.compress(gzip.decompress(self.dataset) + b"tt3\t6.4\t333\n")
+        self.client.requestGet = Mock(side_effect=[response(self.dataset, headers={"ETag": "version1"}), response(newer, headers={"ETag": "version2"})])
+        rows = [{"imdb_id": "tt3"}]
+        self.assertEqual(self.client.loadImdbRatings(rows), {})
+        self.assertEqual(self.client.loadImdbRatings(rows), {"tt3": {"rating": 6.4, "votes": 333}})
 
     def test_bad_cache_metadata_is_repaired_by_download(self):
         (Path(self.directory.name) / "metadata.json").write_text("[]")
