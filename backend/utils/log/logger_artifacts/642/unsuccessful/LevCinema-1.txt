@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: LevCinema
+URL: ?
+Exception: AttributeError - 'dict' object has no attribute 'cleanup'
+Call Chain: runners.py:38
+Selector: 
+Screenshot: 
+CSV: 
