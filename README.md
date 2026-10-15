@@ -341,6 +341,7 @@ Recommended rollout order:
 
 - `backend/config/registry.py` defines the scraper registries and the staged dataflow registries.
 - `backend/config/runner.py` is the main entry point for local, weekly, and GitHub Actions runs.
+- `backend/config/job_supervisor.py` gives each selected pipeline run (starting after the local plan menu) and each realtime solo Update a whole-process deadline. Defaults are 4h 30m and 30m; `PIPELINE_JOB_DEADLINE_SECONDS` and `PIPELINE_SOLO_UPDATE_DEADLINE_SECONDS` override them. On timeout or shutdown, the supervisor stops the worker process group, escalates to a kill after a bounded grace period, and makes a bounded best-effort attempt to release an allocated run lock. `PIPELINE_TERMINATION_GRACE_SECONDS` controls the default 20-second shutdown window, including up to 5 seconds reserved for run-lock cleanup.
 - `backend/config/runners.py` runs selected scrapers through six timing-aware workers, then coordinates the shared Clean → TMDB → Update dataflow stages and runtime reporting.
 - `backend/scraping/BaseCinema.py` defines the base Selenium scraping contract used across all cinema sources.
 - `backend/dataflow/nowplayings/NowPlayingsTmdb.py` handles now-playing grouping, TMDb matching, and movement into final showtime/movie tables.
