@@ -5,7 +5,7 @@ Baseline: current main `c845bcb8`. The benchmark uses private copies of read-onl
 ## Changes
 
 - The three TMDB mappers use a five-worker executor for candidate details. Ordered map results preserve fix, director, runtime and first-candidate precedence, as well as all ten correction alternatives. Search stops at positive total_pages or the API’s 500-page bound, without stopping merely because a page contains only duplicate IDs.
-- Per-worker/per-host sessions reuse connections. Successful TMDB payloads are cached and concurrent identical requests share one in-flight result within an instance. Failed requests and missing movies are not cached as successes.
+- Per-worker/per-host sessions reuse connections. Successful TMDB payloads are cached and concurrent identical requests share one in-flight result within the run's shared request context. Failed requests and missing movies are not cached as successes.
 - HTTP retries are driven by observed connection/read errors, 429/selected 5xx, and invalid TMDB payloads. Auth/parameter failures stop immediately. Retry-After is respected; excessive server delays stop recovery rather than retrying early. Query strings/API keys are excluded from request exceptions.
 - Letterboxd resolves the intended movie endpoint first. Healthy requests avoid the homepage. Recovery still has ten legacy bootstrap attempts, with fresh sessions after challenges; healthy sessions remain reusable. LB and RT parse independent fields concurrently in a shared bounded pool after TMDB prefetch.
 - IMDb downloads are shared in a temporary cache and revalidated with ETag/Last-Modified. Immutable content-addressed gzip files and atomic metadata replacement avoid mixed versions. Header/EOF/CRC/digest validation protects the cache, and changed file signatures invalidate validation results. Dataset projection uses csv.reader and includes newly supplied TMDB external IMDb IDs.
@@ -63,7 +63,7 @@ A separate private matrix exercised 78 actual-source provider cases, including n
 4. RT’s existing year-proximity matcher can choose an unrelated title, and numeric zero can be treated as missing. The recorded Madama Butterfly / Butterfly Effect 3 mismatch remains a separate correctness issue; changing identity matching or parsing was outside this performance PR. Existing TMDB fallback-first matching likewise still depends on manual fixes/skips for ambiguous titles.
 5. Providers may be blocked, change HTML, or have no listing/rating. Normal updates retain prior values; rows can remain stale. Solo-update retains its existing clearing semantics. Unhandled row failures are now noted, but the existing Update policy can still finish after skipping failed rows.
 6. IMDb only covers IDs present in its dataset. The cache needs writable temporary storage; multiple processes may duplicate downloads/projections despite atomic versions. HTTP validators must be trusted for freshness. Per-instance HTTP pacing does not impose a global limit across other processes.
-7. Whole-flow retries can repeat completed network work. Caches and request pools are scoped to a dataflow instance, so matching/enrichment responses are not shared with the following Update stage.
+7. Separate processes still have independent request pools and host pacing. A retry can repeat non-TMDb provider work, and unrelated concurrent runs are not coordinated by the run-scoped request context.
 
 ## Remaining opportunities
 
@@ -75,3 +75,11 @@ A separate private matrix exercised 78 actual-source provider cases, including n
 - Project the union of IMDb IDs once for an entire run or maintain a versioned index if profiling justifies it, rather than loading a large all-title dictionary. Overlap prefetch/provider stages only after preserving dependency and concurrency constraints.
 
 No schema changes or new runtime dependencies. No reviewer requests.
+
+## Shared runner verification
+
+The runner now schedules all selected scrapers through six slots and runs selected dataflows behind Clean, TMDB, and Update barriers. A run-scoped request context shares TMDB successes and in-flight calls across those stages. The combined Update stage prefetches TMDB once for its selected rows, reads IMDb ratings once for the categories that use them, and processes rows in one five-worker pool.
+
+The network-free suite now contains 50 tests, including exhaustive comparisons for small scheduler inputs, 16-job scheduling, six-worker capacity and retry behavior, category failure isolation, update-only selections, cross-instance request sharing, and combined Update prefetching. The exact search completed within 0.014 seconds in the slowest of 30 synthetic 16-job timing sets tested locally.
+
+These checks do not replace a full reprocessing benchmark of the new orchestration. The workspace contains no isolated copy of the complete live source and final-table snapshots, so no old-versus-new end-to-end schedule comparison was run. The timings in the table above remain measurements of independent legacy stages and should not be read as results for the shared runner.

@@ -337,7 +337,7 @@ Recommended rollout order:
 
 - `backend/config/registry.py` defines the scraper registries and the staged dataflow registries.
 - `backend/config/runner.py` is the main entry point for local, weekly, and GitHub Actions runs.
-- `backend/config/runners.py` orchestrates parallel scraper execution, sequential dataflows, retries, and runtime reporting.
+- `backend/config/runners.py` runs selected scrapers through six timing-aware workers, then coordinates the shared Clean → TMDB → Update dataflow stages and runtime reporting.
 - `backend/scraping/BaseCinema.py` defines the base Selenium scraping contract used across all cinema sources.
 - `backend/dataflow/nowplayings/NowPlayingsTmdb.py` handles now-playing grouping, TMDb matching, and movement into final showtime/movie tables.
 - `backend/dataflow/nowplayings/NowPlayingsUpdate.py` performs richer metadata enrichment for now-playing movies.

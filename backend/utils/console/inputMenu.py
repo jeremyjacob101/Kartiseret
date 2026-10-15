@@ -102,15 +102,31 @@ def _plan_header(plan: List[Tuple[str, str, Optional[List[type]]]]) -> Panel:
         lines.append("(none)", style="white")
         return Panel(lines, title="Run Plan", border_style="grey37")
 
-    for kind, key, classes_override in plan:
-        if classes_override is None:
-            lines.append(f"- {kind} → {key}: ALL\n", style="white")
-        else:
-            if not classes_override:
-                lines.append(f"- {kind} → {key}: (none)\n", style="white")
+    scrape_labels = {"allSoons": "Soons", "allShowtimes": "Showtimes", "allTheques": "Theques"}
+    dataflow_labels = {"comingSoonsData": "Soons", "nowPlayingData": "Showtimes", "cinemathequeData": "Theques"}
+    selected_scrapes = []
+    selected_dataflows = []
+    for entry in plan:
+        kind, key = entry[:2]
+        classes_override = entry[2] if len(entry) > 2 else None
+        if kind == "cinema":
+            count = len(classes_override) if classes_override is not None else len(REGISTRY.get(key, []))
+            selected_scrapes.append(f"{scrape_labels.get(key, key)} ({count})")
+        elif kind == "dataflow":
+            if classes_override is None:
+                stages = ["Clean", "TMDB", "Update"]
             else:
-                names = ", ".join(cls.__name__ for cls in classes_override)
-                lines.append(f"- {kind} → {key}: {names}\n", style="white")
+                stages = []
+                for cls in classes_override:
+                    stage = "TMDB" if cls.__name__.endswith("Tmdb") else "Update" if cls.__name__.endswith("Update") else "Clean" if cls.__name__.endswith("Clean") else "Ticket alerts"
+                    if stage not in stages:
+                        stages.append(stage)
+            selected_dataflows.append(f"{dataflow_labels.get(key, key)} ({' → '.join(stages)})")
+
+    if selected_scrapes:
+        lines.append(f"- Scrape: {', '.join(selected_scrapes)}\n", style="white")
+    if selected_dataflows:
+        lines.append(f"- Dataflow: {'; '.join(selected_dataflows)}\n", style="white")
 
     return Panel(lines, title="Run Plan", border_style="grey37")
 

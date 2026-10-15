@@ -24,7 +24,8 @@ class BaseDataflow(InitializeBaseDataflow, DataflowRequests, ImdbRatings, Datafl
     HEADLESS: bool = True
     USES_BROWSER: bool = False
 
-    def __init__(self, run_id, *args, **kwargs):
+    def __init__(self, run_id, *args, request_context=None, **kwargs):
+        self._shared_request_context = request_context
         super().__init__(*args, **kwargs)
         self.run_id = run_id
         self.solo_update_only = str(os.environ.get("SOLO_UPDATE_ONLY", "")).strip().lower() in {"1", "true", "yes", "on"}
@@ -60,3 +61,8 @@ class BaseDataflow(InitializeBaseDataflow, DataflowRequests, ImdbRatings, Datafl
             raise
         finally:
             self.closeDataflowRequests()
+
+    def finishSharedDataRun(self, successful: bool = True):
+        if successful:
+            logSuccessfulRun(self)
+        self.flush_summary(successful=successful)

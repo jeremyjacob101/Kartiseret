@@ -13,19 +13,63 @@ class DataflowRequestError(RuntimeError):
         self.retry_after = retry_after
 
 
+class DataflowRequestContext:
+    """Request state shared by dataflows that participate in one run."""
+
+    def __init__(self, request_workers: int = 5, provider_workers: int = 10, requests_per_second: int = 10):
+        self.lock = RLock()
+        self.request_next = {}
+        self.tmdb_cache = {}
+        self.tmdb_executor = None
+        self.provider_executor = None
+        self.request_workers = request_workers
+        self.provider_workers = provider_workers
+        self.requests_per_second = requests_per_second
+
+    def get_tmdb_executor(self):
+        with self.lock:
+            if self.tmdb_executor is None:
+                self.tmdb_executor = ThreadPoolExecutor(max_workers=self.request_workers)
+            return self.tmdb_executor
+
+    def get_provider_executor(self):
+        with self.lock:
+            if self.provider_executor is None:
+                self.provider_executor = ThreadPoolExecutor(max_workers=self.provider_workers)
+            return self.provider_executor
+
+    def close(self):
+        with self.lock:
+            executors = (self.tmdb_executor, self.provider_executor)
+            self.tmdb_executor = None
+            self.provider_executor = None
+            self.tmdb_cache.clear()
+            self.request_next.clear()
+        for executor in executors:
+            if executor is not None:
+                executor.shutdown(wait=True)
+
+
 class DataflowRequests:
     REQUEST_WORKERS = 5
     REQUESTS_PER_SECOND = 10
     LETTERBOXD_MAX_ATTEMPTS = 10
 
-    def initDataflowRequests(self):
+    def initDataflowRequests(self, context: DataflowRequestContext | None = None):
         self._request_local = local()
-        self._request_lock = RLock()
+        self._owns_request_context = context is None
+        self._request_context = context or DataflowRequestContext(
+            request_workers=self.REQUEST_WORKERS,
+            provider_workers=2 * self.REQUEST_WORKERS,
+            requests_per_second=self.REQUESTS_PER_SECOND,
+        )
+        self._request_lock = self._request_context.lock
         self._request_sessions = []
-        self._request_next = {}
-        self._tmdb_cache = {}
-        self._tmdb_executor = None
-        self._provider_executor = None
+        # Keep these aliases for existing callers and diagnostics.
+        self._request_next = self._request_context.request_next
+        self._tmdb_cache = self._request_context.tmdb_cache
+        self._tmdb_executor = self._request_context.tmdb_executor
+        self._provider_executor = self._request_context.provider_executor
         self._update_tmdb = {}
 
     def requestSession(self, url):
@@ -70,7 +114,7 @@ class DataflowRequests:
                     delay = max(0, self._request_next.get(host, now) - now)
                     if delay >= deadline - now:
                         break
-                    self._request_next[host] = max(now, self._request_next.get(host, now)) + 1 / self.REQUESTS_PER_SECOND
+                    self._request_next[host] = max(now, self._request_next.get(host, now)) + 1 / self._request_context.requests_per_second
                 if delay:
                     time.sleep(delay)
                 remaining = deadline - time.monotonic()
@@ -145,9 +189,7 @@ class DataflowRequests:
             raise
 
     def tmdbExecutor(self):
-        with self._request_lock:
-            if self._tmdb_executor is None:
-                self._tmdb_executor = ThreadPoolExecutor(max_workers=self.REQUEST_WORKERS)
+        self._tmdb_executor = self._request_context.get_tmdb_executor()
         return self._tmdb_executor
 
     def fetchTmdbDetails(self, candidates):
@@ -172,9 +214,7 @@ class DataflowRequests:
             return {}
 
     def updateProviders(self, new_row, existing, tmdb_id):
-        with self._request_lock:
-            if self._provider_executor is None:
-                self._provider_executor = ThreadPoolExecutor(max_workers=2 * self.REQUEST_WORKERS)
+        self._provider_executor = self._request_context.get_provider_executor()
         futures = [self._provider_executor.submit(self.updateLetterboxd, new_row, existing, tmdb_id), self._provider_executor.submit(self.updateRottenTomatoes, new_row, existing)]
         for future in futures:
             future.result()
@@ -215,9 +255,14 @@ class DataflowRequests:
         return None
 
     def closeDataflowRequests(self):
-        for executor in (self._tmdb_executor, self._provider_executor):
-            if executor is not None:
-                executor.shutdown(wait=True)
         for session in self._request_sessions:
             session.close()
-        self.initDataflowRequests()
+        self._request_sessions = []
+        self._request_local = local()
+        if self._owns_request_context:
+            self._request_context.close()
+            self._request_next = self._request_context.request_next
+            self._tmdb_cache = self._request_context.tmdb_cache
+            self._tmdb_executor = None
+            self._provider_executor = None
+            self._update_tmdb = {}

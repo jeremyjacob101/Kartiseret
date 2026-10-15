@@ -74,11 +74,12 @@ def _update_overall(overall: Progress, task_id: int, now: float, started_at: flo
 
 
 class RichRunUI:
-    def __init__(self, spec: Any, key: str, items: Iterable[Any], get_item_est: Callable[[Any], float], refresh_per_second: int = 6, *, use_live: bool = True, console: Optional[Console] = None):
+    def __init__(self, spec: Any, key: str, items: Iterable[Any], get_item_est: Callable[[Any], float], refresh_per_second: int = 6, *, use_live: bool = True, console: Optional[Console] = None, get_eta_secs: Optional[Callable[[], float]] = None):
         self.spec = spec
         self.key = key
         self.items: List[Any] = list(items)
         self.get_item_est = get_item_est
+        self.get_eta_secs = get_eta_secs
         self.refresh_per_second = refresh_per_second
         self.use_live = bool(use_live)
 
@@ -105,7 +106,7 @@ class RichRunUI:
             name = spec.get_item_name(item)
             est = self.est_by_item[item]
             attempt = self.attempt_by_item[item]
-            task_id = self.status.add_task(f"[yellow]{_label(attempt, name)}[/yellow]", total=est, completed=0.0, time=f"[yellow]       [/yellow]", bar_color="#f266e0", attempt=attempt, failed=False, start=False)
+            task_id = self.status.add_task(f"[dim]Queued: {_label(attempt, name)}[/dim]", total=est, completed=0.0, time=f"[dim]queued [/dim]", bar_color="#f266e0", attempt=attempt, failed=False, start=False)
             self.status_task_id_by_item[item] = task_id
 
         self._live: Optional[Live] = None
@@ -193,6 +194,11 @@ class RichRunUI:
                 elapsed = min(max(now - started, 0.0), est)
                 completed += elapsed
             eta_override = None
+
+        elif self.get_eta_secs is not None:
+            elapsed_overall = max(0.0, now - self.overall_started_at)
+            eta_override = max(0.0, float(self.get_eta_secs()))
+            overall_total, completed = elapsed_overall + eta_override, elapsed_overall
 
         else:  # Parallel
             remaining_max = 0.0
