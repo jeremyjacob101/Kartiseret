@@ -2,6 +2,7 @@ from backend.dataflow.utils.SupabaseTables import SupabaseTables
 from backend.dataflow.utils.MovieCodes import MovieCodes
 from backend.dataflow.utils.DataflowHelpers import DataflowHelpers
 from backend.dataflow.utils.DataflowRequests import DataflowRequests
+from backend.dataflow.utils.PipelineCheckpoints import PipelineCheckpoints
 from backend.dataflow.utils.ImdbRatings import ImdbRatings
 from backend.dataflow.utils.DataflowSummaryHelpers import DataflowSummaryHelpers
 from backend.scraping.utils.ScrapingHelpers import ScrapingHelpers
@@ -12,7 +13,7 @@ from backend.dataflow.nowplayings.utils.NowPlayingsHelpers import NowPlayingsHel
 import os
 
 
-class BaseDataflow(InitializeBaseDataflow, DataflowRequests, ImdbRatings, DataflowSummaryHelpers, DataflowHelpers, SupabaseTables, MovieCodes, ComingSoonsHelpers, NowPlayingsHelpers, ScrapingHelpers):
+class BaseDataflow(PipelineCheckpoints, InitializeBaseDataflow, DataflowRequests, ImdbRatings, DataflowSummaryHelpers, DataflowHelpers, SupabaseTables, MovieCodes, ComingSoonsHelpers, NowPlayingsHelpers, ScrapingHelpers):
     MAIN_TABLE_NAME: str = ""
     DUPLICATE_TABLE_NAME: str = ""
     MOVING_TO_TABLE_NAME: str = ""
@@ -54,12 +55,18 @@ class BaseDataflow(InitializeBaseDataflow, DataflowRequests, ImdbRatings, Datafl
     def dataRun(self):
         try:
             self.logic()
+            self.flushMatchDecisionCheckpoints()
             logSuccessfulRun(self)
             self.flush_summary(successful=True)
         except Exception:
+            try:
+                self.flushMatchDecisionCheckpoints()
+            except Exception:
+                pass
             self.flush_summary(successful=False)
             raise
         finally:
+            self.releasePublicationClaims()
             self.closeDataflowRequests()
 
     def finishSharedDataRun(self, successful: bool = True):

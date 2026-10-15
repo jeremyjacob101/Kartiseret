@@ -15,6 +15,8 @@ class ComingSoonDateTests(TestCase):
         scraper.run_id = 1
         scraper.supabase_table_name = "allSoons"
         scraper.supabase = Mock()
+        scraper.supabase_tables = {}
+        scraper.supabase.table.side_effect = lambda name: scraper.supabase_tables.setdefault(name, Mock())
         scraper.driver = Mock()
         scraper.driver.page_source, scraper.driver.title = "", "Cinema City"
         scraper.driver.get.side_effect = lambda url: setattr(scraper.driver, "current_url", url)
@@ -52,8 +54,9 @@ class ComingSoonDateTests(TestCase):
         scraper = self.build_scraper(["3 בדצמבר 2026", "22/10/26"])
         with patch("backend.scraping.BaseCinema.logSuccessfulRun"), patch("backend.scraping.BaseCinema.formatAndWriteCsv"):
             scraper.scrape()
-        scraper.supabase.table.assert_called_once_with("allSoons")
-        rows = scraper.supabase.table.return_value.insert.call_args.args[0]
+        scraper.supabase.table.assert_any_call("allSoons")
+        scraper.supabase.table.assert_any_call("pipeline_scrape_snapshots")
+        rows = scraper.supabase_tables["allSoons"].insert.call_args.args[0]
         self.assertEqual([row["release_date"] for row in rows], ["2026-12-03", "2026-10-22"])
         self.assertEqual([row["english_title"] for row in rows], ["Movie 0", "Movie 1"])
 
@@ -64,7 +67,9 @@ class ComingSoonDateTests(TestCase):
                 with patch("backend.scraping.BaseCinema.logSuccessfulRun") as successful, patch("backend.scraping.BaseCinema.formatAndWriteCsv") as artifact:
                     with self.assertRaises(ValueError):
                         scraper.scrape()
-                scraper.supabase.table.assert_not_called()
+                calls = [call.args[0] for call in scraper.supabase.table.call_args_list]
+                self.assertNotIn("allSoons", calls)
+                self.assertIn("pipeline_scrape_snapshots", calls)
                 successful.assert_not_called()
                 artifact.assert_called_once_with(scraper, successful=False)
                 self.assertEqual(scraper.gathering_info["release_date"], ["2026-12-03"])

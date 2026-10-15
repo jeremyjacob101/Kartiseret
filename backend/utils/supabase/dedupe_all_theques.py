@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from supabase import create_client
 
 from backend.utils.supabase.dedupe_all_showtimes import normalize_text, showtime_key
+from backend.utils.supabase.snapshot_manifests import reconcile_snapshot_row_counts
 
 load_dotenv()
 
@@ -15,6 +16,7 @@ READ_BATCH_SIZE = 500
 DELETE_BATCH_SIZE = 200
 THEQUE_COLUMNS = [
     "id",
+    "snapshot_id",
     "added",
     "run_id",
     "created_at",
@@ -31,9 +33,9 @@ THEQUE_COLUMNS = [
 
 
 def theque_key(row: dict) -> tuple:
-    # Keep history between runs while removing exact duplicates produced inside
-    # one scraper snapshot.
-    return (normalize_text(row.get("run_id")), *showtime_key(row))
+    # Keep retries and later snapshots isolated while removing exact duplicates
+    # produced inside one scraper attempt. Legacy rows retain the old run scope.
+    return (normalize_text(row.get("snapshot_id")), normalize_text(row.get("run_id")), *showtime_key(row))
 
 
 def parse_created_at(value: Any) -> datetime:
@@ -96,6 +98,14 @@ def dedupe_all_theques(dry_run: bool = True) -> None:
 
     for start in range(0, len(ids_to_delete), DELETE_BATCH_SIZE):
         sb.table("allTheques").delete().in_("id", ids_to_delete[start : start + DELETE_BATCH_SIZE]).execute()
+
+    deleted_ids = set(ids_to_delete)
+    affected_snapshots = {
+        row.get("snapshot_id")
+        for row in rows
+        if row.get("id") in deleted_ids and row.get("snapshot_id")
+    }
+    reconcile_snapshot_row_counts(sb, "allTheques", affected_snapshots)
 
     # print(f"Deleted {len(ids_to_delete)} same-run duplicate rows from allTheques.")
 
