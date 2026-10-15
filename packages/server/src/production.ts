@@ -1,18 +1,17 @@
-import { PrismaCatalogRepository } from "./catalog/prisma-repository.js";
+import { DrizzleCatalogRepository } from "./catalog/drizzle-repository.js";
 import { createApp } from "./app.js";
+import { createDatabase } from "./db/client.js";
 import { parseServerEnvironment } from "./env.js";
-import { createPrismaClient } from "./prisma.js";
 
 export function createProductionApp(
   environment: Record<string, string | undefined> = process.env,
 ) {
   const config = parseServerEnvironment(environment);
-  const prisma = createPrismaClient(
-    config.DATABASE_URL,
-    config.DATABASE_POOL_MAX,
-  );
+  const database = createDatabase(config.DATABASE_URL, {
+    poolMax: config.DATABASE_POOL_MAX,
+  });
   const app = createApp({
-    catalogRepository: new PrismaCatalogRepository(prisma),
+    catalogRepository: new DrizzleCatalogRepository(database.db),
     logger: {
       error: (message, error) => console.error(message, error),
     },
@@ -21,6 +20,6 @@ export function createProductionApp(
   return {
     app,
     config,
-    close: () => prisma.$disconnect(),
+    close: database.close,
   };
 }

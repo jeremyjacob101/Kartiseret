@@ -12,20 +12,18 @@
     "./catalog": "./dist/catalog/index.js"
   },
   "scripts": {
-    "build": "npm run prisma:generate && tsc -p tsconfig.json",
-    "typecheck": "npm run prisma:generate && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.integration.json",
-    "lint": "eslint src tests scripts prisma.config.ts vitest.config.ts vitest.integration.config.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.integration.json",
+    "lint": "eslint src tests scripts vitest.config.ts vitest.integration.config.ts",
     "test": "vitest run --config vitest.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "prisma:generate": "node scripts/generate-prisma.mjs",
     "db:test:bootstrap": "node scripts/bootstrap-test-database.mjs",
     "start": "node --env-file-if-exists=../../.env dist/index.js",
     "dev": "node --env-file-if-exists=../../.env --import tsx --watch src/index.ts"
   },
   "dependencies": {
     "@kartiseret/contracts": "^1.0.0",
-    "@prisma/adapter-pg": "7.10.0",
-    "@prisma/client": "7.10.0",
+    "drizzle-orm": "0.45.4",
     "express": "5.2.1",
     "pg": "8.16.3",
     "zod": "^4.4.3"
@@ -39,7 +37,6 @@
     "eslint": "^10.6.0",
     "globals": "^17.7.0",
     "prettier": "^3.9.4",
-    "prisma": "7.10.0",
     "supertest": "7.1.4",
     "tsx": "4.19.4",
     "typescript": "~6.0.3",

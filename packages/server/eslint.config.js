@@ -5,14 +5,13 @@ import js from "@eslint/js";
 
 export default defineConfig([
   {
-    ignores: ["src/generated/**", "dist/**"],
+    ignores: ["dist/**"],
   },
   {
     files: [
       "src/**/*.ts",
       "tests/**/*.ts",
       "scripts/**/*.mjs",
-      "prisma.config.ts",
       "vitest*.config.ts",
     ],
     extends: [js.configs.recommended, tseslint.configs.recommended],

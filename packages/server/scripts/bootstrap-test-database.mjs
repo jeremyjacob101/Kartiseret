@@ -86,7 +86,7 @@ try {
   const baseline = await readFile(
     resolve(
       repositoryRoot,
-      "supabase/migrations/20261015122907_current_app_schema_baseline.sql",
+      "supabase/migrations/20261015141043_current_app_schema_baseline.sql",
     ),
     "utf8",
   );

@@ -65,7 +65,6 @@ backend/config/cron/run_realtime_logs/
 # Generated API workspace output
 /packages/server/node_modules/
 /packages/server/dist/
-/packages/server/src/generated/
 
 # Keep the checked-in template while ignoring local secrets
 !.env.example

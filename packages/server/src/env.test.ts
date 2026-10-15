@@ -10,7 +10,7 @@ describe("server environment parsing", () => {
     ).toMatchObject({
       NODE_ENV: "development",
       PORT: 3000,
-      DATABASE_POOL_MAX: 5,
+      DATABASE_POOL_MAX: 1,
     });
   });
 

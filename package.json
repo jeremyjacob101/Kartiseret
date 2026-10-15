@@ -31,24 +31,15 @@
     "server:typecheck": "npm run contracts:build && npm run typecheck --workspace=@kartiseret/server",
     "server:dev": "npm run contracts:build && npm run dev --workspace=@kartiseret/server",
     "server:start": "npm run contracts:build && npm run server:build && npm run start --workspace=@kartiseret/server",
-    "server:generate": "npm run prisma:generate --workspace=@kartiseret/server",
     "api:test": "npm run contracts:build && npm run test --workspace=@kartiseret/server",
-    "api:test:integration": "npm run contracts:build && npm run server:generate && npm run db:test:bootstrap && npm run test:integration --workspace=@kartiseret/server",
+    "api:test:integration": "npm run contracts:build && npm run db:test:bootstrap && npm run test:integration --workspace=@kartiseret/server",
     "db:test:bootstrap": "npm run db:test:bootstrap --workspace=@kartiseret/server"
   },
   "allowScripts": {
-    "@prisma/engines@7.10.0": true,
-    "prisma@7.10.0": true,
     "esbuild@0.27.2": true,
     "esbuild@0.25.12": true
   },
   "overrides": {
-    "@prisma/config": {
-      "deepmerge-ts": "8.0.2"
-    },
-    "prisma": {
-      "mysql2": "3.24.6"
-    },
     "source-map-js": "1.2.2"
   }
 }

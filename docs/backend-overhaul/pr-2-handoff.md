@@ -1,96 +1,87 @@
-# PR 2 handoff — Express, Prisma, baseline, and PostgreSQL foundation
+# PR 2 handoff — Express, Drizzle, baseline, and PostgreSQL foundation
 
-## Scope and base
+## Scope and current PR
 
-- **Base:** current `main` after PR 1 and PR 164, commit `93eee8db7061b287d01ad6293fe2f34b2933b327`.
-- **Implementation branch:** `codex/backend-02-api-prisma-foundation`.
-- **Scope:** server/workspace foundation, current-schema mapping and clean-project baseline, one public now-playing read endpoint, Vercel/Vite adapters, fixtures, CI PostgreSQL integration, and hosted-dev bootstrap materials. Browser data transport, authentication, preferences, subscriptions, admin operations, and production schema changes remain out of scope. Hosted-dev provisioning is part of the plan but awaits Jeremy's organization choice and cost confirmation.
+- **PR:** [#167](https://github.com/jeremyjacob101/Kartiseret/pull/167), kept as a draft; PR title is updated to describe Express, Drizzle, and PostgreSQL.
+- **Implementation branch:** `codex/backend-02-api-prisma-foundation` (kept for continuity even though the old branch name mentions Prisma).
+- **Base:** `main`, including PR 1 and the current main update through `3a10e0fc07559e718f5e45c1b1779bda7759abdc`. The PR 2 branch now contains that main commit through a normal merge, preserving PR 2's intermediate history without force-pushing.
+- **Scope:** Express/server foundation, the SQL-only baseline and fictional fixtures, hosted DEV bootstrap, PostgreSQL 17 CI, one public catalog read, Vercel/Vite adapters, and the final Prisma-to-Drizzle conversion. Public browser transport, authentication, preferences, subscriptions, admin operations, production DDL, and the later PR stages remain out of scope.
+- **Final source commit:** recorded in the final CI/Preview update below after the Drizzle branch is pushed.
 
-The latest main updates after PR 1 are PR 164's `backend/config/runners.py` and scheduler tests, plus run-artifact records. PR 2 does not edit those Python paths or change worker behavior. Its SQL baseline describes the same physical worker tables but is explicitly for a new empty project and has not been applied to the existing database. After rebasing, `python3 -m compileall -q backend` and all 53 Python unit tests passed under Python 3.14.2, including the updated scheduler tests; the existing Python test step remains in the full-check workflow.
+PR 2 does not change Python scraper behavior. Main's Rotten Tomatoes score/count preservation and current run artifacts are retained; no Python product files were changed for this PR. After merging current `main`, `python3 -m compileall -q backend` and `python3 -m unittest discover -s backend/tests -v` passed locally (55 tests); the same compile/unit checks remain in full CI.
 
-## Current schema inventory and migration authority
+## SQL schema and migration history
 
-The active project was read-only inspected on 2026-10-15: **KartiseretNew**, project ref `gsdrcyrduxbrxgsvhxvr`, PostgreSQL 17, Europe Central 2. The public site bundle points to that project. No production DDL or rows were changed.
+The only schema authority is timestamped SQL under `supabase/migrations/`. The current-state bootstrap is `supabase/migrations/20261015141043_current_app_schema_baseline.sql`. It captures the 18 public application tables, observed defaults/nullability, keys/FKs/checks, indexes, comments, grants, RLS and Realtime membership. Six earlier ticket-alert SQL files remain checksum-preserved in `supabase/legacy-migrations/` because they were not recorded in the source project's migration ledger and do not represent the current deployed table state.
 
-The baseline at `supabase/migrations/20261015122907_current_app_schema_baseline.sql` captures all 18 application tables, their observed columns/defaults/nullability, primary/unique/foreign/check constraints, 21 standalone indexes, table comments, current application-role grants, 33 observed RLS policies, and the `finalMovies`/`finalSoons` membership in Supabase Realtime. RLS is enabled on all 18 tables; `tableFixes` also forces RLS. There were no public triggers, public routines, or app sequences. Provider-owned `auth`, `realtime`, extensions and their publications are prerequisites/managed objects, not recreated by the baseline.
+DEV **Kartiseret - dev** (`jbydpmjjptwevyijarzl`) reports migration version `20261015141043` with provider display name `20261015122907_current_app_schema_baseline`. This exact version/name pair was confirmed from Supabase's migration list. The checked-in file and disposable bootstrap use the recorded version; the provider's earlier display name is retained as a documented historical label. Renaming the local baseline to the applied version changed no SQL: the old and current file SHA-256 are both `f57e751fb9b28f83da192d5a6422a3c32e3c3df21cad604934e5af197f1ab56f`. The baseline has already been applied to DEV. Do not reapply it there or in production. Do not replay the legacy files before it on a clean bootstrap.
 
-The six earlier ticket-alert SQL files had no corresponding Supabase migration-ledger entries on the active project, and the live table already had the final account-only shape. They are preserved with checksums in `supabase/legacy-migrations/` and are excluded from the active migration path; replaying that historical guest/RPC sequence before the current-state baseline would not bootstrap the observed schema. The SQL baseline is the only schema-creation authority for a **new, empty project**. Future DDL is timestamped Supabase SQL. Prisma only maps/query-generates; there is no Prisma migration history or `migrate` script.
+Fresh disposable PostgreSQL 17 setup is:
 
-**Do not apply this baseline to KartiseretNew or another database that already has these tables.** The current hosted project's schema migration tracking must be reconciled deliberately before any future hosted SQL migration. Use a separate empty development project for first bootstrap.
+1. Start an empty local `kartiseret_test` database on loopback.
+2. Set `TEST_DATABASE_URL` to its admin URL and `DATABASE_URL` to its test-only restricted runtime login.
+3. Run `npm run api:test:integration`. The guard checks loopback, exact database name and PostgreSQL 17; bootstrap refuses any existing public base table, installs test-only Supabase compatibility roles/auth objects, applies the baseline once and seeds the fictional fixtures.
 
-The baseline adds a `NOLOGIN` group role named `kartiseret_runtime`, with SELECT on only `finalMovies` and `movieCodes` and two matching read policies. Create a separate `kartiseret_api` login/password in the target provider and grant it membership in that group. Never use the migration/admin login as `DATABASE_URL`.
+There is no `db:test:up` script and PR 2 does not require Docker on Jeremy's Mac. CI provisions an ephemeral PostgreSQL 17 service. Neither the CI bootstrap nor Preview tests reset hosted DEV or production. Future application DDL is authored as forward Supabase SQL migrations and replayed in order by the guarded disposable CI bootstrap; Drizzle Kit is not a migration runner.
 
-## Dependency audit adjustments
+## Drizzle mapping, driver, and lifecycle
 
-The registry audit initially reported six high findings. The lockfile now resolves patched versions: `sharp` 0.35.5, `source-map-js` 1.2.2, `deepmerge-ts` 8.0.2, and `mysql2` 3.24.6. The two Prisma transitive overrides are scoped to the Prisma CLI/config dependency paths; Prisma remains pinned at 7.10.0. A final full `npm audit` reported zero vulnerabilities, and a clean Node 24 `npm ci --no-audit` succeeded.
+- Stable versions: `drizzle-orm` **0.45.4** and existing `pg` **8.16.3** (`@types/pg` remains a development dependency). No Drizzle Kit, alternate driver, Prisma package, client generator, auth adapter, or competing migration ledger is installed.
+- All 18 tables are mapped in `packages/server/src/db/schema.ts` and inventoried as `applicationTables`. The integration suite checks every physical table and column against PostgreSQL for SQL type, nullability, default presence, and primary key. It also checks the actual city/theater FK, provider-owned `auth.users` FK inventory, `movieCodes.movie_code` uniqueness, and that `finalSoons.tmdb_id` is not unique.
+- `finalMovies.genres` and `finalSoons.genres` remain nullable arrays. `date` columns use strings, `time without time zone` uses local clock text, `timestamptz` uses instants, and `utilRunLogs.date_created` uses timezone-free Jerusalem wall-time text. PostgreSQL `bigint` uses JS `bigint`; `numeric` ratings remain exact strings. SQL still owns provider auth FKs, RLS, grants, checks, partial indexes, defaults, comments and publication membership.
+- `packages/server/src/db/client.ts` exports `ApplicationDatabase`, `ApplicationTransaction`, and `createDatabase()`. One bounded `pg.Pool` (default maximum 1, configurable up to the validated limit), finite connection/idle timeouts and verified TLS for remote URLs are composed once per runtime. Loopback test/local URLs use no TLS. A pool-scoped `pg.TypeOverrides` keeps PostgreSQL OID 1114 (`timestamp without time zone`) as text so node-postgres cannot reinterpret the Jerusalem wall clock through the process timezone. The pool emits sanitized error metadata only, creates no socket until first query, and has idempotent `close()`. Vercel's warm module reuses its pool; local process and tests close it on teardown.
+- Supabase's shared transaction-pooler connection is used for serverless runtime. The Drizzle node-postgres session uses ordinary unnamed parameterized queries; there are no named/session-bound prepared statements or session-persistent `SET` dependencies. Migration/admin connections remain separate.
+- `DrizzleCatalogRepository` is behind the neutral `CatalogRepository` interface. It filters pending rows, uses explicit `popularity DESC NULLS LAST` plus numeric `tmdb_id ASC`, batches movie-code reads in chunks of 500, converts decimal IDs to `bigint`, and performs a relation probe for empty code lists so missing-schema failures are not reported as a healthy empty catalog.
+- `createApp` remains importable without reading config or creating a database connection. `createProductionApp` creates the pool explicitly and returns its close lifecycle.
 
-## Prisma mappings and known limits
+## API and hosting boundary
 
-`packages/server/prisma/schema.prisma` maps all 18 tables with physical names preserved, including:
+- `GET /api/v1/health` remains a database-free liveness response.
+- `GET /api/v1/catalog/now-playing` keeps `{ data: { mode: "nowPlaying", movies: Movie[] }, error: null }`, existing DTO normalization, pending-row exclusion, null-genre normalization, bounded code lookup, cache headers, and safe database/data-integrity responses.
+- A behavior check during conversion found that the service's second JavaScript sort could undo PostgreSQL `NULLS LAST` after nullable popularity was normalized to `0`. The service now sorts raw rows with nulls last and numeric movie-ID ties; unit and PostgreSQL integration tests cover `0` versus `NULL` and IDs such as `2` versus `10`.
+- Unknown API routes remain JSON 404s. The existing SPA routing and fixed `/api/og` and `/api/og-image` functions stay separate. The frontend does not switch away from its existing Supabase transport until PR 3.
+- Vite's local `/api` proxy remains opt-in. Builds do not connect to a DB or generate client code.
 
-- `finalSoons.id` as UUID PK while `tmdb_id` remains non-unique.
-- `theaters.location` as the PK and ticket-alert subscriptions as the real composite `(user_id, tmdb_id)` key.
-- Integer versus bigint, smallint, real/double, Decimal, UUID, JSONB, arrays, date, time, timestamptz, and the Jerusalem wall-time `utilRunLogs.date_created` as observed.
-- Provider-owned `auth.users` relations remain SQL foreign keys; Prisma uses scalar-only models because the provider schema is not owned here.
+## Environment and provider status
 
-Prisma does not express PostgreSQL check constraints, partial indexes, RLS policies, or nullable scalar-list columns. Those remain in SQL. In particular, `finalMovies.genres` is physically nullable; Prisma exposes its scalar list as required and the API mapper explicitly normalizes SQL NULL to an empty list. Query code does not use Prisma schema migration diffs.
+- Hosted DEV is **Kartiseret - dev**, project ref `jbydpmjjptwevyijarzl`, in `eu-central-2`, PostgreSQL 17.11, and currently `ACTIVE_HEALTHY`. Read-only SQL confirmed 18 public tables and that `kartiseret_api` inherits `kartiseret_runtime`, can SELECT `finalMovies` and `movieCodes`, and cannot SELECT `userPreferences`. It has the baseline, fictional seed and restricted login membership from the earlier PR 2 setup. The user privately set the role password and configured Vercel Preview `DATABASE_URL`; no secret value is stored in the repository, handoff, or logs.
+- Vercel Preview `DATABASE_URL` must be the DEV transaction-pooler URL with `kartiseret_api.jbydpmjjptwevyijarzl`. Production must use a separately provisioned restricted runtime login if/when API consumers are deployed there. `MIGRATION_DATABASE_URL` is admin-only and must not be present in Vercel app runtime or browser variables.
+- PR 2 does not change production credentials, schema, rows, auth settings or frontend configuration. Before a later production-consuming rollout, provision the production API role, set its Production runtime URL, and reconcile production's migration ledger without replaying the clean-project baseline.
+- Before PR 3 Preview acceptance, audit all remaining frontend/Supabase/auth variables and ensure they target DEV; PR 2 still leaves existing browser auth/data transport untouched.
 
-## Server, routes, and response
+## Verification evidence
 
-- Workspace: `@kartiseret/server`; shared contracts build first.
-- Local API: `npm run server:dev` (Node 24, `PORT` defaults to 3000). Start the frontend in a second terminal with `npm run dev`.
-- Compiled startup: `npm run build`, then `npm run server:start`.
-- Express composition: `createApp({ catalogRepository })` does not listen, read env, or connect to a database. Production composition creates a pooled Prisma/PostgreSQL adapter only when explicitly requested.
-- Vercel catch-all: `api/[...path].ts`; fixed `api/og.ts` and `api/og-image.ts` remain configured. Existing SPA output and rewrites remain in place. Vite proxies `/api` only when `VITE_API_PROXY_TARGET` is set.
-- `GET /api/v1/health` returns a liveness response without querying the database.
-- `GET /api/v1/catalog/now-playing` returns `{ data: { mode: "nowPlaying", movies: Movie[] }, error: null }`. It filters pending `solo_update` rows, looks up movie codes in bounded chunks, preserves the existing title/rating/genre/alternative normalization, and returns a successful empty list for a valid empty catalog. Unknown API routes, bad queries, database failures, and malformed catalog data have distinct safe JSON error codes.
-- This endpoint does not change any frontend caller; that transport cutover belongs to PR 3.
+### Final Drizzle implementation
 
-## Environment and connections
+- Node **24.21.0** clean `npm ci --no-audit` passed (414 packages installed). The `package-lock.json` SHA-256 remained `38144c36200c072336c605f6378aa28bc00d0524f94c7dde1daa162e7f0732af` before and after the install. npm emitted only its existing optional `fsevents@2.3.3` install-script allowlist notice.
+- Post-install `npm run verify` passed: lint, formatting, contract/server/web typechecks, **488 web tests**, **19 API tests**, server and web production builds, and the eager bundle check (**207.5 KiB gzip / 210 KiB budget**). An initial sandboxed invocation could not bind Supertest's loopback listener (`EPERM`); the same command passed when rerun with loopback permitted. Vite still emits its existing large lazy-chunk advisory; the enforced eager gzip budget passes.
+- Targeted database-free Drizzle tests passed (**4 files, 10 tests**), including pool TLS/limits/close behavior, environment defaults, movie mapping and null-popularity ordering. `npm run server:typecheck` and `npm run format:check` passed.
+- `npm audit --audit-level=moderate` passed with **0 vulnerabilities**. `npm ls --all --parseable` found no installed Prisma package. Drizzle's lockfile metadata lists Prisma and other database adapters only as optional peers; none are installed or imported. The active source/config/script search found no Prisma client, generation hook, Prisma URL option or P-code references. Historical plan/handoff text remains labeled as such.
+- After merging current `main`, `python3 -m compileall -q backend` and `python3 -m unittest discover -s backend/tests -v` passed; all **55 Python tests** passed, including the Rotten Tomatoes score/count preservation tests.
+- The six-file legacy migration SHA-256 manifest passes. The source branch has been merged with current `origin/main` commit `3a10e0fc07559e718f5e45c1b1779bda7759abdc`; the merge brings the independent Rotten Tomatoes update and its run artifacts. No Python behavior was changed by PR 2. Re-run staged `git diff --check` immediately before committing.
+- `npm run api:test:integration` was not run locally: this machine has no running local PostgreSQL 17 service/Docker daemon, and the command requires a disposable local `kartiseret_test`. The mandatory CI PostgreSQL 17 job remains the evidence gate for all real schema, permission, native-type, SQL constraint, transaction rollback and driver-error cases. Record its run URL/result against the final pushed source commit below.
+- Vercel Preview: Jeremy privately configured the runtime URL. Record the Preview URL/source commit and actual API route/fixture, unknown API, SPA and OG assertions after a Preview build for the final Drizzle commit. A build status alone is not runtime proof. Production remains untouched.
 
-Only variable names are committed. See the root `.env.example`.
+### Final pushed commit and external verification
 
-- `DATABASE_URL`: runtime login, inherited from `kartiseret_runtime`; for Preview and optional local Node use the separate DEV project's Supavisor transaction-mode URL (port 6543), and keep `DATABASE_POOL_MAX` conservative (default 5). Production requires its own runtime login.
-- `MIGRATION_DATABASE_URL`: separate Supabase direct/session-admin connection for intentional SQL migration operations only. Never used during app build or runtime.
-- `TEST_DATABASE_URL`: admin credential for the disposable CI database, or an optional separately provisioned local test database. The bootstrap requires loopback plus the exact database name `kartiseret_test`; it never falls back to `DATABASE_URL`.
-- `PORT`, `NODE_ENV`, `DATABASE_POOL_MAX`, `SITE_ORIGIN`: server config.
-- `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`: documented for the transitional auth stage; PR 2's Express API does not consume them.
-- `VITE_API_PROXY_TARGET`: optional local frontend-to-API proxy.
-- Future stages may add `BETTER_AUTH_SECRET` and `RESEND_API_KEY`; neither is read by this PR.
+- Final source commit: pending commit and push.
+- GitHub PostgreSQL 17/API/Python workflow: pending final-commit CI.
+- Vercel Preview runtime assertions: pending final-commit deployment.
+- Legacy checksum and whitespace checks: pending immediately before commit.
 
-Prisma generation uses an unreachable placeholder URL and never connects. Builds do not require a database. Do not configure Vercel Production/Preview with the admin URL. Before a Preview endpoint is exercised, create the separate dev project, bootstrap its clean schema, create the runtime login, and scope its variables to Preview. Before a later production-consuming release, provision the corresponding production runtime login and reconcile the existing project's migration ledger; no such operation was performed here.
+### Historical Prisma-only evidence
 
-## Disposable database and test commands
+The earlier PR 2 Prisma state passed its original PostgreSQL 17 CI integration job and Vercel build; it did not verify the Drizzle code. Earlier clean installs, API/database tests and bundle measurements are historical comparisons only. They must not be reported as evidence for the final Drizzle commit.
 
-Fast checks do not need PostgreSQL:
+## Required final searches and ledger
 
-- `npm ci`
-- `npm run verify` — contracts, frontend and server lint/format/typecheck/unit tests, Prisma generation/build, SPA build, and eager bundle budget.
+Before handoff, search the active package graph, server source, scripts, CI, config, and env examples for `prisma`, `@prisma`, generated-client imports, generation hooks, `?schema=public`, Prisma-only URL options, Prisma Decimal APIs and P-codes. Historical plan and predecessor handoff discussion is allowed when labeled. Recheck F01/F02 and record F25–F30 in `verification.md`, with F26 Preview and F28/F29/F30 CI/DB evidence separated from local checks.
 
-The real integration job is separate and required in GitHub Actions. It uses `postgres:17`, test-only `auth.users`/`auth.uid()` and Supabase-role compatibility objects, the app baseline, and fictional deterministic fixtures.
+## Next PR readiness and owner steps
 
-CI runs the required disposable PostgreSQL 17 integration job automatically. If a separate, disposable local PostgreSQL 17 database is already available, create an empty database named `kartiseret_test`, then run:
+1. Review this draft PR after the final CI and Preview acceptance checks complete. Merge is Jeremy's action; this branch remains open and no review was requested.
+2. No new hosted migration or local database setup is needed to merge PR 2: the ORM conversion changes no DDL and DEV already has the recorded baseline. The disposable PostgreSQL CI job replays it on a fresh test database.
+3. After merging PR 2, start PR 3 from updated `main`. Verify that `DrizzleCatalogRepository`, `ApplicationDatabase`, `applicationTables`, and this handoff exist; do not repeat the ORM conversion. PR 3 must add explicit SQL grants/policies for additional public reads and verify them against restricted DEV credentials.
+4. Keep production API variables/credentials separate. Before a later API-consuming production release, provision a restricted production login and set Production `DATABASE_URL`; do not reuse DEV or the admin migration URL.
 
-```sh
-npm run db:test:up
-export TEST_DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:5432/kartiseret_test?schema=public'
-export DATABASE_URL='postgresql://kartiseret_api:local-test-only@127.0.0.1:5432/kartiseret_test?schema=public'
-npm run api:test:integration
-```
-
-The bootstrap refuses a non-empty public schema. Integration tests exercise the real runtime role, catalog DTO, nullable array, BigInt/Decimal/date/time mappings, a database check constraint, and transaction rollback. They never use a remote URL. The fictional, stable development seed includes cities/theaters, movie/showtime, coming-soon/cinematheque, and worker utility fixtures. It does not create fake Supabase Auth accounts or invoke the Python scraper. Docker setup on Jeremy's Mac is intentionally not required.
-
-## Verification evidence and limits
-
-- Under Node 24.21.0, clean `npm ci --no-audit`, Prisma 7.10 generation/validation, `npm run verify`, `npm audit`, legacy SQL-file checksum verification, and `git diff --check` passed. `npm run verify` covered root lint/format, contracts/server/web typechecks, 488 web tests, 16 API tests, server and web builds, and the eager bundle check (207.3 KiB gzip under the 210 KiB budget). `npm audit` reported zero vulnerabilities after the scoped lockfile fixes described above. See `verification.md` for feature-level evidence.
-- GitHub Actions passed the web, Python backend, and disposable PostgreSQL 17 integration jobs. The first PostgreSQL run caught an incorrect test fixture (`'bad'` satisfies the three-character movie-code check); the test now uses `'bad!'`, and the rerun passed the clean baseline replay, fixtures, Prisma queries, runtime-role denial, SQL check, and transaction rollback.
-- Vercel rejected the first catch-all config because `functions.*.includeFiles` must be one glob string. `vercel.json` now uses `packages/**/dist/**`, following [Vercel's `vercel.json` reference](https://vercel.com/docs/project-configuration/vercel-json). The corrected Preview deployment completed successfully, and GitHub reports the Vercel status as success. This verifies build/deploy only; the API still needs its Preview `DATABASE_URL` pointed at a separate dev project before endpoint requests can succeed. The Vercel dashboard is login-gated for this task, so detailed deployment logs are not available here.
-- A hosted development project and Vercel Preview variables were not created or configured. The Supabase project-creation flow requires Jeremy to choose the organization and confirm the quoted cost. The current production project remained read-only.
-- No production schema/data, Vercel environment variables, existing user/auth flows, Python worker behavior, or frontend transport were changed.
-
-## Next steps for the project owner
-
-1. Review draft PR 167. The latest web, Python backend, disposable PostgreSQL 17, and Vercel deployment checks passed; GitHub reports the branch mergeable. No reviewer has been requested.
-2. To finish the planned hosted-dev setup, choose the Supabase organization. I can then fetch the project cost and ask you to confirm that exact amount before creating a distinct dev project. After creation, apply the baseline once to that empty project, create the runtime login, and configure only Preview variables.
-3. Do not merge a production `DATABASE_URL` into Vercel until a dedicated production API login exists and the current production project's migration ledger approach has been agreed.
-4. PR 3 can switch public frontend reads only after the API is verified against the separate dev project's data.
+The revised controlling plan is checked in at `docs/backend-overhaul-master-plan-drizzle.md`. It supersedes earlier Prisma instructions for all remaining PRs.

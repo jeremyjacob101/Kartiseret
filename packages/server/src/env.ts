@@ -15,7 +15,7 @@ export const serverEnvironmentSchema = z.object({
     .default("development"),
   PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
   DATABASE_URL: databaseUrlSchema,
-  DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(20).default(5),
+  DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(20).default(1),
   SITE_ORIGIN: z.string().trim().url().optional(),
 });
 

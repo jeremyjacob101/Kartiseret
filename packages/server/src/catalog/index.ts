@@ -1,4 +1,4 @@
 export { CatalogDataIntegrityError, CatalogDatabaseError } from "./errors.js";
-export { PrismaCatalogRepository } from "./prisma-repository.js";
+export { DrizzleCatalogRepository } from "./drizzle-repository.js";
 export { getNowPlayingMovies, type CatalogRepository } from "./service.js";
 export { toNowPlayingMovie } from "./movie-mapper.js";
