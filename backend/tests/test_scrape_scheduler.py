@@ -1,5 +1,6 @@
 from itertools import product
 from random import Random
+import sys
 from threading import Lock
 from time import sleep
 from io import StringIO
@@ -93,6 +94,70 @@ class ScrapeSchedulerTests(TestCase):
         self.assertEqual(peak, 6)
         self.assertEqual(len(attempts), 10)
         self.assertEqual(attempts[classes[0]], 2)
+
+    def test_scheduler_runs_attempt_through_scraper_spec_adapter(self):
+        scraper = type("AdapterScraper", (), {})
+        instance = type("FakeInstance", (), {"driver": None})()
+        calls = []
+
+        def make_instance(cls, key, run_id, request_context=None):
+            calls.append(("make", cls, key, run_id, request_context))
+            return instance
+
+        def run_instance(actual_instance):
+            calls.append(("run", actual_instance))
+
+        def cleanup(actual_instance):
+            calls.append(("cleanup", actual_instance))
+
+        scraper_spec = {
+            "make_instance": make_instance,
+            "run_instance": run_instance,
+            "cleanup": cleanup,
+            "registry": {},
+        }
+        with patch.object(runners, "cinemaDictionary", scraper_spec), patch.object(
+            runners, "_average_times", return_value={scraper.__name__: 1}
+        ):
+            console = Console(file=StringIO())
+            self.assertTrue(
+                runners._run_scheduled_scrapes(
+                    [("allSoons", scraper)], 123, console=console
+                )
+            )
+
+        self.assertEqual(calls, [
+            ("make", scraper, "allSoons", 123, None),
+            ("run", instance),
+            ("cleanup", instance),
+        ])
+
+    def test_cleanup_failure_does_not_replace_original_attempt_error(self):
+        scraper = type("CleanupFailureScraper", (), {})
+        instance = type("FakeInstance", (), {"driver": None})()
+        artifact_errors = []
+
+        def fail_run(_instance):
+            raise RuntimeError("original scrape failure")
+
+        def fail_cleanup(_instance):
+            raise ValueError("cleanup failure")
+
+        spec = type("Spec", (), {})()
+        spec.make_instance = lambda *_args: instance
+        spec.run_instance = fail_run
+        spec.cleanup = fail_cleanup
+
+        def capture_artifact_error(*_args, **_kwargs):
+            artifact_errors.append(str(sys.exc_info()[1]))
+
+        with patch.object(runners, "artifactPrinting", side_effect=capture_artifact_error):
+            with self.assertLogs("backend.config.runners", level="ERROR") as logs:
+                result = runners._run_attempt(spec, scraper, "allSoons", 123, 1)
+
+        self.assertFalse(result.ok)
+        self.assertEqual(artifact_errors, ["original scrape failure"])
+        self.assertIn("cleanup failure", "\n".join(logs.output))
 
 
 if __name__ == "__main__":

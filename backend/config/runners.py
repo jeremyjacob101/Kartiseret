@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED, as_completed
 from supabase import create_client
 from types import SimpleNamespace
-import time, os, queue
+import logging, time, os, queue
 
 from rich.console import Console, Group, RenderableType
 from rich.panel import Panel
@@ -24,7 +24,7 @@ dataflowDictionary = {"registry": DATAFLOW_REGISTRY, "make_instance": lambda cls
 
 
 def _run_attempt(spec, cls: type, key: str, run_id: int, attempt: int, request_context=None) -> RunResult:
-    starting_time, instance, ok = time.time(), None, False
+    starting_time, instance, ok, attempt_failed = time.time(), None, False, False
     try:
         instance = spec.make_instance(cls, key, run_id, request_context)
         instance._artifact_item_name = cls.__name__
@@ -32,12 +32,19 @@ def _run_attempt(spec, cls: type, key: str, run_id: int, attempt: int, request_c
         spec.run_instance(instance)
         ok = True
     except Exception:
+        attempt_failed = True
         artifactPrinting(instance, run_id, item_name=cls.__name__, attempt=attempt)
     finally:
         try:
             spec.cleanup(instance)
         except Exception:
-            artifactPrinting(instance, run_id, item_name=cls.__name__, attempt=attempt)
+            if attempt_failed:
+                logging.getLogger(__name__).exception(
+                    "Scraper cleanup failed for %s after the attempt had already failed",
+                    cls.__name__,
+                )
+            else:
+                artifactPrinting(instance, run_id, item_name=cls.__name__, attempt=attempt)
             ok = False
     return RunResult(name=cls.__name__, secs=time.time() - starting_time, ok=ok, attempts=attempt)
 
@@ -82,6 +89,9 @@ def _run_scheduled_scrapes(items: list[tuple[str, type]], run_id: int, *, consol
     final_results: dict[type, RunResult] = {}
     active: dict = {}
     eta_state = {"remaining": float(sum(durations)), "at": time.monotonic()}
+    # _run_attempt uses the attribute-based runner-spec interface used by
+    # runGroup. Keep the shared scheduler on that same interface.
+    scrape_spec = SimpleNamespace(**cinemaDictionary)
 
     ui_spec = SimpleNamespace(
         count_label="Scrapers",
@@ -134,7 +144,7 @@ def _run_scheduled_scrapes(items: list[tuple[str, type]], run_id: int, *, consol
                 ui.retry_item(classes[assigned], attempt=attempt)
             future = executor.submit(
                 _run_attempt,
-                cinemaDictionary,
+                scrape_spec,
                 classes[assigned],
                 key_by_class[classes[assigned]],
                 run_id,
