@@ -1,5 +1,5 @@
 import { cloneShowtimeDays, extractYouTubeVideoKey, findShowtimePanel, formatReleaseDate, formatRuntime, getFirstShowtimeDate, getMetricDisplays, getMovieInfoParts, getNearestShowtimeDate, getScrollBehavior, getShowtimeDateLabel, getShowtimeTargetDate, getTrailerEmbedUrl } from "../src/components/showtimes/showtimeUtils";
-import { addCalendarDays } from "../src/routing/showtimeLinkCodec";
+import { addCalendarDays } from "@kartiseret/contracts/showtime-links";
 import { fixedAppDateString } from "../src/data/movieCatalog";
 import { sampleMovie, sampleShowtimeDays } from "./fixtures";
 import { describe, expect, it, vi } from "vitest";

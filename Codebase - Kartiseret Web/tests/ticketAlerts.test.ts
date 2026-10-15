@@ -1,5 +1,5 @@
 import { invalidateUserTicketAlertQueries, mergeUserTicketAlert, selectTicketAlertAvailability, selectUserTicketAlert, ticketAlertAvailabilityQueryOptions, ticketAlertMutationOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions, type TicketAlertShowtimeRow, type UserTicketAlertSubscription } from "../src/data/ticketAlerts";
-import { addCalendarDays, getJerusalemCinemaDate } from "../src/routing/showtimeLinkCodec";
+import { addCalendarDays, getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getSupabaseBrowserClient } from "../src/lib/supabase";
 import { createClient } from "@supabase/supabase-js";

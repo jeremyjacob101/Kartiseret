@@ -1,65 +1,17 @@
+import { DEFAULT_RATING_SOURCES, RATING_SOURCES_PREFERENCE_COLUMN, RATING_SOURCES_PREFERENCE_KEY, ALL_RATING_SOURCES, GUEST_RATING_SOURCES_MESSAGE, normalizeRatingSources, ratingSourceSchema } from "@kartiseret/contracts/preferences";
+import type { RatingSource } from "@kartiseret/contracts/preferences";
 import type { UserPreferenceDefinition } from "./shared";
-import { z } from "zod";
 
-export const ALL_RATING_SOURCES = [
-  "imdbRating",
-  "rtAudienceRating",
-  "rtCriticRating",
-  "lbRating",
-  "tmdbRating",
-] as const;
-
-export const DEFAULT_RATING_SOURCES: RatingSource[] = [
-  "imdbRating",
-  "rtAudienceRating",
-  "rtCriticRating",
-];
-
-export const ratingSourceSchema = z.enum(ALL_RATING_SOURCES);
-export type RatingSource = z.infer<typeof ratingSourceSchema>;
-export const RATING_SOURCES_PREFERENCE_KEY = "ratingSources";
-export const RATING_SOURCES_PREFERENCE_COLUMN = {
-  name: "rating_sources",
-} as const;
-export const GUEST_RATING_SOURCES_MESSAGE =
-  "You must be logged in to save preferences.";
-
-type NormalizeOptions = {
-  fallback?: readonly RatingSource[];
-  allowEmpty?: boolean;
+export {
+  ALL_RATING_SOURCES,
+  DEFAULT_RATING_SOURCES,
+  GUEST_RATING_SOURCES_MESSAGE,
+  normalizeRatingSources,
+  ratingSourceSchema,
+  RATING_SOURCES_PREFERENCE_COLUMN,
+  RATING_SOURCES_PREFERENCE_KEY,
 };
-
-function toNormalizedSources(value: unknown): RatingSource[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const selected = new Set<string>();
-
-  for (const item of value) {
-    const result = ratingSourceSchema.safeParse(item);
-
-    if (result.success) {
-      selected.add(result.data);
-    }
-  }
-
-  return ALL_RATING_SOURCES.filter((source) => selected.has(source));
-}
-
-export function normalizeRatingSources(
-  value: unknown,
-  options: NormalizeOptions = {},
-): RatingSource[] {
-  const normalized = toNormalizedSources(value);
-  const { allowEmpty = false, fallback = DEFAULT_RATING_SOURCES } = options;
-
-  if (normalized.length > 0 || allowEmpty) {
-    return normalized;
-  }
-
-  return toNormalizedSources(fallback);
-}
+export type { RatingSource };
 
 export const ratingSourcesPreferenceDefinition: UserPreferenceDefinition<
   typeof RATING_SOURCES_PREFERENCE_KEY,

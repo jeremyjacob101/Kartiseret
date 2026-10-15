@@ -7,12 +7,12 @@ import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPic
 import { QueryClientProvider, useMutation, useQuery } from "@tanstack/react-query";
 import { type MovieSearchResult } from "./components/MovieSearchMenu";
 import { PasswordResetPage } from "./components/PasswordResetPage";
+import { movieCodeSchema } from "@kartiseret/contracts/runtime";
 import { AttributionPage } from "./components/AttributionPage";
 import { adminStatusQueryOptions } from "./data/adminStatus";
 import { BottomBar } from "./components/bars/BottomBar";
 import { useDeviceStore } from "./device/useDeviceType";
 import { PASSWORD_RESET_PATH } from "./lib/authRoutes";
-import { movieCodeSchema } from "./validation/runtime";
 import { useShallow } from "zustand/react/shallow";
 import type { User } from "@supabase/supabase-js";
 import { Navbar } from "./components/bars/Navbar";

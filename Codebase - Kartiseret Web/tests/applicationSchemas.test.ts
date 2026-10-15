@@ -1,4 +1,4 @@
-import { movieSchema, theaterSchema } from "../src/data/applicationSchemas.js";
+import { movieSchema, theaterSchema } from "@kartiseret/contracts/movies";
 import { describe, expect, it } from "vitest";
 
 describe("application model schemas", () => {

@@ -1,4 +1,4 @@
-import { httpUrlSchema, httpsUrlSchema, isoDateStringSchema, longitudeLatitudeSchema, movieCodeSchema, parseBoundary, safeParseJson, tmdbIdSchema } from "../src/validation/runtime.js";
+import { httpUrlSchema, httpsUrlSchema, isoDateStringSchema, longitudeLatitudeSchema, movieCodeSchema, parseBoundary, safeParseJson, tmdbIdSchema } from "@kartiseret/contracts/runtime";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 

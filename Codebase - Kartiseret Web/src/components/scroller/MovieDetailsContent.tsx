@@ -1,6 +1,6 @@
 import { APP_TIME_ZONE, fixedAppDateString, getMovieShowtimeCities, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, selectMovieShowtimeDays, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
 import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, saveShowtimeFilters, updateShowtimeFilterState, useShowtimeFiltersStore, type ShowtimeFilterOptions, type ShowtimeFilterSelections, type ShowtimeFilterState } from "../showtimes/showtimeFilters";
-import { addCalendarDays, SHOWTIME_LINK_DATE_COUNT } from "../../routing/showtimeLinkCodec";
+import { addCalendarDays, SHOWTIME_LINK_DATE_COUNT } from "@kartiseret/contracts/showtime-links";
 import { selectCities, theaterDataQueryOptions, type City } from "../../data/theaters";
 import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from "react";
 import { Clock8, ExternalLink, MapPin, MoveRight, Star, X } from "lucide-react";

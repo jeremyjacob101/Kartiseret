@@ -1,6 +1,6 @@
 {
-  "installCommand": "npm --prefix \"Codebase - Kartiseret Web\" install",
-  "buildCommand": "npm --prefix \"Codebase - Kartiseret Web\" run build",
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build",
   "outputDirectory": "Codebase - Kartiseret Web/dist",
   "functions": {
     "api/og.ts": {

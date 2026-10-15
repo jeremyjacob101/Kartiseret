@@ -1,11 +1,11 @@
 import { theaterRowSchema, type TheaterRow } from "./externalSchemas";
+import type { City, Theater } from "@kartiseret/contracts/movies";
+import { parseBoundary } from "@kartiseret/contracts/runtime";
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import type { City, Theater } from "./applicationSchemas";
-import { parseBoundary } from "../validation/runtime";
 import { queryOptions } from "@tanstack/react-query";
 import { queryClient } from "../lib/queryClient";
 
-export type { City, Theater } from "./applicationSchemas";
+export type { City, Theater } from "@kartiseret/contracts/movies";
 
 const THEATERS_TABLE_NAME = "theaters";
 const CITY_NAME_JOIN_THEATER_SELECT_COLUMNS = [

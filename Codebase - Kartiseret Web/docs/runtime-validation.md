@@ -19,14 +19,16 @@ After the boundary parse, use `z.infer`, `z.input`, or `z.output` types and pass
 
 ## Schema placement
 
-- `src/validation/runtime.ts` owns reusable primitives and the shared parsing helpers.
+- `packages/contracts/src/runtime.ts` owns reusable primitives and shared parsing helpers, exported through `@kartiseret/contracts/runtime`.
 - `src/data/externalSchemas.ts` owns runtime schemas for external database rows and mutation inputs.
 - `src/data/ticketAlertSchemas.ts` owns ticket-alert forms, account rows, and listing projections. Normalized subscription and listing types are inferred from those schemas.
-- `src/data/applicationSchemas.ts` owns internal model contracts and their inferred types. These schemas support fixtures and future normalized-model ingress, but normal internal mapping is type-checked rather than reparsed.
+- `packages/contracts/src/movies.ts` owns normalized movie, city, and theater contracts and their inferred types. These schemas support fixtures and future normalized-model ingress, but normal internal mapping is type-checked rather than reparsed.
+- `packages/contracts/src/preferences.ts` owns pure preference values, schemas, defaults, and normalization. Browser persistence and theme mutations remain in `src/prefs/definitions/`.
+- `packages/contracts/src/showtime-day.ts`, `showtime-filters.ts`, and `showtime-links.ts` own pure cinema-day, filter, and short-link rules shared by the browser and existing social-preview functions.
 - Feature-specific recoverable schemas stay beside the boundary that owns their fallback behavior.
 - `server/og/schemas.ts` owns server request, database-response, and preview-output contracts.
 
-Do not create a general schema barrel or a second validation library. Direct imports make ownership visible and keep bundling predictable.
+Do not create a general schema barrel or a second validation library. Import shared code through its named package subpaths so ownership remains visible and bundling stays predictable. Provider-specific auth and database-row parsing remain with the web/server integration that owns each boundary.
 
 ## Persistence
 
@@ -46,6 +48,6 @@ Ticket-alert state is account-only. Subscription reads and mutations go directly
 
 Runtime validation tests use fixtures only. They must not connect to Supabase or other production services. Ticket-alert service tests replace the Supabase module before import, use in-memory storage, and forbid network fetches. They cover validation failures before mutation, account-only table mutations, cache recovery, pagination, auth-menu routing, and relative links. Do not run migrations, send email, or use live account subscriptions to test validation changes.
 
-`npm run build` creates the production bundle. `npm run bundle:check` then measures the entry module plus every `modulepreload` referenced by `dist/index.html`. The default eager-JavaScript budget is 210 KiB gzip (the current boundary-schema build is about 203 KiB) and can be overridden in CI with `EAGER_JS_GZIP_BUDGET_BYTES`.
+From the repository root, `npm run build` emits `packages/contracts/dist/` as ESM and declarations, then typechecks and builds the frontend. `npm run bundle:check` measures the entry module plus every `modulepreload` referenced by `Codebase - Kartiseret Web/dist/index.html`. The default eager-JavaScript budget is 210 KiB gzip (the base commit measured 205.9 KiB; PR 1 measured 207.5 KiB) and can be overridden in CI with `EAGER_JS_GZIP_BUDGET_BYTES`.
 
-Use `npm run verify` for the complete local/CI validation sequence.
+Use root `npm run verify` for the complete local/CI validation sequence; it builds shared contracts before running frontend, social-preview, and bundle checks.

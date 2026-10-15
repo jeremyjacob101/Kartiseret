@@ -1,6 +1,6 @@
 import { TicketAlertControl } from "../src/components/scroller/TicketAlertControl";
+import { getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
 import { useUserPreferencesStore } from "../src/stores/userPreferencesStore";
-import { getJerusalemCinemaDate } from "../src/routing/showtimeLinkCodec";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ticketAlertQueryKeys } from "../src/data/ticketAlerts";
 import { QueryClientProvider } from "@tanstack/react-query";

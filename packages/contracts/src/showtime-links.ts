@@ -1,5 +1,11 @@
-import { httpUrlSchema, isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema, safeParseJson } from "../validation/runtime.js";
-import { getCinemaDayDate, SHOWTIME_TIME_ZONE } from "../domain/showtimeDay.js";
+import {
+  httpUrlSchema,
+  isoDateStringSchema,
+  movieCodeSchema,
+  nonEmptyTrimmedStringSchema,
+  safeParseJson,
+} from "./runtime.js";
+import { getCinemaDayDate, SHOWTIME_TIME_ZONE } from "./showtime-day.js";
 import { z } from "zod";
 
 export const URL_ALPHABET =
@@ -171,20 +177,19 @@ const movieRouteCodeInputSchema = z.string().max(10);
 export type MovieRouteMode = z.infer<typeof movieRouteModeSchema>;
 
 export type ParsedMovieRoute =
-
-    | {
-        kind: "plain";
-        movieCode: string;
-      }
-    | {
-        kind: "encoded";
-        movieCode: string;
-        cityCode: string;
-        dateCode: string;
-        filterMask: number;
-        mode: MovieRouteMode;
-        usedFilterShortcut: boolean;
-      };
+  | {
+      kind: "plain";
+      movieCode: string;
+    }
+  | {
+      kind: "encoded";
+      movieCode: string;
+      cityCode: string;
+      dateCode: string;
+      filterMask: number;
+      mode: MovieRouteMode;
+      usedFilterShortcut: boolean;
+    };
 
 export type EncodedMovieRouteState = z.input<
   typeof encodedMovieRouteStateSchema
@@ -287,7 +292,8 @@ export function isCanonicalShowtimeFilterMatch(
     selections.screenFormat.has(metadata.screenFormatToken) &&
     metadata.screeningTechTokens.length > 0 &&
     metadata.screeningTechTokens.some((token) =>
-      selections.screeningTech.has(token)) &&
+      selections.screeningTech.has(token),
+    ) &&
     selections.dubLanguage.has(metadata.dubLanguage)
   );
 }

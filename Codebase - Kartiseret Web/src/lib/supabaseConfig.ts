@@ -1,4 +1,4 @@
-import { httpUrlSchema, nonEmptyTrimmedStringSchema, parseBoundary } from "../validation/runtime.js";
+import { httpUrlSchema, nonEmptyTrimmedStringSchema, parseBoundary } from "@kartiseret/contracts/runtime";
 import { z } from "zod";
 
 export const supabaseConfigSchema = z.object({

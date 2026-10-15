@@ -1,4 +1,9 @@
-import { isCanonicalShowtimeFilterMatch, SHOWTIME_FILTER_OPTIONS, type PersistedShowtimeFilterState, type ShowtimeFilterGroup } from "../routing/showtimeLinkCodec.js";
+import {
+  isCanonicalShowtimeFilterMatch,
+  SHOWTIME_FILTER_OPTIONS,
+  type PersistedShowtimeFilterState,
+  type ShowtimeFilterGroup,
+} from "./showtime-links.js";
 
 const COLLAPSE_WHITESPACE = /\s+/g;
 const WARNED_UNSUPPORTED_SHOW_TYPES = new Set<string>();
@@ -245,7 +250,8 @@ export function filterTheatersBySelections<Showtime extends FilterableShowtime>(
       isCanonicalShowtimeFilterMatch(
         getCanonicalShowtimeMeta(showtime),
         selections,
-      ));
+      ),
+    );
 
     return showtimes.length > 0
       ? [{ theater: theater.theater, showtimes }]

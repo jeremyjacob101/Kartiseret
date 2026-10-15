@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type WheelEvent } from "react";
 import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
-import { buildMovieShowtimeShareUrl, filterMaskFromUnchecked, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "../../routing/showtimeLinkCodec";
+import { buildMovieShowtimeShareUrl, filterMaskFromUnchecked, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "@kartiseret/contracts/showtime-links";
 import { loadShowtimes, loadShowtimesAroundDate, movieCollectionQueryOptions, selectMovies, type Movie } from "../../data/movieCatalog";
 import { MovieDetailsContent, type MovieDetailsShareSelection, type MovieDetailsVariant } from "./MovieDetailsContent";
 import { useUserPreferencesStore } from "../../stores/userPreferencesStore";

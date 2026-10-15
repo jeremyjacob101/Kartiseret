@@ -1,4 +1,4 @@
-import { httpsUrlSchema } from "../../src/validation/runtime.js";
+import { httpsUrlSchema } from "@kartiseret/contracts/runtime";
 import { formatPreviewReleaseDate } from "./previewFormat.js";
 import type { PreviewData } from "./previewData.js";
 import sharp, { type OverlayOptions } from "sharp";

@@ -1,4 +1,4 @@
-import { httpUrlSchema, isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema, showtimeStringSchema, tmdbIdSchema } from "../validation/runtime";
+import { httpUrlSchema, isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema, showtimeStringSchema, tmdbIdSchema } from "@kartiseret/contracts/runtime";
 import { appLocationSchema } from "../prefs/definitions/locations";
 import { supabaseUserIdSchema } from "../lib/supabaseSchemas";
 import { z } from "zod";

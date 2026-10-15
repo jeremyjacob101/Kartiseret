@@ -1,5 +1,5 @@
-import { cloneUncheckedGroups, type ShowtimeFilterState } from "../../domain/showtimeFilters.js";
-import { migrateShowtimeFilterJson } from "../../routing/showtimeLinkCodec.js";
+import { cloneUncheckedGroups, type ShowtimeFilterState } from "@kartiseret/contracts/showtime-filters";
+import { migrateShowtimeFilterJson } from "@kartiseret/contracts/showtime-links";
 import { create } from "zustand";
 
 export {
@@ -10,13 +10,13 @@ export {
   normalizeScreeningTech,
   normalizeScreeningType,
   updateShowtimeFilterState,
-} from "../../domain/showtimeFilters.js";
+} from "@kartiseret/contracts/showtime-filters";
 export type {
   CanonicalShowtimeMeta,
   ShowtimeFilterOptions,
   ShowtimeFilterSelections,
   ShowtimeFilterState,
-} from "../../domain/showtimeFilters.js";
+} from "@kartiseret/contracts/showtime-filters";
 
 const SHOWTIME_FILTERS_STORAGE_KEY = "showtime_filters_v1";
 

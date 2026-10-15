@@ -5,8 +5,8 @@ import { supabaseUserIdSchema, supabaseUserIdentitySchema } from "../lib/supabas
 import type { UserPreferenceDefinition } from "../prefs/definitions/shared";
 import { buildInitialPreferencesRow } from "../prefs/initialPreferences";
 import { shouldRollbackOptimisticSave } from "./preferenceSavePolicy";
+import { parseBoundary } from "@kartiseret/contracts/runtime";
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import { parseBoundary } from "../validation/runtime";
 import type { User } from "@supabase/supabase-js";
 import { create } from "zustand";
 import { z } from "zod";
