@@ -10,6 +10,7 @@ RESTART_SLEEP_SECONDS="${RESTART_SLEEP_SECONDS:-5}"
 RESTART_MAX_SLEEP_SECONDS="${RESTART_MAX_SLEEP_SECONDS:-60}"
 RUN_LOCK_SLEEP_SECONDS="${RUN_LOCK_SLEEP_SECONDS:-600}"
 RUN_LOCK_MAX_WAIT_SECONDS="${RUN_LOCK_MAX_WAIT_SECONDS:-10800}"
+PIPELINE_TERMINATION_GRACE_SECONDS="${PIPELINE_TERMINATION_GRACE_SECONDS:-}"
 SUPABASE_URL="${SUPABASE_URL:-}"
 SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-}"
 
@@ -28,6 +29,11 @@ fi
 dotenv_value() {
   "$PYTHON_BIN" "$SCRIPT_DIR/dotenv_value.py" "$1" "$PROJECT/.env"
 }
+
+if [[ -z "$PIPELINE_TERMINATION_GRACE_SECONDS" ]]; then
+  PIPELINE_TERMINATION_GRACE_SECONDS="$(dotenv_value PIPELINE_TERMINATION_GRACE_SECONDS)"
+fi
+PIPELINE_TERMINATION_GRACE_SECONDS="${PIPELINE_TERMINATION_GRACE_SECONDS:-20}"
 
 if [[ -z "$SUPABASE_URL" ]]; then
   SUPABASE_URL="$(dotenv_value SUPABASE_URL)"
@@ -52,6 +58,7 @@ export REALTIME_GIT_SSH_KEY
 export REALTIME_LOG_LEVEL
 export RUN_LOCK_MAX_WAIT_SECONDS
 export RUN_LOCK_SLEEP_SECONDS
+export PIPELINE_TERMINATION_GRACE_SECONDS
 export SUPABASE_SERVICE_ROLE_KEY
 export SUPABASE_URL
 
@@ -89,7 +96,9 @@ stop_watcher() {
     if [[ "$pid" == <-> ]] && kill -0 "$pid" 2>/dev/null; then
       kill -TERM "$pid" 2>/dev/null || true
 
-      for _ in 1 2 3 4 5; do
+      local shutdown_wait=$((PIPELINE_TERMINATION_GRACE_SECONDS + 6))
+      local i
+      for ((i = 1; i <= shutdown_wait; i++)); do
         if ! kill -0 "$pid" 2>/dev/null; then
           break
         fi
