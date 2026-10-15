@@ -1,10 +1,10 @@
 import { databaseMovieSchema, databaseShowtimeSchema, movieCodeLookupRowSchema, previewDataSchema, type DatabaseMovie, type DatabaseShowtime, type PreviewData, type PreviewRouteSelection, type PreviewTheater } from "./schemas.js";
-import { decodeDateCode, isCanonicalShowtimeFilterMatch, parseMovieRouteCode, resolveCityCode, SHOWTIME_FILTER_OPTIONS, uncheckedFromFilterMask } from "../../src/routing/showtimeLinkCodec.js";
-import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime, SHOWTIME_TIME_ZONE } from "../../src/domain/showtimeDay.js";
-import { buildShowtimeFilterSelections, getCanonicalShowtimeMeta } from "../../src/domain/showtimeFilters.js";
+import { decodeDateCode, isCanonicalShowtimeFilterMatch, parseMovieRouteCode, resolveCityCode, SHOWTIME_FILTER_OPTIONS, uncheckedFromFilterMask } from "@kartiseret/contracts/showtime-links";
+import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime, SHOWTIME_TIME_ZONE } from "@kartiseret/contracts/showtime-day";
+import { buildShowtimeFilterSelections, getCanonicalShowtimeMeta } from "@kartiseret/contracts/showtime-filters";
 import { resolveOptionalSupabaseConfig } from "../../src/lib/supabaseConfig.js";
-import { parseBoundary, safeParseJson } from "../../src/validation/runtime.js";
-import { DEFAULT_LOCATION } from "../../src/prefs/definitions/locations.js";
+import { parseBoundary, safeParseJson } from "@kartiseret/contracts/runtime";
+import { DEFAULT_LOCATION } from "@kartiseret/contracts/preferences";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 

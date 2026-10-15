@@ -1,6 +1,6 @@
 import { getPreviewData, resolvePreviewRouteSelection, type PreviewData } from "../server/og/previewData";
+import { encodeDateCode, encodeMovieRouteCode } from "@kartiseret/contracts/showtime-links";
 import { buildPreviewDescription, injectOpenGraphTags } from "../server/og/previewHtml";
-import { encodeDateCode, encodeMovieRouteCode } from "../src/routing/showtimeLinkCodec";
 import { formatPreviewReleaseDate } from "../server/og/previewFormat";
 import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";

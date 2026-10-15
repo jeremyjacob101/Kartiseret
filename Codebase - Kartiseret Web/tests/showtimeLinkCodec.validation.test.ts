@@ -1,4 +1,4 @@
-import { buildMovieShowtimeSharePath, buildMovieShowtimeShareUrl, encodeDateCode, encodeMovieRouteCode, migrateShowtimeFilterJson, migrateShowtimeFilterState, parseMovieRouteCode } from "../src/routing/showtimeLinkCodec.js";
+import { buildMovieShowtimeSharePath, buildMovieShowtimeShareUrl, encodeDateCode, encodeMovieRouteCode, migrateShowtimeFilterJson, migrateShowtimeFilterState, parseMovieRouteCode } from "@kartiseret/contracts/showtime-links";
 import { describe, expect, it } from "vitest";
 
 describe("showtime filter persistence validation", () => {

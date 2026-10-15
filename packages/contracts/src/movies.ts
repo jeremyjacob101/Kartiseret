@@ -1,4 +1,9 @@
-import { isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema, tmdbIdSchema } from "../validation/runtime.js";
+import {
+  isoDateStringSchema,
+  movieCodeSchema,
+  nonEmptyTrimmedStringSchema,
+  tmdbIdSchema,
+} from "./runtime.js";
 import { z } from "zod";
 
 /**

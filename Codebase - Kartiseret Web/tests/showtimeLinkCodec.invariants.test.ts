@@ -1,4 +1,4 @@
-import { DATE_CODE_ALPHABET, SHOWTIME_FILTER_BIT_COUNT, SHOWTIME_FILTER_BIT_ASSIGNMENTS, addCalendarDays, decodeBase62, decodeDateCode, decodeFilterMask, encodeBase62Fixed, encodeDateCode, encodeFilterMask, filterMaskFromUnchecked, isCanonicalShowtimeFilterMatch, isDateInShowtimeLinkWindow, isSupportedFilterMask, uncheckedFromFilterMask } from "../src/routing/showtimeLinkCodec";
+import { DATE_CODE_ALPHABET, SHOWTIME_FILTER_BIT_COUNT, SHOWTIME_FILTER_BIT_ASSIGNMENTS, addCalendarDays, decodeBase62, decodeDateCode, decodeFilterMask, encodeBase62Fixed, encodeDateCode, encodeFilterMask, filterMaskFromUnchecked, isCanonicalShowtimeFilterMatch, isDateInShowtimeLinkWindow, isSupportedFilterMask, uncheckedFromFilterMask } from "@kartiseret/contracts/showtime-links";
 import { describe, expect, it } from "vitest";
 
 const today = "2026-09-16";

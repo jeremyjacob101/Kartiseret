@@ -1,4 +1,4 @@
-import { addCalendarDays, buildMovieShowtimeShareUrl, decodeBase62, decodeDateCode, decodeFilterMask, encodeBase62Fixed, encodeDateCode, encodeFilterMask, encodeMovieRouteCode, filterMaskFromUnchecked, getTargetedShowtimePrefetchRange, isCanonicalShowtimeFilterMatch, isDateInShowtimeLinkWindow, migrateShowtimeFilterState, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask } from "../src/routing/showtimeLinkCodec";
+import { addCalendarDays, buildMovieShowtimeShareUrl, decodeBase62, decodeDateCode, decodeFilterMask, encodeBase62Fixed, encodeDateCode, encodeFilterMask, encodeMovieRouteCode, filterMaskFromUnchecked, getTargetedShowtimePrefetchRange, isCanonicalShowtimeFilterMatch, isDateInShowtimeLinkWindow, migrateShowtimeFilterState, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask } from "@kartiseret/contracts/showtime-links";
 import { describe, expect, it } from "vitest";
 
 describe("showtime share-link codec", () => {

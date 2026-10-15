@@ -1,8 +1,8 @@
 import { ticketAlertChangeSchema, ticketAlertMovieIdSchema, ticketAlertShowtimePageSchema, ticketAlertShowtimeRowSchema, userTicketAlertSubscriptionRowSchema, type TicketAlertChange, type TicketAlertShowtime, type UserTicketAlertSubscription } from "./ticketAlertSchemas";
-import { buildMovieShowtimeSharePath, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "../routing/showtimeLinkCodec";
+import { buildMovieShowtimeSharePath, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "@kartiseret/contracts/showtime-links";
+import { isoDateStringSchema, movieCodeSchema, parseBoundary } from "@kartiseret/contracts/runtime";
 import { mutationOptions, queryOptions, skipToken, type QueryClient } from "@tanstack/react-query";
-import { isoDateStringSchema, movieCodeSchema, parseBoundary } from "../validation/runtime";
-import { getShowtimeSortValue, shouldIncludeShowtime } from "../domain/showtimeDay";
+import { getShowtimeSortValue, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
 import { normalizeTicketAlertTmdbId } from "../domain/ticketAlerts";
 import { supabaseUserIdSchema } from "../lib/supabaseSchemas";
 import { getSupabaseBrowserClient } from "../lib/supabase";

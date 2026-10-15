@@ -1,45 +1,21 @@
+import { DEFAULT_SITE_COLOR, SITE_COLOR_OPTIONS, SITE_COLOR_PREFERENCE_COLUMN, SITE_COLOR_PREFERENCE_KEY, normalizeSiteColor, siteColorOptionSchema, siteColorSchema } from "@kartiseret/contracts/preferences";
+import type { SiteColor, SiteColorOption } from "@kartiseret/contracts/preferences";
 import type { UserPreferenceDefinition } from "./shared";
-import { z } from "zod";
 
-export const siteColorSchema = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .regex(/^#[\da-f]{6}$/);
-export const siteColorOptionSchema = z.object({
-  label: z.string().min(1),
-  value: siteColorSchema,
-});
-export type SiteColor = z.infer<typeof siteColorSchema>;
-export type SiteColorOption = z.infer<typeof siteColorOptionSchema>;
+export {
+  DEFAULT_SITE_COLOR,
+  normalizeSiteColor,
+  SITE_COLOR_OPTIONS,
+  SITE_COLOR_PREFERENCE_COLUMN,
+  SITE_COLOR_PREFERENCE_KEY,
+  siteColorOptionSchema,
+  siteColorSchema,
+};
+export type { SiteColor, SiteColorOption };
 
-export const DEFAULT_SITE_COLOR: SiteColor = "#a66ae3";
-export const SITE_COLOR_PREFERENCE_KEY = "siteColor";
-export const SITE_COLOR_PREFERENCE_COLUMN = {
-  name: "site_color",
-} as const;
-export const SITE_COLOR_OPTIONS = [
-  { label: "Pink", value: "#e269ba" },
-  { label: "Red", value: "#ed4c57" },
-  { label: "Orange", value: "#d97f3a" },
-  { label: "Yellow", value: "#bebe2d" },
-  { label: "Green", value: "#63ae3d" },
-  { label: "Teal", value: "#3caa8e" },
-  { label: "Blue", value: "#69b0e2" },
-  { label: "Indigo", value: "#4375d9" },
-  { label: "Purple", value: DEFAULT_SITE_COLOR },
-] as const satisfies readonly SiteColorOption[];
 const CACHED_SITE_COLOR_KEY = "cached_site_color_v1";
 const SITE_COLOR_TRANSITIONS_ENABLED_CLASS = "site-color-transitions-enabled";
 const SITE_COLOR_INITIALIZED_ATTRIBUTE = "data-site-color-initialized";
-
-export function normalizeSiteColor(
-  value: unknown,
-  fallback: SiteColor = DEFAULT_SITE_COLOR,
-): SiteColor {
-  const result = siteColorSchema.safeParse(value);
-  return result.success ? result.data : fallback;
-}
 
 export function loadCachedSiteColor(): SiteColor | null {
   try {

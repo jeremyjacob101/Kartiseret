@@ -1,0 +1,50 @@
+{
+  "name": "@kartiseret/contracts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "import": "./dist/runtime.js",
+      "default": "./dist/runtime.js"
+    },
+    "./movies": {
+      "types": "./dist/movies.d.ts",
+      "import": "./dist/movies.js",
+      "default": "./dist/movies.js"
+    },
+    "./showtime-day": {
+      "types": "./dist/showtime-day.d.ts",
+      "import": "./dist/showtime-day.js",
+      "default": "./dist/showtime-day.js"
+    },
+    "./showtime-filters": {
+      "types": "./dist/showtime-filters.d.ts",
+      "import": "./dist/showtime-filters.js",
+      "default": "./dist/showtime-filters.js"
+    },
+    "./showtime-links": {
+      "types": "./dist/showtime-links.d.ts",
+      "import": "./dist/showtime-links.js",
+      "default": "./dist/showtime-links.js"
+    },
+    "./preferences": {
+      "types": "./dist/preferences.d.ts",
+      "import": "./dist/preferences.js",
+      "default": "./dist/preferences.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  }
+}

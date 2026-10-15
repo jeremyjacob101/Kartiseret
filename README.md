@@ -102,7 +102,7 @@ State ownership follows one rule: the system that owns the source of truth also 
 
 `useUserPreferencesStore` is a deliberate synchronization exception. Supabase auth events, the active session, guest preference persistence, cached theme bootstrap, immediate theme application, optimistic saves, rollback, auth-generation guards, and rapid-save coalescing form one small protocol. Splitting the authenticated preference row into a query plus a second client store would create two competing owners and make rollback ordering harder to trace. Confirmed-email signups use the same default-row builder as instant signups, honor signup location metadata before guest location, and initialize missing rows without overwriting existing preferences. Admin membership is not part of that protocol and is therefore a normal user-keyed query. Revisit the preference exception only if the entire synchronization protocol can move as one vertical slice without weakening guest behavior or save coalescing.
 
-Run `npm test`, `npm run lint`, `npm run format:check`, and `npm run build` from the frontend directory. Focused tests cover query-key dimensions, immutable showtime/alert cache merging, request deduplication/cancellation, targeted invalidation, account isolation, failed account writes, signup defaults, and preference rollback/coalescing policy. Tests use in-memory Supabase transport, never real credentials or network writes. Browser QA must use a local read-only Supabase fixture; production data, deployments, and authenticated remote writes are outside the frontend verification workflow.
+Run JavaScript workspace commands from the repository root: `npm test`, `npm run lint`, `npm run format:check`, `npm run typecheck`, `npm run build`, or the complete `npm run verify`. Focused tests cover query-key dimensions, immutable showtime/alert cache merging, request deduplication/cancellation, targeted invalidation, account isolation, failed account writes, signup defaults, and preference rollback/coalescing policy. Tests use in-memory Supabase transport, never real credentials or network writes. Browser QA must use a local read-only Supabase fixture; production data, deployments, and authenticated remote writes are outside the frontend verification workflow.
 
 ### Frontend UX Details
 
@@ -255,8 +255,7 @@ The frontend lives in `Codebase - Kartiseret Web/` and expects:
 Setup and run:
 
 ```bash
-cd "Codebase - Kartiseret Web"
-npm install
+npm ci
 npm run dev
 ```
 
@@ -266,11 +265,12 @@ Run the fixture-only runtime-validation suite and the full production build with
 
 ```bash
 npm test
+npm run typecheck
 npm run build
 npm run bundle:check
 ```
 
-The validation architecture and one-parse-per-boundary convention are documented in [`Codebase - Kartiseret Web/docs/runtime-validation.md`](Codebase%20-%20Kartiseret%20Web/docs/runtime-validation.md). Run `npm run verify` for the complete lint, formatting, fixture-test, build, and eager-bundle validation sequence.
+These commands run from the repository root. Shared contracts are exported through explicit `@kartiseret/contracts/*` subpaths and built before frontend or Vercel functions consume them. The validation architecture and one-parse-per-boundary convention are documented in [`Codebase - Kartiseret Web/docs/runtime-validation.md`](Codebase%20-%20Kartiseret%20Web/docs/runtime-validation.md). Run `npm run verify` for the complete lint, formatting, typecheck, fixture-test, build, and eager-bundle validation sequence.
 
 Email signups are handled by Supabase Auth. When Confirm Email is enabled, new
 users must confirm their address before logging in or creating a ticket alert;
@@ -316,6 +316,8 @@ Recommended rollout order:
 │   ├── scraping/               Selenium scrapers for chains, coming-soon pages, and cinematheques
 │   ├── dataflow/               Cleaning, TMDb matching, enrichment, dedupe, and preview generation
 │   └── utils/                  Console UI, logging artifacts, and Supabase helpers
+├── packages/contracts/         Shared Zod contracts and pure domain helpers
+│   └── src/                    Explicitly exported ESM contract modules
 ├── Codebase - Kartiseret Web/  React + TypeScript frontend SPA
 │   ├── config/                 Vite, TypeScript, and prettier config
 │   ├── src/                    App source: components, data, lib, prefs
@@ -325,6 +327,8 @@ Recommended rollout order:
 │   ├── eslint.config.js
 │   ├── tsconfig.json
 │   └── package.json
+├── package.json                Root npm workspace and verification commands
+├── package-lock.json           Single npm workspace lockfile
 ├── .env                        Shared environment variables (Supabase keys, etc.)
 ├── LICENSE.md
 ├── README.md

@@ -40,6 +40,8 @@ backend/config/cron/run_realtime_logs/
 /Codebase\ -\ Kartiseret\ Web/lerna-debug.log*
 
 # Kartiseret web dependencies and builds
+/node_modules/
+/packages/contracts/dist/
 /Codebase\ -\ Kartiseret\ Web/node_modules/
 /Codebase\ -\ Kartiseret\ Web/**/node_modules/
 /Codebase\ -\ Kartiseret\ Web/dist/

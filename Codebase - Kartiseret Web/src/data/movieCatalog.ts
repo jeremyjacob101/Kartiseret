@@ -1,10 +1,10 @@
 import { adminMovieEditPayloadSchema, comingSoonMovieRowSchema, existingMovieTargetRowSchema, movieCodeRowSchema, movieAltOptionInputSchema, movieRowSchema, showtimeRowSchema, type ComingSoonMovieRow, type MovieRow } from "./externalSchemas";
-import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime as shouldIncludeShowtimeAtInstant, SHOWTIME_TIME_ZONE } from "../domain/showtimeDay.js";
-import { addCalendarDays, getJerusalemCinemaDate, getTargetedShowtimePrefetchRange, SHOWTIME_LINK_DATE_COUNT } from "../routing/showtimeLinkCodec.js";
+import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime as shouldIncludeShowtimeAtInstant, SHOWTIME_TIME_ZONE } from "@kartiseret/contracts/showtime-day";
+import { addCalendarDays, getJerusalemCinemaDate, getTargetedShowtimePrefetchRange, SHOWTIME_LINK_DATE_COUNT } from "@kartiseret/contracts/showtime-links";
 import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/definitions/locations.js";
+import { parseBoundary, movieCodeSchema, safeParseJson } from "@kartiseret/contracts/runtime";
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
-import { parseBoundary, movieCodeSchema, safeParseJson } from "../validation/runtime";
-import { movieSchema, movieAltOptionSchema } from "./applicationSchemas";
+import { movieSchema, movieAltOptionSchema } from "@kartiseret/contracts/movies";
 import { getSupabaseBrowserClient } from "../lib/supabase.js";
 import { ticketAlertQueryKeys } from "./ticketAlerts";
 import { queryClient } from "../lib/queryClient.js";

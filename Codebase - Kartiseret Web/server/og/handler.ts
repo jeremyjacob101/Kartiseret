@@ -1,6 +1,6 @@
 import { NO_STORE_CACHE_CONTROL, PREVIEW_CACHE_CONTROL } from "./cacheControl.js";
 import type { VercelRequest, VercelResponse } from "./vercelTypes.js";
-import { httpUrlSchema } from "../../src/validation/runtime.js";
+import { httpUrlSchema } from "@kartiseret/contracts/runtime";
 import { injectOpenGraphTags } from "./previewHtml.js";
 import { ogRequestQuerySchema } from "./schemas.js";
 import { getPreviewData } from "./previewData.js";

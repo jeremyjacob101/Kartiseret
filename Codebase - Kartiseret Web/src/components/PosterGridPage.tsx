@@ -1,6 +1,6 @@
 import { type CSSProperties, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { tmdbIdSchema } from "@kartiseret/contracts/runtime";
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
-import { tmdbIdSchema } from "../validation/runtime";
 import { type Movie } from "../data/movieCatalog";
 import { Pencil } from "lucide-react";
 

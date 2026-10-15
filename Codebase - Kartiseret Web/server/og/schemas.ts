@@ -1,4 +1,4 @@
-import { isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema, tmdbIdSchema } from "../../src/validation/runtime.js";
+import { isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema, tmdbIdSchema } from "@kartiseret/contracts/runtime";
 import { z } from "zod";
 
 const nullableNumberishSchema = z.union([

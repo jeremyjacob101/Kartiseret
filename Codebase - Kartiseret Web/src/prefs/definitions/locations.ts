@@ -1,74 +1,20 @@
+import { DEFAULT_LOCATION, LOCATION_PREFERENCE_COLUMN, LOCATION_PREFERENCE_KEY, LOCATION_SIGNUP_METADATA_KEY, ALL_LOCATIONS, appLocationSchema, canonicalAppLocationSchema, normalizeLocation } from "@kartiseret/contracts/preferences";
+import type { AppLocation, CanonicalAppLocation } from "@kartiseret/contracts/preferences";
 import type { UserPreferenceDefinition } from "./shared.js";
-import { z } from "zod";
 
-export const ALL_LOCATIONS = [
-  "Afula",
-  "Ashdod",
-  "Ashkelon",
-  "Ayalon",
-  "Beer Sheva",
-  "Carmiel",
-  "Chadera",
-  "Even Yehuda",
-  "Givatayim",
-  "Glilot",
-  "Haifa",
-  "Herziliya",
-  "Jerusalem",
-  "Kfar Saba",
-  "Kiryat Bialik",
-  "Kiryat Ono",
-  "Modiin",
-  "Nahariya",
-  "Netanya",
-  "Omer",
-  "Petach Tikvah",
-  "Raanana",
-  "Ramat Hasharon",
-  "Rehovot",
-  "Rishon Letzion",
-  "Tel Aviv",
-  "Zichron Yaakov",
-  "Holon",
-] as const;
-
-export const canonicalAppLocationSchema = z.enum(ALL_LOCATIONS);
-export type CanonicalAppLocation = z.infer<typeof canonicalAppLocationSchema>;
-
-export const DEFAULT_LOCATION: AppLocation = "Jerusalem";
-export const LOCATION_PREFERENCE_KEY = "location";
-export const LOCATION_SIGNUP_METADATA_KEY = "signup_location";
-export const LOCATION_PREFERENCE_COLUMN = {
-  name: "location",
-} as const;
+export {
+  ALL_LOCATIONS,
+  appLocationSchema,
+  canonicalAppLocationSchema,
+  DEFAULT_LOCATION,
+  LOCATION_PREFERENCE_COLUMN,
+  LOCATION_PREFERENCE_KEY,
+  LOCATION_SIGNUP_METADATA_KEY,
+  normalizeLocation,
+};
+export type { AppLocation, CanonicalAppLocation };
 
 const GUEST_LOCATION_KEY = "guest_location_v1";
-const canonicalLocationByNormalizedValue = new Map(
-  ALL_LOCATIONS.map((location) => [normalizeLocationValue(location), location]),
-);
-
-function normalizeLocationValue(value: string): string {
-  return value.trim().replace(/\s+/g, " ");
-}
-
-export const appLocationSchema = z
-  .string()
-  .transform(normalizeLocationValue)
-  .pipe(z.string().min(1));
-export type AppLocation = z.infer<typeof appLocationSchema>;
-
-export function normalizeLocation(
-  value: unknown,
-  fallback: AppLocation = DEFAULT_LOCATION,
-): AppLocation {
-  const result = appLocationSchema.safeParse(value);
-
-  if (!result.success) {
-    return fallback;
-  }
-
-  return canonicalLocationByNormalizedValue.get(result.data) ?? result.data;
-}
 
 export function loadGuestLocation(): AppLocation | null {
   if (typeof window === "undefined") {

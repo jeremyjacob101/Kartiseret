@@ -1,4 +1,4 @@
-import { buildShowtimeFilterSelections, cloneUncheckedGroups, filterTheatersBySelections, getCanonicalShowtimeMeta, getShowtimeFilterOptions, normalizeScreeningTech, normalizeScreeningType, updateShowtimeFilterState, type FilterableShowtime, type FilterableTheater } from "../src/domain/showtimeFilters";
+import { buildShowtimeFilterSelections, cloneUncheckedGroups, filterTheatersBySelections, getCanonicalShowtimeMeta, getShowtimeFilterOptions, normalizeScreeningTech, normalizeScreeningType, updateShowtimeFilterState, type FilterableShowtime, type FilterableTheater } from "@kartiseret/contracts/showtime-filters";
 import { describe, expect, it, vi } from "vitest";
 
 describe("showtime filter normalization", () => {

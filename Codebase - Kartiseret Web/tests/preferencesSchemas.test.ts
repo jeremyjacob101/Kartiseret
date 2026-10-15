@@ -1,6 +1,5 @@
-import { DEFAULT_RATING_SOURCES, normalizeRatingSources, ratingSourceSchema } from "../src/prefs/definitions/ratingSources.js";
-import { DEFAULT_LOCATION, loadInitialPreferenceLocation, normalizeLocation } from "../src/prefs/definitions/locations.js";
-import { DEFAULT_SITE_COLOR, normalizeSiteColor, siteColorSchema } from "../src/prefs/definitions/siteColor.js";
+import { DEFAULT_LOCATION, DEFAULT_RATING_SOURCES, DEFAULT_SITE_COLOR, normalizeLocation, normalizeRatingSources, normalizeSiteColor, ratingSourceSchema, siteColorSchema } from "@kartiseret/contracts/preferences";
+import { loadInitialPreferenceLocation } from "../src/prefs/definitions/locations.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => vi.unstubAllGlobals());

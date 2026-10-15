@@ -1,5 +1,5 @@
 import { type Marker, type Offset, type PositionAnchor, LngLat, LngLatBounds, Map as MapLibreMap, Popup } from "maplibre-gl";
-import { longitudeLatitudeSchema } from "../../validation/runtime";
+import { longitudeLatitudeSchema } from "@kartiseret/contracts/runtime";
 import { type Theater } from "../../data/theaters";
 
 export const MAP_STYLE_URL =
