@@ -1,8 +1,6 @@
 from backend.dataflow.BaseDataflow import BaseDataflow
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import requests
-import time
 
 
 class ComingSoonsUpdate(BaseDataflow):
@@ -18,10 +16,7 @@ class ComingSoonsUpdate(BaseDataflow):
             return new_row
 
         # TMDb
-        try:
-            data = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}", params={"api_key": self.TMDB_API_KEY, "append_to_response": "external_ids,videos"}, timeout=10).json()
-        except:
-            data = ""
+        data = self.tmdbForUpdate(tmdb_id)
 
         genres = ["Sci-Fi" if genre["name"] == "Science Fiction" else genre["name"] for genre in (data.get("genres") or []) if genre.get("name")][:3] if isinstance(data, dict) else []
         trailer = (next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Trailer" and v.get("site") == "YouTube" and v.get("key") and v.get("iso_639_1") == "en"), None) or next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Teaser" and v.get("site") == "YouTube" and v.get("key") and v.get("iso_639_1") == "en"), None) or next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Trailer" and v.get("site") == "YouTube" and v.get("key")), None) or next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Teaser" and v.get("site") == "YouTube" and v.get("key")), None)) if isinstance(data, dict) else None
@@ -50,6 +45,7 @@ class ComingSoonsUpdate(BaseDataflow):
         if not target_rows:
             return
 
+        self.prepareUpdateTmdb(target_rows)
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = [executor.submit(self.process_row, row) for row in target_rows]
             for future in as_completed(futures):
@@ -57,9 +53,10 @@ class ComingSoonsUpdate(BaseDataflow):
                     result = future.result()
                     if result:
                         self.updates.append(result)
-                except Exception:
-                    pass
+                except Exception as error:
+                    self.trace_note(f"row_update_failed | error={type(error).__name__}")
 
+        self.trace_note(f"update_rows | requested={len(target_rows)} | updated={len(self.updates)}")
         if self.updates:
             self.upsertUpdates(self.MAIN_TABLE_NAME)
             self.dedupeFinalSoons(self.MAIN_TABLE_NAME)

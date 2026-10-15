@@ -9,7 +9,7 @@ from backend.utils.log.dataflow_summary_logging import write_dataflow_summary
 class DataflowSummaryHelpers:
     def init_dataflow_summary_state(self):
         self.summaryStartTime = time.time()
-        self.summaryEnabled = self.__class__.__name__ in {"CinemathequesTmdb", "ComingSoonsTmdb", "NowPlayingsTmdb"}
+        self.summaryEnabled = self.__class__.__name__ in {"CinemathequesTmdb", "ComingSoonsTmdb", "NowPlayingsTmdb", "CinemathequesUpdate", "ComingSoonsUpdate", "NowPlayingsUpdate"}
         self.summaryCounts = defaultdict(int)
         self.summaryStageBreakdown = defaultdict(int)
         self.summaryComingSoonDetails = []

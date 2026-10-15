@@ -1,11 +1,7 @@
-import csv, gzip, os, requests, time
 from datetime import datetime
 
 
 class NowPlayingsHelpers:
-    IMDB_RATINGS_URL = "https://datasets.imdbws.com/title.ratings.tsv.gz"
-    IMDB_RATINGS_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "title.ratings.tsv.gz")
-
     def applyYesPlanetHebrewToRavHenEnglish(self):
         yes_map = {}
         for row in self.main_table_rows:
@@ -127,49 +123,3 @@ class NowPlayingsHelpers:
         self.runtime = meta.get("runtime")
         self.year_counts = meta.get("year_counts") or {}
         self.parsed_year = None
-
-    def loadImdbRatings(self, rows):
-        imdb_ids = {self.clean_str(row.get("imdb_id")).strip() for row in rows if self.clean_str(row.get("imdb_id")).strip()}
-        if not imdb_ids:
-            return {}
-
-        ratings = {}
-        try:
-            for attempt in range(3):
-                try:
-                    with requests.get(self.IMDB_RATINGS_URL, stream=True, timeout=(10, 120)) as response:
-                        response.raise_for_status()
-                        with open(self.IMDB_RATINGS_PATH, "wb") as ratings_file:
-                            for chunk in response.iter_content(chunk_size=1024 * 1024):
-                                if chunk:
-                                    ratings_file.write(chunk)
-                    break
-                except Exception:
-                    if attempt == 2:
-                        return {}
-                    time.sleep(1)
-
-            with gzip.open(self.IMDB_RATINGS_PATH, "rt", encoding="utf-8") as ratings_file:
-                dataset_rows = csv.DictReader(ratings_file, delimiter="\t")
-                if not {"tconst", "averageRating", "numVotes"}.issubset(dataset_rows.fieldnames or []):
-                    return {}
-                for row in dataset_rows:
-                    imdb_id = row.get("tconst")
-                    if imdb_id not in imdb_ids:
-                        continue
-                    try:
-                        ratings[imdb_id] = {"rating": float(row["averageRating"]), "votes": int(row["numVotes"])}
-                    except Exception:
-                        continue
-                    if len(ratings) == len(imdb_ids):
-                        break
-        except Exception:
-            return {}
-
-        return ratings
-
-    def deleteImdbRatingsFile(self):
-        try:
-            os.remove(self.IMDB_RATINGS_PATH)
-        except OSError:
-            pass

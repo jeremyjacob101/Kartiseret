@@ -3,7 +3,6 @@ from backend.utils.supabase.clear_old_entries import clear_old_entries
 from backend.utils.supabase.dedupe_all_soons import dedupe_all_soons
 from collections import defaultdict
 from datetime import date
-import requests
 
 
 class ComingSoonsTmdb(BaseDataflow):
@@ -98,10 +97,7 @@ class ComingSoonsTmdb(BaseDataflow):
                     params = {"api_key": self.TMDB_API_KEY, "query": self.english_title, "page": page}
                     if year is not None:
                         params["primary_release_year"] = year
-                    try:
-                        response = requests.get("https://api.themoviedb.org/3/search/movie", params=params, timeout=10).json()
-                    except:
-                        break
+                    response = self.tmdbGet("search/movie", params)
                     results = response.get("results") or []
                     if not results:
                         break
@@ -114,6 +110,9 @@ class ComingSoonsTmdb(BaseDataflow):
                         added += 1
                         if len(self.candidates) == max_total or (max_plan is not None and added == max_plan):
                             break
+                    total_pages = self.clean_int(response.get("total_pages"))
+                    if page >= 500 or (total_pages is not None and total_pages > 0 and page >= total_pages):
+                        break
                     page += 1
 
             if not self.candidates:
@@ -122,8 +121,7 @@ class ComingSoonsTmdb(BaseDataflow):
                 continue
 
             # 2) FETCH FULL DETAILS (external_ids + credits)
-            for tmdb_id in self.candidates:
-                self.tryExceptPass(lambda: (resp := requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}", params={"api_key": self.TMDB_API_KEY, "append_to_response": "external_ids,credits"}, timeout=10).json()) and resp.get("id") and self.details.update({tmdb_id: resp}))
+            self.details = self.fetchTmdbDetails(self.candidates)
 
             if not self.details:
                 self.trace_event("tmdb_search", "dropped", "no_details", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
@@ -220,12 +218,7 @@ class ComingSoonsTmdb(BaseDataflow):
         for row in self.non_enriched_updates:
             if not (tmdb_id := row.get("tmdb_id")):
                 continue
-            try:
-                data = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}", params={"api_key": self.TMDB_API_KEY, "append_to_response": "external_ids,videos"}, timeout=10).json()
-            except:
-                self.trace_event("enrich", "dropped", "no_details", key=str(row.get("old_uuid") or ""), payload={"title": row.get("english_title"), "title_norm": self.normalizeTitle(row.get("english_title") or ""), "chosen_tmdb": tmdb_id})
-                self.trace_unresolved(f"enrich_fetch_failed | {row.get('english_title')} | tmdb={tmdb_id}")
-                continue
+            data = self.tmdbGet(f"movie/{tmdb_id}", {"append_to_response": "external_ids,videos"}, allow_missing=True)
             if not isinstance(data, dict) or not data.get("id"):
                 self.trace_event("enrich", "dropped", "no_details", key=str(row.get("old_uuid") or ""), payload={"title": row.get("english_title"), "title_norm": self.normalizeTitle(row.get("english_title") or ""), "chosen_tmdb": tmdb_id})
                 self.trace_unresolved(f"enrich_invalid_details | {row.get('english_title')} | tmdb={tmdb_id}")
@@ -250,6 +243,8 @@ class ComingSoonsTmdb(BaseDataflow):
             self.updates.append(new_row)
             self.trace_event("enrich", "mapped", "enriched", key=str(new_row.get("old_uuid") or ""), payload={"title": new_row.get("english_title"), "title_norm": self.normalizeTitle(new_row.get("english_title") or ""), "chosen_tmdb": tmdb_id})
 
+        enriched_ids = {row["tmdb_id"] for row in self.updates}
+        self.processed_ids = {row["old_uuid"] for row in self.non_deduplicated_updates if row.get("tmdb_id") in enriched_ids}
         pre_upsert_count = len(self.updates)
         self.upsertUpdates(self.MOVING_TO_TABLE_NAME)
         self.trace_event("write", "mapped", "upserted", key=self.MOVING_TO_TABLE_NAME, payload={"title": "", "title_norm": "", "chosen_tmdb": ""})
