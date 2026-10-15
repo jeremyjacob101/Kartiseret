@@ -145,7 +145,7 @@ describe("PostgreSQL 17 integration", () => {
           `${tableName}.${mapped.name} exists in SQL`,
         ).toBeDefined();
         expect(
-          mapped.getSQLType(),
+          normalizeSqlType(mapped.getSQLType()),
           `${tableName}.${mapped.name} SQL type`,
         ).toBe(normalizeSqlType(actual?.formatted_type ?? ""));
         expect(mapped.notNull, `${tableName}.${mapped.name} nullability`).toBe(
