@@ -4,9 +4,26 @@ import re, unicodedata, json
 
 class DataflowHelpers:
 
-    def protectUnresolvedSnapshot(self, rows):
-        self.unhealthy_cinemas.update(self.clean_str(row.get("cinema")).strip() for row in rows)
-        self.unresolved_snapshot_ids.update(row.get("id") for row in rows)
+    def protectUnresolvedSnapshot(self, rows, *, category=None, identity_key=None, tmdb_id=None):
+        previous_tmdb_id = self.clean_int(tmdb_id)
+        if previous_tmdb_id is None and category and identity_key:
+            previous = self.latestReusableDecisionForIdentity(category, identity_key)
+            previous_tmdb_id = self.clean_int((previous or {}).get("tmdb_id"))
+
+        for row in rows:
+            row_id = row.get("id")
+            if row_id not in (None, "", "null"):
+                self.unresolved_snapshot_ids.add(row_id)
+            snapshot_id = self.clean_str(row.get("snapshot_id")).strip()
+            if snapshot_id:
+                self.unresolved_identity_keys_by_snapshot[snapshot_id].add(identity_key or "unknown")
+            cinema = self.clean_str(row.get("cinema")).strip()
+            if not cinema:
+                continue
+            if previous_tmdb_id is None:
+                self.retain_all_cinemas.add(cinema)
+            else:
+                self.protected_tmdb_ids_by_cinema[cinema].add(previous_tmdb_id)
 
     def dateToDate(self, v):
         if isinstance(v, date):

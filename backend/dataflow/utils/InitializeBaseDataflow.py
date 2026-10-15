@@ -62,6 +62,7 @@ class InitializeBaseDataflow:
         self.startTime = time.perf_counter()
         self.init_dataflow_summary_state()
         self.initDataflowRequests(getattr(self, "_shared_request_context", None))
+        self.initPipelineCheckpoints()
         self.unresolved_snapshot_ids = set()
 
         self.requests_headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Safari", "Accept-Language": "en-US,en;q=0.9", "Accept-Encoding": "gzip, deflate", "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Upgrade-Insecure-Requests": "1"}
@@ -81,6 +82,9 @@ class InitializeBaseDataflow:
         self.chosen_path = None
         self.alt_options = []
         self.unhealthy_cinemas = set()
+        self.protected_tmdb_ids_by_cinema = defaultdict(set)
+        self.retain_all_cinemas = set()
+        self.unresolved_identity_keys_by_snapshot = defaultdict(set)
 
         self.general_focused_page = 1
         self.year_focused_page = 1
@@ -102,11 +106,12 @@ class InitializeBaseDataflow:
         self.meta_by_key = {}
         self.key_result = {}
 
-        self.existing_final_ids_by_cinema = defaultdict(set)
-        self.new_final_ids_by_cinema = defaultdict(set)
+        self.existing_final_rows_by_cinema = defaultdict(list)
         self.latest_rows_by_cinema = defaultdict(list)
         self.updates_by_cinema = defaultdict(list)
-        self.latest_run_id_by_cinema = {}
         self.latest_snapshot_rows = []
+        self.latest_snapshot_manifests_by_cinema = {}
+        self.latest_snapshot_ids_by_cinema = {}
+        self._publication_set_busy = False
 
         self.fake_runtimes = [0, 30, 40, 45, 60, 90, 100, 120, 130, 150, 180, 200, 240, 250, 300]

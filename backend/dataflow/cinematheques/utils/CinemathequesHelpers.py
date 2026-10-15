@@ -29,19 +29,25 @@ class CinemathequesHelpers:
     def dataRun(self):
         try:
             self.logic()
+            self.flushMatchDecisionCheckpoints()
             self.ensureCinemathequeTimingRow()
             logSuccessfulRun(self)
             self.flush_summary(successful=True)
         except Exception:
+            try:
+                self.flushMatchDecisionCheckpoints()
+            except Exception:
+                pass
             self.flush_summary(successful=False)
             raise
         finally:
+            self.releasePublicationClaims()
             self.closeDataflowRequests()
 
     def _all_theque_key(self, row: dict) -> tuple:
         # Raw history is deduplicated only inside a scraper snapshot. Including
         # run_id deliberately preserves the same screening across later runs.
-        return (self.clean_int(row.get("run_id")), *self._showtime_key(row))
+        return (self.clean_str(row.get("snapshot_id")).strip(), self.clean_int(row.get("run_id")), *self._showtime_key(row))
 
     def dedupeAllTheques(self, table_name: str, refresh: bool = True):
         self._dedupe_by_key(
