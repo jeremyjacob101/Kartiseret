@@ -2,9 +2,7 @@ from backend.dataflow.BaseDataflow import BaseDataflow
 
 from urllib.parse import quote_plus
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import requests
 import re
-import time
 import json
 
 
@@ -21,12 +19,7 @@ class NowPlayingsUpdate(BaseDataflow):
             return new_row
 
         # TMDb
-        try:
-            data = requests.get(f"https://api.themoviedb.org/3/movie/{tmdb_id}", params={"api_key": self.TMDB_API_KEY, "append_to_response": "external_ids,videos"}, timeout=10).json()
-        except:
-            data = {}
-
-        data = data if isinstance(data, dict) else {}
+        data = self.tmdbForUpdate(tmdb_id)
 
         genres = ["Sci-Fi" if genre["name"] == "Science Fiction" else genre["name"] for genre in (data.get("genres") or []) if genre.get("name")][:3]
         trailer = next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Trailer" and v.get("site") == "YouTube" and v.get("key") and v.get("iso_639_1") == "en"), None) or next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Teaser" and v.get("site") == "YouTube" and v.get("key") and v.get("iso_639_1") == "en"), None)
@@ -44,55 +37,7 @@ class NowPlayingsUpdate(BaseDataflow):
         new_row["en_trailer"] = trailer.get("key") if trailer else existing["en_trailer"]
         new_row["genres"] = genres or existing["genres"]
 
-        # Letterboxd
-        tmdb_url = f"https://letterboxd.com/tmdb/{tmdb_id}/"
-        r0, loc, session, lb_resolved, film_url = None, None, None, False, ""
-        for attempt in range(10):
-            if attempt:
-                time.sleep(0.5)
-            session = requests.Session()
-
-            try:
-                session.get("https://letterboxd.com/", headers=self.requests_headers, timeout=20)
-            except Exception:
-                pass
-            try:
-                r0 = session.get(tmdb_url, headers=self.requests_headers, timeout=20, allow_redirects=False)
-            except Exception:
-                continue
-
-            loc = r0.headers.get("Location")
-            if r0.status_code in (301, 302, 303, 307, 308) and loc:
-                lb_resolved = True
-                break
-            if r0.status_code == 403:
-                t = (r0.text or "").lower()
-                if ("just a moment" in t) or ("cf-challenge" in t) or ("challenge-platform" in t):
-                    continue
-            break
-
-        if lb_resolved:
-            film_url = loc if (loc and (loc.startswith("http://") or loc.startswith("https://"))) else ("https://letterboxd.com" + loc if loc else "")
-            if film_url and "/film/" in film_url:
-                try:
-                    rf = session.get(film_url, headers={**self.requests_headers, "Referer": tmdb_url}, timeout=20, allow_redirects=True)
-                    html = rf.text or ""
-
-                    m1 = re.search(r'meta name="twitter:data2" content="([\d.]+) out of 5"', html)
-                    if m1:
-                        try:
-                            new_row["lbRating"] = round(float(m1.group(1)), 1)
-                        except Exception:
-                            new_row["lbRating"] = existing["lbRating"]
-
-                    m2 = re.search(r'"ratingCount":\s*(\d+)', html)
-                    if m2:
-                        try:
-                            new_row["lbVotes"] = int(m2.group(1))
-                        except Exception:
-                            new_row["lbVotes"] = existing["lbVotes"]
-                except Exception:
-                    pass
+        self.updateProviders(new_row, existing, tmdb_id)
 
         # IMDb
         imdb_id = (new_row.get("imdb_id") or "").strip()
@@ -101,11 +46,37 @@ class NowPlayingsUpdate(BaseDataflow):
             new_row["imdbRating"] = ratings["rating"]
             new_row["imdbVotes"] = ratings["votes"]
 
+        return self.apply_solo_update_postprocess(new_row)
+
+    def updateLetterboxd(self, new_row, existing, tmdb_id):
+        film_url = self.resolveLetterboxd(tmdb_id)
+        if film_url:
+            try:
+                rf = self.requestGet(film_url, headers={**self.requests_headers, "Referer": f"https://letterboxd.com/tmdb/{tmdb_id}/"}, timeout=20, allow_redirects=True)
+                html = rf.text or ""
+
+                m1 = re.search(r'meta name="twitter:data2" content="([\d.]+) out of 5"', html)
+                if m1:
+                    try:
+                        new_row["lbRating"] = round(float(m1.group(1)), 1)
+                    except Exception:
+                        new_row["lbRating"] = existing["lbRating"]
+
+                m2 = re.search(r'"ratingCount":\s*(\d+)', html)
+                if m2:
+                    try:
+                        new_row["lbVotes"] = int(m2.group(1))
+                    except Exception:
+                        new_row["lbVotes"] = existing["lbVotes"]
+            except Exception:
+                pass
+
+    def updateRottenTomatoes(self, new_row, existing):
         # Rotten Tomatoes
         picked_url = None
         search_url = f"https://www.rottentomatoes.com/search?search={quote_plus(new_row['english_title'])}"
         try:
-            search_html = requests.get(search_url, headers=self.requests_headers, timeout=20).text or ""
+            search_html = self.requestGet(search_url, headers=self.requests_headers, timeout=20).text or ""
         except Exception:
             search_html = ""
 
@@ -149,7 +120,7 @@ class NowPlayingsUpdate(BaseDataflow):
             m_path = re.search(r"rottentomatoes\.com(/m/[^/?#]+)", picked_url)
             new_row["rt_id"] = m_path.group(1) if m_path else existing["rt_id"]
             try:
-                html = requests.get(picked_url, headers={**self.requests_headers, "Referer": search_url}, timeout=20).text or ""
+                html = self.requestGet(picked_url, headers={**self.requests_headers, "Referer": search_url}, timeout=20).text or ""
             except Exception:
                 html = ""
 
@@ -175,29 +146,26 @@ class NowPlayingsUpdate(BaseDataflow):
                 new_row["rtAudienceRating"] = audience_rating if audience_rating is not None else existing["rtAudienceRating"]
                 new_row["rtAudienceVotes"] = audience_votes if audience_votes is not None else existing["rtAudienceVotes"]
 
-        return self.apply_solo_update_postprocess(new_row)
-
     def logic(self):
-        try:
+        self.dedupeFinalMovies(self.MAIN_TABLE_NAME)
+        target_rows = self.rows_for_update()
+        if not target_rows:
+            return
+
+        self.prepareUpdateTmdb(target_rows)
+        self._imdb_ratings = self.loadImdbRatings(target_rows)
+
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(self.process_row, row) for row in target_rows]
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    if result:
+                        self.updates.append(result)
+                except Exception as error:
+                    self.trace_note(f"row_update_failed | error={type(error).__name__}")
+
+        self.trace_note(f"update_rows | requested={len(target_rows)} | updated={len(self.updates)}")
+        if self.updates:
+            self.upsertUpdates(self.MAIN_TABLE_NAME)
             self.dedupeFinalMovies(self.MAIN_TABLE_NAME)
-            target_rows = self.rows_for_update()
-            if not target_rows:
-                return
-
-            self._imdb_ratings = self.loadImdbRatings(target_rows)
-
-            with ThreadPoolExecutor(max_workers=5) as executor:
-                futures = [executor.submit(self.process_row, row) for row in target_rows]
-                for future in as_completed(futures):
-                    try:
-                        result = future.result()
-                        if result:
-                            self.updates.append(result)
-                    except Exception:
-                        pass
-
-            if self.updates:
-                self.upsertUpdates(self.MAIN_TABLE_NAME)
-                self.dedupeFinalMovies(self.MAIN_TABLE_NAME)
-        finally:
-            self.deleteImdbRatingsFile()

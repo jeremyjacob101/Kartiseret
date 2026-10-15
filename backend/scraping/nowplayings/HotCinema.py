@@ -124,11 +124,10 @@ class HotCinema(BaseCinema):
                             row_xpath = f"/html/body/div[2]/div[4]/div[2]/div/div[2]/div/div/div/div/table/tbody/tr[{film_index}]"
                             row_element = self.element(row_xpath)
 
-                            time_to_event = self.driver.execute_script(
+                            showtime_to_event = self.driver.execute_script(
                                 r"""
                             return (function(row){
                             function norm(s){ return String(s||'').replace(/\s+/g,' ').trim(); }
-                            function hhmm(s){ var m=String(s||'').match(/\b(?:[01]?\d|2[0-3]):[0-5]\d\b/); return m?m[0]:null; }
 
                             const title = norm(row?.querySelector('td:first-child')?.innerText);
                             if (!title) return {};
@@ -143,15 +142,15 @@ class HotCinema(BaseCinema):
                             vm = vm && (vm.ctx || vm);
 
                             const events = vm?.events || vm?._data?.events || [];
-                            let movie = events.find(e => norm(e.MovieName) === title)
+                            let movie = events[Array.from(row.parentNode.children).indexOf(row)];
+                            if (norm(movie?.MovieName) !== title) movie = events.find(e => norm(e.MovieName) === title)
                                     || events.find(e => norm(e.MovieName).includes(title) || title.includes(norm(e.MovieName)));
                             if (!movie) return {};
 
                             const map = {};
-                            (movie.Dates || []).forEach(d => {
-                                const t = hhmm(d.Hour) || hhmm(d.FormattedDate) || hhmm(d.Date);
+                            (movie.Dates || []).forEach((d, index) => {
                                 const id = d && (d.EventId ?? d.eventId ?? d.Id ?? d.id);
-                                if (t && id != null) map[t] = String(id);
+                                if (id != null) map[index + 1] = String(id);
                             });
                             return map;
                             })(arguments[0]);
@@ -175,7 +174,7 @@ class HotCinema(BaseCinema):
 
                                 self.showtime = re.search(r"\b(?:[01]?\d|2[0-3]):[0-5]\d\b", full_showtime_text).group(0)
 
-                                event_id = time_to_event.get(self.showtime)
+                                event_id = showtime_to_event.get(str(showtime))
                                 href_index = re.search(r"/theater/(\d+)", self.element(f"/html/body/div[2]/div[1]/div/div/div[1]/div[3]/div[2]/div[2]/a[{cinema}]").get_attribute("href"))
                                 href_index = int(href_index.group(1)) if href_index else None
 
