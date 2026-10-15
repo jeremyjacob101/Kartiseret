@@ -11,10 +11,7 @@
       "includeFiles": "Codebase - Kartiseret Web/server/og/assets/**"
     },
     "api/[...path].ts": {
-      "includeFiles": [
-        "packages/server/dist/**",
-        "packages/contracts/dist/**"
-      ],
+      "includeFiles": "packages/**/dist/**",
       "maxDuration": 30
     }
   },

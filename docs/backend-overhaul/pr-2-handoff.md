@@ -82,15 +82,15 @@ The bootstrap refuses a non-empty public schema. Integration tests exercise the 
 
 ## Verification evidence and limits
 
-- `npm ci`, Prisma 7.10 generation/validation, `npm run verify`, Vercel adapter TypeScript checking, and legacy SQL-file checksum verification passed under Node 24.21.0. `npm run verify` passed root lint/format, contracts/server/web typechecks, 488 web tests, 16 API tests, server and web builds, and the eager bundle check (207.3 KiB gzip under the 210 KiB budget). See `verification.md` for feature-level evidence.
-- The local API unit tests passed; the real PostgreSQL suite could not run in this checkout because no local PostgreSQL server is available. The required GitHub Actions PostgreSQL 17 job is configured; its result must pass before the real-DB gate is verified.
-- A hosted development project and Vercel Preview variables/endpoint were not created or configured. The Supabase project-creation flow requires Jeremy to choose the organization and confirm the quoted cost. The current production project remained read-only.
-- `npm ci` reported six high-severity audit findings. A follow-up production dependency audit could not reach the npm registry in this environment, so those findings were not classified here. Existing package versions and resolved tarballs were unchanged; the lockfile adds only PR 2 dependencies and workspace metadata.
+- Under Node 24.21.0, clean `npm ci --no-audit`, Prisma 7.10 generation/validation, `npm run verify`, `npm audit`, legacy SQL-file checksum verification, and `git diff --check` passed. `npm run verify` covered root lint/format, contracts/server/web typechecks, 488 web tests, 16 API tests, server and web builds, and the eager bundle check (207.3 KiB gzip under the 210 KiB budget). `npm audit` reported zero vulnerabilities after the scoped lockfile fixes described above. See `verification.md` for feature-level evidence.
+- GitHub Actions passed the web, Python backend, and disposable PostgreSQL 17 integration jobs. The first PostgreSQL run caught an incorrect test fixture (`'bad'` satisfies the three-character movie-code check); the test now uses `'bad!'`, and the rerun passed the clean baseline replay, fixtures, Prisma queries, runtime-role denial, SQL check, and transaction rollback.
+- Vercel rejected the first catch-all config because `functions.*.includeFiles` must be one glob string. `vercel.json` now uses `packages/**/dist/**`, following [Vercel's `vercel.json` reference](https://vercel.com/docs/project-configuration/vercel-json). Pushing this correction should trigger a fresh Preview deployment; its final status must be checked on the updated head. Vercel's dashboard is login-gated for this task, so deployment diagnostics beyond the GitHub status/comment are not available here.
+- A hosted development project and Vercel Preview variables were not created or configured. The Supabase project-creation flow requires Jeremy to choose the organization and confirm the quoted cost. The current production project remained read-only.
 - No production schema/data, Vercel environment variables, existing user/auth flows, Python worker behavior, or frontend transport were changed.
 
 ## Next steps for the project owner
 
-1. Review the draft PR and wait for both the existing full-check job and the new `api-postgres` job to pass. No reviewer has been requested.
+1. Review the draft PR and wait for the latest Full checks run and Vercel Preview deployment to finish. No reviewer has been requested.
 2. To finish the planned hosted-dev setup, choose the Supabase organization. I can then fetch the project cost and ask you to confirm that exact amount before creating a distinct dev project. After creation, apply the baseline once to that empty project, create the runtime login, and configure only Preview variables.
 3. Do not merge a production `DATABASE_URL` into Vercel until a dedicated production API login exists and the current production project's migration ledger approach has been agreed.
 4. PR 3 can switch public frontend reads only after the API is verified against the separate dev project's data.
