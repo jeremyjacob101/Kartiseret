@@ -1,8 +1,8 @@
 # PR 1 handoff — npm workspaces and shared Zod foundation
 
-**Base branch/commit:** `main` / `60a242df` (`origin/main` at start)
-**Implementation branch/commit:** `codex/backend-01-workspaces-contracts` / fill in after implementation commit
-**Draft PR URL:** fill in after draft PR creation
+- **Base branch/commit:** `main` / `60a242df` (`origin/main` at start)
+- **Implementation branch/commit:** `codex/backend-01-workspaces-contracts` / `c5145a8250eacafb76806a10321a6cab317b3cdb`
+- **Draft PR:** [#165](https://github.com/jeremyjacob101/Kartiseret/pull/165)
 
 ## Implemented scope and user-visible behavior
 
