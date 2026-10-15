@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import gzip, json, requests, time
 
 from backend.dataflow.utils.DataflowHelpers import DataflowHelpers
-from backend.dataflow.utils.DataflowRequests import DataflowRequestError, DataflowRequests
+from backend.dataflow.utils.DataflowRequests import DataflowRequestContext, DataflowRequestError, DataflowRequests
 from backend.dataflow.utils.ImdbRatings import ImdbRatings
 
 
@@ -71,6 +71,55 @@ class RequestTests(TestCase):
         self.assertEqual(session.get.call_count, 1)
         values[0]["genres"][0]["name"] = "Changed"
         self.assertEqual(values[1]["genres"][0]["name"], "Drama")
+
+    def test_identical_tmdb_requests_share_cache_across_run_instances(self):
+        context = DataflowRequestContext(request_workers=5, provider_workers=10, requests_per_second=1000000)
+        self.addCleanup(context.close)
+        clients = [Client(), Client()]
+        for client in clients:
+            client.closeDataflowRequests()
+            client.initDataflowRequests(context)
+            client.requestSession = lambda url: session
+            self.addCleanup(client.closeDataflowRequests)
+
+        session = Mock()
+        session.get.side_effect = lambda *args, **kwargs: (time.sleep(0.02), response({"id": 1}))[1]
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            values = list(pool.map(lambda index: clients[index % 2].tmdbGet("movie/1"), range(20)))
+        self.assertEqual(session.get.call_count, 1)
+        self.assertTrue(all(value == {"id": 1} for value in values))
+        values[0]["id"] = 2
+        self.assertTrue(all(value == {"id": 1} for value in values[1:]))
+
+    def test_closing_one_shared_client_keeps_the_run_request_pool_alive(self):
+        context = DataflowRequestContext()
+        first, second = Client(), Client()
+        first.closeDataflowRequests()
+        second.closeDataflowRequests()
+        first.initDataflowRequests(context)
+        second.initDataflowRequests(context)
+        self.addCleanup(context.close)
+        executor = first.tmdbExecutor()
+        first.closeDataflowRequests()
+        self.assertFalse(executor._shutdown)
+        self.assertEqual(second.tmdbExecutor().submit(lambda: 7).result(), 7)
+        second.closeDataflowRequests()
+
+    def test_host_rate_limit_is_shared_across_dataflow_instances(self):
+        context = DataflowRequestContext(request_workers=5, provider_workers=10, requests_per_second=10)
+        clients = [Client(), Client()]
+        for client in clients:
+            client.closeDataflowRequests()
+            client.initDataflowRequests(context)
+            client.requestSession = lambda _url: Mock(get=Mock(return_value=response({})))
+        started = time.monotonic()
+        with patch("backend.dataflow.utils.DataflowRequests.time.sleep"):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                list(pool.map(lambda client: client.requestGet("https://example.com/movie"), clients))
+        self.assertGreaterEqual(context.request_next["example.com"], started + 0.19)
+        for client in clients:
+            client.closeDataflowRequests()
+        context.close()
 
     def test_failures_are_not_cached_and_do_not_leak_api_keys(self):
         session = Mock()

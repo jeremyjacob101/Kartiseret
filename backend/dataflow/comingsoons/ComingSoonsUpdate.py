@@ -39,9 +39,19 @@ class ComingSoonsUpdate(BaseDataflow):
 
         return self.apply_solo_update_postprocess(new_row)
 
-    def logic(self):
+    def beginSharedUpdate(self):
         self.dedupeFinalSoons(self.MAIN_TABLE_NAME)
-        target_rows = self.rows_for_update()
+        return self.rows_for_update()
+
+    def finishSharedUpdate(self, target_count: int, updated_rows: list[dict]) -> None:
+        self.updates = updated_rows
+        self.trace_note(f"update_rows | requested={target_count} | updated={len(self.updates)}")
+        if self.updates:
+            self.upsertUpdates(self.MAIN_TABLE_NAME)
+            self.dedupeFinalSoons(self.MAIN_TABLE_NAME)
+
+    def logic(self):
+        target_rows = self.beginSharedUpdate()
         if not target_rows:
             return
 
@@ -56,7 +66,4 @@ class ComingSoonsUpdate(BaseDataflow):
                 except Exception as error:
                     self.trace_note(f"row_update_failed | error={type(error).__name__}")
 
-        self.trace_note(f"update_rows | requested={len(target_rows)} | updated={len(self.updates)}")
-        if self.updates:
-            self.upsertUpdates(self.MAIN_TABLE_NAME)
-            self.dedupeFinalSoons(self.MAIN_TABLE_NAME)
+        self.finishSharedUpdate(len(target_rows), self.updates)

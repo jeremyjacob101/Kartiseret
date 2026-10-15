@@ -146,9 +146,19 @@ class CinemathequesUpdate(CinemathequesHelpers, BaseDataflow):
                 new_row["rtAudienceRating"] = audience_rating if audience_rating is not None else existing["rtAudienceRating"]
                 new_row["rtAudienceVotes"] = audience_votes if audience_votes is not None else existing["rtAudienceVotes"]
 
-    def logic(self):
+    def beginSharedUpdate(self):
         self.dedupeFinalMovies(self.MAIN_TABLE_NAME)
-        target_rows = self.rows_for_update()
+        return self.rows_for_update()
+
+    def finishSharedUpdate(self, target_count: int, updated_rows: list[dict]) -> None:
+        self.updates = updated_rows
+        self.trace_note(f"update_rows | requested={target_count} | updated={len(self.updates)}")
+        if self.updates:
+            self.upsertUpdates(self.MAIN_TABLE_NAME)
+            self.dedupeFinalMovies(self.MAIN_TABLE_NAME)
+
+    def logic(self):
+        target_rows = self.beginSharedUpdate()
         if not target_rows:
             return
 
@@ -165,7 +175,4 @@ class CinemathequesUpdate(CinemathequesHelpers, BaseDataflow):
                 except Exception as error:
                     self.trace_note(f"row_update_failed | error={type(error).__name__}")
 
-        self.trace_note(f"update_rows | requested={len(target_rows)} | updated={len(self.updates)}")
-        if self.updates:
-            self.upsertUpdates(self.MAIN_TABLE_NAME)
-            self.dedupeFinalMovies(self.MAIN_TABLE_NAME)
+        self.finishSharedUpdate(len(target_rows), self.updates)
