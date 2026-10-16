@@ -23,6 +23,7 @@ export interface DatabaseConnection {
 
 export interface DatabaseFactoryOptions {
   poolMax?: number;
+  sslCaCertificate?: string;
   /** A test-only PostgreSQL startup option can exercise real driver failures. */
   connectionOptions?: string;
   onPoolError?: (error: unknown) => void;
@@ -30,7 +31,8 @@ export interface DatabaseFactoryOptions {
 
 function poolTlsOptions(
   connectionString: string,
-): false | { rejectUnauthorized: true } {
+  sslCaCertificate?: string,
+): false | { ca?: string; rejectUnauthorized: true } {
   const url = new URL(connectionString);
   const hostname = url.hostname.replace(/^\[|\]$/g, "");
   if (["localhost", "127.0.0.1", "::1"].includes(hostname)) {
@@ -51,7 +53,10 @@ function poolTlsOptions(
     );
   }
 
-  return { rejectUnauthorized: true };
+  return {
+    ...(sslCaCertificate ? { ca: sslCaCertificate } : {}),
+    rejectUnauthorized: true,
+  };
 }
 
 /**
@@ -63,6 +68,7 @@ export function createDatabase(
   connectionString: string,
   {
     poolMax = 1,
+    sslCaCertificate,
     connectionOptions,
     onPoolError = (error) => {
       const safeError =
@@ -90,7 +96,7 @@ export function createDatabase(
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
     allowExitOnIdle: false,
-    ssl: poolTlsOptions(connectionString),
+    ssl: poolTlsOptions(connectionString, sslCaCertificate),
     types: postgresTypes,
     ...(connectionOptions ? { options: connectionOptions } : {}),
   });

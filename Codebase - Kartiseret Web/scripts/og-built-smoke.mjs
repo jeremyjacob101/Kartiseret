@@ -22,19 +22,32 @@ assert.ok(
 const vercelConfig = JSON.parse(
   readFileSync(resolve(repositoryRoot, "vercel.json"), "utf8"),
 );
-for (const functionName of ["api/og.ts", "api/og-image.ts"]) {
-  const includes = vercelConfig.functions[functionName].includeFiles;
+const dispatcher = vercelConfig.functions["api/dispatch.ts"];
+assert.ok(dispatcher, "the unified Vercel dispatcher must be configured");
+assert.equal(
+  Object.keys(vercelConfig.functions).length,
+  1,
+  "API and OG handlers must share PR2's single dispatcher",
+);
+assert.equal(typeof dispatcher.includeFiles, "string");
+for (const includePattern of [
+  "Codebase - Kartiseret Web/dist/**",
+  "Codebase - Kartiseret Web/server/og/assets/**",
+  "packages/**/dist/**",
+]) {
   assert.ok(
-    Array.isArray(includes),
-    `${functionName} must declare packaged files`,
+    dispatcher.includeFiles.includes(includePattern),
+    `the dispatcher must package ${includePattern}`,
   );
-  assert.ok(includes.includes("packages/server/dist/**"));
-  assert.ok(includes.includes("packages/contracts/dist/**"));
 }
 assert.ok(
-  vercelConfig.functions["api/og-image.ts"].includeFiles.includes(
-    "Codebase - Kartiseret Web/server/og/assets/**",
-  ),
+  vercelConfig.rewrites.some((rewrite) => rewrite.source === "/api/(.*)"),
+  "API paths must reach the dispatcher before the SPA fallback",
+);
+assert.ok(
+  vercelConfig.rewrites.some((rewrite) =>
+    rewrite.source.startsWith("/:routeCode")),
+  "short links must continue to reach the dispatcher",
 );
 
 const { default: htmlHandler } = await import("../server/og/handler.ts");

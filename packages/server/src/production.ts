@@ -11,6 +11,7 @@ function createProductionRuntime(
   const config = parseServerEnvironment(environment);
   const database = createDatabase(config.DATABASE_URL, {
     poolMax: config.DATABASE_POOL_MAX,
+    sslCaCertificate: config.DATABASE_SSL_CA_CERT,
   });
   const repository = new DrizzleCatalogRepository(database.db);
 

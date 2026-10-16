@@ -2,53 +2,61 @@
 
 ## PR and base
 
-- **Implementation branch:** `codex/backend-03-public-data-api`.
-- **Base:** `codex/backend-02-api-prisma-foundation`, PR #167. PR 2 remains open; PR 3 is intentionally stacked on its Drizzle implementation.
-- **Draft PR:** [#170](https://github.com/jeremyjacob101/Kartiseret/pull/170), based on PR 2. The current branch head is the implementation submitted for that PR. It remains a draft with no reviewers requested. After PR 2 merges, retarget PR 3 to `main` and rerun checks.
-- **DEV project:** Kartiseret - dev, ref `jbydpmjjptwevyijarzl`, PostgreSQL 17.11 in `eu-central-2`. Production was not changed.
+- **PR:** [#170](https://github.com/jeremyjacob101/Kartiseret/pull/170), kept as a draft and targeting `main` after PR 2 merged.
+- **PR 2:** [#167](https://github.com/jeremyjacob101/Kartiseret/pull/167) merged into `main` as `c10cd50f2b98992edbaeb9f49b903fe827b81d94`.
+- **Implementation branch:** `codex/backend-03-public-data-api`; refreshed from the merged `main` with a normal merge, so the update does not require a force-push.
+- **No reviewers were requested.** PR 3 has not been merged.
+- **Scope:** move public movie, showtime, theater, ticket-availability, and Open Graph reads to Express + Drizzle. Preferences, ticket-alert subscriptions, admin checks/edits, and Supabase Auth remain in their current client paths for later PRs.
 
-## Implemented behavior
+## Public API contract
 
-Five public read endpoints are served by Express and Drizzle. Success responses use `{ data, error: null }`; failures use `{ data: null, error: { code, message } }` with safe messages and status codes.
+Successful responses use `{ data, error: null }`; errors use `{ data: null, error: { code, message } }` with safe messages and appropriate HTTP statuses.
 
 | Endpoint | Behavior |
 | --- | --- |
-| `GET /api/v1/catalog/now-playing` | Normalized now-playing DTOs plus permanent codes and settled `movieCodesStatus`. |
-| `GET /api/v1/catalog/coming-soon` | Normalized coming-soon DTOs and the same batched code hydration contract. |
-| `GET /api/v1/showtimes?city&startDate&endDate[&tmdbId]` | Inclusive bounded 1–180 calendar-day range; optional PostgreSQL integer movie ID; local dates/times stay timezone-free. |
-| `GET /api/v1/theaters` | Cities and theaters from the actual relationship, including cities with no theaters; bad metadata/orphan joins are explicit failures. |
+| `GET /api/v1/catalog/now-playing` | Normalized now-playing movies, permanent codes, and settled `movieCodesStatus`. |
+| `GET /api/v1/catalog/coming-soon` | Normalized coming-soon movies and the same batched code hydration contract. |
+| `GET /api/v1/showtimes?city&startDate&endDate[&tmdbId]` | Inclusive 1–180-day date window, optional integer movie filter, deterministic order, timezone-free local date/time values. |
+| `GET /api/v1/theaters` | Cities and theaters through the actual relationship; includes cities with no theaters and reports invalid metadata/orphan joins safely. |
 | `GET /api/v1/ticket-availability?tmdbId&fromDate` | Independent all-city availability candidates with validated English/Hebrew HTTP(S) URLs. |
 
-## Contracts, query/cache ownership, and remaining Supabase calls
+Movie codes are fetched in bounded batches (500 IDs per query), then indexed in the client. A failed code lookup leaves the catalog usable and returns `movieCodesStatus: "failed"`; there is no browser fallback to `movieCodes`. Direct code lookup uses precision-safe IDs and prefers now-playing deterministically. Shared Zod schemas validate requests and responses; the fetch boundary passes through `AbortSignal`.
 
-- Public wire schemas and request validation are in `packages/contracts/src/public-data.ts`; API repository/service logic is in `packages/server/src/public-data/` and `packages/server/src/catalog/drizzle-repository.ts`.
-- Root `web:build` and `web:typecheck` build the server workspace first so the web's server-only OG modules resolve `@kartiseret/server` cleanly from a fresh checkout; they do not rely on ignored `dist` output left by a prior build.
-- Catalog movie codes are included in one bounded batched query (chunks of 500), then indexed in the client. If that query fails, movie DTOs still load and the response marks codes `failed`; the browser has no silent fallback to `movieCodes`. For direct permanent-code lookup used by server previews, IDs remain decimal strings/BigInt-safe and now-playing wins if a code happens to resolve in both catalogs.
-- `Codebase - Kartiseret Web/src/data/apiClient.ts` validates each same-origin response against the shared schema and forwards TanStack's `AbortSignal`. TanStack Query retains query-key dimensions, cache freshness, deduplication, cancellation, targeted prefetch, incremental 15-day loads, broad/targeted coverage distinction, scoped replacement, and stale-row removal. Initial city loading remains one day.
-- OG data uses the Drizzle services directly from `Codebase - Kartiseret Web/server/og/previewData.ts`; Sharp/JPEG rendering and fonts stay in the web server-only tree. Stable `/api/og` and `/api/og-image` wrappers and short-code rewrites remain in `vercel.json`. Vercel `includeFiles` packages built contracts/server modules and OG assets.
-- Remaining direct protected Supabase operations are intentionally assigned to PR 4: `userPreferences` reads/writes in the preference store; `admin_users` membership and `tableFixes`/movie/showtime admin edits in `adminStatus.ts` and `movieCatalog.ts`; and `ticket_alert_subscriptions` list/create/cancel calls in `ticketAlerts.ts`. Supabase Auth calls remain in the current login/account UI. Public catalog, showtime, theater, availability and OG reads no longer use browser Supabase table queries.
+## Client/cache and remaining Supabase calls
 
-## Database and migration state
+- TanStack Query retains its broad-versus-targeted readiness distinction, one-day initial city load, 15-day incremental prefetch, deduplication, cancellation, targeted prefetch, scoped replacement, and stale-row removal. A targeted movie query never marks the full date window as loaded.
+- Public catalog, showtime, theater, availability, and OG table reads no longer use browser Supabase queries.
+- Direct protected Supabase operations remain intentionally for PR 4: `userPreferences` reads/writes, `ticket_alert_subscriptions` list/create/cancel, `admin_users` membership, and admin `tableFixes`/movie/showtime operations. Supabase Auth remains with the current login/account UI.
 
-- `20261015162250_public_api_runtime_select.sql` grants `SELECT` to `kartiseret_runtime` on `finalSoons`, `finalShowtimes`, `cities`, and `theaters`. It was applied to DEV and appears in the provider migration ledger as version `20261015162250`.
-- That migration also added four role-specific SELECT policies. The baseline already had equivalent `TO PUBLIC` read policies. Supabase's performance advisor flagged the duplicate permissive policies. With Jeremy's authorization to clean up the separate DEV project, those four duplicates were removed; existing baseline policies and restricted SELECT grants remain. Live privilege metadata still reports SELECT on all six intended public tables and no SELECT on `userPreferences` or `ticket_alert_subscriptions`.
-- The idempotent cleanup is checked in as `20261016040826_remove_redundant_public_read_policies.sql` and replays after the grant migration. DEV reflects the cleanup, but the provider migration ledger currently does **not** contain version `20261016040826`: repeated Supabase `apply_migration` requests expired with `Invalid or expired requestState`. The migration SQL itself was applied successfully through Supabase `execute_sql`; the checked-in Supabase CLI migration generator could not be used because the CLI is not installed. The timestamped filename was generated from the UTC clock in Supabase's expected format. Reconcile this one ledger entry before the next provider-managed migration push; do not rerun the baseline. The clean CI replay is deterministic and applies both files in order.
-- Supabase security advisors returned no lints. After cleanup, the performance advisor no longer reports duplicate SELECT policies on the four PR 3 tables. A pre-existing duplicate policy on `finalMovies` remains from PR 2; there are also informational unused-index notices. PR 3 changes no indexes.
-- SQL privilege metadata is not the same as impersonating the runtime login. The Supabase SQL tool denied `SET ROLE kartiseret_api`, so actual role query success and private-table denials must be proven by the PR 3 PostgreSQL integration job using its restricted login. Do not claim that hosted queries executed as `kartiseret_api`.
+## Open Graph and Vercel routing
 
-## Verification and environment
+- OG preview data calls the same Drizzle services directly; it does not make a second HTTP request to the deployment. Sharp, image processing, fonts, and other server-only dependencies remain out of browser/shared packages.
+- PR 2's `api/dispatch.ts` is the single Vercel function for API and OG requests. Keep its `includeFiles` glob and rewrite order: API and short-code paths reach the dispatcher before the SPA fallback. The public `/api/og`, `/api/og-image`, and short-link URLs stay stable; unknown API paths return JSON 404s.
+- Merging PR 2 exposed an outdated PR 3 OG smoke assertion that expected separate `api/og.ts` and `api/og-image.ts` functions. The smoke now verifies the unified dispatcher, SPA/server build files, OG assets, API rewrite, and short-code rewrite. This is a routing/configuration alignment; no second dispatcher or duplicate handler was added.
 
-- `npm run verify` passed locally on Node 24.21: lint, format, contracts/server/web/Playwright typechecks, 492 frontend tests, 41 server/API tests, server and web production builds, built OG HTML/JPEG/assets smoke, and eager bundle (**207.0 KiB gzip / 210 KiB budget**).
-- Full Checks [run #92](https://github.com/jeremyjacob101/Kartiseret/actions/runs/38850373988) passed on the updated PR branch: backend, the web verification suite, all 14 PostgreSQL 17 integration tests, and all four Playwright browser scenarios. The first observed PR run exposed over-specific E2E assertions about request counts and range start dates; the tests now assert the public API is used and the selected date is covered by its bounded range.
-- `npx playwright test --config playwright.config.ts --list` passed and discovers four scenarios. It does not connect to a DB. The actual browser run is wired after PostgreSQL integration in `.github/workflows/full_checks.yml` as `npm run web:e2e`; it was not run locally because the Docker CLI is installed but its daemon is unavailable here.
-- The PostgreSQL 17 integration test covers real restricted-role public reads/denials, code batching, range bounds, optional movie filter, local-time serialization, city/theater join, all-city availability, and >1,000 rows. PR CI runs these cases before the four browser scenarios. PR 2's separate 10/10 integration pass in Full checks run #76 is predecessor evidence only.
-- `npm run web:og:smoke` passes against built handlers from repository root, including SPA HTML fallback, generated 1200×630 JPEG, invalid remote backdrop fallback, fonts and Vercel packaging. The Fontconfig warning about the machine's default config did not fail generation.
-- A synthetic one-row comparison measured 626 bytes and two catalog/code HTTP requests on the former browser path versus 608 bytes and one request on the combined catalog API path. This is a fixture-level comparison only; no latency measurement or general speed claim is made.
-- Preview endpoints were not checked because the deployment is behind Vercel SSO in this environment. Before relying on Preview, confirm `DATABASE_URL` and remaining `VITE_SUPABASE_URL`/publishable key values are scoped to DEV. Then, from an authenticated owner browser, verify the five API routes, `/api/not-a-route` JSON 404, SPA `/`, a permanent-code short link, `/api/og`, and `/api/og-image?home=true` return expected JSON/HTML/JPEG types and DEV fixture data.
+## SQL and hosted project state
 
-## Next steps
+- SQL remains the sole DDL/migration authority. `20261015162250_public_api_runtime_select.sql` grants the restricted runtime group `SELECT` on `finalSoons`, `finalShowtimes`, `cities`, and `theaters`. `20261016040826_remove_redundant_public_read_policies.sql` removes the four duplicate runtime policies while keeping the explicit table grants and existing public policies.
+- Read-only Supabase checks on 2026-10-16 confirm DEV **Kartiseret - dev** (`jbydpmjjptwevyijarzl`) is `ACTIVE_HEALTHY`, PostgreSQL 17.11. Its provider ledger has baseline `20261015141043` and public-read grant `20261015162250`; it does **not** yet list cleanup migration `20261016040826`. The cleanup SQL was already applied to DEV through the previously authorized SQL path and is idempotent. Reconcile its ledger entry before the next provider-managed migration push; do not replay the baseline.
+- DEV remains separate from Production. No hosted DB mutation was made during this refresh.
+- Production **KartiseretNew** (`gsdrcyrduxbrxgsvhxvr`) is `ACTIVE_HEALTHY`, PostgreSQL 17.6.1. Read-only checks show an empty Supabase migration ledger and no `kartiseret_runtime` or `kartiseret_api` role. PR 2's current PR description also reports no Vercel Production `DATABASE_URL` or `DATABASE_SSL_CA_CERT`; recheck these variables before cutover.
+- **Production setup is a required PR 3 merge gate.** PR 3 switches the shipped frontend's public reads to Express. If Production still lacks its restricted DB login, public API catalog requests will fail after deployment. Before merging PR 3, verify the existing Production schema against the baseline without executing the baseline; provision the restricted `kartiseret_runtime` group and `kartiseret_api` login with only required public `SELECT` rights; record the existing baseline as applied only after schema verification; apply the forward PR 3 migrations in order; and configure Vercel Production `DATABASE_URL` (Production transaction pooler + restricted role) and verified `DATABASE_SSL_CA_CERT`. Never use DEV or the admin/migration URL for Production runtime.
+- The Production baseline was not recorded by the read-only check, so a blind `supabase db push` could try to execute the create-table baseline against the existing Production schema. Verify first; do not run or repair the baseline history until its schema is confirmed. No Production credentials, schema, policies, rows, or Vercel settings were changed during this work.
 
-1. Check Vercel Preview environment variables point the server database and still-direct Supabase browser client to DEV, then run the authenticated route checks above.
-2. Reconcile DEV migration version `20261016040826` in Supabase's provider ledger before future migration automation; DEV schema already has the intended final state.
-3. After PR 2 merges, retarget this PR from the PR 2 branch to `main`; wait for checks on the new base before deciding whether to merge.
-4. PR 4 can move protected preference, subscription, and admin calls behind authenticated APIs. Preserve temporary Supabase Auth until PR 5.
+## Verification
+
+- `npm ci --no-audit` passed and installed 417 packages. The worktree uses Node 26.10.0 while packages and CI target Node 24.x, so npm emitted engine warnings; GitHub Actions on Node 24 remains the authoritative target-version check. The existing `fsevents` install-script allowlist notice also appeared.
+- `npm run verify` passed after the dispatcher smoke update: lint, formatting, contract/server/web/E2E typechecks, **492 web tests**, **46 server/API tests**, server and web builds, OG HTML/JPEG/assets smoke, API dispatcher typecheck, and eager bundle (**206.8 KiB gzip / 210 KiB budget**). The Vite large asynchronous chunk advisory remains informational; the enforced eager bundle budget passes.
+- The first local full run hit sandbox `EPERM` when Supertest opened a loopback listener. The same full suite passed when rerun with loopback permitted; this was an environment permission issue, not a test assertion failure.
+- Local PostgreSQL-backed integration and Playwright browser execution were not run: the Docker CLI is present but its daemon socket is unavailable, and there is no local PostgreSQL CLI. GitHub Full checks provisions disposable PostgreSQL 17 and runs the restricted-role integration suite followed by four Playwright scenarios; a fresh run on the updated PR head is required before merge.
+- The earlier PR 3 Full checks run #94 passed on the old stacked head; it is historical evidence only. The new-base GitHub run and Preview deployment checks are pending after push.
+- Earlier fixture-only comparison observed 626 JSON bytes and two catalog/code requests on the old browser path versus 608 bytes and one catalog API request on the new path. This is a synthetic one-row comparison, not a latency or general performance claim.
+- An authenticated Vercel Preview acceptance pass is still required on this updated head: all five routes above, `/api/not-a-route` JSON 404, `/` SPA HTML, a permanent-code short link, `/api/og` HTML, and `/api/og-image?home=1` JPEG. Preview `DATABASE_URL`/CA and remaining `VITE_SUPABASE_URL`/publishable key values must point to DEV for this test.
+
+## Owner steps before merging PR 3
+
+1. Wait for the refreshed PR checks and Preview deployment. Use the Preview link while signed into Vercel and verify the API, SPA, short-link, OG HTML, and JPEG responses listed above. Confirm Preview's DB and still-used Supabase Auth/browser variables all target DEV.
+2. Prepare Production separately: verify schema compatibility with the checked-in baseline; create the restricted runtime group/login and its initial catalog/code rights because Production has not recorded the baseline migration; record baseline history only after that comparison; apply the forward public-read migrations; add Production-only `DATABASE_URL` and `DATABASE_SSL_CA_CERT`; and test the Production DB connection before the frontend cutover. Do not copy any DEV/admin credential into Production.
+3. Reconcile DEV cleanup migration `20261016040826` in the provider migration history before the next provider-managed migration push. Use the Supabase CLI's migration-history repair workflow only after confirming the cleanup is already applied; never rerun the baseline against DEV.
+4. Once the refreshed CI and Preview checks pass and Production is prepared, mark PR #170 ready and merge it. No reviewers have been requested.
+5. PR 4 can then move preferences, ticket-alert subscriptions, and admin operations behind authenticated APIs. Preserve temporary Supabase Auth until PR 5.
