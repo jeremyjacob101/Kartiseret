@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
-import uuid
 
 
 MATCHING_POLICY_VERSION = 1
@@ -37,10 +36,8 @@ class PipelineCheckpoints:
     """Small service-role-backed checkpoint API used by the dataflow stages."""
 
     def initPipelineCheckpoints(self):
-        self._publication_owner_token = str(uuid.uuid4())
         self._publication_claims = {}
         self.prepared_publications = []
-        self._pipeline_cleanup_attempted = False
 
     def matchInputFingerprint(self, category: str, identity_key: str, rows: list[dict]) -> str:
         evidence = []
@@ -183,9 +180,7 @@ class PipelineCheckpoints:
         identity_fingerprints: dict[str, str],
         row_fingerprints_by_id: dict[str, str] | None = None,
     ) -> bool:
-        """Claim every unfinished source snapshot together or do no publication."""
-        busy = False
-        self._publication_set_busy = False
+        """Start or resume each complete source snapshot's publication checkpoint."""
         for cinema, manifest in sorted(manifests_by_cinema.items()):
             snapshot_id = self.clean_str(manifest.get("snapshot_id")).strip()
             if not snapshot_id:
@@ -205,13 +200,7 @@ class PipelineCheckpoints:
                 rows_by_cinema.get(cinema, []),
                 fingerprints,
             )
-            result = self.claimSnapshotPublication(category, snapshot_id, fingerprint, cinema=cinema)
-            if result.get("state") == "owned_by_active_run":
-                busy = True
-        if busy:
-            self._publication_set_busy = True
-            self.releasePublicationClaims(reason="another active run owns a source snapshot")
-            return False
+            self.claimSnapshotPublication(category, snapshot_id, fingerprint, cinema=cinema)
         return bool(self._publication_claims)
 
     def claimSnapshotPublication(self, category: str, snapshot_id: str, input_fingerprint: str, *, cinema: str) -> dict:
@@ -220,8 +209,6 @@ class PipelineCheckpoints:
             "p_cinema": cinema,
             "p_snapshot_id": snapshot_id,
             "p_input_fingerprint": input_fingerprint,
-            "p_run_id": int(self.run_id),
-            "p_owner_token": self._publication_owner_token,
         }).execute().data
         if isinstance(result, list) and result:
             result = result[0]
@@ -232,7 +219,6 @@ class PipelineCheckpoints:
                 "category": category,
                 "cinema": cinema,
                 "input_fingerprint": input_fingerprint,
-                "generation": int(result["generation"]),
                 "phase": result.get("phase") or "in_progress",
             }
         return result
@@ -250,24 +236,6 @@ class PipelineCheckpoints:
         claim = self._publication_claims.get(snapshot_id)
         return bool(claim and self.PUBLICATION_PHASE_ORDER.get(claim.get("phase"), 0) >= self.PUBLICATION_PHASE_ORDER[phase])
 
-    def assertSnapshotPublicationOwnership(self, snapshot_ids=None) -> None:
-        """Fail before writes when a newer attempt has taken over this source."""
-        ids = list(snapshot_ids) if snapshot_ids is not None else list(self._publication_claims)
-        for snapshot_id in ids:
-            claim = self._publication_claims.get(snapshot_id)
-            if not claim:
-                continue
-            result = self.supabase.rpc("assert_pipeline_publication_ownership", {
-                "p_category": claim["category"],
-                "p_cinema": claim["cinema"],
-                "p_snapshot_id": snapshot_id,
-                "p_input_fingerprint": claim["input_fingerprint"],
-                "p_owner_token": self._publication_owner_token,
-                "p_generation": claim["generation"],
-            }).execute().data
-            if result not in (True, [True], [{"assert_pipeline_publication_ownership": True}]):
-                raise RuntimeError("Publication checkpoint ownership changed before a database write")
-
     def advanceSnapshotPublication(self, snapshot_id: str, phase: str, *, has_unresolved: bool = False) -> None:
         claim = self._publication_claims[snapshot_id]
         if self.PUBLICATION_PHASE_ORDER[phase] < self.PUBLICATION_PHASE_ORDER.get(claim.get("phase"), 0):
@@ -277,33 +245,9 @@ class PipelineCheckpoints:
             "p_cinema": claim["cinema"],
             "p_snapshot_id": snapshot_id,
             "p_input_fingerprint": claim["input_fingerprint"],
-            "p_owner_token": self._publication_owner_token,
-            "p_generation": claim["generation"],
             "p_phase": phase,
             "p_has_unresolved": bool(has_unresolved),
         }).execute().data
         if result not in (True, [True], [{"advance_pipeline_publication_checkpoint": True}]):
-            raise RuntimeError(f"Publication checkpoint ownership changed before {phase}")
+            raise RuntimeError(f"Publication checkpoint could not advance to {phase}")
         claim["phase"] = phase
-
-    def releasePublicationClaims(self, *, reason: str | None = None) -> None:
-        for snapshot_id, claim in list(self._publication_claims.items()):
-            try:
-                self.supabase.rpc("release_pipeline_publication_checkpoint", {
-                    "p_category": claim["category"],
-                    "p_cinema": claim["cinema"],
-                    "p_snapshot_id": snapshot_id,
-                    "p_input_fingerprint": claim["input_fingerprint"],
-                    "p_owner_token": self._publication_owner_token,
-                    "p_generation": claim["generation"],
-                    "p_reason": self.clean_str(reason).strip()[:100] or None,
-                }).execute()
-            except Exception:
-                pass
-        self._publication_claims.clear()
-        if not self._pipeline_cleanup_attempted:
-            self._pipeline_cleanup_attempted = True
-            try:
-                self.supabase.rpc("cleanup_pipeline_reliability_state", {"p_limit": 250}).execute()
-            except Exception:
-                pass

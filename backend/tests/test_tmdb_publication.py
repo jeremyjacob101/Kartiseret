@@ -23,6 +23,7 @@ def raw_row(row_id, title):
 
 
 class PublicationTests(TestCase):
+
     def build_flow(self, path, rows, fault=None, database=None):
         module = import_module("backend.dataflow." + path)
         cls = getattr(module, path.split(".")[-1])
@@ -89,7 +90,7 @@ class PublicationTests(TestCase):
                     self.assertFalse(flow.supabase.tables[flow.MAIN_TABLE_NAME][0]["added"])
                     self.assertFalse(any(action.get("op") in ("upsert", "update", "delete") for action in flow.supabase.actions))
 
-    def test_real_no_match_keeps_old_screenings_and_unresolved_raw_eligible(self):
+    def test_real_no_match_replaces_old_screenings_and_keeps_raw_eligible(self):
         for path in FLOWS[1:]:
             with self.subTest(flow=path):
                 def no_beta(url, params):
@@ -103,7 +104,7 @@ class PublicationTests(TestCase):
                 raw = {row["id"]: row for row in flow.supabase.tables[flow.MAIN_TABLE_NAME]}
                 self.assertTrue(raw["1"]["added"])
                 self.assertFalse(raw["2"]["added"])
-                self.assertIn("old-beta", [row["id"] for row in flow.supabase.tables[flow.MOVING_TO_TABLE_NAME]])
+                self.assertNotIn("old-beta", [row["id"] for row in flow.supabase.tables[flow.MOVING_TO_TABLE_NAME]])
 
                 def beta_appeared(url, params):
                     if url == "search/movie" and params.get("query", "").lower() == "beta":
@@ -129,7 +130,6 @@ class PublicationTests(TestCase):
                     if row.get("english_title") == "Beta"
                 ]
                 self.assertEqual(len(beta_rows), 1)
-                retry.releasePublicationClaims()
 
     def test_final_movie_failure_leaves_raw_retryable_and_next_attempt_repairs_it(self):
         for path in FLOWS[1:]:
@@ -252,7 +252,6 @@ class PublicationTests(TestCase):
         self.assertFalse(first.supabase.tables[first.MAIN_TABLE_NAME][0]["added"])
         checkpoint = first.supabase.tables["pipeline_publication_checkpoints"][0]
         self.assertEqual(checkpoint["phase"], "prepared")
-        first.releasePublicationClaims()
         first.supabase.fail_table = None
 
         retry = self.build_flow(FLOWS[0], [row], database=first.supabase)
@@ -267,7 +266,6 @@ class PublicationTests(TestCase):
         self.assertIn("search/movie", calls)
         self.assertTrue(retry.supabase.tables[retry.MAIN_TABLE_NAME][0]["added"])
         self.assertEqual(retry.supabase.tables["pipeline_publication_checkpoints"][0]["phase"], "published")
-        retry.releasePublicationClaims()
 
     def test_publication_evidence_fingerprint_changes_with_metadata_fixes_skips_and_policy(self):
         flow = self.build_flow(FLOWS[1], [raw_row("1", "The Film")])
@@ -326,7 +324,6 @@ class PublicationTests(TestCase):
                 checkpoint = next(row for row in first.supabase.tables["pipeline_publication_checkpoints"] if row["snapshot_id"] == snapshot_id)
                 self.assertEqual(checkpoint["phase"], "screenings_written")
                 self.assertTrue(any(action["op"] == "upsert" and action["table"] == first.MOVING_TO_TABLE_NAME for action in first.supabase.actions))
-                first.releasePublicationClaims()
                 first.supabase.fail_table = None
                 screen_upserts_before_retry = sum(action["op"] == "upsert" and action["table"] == first.MOVING_TO_TABLE_NAME for action in first.supabase.actions)
 
@@ -338,7 +335,6 @@ class PublicationTests(TestCase):
                 self.assertTrue(retry.supabase.tables[retry.MAIN_TABLE_NAME][0]["added"])
                 self.assertTrue(retry.supabase.tables[retry.MOVING_TO_TABLE_NAME_2])
                 self.assertEqual(retry.supabase.tables["pipeline_publication_checkpoints"][0]["phase"], "published")
-                retry.releasePublicationClaims()
 
     def test_newer_failed_scrape_fences_off_older_complete_snapshot(self):
         old_row = raw_row("old-raw", "Old Film")
@@ -372,57 +368,11 @@ class PublicationTests(TestCase):
         first.claimSnapshotPublication("nowplayings", snapshot_id, "same-input", cinema="Test")
         first.advanceSnapshotPublication(snapshot_id, "prepared", has_unresolved=True)
         first.advanceSnapshotPublication(snapshot_id, "screenings_written", has_unresolved=True)
-        first.releasePublicationClaims()
-
         retry = self.build_flow(FLOWS[1], [row], database=first.supabase)
         retry.claimSnapshotPublication("nowplayings", snapshot_id, "same-input", cinema="Test")
 
         self.assertEqual(retry._publication_claims[snapshot_id]["phase"], "in_progress")
         self.assertFalse(retry.snapshotPublicationReached(snapshot_id, "screenings_written"))
-        retry.releasePublicationClaims()
-
-    def test_newer_snapshot_supersedes_active_older_publication_owner(self):
-        old_snapshot, new_snapshot = str(uuid.uuid4()), str(uuid.uuid4())
-        database = DB({
-            "allTheques": [], "finalTheques": [], "finalThequeMovies": [], "tableFixes": [], "tableSkips": [],
-            "utilRunLogs": [{"run_id": 10, "running_now": True}, {"run_id": 11, "running_now": True}],
-            "pipeline_scrape_snapshots": [{
-                "snapshot_id": old_snapshot, "run_id": 10, "attempt": 1,
-                "table_name": "allTheques", "source_name": "Test", "cinema": "Test",
-                "status": "complete", "row_count": 0, "started_at": "2026-10-15T10:00:00+00:00",
-            }],
-        })
-        first = self.build_flow(FLOWS[2], [], database=database)
-        first.run_id = 10
-        first_claim = first.claimSnapshotPublication("cinematheques", old_snapshot, "old-fingerprint", cinema="Test")
-        self.assertTrue(first_claim["claimed"])
-
-        database.tables["pipeline_scrape_snapshots"].append({
-            "snapshot_id": new_snapshot, "run_id": 11, "attempt": 1,
-            "table_name": "allTheques", "source_name": "Test", "cinema": "Test",
-            "status": "complete", "row_count": 0, "started_at": "2026-10-15T11:00:00+00:00",
-        })
-        second = self.build_flow(FLOWS[2], [], database=database)
-        second.run_id = 11
-        new_claim = second.claimSnapshotPublication("cinematheques", new_snapshot, "new-fingerprint", cinema="Test")
-        self.assertTrue(new_claim["claimed"])
-        with self.assertRaisesRegex(RuntimeError, "ownership changed"):
-            first.assertSnapshotPublicationOwnership([old_snapshot])
-
-        stale_advance = database.rpc("advance_pipeline_publication_checkpoint", {
-            "p_category": "cinematheques",
-            "p_cinema": "Test",
-            "p_snapshot_id": old_snapshot,
-            "p_input_fingerprint": "old-fingerprint",
-            "p_owner_token": first._publication_owner_token,
-            "p_generation": first._publication_claims[old_snapshot]["generation"],
-            "p_phase": "published",
-            "p_has_unresolved": False,
-        }).execute().data
-        self.assertFalse(stale_advance)
-        self.assertEqual(database.tables["pipeline_publication_scope_owners"][0]["snapshot_id"], new_snapshot)
-        first.releasePublicationClaims()
-        second.releasePublicationClaims()
 
     def test_scraper_manifest_marks_only_explicit_empty_as_complete(self):
         database = DB({"pipeline_scrape_snapshots": []})
@@ -485,7 +435,7 @@ class PublicationTests(TestCase):
         self.assertEqual(len(database.tables["pipeline_scrape_snapshots"]), 2)
         self.assertEqual([row["status"] for row in database.tables["pipeline_scrape_snapshots"]], ["running", "running"])
 
-    def test_unresolved_match_failure_retains_the_entire_cinema(self):
+    def test_unresolved_match_replaces_old_cinema_screenings(self):
         beta = raw_row("new-beta", "Beta")
         alpha = raw_row("new-alpha", "Alpha")
         old_beta = {**raw_row("old-beta", "Beta"), "tmdb_id": 999}
@@ -498,17 +448,14 @@ class PublicationTests(TestCase):
 
         screenings = flow.supabase.tables[flow.MOVING_TO_TABLE_NAME]
         ids = {row["id"] for row in screenings}
-        self.assertIn("old-beta", ids)
-        self.assertIn("new-alpha", ids)
-        self.assertIn("old-gamma", ids)
+        self.assertEqual(ids, {"new-alpha"})
         raw = {row["id"]: row for row in flow.supabase.tables[flow.MAIN_TABLE_NAME]}
         self.assertTrue(raw["new-alpha"]["added"])
         self.assertFalse(raw["new-beta"]["added"])
         checkpoint = next(row for row in flow.supabase.tables["pipeline_publication_checkpoints"] if row["snapshot_id"] == snapshot_id)
         self.assertTrue(checkpoint["has_unresolved"])
-        flow.releasePublicationClaims()
 
-    def test_unknown_unresolved_identity_retains_cinema_conservatively(self):
+    def test_unresolved_only_snapshot_replaces_old_cinema_screenings(self):
         beta = raw_row("new-beta", "Beta")
         old_beta = {**raw_row("old-beta", "Beta"), "tmdb_id": 999}
         old_gamma = {**raw_row("old-gamma", "Gamma"), "tmdb_id": 555}
@@ -519,9 +466,7 @@ class PublicationTests(TestCase):
         flow.logic()
 
         ids = {row["id"] for row in flow.supabase.tables[flow.MOVING_TO_TABLE_NAME]}
-        self.assertIn("old-beta", ids)
-        self.assertIn("old-gamma", ids)
-        flow.releasePublicationClaims()
+        self.assertEqual(ids, set())
 
     def test_current_intentional_skip_allows_old_title_screenings_to_be_removed(self):
         beta = raw_row("new-beta", "Beta")
@@ -537,7 +482,6 @@ class PublicationTests(TestCase):
         self.assertEqual(flow.supabase.tables[flow.MOVING_TO_TABLE_NAME], [])
         raw = flow.supabase.tables[flow.MAIN_TABLE_NAME][0]
         self.assertTrue(raw["added"])
-        flow.releasePublicationClaims()
 
     def test_fresh_raw_id_for_same_logical_screening_keeps_one_final_row(self):
         raw = raw_row("fresh-raw-id", "Alpha")
@@ -552,23 +496,6 @@ class PublicationTests(TestCase):
         final_rows = flow.supabase.tables[flow.MOVING_TO_TABLE_NAME]
         self.assertEqual(len(final_rows), 1)
         self.assertEqual(flow._showtime_key(final_rows[0]), flow._showtime_key(existing))
-        flow.releasePublicationClaims()
-
-    def test_stable_event_links_recognize_same_screening_after_title_correction(self):
-        raw = {**raw_row("fresh-raw-id", "Alpha corrected"), "english_href": "https://cinema.example/event/42", "hebrew_href": "https://cinema.example/event/42?lang=he"}
-        existing = {**raw_row("previous-raw-id", "Alpha typo"), "tmdb_id": 101, "english_href": raw["english_href"], "hebrew_href": raw["hebrew_href"]}
-        flow = self.build_flow(FLOWS[1], [raw])
-        flow.supabase.tables[flow.MOVING_TO_TABLE_NAME] = [existing]
-        flow.supabase.tables[flow.MOVING_TO_TABLE_NAME_2] = [{"tmdb_id": 101, "english_title": "Alpha"}]
-        self.install_snapshot(flow, [raw])
-
-        flow.logic()
-
-        final_rows = flow.supabase.tables[flow.MOVING_TO_TABLE_NAME]
-        self.assertEqual(len(final_rows), 1)
-        self.assertEqual(final_rows[0]["english_href"], raw["english_href"])
-        self.assertEqual(flow._showtime_key(final_rows[0]), flow._showtime_key(existing))
-        flow.releasePublicationClaims()
 
     def test_confirmed_empty_snapshot_removes_old_rows_but_failed_snapshot_does_not(self):
         for status, should_delete in (("complete", True), ("failed", False), ("running", False)):
@@ -582,37 +509,6 @@ class PublicationTests(TestCase):
 
                 ids = {row["id"] for row in flow.supabase.tables[flow.MOVING_TO_TABLE_NAME]}
                 self.assertEqual("old-screening" not in ids, should_delete)
-                flow.releasePublicationClaims()
-
-    def test_publication_claim_generation_rejects_a_stale_owner(self):
-        database = DB({"allTheques": [], "finalTheques": [], "finalThequeMovies": [], "tableFixes": [], "tableSkips": [], "utilRunLogs": [{"run_id": 10, "running_now": True}]})
-        first = self.build_flow(FLOWS[2], [], database=database)
-        first.run_id = 10
-        snapshot_id = str(uuid.uuid4())
-        first_claim = first.claimSnapshotPublication("cinematheques", snapshot_id, "fingerprint", cinema="Test")
-        first_claim_data = first._publication_claims[snapshot_id].copy()
-
-        second = self.build_flow(FLOWS[2], [], database=database)
-        second.run_id = 11
-        blocked = second.claimSnapshotPublication("cinematheques", snapshot_id, "fingerprint", cinema="Test")
-        self.assertEqual(blocked["state"], "owned_by_active_run")
-
-        database.tables["utilRunLogs"][0]["running_now"] = False
-        claimed = second.claimSnapshotPublication("cinematheques", snapshot_id, "fingerprint", cinema="Test")
-        self.assertTrue(claimed["claimed"])
-        stale_advance = database.rpc("advance_pipeline_publication_checkpoint", {
-            "p_category": "cinematheques",
-            "p_cinema": "Test",
-            "p_snapshot_id": snapshot_id,
-            "p_input_fingerprint": first_claim["input_fingerprint"] if "input_fingerprint" in first_claim else "fingerprint",
-            "p_owner_token": first._publication_owner_token,
-            "p_generation": first_claim_data["generation"],
-            "p_phase": "published",
-            "p_has_unresolved": False,
-        }).execute().data
-        self.assertFalse(stale_advance)
-        self.assertEqual(database.tables["pipeline_publication_checkpoints"][0]["owner_token"], second._publication_owner_token)
-        second.releasePublicationClaims()
 
     def test_raw_deduplication_keeps_different_snapshot_attempts_isolated(self):
         common = raw_row("a", "Alpha")

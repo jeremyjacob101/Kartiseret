@@ -12,9 +12,6 @@ class DataflowHelpers:
             snapshot_id = self.clean_str(row.get("snapshot_id")).strip()
             if snapshot_id:
                 self.unresolved_identity_keys_by_snapshot[snapshot_id].add(identity_key or "unknown")
-            cinema = self.clean_str(row.get("cinema")).strip()
-            if cinema and category in {"nowplayings", "cinematheques"}:
-                self.retain_all_cinemas.add(cinema)
 
     def dateToDate(self, v):
         if isinstance(v, date):

@@ -82,7 +82,6 @@ class InitializeBaseDataflow:
         self.chosen_path = None
         self.alt_options = []
         self.unhealthy_cinemas = set()
-        self.retain_all_cinemas = set()
         self.unresolved_identity_keys_by_snapshot = defaultdict(set)
 
         self.general_focused_page = 1
@@ -111,6 +110,5 @@ class InitializeBaseDataflow:
         self.latest_snapshot_rows = []
         self.latest_snapshot_manifests_by_cinema = {}
         self.latest_snapshot_ids_by_cinema = {}
-        self._publication_set_busy = False
 
         self.fake_runtimes = [0, 30, 40, 45, 60, 90, 100, 120, 130, 150, 180, 200, 240, 250, 300]
