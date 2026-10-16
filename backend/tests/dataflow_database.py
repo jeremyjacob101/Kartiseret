@@ -1,7 +1,5 @@
 from types import SimpleNamespace
 import copy
-from datetime import datetime, timezone
-import uuid
 
 
 class Query:
@@ -81,9 +79,6 @@ class Query:
             inserted = []
             for payload in payload_rows:
                 row = copy.deepcopy(payload)
-                if self.table == "pipeline_match_checkpoints":
-                    row.setdefault("id", str(uuid.uuid4()))
-                    row.setdefault("created_at", datetime.now(timezone.utc).isoformat())
                 rows.append(row)
                 inserted.append(row)
             selected = inserted
@@ -205,7 +200,7 @@ class RpcQuery:
                 scope.update({"owner_token": None, "owner_run_id": None})
             result = matched
         elif self.function_name == "cleanup_pipeline_reliability_state":
-            result = {"match_checkpoints_deleted": 0, "publication_checkpoints_deleted": 0, "scrape_snapshots_deleted": 0}
+            result = {"publication_checkpoints_deleted": 0, "scrape_snapshots_deleted": 0}
         else:
             raise NotImplementedError(self.function_name)
         return SimpleNamespace(data=result)

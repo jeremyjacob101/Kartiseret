@@ -55,14 +55,9 @@ class BaseDataflow(PipelineCheckpoints, InitializeBaseDataflow, DataflowRequests
     def dataRun(self):
         try:
             self.logic()
-            self.flushMatchDecisionCheckpoints()
             logSuccessfulRun(self)
             self.flush_summary(successful=True)
         except Exception:
-            try:
-                self.flushMatchDecisionCheckpoints()
-            except Exception:
-                pass
             self.flush_summary(successful=False)
             raise
         finally:

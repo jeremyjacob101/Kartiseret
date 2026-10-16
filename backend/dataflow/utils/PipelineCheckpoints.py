@@ -1,19 +1,14 @@
-"""Durable TMDb match decisions and resumable snapshot publication state."""
+"""Resumable source snapshot publication state."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import uuid
 
 
 MATCHING_POLICY_VERSION = 1
-MATCH_DECISION_TTL_DAYS = 180
-RETRY_DIAGNOSTIC_TTL_HOURS = 24
-CHECKPOINT_QUERY_BATCH_SIZE = 24
-CHECKPOINT_INSERT_BATCH_SIZE = 50
 
 
 def stable_fingerprint(value) -> str:
@@ -42,8 +37,6 @@ class PipelineCheckpoints:
     """Small service-role-backed checkpoint API used by the dataflow stages."""
 
     def initPipelineCheckpoints(self):
-        self._match_decision_cache = {}
-        self._pending_match_checkpoints = []
         self._publication_owner_token = str(uuid.uuid4())
         self._publication_claims = {}
         self.prepared_publications = []
@@ -82,87 +75,6 @@ class PipelineCheckpoints:
             "evidence": evidence,
             "helper_evidence": helper_evidence,
         })
-
-    def matchIdentityHash(self, category: str, identity_key: str) -> str:
-        return stable_fingerprint([category, identity_key])
-
-    def loadMatchDecisionCache(self, category: str, identities: dict[str, str]) -> None:
-        """Load current reusable decisions in bounded PostgREST requests."""
-        self._match_decision_cache = {}
-        identity_by_hash = {self.matchIdentityHash(category, key): key for key in identities}
-        identity_hashes = list(identity_by_hash)
-        now = datetime.now(timezone.utc).isoformat()
-        for start in range(0, len(identity_hashes), CHECKPOINT_QUERY_BATCH_SIZE):
-            chunk = identity_hashes[start : start + CHECKPOINT_QUERY_BATCH_SIZE]
-            rows = self.supabase.table("pipeline_match_checkpoints").select(
-                "category,identity_hash,input_fingerprint,decision,tmdb_id,imdb_id,match_path,alt_options,reason,run_id,expires_at,created_at"
-            ).eq("category", category).in_("identity_hash", chunk).in_(
-                "decision", ["matched", "intentional_skip"]
-            ).gt("expires_at", now).order("run_id", desc=True).order("created_at", desc=True).execute().data or []
-            for row in rows:
-                identity_key = identity_by_hash.get(row.get("identity_hash"))
-                if not identity_key:
-                    continue
-                cache_key = (identity_key, row.get("input_fingerprint"))
-                self._match_decision_cache.setdefault(cache_key, row)
-
-    def reusableMatchDecision(self, category: str, identity_key: str, fingerprint: str):
-        return self._match_decision_cache.get((identity_key, fingerprint))
-
-    def recordMatchDecision(
-        self,
-        category: str,
-        identity_key: str,
-        fingerprint: str,
-        decision: str,
-        *,
-        tmdb_id=None,
-        imdb_id=None,
-        match_path=None,
-        alt_options=None,
-        reason=None,
-    ) -> None:
-        if decision not in {"matched", "intentional_skip", "retryable_failure"}:
-            raise ValueError(f"Unsupported match checkpoint decision: {decision}")
-        ttl = timedelta(hours=RETRY_DIAGNOSTIC_TTL_HOURS) if decision == "retryable_failure" else timedelta(days=MATCH_DECISION_TTL_DAYS)
-        row = {
-            "category": category,
-            "identity_key": identity_key,
-            "identity_hash": self.matchIdentityHash(category, identity_key),
-            "input_fingerprint": fingerprint,
-            "matching_policy_version": MATCHING_POLICY_VERSION,
-            "decision": decision,
-            "tmdb_id": self.clean_int(tmdb_id),
-            "imdb_id": self.clean_str(imdb_id).strip() or None,
-            "match_path": self.clean_str(match_path).strip() or None,
-            "alt_options": alt_options if isinstance(alt_options, list) else [],
-            "reason": self.clean_str(reason).strip()[:100] or None,
-            "run_id": self.clean_int(getattr(self, "run_id", None)),
-            "expires_at": (datetime.now(timezone.utc) + ttl).isoformat(),
-        }
-        self._pending_match_checkpoints.append(row)
-        if decision in {"matched", "intentional_skip"}:
-            self._match_decision_cache[(identity_key, fingerprint)] = row
-            # Persist completed decisions before the next title can stall or the
-            # process deadline can terminate the run.
-            self.flushMatchDecisionCheckpoints()
-        if len(self._pending_match_checkpoints) >= CHECKPOINT_INSERT_BATCH_SIZE:
-            self.flushMatchDecisionCheckpoints()
-
-    def flushMatchDecisionCheckpoints(self) -> None:
-        if not self._pending_match_checkpoints:
-            return
-        rows, self._pending_match_checkpoints = self._pending_match_checkpoints, []
-        self.supabase.table("pipeline_match_checkpoints").insert(rows).execute()
-
-    def latestReusableDecisionForIdentity(self, category: str, identity_key: str):
-        identity_hash = self.matchIdentityHash(category, identity_key)
-        rows = self.supabase.table("pipeline_match_checkpoints").select(
-            "decision,tmdb_id,run_id,expires_at"
-        ).eq("category", category).eq("identity_hash", identity_hash).eq("decision", "matched").gt(
-            "expires_at", datetime.now(timezone.utc).isoformat()
-        ).order("run_id", desc=True).order("created_at", desc=True).limit(1).execute().data or []
-        return rows[0] if rows else None
 
     def snapshotInputFingerprint(self, category: str, snapshot_id: str, rows: list[dict], identity_fingerprints: list[str]) -> str:
         return stable_fingerprint({
