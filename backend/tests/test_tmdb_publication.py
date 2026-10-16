@@ -100,6 +100,7 @@ class PublicationTests(TestCase):
                 old = {**raw_row("old-beta", "Beta"), "tmdb_id": 999}
                 flow.supabase.tables[flow.MOVING_TO_TABLE_NAME] = [old]
                 flow.refreshAllTables()
+                self.install_snapshot(flow, flow.supabase.tables[flow.MAIN_TABLE_NAME])
                 flow.logic()
                 raw = {row["id"]: row for row in flow.supabase.tables[flow.MAIN_TABLE_NAME]}
                 self.assertTrue(raw["1"]["added"])
@@ -137,6 +138,7 @@ class PublicationTests(TestCase):
                 flow = self.build_flow(path, [raw_row("1", "Alpha")])
                 flow.supabase.tables[flow.MOVING_TO_TABLE_NAME] = [{**raw_row("old-beta", "Beta"), "tmdb_id": 999}]
                 flow.refreshAllTables()
+                self.install_snapshot(flow, flow.supabase.tables[flow.MAIN_TABLE_NAME])
                 flow.supabase.fail_table = flow.MOVING_TO_TABLE_NAME_2
                 with self.assertRaises(RuntimeError):
                     flow.logic()
