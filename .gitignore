@@ -58,3 +58,13 @@ backend/config/cron/run_realtime_logs/
 *.njsproj
 *.sln
 *.sw?
+
+# Supabase CLI local state
+/supabase/.temp/
+
+# Generated API workspace output
+/packages/server/node_modules/
+/packages/server/dist/
+
+# Keep the checked-in template while ignoring local secrets
+!.env.example

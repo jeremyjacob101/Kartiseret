@@ -1,0 +1,47 @@
+{
+  "name": "@kartiseret/server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "exports": {
+    "./app": "./dist/app.js",
+    "./production": "./dist/production.js",
+    "./catalog": "./dist/catalog/index.js",
+    "./vercel-dispatch": "./dist/vercel-dispatch.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.integration.json",
+    "lint": "eslint src tests scripts vitest.config.ts vitest.integration.config.ts",
+    "test": "vitest run --config vitest.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "db:test:bootstrap": "node scripts/bootstrap-test-database.mjs",
+    "start": "node --env-file-if-exists=../../.env dist/index.js",
+    "dev": "node --env-file-if-exists=../../.env --import tsx --watch src/index.ts"
+  },
+  "dependencies": {
+    "@kartiseret/contracts": "^1.0.0",
+    "drizzle-orm": "0.45.4",
+    "express": "5.2.1",
+    "pg": "8.16.3",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/express": "5.0.6",
+    "@types/node": "24.10.0",
+    "@types/pg": "8.15.5",
+    "@types/supertest": "6.0.3",
+    "eslint": "^10.6.0",
+    "globals": "^17.7.0",
+    "prettier": "^3.9.4",
+    "supertest": "7.1.4",
+    "tsx": "4.19.4",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.63.0",
+    "vitest": "4.1.11"
+  }
+}

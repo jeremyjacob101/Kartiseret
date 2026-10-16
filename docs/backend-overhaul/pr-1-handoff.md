@@ -1,5 +1,7 @@
 # PR 1 handoff — npm workspaces and shared Zod foundation
 
+> **Current status (2026-10-15):** The future-work notes below describe the state when PR 1 completed. PR 2 has since added the Express/PostgreSQL foundation and finished on Drizzle (not Prisma). The current PR 2 implementation and verified status are documented in [`pr-2-handoff.md`](./pr-2-handoff.md); the revised plan is [`../backend-overhaul-master-plan-drizzle.md`](../backend-overhaul-master-plan-drizzle.md). PR 3 starts from the merged Drizzle foundation and must not redo that conversion.
+
 - **Base branch/commit:** `main` / `60a242df` (`origin/main` at start)
 - **Implementation branch/commit:** `codex/backend-01-workspaces-contracts` / `c5145a8250eacafb76806a10321a6cab317b3cdb`
 - **Draft PR:** [#165](https://github.com/jeremyjacob101/Kartiseret/pull/165)

@@ -46,3 +46,40 @@ jobs:
 
       - name: Test dataflow requests and publication
         run: python -m unittest discover -s backend/tests -v
+
+  api-postgres:
+    needs: web
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: kartiseret_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kartiseret_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/kartiseret_test
+      DATABASE_URL: postgresql://kartiseret_api:local-test-only@127.0.0.1:5432/kartiseret_test
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Bootstrap and test against disposable PostgreSQL 17
+        run: npm run api:test:integration

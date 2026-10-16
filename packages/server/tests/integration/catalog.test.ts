@@ -1,0 +1,486 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { asc, eq, getTableColumns, getTableName, inArray } from "drizzle-orm";
+import { getTableConfig } from "drizzle-orm/pg-core";
+import request from "supertest";
+import { createApp } from "../../src/app.js";
+import { CatalogDatabaseError } from "../../src/catalog/errors.js";
+import { DrizzleCatalogRepository } from "../../src/catalog/drizzle-repository.js";
+import { createDatabase } from "../../src/db/client.js";
+import * as schema from "../../src/db/schema.js";
+
+const connectionString = process.env.TEST_DATABASE_URL;
+const runtimeConnectionString = process.env.DATABASE_URL;
+if (!connectionString || !runtimeConnectionString) {
+  throw new Error(
+    "TEST_DATABASE_URL is required; integration tests never skip.",
+  );
+}
+
+const testTarget = new URL(connectionString);
+const runtimeTarget = new URL(runtimeConnectionString);
+if (
+  !["localhost", "127.0.0.1", "::1"].includes(testTarget.hostname) ||
+  decodeURIComponent(testTarget.pathname.replace(/^\/+/, "")) !==
+    "kartiseret_test" ||
+  testTarget.port !== runtimeTarget.port ||
+  !["localhost", "127.0.0.1", "::1"].includes(runtimeTarget.hostname) ||
+  decodeURIComponent(runtimeTarget.pathname.replace(/^\/+/, "")) !==
+    "kartiseret_test"
+) {
+  throw new Error(
+    "Integration tests only run against local disposable kartiseret_test.",
+  );
+}
+
+const runtimeDatabase = createDatabase(runtimeConnectionString, { poolMax: 2 });
+const adminDatabase = createDatabase(connectionString, { poolMax: 2 });
+const app = createApp({
+  catalogRepository: new DrizzleCatalogRepository(runtimeDatabase.db),
+});
+
+const expectedTableNames = [
+  "cities",
+  "admin_users",
+  "allShowtimes",
+  "allSoons",
+  "allTheques",
+  "finalMovies",
+  "finalShowtimes",
+  "finalSoons",
+  "finalThequeMovies",
+  "finalTheques",
+  "movieCodes",
+  "tableFixes",
+  "tableSkips",
+  "theaters",
+  "ticket_alert_subscriptions",
+  "userPreferences",
+  "utilAvgTime",
+  "utilRunLogs",
+];
+
+interface PhysicalColumn {
+  table_name: string;
+  column_name: string;
+  formatted_type: string;
+  is_nullable: boolean;
+  has_default: boolean;
+}
+
+function normalizeSqlType(type: string): string {
+  return type
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/(time|timestamp)\(6\)/g, "$1")
+    .replace(/(time|timestamp) \(6\)/g, "$1")
+    .replaceAll("time without time zone", "time")
+    .replaceAll("timestamp without time zone", "timestamp")
+    .replaceAll(", ", ",");
+}
+
+describe("PostgreSQL 17 integration", () => {
+  beforeAll(async () => {
+    await Promise.all([
+      runtimeDatabase.pool.query("SELECT 1"),
+      adminDatabase.pool.query("SELECT 1"),
+    ]);
+  });
+
+  afterAll(async () => {
+    await Promise.all([runtimeDatabase.close(), adminDatabase.close()]);
+  });
+
+  it("maps the exact 18-table SQL baseline without changing physical column semantics", async () => {
+    const mappedTables = Object.values(schema.applicationTables);
+    expect(mappedTables.map((table) => getTableName(table)).sort()).toEqual(
+      [...expectedTableNames].sort(),
+    );
+
+    const { rows } = await adminDatabase.pool.query<PhysicalColumn>(`
+      SELECT
+        c.relname AS table_name,
+        a.attname AS column_name,
+        pg_catalog.format_type(a.atttypid, a.atttypmod) AS formatted_type,
+        NOT a.attnotnull AS is_nullable,
+        d.adbin IS NOT NULL AS has_default
+      FROM pg_catalog.pg_attribute AS a
+      JOIN pg_catalog.pg_class AS c ON c.oid = a.attrelid
+      JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+      LEFT JOIN pg_catalog.pg_attrdef AS d
+        ON d.adrelid = c.oid AND d.adnum = a.attnum
+      WHERE n.nspname = 'public'
+        AND c.relkind IN ('r', 'p')
+        AND a.attnum > 0
+        AND NOT a.attisdropped
+      ORDER BY c.relname, a.attnum
+    `);
+
+    const physicalTables = new Map<string, PhysicalColumn[]>();
+    for (const column of rows) {
+      const tableColumns = physicalTables.get(column.table_name) ?? [];
+      tableColumns.push(column);
+      physicalTables.set(column.table_name, tableColumns);
+    }
+
+    expect([...physicalTables.keys()].sort()).toEqual(
+      [...expectedTableNames].sort(),
+    );
+
+    for (const table of mappedTables) {
+      const tableName = getTableName(table);
+      const mappedColumns = Object.values(getTableColumns(table));
+      const actualColumns = physicalTables.get(tableName) ?? [];
+      expect(
+        mappedColumns.map((column) => column.name).sort(),
+        `${tableName} column names`,
+      ).toEqual(actualColumns.map((column) => column.column_name).sort());
+
+      const actualByName = new Map(
+        actualColumns.map((column) => [column.column_name, column]),
+      );
+      for (const mapped of mappedColumns) {
+        const actual = actualByName.get(mapped.name);
+        expect(
+          actual,
+          `${tableName}.${mapped.name} exists in SQL`,
+        ).toBeDefined();
+        expect(
+          normalizeSqlType(mapped.getSQLType()),
+          `${tableName}.${mapped.name} SQL type`,
+        ).toBe(normalizeSqlType(actual?.formatted_type ?? ""));
+        expect(mapped.notNull, `${tableName}.${mapped.name} nullability`).toBe(
+          !actual?.is_nullable,
+        );
+        expect(mapped.hasDefault, `${tableName}.${mapped.name} default`).toBe(
+          actual?.has_default,
+        );
+      }
+
+      const tableConfig = getTableConfig(table);
+      const mappedPrimaryKeys = [
+        ...mappedColumns
+          .filter((column) => column.primary)
+          .map((column) => column.name),
+        ...tableConfig.primaryKeys.flatMap((key) =>
+          key.columns.map((column) => column.name),
+        ),
+      ];
+      const { rows: primaryKeys } = await adminDatabase.pool.query<{
+        column_name: string;
+      }>(
+        `
+          SELECT a.attname AS column_name
+          FROM pg_catalog.pg_constraint AS constraint_row
+          JOIN pg_catalog.pg_class AS c ON c.oid = constraint_row.conrelid
+          JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+          CROSS JOIN LATERAL unnest(constraint_row.conkey)
+            WITH ORDINALITY AS key_column(attnum, position)
+          JOIN pg_catalog.pg_attribute AS a
+            ON a.attrelid = c.oid AND a.attnum = key_column.attnum
+          WHERE n.nspname = 'public'
+            AND c.relname = $1
+            AND constraint_row.contype = 'p'
+          ORDER BY key_column.position
+        `,
+        [tableName],
+      );
+      expect(mappedPrimaryKeys.sort(), `${tableName} primary key`).toEqual(
+        primaryKeys.map((key) => key.column_name).sort(),
+      );
+    }
+
+    const movieCodeConfig = getTableConfig(schema.movieCodes);
+    expect(
+      movieCodeConfig.uniqueConstraints.flatMap((constraint) =>
+        constraint.columns.map((column) => column.name),
+      ),
+    ).toContain("movie_code");
+    expect(
+      getTableColumns(schema.finalSoons).tmdbId.isUnique,
+      "finalSoons.tmdb_id is deliberately not unique",
+    ).toBe(false);
+
+    const theaterForeignKeys = getTableConfig(schema.theaters).foreignKeys;
+    expect(theaterForeignKeys).toHaveLength(1);
+    const cityReference = theaterForeignKeys[0]?.reference();
+    expect(cityReference?.columns.map((column) => column.name)).toEqual([
+      "city_name",
+    ]);
+    expect(cityReference?.foreignColumns.map((column) => column.name)).toEqual([
+      "name",
+    ]);
+    const { rows: theaterForeignKeyRows } = await adminDatabase.pool.query<{
+      definition: string;
+    }>(`
+      SELECT pg_catalog.pg_get_constraintdef(f.oid) AS definition
+      FROM pg_catalog.pg_constraint AS f
+      JOIN pg_catalog.pg_class AS c ON c.oid = f.conrelid
+      JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public'
+        AND c.relname = 'theaters'
+        AND f.contype = 'f'
+    `);
+    expect(theaterForeignKeyRows).toHaveLength(1);
+    expect(theaterForeignKeyRows[0]?.definition).toContain(
+      "FOREIGN KEY (city_name) REFERENCES cities(name) ON UPDATE CASCADE",
+    );
+
+    const { rows: providerForeignKeys } = await adminDatabase.pool.query<{
+      table_name: string;
+      definition: string;
+    }>(`
+      SELECT c.relname AS table_name, pg_catalog.pg_get_constraintdef(f.oid) AS definition
+      FROM pg_catalog.pg_constraint AS f
+      JOIN pg_catalog.pg_class AS c ON c.oid = f.conrelid
+      JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public'
+        AND f.contype = 'f'
+        AND f.confrelid = 'auth.users'::regclass
+      ORDER BY c.relname
+    `);
+    expect(providerForeignKeys.map((key) => key.table_name)).toEqual([
+      "admin_users",
+      "ticket_alert_subscriptions",
+      "userPreferences",
+    ]);
+    expect(
+      providerForeignKeys.every((key) =>
+        key.definition.includes("REFERENCES auth.users(id) ON DELETE CASCADE"),
+      ),
+    ).toBe(true);
+  });
+
+  it("queries the same public catalog DTO and ordering from real Postgres", async () => {
+    const response = await request(app).get("/api/v1/catalog/now-playing");
+    expect(response.status).toBe(200);
+    expect(response.body.error).toBeNull();
+
+    const movies = response.body.data.movies as Array<Record<string, unknown>>;
+    const fixture = movies.find((movie) => movie.tmdbId === "9100001");
+    expect(fixture).toMatchObject({
+      movieCode: "D01",
+      title: "Dev Catalog Film",
+      year: 2024,
+      genres: ["Drama", "Mystery"],
+      imdbRating: 7.6,
+      rtAudienceRating: 92,
+      runtime: 118,
+      altOptions: [
+        {
+          tmdbId: "9100002",
+          title: "Alternate Dev Film",
+          year: 2023,
+          posterUrl: null,
+        },
+      ],
+    });
+    expect(movies.some((movie) => movie.tmdbId === "9100002")).toBe(false);
+    expect(movies.find((movie) => movie.tmdbId === "9100003")).toMatchObject({
+      genres: [],
+    });
+    expect(JSON.stringify(response.body)).not.toContain("BigInt");
+  });
+
+  it("keeps SQL NULLS LAST behavior after DTO popularity normalization", async () => {
+    const insertedIds = [9199991, 9199992];
+    await adminDatabase.db.insert(schema.finalMovies).values([
+      {
+        tmdbId: 9199991,
+        englishTitle: "Zero Popularity Dev Film",
+        popularity: 0,
+      },
+      {
+        tmdbId: 9199992,
+        englishTitle: "Null Popularity Dev Film",
+        popularity: null,
+      },
+    ]);
+    try {
+      const response = await request(app).get("/api/v1/catalog/now-playing");
+      expect(response.status).toBe(200);
+      expect(
+        (response.body.data.movies as Array<{ tmdbId: string }>).map(
+          (movie) => movie.tmdbId,
+        ),
+      ).toEqual(["9100001", "9199991", "9100003", "9199992"]);
+    } finally {
+      await adminDatabase.db
+        .delete(schema.finalMovies)
+        .where(inArray(schema.finalMovies.tmdbId, insertedIds));
+    }
+  });
+
+  it("confirms the runtime login can read only the public catalog slice", async () => {
+    const visible = await runtimeDatabase.db
+      .select({
+        tmdbId: schema.finalMovies.tmdbId,
+        soloUpdate: schema.finalMovies.soloUpdate,
+      })
+      .from(schema.finalMovies)
+      .where(inArray(schema.finalMovies.tmdbId, [9100001, 9100002, 9100003]))
+      .orderBy(asc(schema.finalMovies.tmdbId));
+
+    expect(visible).toEqual([
+      { tmdbId: 9100001, soloUpdate: false },
+      { tmdbId: 9100002, soloUpdate: true },
+      { tmdbId: 9100003, soloUpdate: false },
+    ]);
+    await expect(
+      runtimeDatabase.db.select().from(schema.userPreferences).limit(1),
+    ).rejects.toThrow();
+  });
+
+  it("uses a metadata read for an empty code lookup and never builds invalid SQL", async () => {
+    await expect(
+      new DrizzleCatalogRepository(runtimeDatabase.db).findMovieCodes([]),
+    ).resolves.toEqual(new Map());
+  });
+
+  it("preserves PostgreSQL bigint, exact numeric, calendar date, and local-time values", async () => {
+    const largeMovieId = 9_007_199_254_740_993n;
+    await adminDatabase.db
+      .insert(schema.movieCodes)
+      .values({ tmdbId: largeMovieId, movieCode: "L01" });
+    const largeMovieCode = await adminDatabase.db
+      .select({ tmdbId: schema.movieCodes.tmdbId })
+      .from(schema.movieCodes)
+      .where(eq(schema.movieCodes.tmdbId, largeMovieId));
+    expect(largeMovieCode[0]?.tmdbId).toBe(largeMovieId);
+
+    const cinemathequeMovie = await adminDatabase.db
+      .select({
+        imdbRating: schema.finalThequeMovies.imdbRating,
+        imdbVotes: schema.finalThequeMovies.imdbVotes,
+      })
+      .from(schema.finalThequeMovies)
+      .where(eq(schema.finalThequeMovies.tmdbId, 9100012));
+    expect(cinemathequeMovie[0]?.imdbRating).toBe("7.1");
+    expect(cinemathequeMovie[0]?.imdbVotes).toBe(400n);
+
+    const screening = await adminDatabase.db
+      .select({
+        dateOfShowing: schema.finalShowtimes.dateOfShowing,
+        showtime: schema.finalShowtimes.showtime,
+      })
+      .from(schema.finalShowtimes)
+      .where(
+        eq(schema.finalShowtimes.id, "00000000-0000-4000-8000-000000009001"),
+      );
+    expect(screening[0]?.dateOfShowing).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(screening[0]?.showtime).toBe("19:30:00");
+
+    const runLog = await adminDatabase.db
+      .select({ dateCreated: schema.utilRunLogs.dateCreated })
+      .from(schema.utilRunLogs)
+      .where(eq(schema.utilRunLogs.runId, 9100000));
+    const rawRunLog = await adminDatabase.pool.query<{
+      date_created: string;
+    }>(
+      'SELECT date_created FROM public."utilRunLogs" WHERE run_id = $1',
+      [9100000],
+    );
+    expect(runLog[0]?.dateCreated).toBe(rawRunLog.rows[0]?.date_created);
+    expect(runLog[0]?.dateCreated).toMatch(
+      /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/,
+    );
+    expect(runLog[0]?.dateCreated).not.toMatch(/[+-]\d{2}(?::?\d{2})?$/);
+
+    const instant = await adminDatabase.db
+      .select({ createdAt: schema.finalThequeMovies.createdAt })
+      .from(schema.finalThequeMovies)
+      .where(eq(schema.finalThequeMovies.tmdbId, 9100012));
+    expect(instant[0]?.createdAt).toBeInstanceOf(Date);
+    expect(Number.isNaN(instant[0]?.createdAt.getTime())).toBe(false);
+  });
+
+  it("uses an actual Drizzle transaction and rolls back after a later failure", async () => {
+    await expect(
+      adminDatabase.db.transaction(async (transaction) => {
+        await transaction.insert(schema.utilRunLogs).values({ runId: 9199999 });
+        throw new Error("rollback fixture transaction");
+      }),
+    ).rejects.toThrow("rollback fixture transaction");
+
+    const afterRollback = await adminDatabase.db
+      .select({ runId: schema.utilRunLogs.runId })
+      .from(schema.utilRunLogs)
+      .where(eq(schema.utilRunLogs.runId, 9199999));
+    expect(afterRollback).toHaveLength(0);
+  });
+
+  it("keeps SQL CHECK failures enforced by PostgreSQL", async () => {
+    await expect(
+      adminDatabase.pool.query(
+        "INSERT INTO public.\"movieCodes\" (tmdb_id, movie_code) VALUES (9199999, 'bad!')",
+      ),
+    ).rejects.toThrow();
+    const absent = await adminDatabase.pool.query(
+      'SELECT tmdb_id FROM public."movieCodes" WHERE tmdb_id = 9199999',
+    );
+    expect(absent.rows).toHaveLength(0);
+  });
+
+  it("translates an actual Drizzle/PostgreSQL repository error to a safe API response", async () => {
+    const missingSchemaDatabase = createDatabase(runtimeConnectionString, {
+      poolMax: 1,
+      connectionOptions: "-c search_path=missing_catalog_schema",
+      onPoolError: () => undefined,
+    });
+    try {
+      const failingApp = createApp({
+        catalogRepository: new DrizzleCatalogRepository(
+          missingSchemaDatabase.db,
+        ),
+      });
+      const response = await request(failingApp).get(
+        "/api/v1/catalog/now-playing",
+      );
+
+      expect(response.status).toBe(503);
+      expect(response.body.error).toEqual({
+        code: "catalog_unavailable",
+        message: "The catalog is temporarily unavailable.",
+      });
+      expect(JSON.stringify(response.body)).not.toContain(
+        "missing_catalog_schema",
+      );
+    } finally {
+      await missingSchemaDatabase.close();
+    }
+  });
+
+  it("reports a missing movieCodes table instead of a healthy empty catalog", async () => {
+    const schemaName = "catalog_readiness_test";
+    await adminDatabase.pool.query(`CREATE SCHEMA ${schemaName}`);
+    try {
+      await adminDatabase.pool.query(`
+        CREATE VIEW ${schemaName}."finalMovies" AS
+        SELECT * FROM public."finalMovies"
+        WHERE false
+      `);
+      await adminDatabase.pool.query(
+        `GRANT USAGE ON SCHEMA ${schemaName} TO kartiseret_api`,
+      );
+      await adminDatabase.pool.query(
+        `GRANT SELECT ON ${schemaName}."finalMovies" TO kartiseret_api`,
+      );
+
+      const readinessDatabase = createDatabase(runtimeConnectionString, {
+        poolMax: 1,
+        connectionOptions: `-c search_path=${schemaName}`,
+        onPoolError: () => undefined,
+      });
+      try {
+        const repository = new DrizzleCatalogRepository(readinessDatabase.db);
+        expect(await repository.findNowPlayingRows()).toHaveLength(0);
+        await expect(repository.findMovieCodes([])).rejects.toBeInstanceOf(
+          CatalogDatabaseError,
+        );
+      } finally {
+        await readinessDatabase.close();
+      }
+    } finally {
+      await adminDatabase.pool.query(`DROP SCHEMA ${schemaName} CASCADE`);
+    }
+  });
+});
