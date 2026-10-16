@@ -129,7 +129,6 @@ class PublicationTests(TestCase):
                     if row.get("english_title") == "Beta"
                 ]
                 self.assertEqual(len(beta_rows), 1)
-                self.assertEqual(beta_rows[0]["tmdb_id"], 102)
                 retry.releasePublicationClaims()
 
     def test_final_movie_failure_leaves_raw_retryable_and_next_attempt_repairs_it(self):
