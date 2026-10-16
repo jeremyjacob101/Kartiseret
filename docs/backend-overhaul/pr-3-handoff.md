@@ -4,7 +4,7 @@
 
 - **Implementation branch:** `codex/backend-03-public-data-api`.
 - **Base:** `codex/backend-02-api-prisma-foundation`, PR #167. PR 2 remains open; PR 3 is intentionally stacked on its Drizzle implementation.
-- **Draft PR:** [#170](https://github.com/jeremyjacob101/Kartiseret/pull/170), head commit `81dbff1e6a9b1db87be5bdfbcc48bd212ba0dca7`, based on PR 2. It remains a draft with no reviewers requested. After PR 2 merges, retarget PR 3 to `main` and rerun checks.
+- **Draft PR:** [#170](https://github.com/jeremyjacob101/Kartiseret/pull/170), based on PR 2. The current branch head is the implementation submitted for that PR. It remains a draft with no reviewers requested. After PR 2 merges, retarget PR 3 to `main` and rerun checks.
 - **DEV project:** Kartiseret - dev, ref `jbydpmjjptwevyijarzl`, PostgreSQL 17.11 in `eu-central-2`. Production was not changed.
 
 ## Implemented behavior
@@ -39,8 +39,8 @@ Five public read endpoints are served by Express and Drizzle. Success responses 
 ## Verification and environment
 
 - `npm run verify` passed locally on Node 24.21: lint, format, contracts/server/web/Playwright typechecks, 492 frontend tests, 41 server/API tests, server and web production builds, built OG HTML/JPEG/assets smoke, and eager bundle (**207.0 KiB gzip / 210 KiB budget**).
-- `npx playwright test --config playwright.config.ts --list` passed and discovers four scenarios. It does not connect to a DB. The actual browser run is wired after PostgreSQL integration in `.github/workflows/full_checks.yml` as `npm run web:e2e`; it was not run locally because PostgreSQL 17 is unavailable here.
-- The PostgreSQL 17 integration test now covers real restricted-role public reads/denials, code batching, range bounds, optional movie filter, local-time serialization, city/theater join, all-city availability, and >1,000 rows. These new integration cases await branch CI. PR 2's separate 10/10 integration pass in Full checks run #76 is predecessor evidence only.
+- `npx playwright test --config playwright.config.ts --list` passed and discovers four scenarios. It does not connect to a DB. The actual browser run is wired after PostgreSQL integration in `.github/workflows/full_checks.yml` as `npm run web:e2e`; it was not run locally because the Docker CLI is installed but its daemon is unavailable here.
+- The PostgreSQL 17 integration test covers real restricted-role public reads/denials, code batching, range bounds, optional movie filter, local-time serialization, city/theater join, all-city availability, and >1,000 rows. PR CI runs these cases before the four browser scenarios. PR 2's separate 10/10 integration pass in Full checks run #76 is predecessor evidence only.
 - `npm run web:og:smoke` passes against built handlers from repository root, including SPA HTML fallback, generated 1200×630 JPEG, invalid remote backdrop fallback, fonts and Vercel packaging. The Fontconfig warning about the machine's default config did not fail generation.
 - A synthetic one-row comparison measured 626 bytes and two catalog/code HTTP requests on the former browser path versus 608 bytes and one request on the combined catalog API path. This is a fixture-level comparison only; no latency measurement or general speed claim is made.
 - Preview endpoints were not checked because the deployment is behind Vercel SSO in this environment. Before relying on Preview, confirm `DATABASE_URL` and remaining `VITE_SUPABASE_URL`/publishable key values are scoped to DEV. Then, from an authenticated owner browser, verify the five API routes, `/api/not-a-route` JSON 404, SPA `/`, a permanent-code short link, `/api/og`, and `/api/og-image?home=true` return expected JSON/HTML/JPEG types and DEV fixture data.

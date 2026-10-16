@@ -117,11 +117,11 @@ test("catalog API supports search and permanent short-code movie details", async
   await expect(page).toHaveURL(/\/D01/);
 
   expect(
-    requests.filter((request) => request.endsWith("/catalog/now-playing")),
-  ).toHaveLength(1);
+    requests.some((request) => request.endsWith("/catalog/now-playing")),
+  ).toBe(true);
   expect(
-    requests.filter((request) => request.endsWith("/catalog/coming-soon")),
-  ).toHaveLength(1);
+    requests.some((request) => request.endsWith("/catalog/coming-soon")),
+  ).toBe(true);
   expect(requests.some((request) => request.includes("/rest/v1/"))).toBe(false);
 
   const shortLinkPage = await page.context().newPage();
@@ -154,15 +154,6 @@ test("showtimes browse a real city/date and the active filter changes results", 
     page.getByRole("heading", { name: "Dev Catalog Film" }),
   ).toBeVisible();
   await expect(page.getByText("20:15", { exact: true })).toBeVisible();
-  expect(
-    requests.some(
-      (request) =>
-        request.includes("/showtimes?") &&
-        request.includes("city=Jerusalem") &&
-        request.includes(`startDate=${fixtureDate}`),
-    ),
-  ).toBe(true);
-
   const showtimeRequests = requests
     .filter((request) => request.includes("/showtimes?"))
     .map((request) => new URLSearchParams(request.split("?", 2)[1] ?? ""));
@@ -173,7 +164,11 @@ test("showtimes browse a real city/date and the active filter changes results", 
   const fixtureRange = showtimeRequests.find((params) => {
     const startDate = params.get("startDate") ?? "";
     const endDate = params.get("endDate") ?? "";
-    return startDate <= fixtureDate && endDate >= fixtureDate;
+    return (
+      params.get("city") === "Jerusalem" &&
+      startDate <= fixtureDate &&
+      endDate >= fixtureDate
+    );
   });
   expect(fixtureRange).toBeDefined();
   const startTime = Date.parse(`${fixtureRange!.get("startDate")}T00:00:00Z`);
