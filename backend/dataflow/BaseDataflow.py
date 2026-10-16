@@ -61,7 +61,6 @@ class BaseDataflow(PipelineCheckpoints, InitializeBaseDataflow, DataflowRequests
             self.flush_summary(successful=False)
             raise
         finally:
-            self.releasePublicationClaims()
             self.closeDataflowRequests()
 
     def finishSharedDataRun(self, successful: bool = True):

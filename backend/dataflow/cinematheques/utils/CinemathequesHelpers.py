@@ -36,7 +36,6 @@ class CinemathequesHelpers:
             self.flush_summary(successful=False)
             raise
         finally:
-            self.releasePublicationClaims()
             self.closeDataflowRequests()
 
     def _all_theque_key(self, row: dict) -> tuple:

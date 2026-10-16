@@ -298,7 +298,8 @@ class SupabaseTables:
 
     # SHOWTIMES (allShowtimes / finalShowtimes)
     def _showtime_key(self, row: dict) -> tuple:
-        screening_details = (
+        return (
+            self._norm_text(row.get("english_title")),
             self._norm_text(row.get("cinema")),
             self._norm_text(row.get("screening_city")),
             str(row.get("date_of_showing") or ""),
@@ -308,12 +309,6 @@ class SupabaseTables:
             self._norm_text(row.get("original_language")),
             self._norm_text(row.get("dub_language")),
         )
-        stable_href = self._norm_text(row.get("english_href")) or self._norm_text(row.get("hebrew_href"))
-        if stable_href:
-            # Cinema/event links survive title spelling changes and distinguish
-            # same-title remakes while preserving the established screening scope.
-            return ("event_link", *screening_details, stable_href)
-        return ("title", self._norm_text(row.get("english_title")), *screening_details)
 
     def _showtime_prefer_key(self, row: dict):
         rich_cols = ["tmdb_id", "release_year", "rating", "directed_by", "runtime", "english_href", "hebrew_href", "hebrew_title"]

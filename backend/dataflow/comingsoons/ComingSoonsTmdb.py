@@ -82,8 +82,6 @@ class ComingSoonsTmdb(BaseDataflow):
             fingerprint_by_identity,
             row_fingerprints_by_id=fingerprint_by_row_id,
         )
-        if self._publication_set_busy:
-            return
         claimed_snapshot_ids = set(self._publication_claims)
         claimed_cinemas = {
             cinema for cinema, manifest in manifests_by_cinema.items()
@@ -346,26 +344,22 @@ class ComingSoonsTmdb(BaseDataflow):
         )
         pre_upsert_count = len(self.updates)
         if needs_movie_write:
-            self.assertSnapshotPublicationOwnership()
             self.upsertUpdates(self.MOVING_TO_TABLE_NAME)
             self.trace_event("write", "mapped", "upserted", key=self.MOVING_TO_TABLE_NAME, payload={"title": "", "title_norm": "", "chosen_tmdb": ""})
             self.trace_write_action(f"upsertUpdates({self.MOVING_TO_TABLE_NAME}) rows={pre_upsert_count}")
         else:
             self.updates = []
-        self.assertSnapshotPublicationOwnership()
         movie_codes_by_tmdb = self.ensureMovieCodesForTable(self.MOVING_TO_TABLE_NAME)
         self.trace_write_action(f"ensureMovieCodes(movieCodes) rows={len(movie_codes_by_tmdb)}")
         for snapshot_id in claimed_snapshot_ids:
             self.advanceSnapshotPublication(snapshot_id, "movies_written")
         if self.processed_ids:
-            self.assertSnapshotPublicationOwnership()
             ids = list(self.processed_ids)
             for i in range(0, len(ids), 200):
                 chunk = ids[i : i + 200]
                 self.supabase.table(self.MAIN_TABLE_NAME).update({"added": True}).in_("id", chunk).execute()
             self.trace_event("write", "mapped", "marked_added", key=self.MAIN_TABLE_NAME, payload={"title": "", "title_norm": "", "chosen_tmdb": ""})
             self.trace_write_action(f"mark_added({self.MAIN_TABLE_NAME}) rows={len(ids)}")
-        self.assertSnapshotPublicationOwnership()
         self.dedupeFinalSoons(self.MOVING_TO_TABLE_NAME)
         self.trace_write_action(f"dedupeFinalSoons({self.MOVING_TO_TABLE_NAME})")
 

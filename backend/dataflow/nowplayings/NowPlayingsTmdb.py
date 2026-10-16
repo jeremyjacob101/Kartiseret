@@ -95,8 +95,6 @@ class NowPlayingsTmdb(BaseDataflow):
             group_keys_by_row_id,
             identity_fingerprints,
         )
-        if self._publication_set_busy:
-            return
         if not has_claimed_snapshots and not legacy_cinemas:
             # A published snapshot is already current. Still run the recovery
             # pass below so an older partial movie write can be repaired.
@@ -371,12 +369,11 @@ class NowPlayingsTmdb(BaseDataflow):
             new_keys = {self._showtime_key(row) for row in cinema_rows}
             retained_ids = set()
             stale_ids = set()
-            retain_all = cinema in self.retain_all_cinemas
             for existing in self.existing_final_rows_by_cinema.get(cinema, []):
                 existing_id = self.clean_str(existing.get("id")).strip()
                 if not existing_id:
                     continue
-                if retain_all or self._showtime_key(existing) in new_keys:
+                if self._showtime_key(existing) in new_keys:
                     retained_ids.add(existing_id)
                 else:
                     stale_ids.add(existing_id)
@@ -442,8 +439,6 @@ class NowPlayingsTmdb(BaseDataflow):
             cinema_rows = self.updates_by_cinema[cinema]
             if not cinema_rows:
                 continue
-            if snapshot_id:
-                self.assertSnapshotPublicationOwnership([snapshot_id])
             self.updates = list(cinema_rows)
             self.upsertUpdates(self.MOVING_TO_TABLE_NAME, refresh=False)
             self.trace_event("write", "mapped", "upserted", key=cinema, payload={"key": cinema, "row_count": len(cinema_rows), "representative_title": "", "parsed_year": None, "candidate_count": 0, "chosen_tmdb": "", "chosen_path": "publish_by_cinema"})
@@ -454,7 +449,6 @@ class NowPlayingsTmdb(BaseDataflow):
         self.updates = []
 
         # UPSERT FINALMOVIES
-        self.assertSnapshotPublicationOwnership()
         self.dedupeFinalShowtimes(self.MOVING_TO_TABLE_NAME)
         self.trace_write_action(f"dedupeFinalShowtimes({self.MOVING_TO_TABLE_NAME})")
         for tmdb_id, res in tmdb_id_to_enriched.items():
@@ -469,16 +463,13 @@ class NowPlayingsTmdb(BaseDataflow):
         )
         final_movies_upsert_count = len(self.updates)
         if needs_movie_write:
-            self.assertSnapshotPublicationOwnership()
             self.upsertUpdates(self.MOVING_TO_TABLE_NAME_2)
             self.trace_event("write", "mapped", "upserted", key=self.MOVING_TO_TABLE_NAME_2, payload={"key": self.MOVING_TO_TABLE_NAME_2, "row_count": final_movies_upsert_count, "representative_title": "", "parsed_year": None, "candidate_count": 0, "chosen_tmdb": "", "chosen_path": "final_movies"})
             self.trace_write_action(f"upsertUpdates({self.MOVING_TO_TABLE_NAME_2}) rows={final_movies_upsert_count}")
         else:
             self.updates = []
-        self.assertSnapshotPublicationOwnership()
         movie_codes_by_tmdb = self.ensureMovieCodesForTable(self.MOVING_TO_TABLE_NAME_2)
         self.trace_write_action(f"ensureMovieCodes(movieCodes) rows={len(movie_codes_by_tmdb)}")
-        self.assertSnapshotPublicationOwnership()
         self.dedupeFinalMovies(self.MOVING_TO_TABLE_NAME_2)
         self.trace_write_action(f"dedupeFinalMovies({self.MOVING_TO_TABLE_NAME_2})")
         for snapshot_id in claimed_snapshot_ids:
@@ -491,7 +482,6 @@ class NowPlayingsTmdb(BaseDataflow):
                 continue
             if not stale_final_ids:
                 continue
-            self.assertSnapshotPublicationOwnership([snapshot_id] if snapshot_id else None)
             self.delete_these.extend(sorted(stale_final_ids))
             self.deleteTheseRows(self.MOVING_TO_TABLE_NAME, refresh=False)
             self.trace_write_action(f"delete_stale({self.MOVING_TO_TABLE_NAME}) cinema={cinema} rows={len(stale_final_ids)}")
@@ -501,8 +491,6 @@ class NowPlayingsTmdb(BaseDataflow):
         # Only mark raw snapshots complete after both final tables succeeded.
         for cinema, raw_snapshot_ids in raw_snapshot_ids_to_mark_by_cinema.items():
             snapshot_id = self.latest_snapshot_ids_by_cinema.get(cinema)
-            if snapshot_id:
-                self.assertSnapshotPublicationOwnership([snapshot_id])
             for i in range(0, len(raw_snapshot_ids), 200):
                 self.supabase.table(self.MAIN_TABLE_NAME).update({"added": True}).in_("id", raw_snapshot_ids[i : i + 200]).execute()
             self.trace_event("write", "mapped", "marked_added", key=cinema, payload={"key": cinema, "row_count": len(raw_snapshot_ids), "representative_title": "", "parsed_year": None, "candidate_count": 0, "chosen_tmdb": "", "chosen_path": "publish_after_final_movies"})
