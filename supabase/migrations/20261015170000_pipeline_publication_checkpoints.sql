@@ -52,47 +52,6 @@ comment on table public.pipeline_scrape_snapshots is
 comment on column public.pipeline_scrape_snapshots.row_count is
   'Raw rows successfully inserted for this attempt; zero is valid only when the scraper explicitly confirmed an empty listing.';
 
-create table public.pipeline_match_checkpoints (
-  id uuid not null default gen_random_uuid(),
-  category text not null,
-  identity_key text not null,
-  identity_hash text not null,
-  input_fingerprint text not null,
-  matching_policy_version integer not null,
-  decision text not null,
-  tmdb_id bigint,
-  imdb_id text,
-  match_path text,
-  alt_options jsonb not null default '[]'::jsonb,
-  reason text,
-  run_id bigint not null,
-  expires_at timestamptz not null,
-  created_at timestamptz not null default now(),
-  constraint pipeline_match_checkpoints_pkey primary key (id),
-  constraint pipeline_match_checkpoints_category_check check (
-    category in ('nowplayings', 'cinematheques', 'comingsoons')
-  ),
-  constraint pipeline_match_checkpoints_decision_check check (
-    decision in ('matched', 'intentional_skip', 'retryable_failure')
-  ),
-  constraint pipeline_match_checkpoints_tmdb_id_positive check (tmdb_id is null or tmdb_id > 0),
-  constraint pipeline_match_checkpoints_alt_options_array check (jsonb_typeof(alt_options) = 'array'),
-  constraint pipeline_match_checkpoints_match_has_tmdb check (
-    decision <> 'matched' or tmdb_id is not null
-  )
-);
-
-create index pipeline_match_checkpoints_lookup_idx
-  on public.pipeline_match_checkpoints (category, identity_hash, run_id desc, created_at)
-  include (input_fingerprint, decision, tmdb_id, imdb_id, match_path, expires_at);
-create index pipeline_match_checkpoints_expiry_idx
-  on public.pipeline_match_checkpoints (expires_at);
-
-comment on table public.pipeline_match_checkpoints is
-  'Append-only identity decisions. Only matched and intentional_skip rows are reusable; retryable failures are diagnostics and never become permanent no-match results.';
-comment on column public.pipeline_match_checkpoints.input_fingerprint is
-  'Fingerprint of the existing category group, matching evidence, helper rows, and matching policy version.';
-
 create table public.pipeline_publication_checkpoints (
   category text not null,
   snapshot_id uuid not null references public.pipeline_scrape_snapshots (snapshot_id) on delete cascade,
@@ -125,7 +84,7 @@ create index pipeline_publication_checkpoints_cleanup_idx
   where phase = 'published' and owner_token is null;
 
 comment on table public.pipeline_publication_checkpoints is
-  'Per-source publication progress, separate from identity decisions and raw added flags; phases are replayed idempotently until published.';
+  'Per-source publication progress, independent of TMDb match results and raw added flags; phases are replayed idempotently until published.';
 comment on column public.pipeline_publication_checkpoints.has_unresolved is
   'A published snapshot with unresolved identity work is eligible for another matching attempt on a later run.';
 
@@ -153,16 +112,13 @@ create index pipeline_publication_scope_owners_snapshot_idx
   on public.pipeline_publication_scope_owners (snapshot_id);
 
 alter table public.pipeline_scrape_snapshots enable row level security;
-alter table public.pipeline_match_checkpoints enable row level security;
 alter table public.pipeline_publication_checkpoints enable row level security;
 alter table public.pipeline_publication_scope_owners enable row level security;
 
 revoke all on table public.pipeline_scrape_snapshots from public, anon, authenticated;
-revoke all on table public.pipeline_match_checkpoints from public, anon, authenticated;
 revoke all on table public.pipeline_publication_checkpoints from public, anon, authenticated;
 revoke all on table public.pipeline_publication_scope_owners from public, anon, authenticated;
 grant select, insert, update, delete on table public.pipeline_scrape_snapshots to service_role;
-grant select, insert, update, delete on table public.pipeline_match_checkpoints to service_role;
 grant select, insert, update, delete on table public.pipeline_publication_checkpoints to service_role;
 grant select, insert, update, delete on table public.pipeline_publication_scope_owners to service_role;
 
@@ -510,7 +466,6 @@ set search_path = ''
 as $function$
 declare
   limit_count integer := greatest(1, least(coalesce(p_limit, 250), 1000));
-  match_count integer := 0;
   publication_count integer := 0;
   snapshot_count integer := 0;
 begin
@@ -526,18 +481,6 @@ begin
       where run_log.run_id = manifest.run_id
         and run_log.running_now is true
     );
-
-  with expired as (
-    select id
-    from public.pipeline_match_checkpoints
-    where expires_at < now()
-    order by expires_at
-    limit limit_count
-  )
-  delete from public.pipeline_match_checkpoints as checkpoint
-  using expired
-  where checkpoint.id = expired.id;
-  get diagnostics match_count = row_count;
 
   with old_publications as (
     select checkpoint.category, checkpoint.snapshot_id
@@ -596,7 +539,6 @@ begin
   get diagnostics snapshot_count = row_count;
 
   return jsonb_build_object(
-    'match_checkpoints_deleted', match_count,
     'publication_checkpoints_deleted', publication_count,
     'scrape_snapshots_deleted', snapshot_count
   );

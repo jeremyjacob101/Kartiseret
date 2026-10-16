@@ -87,7 +87,6 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
             key: self.matchInputFingerprint("cinematheques", key, rows)
             for key, rows in self.grouped_rows_by_key.items()
         }
-        self.loadMatchDecisionCache("cinematheques", identity_fingerprints)
         has_claimed_snapshots = self.claimSnapshotPublications(
             "cinematheques",
             manifests_by_cinema,
@@ -115,39 +114,18 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
             title_counts = self.title_counts_by_key.get(key) or {}
             titles_sorted = sorted(title_counts.items(), key=lambda kv: kv[1], reverse=True)
             representative_title = titles_sorted[0][0] if titles_sorted else ""
-            match_fingerprint = identity_fingerprints[key]
-            cached_decision = self.reusableMatchDecision("cinematheques", key, match_fingerprint)
-            if cached_decision:
-                if cached_decision.get("decision") == "intentional_skip":
-                    self.trace_event("group_filter", "skipped", "cached_intentional_skip", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title})
-                    continue
-                cached_tmdb_id = self.clean_int(cached_decision.get("tmdb_id"))
-                if cached_tmdb_id:
-                    self.key_result[key] = {
-                        "tmdb_id": cached_tmdb_id,
-                        "imdb_id": cached_decision.get("imdb_id"),
-                        "english_title": representative_title,
-                        "hebrew_title": self.hebrew_title,
-                        "alt_options": cached_decision.get("alt_options") or [],
-                    }
-                    self.trace_event("tmdb_choice", "mapped", "match_checkpoint", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "chosen_tmdb": cached_tmdb_id, "chosen_path": "match_checkpoint"})
-                    continue
-
             if key.startswith("tmdb_fix:"):
                 self.potential_chosen_id = self.clean_int(key.split(":", 1)[1])
                 if str(self.potential_chosen_id).lower() in self.skip_tokens:
-                    self.recordMatchDecision("cinematheques", key, match_fingerprint, "intentional_skip", tmdb_id=self.potential_chosen_id, reason="skip_token_on_fix")
                     self.trace_event("tmdb_choice", "dropped", "skip_token", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": 0, "chosen_tmdb": self.potential_chosen_id, "chosen_path": "tmdb_fix_override"})
                     self.trace_unresolved(f"skip_token_on_override | group={key} | title={representative_title}")
                     continue
                 self.key_result[key] = {"tmdb_id": self.potential_chosen_id, "imdb_id": None, "english_title": representative_title, "hebrew_title": self.hebrew_title, "alt_options": self.alt_options}
-                self.recordMatchDecision("cinematheques", key, match_fingerprint, "matched", tmdb_id=self.potential_chosen_id, match_path="tmdb_fix_override", alt_options=self.alt_options)
                 self.trace_event("tmdb_choice", "mapped", "tmdb_fix_override", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": 0, "chosen_tmdb": self.potential_chosen_id, "chosen_path": "tmdb_fix_override"})
                 continue
 
             candidate_titles = [title for title, _ in titles_sorted if not self.titleIsSkipped(title, self.skip_tokens)]
             if not candidate_titles:
-                self.recordMatchDecision("cinematheques", key, match_fingerprint, "intentional_skip", reason="current_title_skip")
                 self.trace_event("group_filter", "dropped", "skip_token", key=key, payload={"key": key, "row_count": row_count, "representative_title": "", "parsed_year": self.parsed_year, "candidate_count": 0, "chosen_tmdb": "", "chosen_path": ""})
                 self.trace_unresolved(f"skip_token | group={key} | rows={row_count}")
                 continue
@@ -161,12 +139,10 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
             if self.override_tmdb:
                 self.potential_chosen_id = self.override_tmdb
                 if str(self.potential_chosen_id).lower() in self.skip_tokens:
-                    self.recordMatchDecision("cinematheques", key, match_fingerprint, "intentional_skip", tmdb_id=self.potential_chosen_id, reason="skip_token_on_fix")
                     self.trace_event("tmdb_choice", "dropped", "skip_token", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": 0, "chosen_tmdb": self.potential_chosen_id, "chosen_path": "tmdb_fix_override"})
                     self.trace_unresolved(f"skip_token_on_override | group={key} | title={representative_title}")
                     continue
                 self.key_result[key] = {"tmdb_id": self.potential_chosen_id, "imdb_id": None, "english_title": representative_title, "hebrew_title": self.hebrew_title, "alt_options": self.alt_options}
-                self.recordMatchDecision("cinematheques", key, match_fingerprint, "matched", tmdb_id=self.potential_chosen_id, match_path="tmdb_fix_override", alt_options=self.alt_options)
                 self.trace_event("tmdb_choice", "mapped", "tmdb_fix_override", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": 0, "chosen_tmdb": self.potential_chosen_id, "chosen_path": "tmdb_fix_override"})
                 continue
 
@@ -183,11 +159,7 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
                     params = {"api_key": self.TMDB_API_KEY, "query": representative_title, "page": page}
                     if year is not None:
                         params["primary_release_year"] = year
-                    try:
-                        response = self.tmdbGet("search/movie", params)
-                    except Exception as error:
-                        self.recordMatchDecision("cinematheques", key, match_fingerprint, "retryable_failure", reason=type(error).__name__)
-                        raise
+                    response = self.tmdbGet("search/movie", params)
                     results = response.get("results") or []
                     if not results:
                         break
@@ -206,20 +178,14 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
                     page += 1
 
             if not self.candidates:
-                self.recordMatchDecision("cinematheques", key, match_fingerprint, "retryable_failure", reason="no_candidates")
                 self.protectUnresolvedSnapshot(rows, category="cinematheques", identity_key=key)
                 self.trace_event("tmdb_search", "dropped", "no_candidates", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": 0, "chosen_tmdb": "", "chosen_path": ""})
                 self.trace_unresolved(f"no_candidates | group={key} | title={representative_title}")
                 continue
 
             # 2) FETCH FULL DETAILS (external_ids + credits)
-            try:
-                self.details = self.fetchTmdbDetails(self.candidates)
-            except Exception as error:
-                self.recordMatchDecision("cinematheques", key, match_fingerprint, "retryable_failure", reason=type(error).__name__)
-                raise
+            self.details = self.fetchTmdbDetails(self.candidates)
             if not self.details:
-                self.recordMatchDecision("cinematheques", key, match_fingerprint, "retryable_failure", reason="no_details")
                 self.protectUnresolvedSnapshot(rows, category="cinematheques", identity_key=key)
                 self.trace_event("tmdb_search", "dropped", "no_details", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": len(self.candidates), "chosen_tmdb": "", "chosen_path": ""})
                 self.trace_unresolved(f"no_details | group={key} | title={representative_title}")
@@ -262,15 +228,12 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
                     self.chosen_path = "fallback_first_candidate"
 
             if not self.potential_chosen_id or str(self.potential_chosen_id).lower() in self.skip_tokens:
-                if self.potential_chosen_id and str(self.potential_chosen_id).lower() in self.skip_tokens:
-                    self.recordMatchDecision("cinematheques", key, match_fingerprint, "intentional_skip", tmdb_id=self.potential_chosen_id, reason="skip_token_on_candidate")
                 self.trace_event("tmdb_choice", "dropped", "chosen_skipped_or_missing", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": len(self.candidates), "chosen_tmdb": self.potential_chosen_id, "chosen_path": self.chosen_path or ""})
                 self.trace_unresolved(f"chosen_skipped_or_missing | group={key} | title={representative_title}")
                 continue
 
             if alias_tmdb := self.tmdbFixAliasForTmdbId(self.potential_chosen_id, self.tmdb_fix_alias_by_tmdb):
                 if str(alias_tmdb).lower() in self.skip_tokens:
-                    self.recordMatchDecision("cinematheques", key, match_fingerprint, "intentional_skip", tmdb_id=alias_tmdb, reason="skip_token_on_alias")
                     self.trace_event("tmdb_choice", "dropped", "skip_token", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": len(self.candidates), "chosen_tmdb": alias_tmdb, "chosen_path": "alias_remap"})
                     self.trace_unresolved(f"skip_token_on_alias | group={key} | title={representative_title}")
                     continue
@@ -298,7 +261,6 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
                     break
 
             self.key_result[key] = {"tmdb_id": self.potential_chosen_id, "imdb_id": chosen_imdb, "english_title": representative_title, "hebrew_title": self.hebrew_title, "alt_options": self.alt_options}
-            self.recordMatchDecision("cinematheques", key, match_fingerprint, "matched", tmdb_id=self.potential_chosen_id, imdb_id=chosen_imdb, match_path=self.chosen_path, alt_options=self.alt_options)
             self.trace_event("tmdb_choice", "mapped", self.chosen_path or "mapped", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": len(self.candidates), "chosen_tmdb": self.potential_chosen_id, "chosen_path": self.chosen_path or "mapped"})
 
         # 5) DEDUPE BY TMDB ID
@@ -358,7 +320,6 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
                 enriched_ids.add(tmdb_id)
 
         tmdb_id_to_enriched = {tmdb_id: res for tmdb_id, res in self.movies_by_tmdb.items() if tmdb_id in enriched_ids}
-        self.flushMatchDecisionCheckpoints()
 
         # BUILD FINALSHOWTIMES CANDIDATES
         for key, rows in self.grouped_rows_by_key.items():
@@ -406,14 +367,12 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
             new_keys = {self._showtime_key(row) for row in cinema_rows}
             retained_ids = set()
             stale_ids = set()
-            protected_tmdb_ids = self.protected_tmdb_ids_by_cinema.get(cinema, set())
             retain_all = cinema in self.retain_all_cinemas
             for existing in self.existing_final_rows_by_cinema.get(cinema, []):
                 existing_id = self.clean_str(existing.get("id")).strip()
                 if not existing_id:
                     continue
-                existing_tmdb_id = self.clean_int(existing.get("tmdb_id"))
-                if retain_all or self._showtime_key(existing) in new_keys or existing_tmdb_id in protected_tmdb_ids:
+                if retain_all or self._showtime_key(existing) in new_keys:
                     retained_ids.add(existing_id)
                 else:
                     stale_ids.add(existing_id)

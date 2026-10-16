@@ -3,7 +3,6 @@ from datetime import date, timedelta
 from importlib import import_module
 from unittest import TestCase, main
 from unittest.mock import patch
-import json
 import uuid
 
 from dataflow_database import DB
@@ -105,6 +104,28 @@ class PublicationTests(TestCase):
                 self.assertTrue(raw["1"]["added"])
                 self.assertFalse(raw["2"]["added"])
                 self.assertIn("old-beta", [row["id"] for row in flow.supabase.tables[flow.MOVING_TO_TABLE_NAME]])
+
+                def beta_appeared(url, params):
+                    if url == "search/movie" and params.get("query", "").lower() == "beta":
+                        return {"results": [{"id": 102}], "total_pages": 1}
+
+                retry = self.build_flow(path, [], beta_appeared, database=flow.supabase)
+                retried_queries = []
+                original_get = retry.tmdbGet
+
+                def track_get(request_path, params=None, **kwargs):
+                    if request_path == "search/movie":
+                        retried_queries.append((params or {}).get("query"))
+                    return original_get(request_path, params, **kwargs)
+
+                retry.tmdbGet = track_get
+                retry.logic()
+
+                self.assertIn("beta", [query.lower() for query in retried_queries if query])
+                retried_raw = {row["id"]: row for row in retry.supabase.tables[retry.MAIN_TABLE_NAME]}
+                self.assertTrue(retried_raw["2"]["added"])
+                self.assertFalse(retry.supabase.tables["pipeline_publication_checkpoints"][0]["has_unresolved"])
+                retry.releasePublicationClaims()
 
     def test_final_movie_failure_leaves_raw_retryable_and_next_attempt_repairs_it(self):
         for path in FLOWS[1:]:
@@ -215,57 +236,7 @@ class PublicationTests(TestCase):
         self.assertEqual(len(flow.supabase.tables[flow.MOVING_TO_TABLE_NAME]), 1)
         self.assertEqual(flow.supabase.tables[flow.MOVING_TO_TABLE_NAME][0]["release_date"], dated["release_date"])
 
-    def test_match_checkpoints_resume_matches_and_intentional_skips_across_instances(self):
-        database = DB({"allSoons": [raw_row("soon-1", "Dune: Part Two")], "finalSoons": [], "tableFixes": [], "tableSkips": []})
-        first = self.build_flow(FLOWS[0], [raw_row("soon-1", "Dune: Part Two")], database=database)
-        identity = '["dune part two","","' + raw_row("soon-1", "Dune: Part Two")["release_date"] + '"]'
-        fingerprint = first.matchInputFingerprint("comingsoons", identity, [first.main_table_rows[0]])
-        first.recordMatchDecision("comingsoons", identity, fingerprint, "matched", tmdb_id=101, imdb_id="tt101", match_path="fixture")
-        self.assertEqual(len(database.tables["pipeline_match_checkpoints"]), 1)
-
-        restarted = self.build_flow(FLOWS[0], [raw_row("soon-1", "Dune: Part Two")], database=database)
-        restarted.loadMatchDecisionCache("comingsoons", {identity: fingerprint})
-        self.assertEqual(restarted.reusableMatchDecision("comingsoons", identity, fingerprint)["tmdb_id"], 101)
-        another_category = self.build_flow(FLOWS[1], [], database=database)
-        another_category.loadMatchDecisionCache("nowplayings", {identity: fingerprint})
-        self.assertIsNone(another_category.reusableMatchDecision("nowplayings", identity, fingerprint))
-
-        restarted.recordMatchDecision("comingsoons", "ignored-title", "failed-fingerprint", "retryable_failure", reason="provider_timeout")
-        restarted.recordMatchDecision("comingsoons", "skipped-title", "skip-fingerprint", "intentional_skip", reason="manual_skip")
-        restarted.flushMatchDecisionCheckpoints()
-        next_run = self.build_flow(FLOWS[0], [raw_row("soon-1", "Dune: Part Two")], database=database)
-        next_run.loadMatchDecisionCache("comingsoons", {
-            "ignored-title": "failed-fingerprint",
-            "skipped-title": "skip-fingerprint",
-        })
-        self.assertIsNone(next_run.reusableMatchDecision("comingsoons", "ignored-title", "failed-fingerprint"))
-        self.assertEqual(next_run.reusableMatchDecision("comingsoons", "skipped-title", "skip-fingerprint")["decision"], "intentional_skip")
-
-    def test_coming_soon_publication_retry_reuses_match_without_searching_again(self):
-        row = raw_row("soon-1", "Dune: Part Two")
-        database = DB({"allSoons": [row], "finalSoons": [], "tableFixes": [], "tableSkips": []})
-        first = self.build_flow(FLOWS[0], [row], database=database)
-        identity = json.dumps(list(first._all_soon_key(row)), ensure_ascii=False, separators=(",", ":"))
-        checkpoint_row = {**row, "_checkpoint_source": "legacy:Test"}
-        fingerprint = first.matchInputFingerprint("comingsoons", identity, [checkpoint_row])
-        first.recordMatchDecision("comingsoons", identity, fingerprint, "matched", tmdb_id=101, match_path="first-attempt")
-        first.flushMatchDecisionCheckpoints()
-
-        retry = self.build_flow(FLOWS[0], [row], database=database)
-        calls = []
-        original_get = retry.tmdbGet
-        def track_get(path, params=None, **kwargs):
-            calls.append(path)
-            return original_get(path, params, **kwargs)
-        retry.tmdbGet = track_get
-        retry.logic()
-
-        self.assertNotIn("search/movie", calls)
-        self.assertIn("movie/101", calls)
-        self.assertTrue(retry.supabase.tables[retry.MAIN_TABLE_NAME][0]["added"])
-        self.assertEqual(retry.supabase.tables[retry.MOVING_TO_TABLE_NAME][0]["tmdb_id"], 101)
-
-    def test_coming_soon_match_is_not_marked_published_before_final_upsert(self):
+    def test_coming_soon_rematches_when_publication_retries_after_failure(self):
         row = raw_row("soon-snapshot-row", "Dune: Part Two")
         first = self.build_flow(FLOWS[0], [row])
         self.install_snapshot(first, [row])
@@ -289,12 +260,12 @@ class PublicationTests(TestCase):
         retry.tmdbGet = track_get
         retry.logic()
 
-        self.assertNotIn("search/movie", calls)
+        self.assertIn("search/movie", calls)
         self.assertTrue(retry.supabase.tables[retry.MAIN_TABLE_NAME][0]["added"])
         self.assertEqual(retry.supabase.tables["pipeline_publication_checkpoints"][0]["phase"], "published")
         retry.releasePublicationClaims()
 
-    def test_match_fingerprint_changes_with_metadata_fixes_skips_and_policy(self):
+    def test_publication_evidence_fingerprint_changes_with_metadata_fixes_skips_and_policy(self):
         flow = self.build_flow(FLOWS[1], [raw_row("1", "The Film")])
         row = {**raw_row("1", "The Film"), "directed_by": "Director A", "runtime": 100, "_checkpoint_source": "CinemaScraper"}
         flow.helper_table_rows = [{"title_fix": "The Film", "tmdb_id": 123}]
@@ -510,7 +481,7 @@ class PublicationTests(TestCase):
         self.assertEqual(len(database.tables["pipeline_scrape_snapshots"]), 2)
         self.assertEqual([row["status"] for row in database.tables["pipeline_scrape_snapshots"]], ["running", "running"])
 
-    def test_changed_match_failure_preserves_only_old_identity_rows_when_known(self):
+    def test_unresolved_match_failure_retains_the_entire_cinema(self):
         beta = raw_row("new-beta", "Beta")
         alpha = raw_row("new-alpha", "Alpha")
         old_beta = {**raw_row("old-beta", "Beta"), "tmdb_id": 999}
@@ -518,8 +489,6 @@ class PublicationTests(TestCase):
         flow = self.build_flow(FLOWS[1], [alpha, beta], lambda path, params: {"results": [], "total_pages": 0} if path == "search/movie" and params.get("query", "").lower() == "beta" else None)
         flow.supabase.tables[flow.MOVING_TO_TABLE_NAME] = [old_beta, old_gamma]
         snapshot_id = self.install_snapshot(flow, [alpha, beta])
-        flow.recordMatchDecision("nowplayings", "beta", "old-evidence", "matched", tmdb_id=999, match_path="prior-run")
-        flow.flushMatchDecisionCheckpoints()
 
         flow.logic()
 
@@ -527,7 +496,7 @@ class PublicationTests(TestCase):
         ids = {row["id"] for row in screenings}
         self.assertIn("old-beta", ids)
         self.assertIn("new-alpha", ids)
-        self.assertNotIn("old-gamma", ids)
+        self.assertIn("old-gamma", ids)
         raw = {row["id"]: row for row in flow.supabase.tables[flow.MAIN_TABLE_NAME]}
         self.assertTrue(raw["new-alpha"]["added"])
         self.assertFalse(raw["new-beta"]["added"])
@@ -558,16 +527,12 @@ class PublicationTests(TestCase):
         flow.supabase.tables[flow.MOVING_TO_TABLE_NAME] = [old_beta, old_gamma]
         flow.supabase.tables[flow.HELPER_TABLE_NAME_2] = [{"name_or_tmdb_id": "Beta"}]
         self.install_snapshot(flow, [beta])
-        flow.recordMatchDecision("nowplayings", "beta", "previous-fingerprint", "matched", tmdb_id=999, match_path="previous-match")
-        flow.flushMatchDecisionCheckpoints()
 
         flow.logic()
 
         self.assertEqual(flow.supabase.tables[flow.MOVING_TO_TABLE_NAME], [])
         raw = flow.supabase.tables[flow.MAIN_TABLE_NAME][0]
         self.assertTrue(raw["added"])
-        current = next(row for row in flow.supabase.tables["pipeline_match_checkpoints"] if row.get("decision") == "intentional_skip")
-        self.assertEqual(current["identity_key"], "beta")
         flow.releasePublicationClaims()
 
     def test_fresh_raw_id_for_same_logical_screening_keeps_one_final_row(self):

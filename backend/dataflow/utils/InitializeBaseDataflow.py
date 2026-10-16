@@ -82,7 +82,6 @@ class InitializeBaseDataflow:
         self.chosen_path = None
         self.alt_options = []
         self.unhealthy_cinemas = set()
-        self.protected_tmdb_ids_by_cinema = defaultdict(set)
         self.retain_all_cinemas = set()
         self.unresolved_identity_keys_by_snapshot = defaultdict(set)
 

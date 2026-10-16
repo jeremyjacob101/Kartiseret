@@ -74,7 +74,6 @@ class ComingSoonsTmdb(BaseDataflow):
             identity_key_by_row_id[row_id] = identity_key
             fingerprint_by_row_id[row_id] = fingerprint
             fingerprint_by_identity[identity_key] = fingerprint
-        self.loadMatchDecisionCache("comingsoons", fingerprint_by_identity)
         self.claimSnapshotPublications(
             "comingsoons",
             manifests_by_cinema,
@@ -103,29 +102,9 @@ class ComingSoonsTmdb(BaseDataflow):
             title_norm = self.normalizeTitle(self.english_title)
             row_key = self.clean_str(row.get("id"))
             identity_key = identity_key_by_row_id.get(row_key, "")
-            match_fingerprint = fingerprint_by_row_id.get(row_key, "")
-            cached_decision = self.reusableMatchDecision("comingsoons", identity_key, match_fingerprint)
-
-            if row.get("added") is True and not self.clean_str(row.get("snapshot_id")).strip() and not cached_decision:
+            if row.get("added") is True and not self.clean_str(row.get("snapshot_id")).strip():
                 self.trace_event("row_filter", "skipped", "already_added", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
                 continue
-
-            if cached_decision and cached_decision.get("decision") == "intentional_skip":
-                intentional_skip_ids.add(row.get("id"))
-                self.trace_event("row_filter", "skipped", "cached_intentional_skip", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
-                continue
-
-            if row.get("added") is True and cached_decision and cached_decision.get("decision") == "matched":
-                self.trace_event("row_filter", "skipped", "already_published_match_checkpoint", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": cached_decision.get("tmdb_id")})
-                continue
-
-            if cached_decision and cached_decision.get("decision") == "matched":
-                cached_tmdb_id = self.clean_int(cached_decision.get("tmdb_id"))
-                if cached_tmdb_id:
-                    self.non_deduplicated_updates.append({"old_uuid": row.get("id"), "run_id": row.get("run_id"), "english_title": self.english_title, "hebrew_title": self.hebrew_title, "release_date": self.release_date, "tmdb_id": cached_tmdb_id, "imdb_id": cached_decision.get("imdb_id"), "alt_options": cached_decision.get("alt_options") or []})
-                    self.processed_ids.add(row.get("id"))
-                    self.trace_event("tmdb_choice", "mapped", "match_checkpoint", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": cached_tmdb_id})
-                    continue
 
             if not self.release_date:
                 self.protectUnresolvedSnapshot([row], category="comingsoons", identity_key=identity_key)
@@ -140,7 +119,6 @@ class ComingSoonsTmdb(BaseDataflow):
 
             title_raw = (self.english_title or "").strip().lower()
             if title_raw in self.skip_tokens or title_norm in self.skip_tokens:
-                self.recordMatchDecision("comingsoons", identity_key, match_fingerprint, "intentional_skip", reason="current_title_skip")
                 intentional_skip_ids.add(row.get("id"))
                 self.trace_event("row_filter", "skipped", "skip_token", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
                 self.trace_unresolved(f"skip_token | {self.english_title} | row_id={row.get('id')}")
@@ -148,14 +126,12 @@ class ComingSoonsTmdb(BaseDataflow):
 
             if override_tmdb := self.tmdbFixForTitle(self.english_title, tmdb_fix_by_title):
                 if str(override_tmdb).lower() in self.skip_tokens:
-                    self.recordMatchDecision("comingsoons", identity_key, match_fingerprint, "intentional_skip", tmdb_id=override_tmdb, reason="skip_token_on_fix")
                     intentional_skip_ids.add(row.get("id"))
                     self.trace_event("tmdb_choice", "skipped", "skip_token", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": override_tmdb})
                     self.trace_unresolved(f"skip_token_on_override | {self.english_title} | tmdb={override_tmdb}")
                     continue
                 self.potential_chosen_id = override_tmdb
                 self.non_deduplicated_updates.append({"old_uuid": row.get("id"), "run_id": row.get("run_id"), "english_title": self.english_title, "hebrew_title": self.hebrew_title, "release_date": self.release_date, "tmdb_id": override_tmdb, "imdb_id": None, "alt_options": []})
-                self.recordMatchDecision("comingsoons", identity_key, match_fingerprint, "matched", tmdb_id=override_tmdb, match_path="tmdb_fix_override")
                 self.trace_event("tmdb_choice", "mapped", "tmdb_fix_override", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": override_tmdb})
                 self.processed_ids.add(row.get("id"))
                 continue
@@ -173,11 +149,7 @@ class ComingSoonsTmdb(BaseDataflow):
                     params = {"api_key": self.TMDB_API_KEY, "query": self.english_title, "page": page}
                     if year is not None:
                         params["primary_release_year"] = year
-                    try:
-                        response = self.tmdbGet("search/movie", params)
-                    except Exception as error:
-                        self.recordMatchDecision("comingsoons", identity_key, match_fingerprint, "retryable_failure", reason=type(error).__name__)
-                        raise
+                    response = self.tmdbGet("search/movie", params)
                     results = response.get("results") or []
                     if not results:
                         break
@@ -196,21 +168,15 @@ class ComingSoonsTmdb(BaseDataflow):
                     page += 1
 
             if not self.candidates:
-                self.recordMatchDecision("comingsoons", identity_key, match_fingerprint, "retryable_failure", reason="no_candidates")
                 self.protectUnresolvedSnapshot([row], category="comingsoons", identity_key=identity_key)
                 self.trace_event("tmdb_search", "dropped", "no_candidates", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
                 self.trace_unresolved(f"no_candidates | {self.english_title} | row_id={row.get('id')}")
                 continue
 
             # 2) FETCH FULL DETAILS (external_ids + credits)
-            try:
-                self.details = self.fetchTmdbDetails(self.candidates)
-            except Exception as error:
-                self.recordMatchDecision("comingsoons", identity_key, match_fingerprint, "retryable_failure", reason=type(error).__name__)
-                raise
+            self.details = self.fetchTmdbDetails(self.candidates)
 
             if not self.details:
-                self.recordMatchDecision("comingsoons", identity_key, match_fingerprint, "retryable_failure", reason="no_details")
                 self.protectUnresolvedSnapshot([row], category="comingsoons", identity_key=identity_key)
                 self.trace_event("tmdb_search", "dropped", "no_details", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
                 self.trace_unresolved(f"no_details | {self.english_title} | row_id={row.get('id')}")
@@ -262,10 +228,8 @@ class ComingSoonsTmdb(BaseDataflow):
 
             if not self.potential_chosen_id or str(self.potential_chosen_id).lower() in self.skip_tokens:
                 if self.potential_chosen_id and str(self.potential_chosen_id).lower() in self.skip_tokens:
-                    self.recordMatchDecision("comingsoons", identity_key, match_fingerprint, "intentional_skip", tmdb_id=self.potential_chosen_id, reason="skip_token_on_candidate")
                     intentional_skip_ids.add(row.get("id"))
                 else:
-                    self.recordMatchDecision("comingsoons", identity_key, match_fingerprint, "retryable_failure", reason="no_selected_candidate")
                     self.protectUnresolvedSnapshot([row], category="comingsoons", identity_key=identity_key)
                 self.trace_event("tmdb_choice", "dropped", "chosen_skipped_or_missing", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": self.potential_chosen_id})
                 self.trace_unresolved(f"chosen_skipped_or_missing | {self.english_title} | tmdb={self.potential_chosen_id}")
@@ -273,7 +237,6 @@ class ComingSoonsTmdb(BaseDataflow):
 
             if alias_tmdb := self.tmdbFixAliasForTmdbId(self.potential_chosen_id, tmdb_fix_alias_by_tmdb):
                 if str(alias_tmdb).lower() in self.skip_tokens:
-                    self.recordMatchDecision("comingsoons", identity_key, match_fingerprint, "intentional_skip", tmdb_id=alias_tmdb, reason="skip_token_on_alias")
                     intentional_skip_ids.add(row.get("id"))
                     self.trace_event("tmdb_choice", "dropped", "skip_token", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": alias_tmdb})
                     self.trace_unresolved(f"skip_token_on_alias | {self.english_title} | tmdb={alias_tmdb}")
@@ -287,7 +250,6 @@ class ComingSoonsTmdb(BaseDataflow):
             alt_options = self._build_alt_options(self.potential_chosen_id)
 
             self.non_deduplicated_updates.append({"old_uuid": row.get("id"), "run_id": row.get("run_id"), "english_title": self.english_title, "hebrew_title": self.hebrew_title, "release_date": self.release_date, "tmdb_id": self.potential_chosen_id, "imdb_id": chosen_imdb, "alt_options": alt_options})
-            self.recordMatchDecision("comingsoons", identity_key, match_fingerprint, "matched", tmdb_id=self.potential_chosen_id, imdb_id=chosen_imdb, match_path=chosen_path, alt_options=alt_options)
             self.trace_event("tmdb_choice", "mapped", chosen_path or "mapped", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": self.potential_chosen_id})
             self.processed_ids.add(row.get("id"))
 
@@ -320,9 +282,7 @@ class ComingSoonsTmdb(BaseDataflow):
                 raw_row = next((candidate for candidate in self.latest_snapshot_rows if candidate.get("id") == row.get("old_uuid")), None)
                 if raw_row:
                     identity_key = identity_key_by_row_id.get(self.clean_str(raw_row.get("id")), "")
-                    match_fingerprint = fingerprint_by_row_id.get(self.clean_str(raw_row.get("id")), "")
-                    self.recordMatchDecision("comingsoons", identity_key, match_fingerprint, "retryable_failure", tmdb_id=tmdb_id, reason="enrichment_missing")
-                    self.protectUnresolvedSnapshot([raw_row], category="comingsoons", identity_key=identity_key, tmdb_id=tmdb_id)
+                    self.protectUnresolvedSnapshot([raw_row], category="comingsoons", identity_key=identity_key)
                 self.trace_event("enrich", "dropped", "no_details", key=str(row.get("old_uuid") or ""), payload={"title": row.get("english_title"), "title_norm": self.normalizeTitle(row.get("english_title") or ""), "chosen_tmdb": tmdb_id})
                 self.trace_unresolved(f"enrich_invalid_details | {row.get('english_title')} | tmdb={tmdb_id}")
                 continue
@@ -380,7 +340,6 @@ class ComingSoonsTmdb(BaseDataflow):
         for snapshot_id in claimed_snapshot_ids:
             unresolved = bool(self.unresolved_identity_keys_by_snapshot.get(snapshot_id))
             self.advanceSnapshotPublication(snapshot_id, "prepared", has_unresolved=unresolved)
-        self.flushMatchDecisionCheckpoints()
         needs_movie_write = bool(legacy_cinemas) or any(
             not self.snapshotPublicationReached(snapshot_id, "movies_written")
             for snapshot_id in claimed_snapshot_ids
