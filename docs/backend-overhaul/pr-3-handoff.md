@@ -4,7 +4,7 @@
 
 - **Implementation branch:** `codex/backend-03-public-data-api`.
 - **Base:** `codex/backend-02-api-prisma-foundation`, PR #167. PR 2 remains open; PR 3 is intentionally stacked on its Drizzle implementation.
-- **Draft PR:** create after the implementation commit is pushed; base it on the PR 2 branch. After PR 2 merges, retarget PR 3 to `main` and rerun checks. No reviewer request or merge is part of this handoff.
+- **Draft PR:** [#170](https://github.com/jeremyjacob101/Kartiseret/pull/170), head commit `81dbff1e6a9b1db87be5bdfbcc48bd212ba0dca7`, based on PR 2. It remains a draft with no reviewers requested. After PR 2 merges, retarget PR 3 to `main` and rerun checks.
 - **DEV project:** Kartiseret - dev, ref `jbydpmjjptwevyijarzl`, PostgreSQL 17.11 in `eu-central-2`. Production was not changed.
 
 ## Implemented behavior
