@@ -39,6 +39,7 @@ Five public read endpoints are served by Express and Drizzle. Success responses 
 ## Verification and environment
 
 - `npm run verify` passed locally on Node 24.21: lint, format, contracts/server/web/Playwright typechecks, 492 frontend tests, 41 server/API tests, server and web production builds, built OG HTML/JPEG/assets smoke, and eager bundle (**207.0 KiB gzip / 210 KiB budget**).
+- Full Checks [run #92](https://github.com/jeremyjacob101/Kartiseret/actions/runs/38850373988) passed on the updated PR branch: backend, the web verification suite, all 14 PostgreSQL 17 integration tests, and all four Playwright browser scenarios. The first observed PR run exposed over-specific E2E assertions about request counts and range start dates; the tests now assert the public API is used and the selected date is covered by its bounded range.
 - `npx playwright test --config playwright.config.ts --list` passed and discovers four scenarios. It does not connect to a DB. The actual browser run is wired after PostgreSQL integration in `.github/workflows/full_checks.yml` as `npm run web:e2e`; it was not run locally because the Docker CLI is installed but its daemon is unavailable here.
 - The PostgreSQL 17 integration test covers real restricted-role public reads/denials, code batching, range bounds, optional movie filter, local-time serialization, city/theater join, all-city availability, and >1,000 rows. PR CI runs these cases before the four browser scenarios. PR 2's separate 10/10 integration pass in Full checks run #76 is predecessor evidence only.
 - `npm run web:og:smoke` passes against built handlers from repository root, including SPA HTML fallback, generated 1200×630 JPEG, invalid remote backdrop fallback, fonts and Vercel packaging. The Fontconfig warning about the machine's default config did not fail generation.
@@ -47,8 +48,7 @@ Five public read endpoints are served by Express and Drizzle. Success responses 
 
 ## Next steps
 
-1. Confirm PR 3 GitHub CI is green, especially the PostgreSQL 17 migration replay and Playwright browser run.
+1. Check Vercel Preview environment variables point the server database and still-direct Supabase browser client to DEV, then run the authenticated route checks above.
 2. Reconcile DEV migration version `20261016040826` in Supabase's provider ledger before future migration automation; DEV schema already has the intended final state.
-3. Check Vercel Preview environment variables point the server database and still-direct Supabase browser client to DEV, then run the authenticated route checks above.
-4. After PR 2 merges, retarget this PR from the PR 2 branch to `main`; wait for checks on the new base before deciding whether to merge.
-5. PR 4 can move protected preference, subscription, and admin calls behind authenticated APIs. Preserve temporary Supabase Auth until PR 5.
+3. After PR 2 merges, retarget this PR from the PR 2 branch to `main`; wait for checks on the new base before deciding whether to merge.
+4. PR 4 can move protected preference, subscription, and admin calls behind authenticated APIs. Preserve temporary Supabase Auth until PR 5.
