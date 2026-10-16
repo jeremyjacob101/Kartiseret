@@ -109,8 +109,8 @@ packages/server/
   scripts/bootstrap-test-database.mjs guarded CI bootstrap, no hosted reset
   tests/integration/                 real Postgres behavior tests
   drizzle.config.ts                  only if dev introspection/generation needs it
-api/[...path].ts                      existing thin Vercel Express adapter
-api/og.ts, api/og-image.ts             stable existing share endpoints
+api/dispatch.ts                       explicit Vercel API and OG dispatcher
+Codebase - Kartiseret Web/server/og/ existing OG handlers called by dispatcher
 backend/                             existing Python scraping/dataflow/notifications
 supabase/migrations/                 sole active SQL migration authority
 supabase/legacy-migrations/           checksummed earlier SQL, excluded from fresh replay
@@ -161,6 +161,8 @@ CI's Postgres service is a container on GitHub's runner, not a Docker installati
 
 Retain a normal Express app plus a thin Vercel function adapter. Keep the frontend's static output and existing OG endpoints. Verify the current supported way to combine them; do not switch the entire Vercel project to an Express-only framework that stops serving the SPA.
 
+The current implementation uses the explicit `api/dispatch.ts` function. Route `/api/*` and short-link OG requests to it before the SPA fallback, restore the original path and query for Express, and call the existing OG handlers for their two routes. Verify each route against the deployed Preview; a successful static build does not establish runtime routing.
+
 Application `/api/v1/*`, auth `/api/auth/*`, internal `/api/internal/*`, and OG endpoints must resolve before the SPA catch-all and short-link rewrites. Unknown API routes return an API 404, not a 200 HTML page. The server must see the intended original route after Vercel rewriting. Test this explicitly.
 
 Vite should proxy `/api` to the local Express process for optional local development. The browser can continue using relative same-origin requests. Configure trusted origins, forwarded protocol/host handling, cookies, callbacks, and preview-origin handling deliberately. Do not trust every arbitrary Host/Origin header or use an unrestricted wildcard for authenticated preview requests.
@@ -188,7 +190,7 @@ The handoff reports 18 mapped app tables, 21 standalone indexes, 33 source polic
 - `packages/server/prisma/schema.prisma`: all 18 table mappings. Use as a cross-check, with SQL/catalogs authoritative; replace by Drizzle definitions before removing it.
 - `packages/server/tests/integration/catalog.test.ts`: real runtime-role reads/denial, DTO conversion, native types, constraints and rollback. Port behavioral coverage; replace Prisma-specific representation assertions.
 - `packages/server/prisma.config.ts`, `scripts/generate-prisma.mjs`, root `server:generate`, generation hooks, install-script allowlist and scoped dependency overrides: conversion cleanup inventory.
-- `api/[...path].ts`, server app/service/error boundaries, Vite proxy, Vercel asset rules, CI Postgres service, baseline/seed and legacy checksums: preserve and verify, do not recreate.
+- `api/dispatch.ts` and its tested dispatcher helper, server app/service/error boundaries, Vite proxy, Vercel asset rules, CI Postgres service, baseline/seed and legacy checksums: preserve and verify, do not recreate.
 - Existing public endpoint: `GET /api/v1/catalog/now-playing`, response `{ data: { mode: "nowPlaying", movies: Movie[] }, error: null }`. Keep its path and DTO stable during conversion. Health is liveness without SQL; unknown API requests return safe JSON 404s.
 
 ### Physical database facts to preserve
@@ -446,7 +448,7 @@ The live PR's current metadata/file diff; local `git status`, branch/base and pe
 ### Phase A — preserve and finish the already written foundation
 
 1. Inspect current main and the existing PR branch, including the latest concurrent Python changes. Establish which changes are pushed and which remain local. Preserve unrelated edits. Do not reset the worktree to the earlier GitHub snapshot or repeat PR 1.
-2. Inventory the real working foundation: `createApp`, production/local startup, server-only env parsing, catalog mapper/service/repository interface, liveness/safe errors/404, root build order, thin Vercel catch-all, unchanged fixed OG adapters, optional Vite proxy, bootstrap/seed and required Postgres CI job. Complete any missing PR 2 behavior, without expanding into later features.
+2. Inventory the real working foundation: `createApp`, production/local startup, server-only env parsing, catalog mapper/service/repository interface, liveness/safe errors/404, root build order, explicit Vercel dispatcher, fixed OG handlers, optional Vite proxy, bootstrap/seed and required Postgres CI job. Complete any missing PR 2 behavior, without expanding into later features.
 3. Reconcile the baseline version with DEV and pending local changes. DEV already records `20261015141043`; the old remote filename was `20261015122907`. Inspect final actual state and carry the intended alignment into the final PR commit. Update bootstrap references/legacy README/handoff consistently, retain checksum provenance, and do not reapply the baseline on existing DEV/production.
 4. Retain the 18-table SQL snapshot, indexes/checks/grants/RLS/publication details and provider-managed prerequisites. Confirm the root/docs commands actually exist. In particular, remove or correct a historical `npm run db:test:up` example if that script does not exist; do not create Docker/local-DB setup to justify a stale example.
 5. Retain DEV `jbydpmjjptwevyijarzl` and fictional fixtures. Verify final runtime-login/password/config setup status privately. Preview runtime `DATABASE_URL` must use the restricted DEV login; migration/admin credentials stay outside Vercel. No new project, billing change or reset is needed.

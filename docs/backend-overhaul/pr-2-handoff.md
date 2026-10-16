@@ -60,13 +60,20 @@ There is no `db:test:up` script and PR 2 does not require Docker on Jeremy's Mac
 - After merging current `main`, `python3 -m compileall -q backend` and `python3 -m unittest discover -s backend/tests -v` passed; all **55 Python tests** passed, including the Rotten Tomatoes score/count preservation tests.
 - The six-file legacy migration SHA-256 manifest and `git diff --check` pass for the final implementation commit. The source branch includes current `origin/main` commit `3a10e0fc07559e718f5e45c1b1779bda7759abdc`; its merge brings the independent Rotten Tomatoes update and its run artifacts. No Python behavior was changed by PR 2.
 - `npm run api:test:integration` was not run locally because this machine has no running local PostgreSQL 17 service/Docker daemon. The required [GitHub Full checks run #76](https://github.com/jeremyjacob101/Kartiseret/actions/runs/38759285807) passed on the final implementation commit. Its PostgreSQL 17 job replayed the clean baseline and passed all **10 integration tests**, including schema mapping, role permissions, native types, SQL constraints, transaction rollback and driver-error cases. The web and Python jobs also passed.
-- The current Vercel Preview deployment reports **Ready** ([deployment](https://vercel.com/jeremyjacob-projects/kartiseret/BiqjtG9XH1p1C4pZJH74UKXcetqf)). Direct read-only GETs from this environment receive Vercel's SSO protection redirect (HTTP 302), so the deployed runtime/API response is not verified here. Once logged into Vercel, Jeremy should use the PR's current **Preview** link and check `/api/v1/catalog/now-playing` (200 JSON including `Dev Catalog Film`), `/api/not-a-route` (JSON 404), `/` (SPA HTML), `/api/og` (HTML) and `/api/og-image?home=true` (JPEG). Production remains untouched.
+- The previous Vercel Preview build reported **Ready**, but Jeremy's authenticated CLI smoke on 2026-10-16 showed the API, OG and image URLs returning the same SPA HTML. `/` returning SPA HTML was expected; the API and image responses failed acceptance. This exposed a deployment-routing bug: the old `api/[...path].ts` adapter was not receiving these requests. The supplied image check also used `home=true`; the existing handler expects `home=1`.
 
-### Final pushed commit and external verification
+### Vercel routing follow-up
+
+- Replace the catch-all wrapper and separate Vercel OG wrappers with one explicit `api/dispatch.ts` function. `vercel.json` rewrites `/api/:path*` and short-link OG requests to that function before the SPA fallback. The dispatcher restores the original Express path and query, then invokes Express or the existing OG handler. Its tested helper rejects unsafe route captures.
+- After this change, Node 24 `npm run verify` passed: 488 web tests, 22 API tests, typechecks, production builds, and the 207.5 KiB gzip eager bundle check under the 210 KiB budget.
+- A focused loopback HTTP smoke passed through the dispatcher: health returned 200 JSON; an unknown API route returned 404 JSON; `/api/og` returned 200 HTML; `/api/og-image?home=1` returned 200 JPEG (20,792 bytes). It used a dummy localhost database URL and did not connect to Supabase. The catalog fixture still needs an authenticated check against the newly deployed Preview.
+- Do not mark PR 2 ready to merge based on the previous deployment. After the routing fix is pushed and Vercel redeploys, use the PR's current Preview deployment and verify the catalog JSON contains `Dev Catalog Film`, the unknown API route is JSON 404, `/` is SPA HTML, `/api/og` is HTML, and `/api/og-image?home=1` is JPEG. Production remains untouched.
+
+### Previous Drizzle implementation commit and external verification
 
 - Final implementation commit: [`9ebee2a866ee95bd7904d7438db7175a8a1943fc`](https://github.com/jeremyjacob101/Kartiseret/commit/9ebee2a866ee95bd7904d7438db7175a8a1943fc).
-- GitHub [Full checks run #76](https://github.com/jeremyjacob101/Kartiseret/actions/runs/38759285807): passed; web, Python backend, and disposable PostgreSQL 17 integration jobs are green. PostgreSQL passed 10/10.
-- Vercel Preview build: Ready on the final implementation commit. Runtime route checks still need Jeremy's authenticated browser session because Vercel SSO returns HTTP 302 from this environment.
+- GitHub [Full checks run #76](https://github.com/jeremyjacob101/Kartiseret/actions/runs/38759285807): passed on the prior Drizzle implementation commit; web, Python backend, and disposable PostgreSQL 17 integration jobs were green. PostgreSQL passed 10/10.
+- Vercel Preview build: Ready on the prior Drizzle implementation commit. Jeremy's later authenticated CLI smoke found the API paths falling through to the SPA, which the routing follow-up above addresses.
 - Legacy SQL checksums and `git diff --check`: passed before the final implementation commit.
 
 ### Historical Prisma-only evidence
@@ -79,7 +86,7 @@ Before handoff, search the active package graph, server source, scripts, CI, con
 
 ## Next PR readiness and owner steps
 
-1. Open [PR #167](https://github.com/jeremyjacob101/Kartiseret/pull/167) while signed into Vercel and use its current Preview link. Check the catalog endpoint returns 200 JSON with `Dev Catalog Film`, `/api/not-a-route` returns a JSON 404, `/` returns the SPA, `/api/og` returns HTML, and `/api/og-image?home=true` returns JPEG. CI and the deployment build are green; this is the remaining PR 2 acceptance check.
+1. After the routing follow-up deploys, use [PR #167](https://github.com/jeremyjacob101/Kartiseret/pull/167)'s current Preview deployment and verify the catalog endpoint returns 200 JSON with `Dev Catalog Film`, `/api/not-a-route` returns a JSON 404, `/` returns the SPA, `/api/og` returns HTML, and `/api/og-image?home=1` returns JPEG. The earlier Ready build is not evidence for these routes.
 2. If those Preview responses look right, mark the draft PR ready and merge it yourself. No reviewers have been requested.
 3. No new hosted migration or local database setup is needed to merge PR 2: the Drizzle conversion changes no DDL and DEV already has the recorded baseline. The disposable PostgreSQL CI job replayed it successfully on a fresh test database.
 4. After merging PR 2, start PR 3 from updated `main`. Verify that `DrizzleCatalogRepository`, `ApplicationDatabase`, `applicationTables`, and this handoff exist; do not repeat the ORM conversion. PR 3 must add explicit SQL grants/policies for additional public reads and verify them against restricted DEV credentials.

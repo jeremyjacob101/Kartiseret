@@ -15,7 +15,7 @@
 - Timestamped SQL under `supabase/migrations/` is the only schema/migration authority. The current-state baseline bootstraps a new empty project once; it is never replayed against existing DEV or production. Drizzle Kit is not part of install/build/start and is not used to apply DDL.
 - The runtime role inherits read access only to `finalMovies` and `movieCodes` for this first API slice. Migration/admin access stays separate. The Express endpoint uses that restricted identity; `createApp` unit tests inject repositories without a database.
 - Express exposes `GET /api/v1/health` and `GET /api/v1/catalog/now-playing` as the first stable API slice. It preserves pending-row exclusion, `popularity DESC NULLS LAST`, numeric movie-ID tie ordering, bounded movie-code reads, DTO normalization and safe JSON errors. Public browser reads and existing Open Graph handlers remain unchanged until PR 3.
-- `api/[...path].ts` is the thin Vercel Express adapter. `vercel.json` keeps the SPA output and fixed OG endpoints. Vite's `/api` proxy is optional through `VITE_API_PROXY_TARGET`.
+- `api/dispatch.ts` is the explicit Vercel function for API and OG requests. `vercel.json` rewrites `/api/*` and short links to it before the SPA fallback; it restores the original API path before calling Express and dispatches OG paths to the existing handlers. Vite's `/api` proxy is optional through `VITE_API_PROXY_TARGET`.
 - Ordinary `npm run verify` remains database-free. GitHub Actions runs the guarded, disposable PostgreSQL 17 bootstrap and Drizzle integration suite separately. The bootstrap accepts only local `kartiseret_test`; it never falls back to a hosted URL.
 
 ## Schema inventory and native type conventions

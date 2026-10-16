@@ -3,15 +3,12 @@
   "buildCommand": "npm run build",
   "outputDirectory": "Codebase - Kartiseret Web/dist",
   "functions": {
-    "api/og.ts": {
-      "includeFiles": "Codebase - Kartiseret Web/dist/**"
-    },
-    "api/og-image.ts": {
-      "maxDuration": 30,
-      "includeFiles": "Codebase - Kartiseret Web/server/og/assets/**"
-    },
-    "api/[...path].ts": {
-      "includeFiles": "packages/**/dist/**",
+    "api/dispatch.ts": {
+      "includeFiles": [
+        "Codebase - Kartiseret Web/dist/**",
+        "Codebase - Kartiseret Web/server/og/assets/**",
+        "packages/**/dist/**"
+      ],
       "maxDuration": 30
     }
   },
@@ -38,7 +35,11 @@
     },
     {
       "source": "/:routeCode([0-9A-Za-z]{3,10})",
-      "destination": "/api/og?routeCode=:routeCode"
+      "destination": "/api/dispatch?__vercel_route=og&routeCode=:routeCode"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "/api/dispatch?__vercel_route=:path*"
     },
     {
       "source": "/(.*)",
