@@ -182,6 +182,104 @@ function mapSourceMovie(row: SourceMovie, movieCode?: string): Movie {
   });
 }
 
+const sourceComingSoonMovieSchema = z.object({
+  tmdbId: z.number().int().positive(),
+  englishTitle: z.string(),
+  releaseYear: z.number().int().nullable(),
+  releaseDate: z.string(),
+  genres: z.union([z.array(z.string()), z.null()]),
+  enPoster: z.string().nullable(),
+  backdrop: z.string().nullable(),
+  enTrailer: z.string().nullable(),
+  runtime: z.number().nullable(),
+  popularity: z.number().nullable(),
+  altOptions: z.unknown(),
+  soloUpdate: z.boolean(),
+});
+
+function parseComingSoonAlternatives(value: unknown) {
+  if (!Array.isArray(value)) {
+    throw new CatalogDataIntegrityError(
+      "A coming-soon movie alternative list is not a JSON array.",
+    );
+  }
+
+  return value
+    .flatMap((entry) => {
+      const result = z
+        .object({
+          tmdb: tmdbIdSchema,
+          title: z.string().trim().min(1),
+          year: z.union([z.number(), z.string(), z.null()]).optional(),
+          poster_url: z.union([z.string(), z.null()]).optional(),
+        })
+        .safeParse(entry);
+
+      if (!result.success) {
+        return [];
+      }
+
+      const parsedYear =
+        result.data.year === undefined || result.data.year === null
+          ? null
+          : Number.parseInt(String(result.data.year), 10);
+      const alternative = movieAltOptionSchema.safeParse({
+        tmdbId: result.data.tmdb,
+        title: normalizeText(result.data.title),
+        year:
+          parsedYear !== null &&
+          Number.isSafeInteger(parsedYear) &&
+          parsedYear >= 0
+            ? parsedYear
+            : null,
+        posterUrl: result.data.poster_url ?? null,
+      });
+
+      return alternative.success ? [alternative.data] : [];
+    })
+    .slice(0, 10);
+}
+
+function mapSourceComingSoonMovie(
+  row: z.infer<typeof sourceComingSoonMovieSchema>,
+  movieCode?: string,
+): Movie {
+  const title = normalizeText(row.englishTitle)
+    .replace(/^"+|"+$/g, "")
+    .trim();
+  const imageSrc =
+    normalizeText(row.enPoster ?? "") || normalizeText(row.backdrop ?? "");
+  const backdropSrc = normalizeText(row.backdrop ?? "") || imageSrc;
+  const parsedYear =
+    row.releaseYear !== null && row.releaseYear > 0
+      ? row.releaseYear
+      : Number.parseInt(row.releaseDate.slice(0, 4), 10);
+
+  return movieSchema.parse({
+    tmdbId: String(row.tmdbId),
+    movieCode,
+    title,
+    year: Number.isSafeInteger(parsedYear) && parsedYear > 0 ? parsedYear : 0,
+    releaseDate: row.releaseDate,
+    genres: parseGenres(row.genres),
+    imageSrc,
+    backdropSrc: backdropSrc || undefined,
+    trailerKey: normalizeText(row.enTrailer ?? "") || undefined,
+    imdbRating: null,
+    lbRating: null,
+    lbVotes: null,
+    tmdbRating: null,
+    tmdbVotes: null,
+    rtCriticRating: null,
+    rtCriticVotes: null,
+    rtAudienceRating: null,
+    rtAudienceVotes: null,
+    runtime: parseInteger(row.runtime),
+    popularity: Number.isFinite(row.popularity) ? row.popularity : 0,
+    altOptions: parseComingSoonAlternatives(row.altOptions),
+  });
+}
+
 export function toNowPlayingMovie(value: unknown, movieCode?: string): Movie {
   const parsed = sourceMovieSchema.safeParse(value);
 
@@ -206,6 +304,35 @@ export function toNowPlayingMovie(value: unknown, movieCode?: string): Movie {
     }
     throw new CatalogDataIntegrityError(
       "A now-playing movie row could not be normalized.",
+      error,
+    );
+  }
+}
+
+export function toComingSoonMovie(value: unknown, movieCode?: string): Movie {
+  const parsed = sourceComingSoonMovieSchema.safeParse(value);
+
+  if (!parsed.success) {
+    throw new CatalogDataIntegrityError(
+      "A coming-soon movie row does not match the expected database shape.",
+      parsed.error,
+    );
+  }
+
+  if (parsed.data.soloUpdate) {
+    throw new CatalogDataIntegrityError(
+      "A pending solo-update row reached the public catalog mapper.",
+    );
+  }
+
+  try {
+    return mapSourceComingSoonMovie(parsed.data, movieCode);
+  } catch (error) {
+    if (error instanceof CatalogDataIntegrityError) {
+      throw error;
+    }
+    throw new CatalogDataIntegrityError(
+      "A coming-soon movie row could not be normalized.",
       error,
     );
   }

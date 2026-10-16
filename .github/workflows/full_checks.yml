@@ -83,3 +83,9 @@ jobs:
 
       - name: Bootstrap and test against disposable PostgreSQL 17
         run: npm run api:test:integration
+
+      - name: Install Chromium for browser acceptance
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the frontend against the real Express API and PostgreSQL fixture
+        run: npm run web:e2e

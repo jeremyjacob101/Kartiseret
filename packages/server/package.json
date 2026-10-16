@@ -9,7 +9,8 @@
   "exports": {
     "./app": "./dist/app.js",
     "./production": "./dist/production.js",
-    "./catalog": "./dist/catalog/index.js"
+    "./catalog": "./dist/catalog/index.js",
+    "./public-data": "./dist/public-data/index.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

@@ -1,74 +1,85 @@
+import { encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked } from "@kartiseret/contracts/showtime-links";
 import { getPreviewData, resolvePreviewRouteSelection, type PreviewData } from "../server/og/previewData";
-import { encodeDateCode, encodeMovieRouteCode } from "@kartiseret/contracts/showtime-links";
 import { buildPreviewDescription, injectOpenGraphTags } from "../server/og/previewHtml";
+import type { PublicDataRepository } from "@kartiseret/server/public-data";
 import { formatPreviewReleaseDate } from "../server/og/previewFormat";
-import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
-function createPreviewClient(options: {
+function createPreviewRepository(options: {
   movie?: Record<string, unknown> | null;
   comingSoon?: Record<string, unknown> | null;
   showtimes?: Record<string, unknown>[];
   codeRows?: Record<string, unknown>[];
-}) {
-  return createClient("http://127.0.0.1:54321", "local-test-only", {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-    global: {
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        const table = new URL(request.url).pathname.split("/").at(-1);
-        if (table === "movieCodes") {
-          return new Response(
-            JSON.stringify(options.codeRows ?? [{ tmdb_id: 101 }]),
-            {
-              status: 200,
-              headers: { "Content-Type": "application/json" },
-            },
-          );
-        }
-        if (table === "finalMovies") {
-          return new Response(
-            JSON.stringify(options.movie ? [options.movie] : []),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          );
-        }
-        if (table === "finalSoons") {
-          return new Response(
-            JSON.stringify(options.comingSoon ? [options.comingSoon] : []),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          );
-        }
-        if (table === "finalShowtimes") {
-          return new Response(JSON.stringify(options.showtimes ?? []), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
-        return new Response(JSON.stringify({ message: "Unknown table" }), {
-          status: 500,
-        });
-      },
-    },
-  });
+}): PublicDataRepository {
+  const tmdbId = String(options.codeRows?.[0]?.tmdb_id ?? 101);
+  const showtimeRows = (options.showtimes ?? []).map((row) => ({
+    tmdbId: Number(tmdbId),
+    screeningCity: "Jerusalem",
+    dateOfShowing: "2026-09-16",
+    cinema: row.cinema,
+    showtime: row.showtime,
+    englishHref: null,
+    hebrewHref: null,
+    screeningTech: row.screening_tech,
+    screeningType: row.screening_type,
+    dubLanguage: row.dub_language,
+  }));
+
+  return {
+    findNowPlayingRows: async () => [],
+    findMovieCodes: async () => new Map(),
+    findComingSoonRows: async () => [],
+    findShowtimeRows: async () => showtimeRows,
+    findTicketAvailabilityRows: async () => [],
+    findTheaterCityRows: async () => [],
+    findMovieCodeByCode: async () =>
+      options.codeRows?.length === 0 ? null : tmdbId,
+    findNowPlayingMovieById: async () => options.movie ?? null,
+    findComingSoonMovieById: async () => options.comingSoon ?? null,
+  };
 }
 
 const movie = {
-  english_title: "Preview Movie",
-  en_poster: " /poster.jpg ",
+  tmdbId: 101,
+  englishTitle: "Preview Movie",
+  enPoster: " /poster.jpg ",
   backdrop: " /backdrop.jpg ",
-  release_year: 2026,
-  runtime: 125,
-  genres: '["Drama", "Comedy"]',
+  releaseYear: 2026,
+  genres: ["Drama", "Comedy"],
+  enTrailer: null,
+  imdbId: null,
+  rtId: null,
   imdbRating: 8.3,
-  rtCriticRating: 80,
-  rtCriticVotes: 100,
+  imdbVotes: null,
   rtAudienceRating: 92,
   rtAudienceVotes: 600,
+  rtCriticRating: 80,
+  rtCriticVotes: 100,
+  lbId: null,
   lbRating: 4.2,
+  lbVotes: 120,
+  tmdbRating: null,
+  tmdbVotes: null,
+  runtime: 125,
+  popularity: 10,
+  altOptions: [],
+  soloUpdate: false,
+};
+
+const comingSoon = {
+  tmdbId: 101,
+  englishTitle: "Preview Movie",
+  hebrewTitle: "סרט לדוגמה",
+  releaseDate: "2026-10-12",
+  releaseYear: 2026,
+  enPoster: "/poster.jpg",
+  backdrop: "/backdrop.jpg",
+  enTrailer: null,
+  genres: ["Drama", "Comedy"],
+  runtime: 125,
+  popularity: 10,
+  altOptions: [],
+  soloUpdate: false,
 };
 
 describe("social preview route and data handling", () => {
@@ -98,12 +109,12 @@ describe("social preview route and data handling", () => {
     expect(resolvePreviewRouteSelection("broken", instant)).toBeNull();
   });
 
-  it("hydrates now-playing preview data, filters expired rows, and groups showtimes", async () => {
+  it("loads normalized Drizzle-backed preview data, filters expired rows, and groups showtimes", async () => {
     const instant = new Date("2026-09-16T16:00:00Z");
     const data = await getPreviewData(
       "Ab1",
       instant,
-      createPreviewClient({
+      createPreviewRepository({
         movie,
         showtimes: [
           {
@@ -154,17 +165,81 @@ describe("social preview route and data handling", () => {
     ]);
   });
 
+  it("applies encoded filters to valid future showtimes", async () => {
+    const instant = new Date("2026-09-16T16:00:00Z");
+    const dateCode = encodeDateCode("2026-09-16");
+    const filterMask = filterMaskFromUnchecked({
+      showType: [],
+      screeningTech: [],
+      screenFormat: ["3D"],
+      dubLanguage: [],
+    });
+    const routeCode = encodeMovieRouteCode({
+      movieCode: "Ab1",
+      cityCode: "i",
+      dateCode: dateCode!,
+      filterMask,
+      mode: "share",
+    });
+    const data = await getPreviewData(
+      routeCode!,
+      instant,
+      createPreviewRepository({
+        movie,
+        showtimes: [
+          {
+            cinema: "Cinema City",
+            showtime: "20:00",
+            screening_tech: "2D",
+            screening_type: "Regular",
+            dub_language: null,
+          },
+          {
+            cinema: "Cinema City",
+            showtime: "21:00",
+            screening_tech: "3D IMAX",
+            screening_type: "VIP",
+            dub_language: "Hebrew",
+          },
+          {
+            cinema: "Yes Planet",
+            showtime: "18:00",
+            screening_tech: "2D",
+            screening_type: "Regular",
+            dub_language: null,
+          },
+        ],
+      }),
+    );
+
+    expect(data?.theaters).toEqual([
+      { theater: "Cinema City", showtimes: ["20:00"] },
+    ]);
+  });
+
+  it("returns no preview for invalid links or unknown permanent codes", async () => {
+    const instant = new Date("2026-09-16T16:00:00Z");
+    expect(
+      await getPreviewData(
+        "broken",
+        instant,
+        createPreviewRepository({ movie }),
+      ),
+    ).toBeNull();
+    expect(
+      await getPreviewData(
+        "Ab1",
+        instant,
+        createPreviewRepository({ movie: null, codeRows: [] }),
+      ),
+    ).toBeNull();
+  });
+
   it("returns coming-soon metadata without exposing showtime rows", async () => {
     const data = await getPreviewData(
       "Ab1",
       new Date("2026-09-16T16:00:00Z"),
-      createPreviewClient({
-        movie: null,
-        comingSoon: {
-          ...movie,
-          release_date: "2026-10-12",
-        },
-      }),
+      createPreviewRepository({ movie: null, comingSoon }),
     );
 
     expect(data).toMatchObject({

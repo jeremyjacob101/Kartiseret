@@ -4,11 +4,19 @@
   "outputDirectory": "Codebase - Kartiseret Web/dist",
   "functions": {
     "api/og.ts": {
-      "includeFiles": "Codebase - Kartiseret Web/dist/**"
+      "includeFiles": [
+        "Codebase - Kartiseret Web/dist/**",
+        "packages/server/dist/**",
+        "packages/contracts/dist/**"
+      ]
     },
     "api/og-image.ts": {
       "maxDuration": 30,
-      "includeFiles": "Codebase - Kartiseret Web/server/og/assets/**"
+      "includeFiles": [
+        "Codebase - Kartiseret Web/server/og/assets/**",
+        "packages/server/dist/**",
+        "packages/contracts/dist/**"
+      ]
     },
     "api/[...path].ts": {
       "includeFiles": "packages/**/dist/**",

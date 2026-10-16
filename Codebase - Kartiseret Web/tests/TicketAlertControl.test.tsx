@@ -92,10 +92,19 @@ beforeEach(() => {
     },
   });
   getSupabaseBrowserClientMock.mockReturnValue(createSupabaseFixture());
+  vi.stubGlobal(
+    "fetch",
+    async () =>
+      new Response(JSON.stringify({ data: { showtimes: [] }, error: null }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+  );
 });
 
 afterEach(() => {
   queryClient.clear();
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 

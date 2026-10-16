@@ -5,6 +5,18 @@ import {
   CatalogDatabaseError,
 } from "./catalog/errors.js";
 import {
+  getMovieCatalog,
+  getPublicTheaterData,
+  getShowtimeRange,
+  getTicketAvailabilityShowtimes,
+} from "./public-data/service.js";
+import { PublicDataIntegrityError } from "./public-data/errors.js";
+import type { PublicDataRepository } from "./public-data/repository.js";
+import {
+  publicShowtimeRangeQuerySchema,
+  ticketAvailabilityQuerySchema,
+} from "@kartiseret/contracts/public-data";
+import {
   getNowPlayingMovies,
   type CatalogRepository,
 } from "./catalog/service.js";
@@ -18,6 +30,7 @@ export interface AppLogger {
 
 export interface AppDependencies {
   catalogRepository: CatalogRepository;
+  publicDataRepository?: PublicDataRepository;
   logger?: AppLogger;
 }
 
@@ -39,6 +52,7 @@ function safeErrorSummary(error: unknown): { name: string; code?: string } {
 
 export function createApp({
   catalogRepository,
+  publicDataRepository,
   logger = silentLogger,
 }: AppDependencies) {
   const app = express();
@@ -63,12 +77,150 @@ export function createApp({
     }
 
     try {
-      const movies = await getNowPlayingMovies(catalogRepository);
+      const data = publicDataRepository
+        ? await getMovieCatalog(publicDataRepository, "nowPlaying", (error) =>
+            logger.error(
+              "Movie-code lookup failed; catalog remains available without code hydration.",
+              safeErrorSummary(error),
+            ),
+          )
+        : {
+            mode: "nowPlaying" as const,
+            movies: await getNowPlayingMovies(catalogRepository),
+            movieCodesStatus: "ready" as const,
+          };
       response.setHeader(
         "Cache-Control",
         "public, max-age=60, stale-while-revalidate=300",
       );
-      response.json({ data: { mode: "nowPlaying", movies }, error: null });
+      response.json({ data, error: null });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/v1/catalog/coming-soon", async (request, response, next) => {
+    const query = emptyQuerySchema.safeParse(request.query);
+    if (!query.success) {
+      next(
+        new HttpError(
+          400,
+          "invalid_request",
+          "The request query is not supported.",
+        ),
+      );
+      return;
+    }
+    if (!publicDataRepository) {
+      next(new CatalogDatabaseError(new Error("Public data is unavailable.")));
+      return;
+    }
+    try {
+      const data = await getMovieCatalog(
+        publicDataRepository,
+        "comingSoon",
+        (error) =>
+          logger.error(
+            "Movie-code lookup failed; catalog remains available without code hydration.",
+            safeErrorSummary(error),
+          ),
+      );
+      response.setHeader(
+        "Cache-Control",
+        "public, max-age=60, stale-while-revalidate=300",
+      );
+      response.json({ data, error: null });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/v1/showtimes", async (request, response, next) => {
+    if (!publicDataRepository) {
+      next(new CatalogDatabaseError(new Error("Public data is unavailable.")));
+      return;
+    }
+    const query = publicShowtimeRangeQuerySchema.safeParse(request.query);
+    if (!query.success) {
+      next(
+        new HttpError(
+          400,
+          "invalid_request",
+          "The showtime range query is invalid or exceeds the supported range.",
+        ),
+      );
+      return;
+    }
+    try {
+      const showtimes = await getShowtimeRange(
+        publicDataRepository,
+        query.data,
+      );
+      response.setHeader(
+        "Cache-Control",
+        "public, max-age=30, stale-while-revalidate=60",
+      );
+      response.json({ data: { showtimes }, error: null });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/v1/theaters", async (request, response, next) => {
+    if (!publicDataRepository) {
+      next(new CatalogDatabaseError(new Error("Public data is unavailable.")));
+      return;
+    }
+    const query = emptyQuerySchema.safeParse(request.query);
+    if (!query.success) {
+      next(
+        new HttpError(
+          400,
+          "invalid_request",
+          "The request query is not supported.",
+        ),
+      );
+      return;
+    }
+    try {
+      const data = await getPublicTheaterData(publicDataRepository);
+      response.setHeader(
+        "Cache-Control",
+        "public, max-age=3600, stale-while-revalidate=86400",
+      );
+      response.json({ data, error: null });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/v1/ticket-availability", async (request, response, next) => {
+    if (!publicDataRepository) {
+      next(new CatalogDatabaseError(new Error("Public data is unavailable.")));
+      return;
+    }
+    const query = ticketAvailabilityQuerySchema.safeParse(request.query);
+    if (!query.success) {
+      next(
+        new HttpError(
+          400,
+          "invalid_request",
+          "The ticket-availability query is invalid.",
+        ),
+      );
+      return;
+    }
+    try {
+      const showtimes = await getTicketAvailabilityShowtimes(
+        publicDataRepository,
+        query.data.tmdbId,
+        query.data.fromDate,
+      );
+      response.setHeader(
+        "Cache-Control",
+        "public, max-age=30, stale-while-revalidate=30",
+      );
+      response.json({ data: { showtimes }, error: null });
     } catch (error) {
       next(error);
     }
@@ -122,6 +274,21 @@ export function createApp({
         error: {
           code: "catalog_unavailable",
           message: "The catalog is temporarily unavailable.",
+        },
+      });
+      return;
+    }
+
+    if (error instanceof PublicDataIntegrityError) {
+      logger.error(
+        "Public theater or city metadata did not match the public contract.",
+        { name: error.name, code: error.kind },
+      );
+      response.status(500).json({
+        data: null,
+        error: {
+          code: error.kind,
+          message: "The theater and city data is temporarily unavailable.",
         },
       });
       return;

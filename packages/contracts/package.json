@@ -37,6 +37,11 @@
       "types": "./dist/preferences.d.ts",
       "import": "./dist/preferences.js",
       "default": "./dist/preferences.js"
+    },
+    "./public-data": {
+      "types": "./dist/public-data.d.ts",
+      "import": "./dist/public-data.js",
+      "default": "./dist/public-data.js"
     }
   },
   "scripts": {
