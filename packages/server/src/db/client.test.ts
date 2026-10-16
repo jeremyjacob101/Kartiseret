@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { createDatabase } from "./client.js";
 
 describe("PostgreSQL database factory", () => {
+  const supabaseCaCertificate =
+    "-----BEGIN CERTIFICATE-----\ntrusted root\n-----END CERTIFICATE-----";
+
   it("uses a bounded local pool and closes it once", async () => {
     const connection = createDatabase(
       "postgresql://app:secret@127.0.0.1:5432/kartiseret_test",
@@ -21,9 +24,12 @@ describe("PostgreSQL database factory", () => {
   it("requires verified TLS for remote database connections", async () => {
     const connection = createDatabase(
       "postgresql://app:secret@aws-0-eu-central-2.pooler.supabase.com:6543/postgres",
-      { poolMax: 1 },
+      { poolMax: 1, sslCaCertificate: supabaseCaCertificate },
     );
-    expect(connection.pool.options.ssl).toEqual({ rejectUnauthorized: true });
+    expect(connection.pool.options.ssl).toEqual({
+      ca: supabaseCaCertificate,
+      rejectUnauthorized: true,
+    });
     await connection.close();
 
     expect(() =>

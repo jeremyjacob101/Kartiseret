@@ -144,6 +144,36 @@ describe("Express API composition", () => {
     expect(logger.error).toHaveBeenCalled();
   });
 
+  it("logs nested driver codes without logging database error messages", async () => {
+    const logger = { error: vi.fn() };
+    const driverError = Object.assign(new Error("secret database message"), {
+      code: "SELF_SIGNED_CERT_IN_CHAIN",
+    });
+    const drizzleError = Object.assign(new Error("Failed query: secret SQL"), {
+      cause: driverError,
+    });
+    const failedRepository: CatalogRepository = {
+      findNowPlayingRows: async () => {
+        throw new CatalogDatabaseError(drizzleError);
+      },
+      findMovieCodes: async () => new Map(),
+    };
+
+    const response = await request(
+      createApp({ catalogRepository: failedRepository, logger }),
+    ).get("/api/v1/catalog/now-playing");
+
+    expect(response.status).toBe(503);
+    expect(logger.error).toHaveBeenCalledWith(
+      "Catalog database query failed.",
+      {
+        name: "Error",
+        cause: { name: "Error", code: "SELF_SIGNED_CERT_IN_CHAIN" },
+      },
+    );
+    expect(JSON.stringify(logger.error.mock.calls)).not.toContain("secret");
+  });
+
   it("returns a safe error for malformed database row data", async () => {
     const response = await request(
       createApp({

@@ -25,15 +25,30 @@ const silentLogger: AppLogger = {
   error: () => undefined,
 };
 
-function safeErrorSummary(error: unknown): { name: string; code?: string } {
+interface SafeErrorSummary {
+  name: string;
+  code?: string;
+  cause?: SafeErrorSummary;
+}
+
+function safeErrorSummary(error: unknown, causeDepth = 0): SafeErrorSummary {
   if (typeof error !== "object" || error === null) {
     return { name: "UnknownError" };
   }
 
-  const source = error as { name?: unknown; code?: unknown };
+  const source = error as {
+    name?: unknown;
+    code?: unknown;
+    cause?: unknown;
+  };
   return {
     name: typeof source.name === "string" ? source.name : "Error",
     ...(typeof source.code === "string" ? { code: source.code } : {}),
+    ...(causeDepth < 4 &&
+    typeof source.cause === "object" &&
+    source.cause !== null
+      ? { cause: safeErrorSummary(source.cause, causeDepth + 1) }
+      : {}),
   };
 }
 

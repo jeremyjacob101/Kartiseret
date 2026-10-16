@@ -9,6 +9,7 @@ export function createProductionApp(
   const config = parseServerEnvironment(environment);
   const database = createDatabase(config.DATABASE_URL, {
     poolMax: config.DATABASE_POOL_MAX,
+    sslCaCertificate: config.DATABASE_SSL_CA_CERT,
   });
   const app = createApp({
     catalogRepository: new DrizzleCatalogRepository(database.db),
