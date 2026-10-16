@@ -16,7 +16,7 @@ def israel_local_timestamp() -> str:
     return datetime.now(ISRAEL_TIMEZONE).isoformat()
 
 
-def allocate_run_id() -> int:
+def allocate_run_id(on_allocated: Callable[[int], None] | None = None) -> int:
     sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
 
     run_from_override = (os.environ.get("RUN_FROM_OVERRIDE") or "").strip()
@@ -43,6 +43,11 @@ def allocate_run_id() -> int:
 
     rows = sb.table("utilRunLogs").select("run_id").order("run_id", desc=True).limit(1).execute().data
     new_id = int(rows[0]["run_id"]) + 1
+    if on_allocated is not None:
+        try:
+            on_allocated(new_id)
+        except Exception:
+            pass
     run_dir = ARTIFACT_ROOT / str(new_id)
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / ".job_ok").write_text("true", encoding="utf-8")
@@ -56,15 +61,19 @@ def allocate_run_id() -> int:
 
 
 class RunLogSession:
-    def __init__(self) -> None:
+    def __init__(self, on_allocated: Callable[[int], None] | None = None) -> None:
         self.run_id: int | None = None
         self._start_time: float = 0.0
         self._selected_runners: list[dict[str, Any]] = []
         self._successful: bool = True
+        self._on_allocated = on_allocated
 
     def __enter__(self) -> "RunLogSession":
-        self.run_id = allocate_run_id()
-        self._start_time = time.time()
+        try:
+            self._start_time = float(os.environ.get("KARTISERET_JOB_STARTED_MONOTONIC", time.monotonic()))
+        except (TypeError, ValueError):
+            self._start_time = time.monotonic()
+        self.run_id = allocate_run_id(on_allocated=self._on_allocated)
         self._selected_runners = []
         self._successful = True
         return self
@@ -121,7 +130,7 @@ class RunLogSession:
             run_dir = ARTIFACT_ROOT / str(self.run_id)
             run_dir.mkdir(parents=True, exist_ok=True)
             (run_dir / ".job_ok").write_text("true" if self._successful else "false", encoding="utf-8")
-            total_time = time.time() - self._start_time
+            total_time = max(0.0, time.monotonic() - self._start_time)
             try:
                 sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
                 sb.table("utilRunLogs").update({"selected_runners": self._selected_runners, "successful": bool(self._successful), "total_time": float(total_time), "running_now": False}).eq("run_id", int(self.run_id)).execute()

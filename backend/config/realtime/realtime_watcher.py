@@ -7,6 +7,7 @@ import pathlib
 import queue
 import signal
 import subprocess
+import sys
 import threading
 import time
 from typing import Any
@@ -15,6 +16,8 @@ from dotenv import load_dotenv
 from supabase import create_async_client
 
 from backend.config.runners import runGroup
+from backend.config.job_control import report_event
+from backend.config.job_supervisor import job_seconds, run_managed_process, termination_grace_seconds
 from backend.dataflow.cinematheques.CinemathequesUpdate import CinemathequesUpdate
 from backend.dataflow.comingsoons.ComingSoonsUpdate import ComingSoonsUpdate
 from backend.dataflow.nowplayings.NowPlayingsUpdate import NowPlayingsUpdate
@@ -108,42 +111,57 @@ def _git_sync_after_update(logger: logging.Logger, table_name: str) -> bool:
     return True
 
 
-def _run_single_update(table_name: str) -> bool:
-    logger = logging.getLogger("realtime_watcher.git")
+def _solo_update_plan(table_name: str):
     if table_name == TABLE_FINAL_MOVIES:
-        plan = [("dataflow", "nowPlayingData", [NowPlayingsUpdate])]
-        run_from_override = "np_solo_update"
-    elif table_name == TABLE_FINAL_THEQUE_MOVIES:
-        plan = [("dataflow", "cinemathequeData", [CinemathequesUpdate])]
-        run_from_override = "theque_solo_update"
-    elif table_name == TABLE_FINAL_SOONS:
-        plan = [("dataflow", "comingSoonsData", [ComingSoonsUpdate])]
-        run_from_override = "cs_solo_update"
-    else:
+        return [("dataflow", "nowPlayingData", [NowPlayingsUpdate])], "np_solo_update"
+    if table_name == TABLE_FINAL_THEQUE_MOVIES:
+        return [("dataflow", "cinemathequeData", [CinemathequesUpdate])], "theque_solo_update"
+    if table_name == TABLE_FINAL_SOONS:
+        return [("dataflow", "comingSoonsData", [ComingSoonsUpdate])], "cs_solo_update"
+    return None, None
+
+
+def _run_single_update_worker(table_name: str) -> bool:
+    logger = logging.getLogger("realtime_watcher.git")
+    plan, run_from_override = _solo_update_plan(table_name)
+    if plan is None:
         logging.warning("Unknown table trigger ignored: %s", table_name)
         return False
 
-    previous_mode = os.environ.get(SOLO_UPDATE_ENV_KEY)
-    previous_run_from = os.environ.get(RUN_FROM_OVERRIDE_ENV_KEY)
     os.environ[SOLO_UPDATE_ENV_KEY] = "true"
     os.environ[RUN_FROM_OVERRIDE_ENV_KEY] = run_from_override
+    if not _git_sync_before_update(logger):
+        logger.error("Continuing %s solo update even though pre-run git sync failed", table_name)
+    with RunLogSession(on_allocated=lambda run_id: report_event("run_id", run_id=int(run_id))) as run:
+        ok = run.run_groups(plan, run_group_fn=runGroup)
+    if ok and not _git_sync_after_update(logger, table_name):
+        logger.error("Post-run git sync failed after successful %s solo update", table_name)
+    report_event("run_complete", successful=bool(ok))
+    return ok
+
+
+def _run_single_update(table_name: str, *, cancel_event: threading.Event | None = None) -> bool:
+    logger = logging.getLogger("realtime_watcher.worker")
+    plan, run_from_override = _solo_update_plan(table_name)
+    if plan is None:
+        logger.warning("Unknown table trigger ignored: %s", table_name)
+        return False
     try:
-        if not _git_sync_before_update(logger):
-            logger.error("Continuing %s solo update even though pre-run git sync failed", table_name)
-        with RunLogSession() as run:
-            ok = run.run_groups(plan, run_group_fn=runGroup)
-        if ok and not _git_sync_after_update(logger, table_name):
-            logger.error("Post-run git sync failed after successful %s solo update", table_name)
-        return ok
-    finally:
-        if previous_mode is None:
-            os.environ.pop(SOLO_UPDATE_ENV_KEY, None)
-        else:
-            os.environ[SOLO_UPDATE_ENV_KEY] = previous_mode
-        if previous_run_from is None:
-            os.environ.pop(RUN_FROM_OVERRIDE_ENV_KEY, None)
-        else:
-            os.environ[RUN_FROM_OVERRIDE_ENV_KEY] = previous_run_from
+        outcome = run_managed_process(
+            [sys.executable, "-m", "backend.config.realtime.realtime_watcher", "--solo-update-worker", table_name],
+            seconds=job_seconds(solo=True),
+            grace_seconds=termination_grace_seconds(),
+            env={SOLO_UPDATE_ENV_KEY: "true", RUN_FROM_OVERRIDE_ENV_KEY: run_from_override},
+            cwd=str(PROJECT_ROOT),
+            cancel_event=cancel_event,
+        )
+    except ValueError as error:
+        logger.error("Invalid solo Update execution configuration: %s", error)
+        return False
+    if outcome.reason:
+        logger.error("Solo Update for %s ended with %s", table_name, outcome.reason)
+        return False
+    return outcome.successful is True
 
 
 def _worker_loop(event_queue: "queue.Queue[str]", stop_event: threading.Event) -> None:
@@ -168,10 +186,14 @@ def _worker_loop(event_queue: "queue.Queue[str]", stop_event: threading.Event) -
 
         now = time.time()
         ready_tables = [table for table, deadline in pending_deadlines.items() if deadline <= now]
+        if stop_event.is_set():
+            break
         for table_name in ready_tables:
+            if stop_event.is_set():
+                break
             pending_deadlines.pop(table_name, None)
             logger.info("Starting updater for %s", table_name)
-            ok = _run_single_update(table_name)
+            ok = _run_single_update(table_name, cancel_event=stop_event)
             if ok:
                 logger.info("Completed updater for %s successfully", table_name)
             else:
@@ -273,7 +295,13 @@ async def _subscribe_forever(event_queue: "queue.Queue[str]", stop_event: thread
     logger.info("Realtime listener stopped")
 
 
-def main() -> None:
+def main() -> int:
+    if len(sys.argv) == 3 and sys.argv[1] == "--solo-update-worker":
+        artifact_logging.setup_logging()
+        _configure_logging()
+        _run_single_update_worker(sys.argv[2])
+        return 0
+
     artifact_logging.setup_logging()
     _configure_logging()
 
@@ -296,10 +324,11 @@ def main() -> None:
         loop.run_until_complete(_subscribe_forever(event_queue, stop_event))
     finally:
         stop_event.set()
-        worker.join(timeout=10)
+        worker.join(timeout=termination_grace_seconds() + 2)
         loop.stop()
         loop.close()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
