@@ -34,8 +34,12 @@
       "destination": "/api/dispatch?__vercel_route=og&routeCode=:routeCode"
     },
     {
-      "source": "/api/:path*",
-      "destination": "/api/dispatch?__vercel_route=:path*"
+      "source": "/api",
+      "destination": "/api/dispatch?__vercel_route=not-found"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/dispatch?__vercel_route=$1"
     },
     {
       "source": "/(.*)",
