@@ -10,6 +10,7 @@
     "./app": "./dist/app.js",
     "./production": "./dist/production.js",
     "./catalog": "./dist/catalog/index.js",
+    "./public-data": "./dist/public-data/index.js",
     "./vercel-dispatch": "./dist/vercel-dispatch.js"
   },
   "scripts": {

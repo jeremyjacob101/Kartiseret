@@ -2,21 +2,19 @@
 
 Prepared 2026-10-15 for Jeremy. Intended executor: Jeremy's selected GPT-6 Luna chat with Max reasoning effort. This is a complete replacement for the earlier Prisma master plan, adapted to the work already completed. It contains the overall architecture, preservation requirements, all five PR stages, implementation sequences, verification gates, release ordering, and handoff requirements.
 
-**Latest controlling decision: finish converting Prisma to Drizzle at the END of the existing, still-unmerged PR 2, then push that same PR with Drizzle. Do not defer conversion to PR 3, merge PR 2 with Prisma as its final implementation, create a sixth PR, or restart the already working foundation.**
+**Current status (2026-10-16): PR 1 and PR 2 are merged to `main`; PR 2's Drizzle conversion is complete. PR 3 is the active implementation stage.** The original preparation snapshot and PR-specific implementation instructions below are retained as historical context; where their “right now” wording conflicts with this status, follow the current PR 3 handoff and current repository state.
 
-The project is currently partway through PR 2. PR 1's workspace/shared-contract foundation exists. PR 2 already implements Express, a SQL baseline, hosted-dev setup materials, a first API read, Prisma mappings, and real-Postgres CI tests. Preserve the useful implementation and replace its ORM boundary before the final PR 2 push/merge. PRs 3–5 must consume Drizzle exclusively. Better Auth remains the selected authentication library for PR 5, using its Drizzle adapter; this change does not select the separate OpenAuth project or introduce handwritten authentication.
+The project has completed the workspace/shared-contract foundation and the Express/SQL/hosted-DEV/PostgreSQL CI/Drizzle foundation. PR 2 merged as `c10cd50f2b98992edbaeb9f49b903fe827b81d94`. PR 3 moves public reads and social previews behind Express + Drizzle, preserves protected client operations for later PRs, and adds real-PostgreSQL/browser acceptance coverage. Better Auth remains the selected authentication library for PR 5, using its Drizzle adapter; this does not select the separate OpenAuth project or introduce handwritten authentication.
 
 This document is an implementation specification and an evidence-backed starting snapshot. It does not assert that a PR is merged, every local edit is pushed, Preview environment variables are configured, or production has migrated. Recheck those facts in the implementing chat.
 
 ## 0. How Jeremy should use this revised document
 
-### Right now: continue the existing PR 2 chat
+### Current stage: PR 3
 
-Paste or attach this ENTIRE revised plan in the chat implementing PR 2, preceded by:
+Use `docs/backend-overhaul/pr-3-handoff.md` as the current stage handoff. PR 3 must stay open and unmerged until its refreshed CI and Preview acceptance pass and Production has been safely prepared for the frontend cutover. The PR 3 handoff contains the exact remaining checks and owner steps. Do not request reviewers.
 
-> Continue the existing PR 2 and its existing GitHub PR using this revised Drizzle master plan. Preserve the Express/workspace/SQL-baseline/hosted-dev/test foundation already written. Complete the Prisma-to-Drizzle conversion as the final implementation phase of PR 2 before its final push and merge readiness. Verify the existing endpoint, schema mapping, permissions, transaction behavior, clean build, CI, and hosted-dev Preview with Drizzle. Reconcile the baseline filename with the migration actually recorded in DEV. Update the same PR's title/body and handoff to describe Drizzle. Do not implement PR 3, merge, request reviewers, or start another PR. Inspect current code and document justified adaptations.
-
-Earlier exploratory Prisma commits in PR 2's history may remain. The final PR diff, source, scripts, package graph, tests, handoff and description must use Drizzle. Do not force-push or rewrite history merely to hide the intermediate implementation.
+The PR 2 instructions and Drizzle-conversion details later in this document are retained as historical specification/evidence. Do not restart PR 2 or repeat its conversion.
 
 ### Later: one chat for each remaining PR
 
@@ -26,15 +24,15 @@ After Jeremy merges the preceding completed PR, open the next implementation cha
 
 Replace N with 3, 4, or 5. Supply the whole document so the executor sees the shared constraints and future dependencies. It may read the plan from the repository instead if the same revision is committed and available. A file saved only in another worktree is not automatically present in a fresh chat/worktree.
 
-Canonical revised filename: `docs/backend-overhaul-master-plan-drizzle.md`. The old `docs/backend-overhaul-master-plan.md` and `docs/backend-overhaul-audit.md` are historical context. This revision supersedes conflicting Prisma instructions and old assumptions that PR 2 has not started or DEV does not exist. Save this revision in the implementation branch as part of PR 2's documentation so subsequent chats can read it. Keep useful predecessor handoffs; add explicit dated corrections rather than presenting old Prisma evidence as Drizzle evidence.
+Canonical revised filename: `docs/backend-overhaul-master-plan-drizzle.md`. The old `docs/backend-overhaul-master-plan.md` and `docs/backend-overhaul-audit.md` are historical context. This revision superseded conflicting Prisma instructions and old assumptions that PR 2 had not started or DEV did not exist. Its original preparation snapshot is intentionally preserved below; the status block at the top and `docs/backend-overhaul/pr-3-handoff.md` are the current source of truth. Keep useful predecessor handoffs and label older evidence as historical.
 
 ### Five-PR sequence and present status
 
 | Stage | Scope | How to treat it now |
 | --- | --- | --- |
 | PR 1 | npm workspaces and shared Zod/domain foundation | Existing predecessor; verify its merged result, do not rebuild it |
-| PR 2 | Express, SQL baseline, hosted DEV, Postgres CI, first public read; **finish by replacing Prisma with Drizzle** | Current open PR; complete conversion and verification before final push/merge readiness |
-| PR 3 | Complete public reads, frontend transport, social previews, Playwright | Begins with a working Drizzle foundation; no postponed ORM conversion |
+| PR 2 | Express, SQL baseline, hosted DEV, Postgres CI, first public read; Drizzle | Merged into `main` as `c10cd50f`; conversion complete |
+| PR 3 | Complete public reads, frontend transport, social previews, Playwright | Active stage; refreshed on PR 2's merged base; keep open until code, Preview, and Production merge gates pass |
 | PR 4 | Protected APIs, preferences, subscriptions, transactional admin edits; temporary Supabase Auth | All new queries and transactions use Drizzle |
 | PR 5 | Better Auth with the Drizzle adapter, app-owned identities, Python recipient transition | Final authentication cutover and whole-feature verification |
 
@@ -819,4 +817,4 @@ Verify version-sensitive behavior when implementing rather than pasting examples
 
 ## 19. Start instruction for the implementation chat
 
-Execute only the PR number Jeremy selected. Current starting instruction is to FINISH THE EXISTING PR 2, adding the Prisma-to-Drizzle conversion as its final implementation phase before final push/merge readiness. Preserve its useful foundation and latest local baseline/DEV updates. For later PRs, require the merged Drizzle predecessor. Begin by stating the selected scope, inspecting the actual checkout/live PR/predecessor handoff, and identifying the first concrete slice. Implement and verify it through the selected PR's acceptance gate. Adapt to evidence, preserve existing feature contracts, and leave a clear handoff rather than blindly following stale paths or declaring the entire overhaul complete early.
+Execute only the PR number Jeremy selected. **Current stage: PR 3**, with PR 1 and PR 2 already merged to `main`. Start from the actual current checkout and the PR 3 handoff, verify the merged Drizzle predecessor, and implement/verify only PR 3. Keep PR 3 unmerged until refreshed CI, authenticated Preview acceptance, and the documented Production preparation gate are complete. Do not request reviewers. Adapt to evidence, preserve existing feature contracts, and leave a clear handoff rather than blindly following stale historical snapshots or declaring the entire overhaul complete early.

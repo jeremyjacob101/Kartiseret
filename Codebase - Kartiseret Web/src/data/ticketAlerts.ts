@@ -3,15 +3,16 @@ import { buildMovieShowtimeSharePath, getJerusalemCinemaDate, isDateInShowtimeLi
 import { isoDateStringSchema, movieCodeSchema, parseBoundary } from "@kartiseret/contracts/runtime";
 import { mutationOptions, queryOptions, skipToken, type QueryClient } from "@tanstack/react-query";
 import { getShowtimeSortValue, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
+import { ticketAvailabilityResponseSchema } from "@kartiseret/contracts/public-data";
 import { normalizeTicketAlertTmdbId } from "../domain/ticketAlerts";
 import { supabaseUserIdSchema } from "../lib/supabaseSchemas";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 import { queryClient } from "../lib/queryClient";
+import { getApiResponse } from "./apiClient";
 
 export type { UserTicketAlertSubscription } from "./ticketAlertSchemas";
 
 const TICKET_ALERTS_TABLE_NAME = "ticket_alert_subscriptions";
-const SHOWTIMES_TABLE_NAME = "finalShowtimes";
 const SUBSCRIPTION_COLUMNS =
   "user_id,tmdb_id,created_at,notified_at,delivery_title,delivery_date";
 const SUPABASE_PAGE_SIZE = 1_000;
@@ -201,40 +202,25 @@ async function fetchLinkedShowtimeRows(
   cinemaDate: string,
   signal: AbortSignal,
 ): Promise<TicketAlertShowtime[]> {
-  const supabase = getSupabaseBrowserClient();
-  const allRows: TicketAlertShowtime[] = [];
-  let fromIndex = 0;
-
-  while (true) {
-    const { data, error } = await supabase
-      .from(SHOWTIMES_TABLE_NAME)
-      .select(
-        "id,tmdb_id,screening_city,date_of_showing,showtime,cinema,english_href,hebrew_href",
-      )
-      .eq("tmdb_id", Number(tmdbId))
-      .gte("date_of_showing", cinemaDate)
-      .order("date_of_showing", { ascending: true })
-      .order("showtime", { ascending: true })
-      .order("id", { ascending: true })
-      .range(fromIndex, fromIndex + SUPABASE_PAGE_SIZE - 1)
-      .abortSignal(signal);
-
-    if (error) {
-      throw new Error(`Could not check ticket availability: ${error.message}`);
-    }
-
-    const rawRows = data ?? [];
-    const rows = parseBoundary(
-      ticketAlertShowtimePageSchema,
-      rawRows,
-      "ticket availability response",
-    ).filter((row): row is TicketAlertShowtime => row !== null);
-    allRows.push(...rows);
-    if (rawRows.length < SUPABASE_PAGE_SIZE) {
-      return allRows;
-    }
-    fromIndex += SUPABASE_PAGE_SIZE;
-  }
+  const params = new URLSearchParams({ tmdbId, fromDate: cinemaDate });
+  const response = await getApiResponse(
+    `/api/v1/ticket-availability?${params.toString()}`,
+    ticketAvailabilityResponseSchema,
+    signal,
+  );
+  const rawRows = response.data.showtimes.map((row) => ({
+    screening_city: row.screeningCity,
+    date_of_showing: row.dateOfShowing,
+    cinema: row.cinema,
+    showtime: row.showtime,
+    english_href: row.englishHref,
+    hebrew_href: row.hebrewHref,
+  }));
+  return parseBoundary(
+    ticketAlertShowtimePageSchema,
+    rawRows,
+    "ticket availability response",
+  ).filter((row): row is TicketAlertShowtime => row !== null);
 }
 
 async function fetchUserTicketAlertSubscriptions(

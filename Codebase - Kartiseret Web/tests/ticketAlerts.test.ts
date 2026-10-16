@@ -18,6 +18,7 @@ type StoredSubscription = {
 
 let client: QueryClient;
 let requests: Request[];
+let apiRequests: Request[];
 let rows: TicketAlertShowtimeRow[];
 let subscriptions: StoredSubscription[];
 let failWrites: boolean;
@@ -59,6 +60,7 @@ beforeEach(() => {
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   requests = [];
+  apiRequests = [];
   rows = [];
   subscriptions = [];
   failWrites = false;
@@ -69,6 +71,41 @@ beforeEach(() => {
       getItem: (key: string) => storage.get(key) ?? null,
       setItem: (key: string, value: string) => storage.set(key, value),
     },
+  });
+  vi.stubGlobal("fetch", async (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => {
+    const requestInput =
+      input instanceof Request
+        ? input.url
+        : input instanceof URL
+          ? input.href
+          : input;
+    const request = new Request(
+      new URL(requestInput, "https://kartiseret.test"),
+      init,
+    );
+    apiRequests.push(request);
+    const url = new URL(request.url, "https://kartiseret.test");
+    if (url.pathname !== "/api/v1/ticket-availability") {
+      throw new Error(
+        `Unexpected API fixture request: ${request.method} ${url.pathname}`,
+      );
+    }
+    return reply({
+      data: {
+        showtimes: rows.map((row) => ({
+          screeningCity: row.screening_city,
+          dateOfShowing: row.date_of_showing,
+          cinema: row.cinema,
+          showtime: row.showtime,
+          englishHref: row.english_href,
+          hebrewHref: row.hebrew_href ?? null,
+        })),
+      },
+      error: null,
+    });
   });
   // Real Supabase request construction; all transport is in-memory. No network.
   const supabase = createClient("http://127.0.0.1:54321", "local-test-only", {
@@ -164,11 +201,12 @@ describe("ticket alert queries", () => {
   it("deduplicates availability reads and reuses raw rows across city selectors", async () => {
     const options = ticketAlertAvailabilityQueryOptions("101", "2026-09-04");
     await Promise.all([client.fetchQuery(options), client.fetchQuery(options)]);
-    expect(requests).toHaveLength(1);
-    const url = new URL(requests[0].url);
-    expect(url.searchParams.get("tmdb_id")).toBe("eq.101");
-    expect(url.searchParams.get("date_of_showing")).toBe("gte.2026-09-04");
-    expect(url.searchParams.has("screening_city")).toBe(false);
+    expect(apiRequests).toHaveLength(1);
+    const url = new URL(apiRequests[0]!.url);
+    expect(url.pathname).toBe("/api/v1/ticket-availability");
+    expect(url.searchParams.get("tmdbId")).toBe("101");
+    expect(url.searchParams.has("fromDate")).toBe(true);
+    expect(url.searchParams.has("city")).toBe(false);
   });
 
   it("paginates the shared account list and uses its cached result for movie lookup", async () => {
@@ -189,18 +227,14 @@ describe("ticket alert queries", () => {
 
   it("aborts in-flight reads when their query is cancelled", async () => {
     let requestSignal: AbortSignal | undefined;
-    vi.mocked(getSupabaseBrowserClient).mockReturnValue(
-      createClient("http://127.0.0.1:54321", "local-test-only", {
-        auth: { persistSession: false, autoRefreshToken: false },
-        global: {
-          fetch: (_input, init) =>
-            new Promise((_resolve, reject) => {
-              requestSignal = init?.signal as AbortSignal;
-              requestSignal.addEventListener("abort", () =>
-                reject(new DOMException("Aborted", "AbortError")));
-            }),
-        },
-      }),
+    vi.stubGlobal(
+      "fetch",
+      (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          requestSignal = init?.signal as AbortSignal;
+          requestSignal.addEventListener("abort", () =>
+            reject(new DOMException("Aborted", "AbortError")));
+        }),
     );
     const options = ticketAlertAvailabilityQueryOptions("101");
     const pending = client.fetchQuery(options);
@@ -341,6 +375,7 @@ describe("ticket alert mutation ownership", () => {
         screening_city: "Haifa",
         date_of_showing: addCalendarDays(getJerusalemCinemaDate(), 1),
         showtime: "20:00",
+        cinema: "Cinema City Haifa",
         english_href: "https://example.test/tickets",
       },
     ];

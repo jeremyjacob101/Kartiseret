@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { Client } from "pg";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -83,14 +83,17 @@ try {
     GRANT SELECT ON auth.users TO anon, authenticated, service_role;
   `);
 
-  const baseline = await readFile(
-    resolve(
-      repositoryRoot,
-      "supabase/migrations/20261015141043_current_app_schema_baseline.sql",
-    ),
-    "utf8",
-  );
-  await client.query(baseline);
+  const migrationDirectory = resolve(repositoryRoot, "supabase/migrations");
+  const migrations = (await readdir(migrationDirectory))
+    .filter((filename) => /^\d{14}_[a-z0-9_]+\.sql$/.test(filename))
+    .sort();
+  if (migrations.length === 0) {
+    throw new Error("No timestamped SQL migrations were found.");
+  }
+  for (const migration of migrations) {
+    const sql = await readFile(resolve(migrationDirectory, migration), "utf8");
+    await client.query(sql);
+  }
 
   await client.query("GRANT kartiseret_runtime TO kartiseret_api");
 
@@ -101,7 +104,7 @@ try {
   await client.query(seed);
 
   console.log(
-    "Bootstrapped disposable PostgreSQL 17 database kartiseret_test with test-only Supabase compatibility objects and deterministic development fixtures.",
+    `Bootstrapped disposable PostgreSQL 17 database kartiseret_test with ${migrations.length} timestamped SQL migrations, test-only Supabase compatibility objects, and deterministic development fixtures.`,
   );
 } finally {
   await client.end();
