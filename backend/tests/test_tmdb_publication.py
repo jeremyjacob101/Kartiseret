@@ -124,7 +124,12 @@ class PublicationTests(TestCase):
                 self.assertIn("beta", [query.lower() for query in retried_queries if query])
                 retried_raw = {row["id"]: row for row in retry.supabase.tables[retry.MAIN_TABLE_NAME]}
                 self.assertTrue(retried_raw["2"]["added"])
-                self.assertFalse(retry.supabase.tables["pipeline_publication_checkpoints"][0]["has_unresolved"])
+                beta_rows = [
+                    row for row in retry.supabase.tables[retry.MOVING_TO_TABLE_NAME]
+                    if row.get("english_title") == "Beta"
+                ]
+                self.assertEqual(len(beta_rows), 1)
+                self.assertEqual(beta_rows[0]["tmdb_id"], 102)
                 retry.releasePublicationClaims()
 
     def test_final_movie_failure_leaves_raw_retryable_and_next_attempt_repairs_it(self):

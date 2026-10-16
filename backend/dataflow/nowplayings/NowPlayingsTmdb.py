@@ -330,7 +330,7 @@ class NowPlayingsTmdb(BaseDataflow):
             tmdb_id = (group_res or {}).get("tmdb_id")
             enriched = tmdb_id_to_enriched.get(tmdb_id) if tmdb_id else None
             if tmdb_id and enriched is None:
-                self.protectUnresolvedSnapshot(rows, category="nowplayings", identity_key=key, tmdb_id=tmdb_id)
+                self.protectUnresolvedSnapshot(rows, category="nowplayings", identity_key=key)
                 continue
             final_title = (enriched or {}).get("english_title") if enriched else None
 
