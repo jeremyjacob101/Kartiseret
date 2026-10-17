@@ -41,7 +41,7 @@ class CinemathequesHelpers:
     def _all_theque_key(self, row: dict) -> tuple:
         # Raw history is deduplicated only inside a scraper snapshot. Including
         # run_id deliberately preserves the same screening across later runs.
-        return (self.clean_int(row.get("run_id")), *self._showtime_key(row))
+        return (self.clean_str(row.get("snapshot_id")).strip(), self.clean_int(row.get("run_id")), *self._showtime_key(row))
 
     def dedupeAllTheques(self, table_name: str, refresh: bool = True):
         self._dedupe_by_key(
