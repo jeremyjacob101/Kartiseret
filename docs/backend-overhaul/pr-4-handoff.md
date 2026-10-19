@@ -45,7 +45,8 @@ Contracts: `packages/contracts/src/private-data.ts`. Server composition: `protec
 2. Added one signup-initialization marker because an existing default row and an established user choice otherwise cannot be reliably distinguished. This avoids repeatedly overwriting preferences from editable signup metadata.
 3. Split additive DB preparation from browser privilege retirement to support database-before-code deployment without breaking the currently deployed client. The retirement SQL is versioned as an explicit, idempotent post-deployment operation, not silently run during build/start.
 4. Hosted acceptance caught Drizzle INSERT default columns exceeding column-level grants; protected inserts now explicitly name allowed columns via parameterized Drizzle SQL and read back through the normal mapped SELECT so timestamp/native-type decoding is consistent. Runtime grants were not broadened.
-5. Existing local PR3 documentation edits were preserved in a named Git stash before branching from fetched main; they were not mixed into PR4 implementation.
+5. Browser acceptance exposed that `/user` redirected before session restoration on refresh. Its guard now waits for the auth/preferences bootstrap before deciding a visitor is signed out; the existing redirect still applies once loading finishes.
+6. Existing local PR3 documentation edits were preserved in a named Git stash before branching from fetched main; they were not mixed into PR4 implementation.
 
 ## Production rollout (not performed)
 

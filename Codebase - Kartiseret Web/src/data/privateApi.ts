@@ -42,7 +42,10 @@ export async function privateApiResponse<Schema extends z.ZodType>(
       "Create an account or log in to manage your account.",
     );
   }
-  if (startedGeneration !== identityGeneration)
+  if (
+    startedGeneration !== identityGeneration &&
+    activeAccount !== session.user.id
+  )
     throw new DOMException("Account changed", "AbortError");
   if (activeAccount !== session.user.id)
     privateIdentityChanged(session.user.id);

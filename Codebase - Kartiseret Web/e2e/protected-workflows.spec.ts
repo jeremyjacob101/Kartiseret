@@ -3,6 +3,7 @@ import { Client } from "pg";
 
 async function login(page: Page, email = "browser@example.test") {
   await page.goto("/user");
+  await expect(page).toHaveURL("/");
   await page
     .getByRole("button", { name: "Sign up or log in", exact: true })
     .click();
@@ -12,7 +13,9 @@ async function login(page: Page, email = "browser@example.test") {
   await expect(
     page.getByRole("button", { name: `Signed in as ${email}` }),
   ).toBeVisible();
-  await page.getByRole("button", { name: `Signed in as ${email}` }).click();
+  await page
+    .getByRole("button", { name: "Open User Preferences", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: "User Preferences", exact: true }),
   ).toBeVisible();

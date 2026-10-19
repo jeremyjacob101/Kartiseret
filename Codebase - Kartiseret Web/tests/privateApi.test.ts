@@ -50,6 +50,60 @@ describe("private request identity and cache ownership", () => {
     ).rejects.toMatchObject({ status: 401 });
     expect(transport).toHaveBeenCalledTimes(1);
   });
+  it("allows the expected signup account to activate while its session is being read", async () => {
+    boundary.privateIdentityChanged(null);
+    let finish!: (value: unknown) => void;
+    getSession.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    vi.stubGlobal(
+      "fetch",
+      async () => new Response(JSON.stringify({ ok: true })),
+    );
+    const pending = boundary.privateApiResponse(
+      "/api/v1/preferences/initialize",
+      z.object({ ok: z.boolean() }),
+      { method: "POST", userId: alice, body: {} },
+    );
+    boundary.privateIdentityChanged(alice);
+    finish({
+      data: {
+        session: { access_token: "signup-session", user: { id: alice } },
+      },
+      error: null,
+    });
+    await expect(pending).resolves.toEqual({ ok: true });
+  });
+  it("rejects a session read that resolves for a departing account", async () => {
+    boundary.privateIdentityChanged(alice);
+    let finish!: (value: unknown) => void;
+    getSession.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const transport = vi.fn();
+    vi.stubGlobal("fetch", transport);
+    const pending = boundary.privateApiResponse(
+      "/api/v1/preferences",
+      z.unknown(),
+      { userId: alice },
+    );
+    const rejected = expect(pending).rejects.toMatchObject({
+      name: "AbortError",
+    });
+    boundary.privateIdentityChanged("00000000-0000-4000-8000-000000000002");
+    finish({
+      data: { session: { access_token: "old-session", user: { id: alice } } },
+      error: null,
+    });
+    await rejected;
+    expect(transport).not.toHaveBeenCalled();
+  });
   it("discards a delayed departing-account response and clears only private caches", async () => {
     boundary.privateIdentityChanged(alice);
     client.queryClient.setQueryData(

@@ -261,7 +261,19 @@ function ShowtimesRoute({
   );
 }
 
-function UserRoute({ user }: { user: ApplicationIdentity | null }) {
+function UserRoute({
+  user,
+  loading,
+}: {
+  user: ApplicationIdentity | null;
+  loading: boolean;
+}) {
+  if (!user && loading)
+    return (
+      <section className="page-panel">
+        <p role="status">Loading your account…</p>
+      </section>
+    );
   if (!user) {
     return <Navigate to="/" replace />;
   }
@@ -761,7 +773,10 @@ export function App() {
               </section>
             }
           />
-          <Route path="/user" element={<UserRoute user={user} />} />
+          <Route
+            path="/user"
+            element={<UserRoute user={user} loading={loading} />}
+          />
           <Route
             path={PASSWORD_RESET_PATH}
             element={
