@@ -1,5 +1,9 @@
 # PR 3 handoff — public data API, frontend transport, and social previews
 
+## Deployment addendum — 2026-10-19
+
+PR #170 merged as `79d11543f415e8ecf6adc37337ba675184f77290`. Full checks #123 and Vercel passed on its final head. Production deployment `dpl_3RgKcC1Xj5hNyhFLngFa9FoLjMYH` is Ready. Live health, now-playing (154 movies), coming-soon (91 movies), and theaters (28 cities / 47 theaters) returned HTTP 200 with valid JSON; both catalogs reported ready movie codes. PR 4's prerequisite is satisfied. The preceding implementation evidence and pre-merge steps below are retained as historical records.
+
 ## PR and base
 
 - **PR:** [#170](https://github.com/jeremyjacob101/Kartiseret/pull/170), kept as a draft and targeting `main` after PR 2 merged.

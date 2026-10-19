@@ -5,6 +5,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from
 import { Suspense, StrictMode, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
 import { QueryClientProvider, useMutation, useQuery } from "@tanstack/react-query";
+import type { ApplicationIdentity } from "@kartiseret/contracts/private-data";
 import { type MovieSearchResult } from "./components/MovieSearchMenu";
 import { PasswordResetPage } from "./components/PasswordResetPage";
 import { movieCodeSchema } from "@kartiseret/contracts/runtime";
@@ -14,7 +15,6 @@ import { BottomBar } from "./components/bars/BottomBar";
 import { useDeviceStore } from "./device/useDeviceType";
 import { PASSWORD_RESET_PATH } from "./lib/authRoutes";
 import { useShallow } from "zustand/react/shallow";
-import type { User } from "@supabase/supabase-js";
 import { Navbar } from "./components/bars/Navbar";
 import { queryClient } from "./lib/queryClient";
 import { createRoot } from "react-dom/client";
@@ -261,7 +261,7 @@ function ShowtimesRoute({
   );
 }
 
-function UserRoute({ user }: { user: User | null }) {
+function UserRoute({ user }: { user: ApplicationIdentity | null }) {
   if (!user) {
     return <Navigate to="/" replace />;
   }

@@ -72,99 +72,101 @@ beforeEach(() => {
       setItem: (key: string, value: string) => storage.set(key, value),
     },
   });
-  vi.stubGlobal("fetch", async (
-    input: RequestInfo | URL,
-    init?: RequestInit,
-  ) => {
-    const requestInput =
-      input instanceof Request
-        ? input.url
-        : input instanceof URL
-          ? input.href
-          : input;
-    const request = new Request(
-      new URL(requestInput, "https://kartiseret.test"),
-      init,
-    );
-    apiRequests.push(request);
-    const url = new URL(request.url, "https://kartiseret.test");
-    if (url.pathname !== "/api/v1/ticket-availability") {
-      throw new Error(
-        `Unexpected API fixture request: ${request.method} ${url.pathname}`,
-      );
-    }
-    return reply({
-      data: {
-        showtimes: rows.map((row) => ({
-          screeningCity: row.screening_city,
-          dateOfShowing: row.date_of_showing,
-          cinema: row.cinema,
-          showtime: row.showtime,
-          englishHref: row.english_href,
-          hebrewHref: row.hebrew_href ?? null,
-        })),
-      },
-      error: null,
-    });
-  });
-  // Real Supabase request construction; all transport is in-memory. No network.
   const supabase = createClient("http://127.0.0.1:54321", "local-test-only", {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
       detectSessionInUrl: false,
     },
-    global: {
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        requests.push(request);
-        const url = new URL(request.url);
-        if (request.method !== "GET" && failWrites) {
-          return reply(
-            { message: "Fixture write rejected", code: "42501" },
-            403,
-          );
-        }
-        if (url.pathname.endsWith("/finalShowtimes")) {
-          return reply(rows);
-        }
-        if (!url.pathname.endsWith("/ticket_alert_subscriptions")) {
-          throw new Error(
-            `Unexpected fixture request: ${request.method} ${url.pathname}`,
-          );
-        }
-        const userId = url.searchParams.get("user_id")?.replace("eq.", "");
-        const tmdbId = Number(
-          url.searchParams.get("tmdb_id")?.replace("eq.", ""),
-        );
-        if (request.method === "DELETE") {
-          subscriptions = subscriptions.filter(
-            (row) => row.user_id !== userId || row.tmdb_id !== tmdbId,
-          );
-          return reply(null);
-        }
-        if (request.method === "POST") {
-          const body = (await request.json()) as {
-            user_id: string;
-            tmdb_id: number;
-          };
-          const row = storedSubscription(body.user_id, body.tmdb_id);
-          subscriptions.push(row);
-          return duplicateInsert
-            ? reply({ code: "23505", message: "duplicate" }, 409)
-            : reply(row, 201);
-        }
-        const offset = Number(url.searchParams.get("offset") ?? 0);
-        const limit = Number(url.searchParams.get("limit") ?? 1000);
-        return reply(
-          subscriptions
-            .filter((row) => row.user_id === userId)
-            .slice(offset, offset + limit),
-        );
-      },
+  });
+  vi.spyOn(supabase.auth, "getSession").mockResolvedValue({
+    data: {
+      session: {
+        access_token: "fixture-token",
+        user: { id: "00000000-0000-4000-8000-000000000001" },
+      } as import("@supabase/supabase-js").Session,
     },
+    error: null,
   });
   vi.mocked(getSupabaseBrowserClient).mockReturnValue(supabase);
+  const map = (row: StoredSubscription) => ({
+    tmdbId: String(row.tmdb_id),
+    createdAt: row.created_at,
+    notifiedAt: row.notified_at,
+    deliveryTitle: row.delivery_title,
+    deliveryDate: row.delivery_date,
+  });
+  vi.stubGlobal("fetch", async (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => {
+    const request = new Request(
+      new URL(String(input), "https://kartiseret.test"),
+      init,
+    );
+    const url = new URL(request.url);
+    if (url.pathname === "/api/v1/ticket-availability") {
+      apiRequests.push(request);
+      return reply({
+        data: {
+          showtimes: rows.map((row) => ({
+            screeningCity: row.screening_city,
+            dateOfShowing: row.date_of_showing,
+            cinema: row.cinema,
+            showtime: row.showtime,
+            englishHref: row.english_href,
+            hebrewHref: row.hebrew_href ?? null,
+          })),
+        },
+        error: null,
+      });
+    }
+    requests.push(request);
+    if (request.method !== "GET" && failWrites)
+      return reply(
+        {
+          data: null,
+          error: { code: "write_denied", message: "Fixture write rejected" },
+        },
+        403,
+      );
+    if (request.method === "GET") {
+      const offset = Number(url.searchParams.get("offset") ?? 0);
+      const page = subscriptions.slice(offset, offset + 1000);
+      return reply({
+        data: {
+          subscriptions: page.map(map),
+          nextOffset: page.length === 1000 ? offset + 1000 : null,
+        },
+        error: null,
+      });
+    }
+    if (request.method === "DELETE") {
+      const id = Number(url.pathname.split("/").at(-1));
+      subscriptions = subscriptions.filter((row) => row.tmdb_id !== id);
+      return reply({
+        data: { kind: "account", subscription: null },
+        error: null,
+      });
+    }
+    const body = (await request.json()) as {
+      tmdbId: string;
+      preferredCity: string;
+    };
+    expect(Object.keys(body).sort()).toEqual(["preferredCity", "tmdbId"]);
+    if (selectTicketAlertAvailability(rows, body.preferredCity))
+      return reply({ data: { kind: "available" }, error: null });
+    let row = subscriptions.find((row) => row.tmdb_id === Number(body.tmdbId));
+    if (!row) {
+      row = storedSubscription(undefined, Number(body.tmdbId));
+      subscriptions.push(row);
+    }
+    void duplicateInsert;
+    return reply({
+      data: { kind: "account", subscription: map(row) },
+      error: null,
+    });
+  });
 });
 
 afterEach(() => {
@@ -220,8 +222,9 @@ describe("ticket alert queries", () => {
     expect(selectUserTicketAlert(alerts, "00101")).toEqual(subscription());
     await client.fetchQuery(options);
     expect(requests).toHaveLength(2);
-    expect(new URL(requests[0].url).searchParams.get("order")).toBe(
-      "created_at.desc,tmdb_id.asc",
+    expect(new URL(requests[1].url).searchParams.get("offset")).toBe("1000");
+    expect(requests[0].headers.get("authorization")).toBe(
+      "Bearer fixture-token",
     );
   });
 
@@ -327,6 +330,11 @@ describe("ticket alert mutation ownership", () => {
   });
 
   it("creates and cancels an account alert through the shared cache", async () => {
+    await client.fetchQuery(
+      userTicketAlertSubscriptionsQueryOptions(
+        "00000000-0000-4000-8000-000000000001",
+      ),
+    );
     const key = ticketAlertQueryKeys.subscriptions(
       "00000000-0000-4000-8000-000000000001",
     );
@@ -391,10 +399,17 @@ describe("ticket alert mutation ownership", () => {
       )
       .execute({ action: "subscribe", preferredCity: "Jerusalem" });
     expect(result.kind).toBe("available");
-    expect(requests.every((request) => request.method === "GET")).toBe(true);
+    expect(requests).toHaveLength(1);
+    expect(requests[0].method).toBe("POST");
   });
 
   it("preserves sent alerts and handles a concurrent duplicate insert", async () => {
+    client.setQueryData(
+      ticketAlertQueryKeys.subscriptions(
+        "00000000-0000-4000-8000-000000000001",
+      ),
+      [],
+    );
     subscriptions = [
       { ...storedSubscription(), notified_at: "2026-09-02T12:00:00Z" },
     ];
@@ -409,7 +424,8 @@ describe("ticket alert mutation ownership", () => {
         ),
       )
       .execute({ action: "subscribe", preferredCity: "Jerusalem" });
-    expect(requests.every((request) => request.method === "GET")).toBe(true);
+    expect(requests).toHaveLength(1);
+    expect(requests[0].method).toBe("POST");
     subscriptions = [];
     duplicateInsert = true;
     await client

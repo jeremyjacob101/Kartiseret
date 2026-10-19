@@ -42,6 +42,11 @@
       "types": "./dist/public-data.d.ts",
       "import": "./dist/public-data.js",
       "default": "./dist/public-data.js"
+    },
+    "./private-data": {
+      "types": "./dist/private-data.d.ts",
+      "import": "./dist/private-data.js",
+      "default": "./dist/private-data.js"
     }
   },
   "scripts": {

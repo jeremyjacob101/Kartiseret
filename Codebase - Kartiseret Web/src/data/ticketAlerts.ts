@@ -1,21 +1,19 @@
-import { ticketAlertChangeSchema, ticketAlertMovieIdSchema, ticketAlertShowtimePageSchema, ticketAlertShowtimeRowSchema, userTicketAlertSubscriptionRowSchema, type TicketAlertChange, type TicketAlertShowtime, type UserTicketAlertSubscription } from "./ticketAlertSchemas";
+import { ticketAlertChangeSchema, ticketAlertShowtimePageSchema, ticketAlertShowtimeRowSchema, type TicketAlertChange, type TicketAlertShowtime, type UserTicketAlertSubscription } from "./ticketAlertSchemas";
 import { buildMovieShowtimeSharePath, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "@kartiseret/contracts/showtime-links";
+import { subscriptionsResponseSchema, subscriptionChangeResponseSchema } from "@kartiseret/contracts/private-data";
 import { isoDateStringSchema, movieCodeSchema, parseBoundary } from "@kartiseret/contracts/runtime";
 import { mutationOptions, queryOptions, skipToken, type QueryClient } from "@tanstack/react-query";
 import { getShowtimeSortValue, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
 import { ticketAvailabilityResponseSchema } from "@kartiseret/contracts/public-data";
 import { normalizeTicketAlertTmdbId } from "../domain/ticketAlerts";
 import { supabaseUserIdSchema } from "../lib/supabaseSchemas";
-import { getSupabaseBrowserClient } from "../lib/supabase";
+import { privateApiResponse } from "./privateApi";
 import { queryClient } from "../lib/queryClient";
 import { getApiResponse } from "./apiClient";
+import type { z } from "zod";
 
 export type { UserTicketAlertSubscription } from "./ticketAlertSchemas";
 
-const TICKET_ALERTS_TABLE_NAME = "ticket_alert_subscriptions";
-const SUBSCRIPTION_COLUMNS =
-  "user_id,tmdb_id,created_at,notified_at,delivery_title,delivery_date";
-const SUPABASE_PAGE_SIZE = 1_000;
 const TICKET_ALERT_STALE_TIME = 60 * 1000;
 const TICKET_ALERT_GC_TIME = 5 * 60 * 1000;
 
@@ -35,22 +33,6 @@ type TicketAlertChangeResult =
 
     | { kind: "available" }
     | { kind: "account"; subscription: UserTicketAlertSubscription | null };
-
-type ParsedUserTicketAlertRow = ReturnType<
-  typeof userTicketAlertSubscriptionRowSchema.parse
->;
-
-function mapUserTicketAlertSubscriptionRow(
-  row: ParsedUserTicketAlertRow,
-): UserTicketAlertSubscription {
-  return {
-    tmdbId: row.tmdb_id,
-    createdAt: row.created_at,
-    notifiedAt: row.notified_at,
-    deliveryTitle: row.delivery_title,
-    deliveryDate: row.delivery_date,
-  };
-}
 
 export const ticketAlertQueryKeys = {
   all: ["ticketAlerts"] as const,
@@ -232,40 +214,19 @@ async function fetchUserTicketAlertSubscriptions(
     userId,
     "ticket alert user ID",
   );
-  const supabase = getSupabaseBrowserClient();
   const alerts: UserTicketAlertSubscription[] = [];
-  let fromIndex = 0;
-
-  while (true) {
-    const { data, error } = await supabase
-      .from(TICKET_ALERTS_TABLE_NAME)
-      .select(SUBSCRIPTION_COLUMNS)
-      .eq("user_id", validatedUserId)
-      .order("created_at", { ascending: false })
-      .order("tmdb_id", { ascending: true })
-      .range(fromIndex, fromIndex + SUPABASE_PAGE_SIZE - 1)
-      .abortSignal(signal);
-
-    if (error) {
-      throw new Error(`Could not load your ticket alerts: ${error.message}`);
-    }
-
-    const parsedRows = parseBoundary(
-      userTicketAlertSubscriptionRowSchema.array(),
-      data ?? [],
-      "ticket alert subscription response",
-    );
-    if (parsedRows.some((row) => row.user_id !== validatedUserId)) {
-      throw new Error(
-        "Ticket alert response contained another user's subscription.",
+  let offset: number | null = 0;
+  while (offset !== null) {
+    const response: z.output<typeof subscriptionsResponseSchema> =
+      await privateApiResponse(
+        `/api/v1/ticket-alerts?offset=${offset}`,
+        subscriptionsResponseSchema,
+        { userId: validatedUserId, signal },
       );
-    }
-    alerts.push(...parsedRows.map(mapUserTicketAlertSubscriptionRow));
-    if ((data ?? []).length < SUPABASE_PAGE_SIZE) {
-      return alerts;
-    }
-    fromIndex += SUPABASE_PAGE_SIZE;
+    alerts.push(...response.data.subscriptions);
+    offset = response.data.nextOffset;
   }
+  return alerts;
 }
 
 export function ticketAlertAvailabilityQueryOptions(
@@ -328,7 +289,11 @@ export function mergeUserTicketAlert(
   return next.sort(
     (left, right) =>
       right.createdAt.localeCompare(left.createdAt) ||
-      Number(left.tmdbId) - Number(right.tmdbId),
+      (BigInt(left.tmdbId) < BigInt(right.tmdbId)
+        ? -1
+        : BigInt(left.tmdbId) > BigInt(right.tmdbId)
+          ? 1
+          : 0),
   );
 }
 
@@ -361,90 +326,24 @@ async function changeTicketAlert(
     change,
     "ticket alert mutation input",
   );
-  const numericTmdbId = parseBoundary(
-    ticketAlertMovieIdSchema,
-    tmdbId,
-    "ticket alert movie ID",
+  void client;
+  if (!validatedUserId)
+    throw new Error("Create an account or log in to manage ticket alerts.");
+  const id = normalizeTicketAlertTmdbId(tmdbId);
+  const response = await privateApiResponse(
+    parsedChange.action === "cancel"
+      ? `/api/v1/ticket-alerts/${id}`
+      : "/api/v1/ticket-alerts",
+    subscriptionChangeResponseSchema,
+    {
+      method: parsedChange.action === "cancel" ? "DELETE" : "POST",
+      userId: validatedUserId,
+      ...(parsedChange.action === "subscribe"
+        ? { body: { tmdbId: id, preferredCity: parsedChange.preferredCity } }
+        : {}),
+    },
   );
-  const supabase = getSupabaseBrowserClient();
-
-  if (parsedChange.action === "cancel") {
-    if (!validatedUserId) {
-      throw new Error("Create an account or log in to manage ticket alerts.");
-    }
-
-    const { error } = await supabase
-      .from(TICKET_ALERTS_TABLE_NAME)
-      .delete()
-      .eq("user_id", validatedUserId)
-      .eq("tmdb_id", numericTmdbId);
-    if (error) {
-      throw new Error(`Could not cancel this ticket alert: ${error.message}`);
-    }
-    return { kind: "account", subscription: null };
-  }
-
-  if (!validatedUserId) {
-    throw new Error("Create an account or log in to receive ticket alerts.");
-  }
-
-  const instant = new Date();
-  const [showtimes, alerts] = await Promise.all([
-    client.fetchQuery({
-      ...ticketAlertAvailabilityQueryOptions(
-        tmdbId,
-        getJerusalemCinemaDate(instant),
-      ),
-      staleTime: 0,
-    }),
-    client.fetchQuery({
-      ...userTicketAlertSubscriptionsQueryOptions(validatedUserId),
-      staleTime: 0,
-    }),
-  ]);
-
-  if (
-    selectTicketAlertShowtime(showtimes, parsedChange.preferredCity, instant)
-  ) {
-    return { kind: "available" };
-  }
-
-  const existing = selectUserTicketAlert(alerts, tmdbId);
-  if (existing) {
-    return { kind: "account", subscription: existing };
-  }
-
-  const { data, error } = await supabase
-    .from(TICKET_ALERTS_TABLE_NAME)
-    .insert({ user_id: validatedUserId, tmdb_id: numericTmdbId })
-    .select(SUBSCRIPTION_COLUMNS)
-    .single();
-
-  if (error?.code === "23505") {
-    const current = await client.fetchQuery({
-      ...userTicketAlertSubscriptionsQueryOptions(validatedUserId),
-      staleTime: 0,
-    });
-    return {
-      kind: "account",
-      subscription: selectUserTicketAlert(current, tmdbId),
-    };
-  }
-  if (error) {
-    throw new Error(`Could not create this ticket alert: ${error.message}`);
-  }
-  const [insertedRow] = parseBoundary(
-    userTicketAlertSubscriptionRowSchema.array(),
-    [data],
-    "ticket alert subscription insert response",
-  );
-  if (!insertedRow || insertedRow.user_id !== validatedUserId) {
-    throw new Error("Ticket alert insert response did not match this user.");
-  }
-  return {
-    kind: "account",
-    subscription: mapUserTicketAlertSubscriptionRow(insertedRow),
-  };
+  return response.data;
 }
 
 export function ticketAlertMutationOptions(

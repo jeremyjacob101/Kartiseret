@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { parseServerEnvironment, ServerConfigurationError } from "./env.js";
+import {
+  parseServerEnvironment as parseEnvironment,
+  ServerConfigurationError,
+} from "./env.js";
+
+const parseServerEnvironment = (
+  environment: Record<string, string | undefined>,
+) =>
+  parseEnvironment({
+    SUPABASE_URL: "https://fixture.supabase.test",
+    SUPABASE_PUBLISHABLE_KEY: "fixture-publishable",
+    ...environment,
+  });
 
 describe("server environment parsing", () => {
   const supabaseCaCertificate =

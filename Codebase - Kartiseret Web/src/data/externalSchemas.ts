@@ -200,15 +200,8 @@ export const theaterRowSchema = z.object({
   city_details: cityRowSchema,
 });
 
-export const adminMovieEditPayloadSchema = z.object({
-  mode: z.enum(["nowPlaying", "comingSoon"]),
-  currentTmdbId: tmdbIdSchema,
-  selectedTmdbId: tmdbIdSchema,
-  selectedTitle: z.string().nullable().optional(),
-  selectedYear: z.number().int().positive().nullable().optional(),
-  selectedPosterUrl: z.string().nullable().optional(),
-  isManualEntry: z.boolean(),
-});
+export { correctionSchema as adminMovieEditPayloadSchema } from "@kartiseret/contracts/private-data";
+import { correctionSchema as adminMovieEditPayloadSchema } from "@kartiseret/contracts/private-data";
 
 export type MovieRow = z.infer<typeof movieRowSchema>;
 export type ComingSoonMovieRow = z.infer<typeof comingSoonMovieRowSchema>;

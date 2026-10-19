@@ -1,3 +1,5 @@
+import { SupabaseIdentityVerifier } from "./protected/identity.js";
+import { ProtectedWorkflows } from "./protected/service.js";
 import { DrizzleCatalogRepository } from "./catalog/drizzle-repository.js";
 import { createApp } from "./app.js";
 import { createDatabase } from "./db/client.js";
@@ -18,6 +20,11 @@ function createProductionRuntime(
   return {
     config,
     repository,
+    workflows: new ProtectedWorkflows(database.db, repository),
+    identityVerifier: new SupabaseIdentityVerifier(
+      config.SUPABASE_URL,
+      config.SUPABASE_PUBLISHABLE_KEY,
+    ),
     close: database.close,
   };
 }
@@ -44,6 +51,8 @@ export function createProductionApp(
   const app = createApp({
     catalogRepository: runtime.repository,
     publicDataRepository: runtime.repository,
+    identityVerifier: runtime.identityVerifier,
+    protectedWorkflows: runtime.workflows,
     logger: {
       error: (message, error) => console.error(message, error),
     },

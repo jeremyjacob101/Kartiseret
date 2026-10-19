@@ -2,13 +2,14 @@ import { movieCatalogResponseSchema, publicShowtimeRangeResponseSchema, type Mov
 import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime as shouldIncludeShowtimeAtInstant, SHOWTIME_TIME_ZONE } from "@kartiseret/contracts/showtime-day";
 import { addCalendarDays, getJerusalemCinemaDate, getTargetedShowtimePrefetchRange, SHOWTIME_LINK_DATE_COUNT } from "@kartiseret/contracts/showtime-links";
 import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/definitions/locations.js";
-import { adminMovieEditPayloadSchema, existingMovieTargetRowSchema } from "./externalSchemas";
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { movieAltOptionSchema, type Movie } from "@kartiseret/contracts/movies";
 import { parseBoundary, movieCodeSchema } from "@kartiseret/contracts/runtime";
-import { getSupabaseBrowserClient } from "../lib/supabase.js";
+import { correctionResponseSchema } from "@kartiseret/contracts/private-data";
+import { adminMovieEditPayloadSchema } from "./externalSchemas";
 import { ticketAlertQueryKeys } from "./ticketAlerts";
 import { queryClient } from "../lib/queryClient.js";
+import { privateApiResponse } from "./privateApi";
 import { getApiResponse } from "./apiClient";
 import { z } from "zod";
 
@@ -20,9 +21,6 @@ export const SHOWTIME_WINDOW_DAY_COUNT = 180;
 export const SHOWTIME_PREFETCH_CHUNK_DAY_COUNT = 15;
 export const SHOWTIME_PREFETCH_TRIGGER_DAY_COUNT = 10;
 
-const MOVIES_TABLE_NAME = "finalMovies";
-const COMING_SOON_TABLE_NAME = "finalSoons";
-const SHOWTIMES_TABLE_NAME = "finalShowtimes";
 const THEATER_SORT_ORDER = [
   "MovieLand",
   "Yes Planet",
@@ -136,26 +134,8 @@ export const movieCatalogQueryKeys = {
   adminEdits: () => ["movieCatalog", "adminEdits"] as const,
 };
 
-function stringifySupabaseValue(value: unknown): string {
-  if (value == null) {
-    return "";
-  }
-
-  return typeof value === "string"
-    ? value
-    : Array.isArray(value)
-      ? JSON.stringify(value)
-      : String(value);
-}
-
 function normalizeText(value: string): string {
   return value.trim().replace(/\s+/g, " ");
-}
-
-function normalizeTitle(value: string): string {
-  return normalizeText(value)
-    .replace(/^"+|"+$/g, "")
-    .trim();
 }
 
 function formatShowtime(value: string): string {
@@ -1260,134 +1240,11 @@ export async function applyAdminMovieEdit(
     payload,
     "admin movie edit input",
   );
-  const supabase = getSupabaseBrowserClient();
-  const tableName =
-    validatedPayload.mode === "nowPlaying"
-      ? MOVIES_TABLE_NAME
-      : COMING_SOON_TABLE_NAME;
-  const normalizedCurrentTmdbId = validatedPayload.currentTmdbId;
-  const normalizedSelectedTmdbId = validatedPayload.selectedTmdbId;
-
-  if (normalizedCurrentTmdbId === normalizedSelectedTmdbId) {
-    return;
-  }
-
-  const { error: tableFixInsertError } = await supabase
-    .from("tableFixes")
-    .insert({
-      tmdb_id: normalizedSelectedTmdbId,
-      title_fix: normalizedCurrentTmdbId,
-    });
-
-  if (tableFixInsertError) {
-    throw new Error(tableFixInsertError.message);
-  }
-
-  const { data: existingTarget, error: existingTargetError } = await supabase
-    .from(tableName)
-    .select("tmdb_id, english_title")
-    .eq("tmdb_id", normalizedSelectedTmdbId)
-    .maybeSingle();
-
-  if (existingTargetError) {
-    throw new Error(existingTargetError.message);
-  }
-
-  const existingMovieTarget = existingTarget
-    ? parseBoundary(
-        existingMovieTargetRowSchema,
-        existingTarget,
-        "admin movie target response",
-      )
-    : null;
-  const selectedTitle = normalizeTitle(
-    validatedPayload.selectedTitle ??
-      (existingTarget
-        ? stringifySupabaseValue(existingMovieTarget?.english_title)
-        : ""),
+  await privateApiResponse(
+    "/api/v1/admin/movie-corrections",
+    correctionResponseSchema,
+    { method: "POST", body: validatedPayload },
   );
-
-  if (existingTarget) {
-    if (validatedPayload.mode === "nowPlaying") {
-      const { error: showtimesUpdateError } = await supabase
-        .from(SHOWTIMES_TABLE_NAME)
-        .update({
-          tmdb_id: normalizedSelectedTmdbId,
-          english_title: selectedTitle,
-        })
-        .eq("tmdb_id", normalizedCurrentTmdbId);
-
-      if (showtimesUpdateError) {
-        throw new Error(showtimesUpdateError.message);
-      }
-    }
-
-    const { error: deleteError } = await supabase
-      .from(tableName)
-      .delete()
-      .eq("tmdb_id", normalizedCurrentTmdbId);
-
-    if (deleteError) {
-      throw new Error(deleteError.message);
-    }
-
-    return;
-  }
-
-  const updatePayload: Record<string, unknown> = {
-    tmdb_id: normalizedSelectedTmdbId,
-    solo_update: true,
-    english_title: "",
-    release_year: null,
-    en_poster: "",
-    backdrop: "",
-    en_trailer: "",
-    genres: [],
-  };
-
-  if (validatedPayload.mode === "nowPlaying") {
-    updatePayload.imdb_id = null;
-    updatePayload.imdbRating = null;
-    updatePayload.imdbVotes = null;
-    updatePayload.rt_id = null;
-    updatePayload.rtCriticRating = null;
-    updatePayload.rtCriticVotes = null;
-    updatePayload.rtAudienceRating = null;
-    updatePayload.rtAudienceVotes = null;
-    updatePayload.lb_id = null;
-    updatePayload.lbRating = null;
-    updatePayload.lbVotes = null;
-    updatePayload.tmdbRating = null;
-    updatePayload.tmdbVotes = null;
-    updatePayload.runtime = null;
-    updatePayload.popularity = null;
-  } else {
-    updatePayload.release_date = null;
-    updatePayload.runtime = null;
-  }
-
-  const { error } = await supabase
-    .from(tableName)
-    .update(updatePayload)
-    .eq("tmdb_id", normalizedCurrentTmdbId);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (validatedPayload.mode === "nowPlaying") {
-    const { error: showtimesUpdateError } = await supabase
-      .from(SHOWTIMES_TABLE_NAME)
-      .update({
-        tmdb_id: normalizedSelectedTmdbId,
-        english_title: selectedTitle,
-      })
-      .eq("tmdb_id", normalizedCurrentTmdbId);
-
-    if (showtimesUpdateError) {
-      throw new Error(showtimesUpdateError.message);
-    }
-  }
 }
 
 export type AdminMovieEditInvalidationRule = {
