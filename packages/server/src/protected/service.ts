@@ -44,7 +44,7 @@ function mapSubscription(
   row:
     | typeof ticketAlertSubscriptions.$inferSelect
     | {
-        tmdbId: bigint | string;
+        tmdbId: bigint;
         createdAt: Date;
         notifiedAt: Date | null;
         deliveryTitle: string | null;
@@ -207,24 +207,14 @@ export class ProtectedWorkflows {
       // it also avoids a failed transaction when concurrent inserts race.
       // Drizzle's table INSERT includes DEFAULT for every mapped column. Name
       // only the permitted columns here so runtime cannot write delivery state.
-      const insertedRows = await tx.execute<{
-        tmdbId: string;
-        createdAt: Date;
-        notifiedAt: Date | null;
-        deliveryTitle: string | null;
-        deliveryDate: string | null;
-      }>(sql`insert into ${ticketAlertSubscriptions} ("user_id", "tmdb_id")
-        values (${user.id}, ${tmdbId}) on conflict ("user_id", "tmdb_id") do nothing
-        returning tmdb_id::text as "tmdbId", created_at as "createdAt", notified_at as "notifiedAt", delivery_title as "deliveryTitle", delivery_date::text as "deliveryDate"`);
-      const inserted = insertedRows.rows[0];
-      const row =
-        inserted ??
-        (
-          await tx
-            .select(subscriptionColumns)
-            .from(ticketAlertSubscriptions)
-            .where(predicate)
-        )[0];
+      await tx.execute(sql`insert into ${ticketAlertSubscriptions} ("user_id", "tmdb_id")
+        values (${user.id}, ${tmdbId}) on conflict ("user_id", "tmdb_id") do nothing`);
+      // Read back through Drizzle's column decoders (raw pg timestamp values
+      // differ from the mapped Date representation used by this service).
+      const [row] = await tx
+        .select(subscriptionColumns)
+        .from(ticketAlertSubscriptions)
+        .where(predicate);
       if (!row)
         throw new HttpError(
           409,
