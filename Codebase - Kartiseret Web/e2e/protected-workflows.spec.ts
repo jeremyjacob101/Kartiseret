@@ -96,6 +96,7 @@ test("account settings, failed save rollback, alerts, refresh and logout use pro
     }),
   ).toHaveCount(0);
   await page
+    .getByRole("banner")
     .getByRole("button", { name: "Signed in as browser@example.test" })
     .click();
   await page.getByRole("button", { name: "Sign out", exact: true }).click();

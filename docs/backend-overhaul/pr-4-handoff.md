@@ -3,7 +3,7 @@
 ## Branch and scope
 
 - Base: `main` at `79d11543f415e8ecf6adc37337ba675184f77290` after deployed PR 3.
-- Branch: `codex/backend-04-protected-workflows`. Jeremy requested a regular PR; no reviewer requests or merge are authorized.
+- Branch: `codex/backend-04-protected-workflows`; regular [PR #171](https://github.com/jeremyjacob101/Kartiseret/pull/171), based on updated main. No reviewers requested; not merged. Jeremy explicitly requested a regular PR.
 - Preferences, account/admin projection, subscriptions and movie corrections now use authenticated same-origin Express + Drizzle services. Supabase is auth-only in the browser. PR 5 replaces that provider.
 
 ## Routes and contracts
@@ -31,13 +31,33 @@ Contracts: `packages/contracts/src/private-data.ts`. Server composition: `protec
 - Admin merge/new-target branches are atomic, lock movie IDs in consistent order, preserve permanent codes, and preserve required coming-soon release dates. Ambiguous coming-soon IDs return 409; UUID row keys constrain writes. Enrichment remains external through `solo_update` and the existing publication.
 - Additive migration: `supabase/migrations/20261019152448_protected_application_workflows.sql`. Applied to DEV; local version matches the provider ledger. Production is not modified by PR4 implementation.
 - Post-deployment operation: `supabase/operations/pr4-retire-browser-access.sql`. Revoke browser private reads/writes and catalog mutation privileges only after the new code works. Retain Python service-role access and Realtime.
-- DEV metadata confirms both `finalMovies` and `finalSoons` remain in `supabase_realtime`, with their existing replica identity. Hosted signal acceptance and CI status will be recorded below after completion.
+- DEV metadata confirms both `finalMovies` and `finalSoons` remain in `supabase_realtime`, with their existing replica identity. Actual hosted Realtime UPDATE events for controlled now-playing and coming-soon corrections both contained `solo_update: true`. The watcher contract remains intact; no Selenium, scrape, email, Git sync or Production job ran.
 
-## Verification status
+## Verification evidence — 2026-10-19
 
-- Local full workspace gate passed on Node 26.10.0: lint, formatting, all typechecks, 493 frontend tests, 64 API tests, builds, OG JPEG/assets smoke and 206.4 KiB gzip eager bundle under the 210 KiB limit. Node 24 CI remains the target-version gate. The final bigint cancellation and safe-error refinements are included in this passing run.
-- Local Docker daemon is unavailable. Disposable PostgreSQL 17 integration and Chromium scenarios run in GitHub CI; they never reset hosted DEV.
-- CI/Preview/hosted acceptance: pending at initial implementation publication; update with exact final commit and results before completion.
+Verified runtime commit: `7aa315f6b71ca0008ebcebe57d6e97556141fe49`. Subsequent publication changes only improve an E2E selector, document evidence, and add emergency rollback SQL; final-head CI is available on PR #171.
+
+- `npm run verify`: passed locally (Node 26.10.0), including lint, formatting, types, **495 frontend tests, 64 API tests**, builds, OG JPEG/assets/dispatcher smoke, and **206.4 KiB gzip eager JS / 210 KiB budget**.
+- [Full checks #134](https://github.com/jeremyjacob101/Kartiseret/actions/runs/39282990732) passed on Node 24: web/API checks, **64 Python tests**, **26 PostgreSQL 17 integration tests**, and **6 Chromium E2E scenarios**. CI eager bundle: 206.6 KiB. All GitHub checks and Vercel reported success; PR was mergeable against fetched main. Local Docker was unavailable; hosted databases were never reset to substitute for CI.
+- PostgreSQL replay uses the real restricted runtime, including final browser privilege retirement. Tests cover context isolation, account ownership, signup initialization/repair, partial saves, concurrent duplicate subscriptions, sent/delivery-state preservation, bigint precision, both correction modes/branches, ambiguous IDs and actual late SQL constraint rollback.
+- Preview [deployment](https://kartiseret-bl7nzx1w1-jeremyjacob-projects.vercel.app), `dpl_2V5zkRU5pbZ5fhcH5jbxNBTc7xux`, is Ready with matching DEV database/Auth configuration. Hosted acceptance used real Supabase sessions for three disposable accounts: unauthenticated/invalid-token 401, normal/admin projections, one-time signup-location priority, empty rating array preservation, field PATCH, mass-assignment 400, cross-account isolation, duplicate/cancel alerts, non-admin 403, admin corrections, private no-store, and public health/catalog/theater 200 plus unknown-route 404.
+- Hosted permissions: authenticated direct private read changed **200 → 403** after retirement. Python service-role reads of `finalMovies`/`tableFixes` returned 200, and a controlled `finalSoons` update returned 204. Both catalog Realtime UPDATE signals reached a subscriber. Runtime cannot read `auth.users`, write admin membership/delivery state, or read delivery errors. Publication/replica identities are preserved.
+- DEV additive migration and retirement are applied. The rollback SQL restores legacy grants and the retirement SQL reapplies successfully. A redundant post-cleanup bearer probe returned 401 because its disposable account had already been deleted; it is not counted as rollback HTTP acceptance. Final metadata confirms browser preferences SELECT is denied. All three disposable accounts and all four correction catalog fixtures/fix rows were removed (remaining counts zero); temporary credentials/cookies were deleted after verification. One missing fictional `(9100011, D11)` permanent-code seed row was added after checking uniqueness, aligning DEV with its checked-in seed; existing codes were not changed.
+- DEV security advisor reports only the existing disabled leaked-password-protection Auth warning; PR4 did not change Auth configuration. See [Supabase password protection](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
+
+### Hosted browser QA
+
+The Browser plugin was unavailable. Playwright used the existing system Chrome 155 with an isolated 1280×900 desktop context and real DEV Auth/API, without installing browsers. External map style/poster requests were stubbed; this is private-workflow acceptance, not map or visual redesign acceptance. CI separately covers public mobile routes.
+
+| Check | Result |
+| --- | --- |
+| Correct page/nonblank rendering | Account settings rendered; saved Blue theme visible after refresh. |
+| Framework overlay / uncaught page errors | None. |
+| Console | Only the deliberately injected preference-save 503; no unexpected page error. |
+| Settings | Login, `/user` refresh, preference save/reload, failed-save rollback/error display passed. |
+| Alerts | Real D11 create/list/cancel passed. |
+| Identity | Logout and private-route gating passed; browser made zero direct `/rest/v1` application requests. |
+| Screenshot | Inspected `/private/tmp/pr4-hosted-settings.png`; account settings remained usable after rollback. |
 
 ## Adaptations
 
@@ -46,7 +66,8 @@ Contracts: `packages/contracts/src/private-data.ts`. Server composition: `protec
 3. Split additive DB preparation from browser privilege retirement to support database-before-code deployment without breaking the currently deployed client. The retirement SQL is versioned as an explicit, idempotent post-deployment operation, not silently run during build/start.
 4. Hosted acceptance caught Drizzle INSERT default columns exceeding column-level grants; protected inserts now explicitly name allowed columns via parameterized Drizzle SQL and read back through the normal mapped SELECT so timestamp/native-type decoding is consistent. Runtime grants were not broadened.
 5. Browser acceptance exposed that `/user` redirected before session restoration on refresh. Its guard now waits for the auth/preferences bootstrap before deciding a visitor is signed out; the existing redirect still applies once loading finishes.
-6. Existing local PR3 documentation edits were preserved in a named Git stash before branching from fetched main; they were not mixed into PR4 implementation.
+6. Restored-session route gating and tests now wait for auth bootstrap on `/user` refresh, and the hosted browser test scopes the account menu to the page header because the settings page also has a Quick actions menu.
+7. Existing local PR3 documentation edits were preserved in a named Git stash before branching from fetched main; they were not mixed into PR4 implementation.
 
 ## Production rollout (not performed)
 
@@ -66,8 +87,14 @@ After merge and a Ready Production deployment: log in, refresh settings, save a 
 npx supabase@latest db query --linked --project-ref gsdrcyrduxbrxgsvhxvr --file supabase/operations/pr4-retire-browser-access.sql
 ```
 
-Refresh any old browser tabs after retirement. No rescrape, Python restart, new project, new environment secret or auth cutover is required. Rollback before retirement can use the previous app with the additive migration left in place. After retirement, an old app rollback also needs deliberate restoration of its legacy grants; prefer correcting/rolling forward and keep this ordering explicit.
+Refresh any old browser tabs after retirement. No rescrape, Python restart, new project, new environment secret or auth cutover is required. Rollback before retirement can use the previous app with the additive migration left in place. For an emergency old-app rollback after retirement, restore its narrow legacy grants **before** serving that client:
+
+```bash
+npx supabase@latest db query --linked --project-ref gsdrcyrduxbrxgsvhxvr --file supabase/operations/pr4-restore-browser-access.sql
+```
+
+The retained owner/admin RLS still applies; no anonymous private access or service-role escalation is added. Reapply retirement after the corrected PR4 app passes acceptance. Do not drop the additive column or repair migration history backward for an application rollback.
 
 ## PR 5 readiness
 
-The identity boundary is application-owned `{ id, email }`; only the adapter/provider-facing code depends on Supabase sessions. Remaining auth dependencies: browser SDK login/signup/refresh/logout/password recovery; provider `auth.users` FKs from preferences, subscriptions and admin membership; `signup_location` metadata for first initialization; Python canonical recipient lookup. DEV currently has no application auth/default triggers. Reinspect Production triggers read-only at PR5 before changing references. Better Auth and Python recipient migration are not implemented here.
+The identity boundary is application-owned `{ id, email }`; only the adapter/provider-facing code depends on Supabase sessions. Remaining auth dependencies: `UserMenu.tsx` SDK login/signup/logout/recovery; `PasswordSecurityForm.tsx` password update; preferences-store session bootstrap/subscription; `data/privateApi.ts` session token acquisition; server `protected/identity.ts` provider verification; provider `auth.users` FKs from `userPreferences`, `ticket_alert_subscriptions` and `admin_users`; SQL policies calling `auth.uid()` and the transaction-local `request.jwt.claim.sub` compatibility context; `signup_location` metadata for first initialization; Python canonical recipient lookup at `backend/notifications/ticket_alerts.py:421`. Read-only inspection found no application auth/default triggers in DEV or Production. Reinspect current triggers at PR5 before changing references. Better Auth and Python recipient migration are not implemented here.
