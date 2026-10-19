@@ -283,7 +283,7 @@ describe.sequential(
     });
     it("checks valid all-city availability on the server instead of trusting the client", async () => {
       await admin.pool.query(
-        "INSERT INTO public.\"finalShowtimes\" (tmdb_id,screening_city,date_of_showing,showtime,english_href) VALUES (9200002,'Haifa','2026-10-20','20:00','https://example.test/tickets')",
+        "INSERT INTO public.\"finalShowtimes\" (tmdb_id,screening_city,date_of_showing,showtime,cinema,english_href) VALUES (9200002,'Haifa','2026-10-20','20:00','Fixture Cinema','https://example.test/tickets')",
       );
       const result = await request(app)
         .post("/api/v1/ticket-alerts")

@@ -44,7 +44,8 @@ Contracts: `packages/contracts/src/private-data.ts`. Server composition: `protec
 1. Restored the entire master plan from Jeremy's revised attachment (SHA-256 `17765d4a9606c968df0e29865bef908683ae3d5af6ca5c48fd743d9731ee2aa1`). The copy on main contained a literal truncation marker and omitted major sections, including most of PR4. Original requirements are preserved; current status is updated.
 2. Added one signup-initialization marker because an existing default row and an established user choice otherwise cannot be reliably distinguished. This avoids repeatedly overwriting preferences from editable signup metadata.
 3. Split additive DB preparation from browser privilege retirement to support database-before-code deployment without breaking the currently deployed client. The retirement SQL is versioned as an explicit, idempotent post-deployment operation, not silently run during build/start.
-4. Existing local PR3 documentation edits were preserved in a named Git stash before branching from fetched main; they were not mixed into PR4 implementation.
+4. Hosted acceptance caught Drizzle INSERT default columns exceeding column-level grants; protected inserts now explicitly name allowed columns via parameterized Drizzle SQL and read back through the normal mapped SELECT so timestamp/native-type decoding is consistent. Runtime grants were not broadened.
+5. Existing local PR3 documentation edits were preserved in a named Git stash before branching from fetched main; they were not mixed into PR4 implementation.
 
 ## Production rollout (not performed)
 
@@ -61,7 +62,7 @@ The dry run must list only the new PR4 migration. Do not replay the baseline, ch
 After merge and a Ready Production deployment: log in, refresh settings, save a preference, create/list/cancel a controlled alert, and verify non-admin denial. Then retire the obsolete direct browser access:
 
 ```bash
-npx supabase@latest db query --project-ref gsdrcyrduxbrxgsvhxvr --file supabase/operations/pr4-retire-browser-access.sql
+npx supabase@latest db query --linked --project-ref gsdrcyrduxbrxgsvhxvr --file supabase/operations/pr4-retire-browser-access.sql
 ```
 
 Refresh any old browser tabs after retirement. No rescrape, Python restart, new project, new environment secret or auth cutover is required. Rollback before retirement can use the previous app with the additive migration left in place. After retirement, an old app rollback also needs deliberate restoration of its legacy grants; prefer correcting/rolling forward and keep this ordering explicit.
