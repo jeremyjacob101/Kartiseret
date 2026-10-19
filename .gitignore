@@ -68,3 +68,5 @@ backend/config/cron/run_realtime_logs/
 
 # Keep the checked-in template while ignoring local secrets
 !.env.example
+.vercel
+.env*
