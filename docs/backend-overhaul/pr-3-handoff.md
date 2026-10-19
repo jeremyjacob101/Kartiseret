@@ -44,7 +44,7 @@ Movie codes are fetched in bounded batches (500 IDs per query), then indexed in 
 - Vercel's Production `SUPABASE_URL` was pulled to a temporary file and confirmed as `https://gsdrcyrduxbrxgsvhxvr.supabase.co`. `DATABASE_URL` and `DATABASE_SSL_CA_CERT` are present as Secret values in Production only. Vercel does not reveal these secret values through `env pull`, so the configured Production host, username, and password cannot be independently inspected from the CLI. A read-only request to the existing Production `/api/v1/health` returned `{"data":{"status":"ok"},"error":null}`; this validates runtime configuration parsing, not a database connection.
 - Vercel Preview has Preview-only Supabase URL/key and database URL/CA values for DEV. The effective Preview URL is `https://jbydpmjjptwevyijarzl.supabase.co`; the Production URL remains Production. The DEV Postgres CA is the Supabase Root 2021 certificate; its SHA-256 fingerprint matches the certificate Jeremy provided. The DEV database connection uses the restricted read-only role. Shared Production/Development Supabase values remain scoped to Production and Development.
 - The fresh Preview redeployment `dpl_CnZFNpUtX3Gn2TVa4VGmqpXULx4m` is Ready at `https://kartiseret-fqg2mmmwk-jeremyjacob-projects.vercel.app` with PR alias `https://kartiseret-git-codex-backend-03-pub-48069a-jeremyjacob-projects.vercel.app`. Vercel CLI smoke returned DEV fixtures from both catalogs, both city showtime queries, theaters, and availability; health and JSON 404 responses were correct. The app shell contains only the DEV Supabase origin, and the home OG image is a 1200×630 JPEG.
-- No Production deployment was triggered. Production migration history was reconciled only after schema and SQL effects were verified. The remaining end-to-end check is to exercise a database-backed API route after PR 3 is deployed to Production; the existing `main` deployment has only the liveness route.
+- No Production deployment was triggered during this verification. Production migration history was reconciled only after schema and SQL effects were verified. The current Production `main` deployment already has PR 2's now-playing API route, but it returns HTTP 503. Vercel runtime logs show PostgreSQL SQLSTATE `28P01` (`invalid_password`) for that request. This is a pre-merge Production credential blocker. The coming-soon and theaters routes return 404 because PR 3 is not deployed to Production yet.
 
 ## Verification
 
@@ -56,13 +56,44 @@ Movie codes are fetched in bounded batches (500 IDs per query), then indexed in 
 - After adding the Preview-only DEV database URL and Root 2021 CA, redeployment `dpl_CnZFNpUtX3Gn2TVa4VGmqpXULx4m` became Ready. Its app shell contains only the DEV Supabase origin. Authenticated Vercel CLI requests passed health, both catalogs with ready movie-code hydration, both city showtime fixtures, theaters, ticket availability, JSON API 404, and the 1200×630 home OG image. Preview database secrets are scoped only to Preview; Production remains separate.
 - A showtime request immediately after inserting the missing fictional fixture briefly returned a cached pre-insert response; a cache-bypassed retry returned the inserted row. No persistent query or API issue was found. Do not use pre-override deployment `dpl_FDFe8JdGBhZyX2WEKnHfy4rGrkBK` for login/private-flow checks.
 
-- Production's existing `/api/v1/health` endpoint returned HTTP 200 with `{"data":{"status":"ok"},"error":null}`. PR 3's database-backed routes are not live in Production until merge, so the Production database login and TLS handshake still need an end-to-end API smoke after deployment.
+- Production `/api/v1/health` returns HTTP 200, but that route does not query Postgres. On the current `main` deployment, `/api/v1/catalog/now-playing` returns HTTP 503; its Vercel runtime log records SQLSTATE `28P01` (`invalid_password`). The Production `DATABASE_URL` secret exists but its write-only value cannot be inspected through Vercel CLI. Reconcile the Production `kartiseret_api` password with that URL and confirm now-playing succeeds before merging PR 3. The coming-soon and theaters routes return 404 until PR 3 is deployed.
 
 ## Owner steps before merging PR 3
 
-1. Review PR #170 and the fresh Preview if desired. The code, disposable-Postgres CI, DEV/Production role grants, migration ledgers, and Preview API/OG checks are complete. PR #170 remains a draft; no reviewers have been requested.
-2. No additional SQL or Vercel setup is needed before merge. Production's restricted runtime role, read grants, migrations, Supabase URL, and Vercel Production secret scopes are in place. The Vercel secret values are write-only, so the database connection needs one final end-to-end smoke after deployment.
-3. After merging PR 3 and its Production deployment becomes Ready, verify the new database-backed Production API routes with Vercel CLI:
+1. PR #170's code, disposable-Postgres CI, hosted role grants/migrations, and DEV Preview checks pass. It remains a draft; no reviewers have been requested.
+2. **Before merging, fix Production database authentication.** The current `main` now-playing API returns 503 and Vercel logs report SQLSTATE `28P01` (`invalid_password`). Keep `DATABASE_SSL_CA_CERT` unchanged; the connection reached Postgres and failed at authentication. Create a new Production-only password and use it consistently:
+
+   ```bash
+   openssl rand -hex 24
+   ```
+
+   In the Production Supabase SQL Editor, set that generated password on `kartiseret_api`:
+
+   ```sql
+   ALTER ROLE kartiseret_api WITH PASSWORD '<paste the generated password here>';
+   ```
+
+   Then update Vercel's Production-only `DATABASE_URL` with the same password, the Production pooler host copied from that project's Connect dialog, and the custom-role username. Use the interactive CLI prompt so the password does not appear in shell history:
+
+   ```text
+   postgresql://kartiseret_api.gsdrcyrduxbrxgsvhxvr:<password>@<production-transaction-pooler-host>:6543/postgres
+   ```
+
+   ```bash
+   npx vercel@latest env update DATABASE_URL production --project kartiseret --scope jeremyjacob-projects
+   ```
+
+   Save the variable for **Production only**, then redeploy the current Production deployment so it loads the new value:
+
+   Find the current deployment URL, then redeploy that URL to Production (the URL verified during this check was `https://kartiseret-p1k8iiwet-jeremyjacob-projects.vercel.app`):
+
+   ```bash
+   npx vercel@latest inspect https://seret.site --scope jeremyjacob-projects
+   npx vercel@latest redeploy <current-production-deployment-url> --target=production --scope jeremyjacob-projects
+   ```
+
+   Confirm `curl -fsS https://seret.site/api/v1/catalog/now-playing` returns a successful response with `"error":null` before merging PR 3. Do not share the password in chat; delete any saved SQL Editor query containing it.
+3. After PR 3 is merged and its Production deployment becomes Ready, verify the additional database-backed routes:
 
    ```bash
    npx vercel@latest curl /api/v1/health --deployment https://seret.site
@@ -71,5 +102,5 @@ Movie codes are fetched in bounded batches (500 IDs per query), then indexed in 
    npx vercel@latest curl /api/v1/theaters --deployment https://seret.site
    ```
 
-   The catalog and theater routes must return `{ data: ..., error: null }`. If a database-backed request fails, inspect Production function logs and recheck the write-only `DATABASE_URL`/CA values against the Production pooler and certificate before considering PR 3 complete.
+   The catalog and theater routes must return `{ data: ..., error: null }`. If a database-backed request fails, inspect Production function logs and recheck the write-only `DATABASE_URL` against the Production pooler and role credentials before considering PR 3 complete.
 4. PR 4 can then move preferences, ticket-alert subscriptions, and admin operations behind authenticated APIs. Preserve temporary Supabase Auth until PR 5.
