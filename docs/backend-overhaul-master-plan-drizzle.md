@@ -2,17 +2,17 @@
 
 Prepared 2026-10-15 for Jeremy. Intended executor: Jeremy's selected GPT-6 Luna chat with Max reasoning effort. This is a complete replacement for the earlier Prisma master plan, adapted to the work already completed. It contains the overall architecture, preservation requirements, all five PR stages, implementation sequences, verification gates, release ordering, and handoff requirements.
 
-**Current status (2026-10-16): PR 1 and PR 2 are merged to `main`; PR 2's Drizzle conversion is complete. PR 3 is the active implementation stage.** The original preparation snapshot and PR-specific implementation instructions below are retained as historical context; where their “right now” wording conflicts with this status, follow the current PR 3 handoff and current repository state.
+**Current status (2026-10-19): PR 1 and PR 2 are merged to `main`; PR 2's Drizzle conversion is complete. PR 3 is implemented and remains an unmerged draft. Full checks and authenticated Preview API/OG smoke pass on the current code. Production's existing schema was compared to the baseline, restricted runtime roles/grants and all three migration records are in place, and Vercel Production/Preview variables are scoped to their intended Supabase projects. The first Production database-backed route smoke is still required after PR 3 deploys.** The original preparation snapshot and PR-specific implementation instructions below are retained as historical context; where their “right now” wording conflicts with this status, follow the current PR 3 handoff and current repository state.
 
 The project has completed the workspace/shared-contract foundation and the Express/SQL/hosted-DEV/PostgreSQL CI/Drizzle foundation. PR 2 merged as `c10cd50f2b98992edbaeb9f49b903fe827b81d94`. PR 3 moves public reads and social previews behind Express + Drizzle, preserves protected client operations for later PRs, and adds real-PostgreSQL/browser acceptance coverage. Better Auth remains the selected authentication library for PR 5, using its Drizzle adapter; this does not select the separate OpenAuth project or introduce handwritten authentication.
 
-This document is an implementation specification and an evidence-backed starting snapshot. It does not assert that a PR is merged, every local edit is pushed, Preview environment variables are configured, or production has migrated. Recheck those facts in the implementing chat.
+This document is an implementation specification with an evidence-backed status snapshot. It does not assert that PR 3 is merged or deployed. Recheck the PR 3 handoff for current evidence and exact post-deployment Production smoke steps.
 
 ## 0. How Jeremy should use this revised document
 
 ### Current stage: PR 3
 
-Use `docs/backend-overhaul/pr-3-handoff.md` as the current stage handoff. PR 3 must stay open and unmerged until its refreshed CI and Preview acceptance pass and Production has been safely prepared for the frontend cutover. The PR 3 handoff contains the exact remaining checks and owner steps. Do not request reviewers.
+Use `docs/backend-overhaul/pr-3-handoff.md` as the current stage handoff. PR 3's code, current CI, Preview acceptance, and Production preparation are complete; its first database-backed Production route check must run after deployment. PR 3 remains a draft until Jeremy decides to merge it. Do not request reviewers.
 
 The PR 2 instructions and Drizzle-conversion details later in this document are retained as historical specification/evidence. Do not restart PR 2 or repeat its conversion.
 
@@ -32,7 +32,7 @@ Canonical revised filename: `docs/backend-overhaul-master-plan-drizzle.md`. The 
 | --- | --- | --- |
 | PR 1 | npm workspaces and shared Zod/domain foundation | Existing predecessor; verify its merged result, do not rebuild it |
 | PR 2 | Express, SQL baseline, hosted DEV, Postgres CI, first public read; Drizzle | Merged into `main` as `c10cd50f`; conversion complete |
-| PR 3 | Complete public reads, frontend transport, social previews, Playwright | Active stage; refreshed on PR 2's merged base; keep open until code, Preview, and Production merge gates pass |
+| PR 3 | Complete public reads, frontend transport, social previews, Playwright | Implemented on PR 2's merged base; code/CI/Preview/Production-preparation gates pass; remains a draft pending Jeremy's merge decision and post-deploy Production DB smoke |
 | PR 4 | Protected APIs, preferences, subscriptions, transactional admin edits; temporary Supabase Auth | All new queries and transactions use Drizzle |
 | PR 5 | Better Auth with the Drizzle adapter, app-owned identities, Python recipient transition | Final authentication cutover and whole-feature verification |
 
