@@ -44,7 +44,7 @@ function mapSubscription(
   row:
     | typeof ticketAlertSubscriptions.$inferSelect
     | {
-        tmdbId: bigint;
+        tmdbId: bigint | string;
         createdAt: Date;
         notifiedAt: Date | null;
         deliveryTitle: string | null;
@@ -205,16 +205,18 @@ export class ProtectedWorkflows {
       );
       // DO NOTHING preserves delivery IDs, snapshots, retries and sent records;
       // it also avoids a failed transaction when concurrent inserts race.
-      const [inserted] = await tx
-        .insert(ticketAlertSubscriptions)
-        .values({ userId: user.id, tmdbId: BigInt(tmdbId) })
-        .onConflictDoNothing({
-          target: [
-            ticketAlertSubscriptions.userId,
-            ticketAlertSubscriptions.tmdbId,
-          ],
-        })
-        .returning(subscriptionColumns);
+      // Drizzle's table INSERT includes DEFAULT for every mapped column. Name
+      // only the permitted columns here so runtime cannot write delivery state.
+      const insertedRows = await tx.execute<{
+        tmdbId: string;
+        createdAt: Date;
+        notifiedAt: Date | null;
+        deliveryTitle: string | null;
+        deliveryDate: string | null;
+      }>(sql`insert into ${ticketAlertSubscriptions} ("user_id", "tmdb_id")
+        values (${user.id}, ${tmdbId}) on conflict ("user_id", "tmdb_id") do nothing
+        returning tmdb_id::text as "tmdbId", created_at as "createdAt", notified_at as "notifiedAt", delivery_title as "deliveryTitle", delivery_date::text as "deliveryDate"`);
+      const inserted = insertedRows.rows[0];
       const row =
         inserted ??
         (
@@ -288,9 +290,9 @@ export class ProtectedWorkflows {
         .replace(/\s+/g, " ")
         .replace(/^"+|"+$/g, "")
         .trim();
-      await tx
-        .insert(tableFixes)
-        .values({ tmdbId: String(targetId), titleFix: String(sourceId) });
+      await tx.execute(
+        sql`insert into ${tableFixes} ("tmdb_id", "title_fix") values (${String(targetId)}, ${String(sourceId)})`,
+      );
       if (targets.length) {
         if (nowPlaying)
           await tx.delete(finalMovies).where(eq(finalMovies.tmdbId, sourceId));
