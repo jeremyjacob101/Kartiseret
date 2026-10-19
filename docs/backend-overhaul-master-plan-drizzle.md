@@ -1,22 +1,23 @@
+Warning: truncated output (original token count: 29364)
+Total output lines: 820
+
 # Kartiseret backend overhaul — revised Drizzle master execution plan
 
 Prepared 2026-10-15 for Jeremy. Intended executor: Jeremy's selected GPT-6 Luna chat with Max reasoning effort. This is a complete replacement for the earlier Prisma master plan, adapted to the work already completed. It contains the overall architecture, preservation requirements, all five PR stages, implementation sequences, verification gates, release ordering, and handoff requirements.
 
-**Latest controlling decision: finish converting Prisma to Drizzle at the END of the existing, still-unmerged PR 2, then push that same PR with Drizzle. Do not defer conversion to PR 3, merge PR 2 with Prisma as its final implementation, create a sixth PR, or restart the already working foundation.**
+**Current status (2026-10-19): PR 1 and PR 2 are merged to `main`; PR 2's Drizzle conversion is complete. PR 3 is implemented and remains an unmerged draft. Full checks and authenticated Preview API/OG smoke pass on the current PR head. Production's schema, restricted runtime roles/grants, and all three migration records are verified. After Jeremy updated the Production `kartiseret_api` password and Production-only `DATABASE_URL` and redeployed, the live Production `/api/v1/catalog/now-playing` route returned HTTP 200. Production `/api/v1/health` also returned 200; the PR 3-only `/api/v1/catalog/coming-soon` and `/api/v1/theaters` routes still return 404 because PR 3 is not deployed to Production yet. GitHub reports PR #170 mergeable/clean against current `main`; it is two commits behind, and those main-only changes touch `.gitignore` and generated backend log artifacts with no file overlap. No Production credential work remains before merge; verify the PR 3 routes after deployment.** The original preparation snapshot and PR-specific implementation instructions below are retained as historical context; where their “right now” wording conflicts with this status, follow the current PR 3 handoff and current repository state.
 
-The project is currently partway through PR 2. PR 1's workspace/shared-contract foundation exists. PR 2 already implements Express, a SQL baseline, hosted-dev setup materials, a first API read, Prisma mappings, and real-Postgres CI tests. Preserve the useful implementation and replace its ORM boundary before the final PR 2 push/merge. PRs 3–5 must consume Drizzle exclusively. Better Auth remains the selected authentication library for PR 5, using its Drizzle adapter; this change does not select the separate OpenAuth project or introduce handwritten authentication.
+The project has completed the workspace/shared-contract foundation and the Express/SQL/hosted-DEV/PostgreSQL CI/Drizzle foundation. PR 2 merged as `c10cd50f2b98992edbaeb9f49b903fe827b81d94`. PR 3 moves public reads and social previews behind Express + Drizzle, preserves protected client operations for later PRs, and adds real-PostgreSQL/browser acceptance coverage. Better Auth remains the selected authentication library for PR 5, using its Drizzle adapter; this does not select the separate OpenAuth project or introduce handwritten authentication.
 
-This document is an implementation specification and an evidence-backed starting snapshot. It does not assert that a PR is merged, every local edit is pushed, Preview environment variables are configured, or production has migrated. Recheck those facts in the implementing chat.
+This document is an implementation specification with an evidence-backed status snapshot. It does not assert that PR 3 is merged or deployed. Recheck the PR 3 handoff for current evidence and exact post-deployment Production smoke steps.
 
 ## 0. How Jeremy should use this revised document
 
-### Right now: continue the existing PR 2 chat
+### Current stage: PR 3
 
-Paste or attach this ENTIRE revised plan in the chat implementing PR 2, preceded by:
+Use `docs/backend-overhaul/pr-3-handoff.md` as the current stage handoff. PR 3's code, current CI, and Preview acceptance pass. Production schema/role/migration preparation is complete, and the now-playing database API returned HTTP 200 on `main` after the Production credential update and redeploy. GitHub reports the PR mergeable/clean against current `main`; its two newer commits only touch `.gitignore` and generated backend log artifacts, with no overlap. Check PR 3's newly added routes after deployment. PR 3 remains a draft until Jeremy decides to merge it. Do not request reviewers.
 
-> Continue the existing PR 2 and its existing GitHub PR using this revised Drizzle master plan. Preserve the Express/workspace/SQL-baseline/hosted-dev/test foundation already written. Complete the Prisma-to-Drizzle conversion as the final implementation phase of PR 2 before its final push and merge readiness. Verify the existing endpoint, schema mapping, permissions, transaction behavior, clean build, CI, and hosted-dev Preview with Drizzle. Reconcile the baseline filename with the migration actually recorded in DEV. Update the same PR's title/body and handoff to describe Drizzle. Do not implement PR 3, merge, request reviewers, or start another PR. Inspect current code and document justified adaptations.
-
-Earlier exploratory Prisma commits in PR 2's history may remain. The final PR diff, source, scripts, package graph, tests, handoff and description must use Drizzle. Do not force-push or rewrite history merely to hide the intermediate implementation.
+The PR 2 instructions and Drizzle-conversion details later in this document are retained as historical specification/evidence. Do not restart PR 2 or repeat its conversion.
 
 ### Later: one chat for each remaining PR
 
@@ -26,15 +27,15 @@ After Jeremy merges the preceding completed PR, open the next implementation cha
 
 Replace N with 3, 4, or 5. Supply the whole document so the executor sees the shared constraints and future dependencies. It may read the plan from the repository instead if the same revision is committed and available. A file saved only in another worktree is not automatically present in a fresh chat/worktree.
 
-Canonical revised filename: `docs/backend-overhaul-master-plan-drizzle.md`. The old `docs/backend-overhaul-master-plan.md` and `docs/backend-overhaul-audit.md` are historical context. This revision supersedes conflicting Prisma instructions and old assumptions that PR 2 has not started or DEV does not exist. Save this revision in the implementation branch as part of PR 2's documentation so subsequent chats can read it. Keep useful predecessor handoffs; add explicit dated corrections rather than presenting old Prisma evidence as Drizzle evidence.
+Canonical revised filename: `docs/backend-overhaul-master-plan-drizzle.md`. The old `docs/backend-overhaul-master-plan.md` and `docs/backend-overhaul-audit.md` are historical context. This revision superseded conflicting Prisma instructions and old assumptions that PR 2 had not started or DEV did not exist. Its original preparation snapshot is intentionally preserved below; the status block at the top and `docs/backend-overhaul/pr-3-handoff.md` are the current source of truth. Keep useful predecessor handoffs and label older evidence as historical.
 
 ### Five-PR sequence and present status
 
 | Stage | Scope | How to treat it now |
 | --- | --- | --- |
 | PR 1 | npm workspaces and shared Zod/domain foundation | Existing predecessor; verify its merged result, do not rebuild it |
-| PR 2 | Express, SQL baseline, hosted DEV, Postgres CI, first public read; **finish by replacing Prisma with Drizzle** | Current open PR; complete conversion and verification before final push/merge readiness |
-| PR 3 | Complete public reads, frontend transport, social previews, Playwright | Begins with a working Drizzle foundation; no postponed ORM conversion |
+| PR 2 | Express, SQL baseline, hosted DEV, Postgres CI, first public read; Drizzle | Merged into `main` as `c10cd50f`; conversion complete |
+| PR 3 | Complete public reads, frontend transport, social previews, Playwright | Implemented on PR 2's merged base; CI/Preview pass; Production health and existing now-playing API return HTTP 200 after credential update/redeploy; PR 3 routes await deployment; remains a draft |
 | PR 4 | Protected APIs, preferences, subscriptions, transactional admin edits; temporary Supabase Auth | All new queries and transactions use Drizzle |
 | PR 5 | Better Auth with the Drizzle adapter, app-owned identities, Python recipient transition | Final authentication cutover and whole-feature verification |
 
@@ -245,339 +246,7 @@ Drizzle Kit is optional dev tooling for read-only introspection/schema generatio
 3. Fresh projects/CI apply the current-state baseline ONCE, then all forward migrations in documented order, then the appropriate seed. Do not replay the archived guest/RPC ticket-alert history over the current-state baseline.
 4. Existing production already has its application schema. Do not run the CREATE TABLE baseline there. Compare its actual schema with the captured baseline and deliberately reconcile migration tracking before applying future changes. Marking an already-equivalent baseline as represented in history is distinct from executing its DDL; use verified tooling and explicit production authorization where needed.
 5. Existing DEV has baseline tables and may have applied later migrations. Apply only missing forward migrations. No automatic reset or replay on every build/Preview. Do not use the production connection as a fallback.
-6. Generate/names new SQL migration files using the current Supabase CLI convention (`--help` first); do not require Docker or native Postgres on Jeremy's Mac for schema tooling. Available provider tools/CI/native clients can inspect/apply intentional changes.
-7. Retain table defaults, real keys, constraints, comments, RLS, grants, publication membership and Python-facing names. Provider-owned `auth`, Realtime, extensions and their managed objects remain provider-managed until explicit app-owned auth changes in PR 5.
-8. CI's current bootstrap applies a single baseline by filename. Before the first forward migration, extend it to apply ALL active migrations in order exactly once on the disposable fresh target. Preserve its loopback/exact-db/non-empty guards and keep provider compatibility objects test-only. Include forward-migration replay in required CI, rather than updating only hosted DEV.
-9. No build step may connect to or migrate a real database. Compiling Drizzle schemas is TypeScript compilation; no runtime client code generation is required.
-
-### Drizzle driver, lifecycle and connection choice
-
-Default to `drizzle-orm/node-postgres` and the already installed `pg` driver/types. Avoid adding `postgres.js` or another database transport just to follow a tutorial. Create one explicit bounded `pg.Pool` per application/runtime composition and construct Drizzle around it. Reuse it across requests in a warm Vercel instance; close it via the composition's `close()`/test teardown, not after each response. Keep `createApp` imports side-effect free.
-
-Preserve the current configurable conservative pool maximum, finite connection/idle timeouts and safe pool error handling; account for multiple Vercel instances when selecting limits. Pool errors must not crash silently or expose connection strings. Do not use a schema owner/admin login as the runtime credential.
-
-Drizzle supports existing node-postgres pools: [Drizzle PostgreSQL drivers](https://orm.drizzle.team/docs/get-started-postgresql). Verify exact initialization APIs against the stable compatible version actually installed; current docs can show release-candidate examples. Do not blindly install `@rc`, `@beta`, or `@latest` tool invocations when they would change the chosen API family. Lock compatible ORM/Kit/auth-adapter versions and use one supported relations API.
-
-Use Supabase's transaction pooler for the serverless runtime where appropriate and its direct/session migration connection separately. Do not use named/session-bound prepared statements with the transaction pooler unless the actual provider/version is verified to support them. The `prepare: false` flag in postgres.js examples is not a `pg.Pool` option; do not copy it into node-postgres. Test transactions through the actual selected driver/pooler. Do not depend on session-persistent `SET` state across requests: [Supabase connection guidance](https://supabase.com/docs/guides/database/connecting-to-postgres).
-
-Inspect Prisma-oriented URL options (`schema`, `pgbouncer`, `connection_limit`, etc.) when porting configuration. Remove or translate unsupported options in documented examples/runtime setup while retaining legitimate pooler host, custom-role username, database, password encoding and provider TLS requirements. SQL schema selection belongs in explicit table/schema mapping or a verified driver setting, not an assumption that Prisma's `?schema=public` controls Drizzle. Do not log URLs or disable TLS verification to make a connection pass.
-
-### Native types, SQL semantics and boundary conversion
-
-The SQL baseline/catalogs are authoritative; use the old Prisma mapping only as a secondary cross-check. Explicitly map physical table/column names with Drizzle builders. Keep camelCase internal properties when they preserve current mapper inputs. Relations metadata must reflect real keys and must not invent uniqueness or database FKs.
-
-| Concern | Required handling during conversion and later queries |
-| --- | --- |
-| Nullability/defaults | Model physical nullable arrays and fields honestly; do not add `.notNull()` or defaults merely to fit an old Prisma limitation. Normalize only at the documented DTO boundary. SQL defaults, including unusual legacy timezone expressions, remain unchanged. |
-| Bigint | Preserve precision with bigint/string representation internally. Movie IDs become validated decimal strings in DTOs. Release years/counts become numbers only after bounds checks. No global `BigInt.toJSON` patch or global `pg` parser turning all int8 into unsafe JS numbers. |
-| Numeric/decimal | Drizzle/pg values need not be Prisma Decimal objects. Document actual return types; keep exact values as strings where appropriate and explicitly validate/convert bounded rating DTOs. Do not retain `.toNumber()` calls or tests requiring a Prisma class. |
-| Calendar date | Prefer explicit date-string mapping for date-only columns. Assert `YYYY-MM-DD` calendar semantics and nulls; do not require Prisma's artificial midnight Date representation. |
-| Local showtime | Preserve time-without-timezone as validated local clock text, including supported seconds/precision. Do not route it through an epoch Date/toISOString conversion that changes its meaning. |
-| Timestamps | Distinguish absolute timestamptz instants from legacy Jerusalem wall-clock timestamp values. Auth timestamps may use a different supported Date mode than cinema dates. No module-level frozen server clock. |
-| JSON/arrays | Explicitly map real JSONB/text-array types and nullability; keep Zod runtime validation. Drizzle type annotations do not validate stored JSON. |
-| Ordering | Preserve explicit `popularity DESC NULLS LAST`, then movie-ID tie-breaker; plain PostgreSQL DESC has different null ordering. Keep deterministic ordering for other endpoints and pagination. |
-| Keys | `finalSoons.tmdb_id` is not proven unique; subscriptions have a composite key; theaters use location. Do not emulate Prisma `findUnique` by adding invented constraints. |
-| Membership/empty input | Keep code lookups bounded/batched, avoid N+1 and empty `IN` mistakes. Preserve existing deliberate missing-table/error behavior versus a legitimate empty catalog. |
-| Mutations | Parameterize values and allowlist dynamic sort/field identifiers. Validate partial updates and distinguish an omitted property from explicit null; never pass arbitrary request bodies directly to `.set(...)`. |
-| Transactions | Use `db.transaction(async tx => ...)` with all writes on the transaction handle. Do not mix `pool.query` or outer `db` writes into a transaction callback. Unique violations caught inside an aborted PostgreSQL transaction require rollback/savepoint or conflict SQL before rereading. |
-| Errors | Translate actual PostgreSQL SQLSTATE/constraint metadata (including driver/Drizzle cause wrapping), not Prisma `P2002`/`P2025`. Inspect narrowly, preserve useful internal causes, return safe API errors. |
-
-These are project-specific representation decisions; validate them with actual seeded SQL. See [Drizzle Postgres types](https://orm.drizzle.team/docs/column-types) and [transactions](https://orm.drizzle.team/docs/transactions) for the supported APIs. Keep physical decimal precision, timezone precision, check/index definitions and DB defaults unchanged unless a later feature needs an explicit migration.
-
-### Authorization and Supabase coexistence
-
-A direct Drizzle/pg connection does not inherit a browser Supabase user's identity or RLS JWT context. Use verified server identity plus explicit own-account/admin service authorization. Preserve the restricted `kartiseret_runtime` group and `kartiseret_api` login: PR 2's runtime should still read ONLY `finalMovies` and `movieCodes`; later migrations grant the exact additional reads/writes needed. Do not grant all tables or `BYPASSRLS` to fix missing policies.
-
-The Python pipeline continues using service-role Supabase Data API/Realtime. Do not disable the Data API globally, change worker keys/types, or require Python to adopt Drizzle. Browser grants/exposure are tightened at the proper migration boundary while service-side worker access stays functional. Keep SQL as the shared source of schema truth across both runtimes.
-
-## 6. API and shared-contract conventions
-
-Suggested endpoint families, adjustable to the current code without duplicating APIs:
-
-| Endpoint | Owner PR | Contract intent |
-| --- | --- | --- |
-| `GET /api/v1/health` | 2 | Process/config readiness without secrets; optionally separate DB readiness |
-| `GET /api/v1/catalog/now-playing` (existing); companion coming-soon route chosen consistently | 2 first slice, complete 3 | Preserve existing path/envelope; ordered normalized collection and explicit code-readiness behavior |
-| `GET /api/v1/movies/by-code/:code` | 3 if useful | Direct normalized route lookup; avoid forcing a full catalog for a single server preview |
-| `GET /api/v1/showtimes?city=...&startDate=...&endDate=...&tmdbId=...` | 3 | Inclusive bounded range; normalized records; preserve broad/targeted cache meaning |
-| `GET /api/v1/theaters` | 3 | Normalized theaters with city metadata, or equivalently clear cities/theaters response |
-| `GET /api/v1/movies/:tmdbId/ticket-availability?cinemaDate=...` | 3 | Public valid ticket candidates across cities; city preference remains a selector |
-| `GET /api/v1/me`, `/me/preferences`, `/me/ticket-alerts` | 4 | Own identity/admin projection and private settings/subscriptions |
-| `PATCH /api/v1/me/preferences` | 4 | Validated partial preference update |
-| `POST /api/v1/me/preferences/initialize` if needed | 4 | Idempotent explicit defaults/missing-row repair; preserve chosen signup location |
-| `POST` / `DELETE /api/v1/me/ticket-alerts/:tmdbId` | 4 | Own one-shot subscription changes with authoritative availability/duplicate handling |
-| `PATCH /api/v1/admin/movies/:tmdbId/match` | 4 | Authorized correction/merge; body specifies catalog mode and selected target |
-| `/api/auth/*` | 5 | Better Auth's own documented endpoints, not a second handwritten auth protocol |
-| Narrow `/api/internal/...` recipient lookup | 5 | Authenticated Python-to-server access to canonical verified recipient information |
-| Existing `/api/og`, `/api/og-image`, short URLs | 3 | Preserve externally used share HTML/image URLs and route behavior |
-
-Do not implement every suggested route if existing services can provide the same behavior with fewer endpoints. Do not expose generic table/query execution routes. Record final contracts so later PRs use the established shape.
-
-### Contract rules
-
-- Zod validates request inputs on the server and external JSON responses at frontend ingress. Infer internal types; avoid repeatedly parsing the same validated value inside every layer.
-- Distinguish browser form refinements, public DTOs, private DTOs, database mapping, and auth-library contracts. Database rows and session secrets are never general response DTOs.
-- Reuse primitives for IDs, real calendar dates, time, codes, URLs, locations, preference values, and filters. Keep trust-boundary parsing helpers and their useful contextual errors.
-- Bound ranges and page sizes without preventing valid existing 180-day browsing or 62-day share-link behavior. Fetch all rows belonging to a promised complete range; never silently truncate at a database API default limit.
-- Use stable ordering with a tie-breaker for any pagination. Catalog sizes currently allow complete collection responses; do not force a generic pagination UI or infinite-query rewrite merely because pagination is a convention.
-- Use one consistent API error shape with a safe code/message and optional validation-field details. Map bad input, unauthenticated, forbidden, missing resources, conflicts, and server faults deliberately. Never send raw SQL, credentials, stack traces, or all Drizzle metadata to clients.
-- Preserve frontend `AbortSignal` behavior for fetches. Do not claim that aborting the HTTP response guarantees the underlying SQL query was cancelled if the selected driver cannot prove that.
-- Do not automatically retry writes. Map unique-constraint collisions to the intended idempotent result where relevant.
-- Private responses use `no-store`. Public cache policy must respect time-sensitive showtimes and existing OG fallback behavior. No private account data in shared CDN caches.
-- Reuse the composed Drizzle database and bounded pg pool appropriately for Node/serverless execution; do not create/disconnect a pool on every request. Verify runtime pooler and separate migration connection settings against the actual driver/provider versions. Shared Zod DTOs stay independent of Drizzle table inference; do not add another public-contract generator merely because an ORM offers one.
-
-## 7. Feature integrity ledger
-
-Maintain a compact checked-in ledger, e.g. `docs/backend-overhaul/verification.md`, with these IDs, owning PR, implementation path, evidence, and status. A row is not proved merely because it is checked off. Update changed tests/handoffs without filling the document with raw logs or credentials.
-
-| ID | Behavior/invariant | Main owner |
-| --- | --- | --- |
-| F01 | Root install, workspaces, lockfile, package exports, CI/Vercel builds | 1 |
-| F02 | Shared code is browser/server safe; no server code or secrets in client bundle | 1–5 |
-| F03 | Catalog normalization, ordering, artwork, ratings, alternatives, pending enrichment rows | 3 |
-| F04 | Catalog/code lookup and code-failure behavior; permanent code stability | 3 |
-| F05 | Showtime range completeness, stable IDs/order, cancellation and deduplication | 3 |
-| F06 | Broad versus targeted coverage; arbitrary jumps; refresh removes stale rows | 3 |
-| F07 | City/theater joins, aliases, neighbors, map data and dynamic locations | 3 |
-| F08 | Cinema-day cutoff, grace, carryover, DST and request-scoped server clock | 1, 3 |
-| F09 | Short and encoded link codec, filters, 62-day date interpretation | 1, 3 |
-| F10 | OG HTML includes SPA document/assets and correct metadata/fallback/cache | 3 |
-| F11 | OG JPEG assets/Sharp, remote-image bounds and fallback/cache | 3 |
-| F12 | Search/grid/scroller/mobile navigation still uses existing UI behavior | 3 |
-| F13 | Guest preferences, theme bootstrap and local/cross-tab filter persistence | 1, 4, 5 |
-| F14 | Signup-location priority, preference initialization/repair, per-field persistence | 4, 5 |
-| F15 | Optimistic preferences, coalescing, rollback and stale-account guards | 4, 5 |
-| F16 | Verified identity, private reads, ownership and server admin enforcement | 4, 5 |
-| F17 | Admin merge/reassign transactions, persistent corrections, enrichment trigger | 4 |
-| F18 | Admin mutation invalidation scope and refreshed catalog/showtimes | 4 |
-| F19 | Public availability: valid URLs, language fallback, preferred-city selection, expiry | 3, 4 |
-| F20 | Private one-shot subscriptions, duplicate recovery, cancellation, confirmed-cache behavior | 4 |
-| F21 | Python recipient lookup, delivery snapshots and Resend idempotency | 5 |
-| F22 | Signup/verification/login/logout/session refresh/expiration and account gating | 5 |
-| F23 | Forgot/reset password token flows, current-password change, consistent policy | 5 |
-| F24 | Auth UUID references/admin bootstrap, app-owned tables and restricted access | 5 |
-| F25 | Raw/final/cinematheque worker schema, cleanup, run locks, timing, realtime remain compatible | 2, 4, 5 |
-| F26 | Dev versus production credentials, preview origins/cookies, hosted dev seed/migrations | 2–5 |
-| F27 | SQL baseline + future migrations replay correctly; no competing migration owners | 2–5 |
-| F28 | Real Postgres integration, real-backend browser tests, no production-test writes | 2–5 |
-| F29 | PR 2 Prisma-to-Drizzle conversion, observable endpoint parity, clean package/build graph | 2 |
-| F30 | SQL/Drizzle mapping parity, native type semantics and forward-migration replay without drift | 2–5 |
-
-## 8. Verification and handoff rules shared by all five PRs
-
-### Evidence levels
-
-- Unit/contract tests: pure functions, validation, mappers, cache semantics, controller/service boundaries with controlled dependencies.
-- API tests: Supertest invokes the real Express app; targeted repository/identity failures may be injected to prove error handling. Test 401/403/404 and invalid input, not only successful JSON.
-- DB integration: real Drizzle with disposable Postgres for mappings, constraints, transactions, and final auth persistence. API authorization tests must include users A and B; one active production user does not remove the need to prove ownership.
-- Browser: fixtures help local regression checks; at least the critical migrated flows also run against the real Express/Drizzle stack in CI. Hosted dev/preview testing confirms deployed routing/assets/cookies/provider integration that fixtures cannot establish.
-- Python: focused tests use existing repository/HTTP injection points and shared behavior fixtures; never scrape cinema sites or send mail as a test dependency.
-- Build/deployment: validate frontend, server, shared package, root adapters, compiled Drizzle schemas/queries and assets. Builds must not require a database, Prisma engines or generated Prisma output. Distinguish local build success from a verified Preview URL.
-
-Root `verify` should offer fast deterministic lint/format/typecheck/unit/build/bundle checks without needing database secrets. Expose separate mandatory CI commands for DB integration and browser end-to-end tests; those commands must fail clearly when prerequisites are absent, not silently skip and report green. Exact script names may adapt, but document them and use them consistently.
-
-Use fixtures tied to a fixed clock for deterministic tests. Reuse focused existing tests rather than writing large suites that mirror implementation details. Stop widening test runs once required checks pass unless subsequent changes/failures justify another run. Do not remove tests, raise bundle budgets, relax validation/permissions, or disable CI to make a PR look successful.
-
-Test bootstrap scripts accept a dedicated test URL, not an automatic fallback to root `.env`/production. Destructive commands should require an explicit test target and verify its identity. Keep this small and practical: one test database guard and separate configuration, not a new safety framework.
-
-If plain Postgres needs Supabase roles or `auth.users` to apply the application schema, isolate minimal test-only compatibility definitions from deployable SQL. They do not prove GoTrue/PostgREST/Realtime behavior. Verify those integrations separately in hosted dev with its real Supabase services.
-
-### Each chat's working rhythm
-
-1. Identify repo root, branch, status, remote/base, instructions and active PR number. Preserve unrelated user changes. Prefer the attached checkout; create an isolated branch/worktree only as needed and permitted.
-2. Read the predecessor's handoff and verify actual merged code. If the required previous PR is not present, identify the missing dependency and resolve the base with Jeremy; do not rebuild it from scratch on a stale branch.
-3. Make a short implementation checklist for the selected PR, mapped to ledger IDs. List newly discovered affected call sites before editing their contracts.
-4. Establish baseline checks relevant to the change. Record pre-existing failures with evidence; distinguish them from regressions. Do not run the real pipeline for baseline checks.
-5. Implement in coherent slices, update all consumers, and verify each changed boundary. Use current official docs where version-sensitive APIs matter.
-6. Re-read the whole diff and search for old imports, direct DB access, stale config and unhandled callers. Verify both branches of important conditions and plausible failure paths.
-7. Run required gates and fix issues caused by the PR. When a check cannot run, state exactly why and the strongest substitute evidence; leave its status unverified rather than claiming it passed.
-8. Update architecture/environment documentation, ledger, and the selected PR handoff. Commit/push only task changes and create/update one draft PR if access permits. Attach it to the Codex chat with available app tooling. Do not add reviewers or merge.
-9. Final response: concrete behavior change, actual checks/results, PR link, deployment/migration status, outstanding external action, and the next PR's readiness. Do not equate a draft PR with deployed functionality.
-
-### When code differs from this plan
-
-Use current instructions, Jeremy's latest decisions, the real code/schema, and the plan's intended behavior in that order. Prefer the smallest sound adaptation. Record changed assumptions and downstream consequences in the handoff/decision log. Update the plan when a small finding invalidates a future instruction so the next chat does not follow stale guidance.
-
-Ask Jeremy before changing a product behavior, adding a new hosted cost, replacing the selected stack, deleting non-rebuildable state, or executing an unapproved production cutover. Continue independent work while an answer is pending. Do not get stuck repeatedly retrying an inaccessible service or silently expanding scope to a framework rewrite.
-
-An empty successful collection can be legitimate during rebuilding; decide and document its UI contract instead of preserving an accidental exception forever. Missing tables/config and malformed data are different failures and must not be disguised as an empty catalog.
-
-## 9. PR 1 — npm workspaces and shared Zod foundation (existing predecessor)
-
-Recorded PR: [#165](https://github.com/jeremyjacob101/Kartiseret/pull/165), branch `codex/backend-01-workspaces-contracts`, implementation commit `c5145a8250eacafb76806a10321a6cab317b3cdb`. PR 2 is already based on the workspace foundation. Inspect actual main/history if needed; do not reopen, rebuild or renumber this stage because the ORM changed.
-
-### Objective and retained result
-
-Root private npm workspaces, a single root lockfile, `packages/contracts`, explicit browser/server-safe ESM/type exports, shared Zod normalized models/primitives, pure date/filter/link/preference helpers, updated frontend/OG imports, root scripts, CI and Vercel root install/build. Existing frontend and Python paths stay in place. Authentication, database schema and product behavior were outside this structural stage.
-
-### Read first
-
-`docs/backend-overhaul/pr-1-handoff.md`, current workspace manifests/exports, Vercel/CI build commands, shared imports and affected existing tests. Use the implemented paths and script names, not the original suggested layout.
-
-### Preservation checks for PR 2 and beyond
-
-- Build shared contracts before consumers; npm workspace iteration is not an automatic dependency-graph build system.
-- Keep explicit exports and independently importable emitted ESM. A Vite-only successful import is not evidence that Node/Vercel can resolve it.
-- No ORM/server/auth instances, Node-only modules, DOM/storage initialization, secrets or map/Sharp dependencies in shared/browser imports.
-- Keep provider DB-row parsing and browser persistence with their appropriate owners until their owning stage moves them.
-- Preserve the custom import formatting, one lockfile, narrow lint/format scopes and dependency declarations per workspace.
-- Preserve the existing 210 KiB gzip eager bundle budget unless a material measured change is explicitly justified; do not raise it to hide accidental dependencies.
-
-### Evidence carried forward
-
-The PR 1 handoff reports a clean lock-preserving install, root verification, six Node-importable contract subpaths, 488 existing frontend tests and a 207.5 KiB gzip eager bundle. PR 2 later reports 207.3 KiB. These are historical measurements; rerun relevant gates for the final Drizzle branch rather than reporting them as new results.
-
-### Handoff continuity
-
-Retain the existing PR 1 handoff and ledger rows F01/F02/F08/F09/F13. Do not rewrite its historical Prisma-era future expectations as if Drizzle was already implemented then. Add a current decision note pointing to this revision where useful.
-
-## 10. PR 2 — finish Express/SQL/hosted-dev foundation, then convert Prisma to Drizzle
-
-**Current existing PR:** [#167](https://github.com/jeremyjacob101/Kartiseret/pull/167), branch `codex/backend-02-api-prisma-foundation`. Keep that branch/PR identity even though its name contains Prisma. Update the final title to describe Express, Drizzle and PostgreSQL. Do not rename an active branch gratuitously or create a replacement PR.
-
-### Objective and prerequisite
-
-PR 1's workspace/contracts are already the base. PR 2's useful server/bootstrap/hosted-dev/CI code already exists. Finish and reconcile that foundation, then replace the current Prisma access layer with Drizzle as PR 2's final implementation phase. The final pushed/merge-ready PR must expose the same first API slice through Drizzle, retain all 18 table mappings and the SQL authority, preserve the unchanged browser/auth/Python behavior, and include new verification against the converted implementation.
-
-No PR 3 public browser transport, protected feature API, Better Auth installation, auth data migration, UI redesign or production schema reset belongs here.
-
-### Read first
-
-The live PR's current metadata/file diff; local `git status`, branch/base and pending edits; PR 1 and PR 2 handoffs; architecture/verification docs; all server DB/repository/service/mapper/composition/env/test files; root/server manifests/lock/scripts/install allowlists/overrides; Vercel adapter and routing/asset config; CI Postgres bootstrap; baseline/legacy manifest/seed; DEV migration ledger and nonsecret environment identity; current stable Drizzle/node-postgres docs and Better Auth Drizzle compatibility. Do not dump `.env` values, credentials, sessions or private auth records.
-
-### Phase A — preserve and finish the already written foundation
-
-1. Inspect current main and the existing PR branch, including the latest concurrent Python changes. Establish which changes are pushed and which remain local. Preserve unrelated edits. Do not reset the worktree to the earlier GitHub snapshot or repeat PR 1.
-2. Inventory the real working foundation: `createApp`, production/local startup, server-only env parsing, catalog mapper/service/repository interface, liveness/safe errors/404, root build order, explicit Vercel dispatcher, fixed OG handlers, optional Vite proxy, bootstrap/seed and required Postgres CI job. Complete any missing PR 2 behavior, without expanding into later features.
-3. Reconcile the baseline version with DEV and pending local changes. DEV already records `20261015141043`; the old remote filename was `20261015122907`. Inspect final actual state and carry the intended alignment into the final PR commit. Update bootstrap references/legacy README/handoff consistently, retain checksum provenance, and do not reapply the baseline on existing DEV/production.
-4. Retain the 18-table SQL snapshot, indexes/checks/grants/RLS/publication details and provider-managed prerequisites. Confirm the root/docs commands actually exist. In particular, remove or correct a historical `npm run db:test:up` example if that script does not exist; do not create Docker/local-DB setup to justify a stale example.
-5. Retain DEV `jbydpmjjptwevyijarzl` and fictional fixtures. Verify final runtime-login/password/config setup status privately. Preview runtime `DATABASE_URL` must use the restricted DEV login; migration/admin credentials stay outside Vercel. No new project, billing change or reset is needed.
-6. Establish a baseline of relevant existing checks/CI/Preview evidence. Preserve prior results as historical Prisma evidence. Capture deterministic expected DTOs/order/error behavior from the first catalog fixtures so the Drizzle conversion has a clear observable comparison.
-
-### Phase B — final implementation phase of PR 2: replace Prisma with Drizzle
-
-1. **Audit the complete Prisma surface.** Search tracked source/config/scripts/lock/CI/docs for Prisma packages/imports/generated output, `Prisma.*` types, `$connect`, `$disconnect`, `$transaction`, Prisma errors/Decimal/time assumptions and generation hooks. Record active consumers before deleting anything. Current expected callers are small, but inspect rather than assuming these are the only ones.
-2. **Select compatible locked dependencies.** Add stable `drizzle-orm`; retain the existing `pg` and `@types/pg`. Add compatible `drizzle-kit` only if using explicit dev introspection/tooling. Check current package peer requirements and later Better Auth adapter compatibility. Prefer the ordinary supported stable query/relations family; docs showing `@rc` are not authorization to switch to release candidates. Do not add a second SQL driver, ORM, Zod generator or migration runner.
-3. **Map all 18 existing application tables.** Add server-only Drizzle definitions under `src/db/schema` (or a coherent existing equivalent). Compare against the authoritative SQL baseline and current catalog metadata, with the old Prisma schema as a cross-check. Preserve table/column names, nullability, precision, defaults, real PK/composite keys and FK semantics. Explicitly handle nullable genres without Prisma's required-list workaround. Provider-owned auth references remain SQL-owned at this stage; any minimal reference declaration must not claim provider schema ownership or create provider objects.
-4. **Prove mapping completeness.** Maintain a small table-to-definition inventory or meaningful metadata assertion that covers all 18 tables. Check more than two catalog fields: UUID/defaults, smallint/int/bigint distinctions, text ratings, numeric cinematheque fields, date/time/timestamptz/wall-time, JSONB, arrays, keys and nullable columns. Do not generate a second migration baseline or invent uniqueness to satisfy inference.
-5. **Introduce the DB factory/lifecycle.** Replace `createPrismaClient` with a narrowly scoped factory returning the Drizzle handle plus pool/close capability and useful transaction types. Preserve bounded pool settings and current production `close()` behavior. Keep database creation out of shared/frontend code and side-effect-free test app imports. A warm Vercel instance reuses its composed pool; local/CI teardown ends it once. Do not disconnect after every HTTP request.
-6. **Convert the existing catalog repository behind its neutral interface.** Replace `PrismaCatalogRepository` with `DrizzleCatalogRepository` or an equivalent implementation; update only composition/imports as necessary. Select the same properties with deliberate aliases so the existing mapper can retain its contract. Preserve `solo_update = false`, `popularity DESC NULLS LAST`, movie-ID ascending tie-breaker, bounded code chunks and bigint conversion. Empty lists must not produce invalid SQL. The current repository deliberately checks the codes relation even for an empty catalog; preserve that distinction or document/test a coherent readiness alternative without hiding missing schema as successful empty data.
-7. **Keep observable HTTP behavior stable.** Preserve `/api/v1/catalog/now-playing`, the existing envelope/DTO/schema/error statuses, liveness semantics and unknown API JSON 404s. Browser callers have not switched yet. Preserve mapper normalization for NULL/array genres, text/numeric ratings, alternatives, pending rows and JSON-safe IDs/year. Do not change API paths merely to match old plan suggestions.
-8. **Port real integration tests to Drizzle.** Replace query/transaction calls and ORM-specific representation assertions while preserving behavioral coverage: actual runtime-role success/denial, expected catalog DTO, nullable arrays, bigint precision, numeric ratings, date-only and local-time semantics, actual SQL CHECK failure and full rollback. A test requiring Prisma `Date` objects for SQL TIME or `.toNumber()` for Decimal must become a semantic assertion for the chosen Drizzle mapping. Exercise the real repository's DB error path as well as controlled service failures; a fake repository alone does not prove driver error handling.
-9. **Verify transactions now.** Run an actual `db.transaction` write-and-late-failure test on the disposable admin test connection and assert no row survives. Keep the runtime connection restricted; do not grant writes merely so the foundation test can use that login. Later PR 4 adds appropriate write grants. Do not emulate transactions using sequential independent pool calls.
-10. **Verify the hosted connection.** Retain the custom Supabase pooler login/host and safe TLS requirements. Inspect/remove Prisma-only URL options in examples and configured runtime settings as needed; never print or ask Jeremy to paste a secret URL. Test the first endpoint on DEV/Preview through the actual runtime credentials and Drizzle driver. If dashboard access prevents editing a variable, give exact variable/environment instructions and finish independent work first.
-11. **Remove active Prisma machinery after replacement coverage works.** Remove `@prisma/client`, `@prisma/adapter-pg`, `prisma`, generated-client source/output usage, `prisma.config.ts`, `schema.prisma`, `scripts/generate-prisma.mjs`, obsolete ignore/config/lint paths and generation hooks. Remove root/server `prisma:generate`/`server:generate` dependencies; update integration/build/typecheck commands to compile or run directly. Do not leave a fake no-op generation script just to keep a stale command green. Clear ignored/stale generated output when verifying a clean build so it cannot conceal a missing import.
-12. **Clean the package graph deliberately.** Update the single root lockfile with npm; do not edit it mechanically or recreate it with unrelated upgrades. Remove Prisma engine install-script allowlist entries and Prisma-only `deepmerge-ts`/`mysql2` overrides if no remaining consumer needs them. Retain unrelated source-map/sharp/esbuild fixes and other workspace dependencies. Confirm the actual resolved graph and audit results; do not claim prior zero findings necessarily persist.
-13. **Keep DDL/CI/build boundaries intact.** The ORM conversion itself should leave baseline SQL/seed/application data unchanged apart from already required baseline-version reconciliation. Drizzle definitions compile without a client generator, live database or admin URL. CI uses the existing guarded disposable Postgres 17 path and real restricted runtime login; ordinary local `verify` stays database-free. Kit/introspection must never run automatically on build/install/start.
-14. **Update final documentation and the SAME PR.** Save this revision, update architecture/verification/handoff/environment examples, replace active Prisma instructions and state the conversion location explicitly. Revise the PR title/body to Drizzle and remove stale provisioning claims when DEV already exists. Preserve useful historical evidence as labeled history. Commit/push only authorized PR 2 changes and update/attach its existing draft PR without requesting reviewers. Leave merge to Jeremy.
-
-### Required evidence and acceptance gate
-
-PR 2 is not merge-ready merely because its earlier Prisma version passed. Verify the final Drizzle commit:
-
-- Clean Node 24 install and unchanged lockfile after reproducible `npm ci`; inspect dependency graph for absence of active Prisma packages unless a genuinely independent consumer is documented. Check fresh compiled output without ignored generated Prisma artifacts.
-- Root `npm run verify`, narrow formatting/diff checks, server/contracts/frontend builds and eager bundle check pass. Frontend still uses its existing transport/auth and no Drizzle/pg/server internals leak into its bundle. Preserve the 210 KiB gzip budget.
-- All 18 application table mappings are accounted for against SQL. Preserve physical nullable arrays, composite keys, provider FKs and Python schemas. SQL-only features remain represented in the authoritative SQL, not falsely omitted because a TS mapping does not express them.
-- The required CI Postgres 17 job bootstraps the correct baseline/fixtures and passes Drizzle catalog/type/permission/constraint/rollback tests. Missing DB prerequisites fail clearly; no silent skip, SQLite substitute or mock-only proof.
-- Supertest proves health, normalized catalog, invalid queries, DB/malformed-data errors, safe response details and unknown API 404. Compare fixture DTO/order/error behavior with the preconversion baseline; preserve code lookup semantics without an N+1 query.
-- Native-type tests assert real SQL semantics under Drizzle, including large bigint values beyond the safe JS integer range where relevant, nullable genres, exact calendar/local-clock values and numeric conversions. Changing the test to assert only “some object returned” is insufficient.
-- Hosted DEV/Preview verifies a real Drizzle runtime query using restricted DEV credentials; record deployment/source commit, endpoint status/content type and a recognizable fictional fixture. Preview build success alone is not runtime proof. Verify unknown API URLs do not return SPA HTML and existing SPA/OG routes still resolve.
-- Search active code/scripts/config/package graph for Prisma leftovers, generated imports, missing scripts and stale URL options. Historical handoffs/plan discussion may mention Prisma; classify those deliberately instead of demanding a meaningless zero-word search.
-- Run appropriate existing Python compile/tests where shared SQL/bootstrap/CI or current branch changes warrant it. Do not scrape, run watcher Git-sync behavior or send email. If no Python implementation changed, retain rather than rebuild its architecture.
-- Handoff/ledger and PR metadata match the final Drizzle implementation. Report any external access/Preview limitation explicitly and distinguish code completion from operational verification; do not call an untested connection “verified.”
-
-### PR 2 handoff must contain
-
-Final branch/commit/PR URL; what foundation was retained; exact Prisma-to-Drizzle files and package cleanup; Drizzle/pg versions, DB factory/close/transaction types and mapping conventions; all-table inventory; first endpoint/interface/envelope; final active baseline version versus DEV ledger and historical cutoff; future migration replay method; exact root/server test/build commands; DEV identity and runtime/migration role-variable names; final CI and Preview commit/evidence; known production config/ledger steps before API-consuming deployment. Record F25–F30 and recheck F01/F02. State plainly that PR 3 starts on Drizzle and must not repeat the conversion.
-
-## 11. PR 3 — public API reads, frontend transport, and social previews
-
-Suggested branch: `codex/backend-03-public-data-api`.
-
-### Objective and prerequisite
-
-PRs 1–2 are merged, including PR 2's completed Prisma-to-Drizzle conversion. The API, actual Drizzle mappings, hosted dev, baseline, and CI Postgres exist. Verify PR 2's Drizzle gate and final handoff; if the base still uses Prisma, that prerequisite is missing and must be resolved rather than quietly postponing conversion into this stage. Move all public read consumers behind normalized API/service contracts, preserving the existing product and loading/cache semantics. Introduce meaningful Playwright coverage.
-
-Protected preferences, subscription lists, and admin membership stay with PR 4; do not turn them into public endpoints to fit this PR.
-
-### Read first
-
-PR 2 final Drizzle factory/schema/transaction/error conventions, contracts/adapter/handoff and active forward SQL migration path; all of web `src/data/movieCatalog.ts`, `theaters.ts`, public availability fetches in `ticketAlerts.ts`; relevant schemas; `App.tsx`, movie/scroller/showtime/map/search consumers; both OG handlers and preview data/format/image/assets; date/filter/link helpers; existing cache/hydration and preview tests; Vercel rewrites.
-
-### Implementation sequence
-
-1. Verify the merged PR 2 Drizzle foundation, root/CI commands and baseline/DEV alignment. Add explicit forward SQL grants/policies for the additional public tables this PR reads; the runtime currently has only the first-slice permissions. Prove the queries using that restricted runtime login. Enumerate every public `.from(...)`/Supabase transport call in browser and OG code. Assign each caller to a feature endpoint or shared server service. Keep protected calls marked for PR 4.
-2. Complete movies/coming-soon repository mappings and service contracts. Preserve ordering, normalized ratings/images/trailers/alternatives, pending enrichment filtering, and empty/error distinctions.
-3. Supply permanent codes without an N+1 query per movie. The default is a bounded batched code lookup accompanying the catalog response, with the client deriving its code index from that same response. Do not invent a database FK across mismatched integer/bigint IDs. Use explicit safe joins/casts or bounded batched lookup that preserves precision and permanent codes.
-4. Explicitly decide how code lookup failure is represented. Preserve usable catalog data and a completed failure/readiness state rather than leaving the page waiting forever. If simplifying the old asynchronous code hydration, replace its obsolete tests with behavior tests and compare request count/loading behavior. Do not keep a browser query to the `movieCodes` table as a hidden fallback.
-5. Implement public showtime range queries with normalized wire records, full requested coverage, deterministic ordering, optional movie ID, sensible range bounds, and correct date/time serialization. Keep broad/targeted/incremental cache orchestration in TanStack Query, not as mutable per-user state inside Express.
-6. Implement theater/city data using actual key/FK relationships. Preserve aliases, neighbors, map coordinates/zoom, theater links and ordering. Gracefully distinguish invalid nullable DB metadata from a lost join rather than manufacturing coordinates or hiding a failed query as no theaters.
-7. Implement public ticket-availability reads independently from the city-browser cache. Preserve all-city candidates, English/Hebrew valid-link fallback, expiry and preferred-city selection. Do not accidentally narrow it to the currently selected city or the first page of showtimes.
-8. Add a small typed fetch boundary using shared Zod response schemas and `AbortSignal`; avoid adding Axios or generated clients without an actual need. Keep relative `/api/v1` paths and frontend query/mutation error behavior coherent.
-9. Split the old catalog file by ownership. Replace transports and database normalization with API consumers. Preserve query key dimensions, immutable merges, scoped range replacement, cancellation, targeted prefetch, arbitrary-date jumps, local search and app-state ownership.
-10. Migrate OG data lookup to server movie/showtime services. Keep public OG URLs and Vercel wrappers stable. Prefer direct service calls over HTTP calls back to the same deployment. Keep server rendering and Sharp/native dependencies out of browser/shared packages.
-11. If moving OG implementation into the server workspace, update every asset path, `index.html` lookup, dependency declaration, TypeScript build scope and Vercel `includeFiles` setting at the same time. Test built output from the deployed-style working directory.
-12. Verify API route precedence against short codes, encoded URLs, `/reset-password`, normal SPA routes, and unknown API requests. Preserve HTML/JPEG fallback behavior and cache distinctions.
-13. Add Playwright setup: deterministic fixture frontend tests where useful, real app/API/Postgres browser runs in CI, and hosted dev/preview smoke steps. Stub cinema/email endpoints and map tiles/remote posters as appropriate so availability of a third-party image server is not a basic application-test prerequisite.
-14. Remove unused public Supabase row code/fallbacks/imports after all callers are migrated. Keep temporary Supabase auth and protected application-table access visible for PR 4. Update docs and ledger.
-
-### Required product behavior
-
-- Main catalogs still show movie information, grid/scroller views, local search rankings, artwork/trailers/ratings, and coming-soon date ordering.
-- Initial requests do not fetch all cities and 180 days of showtimes. Preserve one-day initial city loading and existing incremental/targeted behavior.
-- A movie-targeted fetch never marks the entire city/date window broadly loaded. A future jump does not falsely cover preceding dates. Refreshing a scope removes stale/deleted rows.
-- Unknown or failed code resolution has a proper page state; plain/encoded codes remain case-sensitive. Now-playing versus coming-soon route preference remains deterministic.
-- Dates are real ISO calendar dates; time serialization is independent of server timezone. Server current time is evaluated per request or provided through an injected clock, not a module-level fixed instant.
-- The cutoff is 01:05 Jerusalem time with fifteen-minute showtime grace and correct post-midnight carryover/DST behavior. Browser/OG/Python link semantics continue to agree.
-- The 62-day encoded-link window, filter masks, city fallback, relative versus absolute share paths, and invalid-link behavior remain coherent.
-- Normalized API records can have a stable application name even if physical columns are snake_case. Do not make every UI component a Drizzle consumer.
-- Use indexed/batched reads. Avoid per-movie sequential lookups and duplicated full datasets in the response. Preserve the eager bundle budget.
-
-### Required evidence and acceptance gate
-
-1. The merged predecessor already uses Drizzle. All added public-table grants/policies are explicit forward SQL, replay in CI, and queries succeed as the real runtime role. All-table schema mappings still agree with SQL after any changes.
-2. Unit/contract tests cover all touched mappers, codes, native date/time/bigint conversion and malformed row behavior. Existing codec/date/property-style tests still pass against shared helpers.
-3. Supertest plus real DB tests cover both catalogs, direct lookup if added, range boundaries/optional ID/invalid input, more than one page of listings, city joins, public availability URL fallback, and DB error behavior.
-4. Cache tests prove existing broad/targeted readiness, replacement on refetch, deduplication, cancellation, and movie-code failure/readiness behavior through the new transport.
-5. Playwright runs catalog/search, grid/detail, city/date/filter browsing, additional range loading, one direct short link, one encoded link, and an appropriate small/mobile viewport. Focus on changed data/navigation, not brittle pixel-perfect animation timing.
-6. OG tests cover valid now-playing/coming-soon previews, expired/filter-selected listings, unknown/invalid links, escaped metadata, SPA fallback HTML, actual JPEG output, asset packaging, and guarded remote-image fallbacks. External URL fetches use fixtures for automated tests.
-7. Build/package tests prove both static assets and server handlers resolve from a clean build. A hosted dev preview smoke verifies the intended URL paths, HTML/JPEG content types, image/fonts and source of DEV data; no API route returns SPA fallback HTML.
-8. Compare request counts and representative payload sizes against the old loading path. Record observed timings if measured on comparable inputs; do not claim an API layer inherently makes the app faster. Avoid a new sequential HTTP hop in share-data access.
-9. All existing frontend checks, server/contracts checks, integration and browser CI gates pass. Public Supabase browser/OG database transport is gone, with remaining private calls explicitly assigned to PR 4.
-
-### PR 3 handoff must contain
-
-Final public endpoints/DTOs and error contracts; catalog/code-hydration decision; client query/cache changes; OG implementation/dependency/asset locations; Vercel rewrite verification; Playwright fixture/real-backend commands and evidence; representative payload/request observations; remaining direct private Supabase calls. Update F03–F12/F19/F26/F28 with actual test or preview evidence.
-
-## 12. PR 4 — protected application API, transactional admin edits, and persistence
-
-Suggested branch: `codex/backend-04-protected-workflows`.
-
-### Objective and prerequisite
-
-PRs 1–3 are merged. Public data already uses Express. Move every protected application-table read/write to server services while continuing to use Supabase Auth sessions temporarily. Establish provider-neutral identity so PR 5 is an auth replacement rather than another feature rewrite.
-
-### Read first
-
-PR 3 transport/contracts and remaining private-call list; current Supabase identity/session behavior; full preferences store and definitions/default builder/save policy; account/signup UI; `adminStatus.ts`, current admin correction branches and invalidation rules; ticket subscription schemas/service/UI; actual constraints/FKs/policies; Python `MovieCodes`, correction maps, realtime watcher and targeted update stages.
-
-### Implementation sequence
-
-1. Enumerate protected operations, including hidden writes during preference initialization/default repair and protected reads. Current browser `.from(...)` calls must all be accounted for by the end of this PR.
-2. Add a narrow server identity adapter that verifies Supabase access tokens using supported methods and returns an application-owned identity type. Never authorize from a decoded-but-unverified token, caller-provided user ID, or editable metadata. Feature services depend on the neutral identity/authorization interface.
-3. Update the frontend API transport to attach the current Supabase access token on protected requests only. Preserve refresh/logout behavior and prevent stale requests from writing results into a different user's cache. Keep Supabase SDK use constrained to its temporary auth responsibility.
-4. Implement own-account/admin projection, preferences read/initialize/partial-update, subscription list/create/cancel, and admin correction endpoints. Add `no-store` to private responses and authorization before privileged repository work.
-5. Move preference default creation and missing-column repair into the service. Make initialization idempotent and preserve existing nonempty settings. Use a clear explicit initialization operation or documented service-side read-repair; do not hide a generic browser upsert behind the old store.
-6. Keep the frontend's cohesive guest/theme/optimistic/coalescing/rollback protocol until there is a concrete reason to refactor it as a whole. Change its persistence boundary and neutral user type, not its source of truth piecemeal. Ensure per-field PATCH requests cannot clobber independently changed values.
-7. Move authoritative subscription availability checking and duplicate handling into the service. Preserve all-city ticket validity, account-only one-shot semantics, existing sent-alert records, and cancellation behavior. Return only intended subscription summaries.
-8. Implement admin membership checks on the server. Use a narrow correction command, never an arbitrary table-update body. Apply persistent `tableFixes`, source catalog changes, and affected showtime reassignment/deletion in a real Drizzle transaction.
-9. Cover both correction branches: target already exists (merge), and new target (clear/re-enrich). Preserve source-aware now-playing/coming-soon behavior and realtime `solo_update` triggering. Keep metadata enrichment external to the HTTP response; no Selenium/TMDb crawl inside the transaction.
-10. Reconcile current client behavior with real constraints. In particular the audited client clears coming-soon `release_date` to null, while observed `finalSoons.release_date` is NOT NULL. Fix this deliberately, preferably retaining the existing date while the row is flagged/hidden pending enrichment, rather than copying a known invalid write. Do not silently weaken the database constraint.
-11. Reinspect `finalSoons` movie-ID uniqueness before selecting/updating a target. Use its real UUID PK for row-specific writes. If duplicate movie-ID targets are possible, define/test deterministic selection or a conflict result; do not use an arbitrary un-ordered `limit(1)` or update all matches accidentally. Do not add uniqueness merely to mimic the old Prisma API.
-12. Preserve TanStack invalidation rules: now-playing correction invalidates its catalog, resets showtimes and invalidates public ticket availability; coming-soon correction affects its catalog; private subscription lists are not a generic admin-edit invalidation target.
-13. Remove direct browser application-table access and obsolete transport tests. Keep Supabase signup/login/logout/recovery APIs functioning until PR 5, with signup default persistence now calling the API.
-14. Prepare/apply explicit forward DEV grant/policy changes for protected tables and the migrated browser access model. The restricted runtime role is not automatically authorized by a browser Supabase token; enforce account/admin predicates in services and use the intended SQL permissions. Preserve Python service-role Data API and realtime functionality. Inspect realtime publications and replica identity before assuming a direct Drizzle update will reach the existing watcher. Do not disable Realtime or the Data API globally.
-15. Run the existing Python updater/repository code against controlled fixtures or DEV only as needed to prove the admin signal contract. Tests must not trigger Git sync/push or launch a real Selenium job. Document the production job pause/restart sequence only if an actual schema operation requires one.
+6. Generate/names new SQL migration files using the current Supabase CLI convention (`--help` first); do not require Docker or nati…13364 tokens truncated… pause/restart sequence only if an actual schema operation requires one.
 
 ### Preference and auth-transition details
 
@@ -819,4 +488,4 @@ Verify version-sensitive behavior when implementing rather than pasting examples
 
 ## 19. Start instruction for the implementation chat
 
-Execute only the PR number Jeremy selected. Current starting instruction is to FINISH THE EXISTING PR 2, adding the Prisma-to-Drizzle conversion as its final implementation phase before final push/merge readiness. Preserve its useful foundation and latest local baseline/DEV updates. For later PRs, require the merged Drizzle predecessor. Begin by stating the selected scope, inspecting the actual checkout/live PR/predecessor handoff, and identifying the first concrete slice. Implement and verify it through the selected PR's acceptance gate. Adapt to evidence, preserve existing feature contracts, and leave a clear handoff rather than blindly following stale paths or declaring the entire overhaul complete early.
+Execute only the PR number Jeremy selected. **Current stage: PR 3**, with PR 1 and PR 2 already merged to `main`. Start from the actual current checkout and the PR 3 handoff, verify the merged Drizzle predecessor, and implement/verify only PR 3. Keep PR 3 unmerged until refreshed CI, authenticated Preview acceptance, and the documented Production preparation gate are complete. Do not request reviewers. Adapt to evidence, preserve existing feature contracts, and leave a clear handoff rather than blindly following stale historical snapshots or declaring the entire overhaul complete early.

@@ -1,8 +1,10 @@
-# PR 2 handoff — Express, Drizzle, baseline, and PostgreSQL foundation
+# PR 2 handoff — Express, Drizzle, baseline, and PostgreSQL foundation (historical)
+
+> **Status update (2026-10-16):** PR 2 (#167) has merged into `main` as `c10cd50f2b98992edbaeb9f49b903fe827b81d94`. This document records its implementation and verification evidence; the branch/base details below are historical snapshots. PR 3 is the active stage. See [the PR 3 handoff](pr-3-handoff.md) for current state, merge gates, and remaining owner steps.
 
 ## Scope and current PR
 
-- **PR:** [#167](https://github.com/jeremyjacob101/Kartiseret/pull/167), kept as a draft; PR title is updated to describe Express, Drizzle, and PostgreSQL.
+- **PR:** [#167](https://github.com/jeremyjacob101/Kartiseret/pull/167), merged into `main` on 2026-10-16; its final checks passed.
 - **Implementation branch:** `codex/backend-02-api-prisma-foundation` (kept for continuity even though the old branch name mentions Prisma).
 - **Base:** current `main` through `f5faf042403747122fe0b159b2912246fd1fce38` (PR #168). PR 2 now includes that commit through a normal merge (`09089e0de8d5c310b0036a73bdfa8204048759d5`), preserving PR 2's intermediate history without force-pushing. PR #168's delta changes README/Python dataflow files; it has no overlap with PR 2's server, database, SQL or Vercel files.
 - **Scope:** Express/server foundation, the SQL-only baseline and fictional fixtures, hosted DEV bootstrap, PostgreSQL 17 CI, one public catalog read, Vercel/Vite adapters, and the final Prisma-to-Drizzle conversion. Public browser transport, authentication, preferences, subscriptions, admin operations, production DDL, and the later PR stages remain out of scope.

@@ -34,8 +34,10 @@ if (
 
 const runtimeDatabase = createDatabase(runtimeConnectionString, { poolMax: 2 });
 const adminDatabase = createDatabase(connectionString, { poolMax: 2 });
+const runtimeRepository = new DrizzleCatalogRepository(runtimeDatabase.db);
 const app = createApp({
-  catalogRepository: new DrizzleCatalogRepository(runtimeDatabase.db),
+  catalogRepository: runtimeRepository,
+  publicDataRepository: runtimeRepository,
 });
 
 const expectedTableNames = [
@@ -281,6 +283,136 @@ describe("PostgreSQL 17 integration", () => {
     expect(JSON.stringify(response.body)).not.toContain("BigInt");
   });
 
+  it("reads coming-soon rows and permanent codes using the runtime role", async () => {
+    const response = await request(app).get("/api/v1/catalog/coming-soon");
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({
+      mode: "comingSoon",
+      movieCodesStatus: "ready",
+    });
+    expect(response.body.data.movies).toContainEqual(
+      expect.objectContaining({
+        tmdbId: "9100011",
+        movieCode: "D11",
+        title: "Dev Coming Soon",
+        releaseDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      }),
+    );
+    expect(
+      response.body.data.movies.some(
+        (movie: { tmdbId: string }) => movie.tmdbId === "9100002",
+      ),
+    ).toBe(false);
+  });
+
+  it("uses full date bounds, optional movie filtering, and preserves local showtime strings", async () => {
+    const { rows } = await adminDatabase.pool.query<{ date: string }>(
+      "SELECT (CURRENT_DATE + 14)::text AS date",
+    );
+    const date = rows[0]!.date;
+    const response = await request(app).get(
+      `/api/v1/showtimes?city=Tel%20Aviv&startDate=${date}&endDate=${date}`,
+    );
+    expect(response.status).toBe(200);
+    expect(response.body.data.showtimes).toEqual([
+      expect.objectContaining({
+        tmdbId: "9100001",
+        screeningCity: "Tel Aviv",
+        dateOfShowing: date,
+        cinema: "Development Cinema Tel Aviv",
+        showtime: "19:30",
+      }),
+    ]);
+
+    const unmatchedMovieResponse = await request(app).get(
+      `/api/v1/showtimes?city=Tel%20Aviv&startDate=${date}&endDate=${date}&tmdbId=9100003`,
+    );
+    expect(unmatchedMovieResponse.status).toBe(200);
+    expect(unmatchedMovieResponse.body.data.showtimes).toEqual([]);
+  });
+
+  it("returns every city's ticket availability and actual theater-city joins", async () => {
+    const { rows } = await adminDatabase.pool.query<{ date: string }>(
+      "SELECT (CURRENT_DATE + 14)::text AS date",
+    );
+    const date = rows[0]!.date;
+    const availability = await request(app).get(
+      `/api/v1/ticket-availability?tmdbId=9100001&fromDate=${date}`,
+    );
+    expect(availability.status).toBe(200);
+    expect(
+      new Set(
+        availability.body.data.showtimes.map(
+          (row: { screeningCity: string }) => row.screeningCity,
+        ),
+      ),
+    ).toEqual(new Set(["Jerusalem", "Tel Aviv"]));
+    expect(availability.body.data.showtimes).toContainEqual(
+      expect.objectContaining({
+        screeningCity: "Jerusalem",
+        englishHref: "https://example.invalid/dev-screening-en",
+        hebrewHref: "https://example.invalid/dev-screening-he",
+      }),
+    );
+
+    const theaterResponse = await request(app).get("/api/v1/theaters");
+    expect(theaterResponse.status).toBe(200);
+    const jerusalem = theaterResponse.body.data.cities.find(
+      (city: { name: string }) => city.name === "Jerusalem",
+    );
+    expect(jerusalem).toMatchObject({
+      altSpellings: expect.arrayContaining(["Yerushalayim"]),
+      latitude: 31.7683,
+      neighboringCities: ["Mevaseret Zion"],
+    });
+    expect(theaterResponse.body.data.theaters).toContainEqual(
+      expect.objectContaining({
+        city: expect.objectContaining({ name: "Jerusalem" }),
+        chain: "Development Cinema",
+        location: "dev-fixture:jerusalem:cinema",
+      }),
+    );
+  });
+
+  it("returns more than one thousand same-day showtimes without truncation", async () => {
+    const { rows } = await adminDatabase.pool.query<{ date: string }>(
+      "SELECT (CURRENT_DATE + 14)::text AS date",
+    );
+    const date = rows[0]!.date;
+    const fixtureRows = Array.from({ length: 1_001 }, (_, index) => ({
+      englishTitle: "Pagination Fixture",
+      screeningCity: "Tel Aviv",
+      dateOfShowing: date,
+      showtime: "21:00:00",
+      cinema: `PR3 Pagination ${String(index).padStart(4, "0")}`,
+      tmdbId: 9100001,
+    }));
+    const insertedRows = await adminDatabase.db
+      .insert(schema.finalShowtimes)
+      .values(fixtureRows)
+      .returning({ id: schema.finalShowtimes.id });
+
+    try {
+      const response = await request(app).get(
+        `/api/v1/showtimes?city=Tel%20Aviv&startDate=${date}&endDate=${date}&tmdbId=9100001`,
+      );
+      expect(response.status).toBe(200);
+      expect(response.body.data.showtimes).toHaveLength(1_002);
+      expect(
+        response.body.data.showtimes.filter((row: { cinema: string }) =>
+          row.cinema.startsWith("PR3 Pagination "),
+        ),
+      ).toHaveLength(1_001);
+    } finally {
+      await adminDatabase.db.delete(schema.finalShowtimes).where(
+        inArray(
+          schema.finalShowtimes.id,
+          insertedRows.map((row) => row.id),
+        ),
+      );
+    }
+  });
+
   it("keeps SQL NULLS LAST behavior after DTO popularity normalization", async () => {
     const insertedIds = [9199991, 9199992];
     await adminDatabase.db.insert(schema.finalMovies).values([
@@ -310,7 +442,7 @@ describe("PostgreSQL 17 integration", () => {
     }
   });
 
-  it("confirms the runtime login can read only the public catalog slice", async () => {
+  it("confirms the runtime login can read the public slice and no private app tables", async () => {
     const visible = await runtimeDatabase.db
       .select({
         tmdbId: schema.finalMovies.tmdbId,
@@ -326,7 +458,40 @@ describe("PostgreSQL 17 integration", () => {
       { tmdbId: 9100003, soloUpdate: false },
     ]);
     await expect(
+      runtimeDatabase.db
+        .select({ id: schema.finalSoons.id })
+        .from(schema.finalSoons)
+        .limit(1),
+    ).resolves.toBeDefined();
+    await expect(
+      runtimeDatabase.db
+        .select({ id: schema.finalShowtimes.id })
+        .from(schema.finalShowtimes)
+        .limit(1),
+    ).resolves.toBeDefined();
+    await expect(
+      runtimeDatabase.db
+        .select({ name: schema.cities.name })
+        .from(schema.cities)
+        .limit(1),
+    ).resolves.toBeDefined();
+    await expect(
+      runtimeDatabase.db
+        .select({ location: schema.theaters.location })
+        .from(schema.theaters)
+        .limit(1),
+    ).resolves.toBeDefined();
+    await expect(
       runtimeDatabase.db.select().from(schema.userPreferences).limit(1),
+    ).rejects.toThrow();
+    await expect(
+      runtimeDatabase.db
+        .select()
+        .from(schema.ticketAlertSubscriptions)
+        .limit(1),
+    ).rejects.toThrow();
+    await expect(
+      runtimeDatabase.db.select().from(schema.adminUsers).limit(1),
     ).rejects.toThrow();
   });
 

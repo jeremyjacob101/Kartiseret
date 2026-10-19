@@ -51,15 +51,16 @@ function createShowtimeRow(
   overrides: Partial<ShowtimeRow> = {},
 ): ShowtimeRow {
   return {
-    tmdb_id: "101",
-    screening_city: "Jerusalem",
-    date_of_showing: date,
+    tmdbId: "101",
+    screeningCity: "Jerusalem",
+    dateOfShowing: date,
     cinema: "Cinema City",
     showtime: "20:00",
-    english_href: "https://example.test/tickets",
-    screening_tech: "2D",
-    screening_type: "Regular",
-    dub_language: null,
+    englishHref: "https://example.test/tickets",
+    hebrewHref: null,
+    screeningTech: "2D",
+    screeningType: "Regular",
+    dubLanguage: null,
     ...overrides,
   };
 }
@@ -184,7 +185,7 @@ describe("showtime city cache merging", () => {
       movies: [movie],
       rows: [
         createShowtimeRow(fixedAppDateString, {
-          english_href: "https://example.test/updated",
+          englishHref: "https://example.test/updated",
         }),
       ],
       scope: "broad",

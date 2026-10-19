@@ -44,7 +44,9 @@ VALUES
 ON CONFLICT (tmdb_id) DO NOTHING;
 
 INSERT INTO public."movieCodes" (tmdb_id, movie_code)
-VALUES (9100001, 'D01')
+VALUES
+  (9100001, 'D01'),
+  (9100011, 'D11')
 ON CONFLICT (tmdb_id) DO NOTHING;
 
 INSERT INTO public."finalShowtimes" (
@@ -56,6 +58,20 @@ VALUES (
   'Dev Catalog Film', 'en', 'Tel Aviv', (CURRENT_DATE + 14)::date,
   '19:30'::time, 'Development Cinema Tel Aviv',
   'https://example.invalid/dev-screening', 9100001
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public."finalShowtimes" (
+  id, english_title, original_language, screening_city, date_of_showing, showtime,
+  cinema, english_href, hebrew_href, screening_tech, screening_type, dub_language, tmdb_id
+)
+VALUES (
+  '00000000-0000-4000-8000-000000009007',
+  'Dev Catalog Film', 'en', 'Jerusalem', (CURRENT_DATE + 14)::date,
+  '20:15'::time, 'Development Cinema Jerusalem',
+  'https://example.invalid/dev-screening-en',
+  'https://example.invalid/dev-screening-he',
+  '2D', 'Regular', NULL, 9100001
 )
 ON CONFLICT (id) DO NOTHING;
 

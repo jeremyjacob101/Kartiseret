@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toNowPlayingMovie } from "./movie-mapper.js";
+import { toComingSoonMovie, toNowPlayingMovie } from "./movie-mapper.js";
 
 const record = {
   tmdbId: 9100001,
@@ -76,5 +76,56 @@ describe("toNowPlayingMovie", () => {
     expect(() => toNowPlayingMovie({ ...record, soloUpdate: true })).toThrow(
       "pending solo-update",
     );
+  });
+});
+
+describe("toComingSoonMovie", () => {
+  const comingSoonRecord = {
+    tmdbId: 9100003,
+    englishTitle: ' " Coming Film " ',
+    releaseYear: 0,
+    releaseDate: "2027-04-12",
+    genres: null,
+    enPoster: null,
+    backdrop: "/coming-backdrop.jpg",
+    enTrailer: " trailer-key ",
+    runtime: 101,
+    popularity: null,
+    altOptions: [
+      { tmdb: "9100004", title: "Other Film", year: "2028", poster_url: null },
+    ],
+    soloUpdate: false,
+  };
+
+  it("normalizes future movie data and falls back from a zero release year", () => {
+    expect(toComingSoonMovie(comingSoonRecord, "So1")).toMatchObject({
+      tmdbId: "9100003",
+      movieCode: "So1",
+      title: "Coming Film",
+      year: 2027,
+      releaseDate: "2027-04-12",
+      genres: [],
+      imageSrc: "/coming-backdrop.jpg",
+      backdropSrc: "/coming-backdrop.jpg",
+      trailerKey: "trailer-key",
+      popularity: 0,
+      altOptions: [
+        {
+          tmdbId: "9100004",
+          title: "Other Film",
+          year: 2028,
+          posterUrl: null,
+        },
+      ],
+    });
+  });
+
+  it("rejects pending and malformed coming-soon rows", () => {
+    expect(() =>
+      toComingSoonMovie({ ...comingSoonRecord, soloUpdate: true }),
+    ).toThrow("pending solo-update");
+    expect(() =>
+      toComingSoonMovie({ ...comingSoonRecord, releaseDate: "not-a-date" }),
+    ).toThrow();
   });
 });
