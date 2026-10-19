@@ -68,6 +68,7 @@ The Browser plugin was unavailable. Playwright used the existing system Chrome 1
 5. Browser acceptance exposed that `/user` redirected before session restoration on refresh. Its guard now waits for the auth/preferences bootstrap before deciding a visitor is signed out; the existing redirect still applies once loading finishes.
 6. Restored-session route gating and tests now wait for auth bootstrap on `/user` refresh, and the hosted browser test scopes the account menu to the page header because the settings page also has a Quick actions menu.
 7. Existing local PR3 documentation edits were preserved in a named Git stash before branching from fetched main; they were not mixed into PR4 implementation.
+8. A final CI rerun exposed concurrent test-file interference: private fixtures appeared in the public catalog ordering assertion while the suites shared one database. Integration files now run serially; intentional concurrent requests within each private test still exercise duplicate/identity races. Fixture cleanup remains in place. No application query was weakened to hide the failure.
 
 ## Production rollout (not performed)
 
