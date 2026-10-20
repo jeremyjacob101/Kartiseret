@@ -1,6 +1,7 @@
 import { Router, type ErrorRequestHandler } from "express";
 import { z } from "zod";
 import {
+  EXPECTED_ACCOUNT_HEADER,
   correctionSchema,
   initializePreferencesSchema,
   preferencePatchSchema,
@@ -48,7 +49,16 @@ export function createProtectedRouter(
         return;
       }
       try {
-        response.locals.identity = await verifier.verify(cookie);
+        const verified = await verifier.verify(cookie);
+        const expectedAccount = request.get(EXPECTED_ACCOUNT_HEADER);
+        if (expectedAccount && expectedAccount !== verified.id) {
+          throw new HttpError(
+            409,
+            "account_changed",
+            "Your account changed. Reload and try again.",
+          );
+        }
+        response.locals.identity = verified;
         next();
       } catch (error) {
         next(error);

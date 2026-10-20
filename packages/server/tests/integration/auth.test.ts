@@ -226,6 +226,16 @@ describe.sequential(
         302,
       );
       const other = await login(otherEmail);
+      const otherId = (
+        await request(app).get("/api/v1/account").set("Cookie", other)
+      ).body.data.user.id;
+      const crossed = await request(app)
+        .get("/api/v1/preferences")
+        .set("Cookie", other)
+        .set("X-Kartiseret-Account-Id", userId);
+      expect(crossed.status).toBe(409);
+      expect(crossed.body.data).toBeNull();
+      expect(otherId).not.toBe(userId);
       const changed = await request(app)
         .patch("/api/v1/preferences")
         .set("Cookie", other)

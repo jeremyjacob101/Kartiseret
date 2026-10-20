@@ -6,6 +6,7 @@ import {
 } from "./preferences.js";
 import { isoDateStringSchema, tmdbIdSchema } from "./runtime.js";
 
+export const EXPECTED_ACCOUNT_HEADER = "X-Kartiseret-Account-Id";
 export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_MAX_LENGTH = 128;
 export const accountPasswordSchema = z

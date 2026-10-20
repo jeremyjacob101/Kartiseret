@@ -1,3 +1,4 @@
+import { EXPECTED_ACCOUNT_HEADER } from "@kartiseret/contracts/private-data";
 import { ApiRequestError, requestApiResponse } from "./apiClient";
 import { getAuthClient } from "../lib/authClient";
 import { queryClient } from "../lib/queryClient";
@@ -30,6 +31,14 @@ export async function privateApiResponse<Schema extends z.ZodType>(
 ): Promise<z.output<Schema>> {
   const startedGeneration = identityGeneration;
   const { data, error } = await getAuthClient().getSession();
+  if (error)
+    throw new ApiRequestError(
+      error.status === 401 ? 401 : 503,
+      error.status === 401 ? "unauthorized" : "auth_unavailable",
+      error.status === 401
+        ? "Please log in again."
+        : "Account verification is temporarily unavailable.",
+    );
   const user = data?.user;
   if (error || !user || (options.userId && user.id !== options.userId)) {
     throw new ApiRequestError(
@@ -48,6 +57,7 @@ export async function privateApiResponse<Schema extends z.ZodType>(
     credentials: "same-origin",
     signal: options.signal,
     headers: {
+      [EXPECTED_ACCOUNT_HEADER]: user.id,
       ...(options.body !== undefined
         ? { "Content-Type": "application/json" }
         : {}),

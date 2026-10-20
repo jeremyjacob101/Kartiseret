@@ -83,6 +83,16 @@ describe("protected HTTP contracts", () => {
       ).status,
     ).toBe(400);
   });
+  it("rejects an account expectation that no longer matches the cookie identity", async () => {
+    const { app, workflows } = setup();
+    const result = await request(app)
+      .get("/api/v1/account")
+      .set("Cookie", "valid")
+      .set("X-Kartiseret-Account-Id", "00000000-0000-4000-8000-000000000002");
+    expect(result.status).toBe(409);
+    expect(result.body.error.code).toBe("account_changed");
+    expect(workflows.account).not.toHaveBeenCalled();
+  });
   it.each([
     { userId: id, siteColor: "#123456" },
     {},

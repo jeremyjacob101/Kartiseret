@@ -39,7 +39,10 @@ describe("private request identity and cache ownership", () => {
       expect.objectContaining({
         cache: "no-store",
         credentials: "same-origin",
-        headers: { Accept: "application/json" },
+        headers: {
+          Accept: "application/json",
+          "X-Kartiseret-Account-Id": alice,
+        },
       }),
     );
     await expect(
@@ -48,6 +51,15 @@ describe("private request identity and cache ownership", () => {
       }),
     ).rejects.toMatchObject({ status: 401 });
     expect(transport).toHaveBeenCalledTimes(1);
+  });
+  it("reports unavailable session verification without turning it into a login error", async () => {
+    getSession.mockResolvedValueOnce({ data: null, error: { status: 503 } });
+    const transport = vi.fn();
+    vi.stubGlobal("fetch", transport);
+    await expect(
+      boundary.privateApiResponse("/api/v1/account", z.unknown()),
+    ).rejects.toMatchObject({ status: 503, code: "auth_unavailable" });
+    expect(transport).not.toHaveBeenCalled();
   });
   it("allows the expected signup account to activate while its session is being read", async () => {
     boundary.privateIdentityChanged(null);
