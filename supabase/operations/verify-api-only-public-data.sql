@@ -62,3 +62,33 @@ SELECT expected_access.table_name,
 FROM expected_access
 JOIN pg_class relation ON relation.oid = to_regclass(format('public.%I', expected_access.table_name))
 ORDER BY expected_access.table_name;
+
+-- Expected: zero. This covers the postgres defaults used by the Dashboard's
+-- automatic exposure switch, without changing Supabase-managed role defaults.
+SELECT count(*) AS default_data_api_grants_remaining
+FROM pg_default_acl defaults
+JOIN pg_namespace namespace ON namespace.oid = defaults.defaclnamespace
+JOIN pg_roles owner_role ON owner_role.oid = defaults.defaclrole
+CROSS JOIN LATERAL aclexplode(defaults.defaclacl) privilege
+JOIN pg_roles grantee ON grantee.oid = privilege.grantee
+WHERE namespace.nspname = 'public'
+  AND owner_role.rolname = 'postgres'
+  AND defaults.defaclobjtype IN ('r', 'f', 'S')
+  AND grantee.rolname IN ('anon', 'authenticated', 'service_role');
+
+-- The concurrent dataflow checkpoint migration remains service-only.
+-- Expected: two rows, RLS true, browser/runtime SELECT false, worker CRUD true.
+SELECT relation.relname AS table_name,
+       relation.relrowsecurity AS rls_enabled,
+       has_table_privilege('anon', relation.oid, 'SELECT') AS anon_select,
+       has_table_privilege('authenticated', relation.oid, 'SELECT') AS authenticated_select,
+       has_table_privilege('kartiseret_api', relation.oid, 'SELECT') AS api_select,
+       has_table_privilege('service_role', relation.oid, 'SELECT')
+         AND has_table_privilege('service_role', relation.oid, 'INSERT')
+         AND has_table_privilege('service_role', relation.oid, 'UPDATE')
+         AND has_table_privilege('service_role', relation.oid, 'DELETE') AS worker_crud
+FROM pg_class relation
+JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+WHERE namespace.nspname = 'public'
+  AND relation.relname IN ('pipeline_scrape_snapshots', 'pipeline_publication_checkpoints')
+ORDER BY relation.relname;
