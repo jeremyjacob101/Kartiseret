@@ -2,7 +2,7 @@
 
 ## Implementation and verification status
 
-Regular [PR #172](https://github.com/jeremyjacob101/Kartiseret/pull/172), branch `codex/backend-05-better-auth`, starts from current main after PR4. The [current PR checks](https://github.com/jeremyjacob101/Kartiseret/pull/172/checks) cover the final head. Production has not been changed by PR5. Supabase Auth is still the deployed Production provider until the coordinated cutover.
+Regular [PR #172](https://github.com/jeremyjacob101/Kartiseret/pull/172), branch `codex/backend-05-better-auth`, merged into `main` on 2026-10-20 as `a6d0cf9e6c845ae4aa1e0b9e6100375a1e5b2c29` (final code head `8088eff7e0d01048d8afce683652b5d25bb7c169`). The merged code is deployed to Production in Ready deployment `dpl_ASJSugAxTpoLijG8ur8nzRYbqW53` at [seret.site](https://seret.site). Post-merge [Full checks #39402664758](https://github.com/jeremyjacob101/Kartiseret/actions/runs/39402664758) passed all three jobs. This handoff now records the completed Production cutover and its remaining interactive acceptance check.
 
 Local `npm run verify` passes: 492 frontend tests, 73 API/unit tests, lint/format/typechecks/builds, API/OG/assets/JPEG smoke, and 174.2 KiB eager gzip JS under the 210 KiB budget. Seven new Python recipient tests and the complete 71-test Python suite pass. Real PostgreSQL 17 integration (38 tests) and Chromium browser CI (7 scenarios) pass in [Full checks #39386951496](https://github.com/jeremyjacob101/Kartiseret/actions/runs/39386951496). The final account-switch and transient-session guards add regression coverage; current counts are 492 web and 73 API/unit tests. Code-head CI and hosted acceptance results are recorded below; subsequent cache-header/documentation completion is covered by the PR’s current checks. This is not a Production release receipt.
 
@@ -17,7 +17,7 @@ Local `npm run verify` passes: 492 frontend tests, 73 API/unit tests, lint/forma
 
 ## SQL and identity continuity
 
-`20261020065120_better_auth_accounts.sql` is the sole forward migration. It imports minimal canonical identity records from Supabase users, preserving UUIDs and verification state, with no passwords or sessions. Every referenced identity must have an email; migration failure rolls back rather than dropping orphaned rows. Existing preferences, membership and subscriptions retain their IDs and values. The three application FKs now reference app-owned users. Existing Supabase Auth tables remain intact.
+`20261020065120_better_auth_accounts.sql` is the sole forward migration. It imports minimal canonical identity records from Supabase users, preserving UUIDs and verification state, with no passwords or sessions. Every referenced identity must have an email; migration failure rolls back rather than dropping orphaned rows. Existing preferences, membership and subscriptions retain their IDs and values. The three application FKs now reference app-owned users. The managed Supabase Auth schema remains; after cutover, the two explicitly identified testing users were removed from both Auth providers while the admin identity was preserved.
 
 Application RLS reads transaction-local `app.user_id` through a narrowly granted function. Legacy provider-based application policies are removed. All five private auth tables have RLS and explicit server-only grants. Real integration tests rehearse upgrading from PR4 with existing preference, admin and sent-alert records; fresh bootstrap replays the complete SQL chain.
 
@@ -31,54 +31,30 @@ Better Auth verification links are signed, expiring library tokens. With automat
 
 `POST /api/internal/ticket-alert-recipients` requires a separate secret, validates 1–100 UUIDs, returns no-store and only ID/canonical email/verification state. Python uses existing requests with finite timeouts and redirects disabled; it rejects missing/unverified/malformed recipients and memoizes only successful lookups per dispatcher. Delivery IDs and Resend idempotency keys are retained across retries.
 
-Python configuration required at cutover:
+Python Production configuration (verified after cutover):
 
 - `TICKET_ALERT_RECIPIENT_API_URL`: explicit application origin (DEV must never default to Production).
 - `TICKET_ALERT_INTERNAL_API_SECRET`: matches that environment's Node `INTERNAL_API_SECRET`.
 - Keep existing `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, Resend settings and `SITE_URL` for worker tables, Realtime and email links.
 
-## Production gate — not performed
+## Production release — completed 2026-10-20
 
-Before merging, prepare environment-specific `BETTER_AUTH_SECRET`, `INTERNAL_API_SECRET`, `BETTER_AUTH_URL=https://seret.site`, exact `AUTH_TRUSTED_ORIGINS`, Resend key/from address, and the matching Python recipient configuration. Preview credentials must never be copied to Production.
+- **Deployment:** Production deployment `dpl_ASJSugAxTpoLijG8ur8nzRYbqW53` is Ready at [seret.site](https://seret.site), created from merged PR #172.
+- **Database:** a dry run listed only `20261020065120_better_auth_accounts.sql`; that migration was applied to Production and appears in the ledger. The baseline was not replayed. Signup through the retired Supabase Auth provider was disabled during cutover.
+- **Runtime configuration:** Production Vercel has `BETTER_AUTH_SECRET`, `INTERNAL_API_SECRET`, `BETTER_AUTH_URL`, `AUTH_TRUSTED_ORIGINS`, `RESEND_API_KEY`, `AUTH_EMAIL_FROM`, `DATABASE_URL` and `DATABASE_SSL_CA_CERT`. The Production URL and exact trusted origins were verified without revealing secrets. GitHub Actions has `TICKET_ALERT_RECIPIENT_API_URL=https://seret.site` and the matching internal secret. The existing worker Resend credential remains separate.
+- **Mail and account:** Jeremy confirmed receipt of the real password-reset email and completed the reset. The verified admin identity has a Better Auth credential. The last database check found zero active Better Auth sessions, so sign-in after reset still needs one interactive confirmation.
+- **Account cleanup:** exactly two non-admin testing users were removed from `app_auth.users` and from the retired Supabase Auth `auth.users`; their app-owned preference rows cascaded. The admin account and membership remain. No active test sessions, refresh tokens, MFA factors, storage objects, alert subscriptions, or orphaned app rows were found.
+- **Database postflight:** one verified admin remains in each auth identity store, all five `app_auth` tables have RLS, the expected application FKs and server-only grants remain, and no test-user preferences or alert subscriptions remain.
+- **Live smoke:** `/api/v1/health`, `/api/v1/catalog/now-playing`, `/api/v1/catalog/coming-soon`, and `/api/v1/theaters` returned HTTP 200; unknown API routes returned 404; the OG image returned 200; an unauthenticated internal recipient request returned 401 as required. `/api/auth/get-session` returned the expected unauthenticated `null` response.
+- **CI:** final-head PR checks #39390520035 passed, including 38 PostgreSQL 17 integration tests, seven Chromium scenarios and 71 Python tests. Post-merge main checks #39402664758 passed all three jobs. Local `npm run verify` also passed.
+- **Worker:** the `Run Main` workflow remains manual-only. No ticket-alert delivery job was run as a smoke test.
+- **Backup:** the access-restricted account/reference export remains outside the repository at `/private/tmp/kartiseret-pr5-account-backup.json` until sign-in/admin verification is complete; remove it after the agreed retention period.
 
-Use a short coordinated release window: back up wanted identity/reference tables; pause only the affected notification job; apply the reviewed migration without baseline replay; deploy the compatible app/config; establish the active account using reset mail; verify login/settings/alerts/admin and canonical recipient lookup; resume the job. Existing UUID/admin links should survive without manual remapping. Record the exact deployment and live verification before declaring release complete.
-
-The FK/policy transition means an old-app rollback after cutover requires deliberate identity/FK/policy reconciliation, particularly once new accounts exist. Do not blindly replay an old grant restore script or drop app-owned auth data. Previous PR4 Ready deployment: `dpl_9zYJpnMNd12iqLdgDc2MD9R4xrkp`.
+Old-application rollback after the FK/policy transition requires deliberate identity/FK/policy reconciliation. Do not replay an old grant restore script or drop app-owned auth data. The previous PR4 deployment is `dpl_9zYJpnMNd12iqLdgDc2MD9R4xrkp`.
 
 ## Scope carried forward
 
 This PR includes the previously authorized small PR4 follow-ups: correct oversized-body 413 handling, the mobile navigation wrapping adjustment and accurate PR4 release documentation. No production migration or credential change is included in those follow-ups.
-
-## Copyable Production cutover procedure (requires a coordinated release)
-
-Do not merge first and configure later. PR5 initialization requires the auth secrets, and the database transition changes the identity FKs/RLS used by private features. Keep the old signup flow unavailable during the short migration/deploy window so a provider-only account cannot be created after the identity copy. Pause the affected ticket-alert run while the endpoint and worker credential switch together; do not run the notification pipeline as a smoke test.
-
-The checked-in `Run Main` workflow is currently manual-only (its schedule is commented out). Before this window, confirm no affected run is active and avoid starting one until acceptance is complete: `gh run list --workflow run_main.yml --limit 5`. No permanent scheduler redesign or pipeline pause mechanism is added.
-
-1. Prepare **Production only** in Vercel: keep the existing restricted Production `DATABASE_URL` and CA; add independently generated `BETTER_AUTH_SECRET` and `INTERNAL_API_SECRET` (32+ random characters each), `BETTER_AUTH_URL=https://seret.site`, `AUTH_TRUSTED_ORIGINS=https://seret.site,https://www.seret.site`, `RESEND_API_KEY`, and a verified `AUTH_EMAIL_FROM`. Clear any Production test recipient allowlist. Never reuse Preview secrets. Use `npx vercel@latest env add NAME production` and enter each value interactively; use `env update` if the key already exists.
-2. Set GitHub Actions repository variable `TICKET_ALERT_RECIPIENT_API_URL=https://seret.site` and repository secret `TICKET_ALERT_INTERNAL_API_SECRET` to that Production `INTERNAL_API_SECRET`. The main worker workflow passes these explicitly. Other existing worker/service-role/Resend configuration stays in place.
-3. From a clean PR5 checkout, run the read-only preflight and save the reviewed reference export outside Git. Stop if any unresolved references, duplicate normalized emails or unexpected triggers appear. The baseline must not be replayed:
-
-```bash
-npx supabase@latest link --project-ref gsdrcyrduxbrxgsvhxvr
-npx supabase@latest db query --linked --project-ref gsdrcyrduxbrxgsvhxvr --file supabase/operations/pr5-preflight.sql
-umask 077
-npx supabase@latest db query --linked --project-ref gsdrcyrduxbrxgsvhxvr --file supabase/operations/pr5-export-account-references.sql > /private/tmp/kartiseret-pr5-account-backup.json
-npx supabase@latest db push --linked --project-ref gsdrcyrduxbrxgsvhxvr --dry-run --skip-vault
-```
-
-4. During the coordinated window, confirm the dry run contains **only** `20261020065120_better_auth_accounts.sql`, then apply it and merge/deploy the compatible PR5 build:
-
-```bash
-npx supabase@latest db push --linked --project-ref gsdrcyrduxbrxgsvhxvr --skip-vault --yes
-npx supabase@latest migration list --linked
-npx supabase@latest db query --linked --project-ref gsdrcyrduxbrxgsvhxvr --file supabase/operations/pr5-postflight.sql
-```
-
-5. Use **Forgot password** for the existing active email to establish its new credential. Verify actual delivery from the configured sender, signed-out reset, login, page refresh, preferences, alerts and retained admin access. New signups must verify their email. If a deliberately selected verified UUID needs membership, build the server and run `node packages/server/scripts/set-admin.mjs grant <trusted-user-uuid>` with a private operator `MIGRATION_DATABASE_URL` and CA; imported memberships need no new grant.
-6. Verify the internal endpoint with the separate server credential using a private script, check public/OG routes, record the Ready Production deployment and resume the paused job. Do not paste credentials/reset links into logs or PR comments. Remove the temporary personal-data export after the agreed retention period.
-
-This is a forward identity transition, not a zero-downtime dual-auth deployment. The transaction rolls back SQL failures, but reverting to an old deployment after successful cutover needs deliberate reconciliation. A full automatic downgrade, password/session import, optional auth plugins and a new migration engine are intentionally outside the plan.
 
 ## Final DEV and code acceptance
 
@@ -88,7 +64,7 @@ This is a forward identity transition, not a zero-downtime dual-auth deployment.
 - System Chrome proves deployed login/refresh, preference persistence, visible injected failed-save rollback, current-password change/revocation, logout, signed-out reset and consumed/invalid-token feedback. Zero browser page errors and zero direct browser table requests. Desktop settings and settled 390px mobile navigation are visually inspected; no horizontal overflow or wrapped Showtimes label.
 - Test mail is captured locally through the actual Better Auth API using DEV database/secret; captured links are followed through deployed callbacks. Preview's empty recipient allowlist blocks real mail. Live Resend delivery is **not** verified and remains part of Production setup/acceptance.
 - Additional hosted checks pass for a deliberately assigned verified DEV admin (safe no-op correction), actual Python canonical-recipient HTTP lookup and database session expiry. Read-only postflight confirms browser/worker auth-schema access is denied, runtime admin writes are denied, service-role alert table access remains, and Realtime retains `finalMovies`/`finalSoons`.
-- Disposable DEV users/private cascades are cleaned up. Production account data, credentials, schema, deployment and scheduled jobs were not changed by this work.
+- Disposable DEV users/private cascades were cleaned up during DEV acceptance. Production migration, deployment, account cleanup and mail acceptance are recorded in the Production release section above; the scheduled notification workflow was not run.
 
 ### Justified adaptations
 
