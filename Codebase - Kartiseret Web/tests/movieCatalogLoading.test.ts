@@ -3,14 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { queryClient } from "../src/lib/queryClient";
 import { QueryClient } from "@tanstack/react-query";
 
-const { getSupabaseBrowserClientMock } = vi.hoisted(() => ({
-  getSupabaseBrowserClientMock: vi.fn(),
-}));
-
-vi.mock("../src/lib/supabase", () => ({
-  getSupabaseBrowserClient: getSupabaseBrowserClientMock,
-}));
-
 function response(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,

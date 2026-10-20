@@ -3,11 +3,11 @@ import { useLocation, useNavigate } from "react-router";
 import { LogOut, User } from "lucide-react";
 import { z } from "zod";
 import "./UserMenu.css";
-import { DEFAULT_LOCATION, loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY } from "../prefs/definitions/locations";
-import { persistSignupPreferenceDefaults, useUserPreferencesStore } from "../stores/userPreferencesStore";
+import { DEFAULT_LOCATION, loadGuestLocation } from "../prefs/definitions/locations";
+import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { getPasswordResetRedirectUrl } from "../lib/authRoutes";
-import { getSupabaseBrowserClient } from "../lib/supabase";
 import { OPEN_AUTH_MENU_EVENT } from "../lib/authMenu";
+import { getAuthClient } from "../lib/authClient";
 
 type AuthMode = "login" | "signup" | "forgotPassword";
 type UserMenuProps = {
@@ -15,7 +15,7 @@ type UserMenuProps = {
   triggerTabIndex?: number;
 };
 
-const supabase = getSupabaseBrowserClient();
+const authClient = getAuthClient();
 const emailSchema = z
   .string()
   .trim()
@@ -33,14 +33,25 @@ export function UserMenu({
   const location = useLocation();
   const navigate = useNavigate();
   const user = useUserPreferencesStore((state) => state.user);
-  const [isOpen, setIsOpen] = useState(false);
+  const callback = new URLSearchParams(
+    location.pathname === "/" ? location.search : "",
+  );
+  const verified = callback.get("verified") === "1";
+  const verificationError = callback.has("error");
+  const [isOpen, setIsOpen] = useState(verified || verificationError);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authPending, setAuthPending] = useState(false);
   const [logoutPending, setLogoutPending] = useState(false);
-  const [authMessage, setAuthMessage] = useState<string | null>(null);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [authMessage, setAuthMessage] = useState<string | null>(
+    verified ? "Email confirmed. You can now log in." : null,
+  );
+  const [authError, setAuthError] = useState<string | null>(
+    verificationError
+      ? "This verification link is invalid or expired. Log in to request a new confirmation email."
+      : null,
+  );
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -106,15 +117,17 @@ export function UserMenu({
 
     if (authMode === "forgotPassword") {
       setAuthPending(true);
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        emailResult.data,
-        { redirectTo: getPasswordResetRedirectUrl() },
-      );
+      const { error } = await authClient.requestPasswordReset({
+        email: emailResult.data,
+        redirectTo: getPasswordResetRedirectUrl(),
+      });
 
       setAuthPending(false);
 
       if (error) {
-        setAuthError(error.message);
+        setAuthError(
+          error.message ?? "The account request could not be completed.",
+        );
         return;
       }
 
@@ -142,50 +155,29 @@ export function UserMenu({
 
     if (authMode === "signup") {
       const signupLocation = loadGuestLocation() ?? DEFAULT_LOCATION;
-      const { data, error } = await supabase.auth.signUp({
-        email: trimmedEmail,
-        password: validatedPassword,
-        options: {
-          data: {
-            [LOCATION_SIGNUP_METADATA_KEY]: signupLocation,
-          },
-        },
-      });
-
-      if (error) {
+      if (validatedPassword.length < 8 || validatedPassword.length > 128) {
         setAuthPending(false);
-        setAuthError(error.message);
+        setAuthError("Password must be between 8 and 128 characters.");
         return;
       }
-
-      let preferenceInitializationError: string | null = null;
-
-      if (data.session && data.user) {
-        preferenceInitializationError = await persistSignupPreferenceDefaults(
-          data.user.id,
-          signupLocation,
-        );
-      }
-
+      const { error } = await authClient.signUp.email({
+        name: "Kartiseret member",
+        email: trimmedEmail,
+        password: validatedPassword,
+        signupLocation,
+        callbackURL: new URL("/?verified=1", window.location.origin).href,
+      });
       setAuthPending(false);
-
-      setPassword("");
-
-      if (preferenceInitializationError) {
-        setAuthError(preferenceInitializationError);
+      if (error) {
+        setAuthError(error.message ?? "Account creation failed.");
+        return;
       }
-
-      setAuthMessage(
-        data.session
-          ? preferenceInitializationError
-            ? "Account created. You are signed in, but default preferences could not be finalized."
-            : "Account created. You are signed in."
-          : "Account created. Check your email to confirm, then log in.",
-      );
+      setPassword("");
+      setAuthMessage("Check your email to confirm your account, then log in.");
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await authClient.signIn.email({
       email: trimmedEmail,
       password: validatedPassword,
     });
@@ -193,7 +185,9 @@ export function UserMenu({
     setAuthPending(false);
 
     if (error) {
-      setAuthError(error.message);
+      setAuthError(
+        error.message ?? "The account request could not be completed.",
+      );
       return;
     }
 
@@ -205,11 +199,13 @@ export function UserMenu({
     setAuthMessage(null);
     setAuthError(null);
     setLogoutPending(true);
-    const { error } = await supabase.auth.signOut();
+    const { error } = await authClient.signOut();
     setLogoutPending(false);
 
     if (error) {
-      setAuthError(error.message);
+      setAuthError(
+        error.message ?? "The account request could not be completed.",
+      );
       return;
     }
 
@@ -323,6 +319,8 @@ export function UserMenu({
                 <label className="user-menu-field">
                   <span>Password</span>
                   <input
+                    minLength={authMode === "signup" ? 8 : 1}
+                    maxLength={128}
                     type="password"
                     autoComplete={
                       authMode === "signup"
@@ -334,7 +332,6 @@ export function UserMenu({
                       setPassword(event.target.value);
                     }}
                     placeholder="••••••••"
-                    minLength={6}
                     required
                   />
                 </label>

@@ -1,15 +1,14 @@
 import { DEFAULT_SITE_COLOR, applySiteColor, initializeSiteColorTheme, siteColorPreferenceDefinition, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
 import { DEFAULT_LOCATION, loadGuestLocation, locationPreferenceDefinition, type AppLocation } from "../prefs/definitions/locations";
+import { preferencesResponseSchema, applicationIdentitySchema, type ApplicationIdentity } from "@kartiseret/contracts/private-data";
 import { ratingSourcesPreferenceDefinition, type RatingSource } from "../prefs/definitions/ratingSources";
-import { preferencesResponseSchema, type ApplicationIdentity } from "@kartiseret/contracts/private-data";
 import { privateApiResponse, privateIdentityChanged } from "../data/privateApi";
 import type { UserPreferenceDefinition } from "../prefs/definitions/shared";
 import { shouldRollbackOptimisticSave } from "./preferenceSavePolicy";
-import { supabaseUserIdentitySchema } from "../lib/supabaseSchemas";
-import { getSupabaseBrowserClient } from "../lib/supabase";
+import { getAuthClient } from "../lib/authClient";
 import { create } from "zustand";
 
-const supabase = getSupabaseBrowserClient();
+const authClient = getAuthClient();
 
 initializeSiteColorTheme();
 
@@ -520,7 +519,7 @@ function parseAuthUser(value: unknown): ApplicationIdentity | null {
     return null;
   }
 
-  const result = supabaseUserIdentitySchema.safeParse(value);
+  const result = applicationIdentitySchema.safeParse(value);
   return result.success
     ? { id: result.data.id, email: result.data.email ?? null }
     : null;
@@ -533,23 +532,16 @@ export function initializeUserPreferencesStore(): void {
 
   initializationStarted = true;
 
-  let authEvents = 0;
-  const { data: authSubscription } = supabase.auth.onAuthStateChange((
-    event,
-    session,
-  ) => {
-    const version = ++authEvents;
-    // Supabase holds an auth lock while notifying subscribers.
-    setTimeout(() => {
-      if (version === authEvents)
-        activateUser(parseAuthUser(session?.user), event === "INITIAL_SESSION");
-    }, 0);
-  });
-  disposeAuthSubscription = () => authSubscription.subscription.unsubscribe();
-  void supabase.auth.getSession().then(({ data, error }) => {
-    if (authEvents !== 0) return;
+  let receivedSession = false;
+  disposeAuthSubscription = authClient.useSession.subscribe(({
+    data,
+    error,
+    isPending,
+  }) => {
+    if (isPending) return;
     if (error) useUserPreferencesStore.setState({ error: error.message });
-    activateUser(parseAuthUser(data.session?.user), true);
+    activateUser(parseAuthUser(data?.user), !receivedSession);
+    receivedSession = true;
   });
 }
 

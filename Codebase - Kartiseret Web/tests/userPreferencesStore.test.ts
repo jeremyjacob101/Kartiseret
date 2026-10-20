@@ -1,16 +1,11 @@
-import { createClient, type Session, type User } from "@supabase/supabase-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getSupabaseBrowserClient } from "../src/lib/supabase";
+import { getAuthClient } from "../src/lib/authClient";
 
-vi.mock("../src/lib/supabase", () => ({ getSupabaseBrowserClient: vi.fn() }));
+vi.mock("../src/lib/authClient", () => ({ getAuthClient: vi.fn() }));
 
-const fixtureUser: User = {
+const fixtureUser = {
   id: "00000000-0000-4000-8000-000000000001",
-  aud: "authenticated",
   email: "qa@example.test",
-  created_at: "2026-09-01T12:00:00Z",
-  app_metadata: {},
-  user_metadata: { signup_location: "Haifa" },
 };
 
 let row: Record<string, unknown> | null;
@@ -39,13 +34,6 @@ beforeEach(async () => {
     location: "Jerusalem",
     site_color: "#a66ae3",
   };
-  const supabase = createClient("http://127.0.0.1:54321", "local-test-only", {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-  });
   vi.stubGlobal("fetch", async (
     _input: RequestInfo | URL,
     init?: RequestInit,
@@ -113,18 +101,22 @@ beforeEach(async () => {
       if (!pauseSaves) finish();
     });
   });
-  vi.spyOn(supabase.auth, "getSession").mockResolvedValue({
-    data: {
-      session: { user: fixtureUser, access_token: "fixture-token" } as Session,
+  vi.mocked(getAuthClient).mockReturnValue({
+    getSession: vi.fn(async () => ({
+      data: { user: fixtureUser },
+      error: null,
+    })),
+    useSession: {
+      subscribe: (listener: (value: unknown) => void) => {
+        listener({
+          data: { user: fixtureUser },
+          error: null,
+          isPending: false,
+        });
+        return () => {};
+      },
     },
-    error: null,
-  });
-  vi.spyOn(supabase.auth, "onAuthStateChange").mockImplementation(() => ({
-    data: {
-      subscription: { id: "local", callback: () => {}, unsubscribe: () => {} },
-    },
-  }));
-  vi.mocked(getSupabaseBrowserClient).mockReturnValue(supabase);
+  } as unknown as ReturnType<typeof getAuthClient>);
   storeModule = await import("../src/stores/userPreferencesStore");
 });
 

@@ -1,6 +1,8 @@
 import { httpUrlSchema, isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema, showtimeStringSchema, tmdbIdSchema } from "@kartiseret/contracts/runtime";
+import { applicationIdentitySchema } from "@kartiseret/contracts/private-data";
 import { appLocationSchema } from "../prefs/definitions/locations";
-import { supabaseUserIdSchema } from "../lib/supabaseSchemas";
+
+const userIdSchema = applicationIdentitySchema.shape.id;
 import { z } from "zod";
 
 // The database uses bigint movie IDs. Reject partial or unsafe IDs before conversion.
@@ -15,10 +17,10 @@ const ticketAlertContextSchema = z.object({
   tmdbId: ticketAlertMovieIdSchema,
 });
 export const ticketAlertStateInputSchema = ticketAlertContextSchema.extend({
-  userId: supabaseUserIdSchema.nullable(),
+  userId: userIdSchema.nullable(),
 });
 export const accountTicketAlertInputSchema = ticketAlertContextSchema.extend({
-  userId: supabaseUserIdSchema,
+  userId: userIdSchema,
 });
 export const accountTicketAlertIdentitySchema =
   accountTicketAlertInputSchema.pick({
@@ -40,13 +42,13 @@ const subscriptionColumns = {
 };
 export const ticketAlertSubscriptionRowSchema = z.object({
   ...subscriptionColumns,
-  user_id: supabaseUserIdSchema,
+  user_id: userIdSchema,
 });
 export const nullableTicketAlertSubscriptionSchema =
   ticketAlertSubscriptionRowSchema.nullable();
 export const userTicketAlertSubscriptionRowSchema = z.object({
   ...subscriptionColumns,
-  user_id: supabaseUserIdSchema,
+  user_id: userIdSchema,
   delivery_title: z.string().nullable(),
   delivery_date: isoDateStringSchema.nullable(),
 });

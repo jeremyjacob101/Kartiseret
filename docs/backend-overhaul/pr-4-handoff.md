@@ -1,9 +1,11 @@
 # PR 4 handoff — protected workflows
 
+> **Status update (2026-10-20):** PR #171 is merged and Production-released. The implementation and pre-release evidence below are historical; see [Production release](#production-release-completed-2026-10-20) for the completed operation and current state.
+
 ## Branch and scope
 
 - Base: `main` at `79d11543f415e8ecf6adc37337ba675184f77290` after deployed PR 3.
-- Branch: `codex/backend-04-protected-workflows`; regular [PR #171](https://github.com/jeremyjacob101/Kartiseret/pull/171), based on updated main. No reviewers requested; not merged. Jeremy explicitly requested a regular PR.
+- Implementation branch: `codex/backend-04-protected-workflows`; regular [PR #171](https://github.com/jeremyjacob101/Kartiseret/pull/171), merged as `4c4c02d8c3a1dc5a230b1e2f065a6d70acfb5144`. No reviewers were requested; Jeremy explicitly requested a regular PR.
 - Preferences, account/admin projection, subscriptions and movie corrections now use authenticated same-origin Express + Drizzle services. Supabase is auth-only in the browser. PR 5 replaces that provider.
 
 ## Routes and contracts
@@ -29,7 +31,7 @@ Contracts: `packages/contracts/src/private-data.ts`. Server composition: `protec
 - New `userPreferences.signup_initialized` distinguishes new signup/default rows from already-established preferences. Migration marks existing rows true and defaults future rows false. Initialization changes a default/blank location to signup location once; established nonempty values and empty rating-source arrays survive.
 - Each private DB operation sets `request.jwt.claim.sub` transaction-locally on the existing runtime pool. RLS checks ownership/admin membership in addition to service predicates. Runtime cannot change membership or alert delivery state.
 - Admin merge/new-target branches are atomic, lock movie IDs in consistent order, preserve permanent codes, and preserve required coming-soon release dates. Ambiguous coming-soon IDs return 409; UUID row keys constrain writes. Enrichment remains external through `solo_update` and the existing publication.
-- Additive migration: `supabase/migrations/20261019152448_protected_application_workflows.sql`. Applied to DEV; local version matches the provider ledger. Production is not modified by PR4 implementation.
+- Additive migration: `supabase/migrations/20261019152448_protected_application_workflows.sql`. The implementation was first applied to DEV; its Production application is recorded in the completed release section below.
 - Post-deployment operation: `supabase/operations/pr4-retire-browser-access.sql`. Revoke browser private reads/writes and catalog mutation privileges only after the new code works. Retain Python service-role access and Realtime.
 - DEV metadata confirms both `finalMovies` and `finalSoons` remain in `supabase_realtime`, with their existing replica identity. Actual hosted Realtime UPDATE events for controlled now-playing and coming-soon corrections both contained `solo_update: true`. The watcher contract remains intact; no Selenium, scrape, email, Git sync or Production job ran.
 
@@ -70,31 +72,26 @@ The Browser plugin was unavailable. Playwright used the existing system Chrome 1
 7. Existing local PR3 documentation edits were preserved in a named Git stash before branching from fetched main; they were not mixed into PR4 implementation.
 8. A final CI rerun exposed concurrent test-file interference: private fixtures appeared in the public catalog ordering assertion while the suites shared one database. Integration files now run serially; intentional concurrent requests within each private test still exercise duplicate/identity races. Fixture cleanup remains in place. No application query was weakened to hide the failure.
 
-## Production rollout (not performed)
+## Production release (completed 2026-10-20)
 
-From the final PR4 checkout, while authenticated to Supabase:
+PR #171 merged as `4c4c02d8c3a1dc5a230b1e2f065a6d70acfb5144`. The Ready Production deployment is `dpl_9zYJpnMNd12iqLdgDc2MD9R4xrkp` at [seret.site](https://seret.site). Post-merge [Full checks #39378977517](https://github.com/jeremyjacob101/Kartiseret/actions/runs/39378977517) passed all three jobs.
 
-```bash
-npx supabase@latest link --project-ref gsdrcyrduxbrxgsvhxvr
-npx supabase@latest db push --linked --dry-run
-npx supabase@latest db push --linked
-```
+- A Production dry run listed only `20261019152448_protected_application_workflows.sql`; that migration was applied without replaying the baseline, seeds, role files or Vault changes.
+- Production acceptance passed for public API/OG routes, authenticated preferences and alerts, account isolation, admin authorization and private browser flows.
+- `supabase/operations/pr4-retire-browser-access.sql` was applied after acceptance. Browser direct private-table access is denied; runtime restrictions, Python service-role access and catalog Realtime publication remain intact.
+- Three disposable `.test` accounts and their test records were removed. No existing catalog records were changed, and no worker credentials or Production settings were changed.
 
-The dry run must list only the new PR4 migration. Do not replay the baseline, change passwords, reset a database or use an admin URL in Vercel. Existing Production `DATABASE_URL`, CA, `SUPABASE_URL` and publishable key already provide the required configuration; they must all identify Production. The additive migration preserves the currently deployed browser paths.
+The pre-release checklist has been completed; do not rerun its migration or retirement commands. No additional PR4 setup is needed before PR5. Refresh old browser tabs if any remain open.
 
-After merge and a Ready Production deployment: log in, refresh settings, save a preference, create/list/cancel a controlled alert, and verify non-admin denial. Then retire the obsolete direct browser access:
+### Emergency rollback
 
-```bash
-npx supabase@latest db query --linked --project-ref gsdrcyrduxbrxgsvhxvr --file supabase/operations/pr4-retire-browser-access.sql
-```
-
-Refresh any old browser tabs after retirement. No rescrape, Python restart, new project, new environment secret or auth cutover is required. Rollback before retirement can use the previous app with the additive migration left in place. For an emergency old-app rollback after retirement, restore its narrow legacy grants **before** serving that client:
+If an emergency requires serving the old browser client after retirement, restore the narrow legacy grants **before** routing traffic to that client:
 
 ```bash
 npx supabase@latest db query --linked --project-ref gsdrcyrduxbrxgsvhxvr --file supabase/operations/pr4-restore-browser-access.sql
 ```
 
-The retained owner/admin RLS still applies; no anonymous private access or service-role escalation is added. Reapply retirement after the corrected PR4 app passes acceptance. Do not drop the additive column or repair migration history backward for an application rollback.
+This restores the previous app's narrow grants; it does not change RLS, schema or runtime credentials. Once the old client is no longer served and the current app is confirmed healthy, retirement may be reapplied using the versioned script. Do not drop the additive column or repair migration history backward for an application rollback.
 
 ## PR 5 readiness
 

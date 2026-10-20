@@ -24,7 +24,10 @@
     "dev": "node --env-file-if-exists=../../.env --import tsx --watch src/index.ts"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "1.7.11",
     "@kartiseret/contracts": "^1.0.0",
+    "@vercel/functions": "3.10.1",
+    "better-auth": "1.7.11",
     "drizzle-orm": "0.45.4",
     "express": "5.2.1",
     "pg": "8.16.3",

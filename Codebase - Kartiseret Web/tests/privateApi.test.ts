@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 const { getSession } = vi.hoisted(() => ({ getSession: vi.fn() }));
-vi.mock("../src/lib/supabase", () => ({
-  getSupabaseBrowserClient: () => ({ auth: { getSession } }),
+vi.mock("../src/lib/authClient", () => ({
+  getAuthClient: () => ({ getSession }),
 }));
 const alice = "00000000-0000-4000-8000-000000000001";
 let boundary: typeof import("../src/data/privateApi");
@@ -13,7 +13,7 @@ beforeEach(async () => {
   client = await import("../src/lib/queryClient");
   boundary = await import("../src/data/privateApi");
   getSession.mockResolvedValue({
-    data: { session: { access_token: "verified-bearer", user: { id: alice } } },
+    data: { user: { id: alice } },
     error: null,
   });
 });
@@ -22,7 +22,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("private request identity and cache ownership", () => {
-  it("attaches a session bearer only to the protected transport and rejects a mismatched account", async () => {
+  it("uses same-origin cookies for the protected transport and rejects a mismatched account", async () => {
     const transport = vi.fn(
       async () => new Response(JSON.stringify({ ok: true })),
     );
@@ -38,9 +38,8 @@ describe("private request identity and cache ownership", () => {
       "/api/v1/account",
       expect.objectContaining({
         cache: "no-store",
-        headers: expect.objectContaining({
-          Authorization: "Bearer verified-bearer",
-        }),
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
       }),
     );
     await expect(
@@ -71,7 +70,7 @@ describe("private request identity and cache ownership", () => {
     boundary.privateIdentityChanged(alice);
     finish({
       data: {
-        session: { access_token: "signup-session", user: { id: alice } },
+        user: { id: alice },
       },
       error: null,
     });
@@ -98,7 +97,7 @@ describe("private request identity and cache ownership", () => {
     });
     boundary.privateIdentityChanged("00000000-0000-4000-8000-000000000002");
     finish({
-      data: { session: { access_token: "old-session", user: { id: alice } } },
+      data: { user: { id: alice } },
       error: null,
     });
     await rejected;

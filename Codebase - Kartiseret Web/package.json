@@ -51,8 +51,8 @@
   },
   "dependencies": {
     "@kartiseret/contracts": "^1.0.0",
-    "@supabase/supabase-js": "^2.110.1",
     "@tanstack/react-query": "^5.101.4",
+    "better-auth": "1.7.11",
     "lucide-react": "^1.23.0",
     "maplibre-gl": "^6.10.0",
     "react": "^19.2.7",

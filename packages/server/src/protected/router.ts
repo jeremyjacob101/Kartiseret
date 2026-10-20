@@ -15,16 +15,16 @@ import type { ProtectedWorkflowService } from "./service.js";
 export function createProtectedRouter(
   verifier: IdentityVerifier,
   workflows: ProtectedWorkflowService,
+  trustedOrigins: readonly string[],
 ) {
   const router = Router();
   router.use(
     ["/account", "/preferences", "/ticket-alerts", "/admin"],
     async (request, response, next) => {
       response.setHeader("Cache-Control", "no-store");
-      response.vary("Authorization");
-      const authorization = request.headers.authorization;
-      const token = authorization?.match(/^Bearer ([^\s,]{1,16384})$/i)?.[1];
-      if (!token) {
+      response.vary("Cookie");
+      const cookie = request.headers.cookie;
+      if (!cookie) {
         next(
           new HttpError(
             401,
@@ -34,8 +34,21 @@ export function createProtectedRouter(
         );
         return;
       }
+      if (
+        !["GET", "HEAD", "OPTIONS"].includes(request.method) &&
+        !trustedOrigins.includes(request.headers.origin ?? "")
+      ) {
+        next(
+          new HttpError(
+            403,
+            "invalid_origin",
+            "The request origin is not allowed.",
+          ),
+        );
+        return;
+      }
       try {
-        response.locals.identity = await verifier.verify(token);
+        response.locals.identity = await verifier.verify(cookie);
         next();
       } catch (error) {
         next(error);

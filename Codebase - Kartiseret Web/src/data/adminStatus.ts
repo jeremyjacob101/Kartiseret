@@ -1,6 +1,8 @@
+import { applicationIdentitySchema } from "@kartiseret/contracts/private-data";
 import { accountResponseSchema } from "@kartiseret/contracts/private-data";
 import { queryOptions, skipToken } from "@tanstack/react-query";
-import { supabaseUserIdSchema } from "../lib/supabaseSchemas";
+
+const userIdSchema = applicationIdentitySchema.shape.id;
 import { parseBoundary } from "@kartiseret/contracts/runtime";
 import { privateApiResponse } from "./privateApi";
 
@@ -28,7 +30,7 @@ async function fetchAdminStatus(
 
 export function adminStatusQueryOptions(userId: string | null) {
   const validatedUserId = userId
-    ? parseBoundary(supabaseUserIdSchema, userId, "admin status user ID")
+    ? parseBoundary(userIdSchema, userId, "admin status user ID")
     : null;
   return queryOptions({
     queryKey: adminStatusQueryKeys.byUser(validatedUserId ?? "anonymous"),

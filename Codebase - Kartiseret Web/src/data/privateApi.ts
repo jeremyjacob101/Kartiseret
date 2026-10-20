@@ -1,5 +1,5 @@
 import { ApiRequestError, requestApiResponse } from "./apiClient";
-import { getSupabaseBrowserClient } from "../lib/supabase";
+import { getAuthClient } from "../lib/authClient";
 import { queryClient } from "../lib/queryClient";
 import type { z } from "zod";
 
@@ -29,33 +29,25 @@ export async function privateApiResponse<Schema extends z.ZodType>(
   } = {},
 ): Promise<z.output<Schema>> {
   const startedGeneration = identityGeneration;
-  const { data, error } = await getSupabaseBrowserClient().auth.getSession();
-  const session = data.session;
-  if (
-    error ||
-    !session?.access_token ||
-    (options.userId && session.user.id !== options.userId)
-  ) {
+  const { data, error } = await getAuthClient().getSession();
+  const user = data?.user;
+  if (error || !user || (options.userId && user.id !== options.userId)) {
     throw new ApiRequestError(
       401,
       "unauthorized",
       "Create an account or log in to manage your account.",
     );
   }
-  if (
-    startedGeneration !== identityGeneration &&
-    activeAccount !== session.user.id
-  )
+  if (startedGeneration !== identityGeneration && activeAccount !== user.id)
     throw new DOMException("Account changed", "AbortError");
-  if (activeAccount !== session.user.id)
-    privateIdentityChanged(session.user.id);
+  if (activeAccount !== user.id) privateIdentityChanged(user.id);
   const generation = identityGeneration;
   const response = await requestApiResponse(path, schema, {
     method: options.method ?? "GET",
     cache: "no-store",
+    credentials: "same-origin",
     signal: options.signal,
     headers: {
-      Authorization: `Bearer ${session.access_token}`,
       ...(options.body !== undefined
         ? { "Content-Type": "application/json" }
         : {}),

@@ -1,7 +1,11 @@
 import { createProtectedRouter } from "./protected/router.js";
 import type { IdentityVerifier } from "./protected/identity.js";
 import type { ProtectedWorkflowService } from "./protected/service.js";
-import express, { type ErrorRequestHandler } from "express";
+import express, {
+  type ErrorRequestHandler,
+  type RequestHandler,
+  type Router,
+} from "express";
 import { z } from "zod";
 import {
   CatalogDataIntegrityError,
@@ -37,6 +41,9 @@ export interface AppDependencies {
   logger?: AppLogger;
   identityVerifier?: IdentityVerifier;
   protectedWorkflows?: ProtectedWorkflowService;
+  authHandler?: RequestHandler;
+  recipientRouter?: Router;
+  trustedOrigins?: readonly string[];
 }
 
 const silentLogger: AppLogger = {
@@ -76,11 +83,16 @@ export function createApp({
   logger = silentLogger,
   identityVerifier,
   protectedWorkflows,
+  authHandler,
+  recipientRouter,
+  trustedOrigins = [],
 }: AppDependencies) {
   const app = express();
   app.disable("x-powered-by");
   app.use(
     [
+      "/api/auth",
+      "/api/internal",
       "/api/v1/account",
       "/api/v1/preferences",
       "/api/v1/ticket-alerts",
@@ -91,7 +103,9 @@ export function createApp({
       next();
     },
   );
+  if (authHandler) app.all("/api/auth/{*path}", authHandler);
   app.use(express.json({ limit: "100kb" }));
+  if (recipientRouter) app.use("/api/internal", recipientRouter);
 
   app.get("/api/v1/health", (_request, response) => {
     response.json({ data: { status: "ok" }, error: null });
@@ -263,7 +277,11 @@ export function createApp({
   if (identityVerifier && protectedWorkflows)
     app.use(
       "/api/v1",
-      createProtectedRouter(identityVerifier, protectedWorkflows),
+      createProtectedRouter(
+        identityVerifier,
+        protectedWorkflows,
+        trustedOrigins,
+      ),
     );
 
   app.use((_request, _response, next) => {
@@ -304,6 +322,22 @@ export function createApp({
         error: {
           code: "invalid_request",
           message: "The JSON request body is invalid.",
+        },
+      });
+      return;
+    }
+
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "type" in error &&
+      error.type === "entity.too.large"
+    ) {
+      response.status(413).json({
+        data: null,
+        error: {
+          code: "invalid_request",
+          message: "The JSON request body is too large.",
         },
       });
       return;

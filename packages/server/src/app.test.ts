@@ -268,6 +268,23 @@ describe("Express API composition", () => {
     expect(response.body.error.code).toBe("not_found");
   });
 
+  it("rejects oversized private JSON with a safe uncacheable 413", async () => {
+    const result = await request(
+      createApp({ catalogRepository: createRepository() }),
+    )
+      .patch("/api/v1/preferences")
+      .send({ siteColor: "x".repeat(110_000) });
+    expect(result.status).toBe(413);
+    expect(result.body).toEqual({
+      data: null,
+      error: {
+        code: "invalid_request",
+        message: "The JSON request body is too large.",
+      },
+    });
+    expect(result.headers["cache-control"]).toBe("no-store");
+  });
+
   it("rejects malformed JSON bodies safely", async () => {
     const response = await request(
       createApp({ catalogRepository: createRepository() }),

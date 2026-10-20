@@ -27,8 +27,6 @@ export const serverEnvironmentSchema = z.object({
     .default("development"),
   PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
   DATABASE_URL: databaseUrlSchema,
-  SUPABASE_URL: z.string().trim().url(),
-  SUPABASE_PUBLISHABLE_KEY: z.string().trim().min(1),
   DATABASE_SSL_CA_CERT: databaseSslCaCertificateSchema,
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(20).default(1),
   SITE_ORIGIN: z.string().trim().url().optional(),
