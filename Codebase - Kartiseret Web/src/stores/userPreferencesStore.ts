@@ -514,8 +514,14 @@ export function initializeUserPreferencesStore(): void {
     isPending,
   }) => {
     if (isPending) return;
-    if (error) useUserPreferencesStore.setState({ error: error.message });
-    activateUser(parseAuthUser(data?.user), !receivedSession);
+    if (error && error.status !== 401) {
+      useUserPreferencesStore.setState({
+        error: error.message,
+        loading: false,
+      });
+      return;
+    }
+    activateUser(error ? null : parseAuthUser(data?.user), !receivedSession);
     receivedSession = true;
   });
 }

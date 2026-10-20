@@ -9,6 +9,7 @@ const fixtureUser = {
 };
 
 let notifySession: () => void;
+let failSession: () => void;
 let initializationRequests: number;
 let row: Record<string, unknown> | null;
 let pauseSaves: boolean;
@@ -114,6 +115,12 @@ beforeEach(async () => {
             error: null,
             isPending: false,
           });
+        failSession = () =>
+          listener({
+            data: null,
+            error: { status: 503, message: "Auth temporarily unavailable" },
+            isPending: false,
+          });
         notifySession();
         return () => {};
       },
@@ -162,6 +169,29 @@ describe("preference synchronization protocol", () => {
     notifySession();
     writes[0].finish();
     await vi.waitFor(() => expect(row?.site_color).toBe("#123456"));
+    expect(initializationRequests).toBe(1);
+    expect(
+      storeModule.useUserPreferencesStore.getState().preferences.siteColor,
+    ).toBe("#123456");
+  });
+
+  it("preserves identity and a pending save during a transient session outage", async () => {
+    await initialize();
+    pauseSaves = true;
+    await storeModule.useUserPreferencesStore
+      .getState()
+      .saveSiteColor("#123456");
+    await vi.waitFor(() => expect(writes).toHaveLength(1));
+    failSession();
+    expect(storeModule.useUserPreferencesStore.getState().user).toEqual(
+      fixtureUser,
+    );
+    expect(storeModule.useUserPreferencesStore.getState().error).toBe(
+      "Auth temporarily unavailable",
+    );
+    writes[0].finish();
+    await vi.waitFor(() => expect(row?.site_color).toBe("#123456"));
+    notifySession();
     expect(initializationRequests).toBe(1);
     expect(
       storeModule.useUserPreferencesStore.getState().preferences.siteColor,
