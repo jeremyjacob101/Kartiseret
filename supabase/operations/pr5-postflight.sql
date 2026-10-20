@@ -7,8 +7,8 @@ SELECT jsonb_build_object(
  'browser_auth_schema_usage', has_schema_privilege('authenticated','app_auth','USAGE'),
  'worker_auth_schema_usage', has_schema_privilege('service_role','app_auth','USAGE'),
  'runtime_auth_schema_usage', has_schema_privilege('kartiseret_api','app_auth','USAGE'),
- 'runtime_admin_membership_write', has_table_privilege('kartiseret_api','public.admin_users','INSERT'),
- 'worker_alert_table_access', has_table_privilege('service_role','public.ticket_alert_subscriptions','SELECT,INSERT,UPDATE,DELETE'),
+ 'runtime_admin_membership_write', has_table_privilege('kartiseret_api','public.admin_users','INSERT,UPDATE,DELETE'),
+ 'worker_alert_table_access', (SELECT bool_and(has_table_privilege('service_role','public.ticket_alert_subscriptions',privilege)) FROM unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE']) privilege),
  'realtime_tables', (SELECT jsonb_agg(tablename ORDER BY tablename) FROM pg_publication_tables WHERE pubname='supabase_realtime' AND schemaname='public'),
  'remaining_controlled_dev_accounts', (SELECT count(*) FROM app_auth.users WHERE email LIKE 'pr5-hosted-%@example.test'),
  'migrations', (SELECT jsonb_agg(version ORDER BY version) FROM supabase_migrations.schema_migrations)
