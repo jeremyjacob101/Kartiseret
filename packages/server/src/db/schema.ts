@@ -67,6 +67,7 @@ export const allShowtimes = pgTable("allShowtimes", {
   screeningTech: text("screening_tech"),
   tmdbId: integer("tmdb_id"),
   runId: integer("run_id"),
+  snapshotId: uuid("snapshot_id"),
   cleaned: boolean("cleaned").default(false),
   added: boolean("added"),
 });
@@ -86,6 +87,7 @@ export const allSoons = pgTable("allSoons", {
   runtime: smallint("runtime"),
   cinema: text("cinema"),
   runId: integer("run_id"),
+  snapshotId: uuid("snapshot_id"),
   cleaned: boolean("cleaned").notNull().default(false),
   added: boolean("added").notNull().default(false),
 });
@@ -112,6 +114,7 @@ export const allTheques = pgTable("allTheques", {
   cinema: text("cinema"),
   tmdbId: integer("tmdb_id"),
   runId: integer("run_id"),
+  snapshotId: uuid("snapshot_id"),
   cleaned: boolean("cleaned").notNull().default(false),
   added: boolean("added").notNull().default(false),
 });

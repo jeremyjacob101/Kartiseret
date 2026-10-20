@@ -81,11 +81,20 @@ def formatAndWriteCsv(self, successful: bool):
 def formatAndUpload(self):
     rows, _columns = _format_rows_from_gathering_info(self)
     if not rows:
-        raise Exception("Empty gathering_info table")
+        if not getattr(self, "_empty_snapshot_evidence", None):
+            raise Exception("Empty gathering_info table without confirmed empty-source evidence")
+        self._snapshot_row_count = 0
+        return None
+    snapshot_id = getattr(self, "snapshot_id", None)
+    if snapshot_id:
+        for row in rows:
+            row["snapshot_id"] = snapshot_id
     if self.supabase_table_name == "allSoons":
         for row in rows:
             date.fromisoformat(row.get("release_date") or "")
-    return self.supabase.table(self.supabase_table_name).insert(rows).execute()
+    result = self.supabase.table(self.supabase_table_name).insert(rows).execute()
+    self._snapshot_row_count = len(rows)
+    return result
 
 
 class AppendToInfo:

@@ -61,6 +61,34 @@ const expectedTableNames = [
   "utilRunLogs",
 ];
 
+// These Python-only pipeline tables deliberately stay out of Drizzle's
+// applicationTables, which is the schema granted to the public API runtime.
+const expectedPipelineTableColumns = {
+  pipeline_scrape_snapshots: [
+    "snapshot_id",
+    "run_id",
+    "attempt",
+    "table_name",
+    "source_name",
+    "cinema",
+    "status",
+    "row_count",
+    "failure_reason",
+    "started_at",
+    "completed_at",
+  ],
+  pipeline_publication_checkpoints: [
+    "category",
+    "snapshot_id",
+    "input_fingerprint",
+    "phase",
+    "has_unresolved",
+    "started_at",
+    "updated_at",
+    "completed_at",
+  ],
+} as const;
+
 interface PhysicalColumn {
   table_name: string;
   column_name: string;
@@ -92,7 +120,7 @@ describe("PostgreSQL 17 integration", () => {
     await Promise.all([runtimeDatabase.close(), adminDatabase.close()]);
   });
 
-  it("maps the exact 18-table SQL baseline without changing physical column semantics", async () => {
+  it("maps all 18 application tables and accounts for private pipeline tables", async () => {
     const mappedTables = Object.values(schema.applicationTables);
     expect(mappedTables.map((table) => getTableName(table)).sort()).toEqual(
       [...expectedTableNames].sort(),
@@ -125,8 +153,23 @@ describe("PostgreSQL 17 integration", () => {
     }
 
     expect([...physicalTables.keys()].sort()).toEqual(
-      [...expectedTableNames].sort(),
+      [
+        ...expectedTableNames,
+        ...Object.keys(expectedPipelineTableColumns),
+      ].sort(),
     );
+
+    for (const [tableName, expectedColumns] of Object.entries(
+      expectedPipelineTableColumns,
+    )) {
+      expect(
+        physicalTables
+          .get(tableName)
+          ?.map((column) => column.column_name)
+          .sort(),
+        `${tableName} columns`,
+      ).toEqual([...expectedColumns].sort());
+    }
 
     for (const table of mappedTables) {
       const tableName = getTableName(table);
@@ -252,6 +295,91 @@ describe("PostgreSQL 17 integration", () => {
         ),
       ),
     ).toBe(true);
+  });
+
+  it("keeps pipeline tables and checkpoint RPCs service-role only", async () => {
+    const { rows: tablePrivileges } = await adminDatabase.pool.query<{
+      table_name: string;
+      row_security: boolean;
+      service_select: boolean;
+      api_select: boolean;
+      anon_select: boolean;
+      authenticated_select: boolean;
+    }>(
+      `
+      SELECT
+        c.relname AS table_name,
+        c.relrowsecurity AS row_security,
+        has_table_privilege('service_role', c.oid, 'SELECT') AS service_select,
+        has_table_privilege('kartiseret_api', c.oid, 'SELECT') AS api_select,
+        has_table_privilege('anon', c.oid, 'SELECT') AS anon_select,
+        has_table_privilege('authenticated', c.oid, 'SELECT') AS authenticated_select
+      FROM pg_catalog.pg_class AS c
+      JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public'
+        AND c.relname = ANY($1::text[])
+      ORDER BY c.relname
+    `,
+      [Object.keys(expectedPipelineTableColumns)],
+    );
+
+    expect(tablePrivileges).toEqual(
+      Object.keys(expectedPipelineTableColumns)
+        .sort()
+        .map((tableName) => ({
+          table_name: tableName,
+          row_security: true,
+          service_select: true,
+          api_select: false,
+          anon_select: false,
+          authenticated_select: false,
+        })),
+    );
+
+    const { rows: functionPrivileges } = await adminDatabase.pool.query<{
+      function_name: string;
+      service_execute: boolean;
+      api_execute: boolean;
+      anon_execute: boolean;
+      authenticated_execute: boolean;
+    }>(
+      `
+      SELECT
+        p.proname AS function_name,
+        has_function_privilege('service_role', p.oid, 'EXECUTE') AS service_execute,
+        has_function_privilege('kartiseret_api', p.oid, 'EXECUTE') AS api_execute,
+        has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_execute,
+        has_function_privilege('authenticated', p.oid, 'EXECUTE') AS authenticated_execute
+      FROM pg_catalog.pg_proc AS p
+      JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public'
+        AND p.proname = ANY($1::text[])
+      ORDER BY p.proname
+    `,
+      [
+        [
+          "claim_pipeline_publication_checkpoint",
+          "advance_pipeline_publication_checkpoint",
+        ],
+      ],
+    );
+
+    expect(functionPrivileges).toEqual([
+      {
+        function_name: "advance_pipeline_publication_checkpoint",
+        service_execute: true,
+        api_execute: false,
+        anon_execute: false,
+        authenticated_execute: false,
+      },
+      {
+        function_name: "claim_pipeline_publication_checkpoint",
+        service_execute: true,
+        api_execute: false,
+        anon_execute: false,
+        authenticated_execute: false,
+      },
+    ]);
   });
 
   it("queries the same public catalog DTO and ordering from real Postgres", async () => {

@@ -1,8 +1,10 @@
 from backend.dataflow.BaseDataflow import BaseDataflow
 from backend.utils.supabase.clear_old_entries import clear_old_entries
 from backend.utils.supabase.dedupe_all_soons import dedupe_all_soons
+from backend.dataflow.utils.PipelineCheckpoints import PreparedPublication
 from collections import defaultdict
 from datetime import date
+import json
 
 
 class ComingSoonsTmdb(BaseDataflow):
@@ -53,16 +55,57 @@ class ComingSoonsTmdb(BaseDataflow):
 
         tmdb_fix_ids, tmdb_fix_by_title, tmdb_fix_alias_by_tmdb = self.buildTmdbFixMaps(self.helper_table_rows)
 
-        for row in self.main_table_rows:
+        rows_by_cinema, manifests_by_cinema, snapshot_ids_by_cinema, legacy_cinemas = self.selectLatestRawSnapshots(
+            self.MAIN_TABLE_NAME,
+            self.main_table_rows,
+        )
+        self.latest_rows_by_cinema = defaultdict(list, rows_by_cinema)
+        self.latest_snapshot_manifests_by_cinema = manifests_by_cinema
+        self.latest_snapshot_ids_by_cinema = snapshot_ids_by_cinema
+        self.latest_snapshot_rows = [row for rows in rows_by_cinema.values() for row in rows]
+
+        identity_key_by_row_id = {}
+        fingerprint_by_row_id = {}
+        fingerprint_by_identity = {}
+        for row in self.latest_snapshot_rows:
+            identity_key = json.dumps(list(self._all_soon_key(row)), ensure_ascii=False, separators=(",", ":"))
+            row_id = self.clean_str(row.get("id"))
+            fingerprint = self.matchInputFingerprint("comingsoons", identity_key, [row])
+            identity_key_by_row_id[row_id] = identity_key
+            fingerprint_by_row_id[row_id] = fingerprint
+            fingerprint_by_identity[identity_key] = fingerprint
+        self.claimSnapshotPublications(
+            "comingsoons",
+            manifests_by_cinema,
+            rows_by_cinema,
+            identity_key_by_row_id,
+            fingerprint_by_identity,
+            row_fingerprints_by_id=fingerprint_by_row_id,
+        )
+        claimed_snapshot_ids = set(self._publication_claims)
+        claimed_cinemas = {
+            cinema for cinema, manifest in manifests_by_cinema.items()
+            if self.clean_str(manifest.get("snapshot_id")).strip() in claimed_snapshot_ids
+        }
+        eligible_cinemas = claimed_cinemas | legacy_cinemas
+        self.latest_snapshot_rows = [
+            row for cinema in sorted(eligible_cinemas)
+            for row in rows_by_cinema.get(cinema, [])
+        ]
+        intentional_skip_ids = set()
+
+        for row in self.latest_snapshot_rows:
             self.reset_soon_row_state()
             self.load_soon_row(row)
             title_norm = self.normalizeTitle(self.english_title)
-
-            if row.get("added"):
+            row_key = self.clean_str(row.get("id"))
+            identity_key = identity_key_by_row_id.get(row_key, "")
+            if row.get("added") is True and not self.clean_str(row.get("snapshot_id")).strip():
                 self.trace_event("row_filter", "skipped", "already_added", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
                 continue
 
             if not self.release_date:
+                self.protectUnresolvedSnapshot([row], category="comingsoons", identity_key=identity_key)
                 self.trace_event("row_filter", "skipped", "missing_release_date", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
                 self.trace_unresolved(f"missing_release_date | {self.english_title} | row_id={row.get('id')}")
                 continue
@@ -74,12 +117,14 @@ class ComingSoonsTmdb(BaseDataflow):
 
             title_raw = (self.english_title or "").strip().lower()
             if title_raw in self.skip_tokens or title_norm in self.skip_tokens:
+                intentional_skip_ids.add(row.get("id"))
                 self.trace_event("row_filter", "skipped", "skip_token", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
                 self.trace_unresolved(f"skip_token | {self.english_title} | row_id={row.get('id')}")
                 continue
 
             if override_tmdb := self.tmdbFixForTitle(self.english_title, tmdb_fix_by_title):
                 if str(override_tmdb).lower() in self.skip_tokens:
+                    intentional_skip_ids.add(row.get("id"))
                     self.trace_event("tmdb_choice", "skipped", "skip_token", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": override_tmdb})
                     self.trace_unresolved(f"skip_token_on_override | {self.english_title} | tmdb={override_tmdb}")
                     continue
@@ -121,6 +166,7 @@ class ComingSoonsTmdb(BaseDataflow):
                     page += 1
 
             if not self.candidates:
+                self.protectUnresolvedSnapshot([row], category="comingsoons", identity_key=identity_key)
                 self.trace_event("tmdb_search", "dropped", "no_candidates", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
                 self.trace_unresolved(f"no_candidates | {self.english_title} | row_id={row.get('id')}")
                 continue
@@ -129,6 +175,7 @@ class ComingSoonsTmdb(BaseDataflow):
             self.details = self.fetchTmdbDetails(self.candidates)
 
             if not self.details:
+                self.protectUnresolvedSnapshot([row], category="comingsoons", identity_key=identity_key)
                 self.trace_event("tmdb_search", "dropped", "no_details", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
                 self.trace_unresolved(f"no_details | {self.english_title} | row_id={row.get('id')}")
                 continue
@@ -178,12 +225,17 @@ class ComingSoonsTmdb(BaseDataflow):
                     self.trace_event("tmdb_choice", "mapped", "fallback_first_candidate", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": self.potential_chosen_id})
 
             if not self.potential_chosen_id or str(self.potential_chosen_id).lower() in self.skip_tokens:
+                if self.potential_chosen_id and str(self.potential_chosen_id).lower() in self.skip_tokens:
+                    intentional_skip_ids.add(row.get("id"))
+                else:
+                    self.protectUnresolvedSnapshot([row], category="comingsoons", identity_key=identity_key)
                 self.trace_event("tmdb_choice", "dropped", "chosen_skipped_or_missing", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": self.potential_chosen_id})
                 self.trace_unresolved(f"chosen_skipped_or_missing | {self.english_title} | tmdb={self.potential_chosen_id}")
                 continue
 
             if alias_tmdb := self.tmdbFixAliasForTmdbId(self.potential_chosen_id, tmdb_fix_alias_by_tmdb):
                 if str(alias_tmdb).lower() in self.skip_tokens:
+                    intentional_skip_ids.add(row.get("id"))
                     self.trace_event("tmdb_choice", "dropped", "skip_token", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": alias_tmdb})
                     self.trace_unresolved(f"skip_token_on_alias | {self.english_title} | tmdb={alias_tmdb}")
                     continue
@@ -225,6 +277,10 @@ class ComingSoonsTmdb(BaseDataflow):
                 continue
             data = self.tmdbGet(f"movie/{tmdb_id}", {"append_to_response": "external_ids,videos"}, allow_missing=True)
             if not isinstance(data, dict) or not data.get("id"):
+                raw_row = next((candidate for candidate in self.latest_snapshot_rows if candidate.get("id") == row.get("old_uuid")), None)
+                if raw_row:
+                    identity_key = identity_key_by_row_id.get(self.clean_str(raw_row.get("id")), "")
+                    self.protectUnresolvedSnapshot([raw_row], category="comingsoons", identity_key=identity_key)
                 self.trace_event("enrich", "dropped", "no_details", key=str(row.get("old_uuid") or ""), payload={"title": row.get("english_title"), "title_norm": self.normalizeTitle(row.get("english_title") or ""), "chosen_tmdb": tmdb_id})
                 self.trace_unresolved(f"enrich_invalid_details | {row.get('english_title')} | tmdb={tmdb_id}")
                 continue
@@ -249,13 +305,54 @@ class ComingSoonsTmdb(BaseDataflow):
             self.trace_event("enrich", "mapped", "enriched", key=str(new_row.get("old_uuid") or ""), payload={"title": new_row.get("english_title"), "title_norm": self.normalizeTitle(new_row.get("english_title") or ""), "chosen_tmdb": tmdb_id})
 
         enriched_ids = {row["tmdb_id"] for row in self.updates}
-        self.processed_ids = {row["old_uuid"] for row in self.non_deduplicated_updates if row.get("tmdb_id") in enriched_ids}
+        self.processed_ids = {row["old_uuid"] for row in self.non_deduplicated_updates if row.get("tmdb_id") in enriched_ids} | intentional_skip_ids
+        processed_id_keys = {self.clean_str(row_id).strip() for row_id in self.processed_ids if self.clean_str(row_id).strip()}
+        tmdb_id_by_raw_id = {
+            self.clean_str(row.get("old_uuid")).strip(): self.clean_int(row.get("tmdb_id"))
+            for row in self.non_deduplicated_updates
+            if self.clean_str(row.get("old_uuid")).strip()
+        }
+        for cinema in sorted(eligible_cinemas):
+            snapshot_id = snapshot_ids_by_cinema.get(cinema)
+            if not snapshot_id or snapshot_id not in self._publication_claims:
+                continue
+            source_rows = rows_by_cinema.get(cinema, [])
+            source_row_ids = {self.clean_str(row.get("id")).strip() for row in source_rows if self.clean_str(row.get("id")).strip()}
+            source_tmdb_ids = {tmdb_id_by_raw_id[row_id] for row_id in source_row_ids if tmdb_id_by_raw_id.get(row_id)}
+            raw_ids_to_mark = tuple(sorted(source_row_ids & processed_id_keys))
+            prepared_movies = tuple(
+                dict(row) for row in self.updates
+                if self.clean_int(row.get("tmdb_id")) in source_tmdb_ids
+            )
+            self.prepared_publications.append(PreparedPublication(
+                category="comingsoons",
+                snapshot_id=snapshot_id,
+                run_id=int(self.run_id),
+                input_fingerprint=self._publication_claims[snapshot_id]["input_fingerprint"],
+                movies=prepared_movies,
+                raw_row_ids_to_mark=raw_ids_to_mark,
+                unresolved_group_keys=tuple(sorted(self.unresolved_identity_keys_by_snapshot.get(snapshot_id, set()))),
+                source_complete=True,
+            ))
+
+        for snapshot_id in claimed_snapshot_ids:
+            unresolved = bool(self.unresolved_identity_keys_by_snapshot.get(snapshot_id))
+            self.advanceSnapshotPublication(snapshot_id, "prepared", has_unresolved=unresolved)
+        needs_movie_write = bool(legacy_cinemas) or any(
+            not self.snapshotPublicationReached(snapshot_id, "movies_written")
+            for snapshot_id in claimed_snapshot_ids
+        )
         pre_upsert_count = len(self.updates)
-        self.upsertUpdates(self.MOVING_TO_TABLE_NAME)
-        self.trace_event("write", "mapped", "upserted", key=self.MOVING_TO_TABLE_NAME, payload={"title": "", "title_norm": "", "chosen_tmdb": ""})
-        self.trace_write_action(f"upsertUpdates({self.MOVING_TO_TABLE_NAME}) rows={pre_upsert_count}")
+        if needs_movie_write:
+            self.upsertUpdates(self.MOVING_TO_TABLE_NAME)
+            self.trace_event("write", "mapped", "upserted", key=self.MOVING_TO_TABLE_NAME, payload={"title": "", "title_norm": "", "chosen_tmdb": ""})
+            self.trace_write_action(f"upsertUpdates({self.MOVING_TO_TABLE_NAME}) rows={pre_upsert_count}")
+        else:
+            self.updates = []
         movie_codes_by_tmdb = self.ensureMovieCodesForTable(self.MOVING_TO_TABLE_NAME)
         self.trace_write_action(f"ensureMovieCodes(movieCodes) rows={len(movie_codes_by_tmdb)}")
+        for snapshot_id in claimed_snapshot_ids:
+            self.advanceSnapshotPublication(snapshot_id, "movies_written")
         if self.processed_ids:
             ids = list(self.processed_ids)
             for i in range(0, len(ids), 200):
@@ -265,6 +362,10 @@ class ComingSoonsTmdb(BaseDataflow):
             self.trace_write_action(f"mark_added({self.MAIN_TABLE_NAME}) rows={len(ids)}")
         self.dedupeFinalSoons(self.MOVING_TO_TABLE_NAME)
         self.trace_write_action(f"dedupeFinalSoons({self.MOVING_TO_TABLE_NAME})")
+
+        for snapshot_id in claimed_snapshot_ids:
+            unresolved = bool(self.unresolved_identity_keys_by_snapshot.get(snapshot_id))
+            self.advanceSnapshotPublication(snapshot_id, "published", has_unresolved=unresolved)
 
         clear_old_entries("soons")
         dedupe_all_soons(dry_run=False)

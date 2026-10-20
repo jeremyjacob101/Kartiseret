@@ -32,7 +32,7 @@ class ComingSoonsClean(BaseDataflow):
         for row in self.main_table_rows:
             canon_eng = self.fuzzy_key(row["english_title"], cache=fuzzy_cache)
             canon_heb = self.fuzzy_key(row["hebrew_title"], cache=fuzzy_cache)
-            groups[(canon_eng, canon_heb)].append(row)
+            groups[(self.clean_str(row.get("snapshot_id")).strip(), canon_eng, canon_heb)].append(row)
 
         for _, rows in groups.items():
             if len(rows) <= 1:
