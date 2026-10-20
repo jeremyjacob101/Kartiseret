@@ -101,7 +101,7 @@ export function createApp({
     (request, response, next) => {
       response.setHeader("Cache-Control", "no-store");
       response.vary(
-        request.path.startsWith("/api/internal") ? "Authorization" : "Cookie",
+        request.baseUrl === "/api/internal" ? "Authorization" : "Cookie",
       );
       next();
     },

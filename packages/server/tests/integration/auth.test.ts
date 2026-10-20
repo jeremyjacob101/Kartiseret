@@ -213,6 +213,7 @@ describe.sequential(
       expect(result.body.data.user).toEqual({ id: userId, email });
       expect(result.headers.vary).toContain("Cookie");
       expect(result.headers["cache-control"]).toBe("no-store");
+      expect(result.headers.vary).toContain("Authorization");
       const preference = await request(app)
         .get("/api/v1/preferences")
         .set("Cookie", cookie);
@@ -529,6 +530,7 @@ describe.sequential(
         { id: userId, email, emailVerified: true },
       ]);
       expect(result.headers["cache-control"]).toBe("no-store");
+      expect(result.headers.vary).toContain("Authorization");
       expect(
         (
           await post("/api/internal/ticket-alert-recipients", {

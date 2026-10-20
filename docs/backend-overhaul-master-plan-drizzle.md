@@ -10,7 +10,7 @@ The full specification below was restored from Jeremy's original revised attachm
 
 ### Current stage: PR 5
 
-Implement section 13 from updated `main` after PRs 1–4. Follow the complete preservation and acceptance requirements below, and use the PR 4 handoff for the released identity, database, and Python-recipient inventory. PR 4's Production release is complete; do not repeat its migration or privilege-retirement steps. Better Auth and the app-owned identity transition remain PR 5 work. Do not merge or request reviewers.
+PR5 is implemented on `codex/backend-05-better-auth` from updated `main`; code CI and hosted DEV acceptance pass. See [PR5 handoff](docs/backend-overhaul/pr-5-handoff.md) for evidence and the required coordinated Production gate. Production remains on PR4 until that cutover. Section 13 remains the scope and acceptance contract. Follow the complete preservation and acceptance requirements below, and use the PR 4 handoff for the released identity, database, and Python-recipient inventory. PR 4's Production release is complete; do not repeat its migration or privilege-retirement steps. Better Auth and the app-owned identity transition remain PR 5 work. Do not merge or request reviewers.
 
 ### Later: one chat for each remaining PR
 

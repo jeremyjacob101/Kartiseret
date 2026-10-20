@@ -40,7 +40,7 @@ export async function privateApiResponse<Schema extends z.ZodType>(
         : "Account verification is temporarily unavailable.",
     );
   const user = data?.user;
-  if (error || !user || (options.userId && user.id !== options.userId)) {
+  if (!user || (options.userId && user.id !== options.userId)) {
     throw new ApiRequestError(
       401,
       "unauthorized",

@@ -284,6 +284,14 @@ describe("Express API composition", () => {
     });
     expect(result.headers["cache-control"]).toBe("no-store");
     expect(result.headers.vary).toContain("Cookie");
+    const internal = await request(
+      createApp({ catalogRepository: createRepository() }),
+    )
+      .post("/api/internal/ticket-alert-recipients")
+      .send({ userIds: ["x".repeat(110_000)] });
+    expect(internal.status).toBe(413);
+    expect(internal.headers["cache-control"]).toBe("no-store");
+    expect(internal.headers.vary).toContain("Authorization");
   });
 
   it("rejects malformed JSON bodies safely", async () => {
