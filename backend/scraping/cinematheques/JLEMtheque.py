@@ -51,12 +51,16 @@ class JLEMtheque(BaseCinema):
         self.waitForStale(previous_date)
         self.waitUntil(lambda driver: date_of_showing in driver.find_element(By.XPATH, date_selector).text and EC.invisibility_of_element_located((By.CSS_SELECTOR, ".load-inner.loading"))(driver), 10)
 
+        self._confirmed_empty_dates = set()
         for day in range(self.DAYS):
             selected_date = (self.today_date + timedelta(days=day)).replace(hour=0, minute=0, second=0, microsecond=0)
             self.selectCalendarDate(selected_date)
 
             date_of_showing = self.element(date_selector).text.strip().split("|")[1].strip()
             self.date_of_showing = datetime.strptime(date_of_showing, "%d.%m.%y").date().isoformat()
+            calendar_text = self.element("//div[contains(@class, 'calendar-full-container')]").text
+            if "No Screenings" in calendar_text or "אין הקרנות" in calendar_text:
+                self._confirmed_empty_dates.add(self.date_of_showing)
 
             for film_block in range(2, self.lenElements("//div[contains(@class, 'calendar-full-container')]/div", "lobby-container") + 2):
                 title_elements = self.elements(f"//div[contains(@class, 'calendar-full-container')]/div[{film_block}]//div[contains(@class, 'lobby-title') and contains(@class, 'second')]")
@@ -90,6 +94,9 @@ class JLEMtheque(BaseCinema):
                     continue
 
                 self.appendToGatheringInfo()
+
+        if not any(self.gathering_info.values()) and len(getattr(self, "_confirmed_empty_dates", set())) == self.DAYS:
+            self.confirmEmptySnapshot(f"Explicit no-screenings state confirmed for all {self.DAYS} calendar dates")
 
     def selectCalendarDate(self, selected_date):
         expected_date = selected_date.strftime("%d.%m.%y")

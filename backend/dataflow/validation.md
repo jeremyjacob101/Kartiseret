@@ -69,7 +69,7 @@ A separate private matrix exercised 78 actual-source provider cases, including n
 
 - Add an enforceable process deadline and structured cancellation/retry ownership; a Future timeout alone cannot stop an already running HTTP request.
 - Reuse TMDB payloads across mapping and Update within the same run, with explicit freshness and failure rules, to avoid repeat enrichment calls.
-- Make unresolved protection and stale cleanup more precise per title/snapshot, with durable match checkpoints that preserve grouping/alias semantics.
+- Preserve conservative whole-cinema protection when a complete snapshot contains unresolved rows, and keep testing that those rows cannot authorize stale deletion.
 - Validate RT identity using titles, original/translated aliases and remake years; preserve numeric zero; verify stored RT links before considering skipping search.
 - Store provider freshness/failure information and distinguish fresh scores, retained old values and genuine no-listing results in operational reporting.
 - Project the union of IMDb IDs once for an entire run or maintain a versioned index if profiling justifies it, rather than loading a large all-title dictionary. Overlap prefetch/provider stages only after preserving dependency and concurrency constraints.

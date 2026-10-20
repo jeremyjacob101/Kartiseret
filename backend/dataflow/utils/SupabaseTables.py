@@ -1,6 +1,10 @@
 from typing import Callable, Any
 from datetime import datetime, timezone
 import re
+from backend.utils.supabase.snapshot_manifests import reconcile_snapshot_row_counts
+
+
+RAW_SNAPSHOT_TABLES = {"allShowtimes", "allTheques", "allSoons"}
 
 
 class SupabaseTables:
@@ -12,6 +16,7 @@ class SupabaseTables:
         "allShowtimes": "id",
         "tableFixes": "id",
         "tableSkips": "name_or_tmdb_id",
+        "pipeline_scrape_snapshots": "snapshot_id",
     }
 
     UPSERT_DEDUPE_KEY_BY_TABLE = {
@@ -92,9 +97,15 @@ class SupabaseTables:
             seen.add(x)
             deduped.append(x)
 
+        affected_snapshots = set()
+        if table_name in RAW_SNAPSHOT_TABLES:
+            selected_rows = self.supabase.table(table_name).select("id,snapshot_id").in_(primary_key, deduped).execute().data or []
+            affected_snapshots = {row.get("snapshot_id") for row in selected_rows if row.get("snapshot_id")}
+
         for i in range(0, len(deduped), 200):
             chunk = deduped[i : i + 200]
             self.supabase.table(table_name).delete().in_(primary_key, chunk).execute()
+        reconcile_snapshot_row_counts(self.supabase, table_name, affected_snapshots)
         self.delete_these = []
         if refresh:
             self.refreshAllTables(table_name)
@@ -225,7 +236,12 @@ class SupabaseTables:
         )
 
     def dedupeAllSoons(self, table_name: str, refresh: bool = True):
-        self._dedupe_by_key(table_name=table_name, key_func=self._all_soon_key, prefer_key=self._all_soon_prefer_key, refresh=refresh)
+        self._dedupe_by_key(
+            table_name=table_name,
+            key_func=lambda row: (self._norm_text(row.get("snapshot_id")), *self._all_soon_key(row)),
+            prefer_key=self._all_soon_prefer_key,
+            refresh=refresh,
+        )
 
     # FINAL SOONS (finalSoons)
     def _soon_key(self, row: dict) -> tuple:
