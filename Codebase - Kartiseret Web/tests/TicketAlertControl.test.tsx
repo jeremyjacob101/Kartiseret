@@ -21,7 +21,7 @@ vi.mock("../src/lib/supabase", () => ({
 }));
 
 function createSupabaseFixture() {
-  return createClient("http://127.0.0.1:54321", "local-test-only", {
+  const client = createClient("http://127.0.0.1:54321", "local-test-only", {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
@@ -57,6 +57,16 @@ function createSupabaseFixture() {
       },
     },
   });
+  vi.spyOn(client.auth, "getSession").mockResolvedValue({
+    data: {
+      session: {
+        access_token: "fixture-token",
+        user: { id: "00000000-0000-4000-8000-000000000001" },
+      } as import("@supabase/supabase-js").Session,
+    },
+    error: null,
+  });
+  return client;
 }
 
 function renderControl() {
@@ -94,11 +104,30 @@ beforeEach(() => {
   getSupabaseBrowserClientMock.mockReturnValue(createSupabaseFixture());
   vi.stubGlobal(
     "fetch",
-    async () =>
-      new Response(JSON.stringify({ data: { showtimes: [] }, error: null }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
+    async (input: RequestInfo | URL, init?: RequestInit) =>
+      new Response(
+        JSON.stringify({
+          data: String(input).includes("ticket-alerts")
+            ? init?.method === "POST"
+              ? {
+                  kind: "account",
+                  subscription: {
+                    tmdbId: "101",
+                    createdAt: "2026-09-16T12:00:00Z",
+                    notifiedAt: null,
+                    deliveryTitle: null,
+                    deliveryDate: null,
+                  },
+                }
+              : { subscriptions: [], nextOffset: null }
+            : { showtimes: [] },
+          error: null,
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
   );
 });
 

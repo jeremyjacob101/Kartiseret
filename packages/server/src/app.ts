@@ -1,3 +1,6 @@
+import { createProtectedRouter } from "./protected/router.js";
+import type { IdentityVerifier } from "./protected/identity.js";
+import type { ProtectedWorkflowService } from "./protected/service.js";
 import express, { type ErrorRequestHandler } from "express";
 import { z } from "zod";
 import {
@@ -32,6 +35,8 @@ export interface AppDependencies {
   catalogRepository: CatalogRepository;
   publicDataRepository?: PublicDataRepository;
   logger?: AppLogger;
+  identityVerifier?: IdentityVerifier;
+  protectedWorkflows?: ProtectedWorkflowService;
 }
 
 const silentLogger: AppLogger = {
@@ -69,9 +74,23 @@ export function createApp({
   catalogRepository,
   publicDataRepository,
   logger = silentLogger,
+  identityVerifier,
+  protectedWorkflows,
 }: AppDependencies) {
   const app = express();
   app.disable("x-powered-by");
+  app.use(
+    [
+      "/api/v1/account",
+      "/api/v1/preferences",
+      "/api/v1/ticket-alerts",
+      "/api/v1/admin",
+    ],
+    (_request, response, next) => {
+      response.setHeader("Cache-Control", "no-store");
+      next();
+    },
+  );
   app.use(express.json({ limit: "100kb" }));
 
   app.get("/api/v1/health", (_request, response) => {
@@ -241,6 +260,12 @@ export function createApp({
     }
   });
 
+  if (identityVerifier && protectedWorkflows)
+    app.use(
+      "/api/v1",
+      createProtectedRouter(identityVerifier, protectedWorkflows),
+    );
+
   app.use((_request, _response, next) => {
     next(
       new HttpError(404, "not_found", "The requested API route was not found."),
@@ -255,6 +280,11 @@ export function createApp({
   ) => {
     void next;
     if (error instanceof HttpError) {
+      if (error.status >= 500)
+        logger.error(
+          "Protected API request failed.",
+          safeErrorSummary(error.cause),
+        );
       response.status(error.status).json({
         data: null,
         error: { code: error.code, message: error.message },

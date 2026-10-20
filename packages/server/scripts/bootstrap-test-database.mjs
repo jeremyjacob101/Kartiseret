@@ -103,6 +103,21 @@ try {
   );
   await client.query(seed);
 
+  await client.query(
+    await readFile(
+      resolve(
+        repositoryRoot,
+        "supabase/operations/pr4-retire-browser-access.sql",
+      ),
+      "utf8",
+    ),
+  );
+
+  await client.query(`
+    INSERT INTO auth.users (id) VALUES ('00000000-0000-4000-8000-000000000081'),('00000000-0000-4000-8000-000000000082');
+    INSERT INTO public.admin_users (user_id) VALUES ('00000000-0000-4000-8000-000000000082');
+  `);
+
   console.log(
     `Bootstrapped disposable PostgreSQL 17 database kartiseret_test with ${migrations.length} timestamped SQL migrations, test-only Supabase compatibility objects, and deterministic development fixtures.`,
   );

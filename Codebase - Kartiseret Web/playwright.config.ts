@@ -2,6 +2,8 @@ import { defineConfig } from "@playwright/test";
 
 const apiPort = Number(process.env.PR3_E2E_API_PORT ?? 3_210);
 const webPort = Number(process.env.PR3_E2E_WEB_PORT ?? 4_173);
+const authPort = Number(process.env.E2E_AUTH_PORT ?? 3211);
+const authUrl = `http://127.0.0.1:${authPort}`;
 const apiUrl = `http://127.0.0.1:${apiPort}`;
 const webUrl = `http://127.0.0.1:${webPort}`;
 
@@ -46,9 +48,20 @@ export default defineConfig({
   },
   webServer: [
     {
+      command: "node ../packages/server/scripts/auth-fixture.mjs",
+      url: `${authUrl}/health`,
+      env: { E2E_AUTH_PORT: String(authPort) },
+      reuseExistingServer: false,
+    },
+    {
       command: "npm --prefix .. run server:start",
       url: `${apiUrl}/api/v1/health`,
-      env: { NODE_ENV: "test", PORT: String(apiPort) },
+      env: {
+        NODE_ENV: "test",
+        PORT: String(apiPort),
+        SUPABASE_URL: authUrl,
+        SUPABASE_PUBLISHABLE_KEY: "ci-provider-publishable",
+      },
       reuseExistingServer: false,
       timeout: 120_000,
     },
@@ -57,7 +70,7 @@ export default defineConfig({
       url: webUrl,
       env: {
         VITE_API_PROXY_TARGET: apiUrl,
-        VITE_SUPABASE_URL: "https://example.supabase.test",
+        VITE_SUPABASE_URL: authUrl,
         VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_e2e_placeholder",
       },
       reuseExistingServer: false,

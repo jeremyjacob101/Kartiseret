@@ -300,6 +300,7 @@ export const ticketAlertSubscriptions = pgTable(
 );
 
 export const userPreferences = pgTable("userPreferences", {
+  signupInitialized: boolean("signup_initialized").notNull().default(false),
   // user_id references provider-owned auth.users in SQL.
   userId: uuid("user_id").primaryKey(),
   ratingSources: text("rating_sources").array().notNull().default([]),

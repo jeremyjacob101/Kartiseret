@@ -18,11 +18,18 @@ export async function getApiResponse<Schema extends z.ZodType>(
   schema: Schema,
   signal?: AbortSignal,
 ): Promise<z.output<Schema>> {
+  return requestApiResponse(path, schema, { method: "GET", signal });
+}
+
+export async function requestApiResponse<Schema extends z.ZodType>(
+  path: string,
+  schema: Schema,
+  options: RequestInit,
+): Promise<z.output<Schema>> {
   const response = await fetch(path, {
-    method: "GET",
-    headers: { Accept: "application/json" },
+    ...options,
+    headers: { Accept: "application/json", ...options.headers },
     credentials: "same-origin",
-    signal,
   });
 
   let body: unknown;

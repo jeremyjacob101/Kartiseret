@@ -442,7 +442,7 @@ describe("PostgreSQL 17 integration", () => {
     }
   });
 
-  it("confirms the runtime login can read the public slice and no private app tables", async () => {
+  it("confirms public reads and identity-free private isolation", async () => {
     const visible = await runtimeDatabase.db
       .select({
         tmdbId: schema.finalMovies.tmdbId,
@@ -483,7 +483,7 @@ describe("PostgreSQL 17 integration", () => {
     ).resolves.toBeDefined();
     await expect(
       runtimeDatabase.db.select().from(schema.userPreferences).limit(1),
-    ).rejects.toThrow();
+    ).resolves.toEqual([]);
     await expect(
       runtimeDatabase.db
         .select()

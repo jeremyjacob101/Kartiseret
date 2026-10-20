@@ -45,33 +45,78 @@ beforeEach(async () => {
       autoRefreshToken: false,
       detectSessionInUrl: false,
     },
-    global: {
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.method === "GET") {
-          return reply(row ? [row] : []);
-        }
-        const body = (await request.json()) as Record<string, unknown>;
-        const prefer = request.headers.get("prefer") ?? "";
-        return new Promise<Response>((resolve) => {
-          const finish = (fail = false) => {
-            if (!fail && !(prefer.includes("ignore-duplicates") && row)) {
-              row = { ...row, ...body };
-            }
-            resolve(
-              fail
-                ? reply({ message: "Fixture save failed" }, 403)
-                : reply(null),
-            );
-          };
-          writes.push({ body, prefer, finish });
-          if (!pauseSaves) finish();
-        });
-      },
-    },
+  });
+  vi.stubGlobal("fetch", async (
+    _input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => {
+    const path = String(_input);
+    const body = JSON.parse(String(init?.body ?? "{}")) as Record<
+      string,
+      unknown
+    >;
+    const output = () =>
+      reply({
+        data: {
+          ratingSources: row?.rating_sources ?? [
+            "imdbRating",
+            "rtAudienceRating",
+            "rtCriticRating",
+          ],
+          location: row?.location ?? "Haifa",
+          siteColor: row?.site_color ?? "#a66ae3",
+        },
+        error: null,
+      });
+    if (path.endsWith("/initialize")) {
+      if (!row)
+        row = {
+          user_id: fixtureUser.id,
+          location: "Haifa",
+          rating_sources: ["imdbRating", "rtAudienceRating", "rtCriticRating"],
+          site_color: "#a66ae3",
+        };
+      if (row.signup_initialized === false) {
+        row.location = "Haifa";
+        row.signup_initialized = true;
+      }
+      return output();
+    }
+    return new Promise<Response>((resolve) => {
+      const finish = (fail = false) => {
+        if (!fail)
+          for (const [key, value] of Object.entries(body))
+            row = {
+              ...row,
+              [{
+                ratingSources: "rating_sources",
+                siteColor: "site_color",
+                location: "location",
+              }[key] ?? key]: value,
+            };
+        resolve(
+          fail
+            ? reply(
+                {
+                  data: null,
+                  error: {
+                    code: "save_failed",
+                    message: "Fixture save failed",
+                  },
+                },
+                403,
+              )
+            : output(),
+        );
+      };
+      writes.push({ body, prefer: "", finish });
+      if (!pauseSaves) finish();
+    });
   });
   vi.spyOn(supabase.auth, "getSession").mockResolvedValue({
-    data: { session: { user: fixtureUser } as Session },
+    data: {
+      session: { user: fixtureUser, access_token: "fixture-token" } as Session,
+    },
     error: null,
   });
   vi.spyOn(supabase.auth, "onAuthStateChange").mockImplementation(() => ({
@@ -85,6 +130,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 async function initialize() {
@@ -100,8 +146,7 @@ describe("preference synchronization protocol", () => {
     expect(
       storeModule.useUserPreferencesStore.getState().preferences.location,
     ).toBe("Haifa");
-    expect(writes).toHaveLength(1);
-    expect(writes[0].prefer).toContain("resolution=ignore-duplicates");
+    expect(writes).toHaveLength(0);
   });
 
   it("does not overwrite an existing preference row from concurrent signup initialization", async () => {
@@ -109,15 +154,13 @@ describe("preference synchronization protocol", () => {
     await storeModule.persistSignupPreferenceDefaults(
       "00000000-0000-4000-8000-000000000001",
       "Haifa",
-      {
-        onlyIfMissing: true,
-      },
     );
     expect(row?.location).toBe("Jerusalem");
   });
 
   it("preserves explicit instant-signup location initialization for trigger-created rows", async () => {
     await initialize();
+    row!.signup_initialized = false;
     await storeModule.persistSignupPreferenceDefaults(
       "00000000-0000-4000-8000-000000000001",
       "Haifa",
@@ -158,7 +201,7 @@ describe("preference synchronization protocol", () => {
     expect(
       storeModule.useUserPreferencesStore.getState().preferences.siteColor,
     ).toBe("#333333");
-    expect(writes[1].body.site_color).toBe("#333333");
+    expect(writes[1].body.siteColor).toBe("#333333");
     writes[1].finish();
     await vi.waitFor(() => expect(row?.site_color).toBe("#333333"));
     expect(writes).toHaveLength(2);
