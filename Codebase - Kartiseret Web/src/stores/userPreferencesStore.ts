@@ -208,31 +208,6 @@ function clearCachedPreferences(): void {
   }
 }
 
-export async function persistSignupPreferenceDefaults(
-  userId: string,
-  signupLocationMetadata: unknown,
-): Promise<string | null> {
-  try {
-    await privateApiResponse(
-      "/api/v1/preferences/initialize",
-      preferencesResponseSchema,
-      {
-        method: "POST",
-        userId,
-        body:
-          typeof signupLocationMetadata === "string"
-            ? { fallbackLocation: signupLocationMetadata }
-            : {},
-      },
-    );
-    return null;
-  } catch (error) {
-    return error instanceof Error
-      ? error.message
-      : "Could not initialize preferences.";
-  }
-}
-
 function getGuestPreferences(): UserPreferences {
   return createPreferenceValues((key, definition) => {
     const guestValue = definition.guestPersistence?.load();

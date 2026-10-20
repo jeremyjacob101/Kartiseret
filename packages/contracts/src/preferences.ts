@@ -36,7 +36,6 @@ export type CanonicalAppLocation = z.infer<typeof canonicalAppLocationSchema>;
 
 export const DEFAULT_LOCATION: AppLocation = "Jerusalem";
 export const LOCATION_PREFERENCE_KEY = "location";
-export const LOCATION_SIGNUP_METADATA_KEY = "signup_location";
 export const LOCATION_PREFERENCE_COLUMN = {
   name: "location",
 } as const;

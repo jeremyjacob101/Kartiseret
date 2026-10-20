@@ -3,7 +3,7 @@ from unittest.mock import Mock
 from uuid import uuid4
 
 from backend.notifications.ticket_alerts import (
-    SupabaseTicketAlertRepository, TicketAlertConfig, get_canonical_app_email,
+    SupabaseTicketAlertRepository, TicketAlertDispatcher, get_canonical_app_email,
     send_resend_email, RenderedEmail,
 )
 
@@ -55,6 +55,13 @@ class RecipientLookupTests(unittest.TestCase):
         self.assertEqual(repository.canonical_email(self.user_id), "canonical@example.test")
         self.assertEqual(repository.canonical_email(self.user_id), "canonical@example.test")
         self.http.post.assert_called_once()
+
+    def test_pending_retry_retains_claimed_delivery_identity(self):
+        rows = [{"user_id": self.user_id, "delivery_id": "existing-delivery", "created_at": "2026-10-19T12:00:00Z"}]
+        batches = TicketAlertDispatcher._retry_batches(rows)
+        self.assertEqual(len(batches), 1)
+        self.assertEqual(batches[0].delivery_id, "existing-delivery")
+        self.assertEqual(batches[0].user_id, self.user_id)
 
     def test_delivery_retry_keeps_existing_idempotency_key(self):
         self.http.post.return_value.json.return_value = {"id": "provider-message"}

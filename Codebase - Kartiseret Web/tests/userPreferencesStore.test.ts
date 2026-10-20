@@ -8,6 +8,8 @@ const fixtureUser = {
   email: "qa@example.test",
 };
 
+let notifySession: () => void;
+let initializationRequests: number;
 let row: Record<string, unknown> | null;
 let pauseSaves: boolean;
 let writes: Array<{
@@ -27,6 +29,7 @@ function reply(data: unknown, status = 200) {
 beforeEach(async () => {
   vi.resetModules();
   writes = [];
+  initializationRequests = 0;
   pauseSaves = false;
   row = {
     user_id: "00000000-0000-4000-8000-000000000001",
@@ -57,6 +60,7 @@ beforeEach(async () => {
         error: null,
       });
     if (path.endsWith("/initialize")) {
+      initializationRequests += 1;
       if (!row)
         row = {
           user_id: fixtureUser.id,
@@ -64,10 +68,6 @@ beforeEach(async () => {
           rating_sources: ["imdbRating", "rtAudienceRating", "rtCriticRating"],
           site_color: "#a66ae3",
         };
-      if (row.signup_initialized === false) {
-        row.location = "Haifa";
-        row.signup_initialized = true;
-      }
       return output();
     }
     return new Promise<Response>((resolve) => {
@@ -108,11 +108,13 @@ beforeEach(async () => {
     })),
     useSession: {
       subscribe: (listener: (value: unknown) => void) => {
-        listener({
-          data: { user: fixtureUser },
-          error: null,
-          isPending: false,
-        });
+        notifySession = () =>
+          listener({
+            data: { user: fixtureUser },
+            error: null,
+            isPending: false,
+          });
+        notifySession();
         return () => {};
       },
     },
@@ -132,7 +134,7 @@ async function initialize() {
 }
 
 describe("preference synchronization protocol", () => {
-  it("initializes confirmed-email signup using metadata without reviving the old Context owner", async () => {
+  it("initializes a verified account from server defaults without reviving the old Context owner", async () => {
     row = null;
     await initialize();
     expect(
@@ -141,23 +143,29 @@ describe("preference synchronization protocol", () => {
     expect(writes).toHaveLength(0);
   });
 
-  it("does not overwrite an existing preference row from concurrent signup initialization", async () => {
+  it("does not repeat initialization for same-account session refreshes", async () => {
     await initialize();
-    await storeModule.persistSignupPreferenceDefaults(
-      "00000000-0000-4000-8000-000000000001",
-      "Haifa",
-    );
+    notifySession();
+    notifySession();
+    await Promise.resolve();
+    expect(initializationRequests).toBe(1);
     expect(row?.location).toBe("Jerusalem");
   });
 
-  it("preserves explicit instant-signup location initialization for trigger-created rows", async () => {
+  it("keeps a pending preference save alive across session refresh", async () => {
     await initialize();
-    row!.signup_initialized = false;
-    await storeModule.persistSignupPreferenceDefaults(
-      "00000000-0000-4000-8000-000000000001",
-      "Haifa",
-    );
-    expect(row?.location).toBe("Haifa");
+    pauseSaves = true;
+    await storeModule.useUserPreferencesStore
+      .getState()
+      .saveSiteColor("#123456");
+    await vi.waitFor(() => expect(writes).toHaveLength(1));
+    notifySession();
+    writes[0].finish();
+    await vi.waitFor(() => expect(row?.site_color).toBe("#123456"));
+    expect(initializationRequests).toBe(1);
+    expect(
+      storeModule.useUserPreferencesStore.getState().preferences.siteColor,
+    ).toBe("#123456");
   });
 
   it("rolls back a failed optimistic save to the confirmed value", async () => {

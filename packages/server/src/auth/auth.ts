@@ -38,6 +38,8 @@ export function createApplicationAuth(
       transaction: true,
     }),
     advanced: {
+      disableOriginCheck: false,
+      disableCSRFCheck: false,
       database: { generateId: () => randomUUID() },
       ipAddress: { ipAddressHeaders: ["x-forwarded-for"] },
       cookiePrefix: options.cookiePrefix,
