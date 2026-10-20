@@ -1,6 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 import { Client } from "pg";
 
+let testClientIndex = 0;
+
 async function login(page: Page, email = "browser@example.test") {
   await page.goto("/user");
   await expect(page).toHaveURL("/");
@@ -9,7 +11,10 @@ async function login(page: Page, email = "browser@example.test") {
     .click();
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill("local-fixture-only");
+  const signedIn = page.waitForResponse((response) =>
+    response.url().endsWith("/api/auth/sign-in/email"));
   await page.getByRole("button", { name: "Log in", exact: true }).click();
+  expect((await signedIn).status()).toBe(200);
   await expect(
     page.getByRole("button", { name: `Signed in as ${email}` }),
   ).toBeVisible();
@@ -20,7 +25,12 @@ async function login(page: Page, email = "browser@example.test") {
     page.getByRole("heading", { name: "User Preferences", exact: true }),
   ).toBeVisible();
 }
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page, context }, testInfo) => {
+  // Model distinct clients at the trusted local proxy boundary. Production
+  // Vercel overwrites this header; keep the real database limiter enabled.
+  await context.setExtraHTTPHeaders({
+    "X-Forwarded-For": `198.18.${testInfo.workerIndex}.${++testClientIndex}`,
+  });
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     if (["127.0.0.1", "localhost"].includes(url.hostname)) {
@@ -219,7 +229,10 @@ test("real signup verification, current-password change and signed-out one-time 
     await page
       .getByLabel("Password", { exact: true })
       .fill("browser-password-123");
+    const signedIn = page.waitForResponse((response) =>
+      response.url().endsWith("/api/auth/sign-in/email"));
     await page.getByRole("button", { name: "Log in", exact: true }).click();
+    expect((await signedIn).status()).toBe(200);
     await expect(
       page.getByRole("button", { name: `Signed in as ${email}` }),
     ).toBeVisible();
