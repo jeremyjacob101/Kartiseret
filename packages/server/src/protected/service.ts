@@ -73,9 +73,7 @@ export class ProtectedWorkflows {
     work: (tx: ApplicationTransaction) => Promise<T>,
   ): Promise<T> {
     return this.db.transaction(async (tx) => {
-      await tx.execute(
-        sql`select set_config('request.jwt.claim.sub', ${user.id}, true)`,
-      );
+      await tx.execute(sql`select set_config('app.user_id', ${user.id}, true)`);
       return work(tx);
     });
   }

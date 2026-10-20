@@ -71,7 +71,7 @@ try {
     END;
     $roles$;
     CREATE SCHEMA IF NOT EXISTS auth;
-    CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY);
+    CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY, email text, email_confirmed_at timestamptz, raw_user_meta_data jsonb DEFAULT '{}'::jsonb, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now());
     CREATE OR REPLACE FUNCTION auth.uid()
     RETURNS uuid
     LANGUAGE sql
@@ -92,6 +92,14 @@ try {
   }
   for (const migration of migrations) {
     const sql = await readFile(resolve(migrationDirectory, migration), "utf8");
+    if (migration.endsWith("_better_auth_accounts.sql")) {
+      await client.query(`
+        INSERT INTO auth.users(id,email,email_confirmed_at) VALUES ('00000000-0000-4000-8000-0000000000c1','legacy@example.test',now());
+        INSERT INTO public.admin_users(user_id) VALUES ('00000000-0000-4000-8000-0000000000c1');
+        INSERT INTO public."userPreferences"(user_id,rating_sources,location,site_color,signup_initialized) VALUES ('00000000-0000-4000-8000-0000000000c1',ARRAY[]::text[],'Raanana','#123456',true);
+        INSERT INTO public.ticket_alert_subscriptions(user_id,tmdb_id,delivery_id,notified_at) VALUES ('00000000-0000-4000-8000-0000000000c1',9100011,'00000000-0000-4000-8000-0000000000d1','2026-10-19T12:00:00Z');
+      `);
+    }
     await client.query(sql);
   }
 
@@ -114,7 +122,7 @@ try {
   );
 
   await client.query(`
-    INSERT INTO auth.users (id) VALUES ('00000000-0000-4000-8000-000000000081'),('00000000-0000-4000-8000-000000000082');
+    INSERT INTO app_auth.users (id,name,email,email_verified) VALUES ('00000000-0000-4000-8000-000000000081','Browser','browser@example.test',true),('00000000-0000-4000-8000-000000000082','Admin','admin@example.test',true);
     INSERT INTO public.admin_users (user_id) VALUES ('00000000-0000-4000-8000-000000000082');
   `);
 

@@ -3,27 +3,32 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 
-const { supabaseMock } = vi.hoisted(() => ({
-  supabaseMock: {
-    auth: {
-      updateUser: vi.fn(),
-    },
+const { authMock } = vi.hoisted(() => ({
+  authMock: {
+    resetPassword: vi.fn(),
+    changePassword: vi.fn(),
   },
 }));
 
-vi.mock("../src/lib/supabase", () => ({
-  getSupabaseBrowserClient: vi.fn(() => supabaseMock),
+vi.mock("../src/lib/authClient", () => ({
+  getAuthClient: vi.fn(() => authMock),
 }));
 
 beforeEach(() => {
   vi.clearAllMocks();
-  supabaseMock.auth.updateUser.mockResolvedValue({ error: null });
+  authMock.resetPassword.mockResolvedValue({ error: null });
+  authMock.changePassword.mockResolvedValue({ error: null });
 });
 
 describe("PasswordSecurityForm", () => {
-  it("validates matching password fields before calling Supabase", async () => {
+  it("validates matching password fields before requesting a reset", async () => {
     const user = userEvent.setup();
-    render(<PasswordSecurityForm />);
+    render(
+      <PasswordSecurityForm
+        resetToken="reset-token"
+        requireCurrentPassword={false}
+      />,
+    );
 
     await user.type(screen.getByLabelText("New password"), "secret123");
     await user.type(
@@ -35,20 +40,26 @@ describe("PasswordSecurityForm", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Passwords do not match.",
     );
-    expect(supabaseMock.auth.updateUser).not.toHaveBeenCalled();
+    expect(authMock.resetPassword).not.toHaveBeenCalled();
   });
 
   it("updates a password without sending the current password in recovery mode", async () => {
     const user = userEvent.setup();
-    render(<PasswordSecurityForm />);
+    render(
+      <PasswordSecurityForm
+        resetToken="reset-token"
+        requireCurrentPassword={false}
+      />,
+    );
 
     await user.type(screen.getByLabelText("New password"), "secret123");
     await user.type(screen.getByLabelText("Confirm new password"), "secret123");
     await user.click(screen.getByRole("button", { name: "Update password" }));
 
     await waitFor(() =>
-      expect(supabaseMock.auth.updateUser).toHaveBeenCalledWith({
-        password: "secret123",
+      expect(authMock.resetPassword).toHaveBeenCalledWith({
+        newPassword: "secret123",
+        token: "reset-token",
       }));
     expect(screen.getByRole("status")).toHaveTextContent("Password updated.");
   });
@@ -68,9 +79,10 @@ describe("PasswordSecurityForm", () => {
     await user.click(screen.getByRole("button", { name: "Change password" }));
 
     await waitFor(() =>
-      expect(supabaseMock.auth.updateUser).toHaveBeenCalledWith({
-        current_password: "oldpass",
-        password: "secret123",
+      expect(authMock.changePassword).toHaveBeenCalledWith({
+        currentPassword: "oldpass",
+        newPassword: "secret123",
+        revokeOtherSessions: true,
       }));
   });
 });

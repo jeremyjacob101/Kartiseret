@@ -1,4 +1,10 @@
-import { SupabaseIdentityVerifier } from "./protected/identity.js";
+import { BetterAuthIdentityVerifier } from "./protected/identity.js";
+import { toNodeHandler } from "better-auth/node";
+import { waitUntil } from "@vercel/functions";
+import { createApplicationAuth } from "./auth/auth.js";
+import { parseAuthEnvironment } from "./auth/env.js";
+import { createResendAuthMailer } from "./auth/mail.js";
+import { createRecipientRouter } from "./auth/recipients.js";
 import { ProtectedWorkflows } from "./protected/service.js";
 import { DrizzleCatalogRepository } from "./catalog/drizzle-repository.js";
 import { createApp } from "./app.js";
@@ -16,14 +22,23 @@ function createProductionRuntime(
     sslCaCertificate: config.DATABASE_SSL_CA_CERT,
   });
   const repository = new DrizzleCatalogRepository(database.db);
+  const authConfig = parseAuthEnvironment(environment);
+  const auth = createApplicationAuth(database.pool, {
+    ...authConfig,
+    mailer: createResendAuthMailer(authConfig.mail),
+    ...(environment.VERCEL ? { backgroundTask: waitUntil } : {}),
+  });
 
   return {
     config,
     repository,
     workflows: new ProtectedWorkflows(database.db, repository),
-    identityVerifier: new SupabaseIdentityVerifier(
-      config.SUPABASE_URL,
-      config.SUPABASE_PUBLISHABLE_KEY,
+    identityVerifier: new BetterAuthIdentityVerifier(auth),
+    authHandler: toNodeHandler(auth),
+    trustedOrigins: authConfig.trustedOrigins,
+    recipientRouter: createRecipientRouter(
+      database.pool,
+      authConfig.internalSecret,
     ),
     close: database.close,
   };
@@ -53,6 +68,9 @@ export function createProductionApp(
     publicDataRepository: runtime.repository,
     identityVerifier: runtime.identityVerifier,
     protectedWorkflows: runtime.workflows,
+    authHandler: runtime.authHandler,
+    trustedOrigins: runtime.trustedOrigins,
+    recipientRouter: runtime.recipientRouter,
     logger: {
       error: (message, error) => console.error(message, error),
     },

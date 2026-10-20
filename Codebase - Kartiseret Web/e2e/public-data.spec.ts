@@ -15,15 +15,6 @@ async function blockExternalServices(page: Page): Promise<void> {
       return;
     }
 
-    if (url.hostname === "example.supabase.test") {
-      await route.fulfill({
-        status: 401,
-        contentType: "application/json",
-        body: JSON.stringify({ message: "Fixture auth only." }),
-      });
-      return;
-    }
-
     await route.fulfill({
       status: 200,
       contentType: "image/gif",

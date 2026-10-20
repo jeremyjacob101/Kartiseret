@@ -237,7 +237,7 @@ describe("PostgreSQL 17 integration", () => {
       JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
       WHERE n.nspname = 'public'
         AND f.contype = 'f'
-        AND f.confrelid = 'auth.users'::regclass
+        AND f.confrelid = 'app_auth.users'::regclass
       ORDER BY c.relname
     `);
     expect(providerForeignKeys.map((key) => key.table_name)).toEqual([
@@ -247,7 +247,9 @@ describe("PostgreSQL 17 integration", () => {
     ]);
     expect(
       providerForeignKeys.every((key) =>
-        key.definition.includes("REFERENCES auth.users(id) ON DELETE CASCADE"),
+        key.definition.includes(
+          "REFERENCES app_auth.users(id) ON DELETE CASCADE",
+        ),
       ),
     ).toBe(true);
   });

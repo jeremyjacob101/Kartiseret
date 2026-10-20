@@ -4,80 +4,53 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 
-const { supabaseMock, storeState } = vi.hoisted(() => ({
-  supabaseMock: {
-    auth: {
-      updateUser: vi.fn(),
-    },
-  },
-  storeState: {
-    user: null as unknown,
-    loading: false,
-  },
+const { resetPassword } = vi.hoisted(() => ({ resetPassword: vi.fn() }));
+vi.mock("../src/lib/authClient", () => ({
+  getAuthClient: () => ({ resetPassword }),
 }));
-
-vi.mock("../src/lib/supabase", () => ({
-  getSupabaseBrowserClient: vi.fn(() => supabaseMock),
-}));
-
-vi.mock("../src/stores/userPreferencesStore", () => ({
-  useUserPreferencesStore: (selector: (state: typeof storeState) => unknown) =>
-    selector(storeState),
-}));
-
-function renderPage() {
+function renderPage(path = "/reset-password") {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[path]}>
       <PasswordResetPage />
     </MemoryRouter>,
   );
 }
-
 beforeEach(() => {
   vi.clearAllMocks();
-  supabaseMock.auth.updateUser.mockResolvedValue({ error: null });
-  storeState.user = null;
-  storeState.loading = false;
+  resetPassword.mockResolvedValue({ error: null });
 });
-
-describe("PasswordResetPage", () => {
-  it("does not expose a password form without an authenticated recovery session", () => {
-    renderPage();
-
-    expect(
-      screen.getByRole("heading", {
-        name: "This reset link is invalid or expired",
-      }),
-    ).toBeInTheDocument();
-    expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
-  });
-
-  it("allows an authenticated recovery session to set a new password", async () => {
+describe("token-based password recovery", () => {
+  it.each(["/reset-password", "/reset-password?error=INVALID_TOKEN"])(
+    "rejects missing/expired reset links without consulting an existing session",
+    (path) => {
+      renderPage(path);
+      expect(
+        screen.getByRole("heading", {
+          name: "This reset link is invalid or expired",
+        }),
+      ).toBeInTheDocument();
+      expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
+    },
+  );
+  it("uses the reset token while signed out and surfaces a consumed-token error", async () => {
+    resetPassword.mockResolvedValue({
+      error: { message: "Invalid or expired token" },
+    });
     const user = userEvent.setup();
-    storeState.user = { id: "user-a", email: "user@example.com" };
-    renderPage();
-
-    await user.type(screen.getByLabelText("New password"), "secret123");
-    await user.type(screen.getByLabelText("Confirm new password"), "secret123");
+    renderPage("/reset-password?token=single-use-reset");
+    await user.type(screen.getByLabelText("New password"), "new-secret123");
+    await user.type(
+      screen.getByLabelText("Confirm new password"),
+      "new-secret123",
+    );
     await user.click(screen.getByRole("button", { name: "Update password" }));
-
     await waitFor(() =>
-      expect(supabaseMock.auth.updateUser).toHaveBeenCalledWith({
-        password: "secret123",
+      expect(resetPassword).toHaveBeenCalledWith({
+        token: "single-use-reset",
+        newPassword: "new-secret123",
       }));
-    expect(
-      screen.getByText("Password updated. You can now return to Kartiseret."),
-    ).toBeInTheDocument();
-  });
-
-  it("does not wait for preference synchronization once Auth has a user", () => {
-    storeState.user = { id: "user-a", email: "user@example.com" };
-    storeState.loading = true;
-    renderPage();
-
-    expect(screen.getByLabelText("New password")).toBeInTheDocument();
-    expect(
-      screen.queryByText("Checking your reset link..."),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Invalid or expired token",
+    );
   });
 });

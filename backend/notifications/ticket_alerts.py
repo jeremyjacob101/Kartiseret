@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 from html import escape
 from typing import Any, Callable
 from urllib.parse import urlsplit
-from uuid import uuid4
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 import os
 import re
@@ -301,6 +301,8 @@ class TicketAlertConfig:
     resend_api_key: str
     from_email: str
     site_url: str
+    recipient_api_url: str = ""
+    internal_api_secret: str = ""
 
     @classmethod
     def from_environment(cls) -> "TicketAlertConfig":
@@ -308,6 +310,8 @@ class TicketAlertConfig:
             resend_api_key=os.environ.get("RESEND_API_KEY", "").strip(),
             from_email=os.environ.get("RESEND_FROM_EMAIL", DEFAULT_FROM_EMAIL).strip()
             or DEFAULT_FROM_EMAIL,
+            recipient_api_url=os.environ.get("TICKET_ALERT_RECIPIENT_API_URL", "").strip(),
+            internal_api_secret=os.environ.get("TICKET_ALERT_INTERNAL_API_SECRET", "").strip(),
             site_url=os.environ.get("SITE_URL", DEFAULT_SITE_URL).strip()
             or DEFAULT_SITE_URL,
         )
@@ -417,19 +421,37 @@ def render_ticket_alert_email(
     return RenderedEmail(subject=subject, html=html_body, text=text_body)
 
 
-def get_canonical_auth_email(supabase_client: Any, user_id: str) -> str:
-    response = supabase_client.auth.admin.get_user_by_id(user_id)
-    user = getattr(response, "user", None)
-    if user is None and isinstance(response, dict):
-        user = response.get("user")
-
-    if isinstance(user, dict):
-        email = _text(user.get("email"))
-    else:
-        email = _text(getattr(user, "email", None))
-
-    if not EMAIL_PATTERN.fullmatch(email) or "\r" in email or "\n" in email:
-        raise ValueError(f"Supabase Auth user {user_id} has no deliverable email address.")
+def get_canonical_app_email(
+    http_client: Any, *, base_url: str, secret: str, user_id: str
+) -> str:
+    UUID(user_id)
+    target = urlsplit(base_url)
+    if (
+        not base_url or not secret or target.username or target.password
+        or target.query or target.fragment or target.path not in ("", "/")
+        or not target.hostname
+        or (target.scheme != "https" and not (
+            target.scheme == "http" and target.hostname in ("localhost", "127.0.0.1", "::1")
+        ))
+    ):
+        raise RuntimeError("A valid recipient API origin and internal credential are required.")
+    response = http_client.post(
+        base_url.rstrip("/") + "/api/internal/ticket-alert-recipients",
+        headers={"Authorization": f"Bearer {secret}", "Content-Type": "application/json"},
+        json={"userIds": [user_id]}, timeout=(5, 15), allow_redirects=False,
+    )
+    if response.status_code != 200:
+        raise RuntimeError("Canonical recipient lookup failed.")
+    body = response.json()
+    rows = body.get("data") if isinstance(body, dict) and body.get("error") is None else None
+    if not isinstance(rows, list):
+        raise ValueError("Canonical recipient response is invalid.")
+    matches = [row for row in rows if isinstance(row, dict) and row.get("id") == user_id]
+    if len(matches) != 1 or matches[0].get("emailVerified") is not True:
+        raise ValueError("The account has no verified canonical recipient.")
+    email = matches[0].get("email")
+    if not isinstance(email, str) or not EMAIL_PATTERN.fullmatch(email) or "\r" in email or "\n" in email:
+        raise ValueError("The account has no deliverable canonical recipient.")
     return email
 
 
@@ -482,8 +504,12 @@ def send_resend_email(
 
 
 class SupabaseTicketAlertRepository:
-    def __init__(self, supabase_client: Any):
+    def __init__(self, supabase_client: Any, *, recipient_api_url: str = "", internal_api_secret: str = "", http_client: Any = requests):
         self.supabase = supabase_client
+        self.recipient_api_url = recipient_api_url
+        self.internal_api_secret = internal_api_secret
+        self.http_client = http_client
+        self._recipient_cache: dict[str, str] = {}
 
     @staticmethod
     def _response_rows(response: Any) -> list[dict[str, Any]]:
@@ -707,7 +733,12 @@ class SupabaseTicketAlertRepository:
             )
 
     def canonical_email(self, user_id: str) -> str:
-        return get_canonical_auth_email(self.supabase, user_id)
+        if user_id not in self._recipient_cache:
+            self._recipient_cache[user_id] = get_canonical_app_email(
+                self.http_client, base_url=self.recipient_api_url,
+                secret=self.internal_api_secret, user_id=user_id,
+            )
+        return self._recipient_cache[user_id]
 
     def mark_success(
         self,
@@ -771,7 +802,10 @@ class TicketAlertDispatcher:
                     "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required for ticket alerts."
                 )
             repository = SupabaseTicketAlertRepository(
-                create_client(supabase_url, service_role_key)
+                create_client(supabase_url, service_role_key),
+                recipient_api_url=self.config.recipient_api_url,
+                internal_api_secret=self.config.internal_api_secret,
+                http_client=self.http_client,
             )
         self.repository = repository
 

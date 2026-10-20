@@ -44,6 +44,7 @@ function setup() {
       },
       identityVerifier: { verify },
       protectedWorkflows: workflows,
+      trustedOrigins: ["http://localhost"],
     }),
   };
 }
@@ -64,10 +65,11 @@ describe("protected HTTP contracts", () => {
     const { app, workflows } = setup();
     const result = await request(app)
       .get("/api/v1/account")
-      .set("Authorization", "Bearer valid");
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost");
     expect(result.status).toBe(200);
     expect(result.body.data.user.id).toBe(id);
-    expect(result.headers.vary).toContain("Authorization");
+    expect(result.headers.vary).toContain("Cookie");
     expect(workflows.account).toHaveBeenCalledWith({
       id,
       email: "qa@example.test",
@@ -76,9 +78,20 @@ describe("protected HTTP contracts", () => {
       (
         await request(app)
           .get("/api/v1/account?userId=other")
-          .set("Authorization", "Bearer valid")
+          .set("Cookie", "valid")
+          .set("Origin", "http://localhost")
       ).status,
     ).toBe(400);
+  });
+  it("rejects an account expectation that no longer matches the cookie identity", async () => {
+    const { app, workflows } = setup();
+    const result = await request(app)
+      .get("/api/v1/account")
+      .set("Cookie", "valid")
+      .set("X-Kartiseret-Account-Id", "00000000-0000-4000-8000-000000000002");
+    expect(result.status).toBe(409);
+    expect(result.body.error.code).toBe("account_changed");
+    expect(workflows.account).not.toHaveBeenCalled();
   });
   it.each([
     { userId: id, siteColor: "#123456" },
@@ -89,7 +102,8 @@ describe("protected HTTP contracts", () => {
     const { app, workflows } = setup();
     const result = await request(app)
       .patch("/api/v1/preferences")
-      .set("Authorization", "Bearer valid")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
       .send(body);
     expect(result.status).toBe(400);
     expect(workflows.patchPreferences).not.toHaveBeenCalled();
@@ -100,7 +114,8 @@ describe("protected HTTP contracts", () => {
       (
         await request(app)
           .post("/api/v1/ticket-alerts")
-          .set("Authorization", "Bearer valid")
+          .set("Cookie", "valid")
+          .set("Origin", "http://localhost")
           .send({ tmdbId: "101", preferredCity: "Haifa", notifiedAt: null })
       ).status,
     ).toBe(400);
@@ -109,7 +124,8 @@ describe("protected HTTP contracts", () => {
       (
         await request(app)
           .post("/api/v1/admin/movie-corrections")
-          .set("Authorization", "Bearer valid")
+          .set("Cookie", "valid")
+          .set("Origin", "http://localhost")
           .send({
             mode: "nowPlaying",
             currentTmdbId: "101",
@@ -126,7 +142,8 @@ describe("protected HTTP contracts", () => {
     );
     const result = await request(app)
       .patch("/api/v1/preferences")
-      .set("Authorization", "Bearer valid")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
       .send({ location: "Haifa" });
     expect(result.status).toBe(503);
     expect(result.headers["cache-control"]).toBe("no-store");

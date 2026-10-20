@@ -7,7 +7,6 @@
   },
   "include": [
     "../server",
-    "../src/env.d.ts",
-    "../src/lib/supabaseConfig.ts"
+    "../src/env.d.ts"
   ]
 }

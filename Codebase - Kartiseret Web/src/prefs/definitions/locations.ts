@@ -1,4 +1,4 @@
-import { DEFAULT_LOCATION, LOCATION_PREFERENCE_COLUMN, LOCATION_PREFERENCE_KEY, LOCATION_SIGNUP_METADATA_KEY, ALL_LOCATIONS, appLocationSchema, canonicalAppLocationSchema, normalizeLocation } from "@kartiseret/contracts/preferences";
+import { DEFAULT_LOCATION, LOCATION_PREFERENCE_COLUMN, LOCATION_PREFERENCE_KEY, ALL_LOCATIONS, appLocationSchema, canonicalAppLocationSchema, normalizeLocation } from "@kartiseret/contracts/preferences";
 import type { AppLocation, CanonicalAppLocation } from "@kartiseret/contracts/preferences";
 import type { UserPreferenceDefinition } from "./shared.js";
 
@@ -9,7 +9,6 @@ export {
   DEFAULT_LOCATION,
   LOCATION_PREFERENCE_COLUMN,
   LOCATION_PREFERENCE_KEY,
-  LOCATION_SIGNUP_METADATA_KEY,
   normalizeLocation,
 };
 export type { AppLocation, CanonicalAppLocation };

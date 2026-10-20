@@ -6,7 +6,7 @@ Kartiseret uses Zod at trust boundaries and TypeScript inside those boundaries. 
 
 Parse an unknown value once, immediately when it enters or leaves a trusted part of the application:
 
-- Supabase rows, authentication responses, and mutation inputs
+- API DTOs, authentication responses, server-owned database rows and mutation inputs
 - environment variables and server request data
 - URL and router state
 - local storage, custom events, and experimental browser APIs
@@ -34,19 +34,19 @@ Do not create a general schema barrel or a second validation library. Import sha
 
 Storage keys must be versioned, store only the fields the UI needs, and wrap reads and writes in `try`/`catch`. Stored JSON and cross-tab/custom-event values must be parsed or migrated before use. Database mutation entrypoints validate user-controlled inputs before issuing a write.
 
-Ticket-alert state is account-only. Subscription reads and mutations go directly through authenticated user table access; there is no guest token, guest receipt storage, or guest alert mutation path.
+Ticket-alert state is account-only. Subscription reads and mutations go through verified cookie-session Express APIs; there is no guest token, guest receipt storage, or guest alert mutation path.
 
 ## Ticket-alert boundary behavior
 
 - Validate account inputs once in the public service entrypoint; private helpers consume the inferred output. The UI passes typed account actions to that boundary. Missing required columns, malformed timestamps, or mismatched response identities stop the operation.
 - Invalid optional ticket URLs may fall back to the other language. Unusable listing rows are skipped, while a malformed page envelope is an error. Count every source row for pagination, including skipped rows, so validation never prematurely stops a full page.
-- Use the same showtime/date/ID primitives as the catalog. Alert movie IDs must fit JavaScript's safe integer range before direct table access.
+- Use the same showtime/date/ID primitives as the catalog. Subscription IDs retain PostgreSQL bigint precision in API DTOs; catalog-backed writes enforce their catalog range on the server.
 - Read signup-location metadata as unknown, parse it once, and fall back to the validated guest location or default. Newly built preferences are already typed internal values and do not need another row parse.
 - Use `buildMovieShowtimeSharePath` for relative in-app links. Absolute share URLs continue to require a valid HTTP(S) origin; an empty origin is not a relative-path API.
 
 ## Tests and bundle budget
 
-Runtime validation tests use fixtures only. They must not connect to Supabase or other production services. Ticket-alert service tests replace the Supabase module before import, use in-memory storage, and forbid network fetches. They cover validation failures before mutation, account-only table mutations, cache recovery, pagination, auth-menu routing, and relative links. Do not run migrations, send email, or use live account subscriptions to test validation changes.
+Runtime validation tests use fixtures only. They must not connect to Supabase or other production services. Ticket-alert service tests inject auth/API boundaries and forbid real network requests. They cover validation failures before mutation, account-only API mutations, cache recovery, pagination, auth-menu routing, and relative links. Do not run migrations, send email, or use live account subscriptions to test validation changes.
 
 From the repository root, `npm run build` emits `packages/contracts/dist/` as ESM and declarations, then typechecks and builds the frontend. `npm run bundle:check` measures the entry module plus every `modulepreload` referenced by `Codebase - Kartiseret Web/dist/index.html`. The default eager-JavaScript budget is 210 KiB gzip (the base commit measured 205.9 KiB; PR 1 measured 207.5 KiB) and can be overridden in CI with `EAGER_JS_GZIP_BUDGET_BYTES`.
 

@@ -1,11 +1,10 @@
 import { invalidateUserTicketAlertQueries, mergeUserTicketAlert, selectTicketAlertAvailability, selectUserTicketAlert, ticketAlertAvailabilityQueryOptions, ticketAlertMutationOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions, type TicketAlertShowtimeRow, type UserTicketAlertSubscription } from "../src/data/ticketAlerts";
 import { addCalendarDays, getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getSupabaseBrowserClient } from "../src/lib/supabase";
-import { createClient } from "@supabase/supabase-js";
+import { getAuthClient } from "../src/lib/authClient";
 import { QueryClient } from "@tanstack/react-query";
 
-vi.mock("../src/lib/supabase", () => ({ getSupabaseBrowserClient: vi.fn() }));
+vi.mock("../src/lib/authClient", () => ({ getAuthClient: vi.fn() }));
 
 type StoredSubscription = {
   user_id: string;
@@ -72,23 +71,12 @@ beforeEach(() => {
       setItem: (key: string, value: string) => storage.set(key, value),
     },
   });
-  const supabase = createClient("http://127.0.0.1:54321", "local-test-only", {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-  });
-  vi.spyOn(supabase.auth, "getSession").mockResolvedValue({
-    data: {
-      session: {
-        access_token: "fixture-token",
-        user: { id: "00000000-0000-4000-8000-000000000001" },
-      } as import("@supabase/supabase-js").Session,
-    },
-    error: null,
-  });
-  vi.mocked(getSupabaseBrowserClient).mockReturnValue(supabase);
+  vi.mocked(getAuthClient).mockReturnValue({
+    getSession: vi.fn(async () => ({
+      data: { user: { id: "00000000-0000-4000-8000-000000000001" } },
+      error: null,
+    })),
+  } as unknown as ReturnType<typeof getAuthClient>);
   const map = (row: StoredSubscription) => ({
     tmdbId: String(row.tmdb_id),
     createdAt: row.created_at,
@@ -223,9 +211,7 @@ describe("ticket alert queries", () => {
     await client.fetchQuery(options);
     expect(requests).toHaveLength(2);
     expect(new URL(requests[1].url).searchParams.get("offset")).toBe("1000");
-    expect(requests[0].headers.get("authorization")).toBe(
-      "Bearer fixture-token",
-    );
+    expect(requests[0].headers.get("authorization")).toBeNull();
   });
 
   it("aborts in-flight reads when their query is cancelled", async () => {

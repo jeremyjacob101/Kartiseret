@@ -5,8 +5,10 @@ import { isoDateStringSchema, movieCodeSchema, parseBoundary } from "@kartiseret
 import { mutationOptions, queryOptions, skipToken, type QueryClient } from "@tanstack/react-query";
 import { getShowtimeSortValue, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
 import { ticketAvailabilityResponseSchema } from "@kartiseret/contracts/public-data";
+import { applicationIdentitySchema } from "@kartiseret/contracts/private-data";
 import { normalizeTicketAlertTmdbId } from "../domain/ticketAlerts";
-import { supabaseUserIdSchema } from "../lib/supabaseSchemas";
+
+const userIdSchema = applicationIdentitySchema.shape.id;
 import { privateApiResponse } from "./privateApi";
 import { queryClient } from "../lib/queryClient";
 import { getApiResponse } from "./apiClient";
@@ -210,7 +212,7 @@ async function fetchUserTicketAlertSubscriptions(
   signal: AbortSignal,
 ): Promise<UserTicketAlertSubscription[]> {
   const validatedUserId = parseBoundary(
-    supabaseUserIdSchema,
+    userIdSchema,
     userId,
     "ticket alert user ID",
   );
@@ -255,7 +257,7 @@ export function userTicketAlertSubscriptionsQueryOptions(
   userId: string | null,
 ) {
   const normalizedUserId = userId
-    ? parseBoundary(supabaseUserIdSchema, userId, "ticket alert user ID")
+    ? parseBoundary(userIdSchema, userId, "ticket alert user ID")
     : null;
   return queryOptions({
     queryKey: ticketAlertQueryKeys.subscriptions(normalizedUserId),
@@ -302,7 +304,7 @@ export function invalidateUserTicketAlertQueries(
   userId: string,
 ) {
   const validatedUserId = parseBoundary(
-    supabaseUserIdSchema,
+    userIdSchema,
     userId,
     "ticket alert user ID",
   );
@@ -319,7 +321,7 @@ async function changeTicketAlert(
   change: TicketAlertChange,
 ): Promise<TicketAlertChangeResult> {
   const validatedUserId = userId
-    ? parseBoundary(supabaseUserIdSchema, userId, "ticket alert user ID")
+    ? parseBoundary(userIdSchema, userId, "ticket alert user ID")
     : null;
   const parsedChange = parseBoundary(
     ticketAlertChangeSchema,
@@ -362,7 +364,7 @@ export function ticketAlertMutationOptions(
     onSuccess: async (result) => {
       if (result.kind === "account" && userId) {
         const validatedUserId = parseBoundary(
-          supabaseUserIdSchema,
+          userIdSchema,
           userId,
           "ticket alert user ID",
         );

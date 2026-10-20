@@ -1,10 +1,12 @@
-import { getSupabaseBrowserClient } from "../lib/supabase";
+import { accountPasswordSchema, PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH } from "@kartiseret/contracts/private-data";
+import { getAuthClient } from "../lib/authClient";
 import { useState, type FormEvent } from "react";
 import { z } from "zod";
 import "./PasswordSecurityForm.css";
 
 type PasswordSecurityFormProps = {
   description?: string;
+  resetToken?: string;
   requireCurrentPassword?: boolean;
   submitLabel?: string;
   successMessage?: string;
@@ -15,7 +17,7 @@ type PasswordSecurityFormProps = {
 const passwordChangeSchema = z
   .object({
     currentPassword: z.string().optional(),
-    password: z.string().min(6, "New password must be at least 6 characters."),
+    password: accountPasswordSchema,
     confirmPassword: z.string().min(1, "Confirm your new password."),
   })
   .superRefine((values, context) => {
@@ -28,11 +30,12 @@ const passwordChangeSchema = z
     }
   });
 
-const supabase = getSupabaseBrowserClient();
+const authClient = getAuthClient();
 
 export function PasswordSecurityForm({
   description = "Choose a new password for your account.",
-  requireCurrentPassword = false,
+  requireCurrentPassword = true,
+  resetToken,
   submitLabel = "Update password",
   successMessage = "Password updated.",
   title = "Change password",
@@ -67,17 +70,21 @@ export function PasswordSecurityForm({
     }
 
     setPending(true);
-    const updateResult = requireCurrentPassword
-      ? await supabase.auth.updateUser({
-          password: result.data.password,
-          current_password: result.data.currentPassword,
+    const updateResult = resetToken
+      ? await authClient.resetPassword({
+          token: resetToken,
+          newPassword: result.data.password,
         })
-      : await supabase.auth.updateUser({ password: result.data.password });
+      : await authClient.changePassword({
+          currentPassword: result.data.currentPassword ?? "",
+          newPassword: result.data.password,
+          revokeOtherSessions: true,
+        });
 
     setPending(false);
 
     if (updateResult.error) {
-      setError(updateResult.error.message);
+      setError(updateResult.error.message ?? "Password update failed.");
       return;
     }
 
@@ -122,7 +129,8 @@ export function PasswordSecurityForm({
             onChange={(event) => {
               setPassword(event.target.value);
             }}
-            minLength={6}
+            minLength={PASSWORD_MIN_LENGTH}
+            maxLength={PASSWORD_MAX_LENGTH}
             required
           />
         </label>
@@ -136,7 +144,8 @@ export function PasswordSecurityForm({
             onChange={(event) => {
               setConfirmPassword(event.target.value);
             }}
-            minLength={6}
+            minLength={PASSWORD_MIN_LENGTH}
+            maxLength={PASSWORD_MAX_LENGTH}
             required
           />
         </label>

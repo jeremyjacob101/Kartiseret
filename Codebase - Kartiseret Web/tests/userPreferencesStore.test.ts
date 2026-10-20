@@ -1,18 +1,16 @@
-import { createClient, type Session, type User } from "@supabase/supabase-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getSupabaseBrowserClient } from "../src/lib/supabase";
+import { getAuthClient } from "../src/lib/authClient";
 
-vi.mock("../src/lib/supabase", () => ({ getSupabaseBrowserClient: vi.fn() }));
+vi.mock("../src/lib/authClient", () => ({ getAuthClient: vi.fn() }));
 
-const fixtureUser: User = {
+const fixtureUser = {
   id: "00000000-0000-4000-8000-000000000001",
-  aud: "authenticated",
   email: "qa@example.test",
-  created_at: "2026-09-01T12:00:00Z",
-  app_metadata: {},
-  user_metadata: { signup_location: "Haifa" },
 };
 
+let notifySession: () => void;
+let failSession: () => void;
+let initializationRequests: number;
 let row: Record<string, unknown> | null;
 let pauseSaves: boolean;
 let writes: Array<{
@@ -32,6 +30,7 @@ function reply(data: unknown, status = 200) {
 beforeEach(async () => {
   vi.resetModules();
   writes = [];
+  initializationRequests = 0;
   pauseSaves = false;
   row = {
     user_id: "00000000-0000-4000-8000-000000000001",
@@ -39,13 +38,6 @@ beforeEach(async () => {
     location: "Jerusalem",
     site_color: "#a66ae3",
   };
-  const supabase = createClient("http://127.0.0.1:54321", "local-test-only", {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-  });
   vi.stubGlobal("fetch", async (
     _input: RequestInfo | URL,
     init?: RequestInit,
@@ -69,6 +61,7 @@ beforeEach(async () => {
         error: null,
       });
     if (path.endsWith("/initialize")) {
+      initializationRequests += 1;
       if (!row)
         row = {
           user_id: fixtureUser.id,
@@ -76,10 +69,6 @@ beforeEach(async () => {
           rating_sources: ["imdbRating", "rtAudienceRating", "rtCriticRating"],
           site_color: "#a66ae3",
         };
-      if (row.signup_initialized === false) {
-        row.location = "Haifa";
-        row.signup_initialized = true;
-      }
       return output();
     }
     return new Promise<Response>((resolve) => {
@@ -113,18 +102,30 @@ beforeEach(async () => {
       if (!pauseSaves) finish();
     });
   });
-  vi.spyOn(supabase.auth, "getSession").mockResolvedValue({
-    data: {
-      session: { user: fixtureUser, access_token: "fixture-token" } as Session,
+  vi.mocked(getAuthClient).mockReturnValue({
+    getSession: vi.fn(async () => ({
+      data: { user: fixtureUser },
+      error: null,
+    })),
+    useSession: {
+      subscribe: (listener: (value: unknown) => void) => {
+        notifySession = () =>
+          listener({
+            data: { user: fixtureUser },
+            error: null,
+            isPending: false,
+          });
+        failSession = () =>
+          listener({
+            data: null,
+            error: { status: 503, message: "Auth temporarily unavailable" },
+            isPending: false,
+          });
+        notifySession();
+        return () => {};
+      },
     },
-    error: null,
-  });
-  vi.spyOn(supabase.auth, "onAuthStateChange").mockImplementation(() => ({
-    data: {
-      subscription: { id: "local", callback: () => {}, unsubscribe: () => {} },
-    },
-  }));
-  vi.mocked(getSupabaseBrowserClient).mockReturnValue(supabase);
+  } as unknown as ReturnType<typeof getAuthClient>);
   storeModule = await import("../src/stores/userPreferencesStore");
 });
 
@@ -140,7 +141,7 @@ async function initialize() {
 }
 
 describe("preference synchronization protocol", () => {
-  it("initializes confirmed-email signup using metadata without reviving the old Context owner", async () => {
+  it("initializes a verified account from server defaults without reviving the old Context owner", async () => {
     row = null;
     await initialize();
     expect(
@@ -149,23 +150,52 @@ describe("preference synchronization protocol", () => {
     expect(writes).toHaveLength(0);
   });
 
-  it("does not overwrite an existing preference row from concurrent signup initialization", async () => {
+  it("does not repeat initialization for same-account session refreshes", async () => {
     await initialize();
-    await storeModule.persistSignupPreferenceDefaults(
-      "00000000-0000-4000-8000-000000000001",
-      "Haifa",
-    );
+    notifySession();
+    notifySession();
+    await Promise.resolve();
+    expect(initializationRequests).toBe(1);
     expect(row?.location).toBe("Jerusalem");
   });
 
-  it("preserves explicit instant-signup location initialization for trigger-created rows", async () => {
+  it("keeps a pending preference save alive across session refresh", async () => {
     await initialize();
-    row!.signup_initialized = false;
-    await storeModule.persistSignupPreferenceDefaults(
-      "00000000-0000-4000-8000-000000000001",
-      "Haifa",
+    pauseSaves = true;
+    await storeModule.useUserPreferencesStore
+      .getState()
+      .saveSiteColor("#123456");
+    await vi.waitFor(() => expect(writes).toHaveLength(1));
+    notifySession();
+    writes[0].finish();
+    await vi.waitFor(() => expect(row?.site_color).toBe("#123456"));
+    expect(initializationRequests).toBe(1);
+    expect(
+      storeModule.useUserPreferencesStore.getState().preferences.siteColor,
+    ).toBe("#123456");
+  });
+
+  it("preserves identity and a pending save during a transient session outage", async () => {
+    await initialize();
+    pauseSaves = true;
+    await storeModule.useUserPreferencesStore
+      .getState()
+      .saveSiteColor("#123456");
+    await vi.waitFor(() => expect(writes).toHaveLength(1));
+    failSession();
+    expect(storeModule.useUserPreferencesStore.getState().user).toEqual(
+      fixtureUser,
     );
-    expect(row?.location).toBe("Haifa");
+    expect(storeModule.useUserPreferencesStore.getState().error).toBe(
+      "Auth temporarily unavailable",
+    );
+    writes[0].finish();
+    await vi.waitFor(() => expect(row?.site_color).toBe("#123456"));
+    notifySession();
+    expect(initializationRequests).toBe(1);
+    expect(
+      storeModule.useUserPreferencesStore.getState().preferences.siteColor,
+    ).toBe("#123456");
   });
 
   it("rolls back a failed optimistic save to the confirmed value", async () => {

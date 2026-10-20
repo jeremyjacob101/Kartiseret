@@ -35,7 +35,7 @@ const bob = {
 };
 const owner = {
   id: "00000000-0000-4000-8000-000000000043",
-  email: "admin@example.test",
+  email: "workflow-admin@example.test",
 };
 const publicRepository = new DrizzleCatalogRepository(runtime.db);
 const workflows = new ProtectedWorkflows(
@@ -48,6 +48,7 @@ const app = createApp({
   catalogRepository: publicRepository,
   publicDataRepository: publicRepository,
   protectedWorkflows: workflows,
+  trustedOrigins: ["http://localhost"],
   identityVerifier: {
     async verify(token) {
       const identity = identities[token as keyof typeof identities];
@@ -87,8 +88,8 @@ describe.sequential(
     beforeAll(async () => {
       for (const user of [alice, bob, owner])
         await admin.pool.query(
-          "INSERT INTO auth.users (id) VALUES ($1) ON CONFLICT DO NOTHING",
-          [user.id],
+          "INSERT INTO app_auth.users (id,name,email,email_verified) VALUES ($1,'Fixture',$2,true)",
+          [user.id, user.email],
         );
       await admin.pool.query(
         "INSERT INTO public.admin_users (user_id) VALUES ($1)",
@@ -115,7 +116,7 @@ describe.sequential(
         'DELETE FROM public."movieCodes" WHERE tmdb_id BETWEEN 9200000 AND 9200999',
       );
       await admin.pool.query(
-        "DELETE FROM auth.users WHERE id = ANY($1::uuid[])",
+        "DELETE FROM app_auth.users WHERE id = ANY($1::uuid[])",
         [[alice.id, bob.id, owner.id]],
       );
       await Promise.all([runtime.close(), admin.close()]);
@@ -160,14 +161,16 @@ describe.sequential(
         (
           await request(app)
             .get("/api/v1/preferences")
-            .set("Authorization", "Bearer alice")
+            .set("Cookie", "alice")
+            .set("Origin", "http://localhost")
         ).body.data.location,
       ).toBe("Tel Aviv");
       expect(
         (
           await request(app)
             .get("/api/v1/preferences")
-            .set("Authorization", "Bearer bob")
+            .set("Cookie", "bob")
+            .set("Origin", "http://localhost")
         ).body.data.location,
       ).toBe("Raanana");
       expect(
@@ -180,10 +183,9 @@ describe.sequential(
       const connection = await runtime.pool.connect();
       try {
         await connection.query("BEGIN");
-        await connection.query(
-          "select set_config('request.jwt.claim.sub',$1,true)",
-          [alice.id],
-        );
+        await connection.query("select set_config('app.user_id',$1,true)", [
+          alice.id,
+        ]);
         expect(
           (
             await connection.query(
@@ -213,7 +215,8 @@ describe.sequential(
         (
           await request(app)
             .get("/api/v1/preferences?userId=" + bob.id)
-            .set("Authorization", "Bearer alice")
+            .set("Cookie", "alice")
+            .set("Origin", "http://localhost")
         ).status,
       ).toBe(400);
       expect((await request(app).get("/api/v1/ticket-alerts")).status).toBe(
@@ -273,7 +276,8 @@ describe.sequential(
       ).toBe(true);
       const result = await request(app)
         .delete("/api/v1/ticket-alerts/9007199254740993")
-        .set("Authorization", "Bearer alice");
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost");
       expect(result.status).toBe(200);
       expect(
         (await workflows.subscriptions(alice, 0)).subscriptions.some(
@@ -287,7 +291,8 @@ describe.sequential(
       );
       const result = await request(app)
         .post("/api/v1/ticket-alerts")
-        .set("Authorization", "Bearer alice")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
         .send({ tmdbId: "9200002", preferredCity: "Jerusalem" });
       expect(result.status).toBe(200);
       expect(result.body.data).toEqual({ kind: "available" });
@@ -315,7 +320,8 @@ describe.sequential(
           (
             await request(app)
               .post("/api/v1/admin/movie-corrections")
-              .set("Authorization", "Bearer alice")
+              .set("Cookie", "alice")
+              .set("Origin", "http://localhost")
               .send(correction(mode, source, target))
           ).status,
         ).toBe(403);

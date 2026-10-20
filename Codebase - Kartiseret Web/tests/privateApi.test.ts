@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 const { getSession } = vi.hoisted(() => ({ getSession: vi.fn() }));
-vi.mock("../src/lib/supabase", () => ({
-  getSupabaseBrowserClient: () => ({ auth: { getSession } }),
+vi.mock("../src/lib/authClient", () => ({
+  getAuthClient: () => ({ getSession }),
 }));
 const alice = "00000000-0000-4000-8000-000000000001";
 let boundary: typeof import("../src/data/privateApi");
@@ -13,7 +13,7 @@ beforeEach(async () => {
   client = await import("../src/lib/queryClient");
   boundary = await import("../src/data/privateApi");
   getSession.mockResolvedValue({
-    data: { session: { access_token: "verified-bearer", user: { id: alice } } },
+    data: { user: { id: alice } },
     error: null,
   });
 });
@@ -22,7 +22,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("private request identity and cache ownership", () => {
-  it("attaches a session bearer only to the protected transport and rejects a mismatched account", async () => {
+  it("uses same-origin cookies for the protected transport and rejects a mismatched account", async () => {
     const transport = vi.fn(
       async () => new Response(JSON.stringify({ ok: true })),
     );
@@ -38,9 +38,11 @@ describe("private request identity and cache ownership", () => {
       "/api/v1/account",
       expect.objectContaining({
         cache: "no-store",
-        headers: expect.objectContaining({
-          Authorization: "Bearer verified-bearer",
-        }),
+        credentials: "same-origin",
+        headers: {
+          Accept: "application/json",
+          "X-Kartiseret-Account-Id": alice,
+        },
       }),
     );
     await expect(
@@ -49,6 +51,15 @@ describe("private request identity and cache ownership", () => {
       }),
     ).rejects.toMatchObject({ status: 401 });
     expect(transport).toHaveBeenCalledTimes(1);
+  });
+  it("reports unavailable session verification without turning it into a login error", async () => {
+    getSession.mockResolvedValueOnce({ data: null, error: { status: 503 } });
+    const transport = vi.fn();
+    vi.stubGlobal("fetch", transport);
+    await expect(
+      boundary.privateApiResponse("/api/v1/account", z.unknown()),
+    ).rejects.toMatchObject({ status: 503, code: "auth_unavailable" });
+    expect(transport).not.toHaveBeenCalled();
   });
   it("allows the expected signup account to activate while its session is being read", async () => {
     boundary.privateIdentityChanged(null);
@@ -71,7 +82,7 @@ describe("private request identity and cache ownership", () => {
     boundary.privateIdentityChanged(alice);
     finish({
       data: {
-        session: { access_token: "signup-session", user: { id: alice } },
+        user: { id: alice },
       },
       error: null,
     });
@@ -98,7 +109,7 @@ describe("private request identity and cache ownership", () => {
     });
     boundary.privateIdentityChanged("00000000-0000-4000-8000-000000000002");
     finish({
-      data: { session: { access_token: "old-session", user: { id: alice } } },
+      data: { user: { id: alice } },
       error: null,
     });
     await rejected;

@@ -8,8 +8,6 @@ const parseServerEnvironment = (
   environment: Record<string, string | undefined>,
 ) =>
   parseEnvironment({
-    SUPABASE_URL: "https://fixture.supabase.test",
-    SUPABASE_PUBLISHABLE_KEY: "fixture-publishable",
     ...environment,
   });
 

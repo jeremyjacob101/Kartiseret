@@ -343,7 +343,7 @@ export function App() {
   const catalogError = catalogQueryError
     ? catalogQueryError instanceof Error
       ? catalogQueryError.message
-      : "Failed to load movie data from Supabase."
+      : "Failed to load movie data."
     : null;
   const [catalogMovieJumpRequest, setCatalogMovieJumpRequest] =
     useState<CatalogMovieJumpRequest | null>(null);
@@ -529,7 +529,7 @@ export function App() {
     void Promise.all([loadNowPlayingMovies(), loadComingSoonMovies()]).catch((
       error: unknown,
     ) => {
-      console.error("Failed to load movie catalog from Supabase.", error);
+      console.error("Failed to load movie catalog.", error);
     });
   }, []);
 

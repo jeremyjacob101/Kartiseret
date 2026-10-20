@@ -6,67 +6,26 @@ import { ticketAlertQueryKeys } from "../src/data/ticketAlerts";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { OPEN_AUTH_MENU_EVENT } from "../src/lib/authMenu";
 import { render, screen } from "@testing-library/react";
-import { createClient } from "@supabase/supabase-js";
 import { queryClient } from "../src/lib/queryClient";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { sampleMovie } from "./fixtures";
 
-const { getSupabaseBrowserClientMock } = vi.hoisted(() => ({
-  getSupabaseBrowserClientMock: vi.fn(),
+const { getAuthClientMock } = vi.hoisted(() => ({
+  getAuthClientMock: vi.fn(),
 }));
 
-vi.mock("../src/lib/supabase", () => ({
-  getSupabaseBrowserClient: getSupabaseBrowserClientMock,
+vi.mock("../src/lib/authClient", () => ({
+  getAuthClient: getAuthClientMock,
 }));
 
-function createSupabaseFixture() {
-  const client = createClient("http://127.0.0.1:54321", "local-test-only", {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-    global: {
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        const url = new URL(request.url);
-
-        if (url.pathname.endsWith("/finalShowtimes")) {
-          return new Response("[]", { status: 200 });
-        }
-
-        if (url.pathname.endsWith("/ticket_alert_subscriptions")) {
-          if (request.method === "POST") {
-            return new Response(
-              JSON.stringify({
-                tmdb_id: 101,
-                created_at: "2026-09-16T12:00:00Z",
-                notified_at: null,
-                delivery_title: null,
-                delivery_date: null,
-              }),
-              { status: 201 },
-            );
-          }
-
-          return new Response("null", { status: 200 });
-        }
-
-        return new Response("Unexpected fixture request", { status: 500 });
-      },
-    },
-  });
-  vi.spyOn(client.auth, "getSession").mockResolvedValue({
-    data: {
-      session: {
-        access_token: "fixture-token",
-        user: { id: "00000000-0000-4000-8000-000000000001" },
-      } as import("@supabase/supabase-js").Session,
-    },
-    error: null,
-  });
-  return client;
+function createAuthFixture() {
+  return {
+    getSession: vi.fn(async () => ({
+      data: { user: { id: "00000000-0000-4000-8000-000000000001" } },
+      error: null,
+    })),
+  };
 }
 
 function renderControl() {
@@ -101,7 +60,7 @@ beforeEach(() => {
       location: "Jerusalem",
     },
   });
-  getSupabaseBrowserClientMock.mockReturnValue(createSupabaseFixture());
+  getAuthClientMock.mockReturnValue(createAuthFixture());
   vi.stubGlobal(
     "fetch",
     async (input: RequestInfo | URL, init?: RequestInit) =>

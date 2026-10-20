@@ -1,5 +1,15 @@
 # Backend overhaul architecture decisions
 
+## Current PR5 architecture (implementation branch; Production cutover pending)
+
+Better Auth 1.7.11 runs in the existing Express dispatcher with the matching Drizzle adapter, explicit adapter transactions and UUID records in non-exposed `app_auth`. SQL remains the only migration authority. The five auth tables use adapter-compatible Date timestamps; the eighteen public application tables retain their existing cinema data types. Application user FKs now target `app_auth.users`, and transaction-local `app.user_id` replaces the temporary Supabase subject in ownership RLS.
+
+The browser uses Better Auth's client/session atom through the existing neutral preference boundary, same-origin cookie requests and account-scoped caches. Private writes require an exact trusted Origin. A client expected-account header additionally rejects an account-cookie change between session lookup and a private request; it never selects the authorized account. Public reads do not query sessions. Host-only environment-specific cookies, database revocation, persisted rate limits and built-in CSRF/origin protections are enabled.
+
+Verification/reset email uses an injectable Resend fetch transport. Preview blocks live mail without an explicit recipient allowlist. Python retains Supabase table/Realtime access, but canonical recipients now come from a bounded internal Express endpoint protected by a separate environment-specific secret. Missing/unverified recipients fail through the existing retry machinery with unchanged delivery IDs/idempotency keys.
+
+See [PR5 handoff](pr-5-handoff.md) for DEV/CI evidence, preserved UUIDs, mail limitations and the coordinated Production gate. The sections below record each earlier PR's architecture at its release; provider-auth descriptions are historical and superseded by PR5 on this branch.
+
 ## PR 1: workspace and contract boundaries
 
 - The repository root owns the npm workspaces and the only npm lockfile. Workspaces are `packages/contracts`, `packages/server`, and the existing `Codebase - Kartiseret Web` folder. Python, Supabase SQL, and Vercel API paths remain in place.
@@ -50,7 +60,7 @@ The mapping does not invent an auth schema. SQL-owned `auth.users` references ar
 
 The root lockfile is the only npm lock. PR 2 retains the original `pg` dependency and adds stable `drizzle-orm` without an additional driver, schema migration runner, generator, or auth package. Prisma runtime/CLI packages, generated client output, scripts, URL options, install allowances, and dependency-only overrides are removed. Existing `source-map-js`, `sharp`, and `esbuild` resolutions are retained.
 
-## PR 4 protected workflows
+## PR 4 protected workflows (historical Supabase identity adapter)
 
 `@kartiseret/contracts/private-data` owns strict private request/response DTOs and the neutral `{ id, email }` identity. `protected/identity.ts` verifies bearer tokens with the configured Supabase `/auth/v1/user` endpoint (five-second timeout, no redirect, no decoded-token authorization). Signup metadata can supply an ordinary location only; admin membership comes from SQL. Supabase login, refresh, logout and password recovery remain through PR 4.
 
@@ -60,6 +70,6 @@ Preferences retain the existing Zustand optimistic/coalescing/rollback protocol.
 
 Alert creation checks current valid all-city showtimes on the server, then uses `ON CONFLICT DO NOTHING` with the real account/movie composite key. It does not update sent/delivery state or recover inside an aborted transaction. Responses expose only subscription summaries, and cancellation retains bigint precision. Python retains its service-role Data API grants, table shapes, publication and delivery fields.
 
-Migration `20261019152448_protected_application_workflows.sql` is additive preparation. After the new application is deployed and private acceptance passes, run `supabase/operations/pr4-retire-browser-access.sql` to revoke obsolete browser table privileges, including the legacy subscription column grants. This is an explicit deploy-order operation so preparing the database does not break the older live client. Both SQL stages are rehearsed in disposable CI and hosted DEV. Production operations are documented in the PR 4 handoff and require the coordinated release.
+Migration `20261019152448_protected_application_workflows.sql` and `supabase/operations/pr4-retire-browser-access.sql` completed in DEV and Production on 2026-10-20. The latter retired obsolete browser privileges, including legacy subscription column grants, after private acceptance. Do not repeat these completed release steps. Evidence is in the PR4 handoff.
 
-For an emergency old-client rollback after retirement, `supabase/operations/pr4-restore-browser-access.sql` restores only the observed authenticated legacy privileges while retaining owner/admin RLS. Run it before serving the old client; re-retire those privileges after corrected PR4 acceptance. Production rollout order and verification evidence are in the PR4 handoff.
+Before the PR5 identity cutover only, an emergency old-client rollback after retirement could use the following procedure. After PR5, it is insufficient and must not be used without identity/FK/policy reconciliation. For that earlier PR4 rollback, `supabase/operations/pr4-restore-browser-access.sql` restores only the observed authenticated legacy privileges while retaining owner/admin RLS. Run it before serving the old client; re-retire those privileges after corrected PR4 acceptance. Production rollout order and verification evidence are in the PR4 handoff.

@@ -1,5 +1,6 @@
+import { EXPECTED_ACCOUNT_HEADER } from "@kartiseret/contracts/private-data";
 import { ApiRequestError, requestApiResponse } from "./apiClient";
-import { getSupabaseBrowserClient } from "../lib/supabase";
+import { getAuthClient } from "../lib/authClient";
 import { queryClient } from "../lib/queryClient";
 import type { z } from "zod";
 
@@ -29,33 +30,34 @@ export async function privateApiResponse<Schema extends z.ZodType>(
   } = {},
 ): Promise<z.output<Schema>> {
   const startedGeneration = identityGeneration;
-  const { data, error } = await getSupabaseBrowserClient().auth.getSession();
-  const session = data.session;
-  if (
-    error ||
-    !session?.access_token ||
-    (options.userId && session.user.id !== options.userId)
-  ) {
+  const { data, error } = await getAuthClient().getSession();
+  if (error)
+    throw new ApiRequestError(
+      error.status === 401 ? 401 : 503,
+      error.status === 401 ? "unauthorized" : "auth_unavailable",
+      error.status === 401
+        ? "Please log in again."
+        : "Account verification is temporarily unavailable.",
+    );
+  const user = data?.user;
+  if (!user || (options.userId && user.id !== options.userId)) {
     throw new ApiRequestError(
       401,
       "unauthorized",
       "Create an account or log in to manage your account.",
     );
   }
-  if (
-    startedGeneration !== identityGeneration &&
-    activeAccount !== session.user.id
-  )
+  if (startedGeneration !== identityGeneration && activeAccount !== user.id)
     throw new DOMException("Account changed", "AbortError");
-  if (activeAccount !== session.user.id)
-    privateIdentityChanged(session.user.id);
+  if (activeAccount !== user.id) privateIdentityChanged(user.id);
   const generation = identityGeneration;
   const response = await requestApiResponse(path, schema, {
     method: options.method ?? "GET",
     cache: "no-store",
+    credentials: "same-origin",
     signal: options.signal,
     headers: {
-      Authorization: `Bearer ${session.access_token}`,
+      [EXPECTED_ACCOUNT_HEADER]: user.id,
       ...(options.body !== undefined
         ? { "Content-Type": "application/json" }
         : {}),

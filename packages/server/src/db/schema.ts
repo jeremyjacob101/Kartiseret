@@ -1,3 +1,4 @@
+import { user as authUser } from "../auth/schema.js";
 import { sql } from "drizzle-orm";
 import {
   bigint,
@@ -28,7 +29,7 @@ const localTime = (name: string) => time(name, { precision: 6 });
 
 // These declarations map existing SQL-owned tables. They are not a migration
 // source; Supabase SQL remains the only authority for DDL, RLS, grants, and
-// provider-owned auth.users foreign keys.
+// application identity foreign keys.
 export const cities = pgTable("cities", {
   name: text("name").primaryKey(),
   altSpellings: text("alt_spellings").array().notNull().default([]),
@@ -39,7 +40,9 @@ export const cities = pgTable("cities", {
 });
 
 export const adminUsers = pgTable("admin_users", {
-  userId: uuid("user_id").primaryKey(),
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => authUser.id, { onDelete: "cascade" }),
   createdAt: instant("created_at").notNull().defaultNow(),
 });
 
@@ -274,9 +277,10 @@ export const theaters = pgTable("theaters", {
 export const ticketAlertSubscriptions = pgTable(
   "ticket_alert_subscriptions",
   {
-    // user_id also references provider-owned auth.users in SQL. Do not declare
-    // an ORM-owned auth schema here; Better Auth owns identity in a later PR.
-    userId: uuid("user_id").notNull(),
+    // Identity references point to the app-owned auth schema.
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
     tmdbId: bigint("tmdb_id", { mode: "bigint" }).notNull(),
     createdAt: instant("created_at").notNull().defaultNow(),
     notifiedAt: instant("notified_at"),
@@ -301,8 +305,10 @@ export const ticketAlertSubscriptions = pgTable(
 
 export const userPreferences = pgTable("userPreferences", {
   signupInitialized: boolean("signup_initialized").notNull().default(false),
-  // user_id references provider-owned auth.users in SQL.
-  userId: uuid("user_id").primaryKey(),
+  // Identity references point to the app-owned auth schema.
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => authUser.id, { onDelete: "cascade" }),
   ratingSources: text("rating_sources").array().notNull().default([]),
   location: text("location"),
   siteColor: text("site_color"),

@@ -2,15 +2,15 @@
 
 Prepared 2026-10-15 for Jeremy. Intended executor: Jeremy's selected GPT-6 Luna chat with Max reasoning effort. This is a complete replacement for the earlier Prisma master plan, adapted to the work already completed. It contains the overall architecture, preservation requirements, all five PR stages, implementation sequences, verification gates, release ordering, and handoff requirements.
 
-**Current status (2026-10-19): PRs 1–3 are merged and deployed.** PR 2 completed the Drizzle conversion and merged as `c10cd50f`; PR 3 (#170) merged as `79d11543f415e8ecf6adc37337ba675184f77290`. Production deployment `dpl_3RgKcC1Xj5hNyhFLngFa9FoLjMYH` is Ready, and live health, now-playing, coming-soon, and theater requests returned HTTP 200 with valid populated data. PR 4 is implemented as regular PR #171 on `codex/backend-04-protected-workflows`, with passing CI and hosted DEV acceptance; Production preparation/release is pending; verification and deployment state belong in `docs/backend-overhaul/pr-4-handoff.md`. Supabase Auth remains through PR 4; Better Auth is PR 5.
+**Current status (2026-10-20): PRs 1–4 are merged and deployed.** PR 2 completed the Drizzle conversion and merged as `c10cd50f`; PR 3 (#170) merged as `79d11543f415e8ecf6adc37337ba675184f77290`. PR 4 (#171) merged as `4c4c02d8c3a1dc5a230b1e2f065a6d70acfb5144`. Production deployment `dpl_9zYJpnMNd12iqLdgDc2MD9R4xrkp` is Ready at [seret.site](https://seret.site); the PR4 migration, protected-flow acceptance and browser privilege retirement are complete. Post-merge [Full checks](https://github.com/jeremyjacob101/Kartiseret/actions/runs/39378977517) passed. See [`docs/backend-overhaul/pr-4-handoff.md`](docs/backend-overhaul/pr-4-handoff.md) for the release record. Supabase Auth remains through PR 4; PR 5 is the Better Auth and app-owned identity cutover.
 
 The full specification below was restored from Jeremy's original revised attachment after discovering that the tracked copy contained truncated terminal output and omitted its middle sections. The original preparation snapshots and completed PR 2 instructions are historical; current status and actual merged code take precedence. No implementation stage has been added or removed.
 
 ## 0. How Jeremy should use this revised document
 
-### Current stage: PR 4
+### Current stage: PR 5
 
-Implement section 12 from updated `main` after PRs 1–3. Follow the complete preservation and acceptance requirements below, and use the PR 3 and PR 4 handoffs for current evidence. Jeremy explicitly requested PR 4 as a regular PR, overriding the draft default for this stage. Do not merge or request reviewers.
+PR5 is implemented in regular [PR #172](https://github.com/jeremyjacob101/Kartiseret/pull/172) on `codex/backend-05-better-auth` from updated `main`; code CI and hosted DEV acceptance pass. See [PR5 handoff](docs/backend-overhaul/pr-5-handoff.md) for evidence and the required coordinated Production gate. Production remains on PR4 until that cutover. Section 13 remains the scope and acceptance contract. Follow the complete preservation and acceptance requirements below, and use the PR 4 handoff for the released identity, database, and Python-recipient inventory. PR 4's Production release is complete; do not repeat its migration or privilege-retirement steps. Better Auth and the app-owned identity transition remain PR 5 work. Do not merge or request reviewers.
 
 ### Later: one chat for each remaining PR
 
@@ -29,7 +29,7 @@ Canonical revised filename: `docs/backend-overhaul-master-plan-drizzle.md`. The 
 | PR 1 | npm workspaces and shared Zod/domain foundation | Existing predecessor; verify its merged result, do not rebuild it |
 | PR 2 | Express, SQL baseline, hosted DEV, Postgres CI, first public read; **finish by replacing Prisma with Drizzle** | Merged as `c10cd50f`; conversion verified |
 | PR 3 | Complete public reads, frontend transport, social previews, Playwright | Merged as `79d11543`; deployed and Production smoke passed |
-| PR 4 | Protected APIs, preferences, subscriptions, transactional admin edits; temporary Supabase Auth | All new queries and transactions use Drizzle |
+| PR 4 | Protected APIs, preferences, subscriptions, transactional admin edits; temporary Supabase Auth | Merged and Production-released as #171; all new queries and transactions use Drizzle |
 | PR 5 | Better Auth with the Drizzle adapter, app-owned identities, Python recipient transition | Final authentication cutover and whole-feature verification |
 
 ### Execution agreement for every chat
