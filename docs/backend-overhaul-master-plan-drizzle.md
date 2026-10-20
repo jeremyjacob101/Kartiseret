@@ -2,23 +2,23 @@
 
 Prepared 2026-10-15 for Jeremy. Intended executor: Jeremy's selected GPT-6 Luna chat with Max reasoning effort. This is a complete replacement for the earlier Prisma master plan, adapted to the work already completed. It contains the overall architecture, preservation requirements, all five PR stages, implementation sequences, verification gates, release ordering, and handoff requirements.
 
-**Current status (2026-10-20): PRs 1–4 are merged and deployed.** PR 2 completed the Drizzle conversion and merged as `c10cd50f`; PR 3 (#170) merged as `79d11543f415e8ecf6adc37337ba675184f77290`. PR 4 (#171) merged as `4c4c02d8c3a1dc5a230b1e2f065a6d70acfb5144`. Production deployment `dpl_9zYJpnMNd12iqLdgDc2MD9R4xrkp` is Ready at [seret.site](https://seret.site); the PR4 migration, protected-flow acceptance and browser privilege retirement are complete. Post-merge [Full checks](https://github.com/jeremyjacob101/Kartiseret/actions/runs/39378977517) passed. See [`docs/backend-overhaul/pr-4-handoff.md`](docs/backend-overhaul/pr-4-handoff.md) for the release record. Supabase Auth remains through PR 4; PR 5 is the Better Auth and app-owned identity cutover.
+**Current status (2026-10-20): PRs 1–5 are merged and deployed.** PR 2 completed the Drizzle conversion and merged as `c10cd50f`; PR 3 (#170) merged as `79d11543f415e8ecf6adc37337ba675184f77290`; PR 4 (#171) merged as `4c4c02d8c3a1dc5a230b1e2f065a6d70acfb5144`; PR 5 (#172) merged as `a6d0cf9e6c845ae4aa1e0b9e6100375a1e5b2c29`. Production is Ready at [seret.site](https://seret.site) in deployment `dpl_ASJSugAxTpoLijG8ur8nzRYbqW53`; PR5 migration `20261020065120` is applied, the Better Auth reset email was delivered, and the two testing accounts were removed. Post-merge [Full checks #39402664758](https://github.com/jeremyjacob101/Kartiseret/actions/runs/39402664758) passed all three jobs. See the [PR5 handoff](docs/backend-overhaul/pr-5-handoff.md) for the release record. One interactive sign-in after password reset remains to confirm the active session; otherwise the five planned implementation stages are complete.
 
 The full specification below was restored from Jeremy's original revised attachment after discovering that the tracked copy contained truncated terminal output and omitted its middle sections. The original preparation snapshots and completed PR 2 instructions are historical; current status and actual merged code take precedence. No implementation stage has been added or removed.
 
 ## 0. How Jeremy should use this revised document
 
-### Current stage: PR 5
+### Current status: implementation stages complete
 
-PR5 is implemented in regular [PR #172](https://github.com/jeremyjacob101/Kartiseret/pull/172) on `codex/backend-05-better-auth` from updated `main`; code CI and hosted DEV acceptance pass. See [PR5 handoff](docs/backend-overhaul/pr-5-handoff.md) for evidence and the required coordinated Production gate. Production remains on PR4 until that cutover. Section 13 remains the scope and acceptance contract. Follow the complete preservation and acceptance requirements below, and use the PR 4 handoff for the released identity, database, and Python-recipient inventory. PR 4's Production release is complete; do not repeat its migration or privilege-retirement steps. Better Auth and the app-owned identity transition remain PR 5 work. Do not merge or request reviewers.
+PRs 1–5 are implemented, merged and deployed. PR5's code, Production migration, account transition and mail release are recorded in [PR5 handoff](docs/backend-overhaul/pr-5-handoff.md). The master plan has no remaining implementation PR; only the interactive post-reset sign-in confirmation is outstanding.
 
 ### Later: one chat for each remaining PR
 
 After Jeremy merges the preceding completed PR, open the next implementation chat on the updated base. Paste or attach this entire revised plan and prepend:
 
-> Implement PR N only from the attached revised Drizzle backend-overhaul master plan. Read the actual merged repository, applicable instructions, verification ledger, and previous handoffs first. PR 2 must already contain Drizzle; verify that prerequisite before implementing later stages. Complete this PR's implementation and verification, update its handoff, and create a draft PR if repository access permits. Adapt justified details to the code and document deviations. Do not implement later PRs, merge, or request reviewers.
+> Implement PR N only from the attached revised Drizzle backend-overhaul master plan. Read the actual merged repository, applicable instructions, verification ledger, and previous handoffs first. PR 2 must already contain Drizzle; ver### Follow-up work
 
-Replace N with 3, 4, or 5. Supply the whole document so the executor sees the shared constraints and future dependencies. It may read the plan from the repository instead if the same revision is committed and available. A file saved only in another worktree is not automatically present in a fresh chat/worktree.
+All five implementation stages in this plan are complete. Use the current repository and verification ledger for any future, separately scoped changes; do not start another PR stage from the historical template below.
 
 Canonical revised filename: `docs/backend-overhaul-master-plan-drizzle.md`. The old `docs/backend-overhaul-master-plan.md` and `docs/backend-overhaul-audit.md` are historical context. This revision supersedes conflicting Prisma instructions and old assumptions that PR 2 has not started or DEV does not exist. Keep this complete specification in the repository so subsequent chats can read it. Keep useful predecessor handoffs; add explicit dated corrections rather than presenting old Prisma evidence as Drizzle evidence.
 
@@ -30,7 +30,7 @@ Canonical revised filename: `docs/backend-overhaul-master-plan-drizzle.md`. The 
 | PR 2 | Express, SQL baseline, hosted DEV, Postgres CI, first public read; **finish by replacing Prisma with Drizzle** | Merged as `c10cd50f`; conversion verified |
 | PR 3 | Complete public reads, frontend transport, social previews, Playwright | Merged as `79d11543`; deployed and Production smoke passed |
 | PR 4 | Protected APIs, preferences, subscriptions, transactional admin edits; temporary Supabase Auth | Merged and Production-released as #171; all new queries and transactions use Drizzle |
-| PR 5 | Better Auth with the Drizzle adapter, app-owned identities, Python recipient transition | Final authentication cutover and whole-feature verification |
+| PR 5 | Better Auth with the Drizzle adapter, app-owned identities, Python recipient transition | Merged as #172 and deployed; Production migration and reset-mail delivery complete. See the PR5 handoff; sign-in confirmation remains. |
 
 ### Execution agreement for every chat
 
