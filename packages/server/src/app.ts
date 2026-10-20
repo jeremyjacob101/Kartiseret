@@ -98,8 +98,11 @@ export function createApp({
       "/api/v1/ticket-alerts",
       "/api/v1/admin",
     ],
-    (_request, response, next) => {
+    (request, response, next) => {
       response.setHeader("Cache-Control", "no-store");
+      response.vary(
+        request.path.startsWith("/api/internal") ? "Authorization" : "Cookie",
+      );
       next();
     },
   );

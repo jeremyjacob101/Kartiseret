@@ -35,7 +35,7 @@ const bob = {
 };
 const owner = {
   id: "00000000-0000-4000-8000-000000000043",
-  email: "admin@example.test",
+  email: "workflow-admin@example.test",
 };
 const publicRepository = new DrizzleCatalogRepository(runtime.db);
 const workflows = new ProtectedWorkflows(
@@ -88,7 +88,7 @@ describe.sequential(
     beforeAll(async () => {
       for (const user of [alice, bob, owner])
         await admin.pool.query(
-          "INSERT INTO app_auth.users (id,name,email,email_verified) VALUES ($1,'Fixture',$2,true) ON CONFLICT DO NOTHING",
+          "INSERT INTO app_auth.users (id,name,email,email_verified) VALUES ($1,'Fixture',$2,true)",
           [user.id, user.email],
         );
       await admin.pool.query(

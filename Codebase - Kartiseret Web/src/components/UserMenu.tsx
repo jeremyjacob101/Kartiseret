@@ -1,3 +1,4 @@
+import { accountPasswordSchema, PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH } from "@kartiseret/contracts/private-data";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { LogOut, User } from "lucide-react";
@@ -155,7 +156,7 @@ export function UserMenu({
 
     if (authMode === "signup") {
       const signupLocation = loadGuestLocation() ?? DEFAULT_LOCATION;
-      if (validatedPassword.length < 8 || validatedPassword.length > 128) {
+      if (!accountPasswordSchema.safeParse(validatedPassword).success) {
         setAuthPending(false);
         setAuthError("Password must be between 8 and 128 characters.");
         return;
@@ -319,8 +320,8 @@ export function UserMenu({
                 <label className="user-menu-field">
                   <span>Password</span>
                   <input
-                    minLength={authMode === "signup" ? 8 : 1}
-                    maxLength={128}
+                    minLength={authMode === "signup" ? PASSWORD_MIN_LENGTH : 1}
+                    maxLength={PASSWORD_MAX_LENGTH}
                     type="password"
                     autoComplete={
                       authMode === "signup"

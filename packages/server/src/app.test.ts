@@ -283,6 +283,7 @@ describe("Express API composition", () => {
       },
     });
     expect(result.headers["cache-control"]).toBe("no-store");
+    expect(result.headers.vary).toContain("Cookie");
   });
 
   it("rejects malformed JSON bodies safely", async () => {

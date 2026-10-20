@@ -1,3 +1,4 @@
+import { accountPasswordSchema, PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH } from "@kartiseret/contracts/private-data";
 import { getAuthClient } from "../lib/authClient";
 import { useState, type FormEvent } from "react";
 import { z } from "zod";
@@ -16,10 +17,7 @@ type PasswordSecurityFormProps = {
 const passwordChangeSchema = z
   .object({
     currentPassword: z.string().optional(),
-    password: z
-      .string()
-      .min(8, "New password must be at least 8 characters.")
-      .max(128, "Password must be at most 128 characters."),
+    password: accountPasswordSchema,
     confirmPassword: z.string().min(1, "Confirm your new password."),
   })
   .superRefine((values, context) => {
@@ -131,8 +129,8 @@ export function PasswordSecurityForm({
             onChange={(event) => {
               setPassword(event.target.value);
             }}
-            minLength={8}
-            maxLength={128}
+            minLength={PASSWORD_MIN_LENGTH}
+            maxLength={PASSWORD_MAX_LENGTH}
             required
           />
         </label>
@@ -146,8 +144,8 @@ export function PasswordSecurityForm({
             onChange={(event) => {
               setConfirmPassword(event.target.value);
             }}
-            minLength={8}
-            maxLength={128}
+            minLength={PASSWORD_MIN_LENGTH}
+            maxLength={PASSWORD_MAX_LENGTH}
             required
           />
         </label>

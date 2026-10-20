@@ -183,6 +183,7 @@ describe.sequential(
       const created = await signup(email);
       expect(created.status).toBe(200);
       userId = created.body.user.id;
+      const signupVerification = latest("verification");
       expect(created.body.token).toBeNull();
       expect(
         (await post("/api/auth/sign-in/email", { email, password })).status,
@@ -197,7 +198,7 @@ describe.sequential(
         `/api/auth/verify-email?token=${encodeURIComponent(expired)}`,
       );
       expect(denied.status).toBeGreaterThanOrEqual(400);
-      const url = latest("verification");
+      const url = signupVerification;
       const confirmed = await request(app).get(url.pathname + url.search);
       expect(confirmed.status).toBe(302);
       expect(confirmed.headers.location).toBe(`${origin}/?verified=1`);
