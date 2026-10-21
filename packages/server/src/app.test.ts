@@ -551,4 +551,84 @@ describe("Express API composition", () => {
     );
     expect(invalidResponse.status).toBe(400);
   });
+
+  it("searches TMDb server-side and attaches only locally published Coming Soon dates", async () => {
+    const repository = createPublicDataRepository({
+      findComingSoonMoviesByIds: vi.fn(async (ids) => {
+        expect(ids).toEqual(["9100002", "9100003"]);
+        return [
+          {
+            tmdbId: 9100002,
+            releaseDate: "2027-04-12",
+          },
+        ];
+      }),
+    });
+    const tmdbSearch = vi.fn(async (query: string) => {
+      expect(query).toBe("Future Film");
+      return [
+        {
+          tmdbId: "9100002",
+          title: "Future Film",
+          releaseYear: 2027,
+          posterPath: "/future.jpg",
+        },
+        {
+          tmdbId: "9100003",
+          title: "Uncatalogued Film",
+          releaseYear: null,
+          posterPath: null,
+        },
+      ];
+    });
+    const app = createApp({
+      catalogRepository: repository,
+      publicDataRepository: repository,
+      tmdbSearch,
+    });
+    const response = await request(app).get(
+      "/api/v1/tmdb/search?query=Future%20Film",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers["cache-control"]).toBe("private, no-store");
+    expect(response.body.data.titles).toEqual([
+      {
+        tmdbId: "9100002",
+        title: "Future Film",
+        releaseYear: 2027,
+        posterPath: "/future.jpg",
+        comingSoonDate: "2027-04-12",
+      },
+      {
+        tmdbId: "9100003",
+        title: "Uncatalogued Film",
+        releaseYear: null,
+        posterPath: null,
+        comingSoonDate: null,
+      },
+    ]);
+    expect(JSON.stringify(response.body)).not.toContain("server-only-key");
+  });
+
+  it("bounds TMDb search input and returns a safe unavailable response", async () => {
+    const repository = createPublicDataRepository();
+    const tmdbSearch = vi.fn(async () => {
+      throw new Error("Upstream request included a server-only-key");
+    });
+    const app = createApp({
+      catalogRepository: repository,
+      publicDataRepository: repository,
+      tmdbSearch,
+    });
+    const invalid = await request(app).get("/api/v1/tmdb/search?query=x");
+    expect(invalid.status).toBe(400);
+    expect(tmdbSearch).not.toHaveBeenCalled();
+
+    const failed = await request(app).get(
+      "/api/v1/tmdb/search?query=Future%20Film",
+    );
+    expect(failed.status).toBe(503);
+    expect(JSON.stringify(failed.body)).not.toContain("server-only-key");
+  });
 });

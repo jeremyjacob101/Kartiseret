@@ -18,4 +18,7 @@ export interface PublicDataRepository extends CatalogRepository {
   findMovieCodeByCode(movieCode: string): Promise<string | null>;
   findNowPlayingMovieById(tmdbId: string): Promise<unknown | null>;
   findComingSoonMovieById(tmdbId: string): Promise<unknown | null>;
+  findComingSoonMoviesByIds?(
+    tmdbIds: readonly string[],
+  ): Promise<readonly unknown[]>;
 }

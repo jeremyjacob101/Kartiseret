@@ -176,6 +176,51 @@ export const ticketAlertCriteriaUpdateSchema = z
   })
   .strict();
 
+export const comingSoonDateWatchSchema = z.object({
+  tmdbId: tmdbIdSchema,
+  title: z.string().trim().min(1).max(200),
+  releaseYear: z.number().int().min(1870).max(2200).nullable(),
+  posterPath: z
+    .string()
+    .regex(/^\/[A-Za-z0-9_./-]+$/)
+    .nullable(),
+  createdAt: z.iso.datetime({ offset: true }),
+  notifiedAt: z.iso.datetime({ offset: true }).nullable(),
+  comingSoonDate: isoDateStringSchema.nullable(),
+});
+export type ComingSoonDateWatch = z.infer<typeof comingSoonDateWatchSchema>;
+export const comingSoonDateWatchListResponseSchema = envelope(
+  z.object({ watches: z.array(comingSoonDateWatchSchema) }),
+);
+export const comingSoonDateWatchCreateSchema = z
+  .object({
+    tmdbId: subscriptionMovieIdSchema,
+    title: z.string().trim().min(1).max(200),
+    releaseYear: z.number().int().min(1870).max(2200).nullable(),
+    posterPath: z
+      .string()
+      .regex(/^\/[A-Za-z0-9_./-]+$/)
+      .nullable(),
+  })
+  .strict();
+export const comingSoonDateWatchChangeSchema = envelope(
+  z.discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("watching"),
+      watch: comingSoonDateWatchSchema,
+    }),
+    z.object({
+      kind: z.literal("known"),
+      tmdbId: tmdbIdSchema,
+      title: z.string().trim().min(1).max(200),
+      comingSoonDate: isoDateStringSchema,
+    }),
+  ]),
+);
+export type ComingSoonDateWatchChange = z.infer<
+  typeof comingSoonDateWatchChangeSchema
+>["data"];
+
 export const subscriptionCreateSchema = z
   .object({
     tmdbId: protectedMovieIdSchema,

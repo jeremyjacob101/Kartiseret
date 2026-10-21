@@ -42,6 +42,7 @@ const app = createApp({
 
 const expectedTableNames = [
   "cities",
+  "coming_soon_date_watches",
   "admin_users",
   "allShowtimes",
   "allSoons",
@@ -133,7 +134,7 @@ describe("PostgreSQL 17 integration", () => {
     await Promise.all([runtimeDatabase.close(), adminDatabase.close()]);
   });
 
-  it("maps all 18 application tables and accounts for private pipeline tables", async () => {
+  it("maps application tables and accounts for private pipeline tables", async () => {
     const mappedTables = Object.values(schema.applicationTables);
     expect(mappedTables.map((table) => getTableName(table)).sort()).toEqual(
       [...expectedTableNames].sort(),
@@ -299,6 +300,7 @@ describe("PostgreSQL 17 integration", () => {
     `);
     expect(providerForeignKeys.map((key) => key.table_name)).toEqual([
       "admin_users",
+      "coming_soon_date_watches",
       "ticket_alert_preferences",
       "ticket_alert_subscriptions",
       "userPreferences",
@@ -394,6 +396,60 @@ describe("PostgreSQL 17 integration", () => {
         anon_execute: false,
         authenticated_execute: false,
       },
+    ]);
+  });
+
+  it("keeps Coming Soon date watch data owner-scoped and delivery fields worker-only", async () => {
+    const { rows } = await adminDatabase.pool.query<{
+      row_security: boolean;
+      runtime_select: boolean;
+      runtime_insert: boolean;
+      runtime_delete: boolean;
+      runtime_delivery_select: boolean;
+      runtime_delivery_update: boolean;
+      service_select: boolean;
+      service_update: boolean;
+    }>(`
+      SELECT
+        c.relrowsecurity AS row_security,
+        has_column_privilege('kartiseret_runtime', c.oid, 'title', 'SELECT') AS runtime_select,
+        has_column_privilege('kartiseret_runtime', c.oid, 'title', 'INSERT') AS runtime_insert,
+        has_table_privilege('kartiseret_runtime', c.oid, 'DELETE') AS runtime_delete,
+        has_column_privilege('kartiseret_runtime', c.oid, 'delivery_id', 'SELECT') AS runtime_delivery_select,
+        has_column_privilege('kartiseret_runtime', c.oid, 'delivery_attempts', 'UPDATE') AS runtime_delivery_update,
+        has_table_privilege('service_role', c.oid, 'SELECT') AS service_select,
+        has_table_privilege('service_role', c.oid, 'UPDATE') AS service_update
+      FROM pg_catalog.pg_class AS c
+      JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public'
+        AND c.relname = 'coming_soon_date_watches'
+    `);
+    expect(rows).toEqual([
+      {
+        row_security: true,
+        runtime_select: true,
+        runtime_insert: true,
+        runtime_delete: true,
+        runtime_delivery_select: false,
+        runtime_delivery_update: false,
+        service_select: true,
+        service_update: true,
+      },
+    ]);
+    const { rows: policies } = await adminDatabase.pool.query<{
+      policyname: string;
+      cmd: string;
+    }>(`
+      SELECT policyname, cmd
+      FROM pg_catalog.pg_policies
+      WHERE schemaname = 'public'
+        AND tablename = 'coming_soon_date_watches'
+      ORDER BY policyname
+    `);
+    expect(policies).toEqual([
+      { policyname: "api_own_delete", cmd: "DELETE" },
+      { policyname: "api_own_insert", cmd: "INSERT" },
+      { policyname: "api_own_select", cmd: "SELECT" },
     ]);
   });
 

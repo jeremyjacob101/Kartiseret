@@ -344,6 +344,34 @@ export const ticketAlertPreferences = pgTable("ticket_alert_preferences", {
   updatedAt: instant("updated_at").notNull().defaultNow(),
 });
 
+export const comingSoonDateWatches = pgTable(
+  "coming_soon_date_watches",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    tmdbId: bigint("tmdb_id", { mode: "bigint" }).notNull(),
+    title: text("title").notNull(),
+    releaseYear: smallint("release_year"),
+    posterPath: text("poster_path"),
+    createdAt: instant("created_at").notNull().defaultNow(),
+    notifiedAt: instant("notified_at"),
+    deliveryId: uuid("delivery_id"),
+    deliveryTitle: text("delivery_title"),
+    deliveryDate: calendarDate("delivery_date"),
+    deliveryAttempts: integer("delivery_attempts").notNull().default(0),
+    lastDeliveryAttemptAt: instant("last_delivery_attempt_at"),
+    lastDeliveryError: text("last_delivery_error"),
+    resendEmailId: text("resend_email_id"),
+  },
+  (table) => [
+    primaryKey({
+      name: "coming_soon_date_watches_pkey",
+      columns: [table.userId, table.tmdbId],
+    }),
+  ],
+);
+
 export const userPreferences = pgTable("userPreferences", {
   signupInitialized: boolean("signup_initialized").notNull().default(false),
   // Identity references point to the app-owned auth schema.
@@ -382,6 +410,7 @@ export const utilRunLogs = pgTable("utilRunLogs", {
 
 export const applicationTables = {
   cities,
+  comingSoonDateWatches,
   adminUsers,
   allShowtimes,
   allSoons,

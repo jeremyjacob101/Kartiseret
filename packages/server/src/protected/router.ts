@@ -10,6 +10,8 @@ import {
   subscriptionListQuerySchema,
   ticketAlertCriteriaUpdateSchema,
   ticketAlertPreferencesUpdateSchema,
+  comingSoonDateWatchCreateSchema,
+  subscriptionMovieIdSchema as watchMovieIdSchema,
 } from "@kartiseret/contracts/private-data";
 import { HttpError } from "../http-errors.js";
 import type { IdentityVerifier, VerifiedIdentity } from "./identity.js";
@@ -22,7 +24,13 @@ export function createProtectedRouter(
 ) {
   const router = Router();
   router.use(
-    ["/account", "/preferences", "/ticket-alerts", "/admin"],
+    [
+      "/account",
+      "/preferences",
+      "/ticket-alerts",
+      "/coming-soon-watches",
+      "/admin",
+    ],
     async (request, response, next) => {
       response.setHeader("Cache-Control", "no-store");
       response.vary("Cookie");
@@ -175,6 +183,39 @@ export function createProtectedRouter(
         identity(response.locals.identity),
         tmdbId,
         body.criteriaOverrides,
+      ),
+      error: null,
+    });
+  });
+  router.get("/coming-soon-watches", async (request, response) => {
+    parse(empty, request.query);
+    response.json({
+      data: {
+        watches: await workflows.comingSoonDateWatches(
+          identity(response.locals.identity),
+        ),
+      },
+      error: null,
+    });
+  });
+  router.post("/coming-soon-watches", async (request, response) => {
+    parse(empty, request.query);
+    const body = parse(comingSoonDateWatchCreateSchema, request.body);
+    response.json({
+      data: await workflows.watchComingSoonDate(
+        identity(response.locals.identity),
+        body,
+      ),
+      error: null,
+    });
+  });
+  router.delete("/coming-soon-watches/:tmdbId", async (request, response) => {
+    parse(empty, request.query);
+    const tmdbId = parse(watchMovieIdSchema, request.params.tmdbId);
+    response.json({
+      data: await workflows.unwatchComingSoonDate(
+        identity(response.locals.identity),
+        tmdbId,
       ),
       error: null,
     });

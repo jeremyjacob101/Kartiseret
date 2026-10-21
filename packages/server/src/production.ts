@@ -10,6 +10,7 @@ import { DrizzleCatalogRepository } from "./catalog/drizzle-repository.js";
 import { createApp } from "./app.js";
 import { createDatabase } from "./db/client.js";
 import { parseServerEnvironment } from "./env.js";
+import { createTmdbSearchProvider } from "./public-data/tmdb-search.js";
 
 type ProductionRuntime = ReturnType<typeof createProductionRuntime>;
 
@@ -32,6 +33,7 @@ function createProductionRuntime(
   return {
     config,
     repository,
+    tmdbSearch: createTmdbSearchProvider(config.TMDB_API_KEY),
     workflows: new ProtectedWorkflows(database.db, repository),
     identityVerifier: new BetterAuthIdentityVerifier(auth),
     authHandler: toNodeHandler(auth),
@@ -66,6 +68,7 @@ export function createProductionApp(
   const app = createApp({
     catalogRepository: runtime.repository,
     publicDataRepository: runtime.repository,
+    tmdbSearch: runtime.tmdbSearch,
     identityVerifier: runtime.identityVerifier,
     protectedWorkflows: runtime.workflows,
     authHandler: runtime.authHandler,

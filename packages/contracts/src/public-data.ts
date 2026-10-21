@@ -35,6 +35,28 @@ export const movieCatalogResponseSchema = apiSuccessResponseSchema(
   movieCatalogDataSchema,
 );
 
+export const tmdbTitleSearchQuerySchema = z
+  .object({
+    query: z.string().trim().min(2).max(100),
+  })
+  .strict();
+export const tmdbTitleSearchResultSchema = z.object({
+  tmdbId: tmdbIdSchema,
+  title: nonEmptyTrimmedStringSchema,
+  releaseYear: z.number().int().min(1870).max(2200).nullable(),
+  posterPath: z
+    .string()
+    .regex(/^\/[A-Za-z0-9_./-]+$/)
+    .nullable(),
+  comingSoonDate: isoDateStringSchema.nullable(),
+});
+export const tmdbTitleSearchDataSchema = z.object({
+  titles: z.array(tmdbTitleSearchResultSchema).max(20),
+});
+export const tmdbTitleSearchResponseSchema = apiSuccessResponseSchema(
+  tmdbTitleSearchDataSchema,
+);
+
 export const publicShowtimeSchema = z.object({
   tmdbId: tmdbIdSchema,
   screeningCity: nonEmptyTrimmedStringSchema,
@@ -141,6 +163,7 @@ export const publicMovieCodeSchema = tmdbIdSchema;
 export type MovieCatalogData = z.infer<typeof movieCatalogDataSchema>;
 export type MovieCatalogMode = z.infer<typeof movieCatalogModeSchema>;
 export type MovieCodesStatus = z.infer<typeof movieCodesStatusSchema>;
+export type TmdbTitleSearchResult = z.infer<typeof tmdbTitleSearchResultSchema>;
 export type PublicShowtime = z.infer<typeof publicShowtimeSchema>;
 export type PublicShowtimeRangeQuery = z.output<
   typeof publicShowtimeRangeQuerySchema

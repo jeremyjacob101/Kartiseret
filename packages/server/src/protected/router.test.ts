@@ -28,6 +28,17 @@ function setup() {
     updateTicketAlertCriteria: vi.fn(async () => ({
       kind: "available" as const,
     })),
+    comingSoonDateWatches: vi.fn(async () => []),
+    watchComingSoonDate: vi.fn(async (_user, input) => ({
+      kind: "watching" as const,
+      watch: {
+        ...input,
+        createdAt: "2026-10-21T10:00:00.000Z",
+        notifiedAt: null,
+        comingSoonDate: null,
+      },
+    })),
+    unwatchComingSoonDate: vi.fn(async () => ({ removed: true as const })),
     cancel: vi.fn(async () => ({
       kind: "account" as const,
       subscription: null,
@@ -207,6 +218,63 @@ describe("protected HTTP contracts", () => {
       });
     expect(result.status).toBe(400);
     expect(workflows.patchTicketAlertPreferences).not.toHaveBeenCalled();
+  });
+  it("keeps TMDb date watches behind authenticated owner-scoped routes", async () => {
+    const { app, workflows } = setup();
+    const anonymous = await request(app).get("/api/v1/coming-soon-watches");
+    expect(anonymous.status).toBe(401);
+
+    const read = await request(app)
+      .get("/api/v1/coming-soon-watches")
+      .set("Cookie", "valid");
+    expect(read.status).toBe(200);
+    expect(read.body.data.watches).toEqual([]);
+    expect(read.headers["cache-control"]).toBe("no-store");
+
+    const watch = await request(app)
+      .post("/api/v1/coming-soon-watches")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({
+        tmdbId: "9100001",
+        title: "Future Film",
+        releaseYear: 2027,
+        posterPath: "/poster.jpg",
+      });
+    expect(watch.status).toBe(200);
+    expect(watch.body.data.watch.tmdbId).toBe("9100001");
+    expect(workflows.watchComingSoonDate).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      {
+        tmdbId: "9100001",
+        title: "Future Film",
+        releaseYear: 2027,
+        posterPath: "/poster.jpg",
+      },
+    );
+
+    const massAssigned = await request(app)
+      .post("/api/v1/coming-soon-watches")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({
+        tmdbId: "9100001",
+        title: "Future Film",
+        releaseYear: 2027,
+        posterPath: "/poster.jpg",
+        notifiedAt: null,
+      });
+    expect(massAssigned.status).toBe(400);
+
+    const removed = await request(app)
+      .delete("/api/v1/coming-soon-watches/9100001")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost");
+    expect(removed.status).toBe(200);
+    expect(workflows.unwatchComingSoonDate).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      "9100001",
+    );
   });
   it("returns a safe uncacheable failure when private persistence fails", async () => {
     const { app, workflows } = setup();
