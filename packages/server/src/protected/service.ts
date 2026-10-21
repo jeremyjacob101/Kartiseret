@@ -568,16 +568,14 @@ export class ProtectedWorkflows {
           "You can track up to 50 Letterboxd sources.",
         );
 
-      await tx
-        .insert(letterboxdSources)
-        .values({
-          userId: user.id,
-          sourceUrl: parsed.sourceUrl,
-          sourceType: parsed.sourceType,
-        })
-        .onConflictDoNothing({
-          target: [letterboxdSources.userId, letterboxdSources.sourceUrl],
-        });
+      // Keep this INSERT narrow: Drizzle includes omitted default columns in
+      // generated INSERT statements, but the runtime role is intentionally
+      // granted INSERT only on these three user-controlled columns.
+      await tx.execute(sql`
+        insert into public.letterboxd_sources (user_id, source_url, source_type)
+        values (${user.id}, ${parsed.sourceUrl}, ${parsed.sourceType})
+        on conflict (user_id, source_url) do nothing
+      `);
       const [row] = await tx
         .select(letterboxdSourceColumns)
         .from(letterboxdSources)
