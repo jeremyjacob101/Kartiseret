@@ -253,13 +253,8 @@ describe.sequential(
         ).status,
       ).toBe(400);
       expect(
-        (
-          await post(
-            "/api/v1/ticket-alerts",
-            { tmdbId: "9100011" },
-            cookie,
-          )
-        ).status,
+        (await post("/api/v1/ticket-alerts", { tmdbId: "9100011" }, cookie))
+          .status,
       ).toBe(200);
       expect(
         (await request(app).get("/api/v1/ticket-alerts").set("Cookie", other))
