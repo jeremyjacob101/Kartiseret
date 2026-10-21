@@ -3,6 +3,7 @@ import { DEFAULT_TICKET_ALERT_CRITERIA, type TicketAlertCriteria, type TicketAle
 import { movieCollectionQueryOptions, selectMovies, type Movie } from "../data/movieCatalog";
 import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
 import { TicketAlertCriteriaEditor } from "./TicketAlertCriteriaEditor";
+import { LetterboxdSourceWatchlist } from "./LetterboxdSourceWatchlist";
 import { ComingSoonDateWatchlist } from "./ComingSoonDateWatchlist";
 import { Link } from "react-router";
 import { useMemo } from "react";
@@ -228,6 +229,7 @@ export function UserTicketAlerts({ userId }: { userId: string | null }) {
         </div>
       </section>
       <ComingSoonDateWatchlist userId={userId} />
+      <LetterboxdSourceWatchlist userId={userId} />
     </>
   );
 }

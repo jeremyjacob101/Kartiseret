@@ -221,6 +221,32 @@ export type ComingSoonDateWatchChange = z.infer<
   typeof comingSoonDateWatchChangeSchema
 >["data"];
 
+export const letterboxdSourceIdSchema = z.string().uuid();
+export const letterboxdSourceSchema = z.object({
+  id: letterboxdSourceIdSchema,
+  sourceUrl: z.string().url(),
+  sourceType: z.enum(["watchlist", "list"]),
+  createdAt: z.iso.datetime({ offset: true }),
+  lastSyncAttemptAt: z.iso.datetime({ offset: true }).nullable(),
+  lastSuccessfulSyncAt: z.iso.datetime({ offset: true }).nullable(),
+  lastSyncError: z.string().max(500).nullable(),
+  filmCount: z.number().int().nonnegative(),
+  matchedFilmCount: z.number().int().nonnegative(),
+});
+export type LetterboxdSource = z.infer<typeof letterboxdSourceSchema>;
+export const letterboxdSourceListResponseSchema = envelope(
+  z.object({ sources: z.array(letterboxdSourceSchema).max(50) }),
+);
+export const letterboxdSourceCreateSchema = z
+  .object({ sourceUrl: z.string().trim().min(1).max(500) })
+  .strict();
+export const letterboxdSourceChangeSchema = envelope(
+  z.object({ source: letterboxdSourceSchema }),
+);
+export const letterboxdSourceRemoveResponseSchema = envelope(
+  z.object({ removed: z.literal(true) }),
+);
+
 export const subscriptionCreateSchema = z
   .object({
     tmdbId: protectedMovieIdSchema,

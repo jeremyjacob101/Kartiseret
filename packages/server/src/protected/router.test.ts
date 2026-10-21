@@ -8,6 +8,7 @@ import {
   type TicketAlertCriteria,
 } from "@kartiseret/contracts/private-data";
 const id = "00000000-0000-4000-8000-000000000001";
+const sourceId = "00000000-0000-4000-8000-000000000099";
 const preferences = {
   ratingSources: ["imdbRating" as const],
   location: "Haifa",
@@ -39,6 +40,19 @@ function setup() {
       },
     })),
     unwatchComingSoonDate: vi.fn(async () => ({ removed: true as const })),
+    listLetterboxdSources: vi.fn(async () => []),
+    addLetterboxdSource: vi.fn(async (_user, input) => ({
+      id: sourceId,
+      sourceUrl: input.sourceUrl,
+      sourceType: "watchlist" as const,
+      createdAt: "2026-10-21T10:00:00.000Z",
+      lastSyncAttemptAt: null,
+      lastSuccessfulSyncAt: null,
+      lastSyncError: null,
+      filmCount: 0,
+      matchedFilmCount: 0,
+    })),
+    removeLetterboxdSource: vi.fn(async () => ({ removed: true as const })),
     cancel: vi.fn(async () => ({
       kind: "account" as const,
       subscription: null,
@@ -274,6 +288,59 @@ describe("protected HTTP contracts", () => {
     expect(workflows.unwatchComingSoonDate).toHaveBeenCalledWith(
       { id, email: "qa@example.test" },
       "9100001",
+    );
+  });
+  it("keeps public Letterboxd source configuration behind the verified account API", async () => {
+    const { app, workflows } = setup();
+    expect((await request(app).get("/api/v1/letterboxd-sources")).status).toBe(
+      401,
+    );
+    const source = {
+      id: sourceId,
+      sourceUrl: "https://letterboxd.com/fixture/watchlist/",
+      sourceType: "watchlist" as const,
+      createdAt: "2026-10-21T10:00:00.000Z",
+      lastSyncAttemptAt: null,
+      lastSuccessfulSyncAt: null,
+      lastSyncError: null,
+      filmCount: 0,
+      matchedFilmCount: 0,
+    };
+    vi.mocked(workflows.listLetterboxdSources).mockResolvedValue([source]);
+    const read = await request(app)
+      .get("/api/v1/letterboxd-sources")
+      .set("Cookie", "valid");
+    expect(read.status).toBe(200);
+    expect(read.body.data.sources).toEqual([source]);
+    expect(read.headers["cache-control"]).toBe("no-store");
+
+    const created = await request(app)
+      .post("/api/v1/letterboxd-sources")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({ sourceUrl: source.sourceUrl });
+    expect(created.status).toBe(200);
+    expect(created.body.data.source.id).toBe(sourceId);
+    expect(workflows.addLetterboxdSource).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      { sourceUrl: source.sourceUrl },
+    );
+
+    const massAssigned = await request(app)
+      .post("/api/v1/letterboxd-sources")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({ sourceUrl: source.sourceUrl, userId: "another-user" });
+    expect(massAssigned.status).toBe(400);
+
+    const removed = await request(app)
+      .delete(`/api/v1/letterboxd-sources/${sourceId}`)
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost");
+    expect(removed.status).toBe(200);
+    expect(workflows.removeLetterboxdSource).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      sourceId,
     );
   });
   it("returns a safe uncacheable failure when private persistence fails", async () => {
