@@ -4,6 +4,7 @@ import { addCalendarDays, SHOWTIME_LINK_DATE_COUNT } from "@kartiseret/contracts
 import { selectCities, theaterDataQueryOptions, type City } from "../../data/theaters";
 import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from "react";
 import { Clock8, ExternalLink, MapPin, MoveRight, Star, X } from "lucide-react";
+import { usePublicationRevision } from "../../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
 import { type AppLocation } from "../../prefs/definitions/locations";
@@ -633,6 +634,7 @@ export function MovieDetailsContent({
   onShareShowtimes,
   shareFeedback = null,
 }: MovieDetailsContentProps) {
+  usePublicationRevision();
   const {
     sources,
     location: preferenceLocation,

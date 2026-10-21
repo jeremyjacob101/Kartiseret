@@ -50,7 +50,10 @@ function subscription(tmdbId = "101"): UserTicketAlertSubscription {
 function reply(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Kartiseret-Publication": "0",
+    },
   });
 }
 

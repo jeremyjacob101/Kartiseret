@@ -5,7 +5,7 @@ import re
 from typing import Any
 
 from dotenv import load_dotenv
-from supabase import create_client
+from backend.dataflow.utils.PublicationWorkspace import create_client, atomic_maintenance
 from backend.utils.supabase.snapshot_manifests import reconcile_snapshot_row_counts
 
 load_dotenv()
@@ -114,6 +114,7 @@ def duplicate_ids(rows: list[dict]) -> list[Any]:
     return ids_to_delete
 
 
+@atomic_maintenance("comingsoons")
 def dedupe_all_soons(dry_run: bool = True) -> None:
     sb = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY"))
     rows = select_all_soons(sb)

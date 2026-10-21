@@ -1,8 +1,8 @@
 import { decodeDateCode, isCanonicalShowtimeFilterMatch, parseMovieRouteCode, resolveCityCode, SHOWTIME_FILTER_OPTIONS, uncheckedFromFilterMask } from "@kartiseret/contracts/showtime-links";
 import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime, SHOWTIME_TIME_ZONE } from "@kartiseret/contracts/showtime-day";
 import { previewDataSchema, type PreviewData, type PreviewRouteSelection, type PreviewTheater } from "./schemas.js";
+import { getMovieByPermanentCode, getShowtimeRange, withPublicationSnapshot } from "@kartiseret/server/public-data";
 import { buildShowtimeFilterSelections, getCanonicalShowtimeMeta } from "@kartiseret/contracts/showtime-filters";
-import { getMovieByPermanentCode, getShowtimeRange } from "@kartiseret/server/public-data";
 import { getProductionPublicDataRepository } from "@kartiseret/server/production";
 import type { PublicDataRepository } from "@kartiseret/server/public-data";
 import type { PublicShowtime } from "@kartiseret/contracts/public-data";
@@ -154,7 +154,7 @@ function groupPreviewShowtimes<T extends { cinema: string; showtime: string }>(
     .slice(0, 3);
 }
 
-export async function getPreviewData(
+async function readPreviewData(
   routeCode: string,
   instant: Date = new Date(),
   repository?: PublicDataRepository | null,
@@ -227,4 +227,14 @@ export async function getPreviewData(
     rtAudienceVotes: parseNumber(movie.rtAudienceVotes),
     lbRating: parseNumber(movie.lbRating),
   });
+}
+
+export async function getPreviewData(
+  routeCode: string,
+  instant: Date = new Date(),
+  repository?: PublicDataRepository | null,
+): Promise<PreviewData | null> {
+  const reader = repository ?? getProductionPublicDataRepository();
+  return withPublicationSnapshot(reader, () =>
+    readPreviewData(routeCode, instant, reader));
 }

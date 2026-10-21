@@ -10,6 +10,7 @@ from backend.scraping.utils.InitializeBaseCinema import build_chrome
 from backend.dataflow.utils.InitializeBaseDataflow import InitializeBaseDataflow, setUpSupabase, setUpTmdb, logSuccessfulRun
 from backend.dataflow.comingsoons.utils.ComingSoonsHelpers import ComingSoonsHelpers
 from backend.dataflow.nowplayings.utils.NowPlayingsHelpers import NowPlayingsHelpers
+from backend.dataflow.utils.PublicationWorkspace import publication_scope
 import os
 
 
@@ -54,10 +55,16 @@ class BaseDataflow(PipelineCheckpoints, InitializeBaseDataflow, DataflowRequests
 
     def dataRun(self):
         try:
-            self.logic()
+            with publication_scope(getattr(self, "_publication", None)):
+                self.logic()
+            if getattr(self, "_owns_publication", False):
+                self._publication.commit()
+            if hasattr(self, "ensureCinemathequeTimingRow"):
+                self.ensureCinemathequeTimingRow()
             logSuccessfulRun(self)
             self.flush_summary(successful=True)
         except Exception:
+            self.discardPublicationStage()
             self.flush_summary(successful=False)
             raise
         finally:
@@ -65,5 +72,11 @@ class BaseDataflow(PipelineCheckpoints, InitializeBaseDataflow, DataflowRequests
 
     def finishSharedDataRun(self, successful: bool = True):
         if successful:
+            if hasattr(self, "ensureCinemathequeTimingRow"):
+                self.ensureCinemathequeTimingRow()
             logSuccessfulRun(self)
         self.flush_summary(successful=successful)
+
+    def discardPublicationStage(self):
+        if hasattr(self, "_publication_savepoint"):
+            self._publication.restore(self._publication_savepoint)

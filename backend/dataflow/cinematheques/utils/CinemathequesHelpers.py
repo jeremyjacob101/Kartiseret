@@ -1,6 +1,6 @@
 import os
 
-from backend.dataflow.utils.InitializeBaseDataflow import logSuccessfulRun, runningGithubActions
+from backend.dataflow.utils.InitializeBaseDataflow import runningGithubActions
 from backend.dataflow.utils.SupabaseTables import SupabaseTables
 
 
@@ -25,18 +25,6 @@ class CinemathequesHelpers:
         rows = self.supabase.table("utilAvgTime").select("name").eq("name", self.__class__.__name__).limit(1).execute().data or []
         if not rows:
             self.supabase.table("utilAvgTime").insert({"name": self.__class__.__name__, "type": "dataflow"}).execute()
-
-    def dataRun(self):
-        try:
-            self.logic()
-            self.ensureCinemathequeTimingRow()
-            logSuccessfulRun(self)
-            self.flush_summary(successful=True)
-        except Exception:
-            self.flush_summary(successful=False)
-            raise
-        finally:
-            self.closeDataflowRequests()
 
     def _all_theque_key(self, row: dict) -> tuple:
         # Raw history is deduplicated only inside a scraper snapshot. Including

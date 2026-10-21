@@ -1,5 +1,5 @@
 from collections import defaultdict
-from supabase import create_client
+from backend.dataflow.utils.PublicationWorkspace import workspace_for
 from selenium import webdriver
 import time, os
 
@@ -7,9 +7,9 @@ runningGithubActions = os.environ.get("GITHUB_ACTIONS") == "true"
 
 
 def setUpSupabase(self):
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-    self.supabase = create_client(url, key)
+    self._publication, self._owns_publication = workspace_for(self)
+    self.supabase = self._publication
+    self._publication_savepoint = self._publication.savepoint()
 
 
 def setUpTmdb(self):

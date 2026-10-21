@@ -84,7 +84,10 @@ beforeEach(() => {
         }),
         {
           status: 200,
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "X-Kartiseret-Publication": "0",
+          },
         },
       ),
   );

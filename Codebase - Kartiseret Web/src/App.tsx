@@ -6,6 +6,7 @@ import { Suspense, StrictMode, lazy, useCallback, useEffect, useRef, useState } 
 import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
 import { QueryClientProvider, useMutation, useQuery } from "@tanstack/react-query";
 import type { ApplicationIdentity } from "@kartiseret/contracts/private-data";
+import { usePublicationRevision } from "./hooks/usePublicationRevision";
 import { type MovieSearchResult } from "./components/MovieSearchMenu";
 import { PasswordResetPage } from "./components/PasswordResetPage";
 import { movieCodeSchema } from "@kartiseret/contracts/runtime";
@@ -288,6 +289,7 @@ function UserRoute({
 }
 
 export function App() {
+  usePublicationRevision();
   const routeLocation = useLocation();
   const navigate = useNavigate();
   const isMobile = useDeviceStore((state) => state.isMobile);

@@ -1,5 +1,6 @@
 import { selectTicketAlertAvailability, selectUserTicketAlert, ticketAlertAvailabilityQueryOptions, ticketAlertMutationOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions } from "../../data/ticketAlerts";
 import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
+import { usePublicationRevision } from "../../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
 import { normalizeTicketAlertTmdbId } from "../../domain/ticketAlerts";
 import { Bell, Check, LoaderCircle, Ticket } from "lucide-react";
@@ -23,6 +24,7 @@ function TicketAlertBellIcon({ checked }: { checked: boolean }) {
 }
 
 export function TicketAlertControl({ movie }: TicketAlertControlProps) {
+  usePublicationRevision();
   const { userId, preferredCity, preferencesLoading } = useUserPreferencesStore(
     useShallow((state) => ({
       userId: state.user?.id ?? null,

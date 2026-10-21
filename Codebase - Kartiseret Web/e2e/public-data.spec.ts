@@ -1,5 +1,6 @@
 import { addCalendarDays, encodeDateCode, encodeMovieRouteCode, getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
 import { test, expect, type Page } from "@playwright/test";
+import { Client } from "pg";
 
 const API_ROOT = "/api/v1/";
 const TRANSPARENT_GIF = Buffer.from(
@@ -226,4 +227,89 @@ test("unknown API routes remain JSON 404s instead of returning the SPA", async (
   expect(response.status()).toBe(404);
   expect(response.headers()["content-type"]).toContain("application/json");
   expect(await response.text()).not.toContain("<html");
+});
+
+test("an open catalog refreshes coherently when publication changes before loading showtimes", async ({
+  page,
+}) => {
+  const database = new Client({
+    connectionString: process.env.TEST_DATABASE_URL,
+  });
+  const target = new URL(process.env.TEST_DATABASE_URL ?? "http://invalid");
+  if (
+    !["localhost", "127.0.0.1", "::1"].includes(target.hostname) ||
+    target.pathname !== "/kartiseret_test"
+  )
+    throw new Error("Local disposable database required");
+  await database.connect();
+  const id = 2101000100;
+  const cinema = "PR4 browser cinema";
+  const fixtureDate = addCalendarDays(getJerusalemCinemaDate(new Date()), 1)!;
+  try {
+    await database.query(
+      "insert into public.\"finalMovies\"(tmdb_id,english_title,release_year,runtime,popularity) values($1,'PR4 old film',2026,90,100)",
+      [id],
+    );
+    await database.query(
+      "insert into public.\"movieCodes\"(tmdb_id,movie_code) values($1,'Pr4')",
+      [id],
+    );
+    await database.query(
+      "insert into public.\"finalShowtimes\"(tmdb_id,english_title,cinema,screening_city,date_of_showing,showtime,english_href,run_id) values($1,'PR4 old film',$2,'Jerusalem',$3,'20:45','https://tickets.example/pr4',901)",
+      [id, cinema, fixtureDate],
+    );
+    await page.goto("/movies");
+    await expect(
+      page.getByRole("button", { name: "Open PR4 old film in scroller view" }),
+    ).toBeVisible();
+    await database.query("begin");
+    await database.query(
+      "update public.\"finalMovies\" set english_title='PR4 published film' where tmdb_id=$1",
+      [id],
+    );
+    await database.query(
+      "update public.\"finalShowtimes\" set english_title='PR4 published film',showtime='21:45' where tmdb_id=$1",
+      [id],
+    );
+    await database.query("commit");
+    const changed = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/v1/showtimes" &&
+        response.status() === 409,
+    );
+    await page
+      .getByRole("button", { name: "All Showtimes", exact: true })
+      .click();
+    await changed;
+    const date = page.getByRole("radio", {
+      name: new RegExp(escapeRegularExpression(dateCalendarLabel(fixtureDate))),
+    });
+    await expect(date).toBeVisible();
+    await date.scrollIntoViewIfNeeded();
+    await date.click();
+    await expect(
+      page.getByRole("heading", { name: "PR4 published film" }),
+    ).toBeVisible();
+    await expect(page.getByText("21:45", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "PR4 old film" }),
+    ).toHaveCount(0);
+    await page.screenshot({
+      path: "/tmp/kartiseret-pr4-publication.png",
+      fullPage: true,
+    });
+  } finally {
+    await database.query("rollback");
+    await database.query(
+      'delete from public."finalShowtimes" where tmdb_id=$1',
+      [id],
+    );
+    await database.query('delete from public."finalMovies" where tmdb_id=$1', [
+      id,
+    ]);
+    await database.query('delete from public."movieCodes" where tmdb_id=$1', [
+      id,
+    ]);
+    await database.end();
+  }
 });

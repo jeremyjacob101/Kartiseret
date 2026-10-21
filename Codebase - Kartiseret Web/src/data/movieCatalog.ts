@@ -1,16 +1,17 @@
 import { movieCatalogResponseSchema, publicShowtimeRangeResponseSchema, type MovieCodesStatus as ApiMovieCodesStatus, type MovieCatalogMode, type PublicShowtime } from "@kartiseret/contracts/public-data";
 import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime as shouldIncludeShowtimeAtInstant, SHOWTIME_TIME_ZONE } from "@kartiseret/contracts/showtime-day";
 import { addCalendarDays, getJerusalemCinemaDate, getTargetedShowtimePrefetchRange, SHOWTIME_LINK_DATE_COUNT } from "@kartiseret/contracts/showtime-links";
+import { assertPublication, currentPublicationRevision, publicationOf, refreshPublicationCollections, tagPublication } from "./publicationRevision.js";
 import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/definitions/locations.js";
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { movieAltOptionSchema, type Movie } from "@kartiseret/contracts/movies";
 import { parseBoundary, movieCodeSchema } from "@kartiseret/contracts/runtime";
 import { correctionResponseSchema } from "@kartiseret/contracts/private-data";
+import { getPublicationResponse, ApiRequestError } from "./apiClient";
 import { adminMovieEditPayloadSchema } from "./externalSchemas";
 import { ticketAlertQueryKeys } from "./ticketAlerts";
 import { queryClient } from "../lib/queryClient.js";
 import { privateApiResponse } from "./privateApi";
-import { getApiResponse } from "./apiClient";
 import { z } from "zod";
 
 export type { Movie } from "@kartiseret/contracts/movies";
@@ -72,6 +73,7 @@ export type ShowtimeEntry = {
 const EMPTY_SHOWTIME_CITIES: readonly AppLocation[] = Object.freeze([]);
 
 export type MovieCollectionData = {
+  publicationRevision?: string;
   mode: CatalogMode;
   movies: Movie[];
   moviesByCode: Record<string, Movie>;
@@ -79,6 +81,7 @@ export type MovieCollectionData = {
 };
 
 export type ShowtimeRange = {
+  publicationRevision?: string;
   city: AppLocation;
   startDate: string;
   endDate: string;
@@ -86,6 +89,7 @@ export type ShowtimeRange = {
 };
 
 export type ShowtimeCityData = {
+  publicationRevision?: string;
   city: AppLocation;
   broadFetchedDates: string[];
   broadLoadedDayCount: number;
@@ -99,6 +103,7 @@ export type ShowtimeCityData = {
 };
 
 export type ShowtimeCacheMerge = {
+  publicationRevision?: string;
   city: AppLocation;
   dates: readonly string[];
   movies: readonly Movie[];
@@ -121,15 +126,31 @@ export const movieCatalogQueryKeys = {
     ["movieCatalog", "collections", mode] as const,
   showtimes: () => ["movieCatalog", "showtimes"] as const,
   showtimeCities: () => ["movieCatalog", "showtimes", "cities"] as const,
-  showtimeCity: (city: AppLocation) =>
-    ["movieCatalog", "showtimes", "cities", city] as const,
+  showtimeCity: (city: AppLocation) => {
+    const revision = currentPublicationRevision();
+    return revision === undefined
+      ? (["movieCatalog", "showtimes", "cities", city] as const)
+      : (["movieCatalog", "showtimes", "cities", city, revision] as const);
+  },
   showtimeRanges: () => ["movieCatalog", "showtimes", "ranges"] as const,
-  showtimeRange: ({ city, startDate, endDate, tmdbId }: ShowtimeRange) =>
+  showtimeRange: ({
+    city,
+    startDate,
+    endDate,
+    tmdbId,
+    publicationRevision = currentPublicationRevision(),
+  }: ShowtimeRange) =>
     [
       "movieCatalog",
       "showtimes",
       "ranges",
-      { city, startDate, endDate, tmdbId: tmdbId?.trim() || null },
+      {
+        city,
+        startDate,
+        endDate,
+        tmdbId: tmdbId?.trim() || null,
+        ...(publicationRevision === undefined ? {} : { publicationRevision }),
+      },
     ] as const,
   adminEdits: () => ["movieCatalog", "adminEdits"] as const,
 };
@@ -424,7 +445,7 @@ async function fetchMovieCollection(
     mode === "nowPlaying"
       ? "/api/v1/catalog/now-playing"
       : "/api/v1/catalog/coming-soon";
-  const response = await getApiResponse(
+  const { response, revision } = await getPublicationResponse(
     path,
     movieCatalogResponseSchema,
     signal,
@@ -438,8 +459,10 @@ async function fetchMovieCollection(
     );
   }
 
+  tagPublication(response.data.movies, revision);
   return {
     ...response.data,
+    publicationRevision: revision,
     moviesByCode: indexMoviesByCode(response.data.movies),
   };
 }
@@ -448,6 +471,7 @@ export function movieCollectionQueryOptions(mode: CatalogMode) {
   return queryOptions({
     queryKey: movieCatalogQueryKeys.collection(mode),
     queryFn: ({ signal }) => fetchMovieCollection(mode, signal),
+    structuralSharing: false,
     staleTime: MOVIE_COLLECTION_STALE_TIME,
     gcTime: MOVIE_COLLECTION_GC_TIME,
   });
@@ -489,6 +513,7 @@ async function fetchShowtimeRowsForDateRange(
   endDateString: string,
   tmdbId?: string,
   signal?: AbortSignal,
+  publicationRevision?: string,
 ): Promise<ShowtimeRow[]> {
   if (startDateString > endDateString) {
     return [];
@@ -504,17 +529,29 @@ async function fetchShowtimeRowsForDateRange(
     params.set("tmdbId", normalizedTmdbId);
   }
 
-  const response = await getApiResponse(
-    `/api/v1/showtimes?${params.toString()}`,
-    publicShowtimeRangeResponseSchema,
-    signal,
-  );
-  return response.data.showtimes;
+  try {
+    const { response, revision } = await getPublicationResponse(
+      `/api/v1/showtimes?${params.toString()}`,
+      publicShowtimeRangeResponseSchema,
+      signal,
+      publicationRevision,
+    );
+    return tagPublication(response.data.showtimes, revision);
+  } catch (error) {
+    if (
+      error instanceof ApiRequestError &&
+      error.code === "publication_changed"
+    )
+      await refreshPublicationCollections();
+    throw error;
+  }
 }
 
 export function showtimeRangeQueryOptions(range: ShowtimeRange) {
   const normalizedRange = {
     ...range,
+    publicationRevision:
+      range.publicationRevision ?? currentPublicationRevision(),
     tmdbId: range.tmdbId?.trim() || undefined,
   };
 
@@ -527,7 +564,12 @@ export function showtimeRangeQueryOptions(range: ShowtimeRange) {
         normalizedRange.endDate,
         normalizedRange.tmdbId,
         signal,
+        normalizedRange.publicationRevision,
       ),
+    retry: (count, error) =>
+      !(
+        error instanceof ApiRequestError && error.code === "publication_changed"
+      ) && count < 1,
     staleTime: SHOWTIME_RANGE_STALE_TIME,
     gcTime: SHOWTIME_RANGE_GC_TIME,
   });
@@ -575,7 +617,13 @@ export function mergeShowtimeCityData(
   current: ShowtimeCityData | undefined,
   merge: ShowtimeCacheMerge,
 ): ShowtimeCityData {
-  const previous = current ?? createEmptyShowtimeCityData(merge.city);
+  const revision = merge.publicationRevision ?? publicationOf(merge.rows);
+  const previous =
+    (current?.publicationRevision !== undefined &&
+    revision !== undefined &&
+    current.publicationRevision !== revision
+      ? undefined
+      : current) ?? createEmptyShowtimeCityData(merge.city);
   const requestedDates = new Set(merge.dates);
   const rowsByKey = Object.fromEntries(
     Object.entries(previous.rowsByKey).filter(([, row]) => {
@@ -650,6 +698,7 @@ export function mergeShowtimeCityData(
 
   return {
     city: merge.city,
+    ...(revision === undefined ? {} : { publicationRevision: revision }),
     broadFetchedDates,
     broadLoadedDayCount,
     broadReady: previous.broadReady || merge.scope === "broad",
@@ -717,6 +766,20 @@ async function ensureMovieByTmdbId(tmdbId: string): Promise<Movie | null> {
 }
 
 function mergeShowtimeCache(merge: ShowtimeCacheMerge): ShowtimeCityData {
+  assertPublication(merge.rows);
+  assertPublication(merge.movies);
+  const rowsRevision = publicationOf(merge.rows);
+  const movieRevision = publicationOf(merge.movies);
+  if (
+    rowsRevision !== undefined &&
+    movieRevision !== undefined &&
+    rowsRevision !== movieRevision
+  )
+    throw new ApiRequestError(
+      409,
+      "publication_changed",
+      "Published data changed. Reload the catalog.",
+    );
   let nextData: ShowtimeCityData | undefined;
 
   queryClient.setQueryData(movieCatalogQueryKeys.showtimeCity(merge.city), (
@@ -733,7 +796,15 @@ async function fetchAndMergeShowtimeRange(
   range: ShowtimeRange,
   merge: Omit<ShowtimeCacheMerge, "city" | "dates" | "rows">,
 ): Promise<ShowtimeCityData> {
-  const rows = await queryClient.fetchQuery(showtimeRangeQueryOptions(range));
+  const rows = await queryClient.fetchQuery(
+    showtimeRangeQueryOptions({
+      ...range,
+      publicationRevision:
+        merge.publicationRevision ??
+        publicationOf(merge.movies) ??
+        currentPublicationRevision(),
+    }),
+  );
 
   return mergeShowtimeCache({
     ...merge,
@@ -754,6 +825,7 @@ export function showtimeCityQueryOptions(city: AppLocation) {
         city,
         startDate: fixedAppDateString,
         endDate: fixedAppDateString,
+        publicationRevision: collection.publicationRevision,
       } satisfies ShowtimeRange;
       const rows = await queryClient.fetchQuery(
         showtimeRangeQueryOptions(range),
@@ -762,15 +834,22 @@ export function showtimeCityQueryOptions(city: AppLocation) {
         movieCatalogQueryKeys.showtimeCity(city),
       );
 
+      assertPublication(rows, collection.publicationRevision);
+      assertPublication(rows);
       return mergeShowtimeCityData(current, {
         city,
         dates: [fixedAppDateString],
         movies: collection.movies,
+        publicationRevision: collection.publicationRevision,
         rows,
         scope: "broad",
         visibleDayCount: INITIAL_SHOWTIME_WINDOW_DAY_COUNT,
       });
     },
+    retry: (count, error) =>
+      !(
+        error instanceof ApiRequestError && error.code === "publication_changed"
+      ) && count < 1,
     staleTime: (query) =>
       query.state.data?.broadReady ? SHOWTIME_CITY_STALE_TIME : 0,
     gcTime: MOVIE_COLLECTION_GC_TIME,

@@ -10,3 +10,5 @@ export type {
   PublicDataRepository,
   PublicShowtimeRange,
 } from "./repository.js";
+
+export { withPublicationSnapshot } from "./snapshot.js";

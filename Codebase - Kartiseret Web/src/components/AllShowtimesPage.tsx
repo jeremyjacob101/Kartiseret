@@ -3,6 +3,7 @@ import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeF
 import { getMetricDisplays, getMovieInfoParts, getShowtimeDateLabel, getShowtimeTargetDate, getTrailerEmbedUrl } from "./showtimes/showtimeUtils";
 import { MovieMetricsRow, MovieTrailerModal, ShowtimeTheaters } from "./showtimes/ShowtimeShared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { selectCities, theaterDataQueryOptions } from "../data/theaters";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { type RatingSource } from "../prefs/definitions/ratingSources";
@@ -103,6 +104,7 @@ function ShowtimesMovieRow({
 }
 
 export function AllShowtimesPage() {
+  usePublicationRevision();
   const { location, sources, setLocationPreference } = useUserPreferencesStore(
     useShallow((state) => ({
       location: state.preferences.location,
