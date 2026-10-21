@@ -12,6 +12,7 @@ type MoviePosterArtworkProps = {
   fetchPriority?: "high" | "low" | "auto";
   draggable?: boolean;
   showFallbackWhileLoading?: boolean;
+  deferRequest?: boolean;
 };
 
 type PosterFallbackProps = {
@@ -24,6 +25,7 @@ type PosterFallbackProps = {
 type LoadingFallbackPosterImageProps = PosterFallbackProps & {
   resolvedAlt: string;
   resolvedImageSrc: string;
+  deferRequest: boolean;
   className?: string;
   loading?: "eager" | "lazy";
   decoding: "async" | "auto" | "sync";
@@ -62,6 +64,7 @@ const LoadingFallbackPosterImage = forwardRef<
   {
     title,
     resolvedImageSrc,
+    deferRequest,
     resolvedAlt,
     className,
     fallbackClassName,
@@ -87,7 +90,7 @@ const LoadingFallbackPosterImage = forwardRef<
         ref.current = node;
       }
 
-      if (!node || !node.complete) {
+      if (!node || !node.getAttribute("src") || !node.complete) {
         return;
       }
 
@@ -108,7 +111,7 @@ const LoadingFallbackPosterImage = forwardRef<
       ) : null}
       <img
         ref={setImageNode}
-        src={resolvedImageSrc}
+        src={deferRequest ? undefined : resolvedImageSrc}
         alt={resolvedAlt}
         aria-hidden={isDecorative ? "true" : undefined}
         loading={loading}
@@ -144,6 +147,7 @@ export const MoviePosterArtwork = forwardRef<
     fetchPriority,
     draggable = false,
     showFallbackWhileLoading = false,
+    deferRequest = false,
   },
   ref,
 ) {
@@ -161,6 +165,7 @@ export const MoviePosterArtwork = forwardRef<
           ref={ref}
           title={title}
           resolvedImageSrc={resolvedImageSrc}
+          deferRequest={deferRequest}
           resolvedAlt={resolvedAlt}
           className={className}
           fallbackClassName={fallbackClassName}
@@ -177,7 +182,7 @@ export const MoviePosterArtwork = forwardRef<
     return (
       <img
         ref={ref}
-        src={resolvedImageSrc}
+        src={deferRequest ? undefined : resolvedImageSrc}
         alt={resolvedAlt}
         aria-hidden={isDecorative ? "true" : undefined}
         loading={loading}

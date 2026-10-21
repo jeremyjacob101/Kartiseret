@@ -9,6 +9,9 @@ class TestImage {
   onload: (() => void) | null = null;
   onerror: (() => void) | null = null;
   src = "";
+  get naturalWidth() {
+    return TestImage.cached.has(this.src) ? 100 : 0;
+  }
   get complete() {
     return TestImage.cached.has(this.src);
   }
@@ -38,6 +41,118 @@ afterEach(() => {
 });
 
 describe("shared backdrop preload scheduling", () => {
+  it("shares two background slots, with overscan posters ahead of backdrops", async () => {
+    const scheduler = createBackdropPreloader();
+    const first = gate(),
+      second = gate();
+    scheduler.protectPosters(["p1", "p2", "p3"], first.ready);
+    scheduler.protectPosters(["visible"], second.ready);
+    scheduler.warmBackdrops(["b1", "b2"]);
+    scheduler.warmPosters(["p1", "p2", "p3"]);
+    first.resolve();
+    await flush();
+    expect(TestImage.instances).toHaveLength(0);
+    second.resolve();
+    await flush();
+    expect(TestImage.instances.map((i) => i.src)).toEqual(["p1", "p2"]);
+    TestImage.instances[0].onload?.();
+    await flush();
+    expect(TestImage.instances.map((i) => i.src)).toEqual(["p1", "p2", "p3"]);
+    TestImage.instances[1].onerror?.();
+    await flush();
+    expect(TestImage.instances.map((i) => i.src)).toEqual([
+      "p1",
+      "p2",
+      "p3",
+      "b1",
+    ]);
+    expect(TestImage.instances.every((i) => i.fetchPriority === "low")).toBe(
+      true,
+    );
+  });
+
+  it("promotes queued and active posters without duplicate requests or budget waits", async () => {
+    const scheduler = createBackdropPreloader();
+    scheduler.warmPosters(["p1", "p2", "p3"]);
+    await flush();
+    const active = scheduler.requestPosterNow("p1");
+    const queued = scheduler.requestPosterNow("p3");
+    expect(TestImage.instances.map((i) => i.src)).toEqual(["p1", "p2", "p3"]);
+    expect(TestImage.instances[0].fetchPriority).toBe("high");
+    expect(TestImage.instances[2].fetchPriority).toBe("high");
+    TestImage.instances[0].onload?.();
+    TestImage.instances[2].onerror?.();
+    await Promise.all([active, queued]);
+    await flush();
+    expect(TestImage.instances).toHaveLength(3);
+    expect(scheduler.requestPosterNow("p3")).toBe(queued);
+  });
+
+  it("drops obsolete queued posters without removing another scroller's ownership", async () => {
+    const scheduler = createBackdropPreloader();
+    const critical = gate();
+    scheduler.protectPosters([], critical.ready);
+    const cancel = scheduler.warmPosters(["old", "shared"]);
+    scheduler.warmPosters(["shared", "new"]);
+    cancel();
+    critical.resolve();
+    await flush();
+    expect(TestImage.instances.map((i) => i.src)).toEqual(["shared", "new"]);
+  });
+
+  it("lets cached or failed critical posters release optional work", async () => {
+    const scheduler = createBackdropPreloader();
+    TestImage.cached.add("cached");
+    const cached = scheduler.requestPosterNow("cached");
+    const failed = scheduler.requestPosterNow("failed");
+    scheduler.protectPosters(
+      ["cached", "failed"],
+      Promise.all([cached, failed]),
+    );
+    const task = vi.fn();
+    scheduler.afterCriticalPosters(task);
+    await flush();
+    expect(task).not.toHaveBeenCalled();
+    TestImage.instances.find((i) => i.src === "failed")!.onerror?.();
+    await flush();
+    expect(task).toHaveBeenCalledOnce();
+  });
+
+  it("cancels optional work and rechecks guards between ready callbacks", async () => {
+    const scheduler = createBackdropPreloader();
+    const critical = gate();
+    const abandoned = vi.fn(),
+      next = vi.fn();
+    scheduler.afterCriticalPosters(() =>
+      scheduler.protectPosters([], critical.ready));
+    const cancel = scheduler.afterCriticalPosters(abandoned);
+    scheduler.afterCriticalPosters(next);
+    cancel();
+    await flush();
+    expect(abandoned).not.toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+    critical.resolve();
+    await flush();
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it("exposes stable snapshots and unsubscribes DOM-source listeners", async () => {
+    const scheduler = createBackdropPreloader();
+    const initial = scheduler.getStartedPosters();
+    const listener = vi.fn();
+    const unsubscribe = scheduler.subscribe(listener);
+    scheduler.requestPosterNow("urgent");
+    expect(initial.has("urgent")).toBe(false);
+    expect(scheduler.getStartedPosters().has("urgent")).toBe(true);
+    const started = scheduler.getStartedPosters();
+    scheduler.requestPosterNow("urgent");
+    expect(scheduler.getStartedPosters()).toBe(started);
+    expect(listener).toHaveBeenCalledOnce();
+    unsubscribe();
+    scheduler.warmPosters(["background"]);
+    await flush();
+    expect(listener).toHaveBeenCalledOnce();
+  });
   it("waits for both scrollers, then limits speculative downloads to two", async () => {
     const scheduler = createBackdropPreloader();
     const first = gate();
