@@ -6,6 +6,7 @@ import { Suspense, StrictMode, lazy, useCallback, useEffect, useRef, useState } 
 import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
 import { QueryClientProvider, useMutation, useQuery } from "@tanstack/react-query";
 import type { ApplicationIdentity } from "@kartiseret/contracts/private-data";
+import { backdropPreloader } from "./components/scroller/backdropPreloader";
 import { usePublicationRevision } from "./hooks/usePublicationRevision";
 import { type MovieSearchResult } from "./components/MovieSearchMenu";
 import { PasswordResetPage } from "./components/PasswordResetPage";
@@ -375,8 +376,7 @@ export function App() {
       return;
     }
 
-    nonCriticalPreloadStartedRef.current = true;
-
+    let cancelPosterWait: (() => void) | undefined;
     let timeoutId: number | null = null;
     let idleId: number | null = null;
     const windowWithIdleCallbacks = window as Window & {
@@ -387,12 +387,14 @@ export function App() {
       ) => number;
     };
     const preloadNonCriticalExperience = () => {
-      preloadCityLocationPicker();
-
-      void Promise.allSettled([
-        loadUserPreferencesPage(),
-        loadPosterGridPage(),
-      ]);
+      cancelPosterWait = backdropPreloader.afterCriticalPosters(() => {
+        nonCriticalPreloadStartedRef.current = true;
+        preloadCityLocationPicker();
+        void Promise.allSettled([
+          loadUserPreferencesPage(),
+          loadPosterGridPage(),
+        ]);
+      });
     };
 
     if (typeof windowWithIdleCallbacks.requestIdleCallback === "function") {
@@ -409,6 +411,7 @@ export function App() {
     }
 
     return () => {
+      cancelPosterWait?.();
       if (
         idleId !== null &&
         typeof windowWithIdleCallbacks.cancelIdleCallback === "function"
@@ -487,6 +490,7 @@ export function App() {
       return;
     }
 
+    let cancelPosterWait: (() => void) | undefined;
     let timeoutId: number | null = null;
     let idleId: number | null = null;
     const windowWithIdleCallbacks = window as Window & {
@@ -497,7 +501,9 @@ export function App() {
       ) => number;
     };
     const runPreload = () => {
-      void loadAllShowtimesPage();
+      cancelPosterWait = backdropPreloader.afterCriticalPosters(() => {
+        void loadAllShowtimesPage();
+      });
     };
 
     if (typeof windowWithIdleCallbacks.requestIdleCallback === "function") {
@@ -514,6 +520,7 @@ export function App() {
     }
 
     return () => {
+      cancelPosterWait?.();
       if (
         idleId !== null &&
         typeof windowWithIdleCallbacks.cancelIdleCallback === "function"

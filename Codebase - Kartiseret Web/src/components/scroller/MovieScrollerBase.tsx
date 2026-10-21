@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, type CSSProperties, type KeyboardEvent, type MouseEvent, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, type CSSProperties, type KeyboardEvent, type MouseEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useDeviceStore } from "../../device/useDeviceType";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { backdropPreloader } from "./backdropPreloader";
@@ -181,8 +181,11 @@ export function MovieScrollerBase({
   const introDelayTimeoutRef = useRef<number | null>(null);
   const introCompleteTimeoutRef = useRef<number | null>(null);
   const introReadyTimeoutRef = useRef<number | null>(null);
-  const seenPosterSrcRef = useRef(new Set<string>());
-  const imageLoadPromiseBySrcRef = useRef(new Map<string, Promise<void>>());
+  const startedPosters = useSyncExternalStore(
+    backdropPreloader.subscribe,
+    backdropPreloader.getStartedPosters,
+    backdropPreloader.getStartedPosters,
+  );
   const focusedScaleBoost = 0.15;
   const maxCardHeight = Math.ceil(cardHeight * (1 + focusedScaleBoost));
 
@@ -389,48 +392,10 @@ export function MovieScrollerBase({
     }
   }, []);
 
-  const preloadImageSource = useCallback((
-    src: string,
-    fetchPriority: "high" | "auto" = "auto",
-  ): Promise<void> => {
-    const existingPromise = imageLoadPromiseBySrcRef.current.get(src);
-
-    if (existingPromise) {
-      return existingPromise;
-    }
-
-    const image = new Image();
-    image.decoding = "async";
-    image.fetchPriority = fetchPriority;
-
-    const imageLoadPromise = new Promise<void>((resolve) => {
-      let isResolved = false;
-      const resolveOnce = () => {
-        if (isResolved) {
-          return;
-        }
-
-        isResolved = true;
-        resolve();
-      };
-
-      image.onload = () => {
-        resolveOnce();
-      };
-      image.onerror = () => {
-        resolveOnce();
-      };
-      image.src = src;
-
-      if (image.complete) {
-        resolveOnce();
-      }
-    });
-
-    imageLoadPromiseBySrcRef.current.set(src, imageLoadPromise);
-
-    return imageLoadPromise;
-  }, []);
+  const preloadImageSource = useCallback(
+    (src: string): Promise<void> => backdropPreloader.requestPosterNow(src),
+    [],
+  );
 
   const startIntroAnimation = useCallback(() => {
     introStartFrameRef.current = window.requestAnimationFrame(() => {
@@ -537,7 +502,7 @@ export function MovieScrollerBase({
       finishIntroSetup();
     } else {
       Promise.all(
-        [...introAnimatedSources].map((src) => preloadImageSource(src, "high")),
+        [...introAnimatedSources].map((src) => preloadImageSource(src)),
       )
         .then(() => {
           finishIntroSetup();
@@ -578,26 +543,13 @@ export function MovieScrollerBase({
       return;
     }
 
+    const sources: string[] = [];
     for (let i = effectiveRange.start; i <= effectiveRange.end; i += 1) {
-      const movie = allMovies[i % movieCount];
-      const imageSources = [movie.imageSrc].filter(Boolean) as string[];
-
-      for (const src of imageSources) {
-        if (seenPosterSrcRef.current.has(src)) {
-          continue;
-        }
-
-        seenPosterSrcRef.current.add(src);
-        void preloadImageSource(src);
-      }
+      const src = allMovies[i % movieCount]?.imageSrc;
+      if (src) sources.push(src);
     }
-  }, [
-    allMovies,
-    effectiveRange.end,
-    effectiveRange.start,
-    movieCount,
-    preloadImageSource,
-  ]);
+    return backdropPreloader.warmPosters(sources);
+  }, [allMovies, effectiveRange.end, effectiveRange.start, movieCount]);
 
   useEffect(() => {
     if (movieCount === 0) return;
@@ -881,10 +833,17 @@ export function MovieScrollerBase({
                 imageSrc={movie.imageSrc}
                 alt={movie.title}
                 loading={isVisible ? "eager" : "lazy"}
-                fetchPriority={isVisible ? "high" : "auto"}
+                fetchPriority={
+                  isVisible || shouldAnimateIntroCard ? "high" : "low"
+                }
                 decoding="async"
                 draggable={false}
                 showFallbackWhileLoading
+                deferRequest={
+                  !isVisible &&
+                  !shouldAnimateIntroCard &&
+                  !startedPosters.has(movie.imageSrc)
+                }
                 className="movie-scroller-card-media"
               />
             </div>
