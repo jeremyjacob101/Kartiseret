@@ -73,4 +73,8 @@ class CinemathequesHelpers:
             return result
         runtime = self.clean_int(result.get("runtime"))
         result["runtime"] = runtime if runtime is not None and runtime > 0 else None
+        if result["runtime"] is None and "provider_freshness" in result:
+            fields = result["provider_freshness"].get("tmdb", {}).get("fields", {})
+            if "runtime" in fields:
+                fields["runtime"] = {"state": "cleared" if getattr(self, "solo_update_only", False) else "missing"}
         return result

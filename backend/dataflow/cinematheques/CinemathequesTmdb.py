@@ -189,15 +189,7 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
                 self.trace_unresolved(f"no_details | group={key} | title={representative_title}")
                 continue
 
-            # 3) TMDb FIX TABLE HARD MATCH (fast set membership)
-            for tmdb_id in self.details.keys():
-                tmdb_id = self.clean_int(tmdb_id)
-                if tmdb_id in self.tmdb_fix_ids:
-                    self.potential_chosen_id = tmdb_id
-                    self.chosen_path = "tmdb_fix_id_match"
-                    break
-
-            # 4) FALLBACK FIRST/DIRECTOR/RUNTIME RANKING LOGIC
+            # Title-specific fixes were handled above; otherwise keep the existing ranking.
             if self.potential_chosen_id is None:
                 first = self.details.get(self.candidates[0])
                 if first and (self.normalizeTitle(first.get("title")) == self.normalizeTitle(representative_title)) and (not self.parsed_year or self.tryExceptNone(lambda: int((first.get("release_date") or "")[:4]) == self.parsed_year)):

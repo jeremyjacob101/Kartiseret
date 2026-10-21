@@ -4,6 +4,8 @@ from email.utils import parsedate_to_datetime
 from threading import RLock, local
 from urllib.parse import urlsplit
 import copy, requests, time
+import uuid
+from backend.dataflow.utils.ProviderFreshness import utc_now, observation, failure
 
 
 class DataflowRequestError(RuntimeError):
@@ -20,6 +22,7 @@ class DataflowRequestContext:
         self.lock = RLock()
         self.request_next = {}
         self.tmdb_cache = {}
+        self.tmdb_observations = {}
         self.tmdb_executor = None
         self.provider_executor = None
         self.request_workers = request_workers
@@ -44,6 +47,7 @@ class DataflowRequestContext:
             self.tmdb_executor = None
             self.provider_executor = None
             self.tmdb_cache.clear()
+            self.tmdb_observations.clear()
             self.request_next.clear()
         for executor in executors:
             if executor is not None:
@@ -159,6 +163,9 @@ class DataflowRequests:
                 raise DataflowRequestError(f"TMDB resource missing: {path}")
             return copy.deepcopy(data)
 
+        started = utc_now()
+        source = {"tmdb_id": str(path.rsplit("/", 1)[-1]), "request_shape": str(params.get("append_to_response", "")), "observation_id": str(uuid.uuid4())}
+
         def validate(data):
             if not isinstance(data, dict) or data.get("success") is False:
                 raise ValueError("invalid TMDB object")
@@ -176,6 +183,8 @@ class DataflowRequests:
                     data = {}
                 else:
                     data = response.json()
+            with self._request_lock:
+                self._request_context.tmdb_observations[key] = observation("success" if data else "no_listing", "usable_response" if data else "http_404", source, started)
             pending.set_result(data)
             if not data:
                 with self._request_lock:
@@ -183,9 +192,11 @@ class DataflowRequests:
             return copy.deepcopy(data)
         except BaseException as error:
             # Wake other callers even when the cache owner is interrupted.
-            pending.set_exception(error)
             with self._request_lock:
                 self._tmdb_cache.pop(key, None)
+                outcome, reason = failure(error)
+                self._request_context.tmdb_observations[key] = observation(outcome, reason, source, started)
+            pending.set_exception(error)
             raise
 
     def tmdbExecutor(self):
@@ -222,6 +233,7 @@ class DataflowRequests:
     def resolveLetterboxd(self, tmdb_id):
         url = f"https://letterboxd.com/tmdb/{tmdb_id}/"
         status, delay = None, 0
+        self._request_local.letterboxd_failure = ("failed", "resolution_failed")
         # One direct probe, then all of the existing bootstrap opportunities.
         for attempt in range(self.LETTERBOXD_MAX_ATTEMPTS + 1):
             if delay:
@@ -235,9 +247,12 @@ class DataflowRequests:
             try:
                 with self.requestGet(url, headers=self.requests_headers, timeout=20, attempts=1, check_status=False, allow_redirects=False) as response:
                     status = response.status_code
+                    self._request_local.letterboxd_failure = ({403: ("blocked", "http_403"), 429: ("rate_limited", "http_429"), 404: ("no_listing", "http_404")}.get(status, ("parse_error", "unexpected_resolution_response") if status < 400 else ("failed", "http_failure")))
                     location = response.headers.get("Location")
                     if status in (301, 302, 303, 307, 308) and location:
                         film_url = location if location.startswith(("http://", "https://")) else "https://letterboxd.com" + location
+                        if "/film/" not in film_url:
+                            self._request_local.letterboxd_failure = ("no_listing", "no_film_redirect")
                         return film_url if "/film/" in film_url else None
                     if status == 403 and (attempt == 0 or any(token in response.text.lower() for token in ("just a moment", "cf-challenge", "challenge-platform"))):
                         delay = 0.5 if attempt else 0
@@ -248,7 +263,8 @@ class DataflowRequests:
                             break
                         continue
                     break
-            except DataflowRequestError:
+            except DataflowRequestError as error:
+                self._request_local.letterboxd_failure = failure(error)
                 delay = self.retryDelay(None, attempt)
                 continue
         self.trace_note(f"provider_unavailable | source=letterboxd | tmdb={tmdb_id} | status={status}")

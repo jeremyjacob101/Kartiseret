@@ -109,6 +109,8 @@ class DataflowSummaryHelpers:
                 "started_at": started_at,
                 "finished_at": finished_at,
                 "duration_seconds": round(duration, 4),
+                "provider_examples": dict(getattr(self, "providerOutcomeExamples", {}) or {}),
+                "provider_outcomes": dict(getattr(self, "providerOutcomeCounts", {}) or {}),
                 "summary_counts": dict(getattr(self, "summaryCounts", {}) or {}),
                 "stage_breakdown": dict(getattr(self, "summaryStageBreakdown", {}) or {}),
                 "coming_soon_details": list(getattr(self, "summaryComingSoonDetails", []) or []),

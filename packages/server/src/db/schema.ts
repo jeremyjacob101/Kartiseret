@@ -120,6 +120,10 @@ export const allTheques = pgTable("allTheques", {
 });
 
 export const finalMovies = pgTable("finalMovies", {
+  providerFreshness: jsonb("provider_freshness")
+    .$type<JsonValue>()
+    .notNull()
+    .default({}),
   popularity: doublePrecision("popularity"),
   englishTitle: text("english_title").notNull(),
   releaseYear: bigint("release_year", { mode: "bigint" }),
@@ -171,6 +175,10 @@ export const finalShowtimes = pgTable("finalShowtimes", {
 });
 
 export const finalSoons = pgTable("finalSoons", {
+  providerFreshness: jsonb("provider_freshness")
+    .$type<JsonValue>()
+    .notNull()
+    .default({}),
   imdbId: text("imdb_id"),
   englishTitle: text("english_title").notNull(),
   hebrewTitle: text("hebrew_title").notNull(),
@@ -192,6 +200,10 @@ export const finalSoons = pgTable("finalSoons", {
 });
 
 export const finalThequeMovies = pgTable("finalThequeMovies", {
+  providerFreshness: jsonb("provider_freshness")
+    .$type<JsonValue>()
+    .notNull()
+    .default({}),
   tmdbId: integer("tmdb_id").primaryKey(),
   englishTitle: text("english_title").notNull(),
   hebrewTitle: text("hebrew_title"),

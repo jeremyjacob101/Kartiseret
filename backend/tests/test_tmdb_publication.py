@@ -77,6 +77,19 @@ class PublicationTests(TestCase):
         flow.refreshAllTables()
         return snapshot_id
 
+    def test_unrelated_fix_cannot_override_candidates_but_title_fixes_aliases_and_typos_work(self):
+        for path in FLOWS:
+            for title, fix_title, expected in (("Alpha", "Unrelated film", 101), ("Alhpa", "Unrelated film", 101), ("Alpha", "Alpha", 102), ("Alpha", "101", 102)):
+                with self.subTest(flow=path, title=title, fix=fix_title):
+                    def candidates(url, params):
+                        if url == "search/movie":
+                            return {"results": [{"id": 101}, {"id": 102}], "total_pages": 1}
+                    flow = self.build_flow(path, [raw_row("1", title)], candidates)
+                    flow.supabase.tables[flow.HELPER_TABLE_NAME] = [{"title_fix": fix_title, "tmdb_id": 102}]
+                    flow.refreshAllTables()
+                    flow.logic()
+                    self.assertEqual({row["tmdb_id"] for row in flow.supabase.tables[flow.MOVING_TO_TABLE_NAME]}, {expected})
+
     def test_exhausted_search_or_enrichment_never_marks_rows_complete(self):
         for path in FLOWS:
             for stage in ("search", "enrich"):

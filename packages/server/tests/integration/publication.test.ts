@@ -571,6 +571,145 @@ describe("atomic category publication and supported readers", () => {
     }
   });
 
+  it("commits provider provenance with values, retains prior success after a failed check, and never exposes it in public DTOs", async () => {
+    const fixture = await source();
+    const successAt = "2026-10-01T10:00:00+00:00";
+    const freshness = {
+      imdb: {
+        outcome: "success",
+        attempted_at: successAt,
+        checked_at: successAt,
+        last_success_at: successAt,
+        source: { imdb_id: "ttFixture", dataset_sha256: "a".repeat(64) },
+        fields: { imdbRating: { state: "refreshed", observed_at: successAt } },
+      },
+    };
+    fixture.changes[0].after = {
+      ...fixture.changes[0].after,
+      imdbRating: "8.0",
+      provider_freshness: freshness,
+    };
+    const published = await commit(await stage(fixture.parts()));
+    const before = (
+      await pool.query(
+        'select to_jsonb(t) row from public."finalMovies" t where tmdb_id=$1',
+        [movieId],
+      )
+    ).rows[0].row;
+    const failedCheck = {
+      ...freshness,
+      imdb: {
+        ...freshness.imdb,
+        outcome: "blocked",
+        attempted_at: "2026-10-02T10:00:00+00:00",
+        checked_at: "2026-10-02T10:00:01+00:00",
+        reason: "http_403",
+        fields: {
+          imdbRating: {
+            ...freshness.imdb.fields.imdbRating,
+            state: "retained",
+          },
+        },
+      },
+    };
+    const check = await stage([
+      {
+        kind: "changes",
+        rows: [
+          {
+            table: "finalMovies",
+            before,
+            after: { ...before, provider_freshness: failedCheck },
+          },
+        ],
+      },
+    ]);
+    const receipt = await commit(check);
+    expect(BigInt(receipt.revision)).toBeGreaterThan(
+      BigInt(published.revision),
+    );
+    const current = (
+      await pool.query(
+        'select to_jsonb(t) row from public."finalMovies" t where tmdb_id=$1',
+        [movieId],
+      )
+    ).rows[0].row;
+    expect(current.imdbRating).toBe(8);
+    expect(current.provider_freshness.imdb.last_success_at).toBe(successAt);
+    expect(current.provider_freshness.imdb.outcome).toBe("blocked");
+    const broken = await stage([
+      {
+        kind: "changes",
+        rows: [
+          {
+            table: "finalMovies",
+            before: current,
+            after: {
+              ...current,
+              imdbRating: "9.0",
+              provider_freshness: freshness,
+            },
+          },
+          {
+            table: "finalShowtimes",
+            before: null,
+            after: {
+              id: randomUUID(),
+              english_title: "Invalid later write",
+              cinema,
+              showtime: "invalid-time",
+            },
+          },
+        ],
+      },
+    ]);
+    await expect(commit(broken)).rejects.toThrow();
+    const rolledBack = (
+      await pool.query(
+        'select to_jsonb(t) row from public."finalMovies" t where tmdb_id=$1',
+        [movieId],
+      )
+    ).rows[0].row;
+    expect(rolledBack).toEqual(current);
+    const invalidMetadata = await stage([
+      {
+        kind: "changes",
+        rows: [
+          {
+            table: "finalMovies",
+            before: current,
+            after: { ...current, imdbRating: "9.0", provider_freshness: [] },
+          },
+        ],
+      },
+    ]);
+    await expect(commit(invalidMetadata)).rejects.toThrow(/check constraint/);
+    expect(
+      (
+        await pool.query(
+          'select to_jsonb(t) row from public."finalMovies" t where tmdb_id=$1',
+          [movieId],
+        )
+      ).rows[0].row,
+    ).toEqual(current);
+    expect(await revision()).toBe(receipt.revision);
+    const response = await request(app).get("/api/v1/catalog/now-playing");
+    expect(response.status).toBe(200);
+    expect(JSON.stringify(response.body)).not.toContain("provider_freshness");
+    expect(JSON.stringify(response.body)).not.toContain("dataset_sha256");
+    const privileges = (
+      await pool.query(`select
+      has_column_privilege('service_role','public."finalMovies"','provider_freshness','UPDATE') worker,
+      has_column_privilege('anon','public."finalMovies"','provider_freshness','SELECT') browser,
+      has_column_privilege('authenticated','public."finalMovies"','provider_freshness','SELECT') signed_in`)
+    ).rows[0];
+    expect(privileges).toEqual({
+      worker: true,
+      browser: false,
+      signed_in: false,
+    });
+  });
+
   it("grants worker execution explicitly while browser/API roles cannot stage or publish", async () => {
     const result = await pool.query(`select
       has_table_privilege('service_role','public.pipeline_publications','INSERT') worker_stage,

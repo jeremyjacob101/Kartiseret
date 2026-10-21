@@ -180,17 +180,8 @@ class ComingSoonsTmdb(BaseDataflow):
                 self.trace_unresolved(f"no_details | {self.english_title} | row_id={row.get('id')}")
                 continue
 
-            # 3) TMDb FIX TABLE HARD MATCH (fast set membership)
+            # Title-specific fixes were handled above; otherwise keep the existing ranking.
             chosen_path = None
-            for tmdb_id in self.details.keys():
-                tmdb_id = self.clean_int(tmdb_id)
-                if tmdb_id in tmdb_fix_ids:
-                    self.potential_chosen_id = tmdb_id
-                    chosen_path = "tmdb_fix_id_match"
-                    self.trace_event("tmdb_choice", "mapped", "tmdb_fix_id_match", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": tmdb_id})
-                    break
-
-            # 4) FALLBACK FIRST/DIRECTOR/RUNTIME RANKING LOGIC
             if self.potential_chosen_id is None:
                 first = self.details.get(self.candidates[0])
                 if first and (self.normalizeTitle(first.get("title")) == self.normalizeTitle(self.english_title)) and self.release_year and self.tryExceptNone(lambda: int((first.get("release_date") or "")[:4]) == self.release_year):

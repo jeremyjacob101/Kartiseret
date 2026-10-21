@@ -10,6 +10,7 @@ class ComingSoonsUpdate(BaseDataflow):
     def process_row(self, row):
         new_row = self.updating_output_row(row)
         existing = self.updating_existing_values(row)
+        self.startProviderFreshness(row, new_row)
 
         tmdb_id = existing["tmdb_id"]
         if not tmdb_id:
@@ -37,6 +38,7 @@ class ComingSoonsUpdate(BaseDataflow):
         new_row["en_poster"] = "https://image.tmdb.org/t/p/w342" + data["poster_path"] if isinstance(data, dict) and data.get("poster_path") else existing["en_poster"]
         new_row["backdrop"] = "https://image.tmdb.org/t/p/w1280" + data["backdrop_path"] if isinstance(data, dict) and data.get("backdrop_path") else existing["backdrop"]
 
+        self.recordTmdbFreshness(new_row, data, tmdb_id)
         return self.apply_solo_update_postprocess(new_row)
 
     def beginSharedUpdate(self):

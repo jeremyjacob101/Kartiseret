@@ -229,6 +229,8 @@ def _run_shared_update_round(entries, run_id: int, attempt: int, context: Datafl
                 imdb_ratings = flows[ratings_entries[0]].loadImdbRatings(ratings_rows)
             for cls in viable:
                 flows[cls]._imdb_ratings = imdb_ratings
+                if ratings_entries:
+                    flows[cls]._imdb_observation = getattr(flows[ratings_entries[0]], "_imdb_observation", None)
         except Exception:
             for cls in viable:
                 artifactPrinting(flows[cls], run_id, item_name=cls.__name__, attempt=attempt)

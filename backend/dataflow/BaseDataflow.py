@@ -11,10 +11,11 @@ from backend.dataflow.utils.InitializeBaseDataflow import InitializeBaseDataflow
 from backend.dataflow.comingsoons.utils.ComingSoonsHelpers import ComingSoonsHelpers
 from backend.dataflow.nowplayings.utils.NowPlayingsHelpers import NowPlayingsHelpers
 from backend.dataflow.utils.PublicationWorkspace import publication_scope
+from backend.dataflow.utils.ProviderFreshness import ProviderFreshness
 import os
 
 
-class BaseDataflow(PipelineCheckpoints, InitializeBaseDataflow, DataflowRequests, ImdbRatings, DataflowSummaryHelpers, DataflowHelpers, SupabaseTables, MovieCodes, ComingSoonsHelpers, NowPlayingsHelpers, ScrapingHelpers):
+class BaseDataflow(ProviderFreshness, PipelineCheckpoints, InitializeBaseDataflow, DataflowRequests, ImdbRatings, DataflowSummaryHelpers, DataflowHelpers, SupabaseTables, MovieCodes, ComingSoonsHelpers, NowPlayingsHelpers, ScrapingHelpers):
     MAIN_TABLE_NAME: str = ""
     DUPLICATE_TABLE_NAME: str = ""
     MOVING_TO_TABLE_NAME: str = ""

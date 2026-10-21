@@ -1,6 +1,6 @@
 # Pipeline reliability handoff
 
-Updated 21 October 2026 for PR4 on main through PR #174. PR3 is merged; PR4 adds atomic category publication and revision-aware readers. PR #164, PR #166, and PR #168 remain the dataflow foundation. The PR3 sections below describe the input/checkpoint contract that PR4 preserves.
+Updated 21 October 2026 for PR4 and stacked PR5 on main through PR #174. PR3 is merged; PR4 adds atomic category publication and revision-aware readers. PR #164, PR #166, and PR #168 remain the dataflow foundation. The PR3 sections below describe the input/checkpoint contract that PR4 preserves.
 
 ## Current guarantees and limits
 
@@ -64,7 +64,7 @@ Apply `20261021044037_atomic_category_publication.sql` after current main's migr
 
 For an interrupted/unknown commit, use the nonsecret artifact `backend/utils/log/logger_artifacts/<run_id>/publication_<category>.json` to find `pipeline_publications.publication_id` and verify its fingerprint. An `applied` receipt means the entire category committed, even if the RPC response was lost; the same ID/fingerprint returns that receipt without repeating writes. `prepared` means no successful publication has been recorded; after confirming the worker/request has ended, an ordinary later run prepares from current live state. An unavailable receipt lookup remains an error, not permission to assume rollback. Applied receipts are retained, while their large parts are deleted in the successful transaction. Operators may call the service-only `prune_abandoned_publications()` to remove at most 100 preparations older than 30 days whose run is no longer active; no cleanup scheduler is added.
 
-PR5 remains provider freshness/failure metadata. It should add that metadata to this workspace/transaction and API read boundary, without reinstating matching changes, durable match caching, event-link identity, unresolved-cinema protection, run ownership generations or another efficiency project.
+PR5 adds the provider metadata described below through this workspace/transaction. It does not reinstate matching changes, durable match caching, event-link identity, unresolved-cinema protection, run ownership generations or another efficiency project.
 
 ## PR3 verification and remaining limitation
 
@@ -73,3 +73,37 @@ Unit tests cover complete-empty versus failed/partial snapshots, failed-latest-a
 ## PR4 local verification
 
 The migration chain was replayed from an empty disposable PostgreSQL 17 database on localhost, with the API runtime and service-role grants checked separately. Integration coverage includes multi-cinema publication, all three categories, rollback after a later write failure, upload corruption/incompleteness, idempotent receipts, source supersession/count changes, concurrent admin evidence, repeatable-read API snapshots and stale revision rejection. Python coverage verifies private mapping plus Update preparation, failure rollback, commit-before-alert ordering, standalone Cinematheque handling, unresolved-row checkpoints, lost-response recovery and cross-category code reservations. Browser query tests exercise catalog refresh on 409, delayed old responses, generation-specific cache keys and coverage reset. Real Chromium acceptance verifies an already-open catalog recovers from an actual database publication before showing the new title and showtime together, alongside existing account/admin/search/share-link flows.
+
+## PR5 provider freshness
+
+The final rollout audit found that PR #166 contained the numeric-zero fix but had not removed the unrelated global tableFixes-ID shortcut agreed in this chat. PR5 closes that omission in all three TMDb flows: a configured ID for a different title cannot bypass the existing ranking. Explicit title-to-ID fixes, numeric-ID aliases, director/runtime/first-result ranking and fuzzy searches remain. Regression coverage includes unrelated fixes, explicit fixes, aliases and misspelled incoming titles in every category.
+
+PR5 is stacked on PR4: merge PR4 first, then retarget PR5 to main and rerun its checks. If PR4 is squash-merged, first rebase only the PR5 commit(s) onto the new main so its diff does not reintroduce PR4. Apply `20261021062439_provider_freshness.sql` after the PR4 migration before running PR5 workers. As with the PR4 transition, pause workers and the solo watcher while changing schema/code so an older prepared publication cannot straddle a schema change. This implementation does not apply hosted migrations, merge PRs, run live providers or send email.
+
+The existing `finalMovies`, `finalThequeMovies` and `finalSoons` rows gain `provider_freshness jsonb NOT NULL DEFAULT '{}'`. No new tables, RPCs, scheduler, request cache, frontend widgets or public DTO fields are added. Existing rows receive `{}`: their provenance is unknown, and no success timestamps are backfilled. The field is mapped in Drizzle but omitted from the API/Open Graph's explicit projections. Existing API-only access/RLS remains intact; the migration explicitly states the worker's column capability and grants nothing to browser roles. Trusted server database access can inspect it; it is not a new browser endpoint.
+
+Each provider record stores its latest decision (`outcome`, bounded machine-readable `reason`, source identity), `attempted_at` and `checked_at` (UTC attempt start/finish), `last_checked_at` (last completed usable/no-score/no-data/no-listing check), and `last_success_at`/`last_success_source` (last observation that refreshed at least one usable field). A failed check advances the attempt record but preserves prior successful provenance. `checked_at` alone never means the displayed score refreshed. A non-attempt such as a missing IMDb ID has no new attempt time; prior attempt times, if any, remain historical. A skipped/unresolved title with no published movie receives no invented provider attempt.
+
+Per-field `fields` records identify `refreshed`, `retained`, `unverified`, `missing` or `cleared` values. Observed fields store their own `observed_at` and source identity. Partial responses refresh only the fields actually parsed/applied, including numeric zero; old fields retain their own dates. Unverified legacy values have no fabricated observation date. The existing solo policy may clear fields; cleared/missing fields do not claim a current observation. Provider-level last-success history may still describe a prior successful value after clearing. Normal Update retention, solo flag resets and Cinematheque runtime normalization remain unchanged.
+
+Outcomes are `success`, `no_score`, `no_data`, `no_listing`, `blocked`, `rate_limited`, `failed`, `parse_error`, and `not_attempted`. No new identity rejection is introduced: TMDb still uses existing fuzzy matching and RT still uses its current year-proximity/saved-link fallback. A 403/429 is classified from its response, a recognized scorecard without usable values is no-score, unrecognized markup is parse-error, and no listing is recorded only from the existing resolution/search/dataset path. This metadata does not claim stronger identity verification than the existing parser performs. Unrecognized challenges returned as HTTP 200 may remain parse errors.
+
+Shared TMDb observations belong to the existing request-shape cache entry and carry one observation ID and original UTC start/finish time. Applying that payload to another row/category preserves that observation; it does not invent another request or success time. The mapping stage also annotates fields it enriches, using the same cached payload. Failed results remain evicted; no multi-day TTL, new refresh cadence or new retry owner is added. A new normal/solo invocation retains the existing fresh run context and request behavior.
+
+IMDb sources record the validated compressed dataset SHA-256, bounded ETag/Last-Modified, `retrieved_at` and HTTP 200/304 check outcome. A validated 304 advances the check time while preserving dataset identity and prior retrieval time. It does not claim that IMDb published new ratings then. Each title's source also identifies the IMDb ID. A verified dataset without that ID is `no_listing/absent_from_dataset`; failed downloads, corrupt gzip and inaccessible temporary storage remain failures, not negative matches. Existing validators, temporary storage, projection union and download retry policy are preserved. Dataset publisher update time remains unknown beyond its supplied Last-Modified; independent processes may still duplicate downloads.
+
+Metadata and values are carried in the same prepared movie row, so PR4 commits or rolls them back together and advances one category revision. There are no live per-provider writes during HTTP work. Attempts whose row is dropped or whose category does not commit do not replace published provenance: they remain in existing diagnostics only. Summaries add provider/outcome/reason counts and at most five TMDb-ID examples per bucket. They describe prepared attempts, not proof of publication, and do not alter successful-run status. Unexpected row exceptions retain the existing diagnostic/skip behavior; genuine required persistence failures still fail publication.
+
+State is bounded to the latest record and per-field provenance, at most 64 KiB per movie. There is no growing attempt history or new retention job. Existing primary keys support per-title inspection; no speculative JSON indexes or extra per-title provider requests are added. For example, inspect old RT values with trusted operator access:
+
+```sql
+SELECT tmdb_id, english_title,
+       provider_freshness->'rotten_tomatoes'->>'outcome' AS latest_outcome,
+       provider_freshness->'rotten_tomatoes'->>'attempted_at' AS last_attempt,
+       provider_freshness->'rotten_tomatoes'->>'last_success_at' AS last_usable_check,
+       provider_freshness->'rotten_tomatoes'->'fields' AS field_provenance
+FROM public."finalMovies"
+WHERE tmdb_id = 101;
+```
+
+Verification includes zero and partial RT/LB fields, no-score versus changed HTML/no-listing, success then blocked retention, solo clearing, original shared TMDb observations, IMDb validated 200/304/dataset identity/missing IDs/storage failure, transactional metadata/value rollback, schema parity, grants and public DTO non-disclosure. Existing tests continue covering dataset changes/corruption, row skips, fuzzy matching, complete-empty/failed/unresolved snapshots, deadline supervision, receipt recovery and post-commit fake alerts. Fixture tests do not establish live provider availability or production performance.

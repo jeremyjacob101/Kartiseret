@@ -116,6 +116,8 @@ class SupabaseTables:
                 for row in self.updates:
                     if isinstance(row, dict) and "run_id" not in row:
                         row["run_id"] = int(self.run_id)
+            if hasattr(self, "prepareMovieFreshness"):
+                self.prepareMovieFreshness(table_name, self.updates)
             self.dedupeUpdatesForUpsert(table_name)
             update_groups = {}
             for row in self.updates:
