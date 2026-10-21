@@ -64,7 +64,11 @@
   border: 1px solid color-mix(in srgb, var(--main-app-color) 18%, transparent);
   border-radius: 18px;
   background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--main-app-color) 12%, transparent), transparent 40%),
+    radial-gradient(
+      circle at top right,
+      color-mix(in srgb, var(--main-app-color) 12%, transparent),
+      transparent 40%
+    ),
     rgba(255, 255, 255, 0.03);
 }
 
@@ -154,7 +158,8 @@
 }
 
 .prefs-setting-content {
-  border-top: 1px solid color-mix(in srgb, var(--main-app-color) 18%, transparent);
+  border-top: 1px solid
+    color-mix(in srgb, var(--main-app-color) 18%, transparent);
   padding: 12px 14px 14px;
   background: rgba(255, 255, 255, 0.02);
 }
@@ -248,6 +253,93 @@ a.prefs-alert-title:focus-visible {
   font-weight: 600;
 }
 
+.ticket-alert-defaults-details,
+.ticket-alert-criteria-details {
+  color: rgba(245, 237, 255, 0.9);
+  font-size: 0.82rem;
+}
+
+.ticket-alert-defaults-details {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 22%, transparent);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.ticket-alert-defaults-details > summary,
+.ticket-alert-criteria-details > summary {
+  cursor: pointer;
+  color: #f5edff;
+  font-weight: 700;
+}
+
+.ticket-alert-criteria-editor {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.ticket-alert-criteria-group {
+  min-width: 0;
+  margin: 0;
+  padding: 8px 10px 10px;
+  border: 1px solid rgba(233, 218, 255, 0.16);
+  border-radius: 9px;
+}
+
+.ticket-alert-criteria-group legend {
+  padding: 0 5px;
+  color: #fff;
+  font-weight: 700;
+}
+
+.ticket-alert-city-options,
+.ticket-alert-filter-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 5px 10px;
+  max-height: 220px;
+  overflow: auto;
+  margin-top: 8px;
+}
+
+.ticket-alert-city-options label,
+.ticket-alert-filter-options label,
+.ticket-alert-inherit {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(233, 218, 255, 0.82);
+}
+
+.ticket-alert-select-all,
+.ticket-alert-save-criteria {
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 48%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--main-app-color) 12%, transparent);
+  color: #fff;
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ticket-alert-select-all:disabled,
+.ticket-alert-save-criteria:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ticket-alert-inherit {
+  margin-bottom: 7px;
+}
+
+.ticket-alert-save-criteria {
+  justify-self: start;
+  padding: 8px 13px;
+}
+
 .prefs-alert-remove {
   border: 1px solid color-mix(in srgb, var(--main-app-color) 48%, transparent);
   border-radius: 999px;
@@ -304,7 +396,9 @@ a.prefs-alert-title:focus-visible {
   font-size: 0.93rem;
   font-weight: 600;
   cursor: pointer;
-  transition: border-color 140ms ease, background 140ms ease;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease;
 }
 
 .prefs-setting-option:hover {
@@ -410,7 +504,9 @@ a.prefs-alert-title:focus-visible {
   color: rgba(255, 154, 191, 0.95);
 }
 
-html[data-device-type="mobile"] .theater-map-panel--embedded .theater-map-canvas-shell {
+html[data-device-type="mobile"]
+  .theater-map-panel--embedded
+  .theater-map-canvas-shell {
   min-height: min(90dvh, 920px);
 }
 

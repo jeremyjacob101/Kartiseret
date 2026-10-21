@@ -1,6 +1,6 @@
+import { matchesTicketAlertCriteria, subscriptionsResponseSchema, subscriptionChangeResponseSchema, ticketAlertPreferencesResponseSchema, type TicketAlertCriteria, type TicketAlertCriteriaOverride } from "@kartiseret/contracts/private-data";
 import { ticketAlertChangeSchema, ticketAlertShowtimePageSchema, ticketAlertShowtimeRowSchema, type TicketAlertChange, type TicketAlertShowtime, type UserTicketAlertSubscription } from "./ticketAlertSchemas";
 import { buildMovieShowtimeSharePath, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "@kartiseret/contracts/showtime-links";
-import { subscriptionsResponseSchema, subscriptionChangeResponseSchema } from "@kartiseret/contracts/private-data";
 import { isoDateStringSchema, movieCodeSchema, parseBoundary } from "@kartiseret/contracts/runtime";
 import { mutationOptions, queryOptions, skipToken, type QueryClient } from "@tanstack/react-query";
 import { getShowtimeSortValue, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
@@ -29,6 +29,9 @@ export type TicketAlertShowtimeRow = {
   cinema?: string | null;
   english_href?: string | null;
   hebrew_href?: string | null;
+  screening_type?: string | null;
+  screening_tech?: string | null;
+  dub_language?: string | null;
 };
 export type TicketAlertAvailability = TicketAlertShowtime & { path: string };
 
@@ -42,6 +45,8 @@ export const ticketAlertQueryKeys = {
   availabilities: () => ["ticketAlerts", "availability"] as const,
   subscriptions: (userId: string | null) =>
     ["ticketAlerts", "subscriptions", userId] as const,
+  preferences: (userId: string | null) =>
+    ["ticketAlerts", "preferences", userId] as const,
   availability: (tmdbId: string, cinemaDate: string) =>
     [
       "ticketAlerts",
@@ -62,6 +67,13 @@ export const ticketAlertQueryKeys = {
     [
       "ticketAlerts",
       "change",
+      userId,
+      normalizeTicketAlertTmdbId(tmdbId),
+    ] as const,
+  criteriaChange: (userId: string | null, tmdbId: string) =>
+    [
+      "ticketAlerts",
+      "criteriaChange",
       userId,
       normalizeTicketAlertTmdbId(tmdbId),
     ] as const,
@@ -97,10 +109,9 @@ function compareSelectedShowtimes(
 
 export function selectTicketAlertShowtime(
   rows: readonly (TicketAlertShowtime | TicketAlertShowtimeRow)[],
-  preferredCity: string,
+  criteria: TicketAlertCriteria,
   instant: Date = new Date(),
 ): SelectedTicketShowtime | null {
-  let earliestPreferred: SelectedTicketShowtime | null = null;
   let earliestAnywhere: SelectedTicketShowtime | null = null;
 
   for (const candidateRow of rows) {
@@ -115,6 +126,19 @@ export function selectTicketAlertShowtime(
     if (!shouldIncludeShowtime(row.date, row.time, instant)) {
       continue;
     }
+    if (
+      !matchesTicketAlertCriteria(
+        {
+          city: row.city,
+          time: row.time,
+          screeningTech: row.screeningTech,
+          screeningType: row.screeningType,
+          dubLanguage: row.dubLanguage,
+        },
+        criteria,
+      )
+    )
+      continue;
 
     const candidate: SelectedTicketShowtime = {
       city: row.city,
@@ -122,6 +146,9 @@ export function selectTicketAlertShowtime(
       date: row.date,
       time: row.time,
       ticketHref: row.ticketHref,
+      screeningTech: row.screeningTech,
+      screeningType: row.screeningType,
+      dubLanguage: row.dubLanguage,
     };
 
     if (
@@ -130,17 +157,9 @@ export function selectTicketAlertShowtime(
     ) {
       earliestAnywhere = candidate;
     }
-
-    if (
-      row.city === preferredCity &&
-      (!earliestPreferred ||
-        compareSelectedShowtimes(candidate, earliestPreferred) < 0)
-    ) {
-      earliestPreferred = candidate;
-    }
   }
 
-  return earliestPreferred ?? earliestAnywhere;
+  return earliestAnywhere;
 }
 
 export function buildTicketAlertShowtimePath(
@@ -172,11 +191,11 @@ export function buildTicketAlertShowtimePath(
 
 export function selectTicketAlertAvailability(
   rows: readonly (TicketAlertShowtime | TicketAlertShowtimeRow)[],
-  preferredCity: string,
+  criteria: TicketAlertCriteria,
   movieCode?: string,
   instant: Date = new Date(),
 ): TicketAlertAvailability | null {
-  const showtime = selectTicketAlertShowtime(rows, preferredCity, instant);
+  const showtime = selectTicketAlertShowtime(rows, criteria, instant);
   return showtime
     ? {
         ...showtime,
@@ -215,6 +234,9 @@ async function fetchLinkedShowtimeRows(
     showtime: row.showtime,
     english_href: row.englishHref,
     hebrew_href: row.hebrewHref,
+    screening_type: row.screeningType,
+    screening_tech: row.screeningTech,
+    dub_language: row.dubLanguage,
   }));
   return parseBoundary(
     ticketAlertShowtimePageSchema,
@@ -245,6 +267,23 @@ async function fetchUserTicketAlertSubscriptions(
     offset = response.data.nextOffset;
   }
   return alerts;
+}
+
+async function fetchUserTicketAlertPreferences(
+  userId: string,
+  signal: AbortSignal,
+): Promise<TicketAlertCriteria> {
+  const validatedUserId = parseBoundary(
+    userIdSchema,
+    userId,
+    "ticket alert user ID",
+  );
+  const response = await privateApiResponse(
+    "/api/v1/ticket-alerts/preferences",
+    ticketAlertPreferencesResponseSchema,
+    { userId: validatedUserId, signal },
+  );
+  return response.data.preferences;
 }
 
 export function ticketAlertAvailabilityQueryOptions(
@@ -290,6 +329,21 @@ export function userTicketAlertSubscriptionsQueryOptions(
     queryFn: normalizedUserId
       ? ({ signal }) =>
           fetchUserTicketAlertSubscriptions(normalizedUserId, signal)
+      : skipToken,
+    staleTime: TICKET_ALERT_STALE_TIME,
+    gcTime: TICKET_ALERT_GC_TIME,
+  });
+}
+
+export function ticketAlertPreferencesQueryOptions(userId: string | null) {
+  const normalizedUserId = userId
+    ? parseBoundary(userIdSchema, userId, "ticket alert user ID")
+    : null;
+  return queryOptions({
+    queryKey: ticketAlertQueryKeys.preferences(normalizedUserId),
+    queryFn: normalizedUserId
+      ? ({ signal }) =>
+          fetchUserTicketAlertPreferences(normalizedUserId, signal)
       : skipToken,
     staleTime: TICKET_ALERT_STALE_TIME,
     gcTime: TICKET_ALERT_GC_TIME,
@@ -366,9 +420,7 @@ async function changeTicketAlert(
     {
       method: parsedChange.action === "cancel" ? "DELETE" : "POST",
       userId: validatedUserId,
-      ...(parsedChange.action === "subscribe"
-        ? { body: { tmdbId: id, preferredCity: parsedChange.preferredCity } }
-        : {}),
+      ...(parsedChange.action === "subscribe" ? { body: { tmdbId: id } } : {}),
     },
   );
   return response.data;
@@ -404,6 +456,81 @@ export function ticketAlertMutationOptions(
             : undefined);
         await invalidateUserTicketAlertQueries(client, validatedUserId);
       }
+    },
+  });
+}
+
+export function ticketAlertPreferencesMutationOptions(
+  userId: string | null,
+  client: QueryClient = queryClient,
+) {
+  const validatedUserId = userId
+    ? parseBoundary(userIdSchema, userId, "ticket alert user ID")
+    : null;
+  return mutationOptions({
+    mutationKey: ["ticketAlerts", "preferencesChange", validatedUserId],
+    retry: false,
+    mutationFn: async (preferences: TicketAlertCriteria) => {
+      if (!validatedUserId)
+        throw new Error("Log in to update ticket alert preferences.");
+      const response = await privateApiResponse(
+        "/api/v1/ticket-alerts/preferences",
+        ticketAlertPreferencesResponseSchema,
+        { method: "PATCH", userId: validatedUserId, body: preferences },
+      );
+      return response.data.preferences;
+    },
+    onSuccess: async (preferences) => {
+      if (!validatedUserId) return;
+      client.setQueryData(
+        ticketAlertQueryKeys.preferences(validatedUserId),
+        preferences,
+      );
+      await client.invalidateQueries({
+        queryKey: ticketAlertQueryKeys.subscriptions(validatedUserId),
+        exact: true,
+      });
+    },
+  });
+}
+
+export function ticketAlertCriteriaMutationOptions(
+  userId: string | null,
+  tmdbId: string,
+  client: QueryClient = queryClient,
+) {
+  const validatedUserId = userId
+    ? parseBoundary(userIdSchema, userId, "ticket alert user ID")
+    : null;
+  const id = normalizeTicketAlertTmdbId(tmdbId);
+  const mutationKey = ticketAlertQueryKeys.criteriaChange(validatedUserId, id);
+  return mutationOptions({
+    mutationKey,
+    scope: { id: JSON.stringify(mutationKey) },
+    retry: false,
+    mutationFn: async (criteriaOverrides: TicketAlertCriteriaOverride) => {
+      if (!validatedUserId)
+        throw new Error("Log in to update ticket alert criteria.");
+      const response = await privateApiResponse(
+        `/api/v1/ticket-alerts/${id}/criteria`,
+        subscriptionChangeResponseSchema,
+        {
+          method: "PATCH",
+          userId: validatedUserId,
+          body: { criteriaOverrides },
+        },
+      );
+      return response.data;
+    },
+    onSuccess: async (result) => {
+      if (!validatedUserId || result.kind !== "account") return;
+      const queryKey = ticketAlertQueryKeys.subscriptions(validatedUserId);
+      await client.cancelQueries({ queryKey, exact: true });
+      client.setQueryData<UserTicketAlertSubscription[]>(queryKey, (current) =>
+        current
+          ? mergeUserTicketAlert(current, id, result.subscription)
+          : undefined);
+      await invalidateUserTicketAlertQueries(client, validatedUserId);
     },
   });
 }

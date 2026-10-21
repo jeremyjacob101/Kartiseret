@@ -55,6 +55,7 @@ const expectedTableNames = [
   "tableFixes",
   "tableSkips",
   "theaters",
+  "ticket_alert_preferences",
   "ticket_alert_subscriptions",
   "userPreferences",
   "utilAvgTime",
@@ -298,6 +299,7 @@ describe("PostgreSQL 17 integration", () => {
     `);
     expect(providerForeignKeys.map((key) => key.table_name)).toEqual([
       "admin_users",
+      "ticket_alert_preferences",
       "ticket_alert_subscriptions",
       "userPreferences",
     ]);

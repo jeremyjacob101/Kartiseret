@@ -14,7 +14,7 @@ export function privateIdentityChanged(userId: string | null): void {
     predicate: (query: { queryKey: readonly unknown[] }) =>
       query.queryKey[0] === "adminStatus" ||
       (query.queryKey[0] === "ticketAlerts" &&
-        query.queryKey[1] === "subscriptions"),
+        query.queryKey[1] !== "availability"),
   };
   void queryClient.cancelQueries(filter);
   queryClient.removeQueries(filter);
