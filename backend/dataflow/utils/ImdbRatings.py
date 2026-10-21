@@ -3,6 +3,7 @@ from threading import RLock
 import csv, gzip, hashlib, json, os, requests, tempfile, time
 
 from backend.dataflow.utils.DataflowRequests import DataflowRequestError
+from backend.dataflow.utils.ProviderFreshness import utc_now, observation, failure
 
 
 _ratings_lock = RLock()
@@ -43,6 +44,7 @@ class ImdbRatings:
         return ratings
 
     def imdbRatingsPath(self):
+        started = utc_now()
         cache = Path(self.IMDB_CACHE_DIR)
         cache.mkdir(parents=True, exist_ok=True, mode=0o700)
         metadata_path = cache / "metadata.json"
@@ -68,6 +70,7 @@ class ImdbRatings:
                     if response.status_code == 304 and has_cache:
                         if self.imdbFileSignature(cached_path) not in _ratings_validated:
                             self.scanImdbRatings(cached_path, set())
+                        self._imdb_observation = observation("success", "dataset_validated", {"dataset_sha256": cached_path.name[:64], "etag": str(metadata.get("etag") or "")[:256], "last_modified": str(metadata.get("last_modified") or "")[:256], "retrieved_at": metadata.get("retrieved_at"), "http_status": 304}, started)
                         return cached_path
                     if response.status_code != 200:
                         raise DataflowRequestError(f"IMDb dataset returned HTTP {response.status_code}", status=response.status_code)
@@ -83,7 +86,7 @@ class ImdbRatings:
                     os.replace(temporary, cached_path)
                     _ratings_validated.add(self.imdbFileSignature(cached_path))
                     temporary = None
-                    metadata = {"file": cached_path.name, "etag": response.headers.get("ETag"), "last_modified": response.headers.get("Last-Modified")}
+                    metadata = {"file": cached_path.name, "etag": response.headers.get("ETag"), "last_modified": response.headers.get("Last-Modified"), "retrieved_at": utc_now()}
                 with tempfile.NamedTemporaryFile(mode="w", dir=cache, delete=False) as metadata_file:
                     temporary = Path(metadata_file.name)
                     json.dump(metadata, metadata_file)
@@ -93,8 +96,10 @@ class ImdbRatings:
                 for old_path in cache.glob("*.tsv.gz"):
                     if old_path != cached_path and time.time() - old_path.stat().st_mtime > 7 * 86400:
                         old_path.unlink(missing_ok=True)
+                self._imdb_observation = observation("success", "dataset_validated", {"dataset_sha256": cached_path.name[:64], "etag": str(metadata.get("etag") or "")[:256], "last_modified": str(metadata.get("last_modified") or "")[:256], "retrieved_at": metadata.get("retrieved_at"), "http_status": 200}, started)
                 return cached_path
             except (DataflowRequestError, requests.RequestException, OSError, EOFError, ValueError) as error:
+                self._imdb_observation = observation(*failure(error), {}, started)
                 if isinstance(error, DataflowRequestError) and error.status in (400, 401, 403, 404):
                     break
                 headers = {}
@@ -111,6 +116,8 @@ class ImdbRatings:
 
     def loadImdbRatings(self, rows):
         global _ratings_version, _ratings_values, _ratings_known_ids
+        self._imdb_observation = None
+        started = utc_now()
         imdb_ids = set()
         for row in rows:
             tmdb = self._update_tmdb.get(self.clean_int(row.get("tmdb_id"))) or {}
@@ -130,6 +137,8 @@ class ImdbRatings:
                     _ratings_values.update(self.scanImdbRatings(path, missing_ids))
                     _ratings_known_ids.update(missing_ids)
                 return {imdb_id: dict(_ratings_values[imdb_id]) for imdb_id in imdb_ids if imdb_id in _ratings_values}
-            except (DataflowRequestError, OSError, EOFError, ValueError):
+            except (DataflowRequestError, OSError, EOFError, ValueError) as error:
+                if self._imdb_observation is None or self._imdb_observation.get("outcome") == "success":
+                    self._imdb_observation = observation(*failure(error), {}, started)
                 self.trace_note("provider_unavailable | source=imdb")
                 return {}
