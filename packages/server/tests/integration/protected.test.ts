@@ -345,7 +345,7 @@ describe.sequential(
         .post("/api/v1/ticket-alerts")
         .set("Cookie", "alice")
         .set("Origin", "http://localhost")
-        .send({ tmdbId: "9200002", preferredCity: "Jerusalem" });
+        .send({ tmdbId: "9200002" });
       expect(result.status).toBe(200);
       expect(result.body.data).toEqual({ kind: "available" });
       expect((await workflows.subscriptions(alice, 0)).subscriptions).toEqual(

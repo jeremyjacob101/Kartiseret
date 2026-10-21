@@ -256,7 +256,7 @@ describe.sequential(
         (
           await post(
             "/api/v1/ticket-alerts",
-            { tmdbId: "9100011", preferredCity: "Jerusalem" },
+            { tmdbId: "9100011" },
             cookie,
           )
         ).status,
