@@ -64,6 +64,18 @@ const expectedTableNames = [
 // These Python-only pipeline tables deliberately stay out of Drizzle's
 // applicationTables, which is the schema granted to the public API runtime.
 const expectedPipelineTableColumns = {
+  pipeline_publications: [
+    "publication_id",
+    "category",
+    "run_id",
+    "fingerprint",
+    "part_count",
+    "status",
+    "revision",
+    "created_at",
+    "completed_at",
+  ],
+  pipeline_publication_parts: ["publication_id", "part", "payload"],
   pipeline_scrape_snapshots: [
     "snapshot_id",
     "run_id",
@@ -155,6 +167,7 @@ describe("PostgreSQL 17 integration", () => {
     expect([...physicalTables.keys()].sort()).toEqual(
       [
         ...expectedTableNames,
+        "pipeline_catalog_revision",
         ...Object.keys(expectedPipelineTableColumns),
       ].sort(),
     );

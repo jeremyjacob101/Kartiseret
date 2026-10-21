@@ -14,6 +14,7 @@ from backend.config.registry import REGISTRY, DATAFLOW_REGISTRY
 from backend.utils.log.artifact_logging import artifactPrinting
 from backend.config.scrape_scheduler import optimal_assignment, duration_to_milliseconds, WORKER_COUNT
 from backend.dataflow.utils.DataflowRequests import DataflowRequestContext
+from backend.dataflow.utils.PublicationWorkspace import CATEGORY_KEYS, publication_scope
 from backend.dataflow.utils.InitializeBaseDataflow import logSuccessfulRun
 
 DEFAULT_PLAN: list[tuple[str, str]] = [("cinema", "allSoons"), ("cinema", "allShowtimes"), ("cinema", "allTheques"), ("dataflow", "comingSoonsData"), ("dataflow", "nowPlayingData"), ("dataflow", "cinemathequeData")]
@@ -199,7 +200,8 @@ def _run_shared_update_round(entries, run_id: int, attempt: int, context: Datafl
             flow._artifact_item_name = cls.__name__
             flow._artifact_attempt = attempt
             flows[cls] = flow
-            targets[cls] = flow.beginSharedUpdate()
+            with publication_scope(getattr(flow, "_publication", None)):
+                targets[cls] = flow.beginSharedUpdate()
         except Exception:
             artifactPrinting(flow, run_id, item_name=cls.__name__, attempt=attempt)
             failures[cls] = True
@@ -259,8 +261,9 @@ def _run_shared_update_round(entries, run_id: int, attempt: int, context: Datafl
 
         for cls in viable:
             try:
-                flows[cls].finishSharedUpdate(len(targets.get(cls, [])), updated[cls])
-                flows[cls].finishSharedDataRun(successful=True)
+                with publication_scope(getattr(flows[cls], "_publication", None)):
+                    flows[cls].finishSharedUpdate(len(targets.get(cls, [])), updated[cls])
+                    flows[cls].finishSharedDataRun(successful=True)
             except Exception:
                 artifactPrinting(flows[cls], run_id, item_name=cls.__name__, attempt=attempt)
                 failures[cls] = True
@@ -273,6 +276,8 @@ def _run_shared_update_round(entries, run_id: int, attempt: int, context: Datafl
     for _key, cls in entries:
         flow = flows.get(cls)
         if cls in failures:
+            if flow is not None and hasattr(flow, "discardPublicationStage"):
+                flow.discardPublicationStage()
             results[cls] = RunResult(cls.__name__, time.time() - started_at[cls], False, attempt)
         elif flow is not None:
             results[cls] = RunResult(cls.__name__, time.time() - started_at[cls], True, attempt)
@@ -545,6 +550,7 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
 
     overall_ok = True
     request_context = DataflowRequestContext()
+    request_context.publications = {}
     failed_categories: set[str] = set()
     try:
         if scrape_items:
@@ -597,6 +603,19 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
                 if not results.get(cls, False):
                     failed_categories.add(key)
                     overall_ok = False
+            stage_order = ("clean", "tmdb", "update")
+            later_stages = stage_order[stage_order.index(stage) + 1:]
+            for key, selected in flow_selections.items():
+                if key in failed_categories or any(selected[later] for later in later_stages):
+                    continue
+                publication = request_context.publications.get(CATEGORY_KEYS.get(key))
+                if publication is not None:
+                    try:
+                        publication.commit()
+                    except Exception:
+                        artifactPrinting(None, run_id, item_name=f"{key}Publication", attempt=1)
+                        failed_categories.add(key)
+                        overall_ok = False
             console.print()
 
         # Ticket email delivery follows a successful selected now-playing update.

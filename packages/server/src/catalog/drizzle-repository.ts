@@ -1,5 +1,10 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+import { HttpError } from "../http-errors.js";
 import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
-import type { ApplicationDatabase } from "../db/client.js";
+import type {
+  ApplicationDatabase,
+  ApplicationTransaction,
+} from "../db/client.js";
 import {
   cities,
   finalMovies,
@@ -75,7 +80,50 @@ const showtimeProjection = {
 export class DrizzleCatalogRepository
   implements CatalogRepository, PublicDataRepository
 {
-  constructor(private readonly db: ApplicationDatabase) {}
+  private readonly snapshots = new AsyncLocalStorage<{
+    db: ApplicationTransaction;
+    revision: string;
+  }>();
+
+  constructor(private readonly rootDb: ApplicationDatabase) {}
+
+  private get db() {
+    return this.snapshots.getStore()?.db ?? this.rootDb;
+  }
+
+  async readSnapshot<T>(
+    read: (revision: string) => Promise<T>,
+    expected?: string,
+  ): Promise<T> {
+    const active = this.snapshots.getStore();
+    if (active) {
+      if (expected !== undefined && expected !== active.revision)
+        throw new HttpError(
+          409,
+          "publication_changed",
+          "Published data changed. Reload the catalog.",
+        );
+      return read(active.revision);
+    }
+    return this.rootDb.transaction(
+      async (tx) => {
+        const result = await tx.execute<{ revision: string }>(
+          sql`select revision::text from public.pipeline_catalog_revision where singleton`,
+        );
+        const revision = result.rows[0]?.revision;
+        if (revision === undefined)
+          throw new Error("Publication revision is unavailable.");
+        if (expected !== undefined && expected !== revision)
+          throw new HttpError(
+            409,
+            "publication_changed",
+            "Published data changed. Reload the catalog.",
+          );
+        return this.snapshots.run({ db: tx, revision }, () => read(revision));
+      },
+      { isolationLevel: "repeatable read", accessMode: "read only" },
+    );
+  }
 
   async findNowPlayingRows(): Promise<readonly unknown[]> {
     try {

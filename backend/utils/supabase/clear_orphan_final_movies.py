@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from supabase import create_client
+from backend.dataflow.utils.PublicationWorkspace import create_client, atomic_maintenance
 import os
 
 PAGE_SIZE = 500
@@ -30,6 +30,7 @@ def select_tmdb_ids(sb, table_name, page_size=PAGE_SIZE):
     return tmdb_ids
 
 
+@atomic_maintenance("nowplayings")
 def clear_orphan_final_movies():
     sb = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY"))
 

@@ -4,7 +4,7 @@ import os
 from typing import Any
 
 from dotenv import load_dotenv
-from supabase import create_client
+from backend.dataflow.utils.PublicationWorkspace import create_client, atomic_maintenance
 
 from backend.utils.supabase.dedupe_all_showtimes import normalize_text, showtime_key
 from backend.utils.supabase.snapshot_manifests import reconcile_snapshot_row_counts
@@ -86,6 +86,7 @@ def duplicate_ids(rows: list[dict]) -> list[Any]:
     return ids_to_delete
 
 
+@atomic_maintenance("cinematheques")
 def dedupe_all_theques(dry_run: bool = True) -> None:
     sb = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY"))
     rows = select_all_theques(sb)

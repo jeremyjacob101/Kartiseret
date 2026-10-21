@@ -2,6 +2,7 @@ import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDa
 import { findMovieByCode, isMovieShowtimeDateCovered, isValidMovieCode, mergeMovieShowtimeRangeResult, prefetchMovieShowtimesAfterDate, showtimeCityQueryOptions, showtimeRangeQueryOptions, type ShowtimeRange } from "../data/movieCatalog";
 import { getShowtimeFiltersSnapshot, saveShowtimeFilters, type ShowtimeFilterState } from "./showtimes/showtimeFilters";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { MovieDetailsContent } from "./scroller/MovieDetailsContent";
 import { DEFAULT_LOCATION } from "../prefs/definitions/locations";
@@ -131,6 +132,7 @@ export function MoviePage({
   catalogReady,
   movieCodesReady,
 }: MoviePageProps) {
+  usePublicationRevision();
   const { movieCode: routeCode = "" } = useParams();
   const navigate = useNavigate();
   const {

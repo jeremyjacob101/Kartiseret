@@ -11,7 +11,8 @@ import { normalizeTicketAlertTmdbId } from "../domain/ticketAlerts";
 const userIdSchema = applicationIdentitySchema.shape.id;
 import { privateApiResponse } from "./privateApi";
 import { queryClient } from "../lib/queryClient";
-import { getApiResponse } from "./apiClient";
+import { getPublicationResponse, ApiRequestError } from "./apiClient";
+import { currentPublicationRevision, refreshPublicationCollections } from "./publicationRevision.js";
 import type { z } from "zod";
 
 export type { UserTicketAlertSubscription } from "./ticketAlertSchemas";
@@ -46,6 +47,9 @@ export const ticketAlertQueryKeys = {
       "ticketAlerts",
       "availability",
       {
+        ...(currentPublicationRevision() === undefined
+          ? {}
+          : { publicationRevision: currentPublicationRevision() }),
         tmdbId: normalizeTicketAlertTmdbId(tmdbId),
         cinemaDate: parseBoundary(
           isoDateStringSchema,
@@ -185,13 +189,25 @@ async function fetchLinkedShowtimeRows(
   tmdbId: string,
   cinemaDate: string,
   signal: AbortSignal,
+  publicationRevision?: string,
 ): Promise<TicketAlertShowtime[]> {
   const params = new URLSearchParams({ tmdbId, fromDate: cinemaDate });
-  const response = await getApiResponse(
-    `/api/v1/ticket-availability?${params.toString()}`,
-    ticketAvailabilityResponseSchema,
-    signal,
-  );
+  let response;
+  try {
+    ({ response } = await getPublicationResponse(
+      `/api/v1/ticket-availability?${params.toString()}`,
+      ticketAvailabilityResponseSchema,
+      signal,
+      publicationRevision,
+    ));
+  } catch (error) {
+    if (
+      error instanceof ApiRequestError &&
+      error.code === "publication_changed"
+    )
+      await refreshPublicationCollections();
+    throw error;
+  }
   const rawRows = response.data.showtimes.map((row) => ({
     screening_city: row.screeningCity,
     date_of_showing: row.dateOfShowing,
@@ -235,6 +251,7 @@ export function ticketAlertAvailabilityQueryOptions(
   tmdbId: string,
   cinemaDate = getJerusalemCinemaDate(),
 ) {
+  const publicationRevision = currentPublicationRevision();
   const normalizedTmdbId = normalizeTicketAlertTmdbId(tmdbId);
   const normalizedCinemaDate = parseBoundary(
     isoDateStringSchema,
@@ -247,7 +264,16 @@ export function ticketAlertAvailabilityQueryOptions(
       normalizedCinemaDate,
     ),
     queryFn: ({ signal }) =>
-      fetchLinkedShowtimeRows(normalizedTmdbId, normalizedCinemaDate, signal),
+      fetchLinkedShowtimeRows(
+        normalizedTmdbId,
+        normalizedCinemaDate,
+        signal,
+        publicationRevision,
+      ),
+    retry: (count, error) =>
+      !(
+        error instanceof ApiRequestError && error.code === "publication_changed"
+      ) && count < 1,
     staleTime: TICKET_ALERT_STALE_TIME,
     gcTime: TICKET_ALERT_GC_TIME,
   });

@@ -86,7 +86,7 @@ class Query:
             self.database.tables[self.table] = [row for row in rows if row not in selected]
         elif self.operation == "upsert":
             primary_key = "tmdb_id" if self.table in ("finalMovies", "finalThequeMovies", "finalSoons") else "id"
-            for row in self.payload:
+            for row in self.payload if isinstance(self.payload, list) else [self.payload]:
                 existing = next((item for item in rows if item.get(primary_key) == row.get(primary_key)), None)
                 if existing is None:
                     rows.append(copy.deepcopy(row))

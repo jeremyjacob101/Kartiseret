@@ -1,3 +1,5 @@
+import { withPublicationSnapshot } from "./public-data/snapshot.js";
+import { PUBLICATION_REVISION_HEADER } from "@kartiseret/contracts/public-data";
 import { createProtectedRouter } from "./protected/router.js";
 import type { IdentityVerifier } from "./protected/identity.js";
 import type { ProtectedWorkflowService } from "./protected/service.js";
@@ -114,168 +116,211 @@ export function createApp({
     response.json({ data: { status: "ok" }, error: null });
   });
 
-  app.get("/api/v1/catalog/now-playing", async (request, response, next) => {
-    const query = emptyQuerySchema.safeParse(request.query);
-    if (!query.success) {
-      next(
-        new HttpError(
-          400,
-          "invalid_request",
-          "The request query is not supported.",
-        ),
-      );
-      return;
-    }
+  const publicationRead =
+    (handler: RequestHandler): RequestHandler =>
+    async (request, response, next) => {
+      response.vary(PUBLICATION_REVISION_HEADER);
+      const expected = request.get(PUBLICATION_REVISION_HEADER);
+      try {
+        await withPublicationSnapshot(
+          publicDataRepository ?? catalogRepository,
+          async (revision) => {
+            response.setHeader(PUBLICATION_REVISION_HEADER, revision);
+            await handler(request, response, next);
+          },
+          expected,
+        );
+      } catch (error) {
+        response.setHeader("Cache-Control", "private, no-store");
+        next(error);
+      }
+    };
 
-    try {
-      const data = publicDataRepository
-        ? await getMovieCatalog(publicDataRepository, "nowPlaying", (error) =>
+  app.get(
+    "/api/v1/catalog/now-playing",
+    publicationRead(async (request, response, next) => {
+      const query = emptyQuerySchema.safeParse(request.query);
+      if (!query.success) {
+        next(
+          new HttpError(
+            400,
+            "invalid_request",
+            "The request query is not supported.",
+          ),
+        );
+        return;
+      }
+
+      try {
+        const data = publicDataRepository
+          ? await getMovieCatalog(publicDataRepository, "nowPlaying", (error) =>
+              logger.error(
+                "Movie-code lookup failed; catalog remains available without code hydration.",
+                safeErrorSummary(error),
+              ),
+            )
+          : {
+              mode: "nowPlaying" as const,
+              movies: await getNowPlayingMovies(catalogRepository),
+              movieCodesStatus: "ready" as const,
+            };
+        response.setHeader("Cache-Control", "private, no-store");
+        response.json({ data, error: null });
+      } catch (error) {
+        next(error);
+      }
+    }),
+  );
+
+  app.get(
+    "/api/v1/catalog/coming-soon",
+    publicationRead(async (request, response, next) => {
+      const query = emptyQuerySchema.safeParse(request.query);
+      if (!query.success) {
+        next(
+          new HttpError(
+            400,
+            "invalid_request",
+            "The request query is not supported.",
+          ),
+        );
+        return;
+      }
+      if (!publicDataRepository) {
+        next(
+          new CatalogDatabaseError(new Error("Public data is unavailable.")),
+        );
+        return;
+      }
+      try {
+        const data = await getMovieCatalog(
+          publicDataRepository,
+          "comingSoon",
+          (error) =>
             logger.error(
               "Movie-code lookup failed; catalog remains available without code hydration.",
               safeErrorSummary(error),
             ),
-          )
-        : {
-            mode: "nowPlaying" as const,
-            movies: await getNowPlayingMovies(catalogRepository),
-            movieCodesStatus: "ready" as const,
-          };
-      response.setHeader(
-        "Cache-Control",
-        "public, max-age=60, stale-while-revalidate=300",
-      );
-      response.json({ data, error: null });
-    } catch (error) {
-      next(error);
-    }
-  });
+        );
+        response.setHeader("Cache-Control", "private, no-store");
+        response.json({ data, error: null });
+      } catch (error) {
+        next(error);
+      }
+    }),
+  );
 
-  app.get("/api/v1/catalog/coming-soon", async (request, response, next) => {
-    const query = emptyQuerySchema.safeParse(request.query);
-    if (!query.success) {
-      next(
-        new HttpError(
-          400,
-          "invalid_request",
-          "The request query is not supported.",
-        ),
-      );
-      return;
-    }
-    if (!publicDataRepository) {
-      next(new CatalogDatabaseError(new Error("Public data is unavailable.")));
-      return;
-    }
-    try {
-      const data = await getMovieCatalog(
-        publicDataRepository,
-        "comingSoon",
-        (error) =>
-          logger.error(
-            "Movie-code lookup failed; catalog remains available without code hydration.",
-            safeErrorSummary(error),
+  app.get(
+    "/api/v1/showtimes",
+    publicationRead(async (request, response, next) => {
+      if (!publicDataRepository) {
+        next(
+          new CatalogDatabaseError(new Error("Public data is unavailable.")),
+        );
+        return;
+      }
+      const query = publicShowtimeRangeQuerySchema.safeParse(request.query);
+      if (!query.success) {
+        next(
+          new HttpError(
+            400,
+            "invalid_request",
+            "The showtime range query is invalid or exceeds the supported range.",
           ),
-      );
-      response.setHeader(
-        "Cache-Control",
-        "public, max-age=60, stale-while-revalidate=300",
-      );
-      response.json({ data, error: null });
-    } catch (error) {
-      next(error);
-    }
-  });
+        );
+        return;
+      }
+      try {
+        const showtimes = await getShowtimeRange(
+          publicDataRepository,
+          query.data,
+        );
+        response.setHeader(
+          "Cache-Control",
+          request.get(PUBLICATION_REVISION_HEADER)
+            ? "private, no-store"
+            : "public, max-age=30, stale-while-revalidate=60",
+        );
+        response.json({ data: { showtimes }, error: null });
+      } catch (error) {
+        next(error);
+      }
+    }),
+  );
 
-  app.get("/api/v1/showtimes", async (request, response, next) => {
-    if (!publicDataRepository) {
-      next(new CatalogDatabaseError(new Error("Public data is unavailable.")));
-      return;
-    }
-    const query = publicShowtimeRangeQuerySchema.safeParse(request.query);
-    if (!query.success) {
-      next(
-        new HttpError(
-          400,
-          "invalid_request",
-          "The showtime range query is invalid or exceeds the supported range.",
-        ),
-      );
-      return;
-    }
-    try {
-      const showtimes = await getShowtimeRange(
-        publicDataRepository,
-        query.data,
-      );
-      response.setHeader(
-        "Cache-Control",
-        "public, max-age=30, stale-while-revalidate=60",
-      );
-      response.json({ data: { showtimes }, error: null });
-    } catch (error) {
-      next(error);
-    }
-  });
+  app.get(
+    "/api/v1/theaters",
+    publicationRead(async (request, response, next) => {
+      if (!publicDataRepository) {
+        next(
+          new CatalogDatabaseError(new Error("Public data is unavailable.")),
+        );
+        return;
+      }
+      const query = emptyQuerySchema.safeParse(request.query);
+      if (!query.success) {
+        next(
+          new HttpError(
+            400,
+            "invalid_request",
+            "The request query is not supported.",
+          ),
+        );
+        return;
+      }
+      try {
+        const data = await getPublicTheaterData(publicDataRepository);
+        response.setHeader(
+          "Cache-Control",
+          request.get(PUBLICATION_REVISION_HEADER)
+            ? "private, no-store"
+            : "public, max-age=3600, stale-while-revalidate=86400",
+        );
+        response.json({ data, error: null });
+      } catch (error) {
+        next(error);
+      }
+    }),
+  );
 
-  app.get("/api/v1/theaters", async (request, response, next) => {
-    if (!publicDataRepository) {
-      next(new CatalogDatabaseError(new Error("Public data is unavailable.")));
-      return;
-    }
-    const query = emptyQuerySchema.safeParse(request.query);
-    if (!query.success) {
-      next(
-        new HttpError(
-          400,
-          "invalid_request",
-          "The request query is not supported.",
-        ),
-      );
-      return;
-    }
-    try {
-      const data = await getPublicTheaterData(publicDataRepository);
-      response.setHeader(
-        "Cache-Control",
-        "public, max-age=3600, stale-while-revalidate=86400",
-      );
-      response.json({ data, error: null });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.get("/api/v1/ticket-availability", async (request, response, next) => {
-    if (!publicDataRepository) {
-      next(new CatalogDatabaseError(new Error("Public data is unavailable.")));
-      return;
-    }
-    const query = ticketAvailabilityQuerySchema.safeParse(request.query);
-    if (!query.success) {
-      next(
-        new HttpError(
-          400,
-          "invalid_request",
-          "The ticket-availability query is invalid.",
-        ),
-      );
-      return;
-    }
-    try {
-      const showtimes = await getTicketAvailabilityShowtimes(
-        publicDataRepository,
-        query.data.tmdbId,
-        query.data.fromDate,
-      );
-      response.setHeader(
-        "Cache-Control",
-        "public, max-age=30, stale-while-revalidate=30",
-      );
-      response.json({ data: { showtimes }, error: null });
-    } catch (error) {
-      next(error);
-    }
-  });
+  app.get(
+    "/api/v1/ticket-availability",
+    publicationRead(async (request, response, next) => {
+      if (!publicDataRepository) {
+        next(
+          new CatalogDatabaseError(new Error("Public data is unavailable.")),
+        );
+        return;
+      }
+      const query = ticketAvailabilityQuerySchema.safeParse(request.query);
+      if (!query.success) {
+        next(
+          new HttpError(
+            400,
+            "invalid_request",
+            "The ticket-availability query is invalid.",
+          ),
+        );
+        return;
+      }
+      try {
+        const showtimes = await getTicketAvailabilityShowtimes(
+          publicDataRepository,
+          query.data.tmdbId,
+          query.data.fromDate,
+        );
+        response.setHeader(
+          "Cache-Control",
+          request.get(PUBLICATION_REVISION_HEADER)
+            ? "private, no-store"
+            : "public, max-age=30, stale-while-revalidate=30",
+        );
+        response.json({ data: { showtimes }, error: null });
+      } catch (error) {
+        next(error);
+      }
+    }),
+  );
 
   if (identityVerifier && protectedWorkflows)
     app.use(

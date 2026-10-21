@@ -146,3 +146,5 @@ export type TicketAvailabilityShowtime = z.infer<
   typeof ticketAvailabilityShowtimeSchema
 >;
 export type PublicTheaterData = z.infer<typeof publicTheaterDataSchema>;
+
+export const PUBLICATION_REVISION_HEADER = "X-Kartiseret-Publication";
