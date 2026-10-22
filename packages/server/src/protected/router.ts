@@ -8,6 +8,8 @@ import {
   subscriptionMovieIdSchema,
   subscriptionCreateSchema,
   subscriptionListQuerySchema,
+  ticketAlertCriteriaUpdateSchema,
+  ticketAlertPreferencesUpdateSchema,
 } from "@kartiseret/contracts/private-data";
 import { HttpError } from "../http-errors.js";
 import type { IdentityVerifier, VerifiedIdentity } from "./identity.js";
@@ -121,6 +123,30 @@ export function createProtectedRouter(
       error: null,
     });
   });
+  router.get("/ticket-alerts/preferences", async (request, response) => {
+    parse(empty, request.query);
+    response.json({
+      data: {
+        preferences: await workflows.ticketAlertPreferences(
+          identity(response.locals.identity),
+        ),
+      },
+      error: null,
+    });
+  });
+  router.patch("/ticket-alerts/preferences", async (request, response) => {
+    parse(empty, request.query);
+    const criteria = parse(ticketAlertPreferencesUpdateSchema, request.body);
+    response.json({
+      data: {
+        preferences: await workflows.patchTicketAlertPreferences(
+          identity(response.locals.identity),
+          criteria,
+        ),
+      },
+      error: null,
+    });
+  });
   router.post("/ticket-alerts", async (request, response) => {
     parse(empty, request.query);
     const body = parse(subscriptionCreateSchema, request.body);
@@ -137,6 +163,19 @@ export function createProtectedRouter(
     const tmdbId = parse(subscriptionMovieIdSchema, request.params.tmdbId);
     response.json({
       data: await workflows.cancel(identity(response.locals.identity), tmdbId),
+      error: null,
+    });
+  });
+  router.patch("/ticket-alerts/:tmdbId/criteria", async (request, response) => {
+    parse(empty, request.query);
+    const tmdbId = parse(subscriptionMovieIdSchema, request.params.tmdbId);
+    const body = parse(ticketAlertCriteriaUpdateSchema, request.body);
+    response.json({
+      data: await workflows.updateTicketAlertCriteria(
+        identity(response.locals.identity),
+        tmdbId,
+        body.criteriaOverrides,
+      ),
       error: null,
     });
   });

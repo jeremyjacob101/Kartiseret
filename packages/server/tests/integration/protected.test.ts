@@ -5,6 +5,10 @@ import { DrizzleCatalogRepository } from "../../src/catalog/drizzle-repository.j
 import { ProtectedWorkflows } from "../../src/protected/service.js";
 import { createApp } from "../../src/app.js";
 import { HttpError } from "../../src/http-errors.js";
+import {
+  DEFAULT_TICKET_ALERT_CRITERIA,
+  type TicketAlertCriteriaOverride,
+} from "@kartiseret/contracts/private-data";
 
 const adminUrl = process.env.TEST_DATABASE_URL,
   runtimeUrl = process.env.DATABASE_URL;
@@ -156,6 +160,54 @@ describe.sequential(
           .location,
       ).toBe("Raanana");
     });
+    it("persists account defaults and sparse title overrides through owner-scoped API routes", async () => {
+      expect(await workflows.ticketAlertPreferences(alice)).toEqual(
+        DEFAULT_TICKET_ALERT_CRITERIA,
+      );
+      const defaults = {
+        cities: ["Haifa", "Jerusalem"],
+        filters: {
+          showType: ["Premium"],
+          screenFormat: [],
+          screeningTech: [],
+          dubLanguage: [],
+        },
+      } as const;
+      const savedDefaults = await request(app)
+        .patch("/api/v1/ticket-alerts/preferences")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send(defaults);
+      expect(savedDefaults.status).toBe(200);
+      expect(savedDefaults.body.data.preferences).toEqual(defaults);
+      expect(await workflows.ticketAlertPreferences(bob)).toEqual(
+        DEFAULT_TICKET_ALERT_CRITERIA,
+      );
+
+      expect(await workflows.subscribe(alice, "9200010")).toMatchObject({
+        kind: "account",
+      });
+      const override: TicketAlertCriteriaOverride = {
+        cities: ["Tel Aviv"],
+        filters: { screeningTech: ["IMAX"] },
+      };
+      const savedOverride = await request(app)
+        .patch("/api/v1/ticket-alerts/9200010/criteria")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({ criteriaOverrides: override });
+      expect(savedOverride.status).toBe(200);
+      expect(
+        (await workflows.subscriptions(alice, 0)).subscriptions[0]
+          ?.criteriaOverrides,
+      ).toEqual(override);
+      await expect(
+        workflows.updateTicketAlertCriteria(bob, "9200010", override),
+      ).rejects.toMatchObject({ code: "subscription_not_found" });
+      expect(await workflows.cancel(alice, "9200010")).toMatchObject({
+        kind: "account",
+      });
+    });
     it("isolates accounts in SQL and HTTP, and never leaks context into a reused pool connection", async () => {
       expect(
         (
@@ -293,7 +345,7 @@ describe.sequential(
         .post("/api/v1/ticket-alerts")
         .set("Cookie", "alice")
         .set("Origin", "http://localhost")
-        .send({ tmdbId: "9200002", preferredCity: "Jerusalem" });
+        .send({ tmdbId: "9200002" });
       expect(result.status).toBe(200);
       expect(result.body.data).toEqual({ kind: "available" });
       expect((await workflows.subscriptions(alice, 0)).subscriptions).toEqual(

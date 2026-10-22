@@ -3,6 +3,10 @@ import request from "supertest";
 import { createApp } from "../app.js";
 import { HttpError } from "../http-errors.js";
 import type { ProtectedWorkflowService } from "./service.js";
+import {
+  DEFAULT_TICKET_ALERT_CRITERIA,
+  type TicketAlertCriteria,
+} from "@kartiseret/contracts/private-data";
 const id = "00000000-0000-4000-8000-000000000001";
 const preferences = {
   ratingSources: ["imdbRating" as const],
@@ -15,8 +19,15 @@ function setup() {
     account: vi.fn(async () => ({ user, isAdmin: false })),
     preferences: vi.fn(async () => preferences),
     patchPreferences: vi.fn(async () => preferences),
+    ticketAlertPreferences: vi.fn(async () => DEFAULT_TICKET_ALERT_CRITERIA),
+    patchTicketAlertPreferences: vi.fn(
+      async () => DEFAULT_TICKET_ALERT_CRITERIA,
+    ),
     subscriptions: vi.fn(async () => ({ subscriptions: [], nextOffset: null })),
     subscribe: vi.fn(async () => ({ kind: "available" as const })),
+    updateTicketAlertCriteria: vi.fn(async () => ({
+      kind: "available" as const,
+    })),
     cancel: vi.fn(async () => ({
       kind: "account" as const,
       subscription: null,
@@ -134,6 +145,68 @@ describe("protected HTTP contracts", () => {
           })
       ).status,
     ).toBe(403);
+  });
+  it("reads and updates owner-scoped ticket alert criteria through protected routes", async () => {
+    const { app, workflows } = setup();
+    const defaults: TicketAlertCriteria = {
+      cities: ["Haifa", "Tel Aviv"],
+      filters: {
+        showType: ["Premium"],
+        screenFormat: [],
+        screeningTech: ["IMAX"],
+        dubLanguage: [],
+      },
+    };
+    vi.mocked(workflows.ticketAlertPreferences).mockResolvedValue(defaults);
+    vi.mocked(workflows.patchTicketAlertPreferences).mockResolvedValue(
+      defaults,
+    );
+    const read = await request(app)
+      .get("/api/v1/ticket-alerts/preferences")
+      .set("Cookie", "valid");
+    expect(read.status).toBe(200);
+    expect(read.body.data.preferences).toEqual(defaults);
+    expect(read.headers["cache-control"]).toBe("no-store");
+
+    const saved = await request(app)
+      .patch("/api/v1/ticket-alerts/preferences")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send(defaults);
+    expect(saved.status).toBe(200);
+    expect(workflows.patchTicketAlertPreferences).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      defaults,
+    );
+
+    const override = {
+      cities: null,
+      filters: { screeningTech: ["4DX"] },
+    };
+    const updated = await request(app)
+      .patch("/api/v1/ticket-alerts/101/criteria")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({ criteriaOverrides: override });
+    expect(updated.status).toBe(200);
+    expect(workflows.updateTicketAlertCriteria).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      "101",
+      override,
+    );
+  });
+  it("rejects invalid alert criteria and unknown fields", async () => {
+    const { app, workflows } = setup();
+    const result = await request(app)
+      .patch("/api/v1/ticket-alerts/preferences")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({
+        cities: ["Mars"],
+        filters: DEFAULT_TICKET_ALERT_CRITERIA.filters,
+      });
+    expect(result.status).toBe(400);
+    expect(workflows.patchTicketAlertPreferences).not.toHaveBeenCalled();
   });
   it("returns a safe uncacheable failure when private persistence fails", async () => {
     const { app, workflows } = setup();

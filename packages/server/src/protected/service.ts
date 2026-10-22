@@ -12,6 +12,12 @@ import type {
   PreferencePatch,
   Preferences,
   SubscriptionChange,
+  TicketAlertCriteria,
+  TicketAlertCriteriaOverride,
+} from "@kartiseret/contracts/private-data";
+import {
+  DEFAULT_TICKET_ALERT_CRITERIA,
+  matchesTicketAlertCriteria,
 } from "@kartiseret/contracts/private-data";
 import { getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
 import { shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
@@ -22,6 +28,7 @@ import type {
 import {
   adminUsers,
   userPreferences,
+  ticketAlertPreferences,
   ticketAlertSubscriptions,
   finalMovies,
   finalSoons,
@@ -39,6 +46,7 @@ const subscriptionColumns = {
   notifiedAt: ticketAlertSubscriptions.notifiedAt,
   deliveryTitle: ticketAlertSubscriptions.deliveryTitle,
   deliveryDate: ticketAlertSubscriptions.deliveryDate,
+  criteriaOverrides: ticketAlertSubscriptions.criteriaOverrides,
 };
 function mapSubscription(
   row:
@@ -49,6 +57,7 @@ function mapSubscription(
         notifiedAt: Date | null;
         deliveryTitle: string | null;
         deliveryDate: string | null;
+        criteriaOverrides: TicketAlertCriteriaOverride;
       },
 ) {
   return {
@@ -57,7 +66,20 @@ function mapSubscription(
     notifiedAt: row.notifiedAt?.toISOString() ?? null,
     deliveryTitle: row.deliveryTitle,
     deliveryDate: row.deliveryDate,
+    criteriaOverrides: row.criteriaOverrides ?? {},
   };
+}
+
+function mapTicketAlertPreferences(row?: {
+  cities: string[] | null;
+  filterExclusions: TicketAlertCriteria["filters"];
+}): TicketAlertCriteria {
+  return row
+    ? {
+        cities: row.cities as TicketAlertCriteria["cities"],
+        filters: row.filterExclusions,
+      }
+    : DEFAULT_TICKET_ALERT_CRITERIA;
 }
 export class ProtectedWorkflows {
   constructor(
@@ -162,6 +184,43 @@ export class ProtectedWorkflows {
       return { ...current, ...patch };
     });
   }
+  ticketAlertPreferences(user: VerifiedIdentity) {
+    return this.asUser(user, async (tx) => {
+      const [row] = await tx
+        .select({
+          cities: ticketAlertPreferences.cities,
+          filterExclusions: ticketAlertPreferences.filterExclusions,
+        })
+        .from(ticketAlertPreferences)
+        .where(eq(ticketAlertPreferences.userId, user.id))
+        .limit(1);
+      return mapTicketAlertPreferences(row);
+    });
+  }
+  patchTicketAlertPreferences(
+    user: VerifiedIdentity,
+    criteria: TicketAlertCriteria,
+  ) {
+    return this.asUser(user, async (tx) => {
+      await tx
+        .insert(ticketAlertPreferences)
+        .values({
+          userId: user.id,
+          cities: criteria.cities,
+          filterExclusions: criteria.filters,
+          updatedAt: this.clock(),
+        })
+        .onConflictDoUpdate({
+          target: ticketAlertPreferences.userId,
+          set: {
+            cities: criteria.cities,
+            filterExclusions: criteria.filters,
+            updatedAt: this.clock(),
+          },
+        });
+      return criteria;
+    });
+  }
   subscriptions(user: VerifiedIdentity, offset: number) {
     return this.asUser(user, async (tx) => {
       const rows = await tx
@@ -185,14 +244,26 @@ export class ProtectedWorkflows {
     tmdbId: string,
   ): Promise<SubscriptionChange> {
     const instant = this.clock();
+    const defaults = await this.ticketAlertPreferences(user);
     const showtimes = await getTicketAvailabilityShowtimes(
       this.publicRepository,
       tmdbId,
       getJerusalemCinemaDate(instant),
     );
     if (
-      showtimes.some((row) =>
-        shouldIncludeShowtime(row.dateOfShowing, row.showtime, instant),
+      showtimes.some(
+        (row) =>
+          shouldIncludeShowtime(row.dateOfShowing, row.showtime, instant) &&
+          matchesTicketAlertCriteria(
+            {
+              city: row.screeningCity,
+              time: row.showtime,
+              screeningType: row.screeningType,
+              screeningTech: row.screeningTech,
+              dubLanguage: row.dubLanguage,
+            },
+            defaults,
+          ),
       )
     )
       return { kind: "available" };
@@ -220,6 +291,31 @@ export class ProtectedWorkflows {
           "This alert changed concurrently. Please try again.",
         );
       return { kind: "account", subscription: mapSubscription(row) };
+    });
+  }
+  updateTicketAlertCriteria(
+    user: VerifiedIdentity,
+    tmdbId: string,
+    criteriaOverrides: TicketAlertCriteriaOverride,
+  ): Promise<SubscriptionChange> {
+    return this.asUser(user, async (tx) => {
+      const rows = await tx
+        .update(ticketAlertSubscriptions)
+        .set({ criteriaOverrides })
+        .where(
+          and(
+            eq(ticketAlertSubscriptions.userId, user.id),
+            eq(ticketAlertSubscriptions.tmdbId, BigInt(tmdbId)),
+          ),
+        )
+        .returning(subscriptionColumns);
+      if (!rows[0])
+        throw new HttpError(
+          404,
+          "subscription_not_found",
+          "This ticket alert no longer exists.",
+        );
+      return { kind: "account", subscription: mapSubscription(rows[0]) };
     });
   }
   cancel(user: VerifiedIdentity, tmdbId: string): Promise<SubscriptionChange> {
@@ -352,8 +448,11 @@ export type ProtectedWorkflowService = Pick<
   | "account"
   | "preferences"
   | "patchPreferences"
+  | "ticketAlertPreferences"
+  | "patchTicketAlertPreferences"
   | "subscriptions"
   | "subscribe"
   | "cancel"
+  | "updateTicketAlertCriteria"
   | "correct"
 >;

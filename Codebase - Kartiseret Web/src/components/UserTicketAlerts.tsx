@@ -1,6 +1,8 @@
-import { ticketAlertMutationOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions, type UserTicketAlertSubscription } from "../data/ticketAlerts";
+import { ticketAlertCriteriaMutationOptions, ticketAlertMutationOptions, ticketAlertPreferencesMutationOptions, ticketAlertPreferencesQueryOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions, type UserTicketAlertSubscription } from "../data/ticketAlerts";
+import { DEFAULT_TICKET_ALERT_CRITERIA, type TicketAlertCriteria, type TicketAlertCriteriaOverride } from "@kartiseret/contracts/private-data";
 import { movieCollectionQueryOptions, selectMovies, type Movie } from "../data/movieCatalog";
 import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
+import { TicketAlertCriteriaEditor } from "./TicketAlertCriteriaEditor";
 import { Link } from "react-router";
 import { useMemo } from "react";
 
@@ -27,10 +29,12 @@ function UserTicketAlertItem({
   userId,
   alert,
   movie,
+  defaults,
 }: {
   userId: string;
   alert: UserTicketAlertSubscription;
   movie?: Movie;
+  defaults: TicketAlertCriteria;
 }) {
   const mutation = useMutation(
     ticketAlertMutationOptions(userId, alert.tmdbId),
@@ -40,6 +44,9 @@ function UserTicketAlertItem({
       mutationKey: ticketAlertQueryKeys.change(userId, alert.tmdbId),
       exact: true,
     }) > 0;
+  const criteriaMutation = useMutation(
+    ticketAlertCriteriaMutationOptions(userId, alert.tmdbId),
+  );
   const title = movie?.title ?? alert.deliveryTitle ?? "Coming soon movie";
   const releaseDate = movie?.releaseDate ?? alert.deliveryDate ?? null;
 
@@ -75,6 +82,24 @@ function UserTicketAlertItem({
           {formatAlertDate(releaseDate)}
           {alert.notifiedAt ? " · Alert sent" : " · Watching"}
         </span>
+        <details className="ticket-alert-criteria-details">
+          <summary>Edit notification criteria</summary>
+          <TicketAlertCriteriaEditor
+            key={`${alert.tmdbId}-${JSON.stringify(defaults)}-${JSON.stringify(alert.criteriaOverrides)}`}
+            mode="title"
+            value={alert.criteriaOverrides}
+            defaults={defaults}
+            saving={criteriaMutation.isPending}
+            onSave={(value) =>
+              criteriaMutation.mutate(value as TicketAlertCriteriaOverride)
+            }
+          />
+        </details>
+        {criteriaMutation.error ? (
+          <p className="prefs-alerts-error" role="alert">
+            {criteriaMutation.error.message}
+          </p>
+        ) : null}
         {mutation.error ? (
           <p className="prefs-alerts-error" role="alert">
             {mutation.error.message}
@@ -98,6 +123,10 @@ export function UserTicketAlerts({ userId }: { userId: string | null }) {
   const alertsQuery = useQuery(
     userTicketAlertSubscriptionsQueryOptions(userId),
   );
+  const preferencesQuery = useQuery(ticketAlertPreferencesQueryOptions(userId));
+  const preferencesMutation = useMutation(
+    ticketAlertPreferencesMutationOptions(userId),
+  );
   const { data: nowPlaying = EMPTY_MOVIES } = useQuery({
     ...movieCollectionQueryOptions("nowPlaying"),
     select: selectMovies,
@@ -116,6 +145,7 @@ export function UserTicketAlerts({ userId }: { userId: string | null }) {
     [nowPlaying, comingSoon],
   );
   const alerts = alertsQuery.data ?? EMPTY_ALERTS;
+  const defaults = preferencesQuery.data ?? DEFAULT_TICKET_ALERT_CRITERIA;
 
   if (!userId) {
     return null;
@@ -134,6 +164,29 @@ export function UserTicketAlerts({ userId }: { userId: string | null }) {
             </span>
           </div>
         </div>
+        <details className="ticket-alert-defaults-details">
+          <summary>Default cities and showtime filters</summary>
+          {preferencesQuery.isError ? (
+            <p className="prefs-alerts-error" role="alert">
+              {preferencesQuery.error.message}
+            </p>
+          ) : null}
+          <TicketAlertCriteriaEditor
+            key={JSON.stringify(defaults)}
+            mode="defaults"
+            value={defaults}
+            defaults={defaults}
+            saving={preferencesMutation.isPending || preferencesQuery.isPending}
+            onSave={(value) =>
+              preferencesMutation.mutate(value as TicketAlertCriteria)
+            }
+          />
+          {preferencesMutation.error ? (
+            <p className="prefs-alerts-error" role="alert">
+              {preferencesMutation.error.message}
+            </p>
+          ) : null}
+        </details>
         {alertsQuery.isPending ? (
           <p className="prefs-alerts-empty" role="status">
             Loading your alerts…
@@ -151,6 +204,7 @@ export function UserTicketAlerts({ userId }: { userId: string | null }) {
                 userId={userId}
                 alert={alert}
                 movie={moviesById.get(alert.tmdbId)}
+                defaults={defaults}
               />
             ))}
           </ul>

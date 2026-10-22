@@ -61,6 +61,9 @@ export const ticketAvailabilityShowtimeSchema = publicShowtimeSchema.pick({
   showtime: true,
   englishHref: true,
   hebrewHref: true,
+  screeningTech: true,
+  screeningType: true,
+  dubLanguage: true,
 });
 export const ticketAvailabilityDataSchema = z.object({
   showtimes: z.array(ticketAvailabilityShowtimeSchema),

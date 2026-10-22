@@ -1,4 +1,5 @@
 import { invalidateUserTicketAlertQueries, mergeUserTicketAlert, selectTicketAlertAvailability, selectUserTicketAlert, ticketAlertAvailabilityQueryOptions, ticketAlertMutationOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions, type TicketAlertShowtimeRow, type UserTicketAlertSubscription } from "../src/data/ticketAlerts";
+import { DEFAULT_TICKET_ALERT_CRITERIA, resolveTicketAlertCriteria, type TicketAlertCriteria } from "@kartiseret/contracts/private-data";
 import { addCalendarDays, getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getAuthClient } from "../src/lib/authClient";
@@ -13,6 +14,7 @@ type StoredSubscription = {
   notified_at: string | null;
   delivery_title: string | null;
   delivery_date: string | null;
+  criteria_overrides: UserTicketAlertSubscription["criteriaOverrides"];
 };
 
 let client: QueryClient;
@@ -34,6 +36,7 @@ function storedSubscription(
     notified_at: null,
     delivery_title: null,
     delivery_date: null,
+    criteria_overrides: {},
   };
 }
 
@@ -44,6 +47,7 @@ function subscription(tmdbId = "101"): UserTicketAlertSubscription {
     notifiedAt: null,
     deliveryTitle: null,
     deliveryDate: null,
+    criteriaOverrides: {},
   };
 }
 
@@ -86,6 +90,7 @@ beforeEach(() => {
     notifiedAt: row.notified_at,
     deliveryTitle: row.delivery_title,
     deliveryDate: row.delivery_date,
+    criteriaOverrides: row.criteria_overrides,
   });
   vi.stubGlobal("fetch", async (
     input: RequestInfo | URL,
@@ -107,6 +112,9 @@ beforeEach(() => {
             showtime: row.showtime,
             englishHref: row.english_href,
             hebrewHref: row.hebrew_href ?? null,
+            screeningType: row.screening_type ?? null,
+            screeningTech: row.screening_tech ?? null,
+            dubLanguage: row.dub_language ?? null,
           })),
         },
         error: null,
@@ -122,6 +130,11 @@ beforeEach(() => {
         403,
       );
     if (request.method === "GET") {
+      if (url.pathname === "/api/v1/ticket-alerts/preferences")
+        return reply({
+          data: { preferences: DEFAULT_TICKET_ALERT_CRITERIA },
+          error: null,
+        });
       const offset = Number(url.searchParams.get("offset") ?? 0);
       const page = subscriptions.slice(offset, offset + 1000);
       return reply({
@@ -140,12 +153,9 @@ beforeEach(() => {
         error: null,
       });
     }
-    const body = (await request.json()) as {
-      tmdbId: string;
-      preferredCity: string;
-    };
-    expect(Object.keys(body).sort()).toEqual(["preferredCity", "tmdbId"]);
-    if (selectTicketAlertAvailability(rows, body.preferredCity))
+    const body = (await request.json()) as { tmdbId: string };
+    expect(Object.keys(body)).toEqual(["tmdbId"]);
+    if (selectTicketAlertAvailability(rows, DEFAULT_TICKET_ALERT_CRITERIA))
       return reply({ data: { kind: "available" }, error: null });
     let row = subscriptions.find((row) => row.tmdb_id === Number(body.tmdbId));
     if (!row) {
@@ -238,7 +248,7 @@ describe("ticket alert queries", () => {
     expect(client.getQueryData(options.queryKey)).toBeUndefined();
   });
 
-  it("selects a preferred city with fallback, discarding expired or unlinked showtimes", () => {
+  it("selects only a city from the explicit set without fallback", () => {
     const instant = new Date("2026-09-04T16:00:00Z");
     const linkedRows: TicketAlertShowtimeRow[] = [
       {
@@ -267,17 +277,206 @@ describe("ticket alert queries", () => {
       },
     ];
     expect(
-      selectTicketAlertAvailability(linkedRows, "Jerusalem", "Ab1", instant)
-        ?.city,
+      selectTicketAlertAvailability(
+        linkedRows,
+        { ...DEFAULT_TICKET_ALERT_CRITERIA, cities: ["Jerusalem"] },
+        "Ab1",
+        instant,
+      )?.city,
     ).toBe("Jerusalem");
     expect(
-      selectTicketAlertAvailability(linkedRows, "Tel Aviv", "Ab1", instant)
-        ?.city,
-    ).toBe("Haifa");
+      selectTicketAlertAvailability(
+        linkedRows,
+        { ...DEFAULT_TICKET_ALERT_CRITERIA, cities: ["Tel Aviv"] },
+        "Ab1",
+        instant,
+      ),
+    ).toBeNull();
     expect(
-      selectTicketAlertAvailability(linkedRows, "Haifa", undefined, instant)
-        ?.path,
+      selectTicketAlertAvailability(
+        linkedRows,
+        { ...DEFAULT_TICKET_ALERT_CRITERIA, cities: ["Haifa"] },
+        undefined,
+        instant,
+      )?.path,
     ).toBe("/showtimes");
+  });
+
+  it("defaults to all cities and filters, including future early screenings", () => {
+    const instant = new Date("2026-09-04T16:00:00Z");
+    const earlyScreening: TicketAlertShowtimeRow = {
+      screening_city: "Tel Aviv",
+      date_of_showing: "2026-09-05",
+      showtime: "10:00",
+      english_href: "https://example.test/early",
+      screening_type: "Regular",
+      screening_tech: "2D",
+      dub_language: "Original",
+    };
+    expect(DEFAULT_TICKET_ALERT_CRITERIA.cities).toBeNull();
+    expect(
+      selectTicketAlertAvailability(
+        [earlyScreening],
+        DEFAULT_TICKET_ALERT_CRITERIA,
+        undefined,
+        instant,
+      )?.city,
+    ).toBe("Tel Aviv");
+  });
+
+  it("includes an unknown one-off show type while the show-type group is unrestricted", () => {
+    const instant = new Date("2026-09-04T16:00:00Z");
+    const oneOff: TicketAlertShowtimeRow = {
+      screening_city: "Jerusalem",
+      date_of_showing: "2026-09-05",
+      showtime: "20:00",
+      english_href: "https://example.test/one-off",
+      screening_type: "One-off Screening",
+      screening_tech: "2D",
+      dub_language: "Original",
+    };
+    expect(
+      selectTicketAlertAvailability(
+        [oneOff],
+        DEFAULT_TICKET_ALERT_CRITERIA,
+        undefined,
+        instant,
+      )?.city,
+    ).toBe("Jerusalem");
+    expect(
+      selectTicketAlertAvailability(
+        [oneOff],
+        {
+          ...DEFAULT_TICKET_ALERT_CRITERIA,
+          filters: {
+            ...DEFAULT_TICKET_ALERT_CRITERIA.filters,
+            showType: ["Regular"],
+          },
+        },
+        undefined,
+        instant,
+      ),
+    ).toBeNull();
+  });
+
+  it("uses explicit multiple cities without falling back outside the selected set", () => {
+    const instant = new Date("2026-09-04T16:00:00Z");
+    const haifa: TicketAlertShowtimeRow = {
+      screening_city: "Haifa",
+      date_of_showing: "2026-09-05",
+      showtime: "20:00",
+      english_href: "https://example.test/haifa",
+    };
+    const selected: TicketAlertCriteria = {
+      ...DEFAULT_TICKET_ALERT_CRITERIA,
+      cities: ["Jerusalem", "Tel Aviv"],
+    };
+    expect(
+      selectTicketAlertAvailability([haifa], selected, undefined, instant),
+    ).toBeNull();
+    expect(
+      selectTicketAlertAvailability(
+        [{ ...haifa, screening_city: "Tel Aviv" }],
+        selected,
+        undefined,
+        instant,
+      )?.city,
+    ).toBe("Tel Aviv");
+  });
+
+  it("resolves each per-title filter group independently from account defaults", () => {
+    const defaults: TicketAlertCriteria = {
+      cities: ["Haifa", "Jerusalem"],
+      filters: {
+        showType: ["Premium"],
+        screenFormat: ["3D"],
+        screeningTech: ["IMAX"],
+        dubLanguage: ["French"],
+      },
+    };
+    expect(
+      resolveTicketAlertCriteria(defaults, {
+        cities: ["Jerusalem"],
+        filters: { screeningTech: [] },
+      }),
+    ).toEqual({
+      cities: ["Jerusalem"],
+      filters: {
+        showType: ["Premium"],
+        screenFormat: ["3D"],
+        screeningTech: [],
+        dubLanguage: ["French"],
+      },
+    });
+  });
+
+  it.each([
+    ["showType", { screening_type: "Premium" }],
+    ["screenFormat", { screening_tech: "3D" }],
+    ["screeningTech", { screening_tech: "IMAX" }],
+    ["dubLanguage", { dub_language: "Hebrew" }],
+  ] as const)("applies the %s filter group", (group, metadata) => {
+    const instant = new Date("2026-09-04T16:00:00Z");
+    const criteria: TicketAlertCriteria = {
+      ...DEFAULT_TICKET_ALERT_CRITERIA,
+      filters: {
+        ...DEFAULT_TICKET_ALERT_CRITERIA.filters,
+        [group]: [
+          group === "showType"
+            ? "Premium"
+            : group === "screenFormat"
+              ? "3D"
+              : group === "screeningTech"
+                ? "IMAX"
+                : "Hebrew",
+        ],
+      },
+    };
+    const row: TicketAlertShowtimeRow = {
+      screening_city: "Jerusalem",
+      date_of_showing: "2026-09-05",
+      showtime: "20:00",
+      english_href: "https://example.test/filtered",
+      screening_type: "Regular",
+      screening_tech: "2D",
+      dub_language: "Original",
+      ...metadata,
+    };
+    expect(
+      selectTicketAlertAvailability([row], criteria, undefined, instant),
+    ).toBeNull();
+  });
+
+  it("treats missing screening metadata like the showtime filter catalog", () => {
+    const instant = new Date("2026-09-04T16:00:00Z");
+    const row: TicketAlertShowtimeRow = {
+      screening_city: "Jerusalem",
+      date_of_showing: "2026-09-05",
+      showtime: "20:00",
+      english_href: "https://example.test/metadata-free",
+    };
+    expect(
+      selectTicketAlertAvailability(
+        [row],
+        DEFAULT_TICKET_ALERT_CRITERIA,
+        undefined,
+        instant,
+      )?.city,
+    ).toBe("Jerusalem");
+    expect(
+      selectTicketAlertAvailability(
+        [row],
+        {
+          ...DEFAULT_TICKET_ALERT_CRITERIA,
+          filters: {
+            ...DEFAULT_TICKET_ALERT_CRITERIA.filters,
+            screenFormat: ["2D"],
+          },
+        },
+        undefined,
+        instant,
+      ),
+    ).toBeNull();
   });
 });
 
@@ -338,11 +537,7 @@ describe("ticket alert mutation ownership", () => {
             client,
           ),
         )
-        .execute(
-          action === "subscribe"
-            ? { action, preferredCity: "Jerusalem" }
-            : { action },
-        );
+        .execute(action === "subscribe" ? { action } : { action });
     await execute("subscribe");
     expect(client.getQueryData(key)).toEqual([subscription()]);
     await execute("cancel");
@@ -360,9 +555,9 @@ describe("ticket alert mutation ownership", () => {
       .getMutationCache()
       .build(client, ticketAlertMutationOptions(null, "101", client));
 
-    await expect(
-      mutation.execute({ action: "subscribe", preferredCity: "Jerusalem" }),
-    ).rejects.toThrow("Create an account or log in");
+    await expect(mutation.execute({ action: "subscribe" })).rejects.toThrow(
+      "Create an account or log in",
+    );
     expect(requests).toHaveLength(0);
   });
 
@@ -386,7 +581,7 @@ describe("ticket alert mutation ownership", () => {
           client,
         ),
       )
-      .execute({ action: "subscribe", preferredCity: "Jerusalem" });
+      .execute({ action: "subscribe" });
     expect(result.kind).toBe("available");
     expect(requests).toHaveLength(1);
     expect(requests[0].method).toBe("POST");
@@ -412,7 +607,7 @@ describe("ticket alert mutation ownership", () => {
           client,
         ),
       )
-      .execute({ action: "subscribe", preferredCity: "Jerusalem" });
+      .execute({ action: "subscribe" });
     expect(requests).toHaveLength(1);
     expect(requests[0].method).toBe("POST");
     subscriptions = [];
@@ -427,7 +622,7 @@ describe("ticket alert mutation ownership", () => {
           client,
         ),
       )
-      .execute({ action: "subscribe", preferredCity: "Jerusalem" });
+      .execute({ action: "subscribe" });
     expect(
       selectUserTicketAlert(
         client.getQueryData(
@@ -478,7 +673,7 @@ describe("ticket alert mutation ownership", () => {
           client,
         ),
       )
-      .execute({ action: "subscribe", preferredCity: "Jerusalem" });
+      .execute({ action: "subscribe" });
     expect(client.getQueryData(otherKey)).toEqual([subscription("202")]);
     expect(client.getQueryState(otherKey)?.isInvalidated).toBe(false);
   });

@@ -18,6 +18,10 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+import type {
+  TicketAlertCriteria,
+  TicketAlertCriteriaOverride,
+} from "@kartiseret/contracts/private-data";
 
 type JsonValue =
   string | number | boolean | null | { [key: string]: JsonValue } | JsonValue[];
@@ -297,6 +301,10 @@ export const ticketAlertSubscriptions = pgTable(
       .notNull()
       .references(() => authUser.id, { onDelete: "cascade" }),
     tmdbId: bigint("tmdb_id", { mode: "bigint" }).notNull(),
+    criteriaOverrides: jsonb("criteria_overrides")
+      .$type<TicketAlertCriteriaOverride>()
+      .notNull()
+      .default({}),
     createdAt: instant("created_at").notNull().defaultNow(),
     notifiedAt: instant("notified_at"),
     deliveryId: uuid("delivery_id"),
@@ -317,6 +325,24 @@ export const ticketAlertSubscriptions = pgTable(
     }),
   ],
 );
+
+export const ticketAlertPreferences = pgTable("ticket_alert_preferences", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => authUser.id, { onDelete: "cascade" }),
+  cities: text("cities").array(),
+  filterExclusions: jsonb("filter_exclusions")
+    .$type<TicketAlertCriteria["filters"]>()
+    .notNull()
+    .default({
+      showType: [],
+      screenFormat: [],
+      screeningTech: [],
+      dubLanguage: [],
+    }),
+  createdAt: instant("created_at").notNull().defaultNow(),
+  updatedAt: instant("updated_at").notNull().defaultNow(),
+});
 
 export const userPreferences = pgTable("userPreferences", {
   signupInitialized: boolean("signup_initialized").notNull().default(false),
@@ -369,6 +395,7 @@ export const applicationTables = {
   tableFixes,
   tableSkips,
   theaters,
+  ticketAlertPreferences,
   ticketAlertSubscriptions,
   userPreferences,
   utilAvgTime,

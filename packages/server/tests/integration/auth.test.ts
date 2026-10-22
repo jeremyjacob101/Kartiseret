@@ -114,7 +114,7 @@ describe.sequential(
       );
       await Promise.all([admin.close(), runtime.close()]);
     });
-    it("upgrades existing UUID references without importing passwords/sessions and isolates auth tables", async () => {
+    it("upgrades existing UUID references, resets legacy alert settings, and isolates auth tables", async () => {
       expect(
         (
           await admin.pool.query(
@@ -129,13 +129,10 @@ describe.sequential(
       expect(
         (
           await admin.pool.query(
-            "SELECT delivery_id,notified_at IS NOT NULL AS notified FROM public.ticket_alert_subscriptions WHERE user_id='00000000-0000-4000-8000-0000000000c1'",
+            "SELECT delivery_id,notified_at FROM public.ticket_alert_subscriptions WHERE user_id='00000000-0000-4000-8000-0000000000c1'",
           )
-        ).rows[0],
-      ).toEqual({
-        delivery_id: "00000000-0000-4000-8000-0000000000d1",
-        notified: true,
-      });
+        ).rows,
+      ).toEqual([]);
       const legacy = (
         await admin.pool.query(
           "SELECT u.id,u.email_verified,a.user_id FROM app_auth.users u JOIN public.admin_users a ON a.user_id=u.id WHERE u.email='legacy@example.test'",
@@ -256,13 +253,8 @@ describe.sequential(
         ).status,
       ).toBe(400);
       expect(
-        (
-          await post(
-            "/api/v1/ticket-alerts",
-            { tmdbId: "9100011", preferredCity: "Jerusalem" },
-            cookie,
-          )
-        ).status,
+        (await post("/api/v1/ticket-alerts", { tmdbId: "9100011" }, cookie))
+          .status,
       ).toBe(200);
       expect(
         (await request(app).get("/api/v1/ticket-alerts").set("Cookie", other))
