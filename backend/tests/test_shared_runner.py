@@ -28,10 +28,11 @@ class SharedRunnerTests(TestCase):
         self.assertEqual(events[0], ("scrape", sum(map(len, REGISTRY.values()))))
         self.assertEqual(
             [event[0] for event in events],
-            ["scrape", "stage", "stage", "update", "stage", "stage"],
+            ["scrape", "stage", "stage", "update", "stage", "stage", "stage"],
         )
-        self.assertEqual(events[-2][1], ["ComingSoonDateAlertDispatcher"])
-        self.assertEqual(events[-1][1], ["TicketAlertDispatcher"])
+        self.assertEqual(events[-3][1], ["ComingSoonDateAlertDispatcher"])
+        self.assertEqual(events[-2][1], ["TicketAlertDispatcher"])
+        self.assertEqual(events[-1][1], ["LetterboxdSourceDispatcher"])
 
     def test_coming_soon_date_alerts_run_after_the_coming_soon_publication_commits(self):
         events = []
@@ -60,6 +61,47 @@ class SharedRunnerTests(TestCase):
                 runPlan(1, [("dataflow", "comingSoonsData")])
             )
         self.assertEqual(events[-3:], ["update", "commit", "date-alert"])
+
+    def test_letterboxd_source_alerts_wait_for_both_catalog_publications(self):
+        events = []
+
+        class Publication:
+            def __init__(self, label):
+                self.label = label
+
+            def commit(self):
+                events.append(f"commit:{self.label}")
+
+        def run_group(_kind, _key, _run_id, **kwargs):
+            names = [cls.__name__ for cls in kwargs["classes_override"]]
+            if "LetterboxdSourceDispatcher" in names:
+                self.assertIn("commit:comingsoons", events)
+                self.assertIn("commit:nowplayings", events)
+                events.append("letterboxd-alerts")
+            return {cls: True for cls in kwargs["classes_override"]}
+
+        def run_update(entries, _run_id, context, **_kwargs):
+            for key, cls in entries:
+                events.append(f"update:{key}")
+                context.publications[
+                    {"comingSoonsData": "comingsoons", "nowPlayingData": "nowplayings"}[key]
+                ] = Publication(
+                    {"comingSoonsData": "comingsoons", "nowPlayingData": "nowplayings"}[key]
+                )
+            return {cls: True for _key, cls in entries}
+
+        plan = [
+            ("dataflow", "comingSoonsData"),
+            ("dataflow", "nowPlayingData"),
+        ]
+        with patch("backend.config.runners.runGroup", side_effect=run_group), patch(
+            "backend.config.runners._run_shared_updates", side_effect=run_update
+        ), redirect_stdout(StringIO()):
+            self.assertTrue(runPlan(1, plan))
+        self.assertGreater(events.index("commit:comingsoons"), events.index("update:comingSoonsData"))
+        self.assertGreater(events.index("commit:nowplayings"), events.index("update:nowPlayingData"))
+        self.assertGreater(events.index("letterboxd-alerts"), events.index("commit:comingsoons"))
+        self.assertGreater(events.index("letterboxd-alerts"), events.index("commit:nowplayings"))
 
     def test_failed_category_skips_its_dependents_but_other_categories_continue(self):
         calls = []
@@ -98,7 +140,11 @@ class SharedRunnerTests(TestCase):
         self.assertEqual(shared_updates.call_args.args[0], [("comingSoonsData", update)])
 
     def test_shared_update_prefetches_union_and_uses_one_five_worker_pool(self):
-        first = DATAFLOW_REGISTRY["nowPlayingData"][-2]
+        first = next(
+            cls
+            for cls in DATAFLOW_REGISTRY["nowPlayingData"]
+            if cls.__name__ == "NowPlayingsUpdate"
+        )
         second = DATAFLOW_REGISTRY["cinemathequeData"][-1]
         entries = [("first", first), ("second", second)]
         targets = {first: [{"id": f"a{i}", "tmdb_id": i} for i in range(4)], second: [{"id": f"b{i}", "tmdb_id": i + 4} for i in range(4)]}

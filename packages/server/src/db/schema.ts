@@ -5,6 +5,7 @@ import {
   boolean,
   date,
   doublePrecision,
+  foreignKey,
   integer,
   jsonb,
   numeric,
@@ -372,6 +373,90 @@ export const comingSoonDateWatches = pgTable(
   ],
 );
 
+export const letterboxdSources = pgTable(
+  "letterboxd_sources",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    sourceUrl: text("source_url").notNull(),
+    sourceType: text("source_type").notNull(),
+    createdAt: instant("created_at").notNull().defaultNow(),
+    lastSyncAttemptAt: instant("last_sync_attempt_at"),
+    lastSuccessfulSyncAt: instant("last_successful_sync_at"),
+    lastSyncError: text("last_sync_error"),
+    filmCount: integer("film_count").notNull().default(0),
+    matchedFilmCount: integer("matched_film_count").notNull().default(0),
+  },
+  (table) => [
+    unique("letterboxd_sources_id_user_id_key").on(table.id, table.userId),
+    unique("letterboxd_sources_user_source_url_key").on(
+      table.userId,
+      table.sourceUrl,
+    ),
+  ],
+);
+
+export const letterboxdSourceFilms = pgTable(
+  "letterboxd_source_films",
+  {
+    sourceId: uuid("source_id").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    letterboxdSlug: text("letterboxd_slug").notNull(),
+    title: text("title").notNull(),
+    releaseYear: smallint("release_year"),
+    tmdbId: bigint("tmdb_id", { mode: "bigint" }),
+    firstSeenAt: instant("first_seen_at").notNull().defaultNow(),
+    lastSeenAt: instant("last_seen_at").notNull().defaultNow(),
+    removedAt: instant("removed_at"),
+    needsBaseline: boolean("needs_baseline").notNull().default(true),
+  },
+  (table) => [
+    primaryKey({
+      name: "letterboxd_source_films_pkey",
+      columns: [table.sourceId, table.letterboxdSlug],
+    }),
+    foreignKey({
+      name: "letterboxd_source_films_source_user_fkey",
+      columns: [table.sourceId, table.userId],
+      foreignColumns: [letterboxdSources.id, letterboxdSources.userId],
+    }).onDelete("cascade"),
+  ],
+);
+
+export const letterboxdEventAlerts = pgTable(
+  "letterboxd_event_alerts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    tmdbId: bigint("tmdb_id", { mode: "bigint" }).notNull(),
+    eventKey: text("event_key").notNull(),
+    eventType: text("event_type").notNull(),
+    eventPayload: jsonb("event_payload")
+      .$type<Record<string, JsonValue>>()
+      .notNull(),
+    status: text("status").notNull().default("pending"),
+    createdAt: instant("created_at").notNull().defaultNow(),
+    deliveryId: uuid("delivery_id"),
+    deliveryAttempts: integer("delivery_attempts").notNull().default(0),
+    lastDeliveryAttemptAt: instant("last_delivery_attempt_at"),
+    lastDeliveryError: text("last_delivery_error"),
+    notifiedAt: instant("notified_at"),
+    resendEmailId: text("resend_email_id"),
+  },
+  (table) => [
+    unique("letterboxd_event_alerts_user_event_key").on(
+      table.userId,
+      table.eventKey,
+    ),
+  ],
+);
+
 export const userPreferences = pgTable("userPreferences", {
   signupInitialized: boolean("signup_initialized").notNull().default(false),
   // Identity references point to the app-owned auth schema.
@@ -411,6 +496,7 @@ export const utilRunLogs = pgTable("utilRunLogs", {
 export const applicationTables = {
   cities,
   comingSoonDateWatches,
+  letterboxdSources,
   adminUsers,
   allShowtimes,
   allSoons,

@@ -105,6 +105,12 @@ describe.sequential(
         'ALTER TABLE public."finalShowtimes" DROP CONSTRAINT IF EXISTS pr4_late_failure',
       );
       await admin.pool.query(
+        "DELETE FROM public.letterboxd_event_alerts WHERE tmdb_id BETWEEN 9200000 AND 9200999",
+      );
+      await admin.pool.query(
+        "DELETE FROM public.letterboxd_source_films WHERE tmdb_id BETWEEN 9200000 AND 9200999",
+      );
+      await admin.pool.query(
         "DELETE FROM public.coming_soon_date_watches WHERE tmdb_id BETWEEN 9200000 AND 9200999",
       );
       await admin.pool.query(
@@ -280,6 +286,122 @@ describe.sequential(
         .set("Cookie", "alice")
         .set("Origin", "http://localhost");
       expect(await workflows.comingSoonDateWatches(alice)).toEqual([]);
+    });
+    it("tracks public Letterboxd sources per owner and cancels source-only alerts after the last source is removed", async () => {
+      const invalid = await request(app)
+        .post("/api/v1/letterboxd-sources")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({ sourceUrl: "https://example.test/fixture/watchlist/" });
+      expect(invalid.status).toBe(400);
+
+      const first = await request(app)
+        .post("/api/v1/letterboxd-sources")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({
+          sourceUrl: "https://www.letterboxd.com/fixture/list/first-list/",
+        });
+      expect(first.status).toBe(200);
+      expect(first.body.data.source).toMatchObject({
+        sourceUrl: "https://letterboxd.com/fixture/list/first-list/",
+        sourceType: "list",
+        lastSyncAttemptAt: null,
+        filmCount: 0,
+        matchedFilmCount: 0,
+      });
+      const firstId = first.body.data.source.id as string;
+      const duplicate = await request(app)
+        .post("/api/v1/letterboxd-sources")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({
+          sourceUrl: "https://letterboxd.com/fixture/list/first-list",
+        });
+      expect(duplicate.body.data.source.id).toBe(firstId);
+
+      const second = await request(app)
+        .post("/api/v1/letterboxd-sources")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({ sourceUrl: "https://letterboxd.com/fixture/watchlist/" });
+      expect(second.status).toBe(200);
+      expect(second.body.data.source.sourceType).toBe("watchlist");
+      const secondId = second.body.data.source.id as string;
+
+      expect(
+        (await workflows.listLetterboxdSources(bob)).map((source) => source.id),
+      ).toEqual([]);
+      const ownerSources = await request(app)
+        .get("/api/v1/letterboxd-sources")
+        .set("Cookie", "alice");
+      expect(ownerSources.body.data.sources).toHaveLength(2);
+
+      const tmdbId = 9200070;
+      const eventKey = "e".repeat(64);
+      await admin.pool.query(
+        `INSERT INTO public.letterboxd_source_films
+          (source_id,user_id,letterboxd_slug,title,release_year,tmdb_id)
+         VALUES
+          ($1,$3,'shared-film','Shared Future Film',2028,$4),
+          ($2,$3,'shared-film','Shared Future Film',2028,$4)`,
+        [firstId, secondId, alice.id, tmdbId],
+      );
+      await admin.pool.query(
+        `INSERT INTO public.letterboxd_event_alerts
+          (user_id,tmdb_id,event_key,event_type,event_payload)
+         VALUES ($1,$2,$3,'coming_soon',$4::jsonb)`,
+        [
+          alice.id,
+          tmdbId,
+          eventKey,
+          JSON.stringify({
+            title: "Shared Future Film",
+            release_date: "2028-04-12",
+          }),
+        ],
+      );
+      await admin.pool.query(
+        `INSERT INTO public.coming_soon_date_watches
+          (user_id,tmdb_id,title,release_year,poster_path)
+         VALUES ($1,$2,'Manual watch',2028,NULL)`,
+        [alice.id, tmdbId],
+      );
+
+      await request(app)
+        .delete(`/api/v1/letterboxd-sources/${firstId}`)
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost");
+      let state = await admin.pool.query(
+        "SELECT status FROM public.letterboxd_event_alerts WHERE user_id=$1 AND event_key=$2",
+        [alice.id, eventKey],
+      );
+      expect(state.rows[0]?.status).toBe("pending");
+
+      await request(app)
+        .delete(`/api/v1/letterboxd-sources/${secondId}`)
+        .set("Cookie", "bob")
+        .set("Origin", "http://localhost");
+      expect(await workflows.listLetterboxdSources(alice)).toHaveLength(1);
+
+      await request(app)
+        .delete(`/api/v1/letterboxd-sources/${secondId}`)
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost");
+      state = await admin.pool.query(
+        "SELECT status,delivery_id FROM public.letterboxd_event_alerts WHERE user_id=$1 AND event_key=$2",
+        [alice.id, eventKey],
+      );
+      expect(state.rows[0]).toEqual({ status: "cancelled", delivery_id: null });
+      expect(
+        (
+          await admin.pool.query(
+            "SELECT tmdb_id FROM public.coming_soon_date_watches WHERE user_id=$1 AND tmdb_id=$2",
+            [alice.id, tmdbId],
+          )
+        ).rowCount,
+      ).toBe(1);
+      expect(await workflows.listLetterboxdSources(alice)).toEqual([]);
     });
     it("isolates accounts in SQL and HTTP, and never leaks context into a reused pool connection", async () => {
       expect(

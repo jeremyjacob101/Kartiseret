@@ -16,6 +16,7 @@ import type {
   TicketAlertCriteriaOverride,
   ComingSoonDateWatch,
   ComingSoonDateWatchChange,
+  LetterboxdSource,
 } from "@kartiseret/contracts/private-data";
 import {
   DEFAULT_TICKET_ALERT_CRITERIA,
@@ -33,6 +34,7 @@ import {
   ticketAlertPreferences,
   ticketAlertSubscriptions,
   comingSoonDateWatches,
+  letterboxdSources,
   finalMovies,
   finalSoons,
   finalShowtimes,
@@ -61,6 +63,104 @@ const comingSoonDateWatchColumns = {
   deliveryTitle: comingSoonDateWatches.deliveryTitle,
   deliveryDate: comingSoonDateWatches.deliveryDate,
 };
+const letterboxdSourceColumns = {
+  id: letterboxdSources.id,
+  sourceUrl: letterboxdSources.sourceUrl,
+  sourceType: letterboxdSources.sourceType,
+  createdAt: letterboxdSources.createdAt,
+  lastSyncAttemptAt: letterboxdSources.lastSyncAttemptAt,
+  lastSuccessfulSyncAt: letterboxdSources.lastSuccessfulSyncAt,
+  lastSyncError: letterboxdSources.lastSyncError,
+  filmCount: letterboxdSources.filmCount,
+  matchedFilmCount: letterboxdSources.matchedFilmCount,
+};
+
+function parseLetterboxdSourceUrl(value: string): {
+  sourceUrl: string;
+  sourceType: "watchlist" | "list";
+} {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new HttpError(
+      400,
+      "invalid_letterboxd_source",
+      "Enter a public Letterboxd watchlist or list URL.",
+    );
+  }
+  if (
+    url.protocol !== "https:" ||
+    !["letterboxd.com", "www.letterboxd.com"].includes(
+      url.hostname.toLowerCase(),
+    ) ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash
+  )
+    throw new HttpError(
+      400,
+      "invalid_letterboxd_source",
+      "Enter a public Letterboxd watchlist or list URL.",
+    );
+
+  let parts: string[];
+  try {
+    parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+  } catch {
+    throw new HttpError(
+      400,
+      "invalid_letterboxd_source",
+      "Enter a public Letterboxd watchlist or list URL.",
+    );
+  }
+  const validSegment = (part: string) => /^[A-Za-z0-9_-]{1,100}$/.test(part);
+  const username = parts[0] ?? "";
+  const isWatchlist =
+    parts.length === 2 && parts[1]?.toLowerCase() === "watchlist";
+  const isList = parts.length === 3 && parts[1]?.toLowerCase() === "list";
+  if (
+    !validSegment(username) ||
+    (!isWatchlist && !isList) ||
+    (isList && !validSegment(parts[2] ?? ""))
+  )
+    throw new HttpError(
+      400,
+      "invalid_letterboxd_source",
+      "Use a URL ending in /username/watchlist/ or /username/list/list-name/.",
+    );
+
+  const path = parts.map(encodeURIComponent).join("/");
+  return {
+    sourceUrl: `https://letterboxd.com/${path}/`,
+    sourceType: isWatchlist ? "watchlist" : "list",
+  };
+}
+
+function mapLetterboxdSource(row: {
+  id: string;
+  sourceUrl: string;
+  sourceType: string;
+  createdAt: Date;
+  lastSyncAttemptAt: Date | null;
+  lastSuccessfulSyncAt: Date | null;
+  lastSyncError: string | null;
+  filmCount: number;
+  matchedFilmCount: number;
+}): LetterboxdSource {
+  return {
+    id: row.id,
+    sourceUrl: row.sourceUrl,
+    sourceType: row.sourceType as LetterboxdSource["sourceType"],
+    createdAt: row.createdAt.toISOString(),
+    lastSyncAttemptAt: row.lastSyncAttemptAt?.toISOString() ?? null,
+    lastSuccessfulSyncAt: row.lastSuccessfulSyncAt?.toISOString() ?? null,
+    lastSyncError: row.lastSyncError,
+    filmCount: row.filmCount,
+    matchedFilmCount: row.matchedFilmCount,
+  };
+}
 function mapSubscription(
   row:
     | typeof ticketAlertSubscriptions.$inferSelect
@@ -423,6 +523,96 @@ export class ProtectedWorkflows {
       return { removed: true as const };
     });
   }
+
+  listLetterboxdSources(user: VerifiedIdentity): Promise<LetterboxdSource[]> {
+    return this.asUser(user, async (tx) => {
+      const rows = await tx
+        .select(letterboxdSourceColumns)
+        .from(letterboxdSources)
+        .where(eq(letterboxdSources.userId, user.id))
+        .orderBy(desc(letterboxdSources.createdAt), asc(letterboxdSources.id))
+        .limit(50);
+      return rows.map(mapLetterboxdSource);
+    });
+  }
+
+  addLetterboxdSource(
+    user: VerifiedIdentity,
+    input: { sourceUrl: string },
+  ): Promise<LetterboxdSource> {
+    const parsed = parseLetterboxdSourceUrl(input.sourceUrl);
+    return this.asUser(user, async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${user.id}, 0))`,
+      );
+      const existing = await tx
+        .select({ id: letterboxdSources.id })
+        .from(letterboxdSources)
+        .where(eq(letterboxdSources.userId, user.id))
+        .limit(50);
+      const found = await tx
+        .select(letterboxdSourceColumns)
+        .from(letterboxdSources)
+        .where(
+          and(
+            eq(letterboxdSources.userId, user.id),
+            eq(letterboxdSources.sourceUrl, parsed.sourceUrl),
+          ),
+        )
+        .limit(1);
+      if (found[0]) return mapLetterboxdSource(found[0]);
+      if (existing.length >= 50)
+        throw new HttpError(
+          409,
+          "letterboxd_source_limit",
+          "You can track up to 50 Letterboxd sources.",
+        );
+
+      // Keep this INSERT narrow: Drizzle includes omitted default columns in
+      // generated INSERT statements, but the runtime role is intentionally
+      // granted INSERT only on these three user-controlled columns.
+      await tx.execute(sql`
+        insert into public.letterboxd_sources (user_id, source_url, source_type)
+        values (${user.id}, ${parsed.sourceUrl}, ${parsed.sourceType})
+        on conflict (user_id, source_url) do nothing
+      `);
+      const [row] = await tx
+        .select(letterboxdSourceColumns)
+        .from(letterboxdSources)
+        .where(
+          and(
+            eq(letterboxdSources.userId, user.id),
+            eq(letterboxdSources.sourceUrl, parsed.sourceUrl),
+          ),
+        )
+        .limit(1);
+      if (!row)
+        throw new HttpError(
+          409,
+          "letterboxd_source_changed",
+          "This Letterboxd source changed concurrently. Please try again.",
+        );
+      return mapLetterboxdSource(row);
+    });
+  }
+
+  removeLetterboxdSource(
+    user: VerifiedIdentity,
+    sourceId: string,
+  ): Promise<{ removed: true }> {
+    return this.asUser(user, async (tx) => {
+      await tx
+        .delete(letterboxdSources)
+        .where(
+          and(
+            eq(letterboxdSources.userId, user.id),
+            eq(letterboxdSources.id, sourceId),
+          ),
+        );
+      return { removed: true as const };
+    });
+  }
+
   async subscribe(
     user: VerifiedIdentity,
     tmdbId: string,
@@ -638,6 +828,9 @@ export type ProtectedWorkflowService = Pick<
   | "comingSoonDateWatches"
   | "watchComingSoonDate"
   | "unwatchComingSoonDate"
+  | "listLetterboxdSources"
+  | "addLetterboxdSource"
+  | "removeLetterboxdSource"
   | "subscribe"
   | "cancel"
   | "updateTicketAlertCriteria"

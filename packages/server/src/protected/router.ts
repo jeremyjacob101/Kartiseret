@@ -12,6 +12,8 @@ import {
   ticketAlertPreferencesUpdateSchema,
   comingSoonDateWatchCreateSchema,
   subscriptionMovieIdSchema as watchMovieIdSchema,
+  letterboxdSourceCreateSchema,
+  letterboxdSourceIdSchema,
 } from "@kartiseret/contracts/private-data";
 import { HttpError } from "../http-errors.js";
 import type { IdentityVerifier, VerifiedIdentity } from "./identity.js";
@@ -29,6 +31,7 @@ export function createProtectedRouter(
       "/preferences",
       "/ticket-alerts",
       "/coming-soon-watches",
+      "/letterboxd-sources",
       "/admin",
     ],
     async (request, response, next) => {
@@ -216,6 +219,41 @@ export function createProtectedRouter(
       data: await workflows.unwatchComingSoonDate(
         identity(response.locals.identity),
         tmdbId,
+      ),
+      error: null,
+    });
+  });
+  router.get("/letterboxd-sources", async (request, response) => {
+    parse(empty, request.query);
+    response.json({
+      data: {
+        sources: await workflows.listLetterboxdSources(
+          identity(response.locals.identity),
+        ),
+      },
+      error: null,
+    });
+  });
+  router.post("/letterboxd-sources", async (request, response) => {
+    parse(empty, request.query);
+    const body = parse(letterboxdSourceCreateSchema, request.body);
+    response.json({
+      data: {
+        source: await workflows.addLetterboxdSource(
+          identity(response.locals.identity),
+          body,
+        ),
+      },
+      error: null,
+    });
+  });
+  router.delete("/letterboxd-sources/:sourceId", async (request, response) => {
+    parse(empty, request.query);
+    const sourceId = parse(letterboxdSourceIdSchema, request.params.sourceId);
+    response.json({
+      data: await workflows.removeLetterboxdSource(
+        identity(response.locals.identity),
+        sourceId,
       ),
       error: null,
     });

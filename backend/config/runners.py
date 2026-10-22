@@ -356,7 +356,11 @@ def _run_shared_updates(entries, run_id: int, context: DataflowRequestContext, *
 
 def _stage_for_dataflow_class(cls: type) -> str | None:
     name = cls.__name__
-    if name in {"TicketAlertDispatcher", "ComingSoonDateAlertDispatcher"}:
+    if name in {
+        "TicketAlertDispatcher",
+        "ComingSoonDateAlertDispatcher",
+        "LetterboxdSourceDispatcher",
+    }:
         return "post"
     if name.endswith("Clean"):
         return "clean"
@@ -625,6 +629,10 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
                 "Coming Soon date alerts",
                 "Coming Soon update",
             ),
+            "LetterboxdSourceDispatcher": (
+                "Letterboxd source alerts",
+                "Showtimes and Coming Soon updates",
+            ),
         }
         for category, stages in flow_selections.items():
             for dispatcher in stages["post"]:
@@ -642,6 +650,42 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
                         )
                     )
                     continue
+                if dispatcher.__name__ == "LetterboxdSourceDispatcher":
+                    required_categories = ("comingSoonsData", "nowPlayingData")
+                    missing_updates = [
+                        required
+                        for required in required_categories
+                        if not flow_selections.get(required, {}).get("update")
+                    ]
+                    failed_updates = [
+                        required
+                        for required in required_categories
+                        if required in failed_categories
+                    ]
+                    if missing_updates:
+                        console.print(
+                            Panel.fit(
+                                Text(
+                                    "Skipped Letterboxd source alerts: both catalog updates must be selected",
+                                    style="yellow",
+                                ),
+                                border_style="grey37",
+                            )
+                        )
+                        continue
+                    if failed_updates:
+                        console.print(
+                            Panel.fit(
+                                Text(
+                                    "Skipped Letterboxd source alerts: "
+                                    + ", ".join(failed_updates)
+                                    + " failed",
+                                    style="yellow",
+                                ),
+                                border_style="grey37",
+                            )
+                        )
+                        continue
                 if category in failed_categories:
                     console.print(
                         Panel.fit(
