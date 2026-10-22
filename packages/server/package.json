@@ -8,6 +8,7 @@
   },
   "exports": {
     "./app": "./dist/app.js",
+    "./catalog-timing": "./dist/catalog-timing.js",
     "./production": "./dist/production.js",
     "./catalog": "./dist/catalog/index.js",
     "./public-data": "./dist/public-data/index.js",

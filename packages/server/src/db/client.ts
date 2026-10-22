@@ -4,7 +4,8 @@ import {
   type NodePgDatabase,
   type NodePgTransaction,
 } from "drizzle-orm/node-postgres";
-import { Pool, TypeOverrides, types } from "pg";
+import { type Pool, TypeOverrides, types } from "pg";
+import { TimingClient, TimingPool } from "./timing-pool.js";
 import * as schema from "./schema.js";
 
 export type ApplicationDatabase = NodePgDatabase<
@@ -90,7 +91,8 @@ export function createDatabase(
   // raw text for Drizzle's string-mode column so Jerusalem clock text is stable.
   postgresTypes.setTypeParser(types.builtins.TIMESTAMP, (value) => value);
 
-  const pool = new Pool({
+  const pool = new TimingPool({
+    Client: TimingClient,
     connectionString,
     max: poolMax,
     idleTimeoutMillis: 30_000,

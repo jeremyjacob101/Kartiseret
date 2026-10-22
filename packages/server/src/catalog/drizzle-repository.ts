@@ -1,3 +1,4 @@
+import { timeCatalogStage } from "../catalog-timing.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { HttpError } from "../http-errors.js";
 import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
@@ -105,23 +106,27 @@ export class DrizzleCatalogRepository
         );
       return read(active.revision);
     }
-    return this.rootDb.transaction(
-      async (tx) => {
-        const result = await tx.execute<{ revision: string }>(
-          sql`select revision::text from public.pipeline_catalog_revision where singleton`,
-        );
-        const revision = result.rows[0]?.revision;
-        if (revision === undefined)
-          throw new Error("Publication revision is unavailable.");
-        if (expected !== undefined && expected !== revision)
-          throw new HttpError(
-            409,
-            "publication_changed",
-            "Published data changed. Reload the catalog.",
+    return timeCatalogStage("snapshot", () =>
+      this.rootDb.transaction(
+        async (tx) => {
+          const result = await timeCatalogStage("revision_read", () =>
+            tx.execute<{ revision: string }>(
+              sql`select revision::text from public.pipeline_catalog_revision where singleton`,
+            ),
           );
-        return this.snapshots.run({ db: tx, revision }, () => read(revision));
-      },
-      { isolationLevel: "repeatable read", accessMode: "read only" },
+          const revision = result.rows[0]?.revision;
+          if (revision === undefined)
+            throw new Error("Publication revision is unavailable.");
+          if (expected !== undefined && expected !== revision)
+            throw new HttpError(
+              409,
+              "publication_changed",
+              "Published data changed. Reload the catalog.",
+            );
+          return this.snapshots.run({ db: tx, revision }, () => read(revision));
+        },
+        { isolationLevel: "repeatable read", accessMode: "read only" },
+      ),
     );
   }
 
