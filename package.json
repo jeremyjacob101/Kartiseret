@@ -34,7 +34,7 @@
     "server:dev": "npm run contracts:build && npm run dev --workspace=@kartiseret/server",
     "server:start": "npm run contracts:build && npm run server:build && npm run start --workspace=@kartiseret/server",
     "api:test": "npm run contracts:build && npm run test --workspace=@kartiseret/server",
-    "api:typecheck": "tsc --noEmit --strict --module NodeNext --moduleResolution NodeNext --target ES2023 --types node --skipLibCheck api/dispatch.ts",
+    "api:typecheck": "tsc --noEmit -p tsconfig.json",
     "api:test:integration": "npm run contracts:build && npm run db:test:bootstrap && npm run test:integration --workspace=@kartiseret/server",
     "db:test:bootstrap": "npm run db:test:bootstrap --workspace=@kartiseret/server"
   },

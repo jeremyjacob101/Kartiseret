@@ -1,3 +1,4 @@
+import { timeCatalogStage } from "../catalog-timing.js";
 import {
   movieCatalogModeSchema,
   movieCatalogDataSchema,
@@ -130,10 +131,11 @@ export async function getMovieCatalog(
     mode,
     "movie catalog mode",
   );
-  const rows =
+  const rows = await timeCatalogStage("movie_rows", async () =>
     parsedMode === "nowPlaying"
       ? [...(await repository.findNowPlayingRows())]
-      : [...(await repository.findComingSoonRows())];
+      : [...(await repository.findComingSoonRows())],
+  );
   const visibleRows = rows.filter((row) => {
     const pending = readField(row, "soloUpdate");
     return (
@@ -155,7 +157,9 @@ export async function getMovieCatalog(
   let movieCodesStatus: MovieCatalogData["movieCodesStatus"] = "ready";
 
   try {
-    codeMap = await repository.findMovieCodes(ids);
+    codeMap = await timeCatalogStage("movie_codes", () =>
+      repository.findMovieCodes(ids),
+    );
   } catch (error) {
     movieCodesStatus = "failed";
     onCodeLookupFailure?.(error);

@@ -1,3 +1,4 @@
+import { timeCatalogStageSync } from "./catalog-timing.js";
 import { withPublicationSnapshot } from "./public-data/snapshot.js";
 import { PUBLICATION_REVISION_HEADER } from "@kartiseret/contracts/public-data";
 import { createProtectedRouter } from "./protected/router.js";
@@ -215,7 +216,9 @@ export function createApp({
               movieCodesStatus: "ready" as const,
             };
         response.setHeader("Cache-Control", "private, no-store");
-        response.json({ data, error: null });
+        timeCatalogStageSync("response_json", () =>
+          response.json({ data, error: null }),
+        );
       } catch (error) {
         next(error);
       }
@@ -253,7 +256,9 @@ export function createApp({
             ),
         );
         response.setHeader("Cache-Control", "private, no-store");
-        response.json({ data, error: null });
+        timeCatalogStageSync("response_json", () =>
+          response.json({ data, error: null }),
+        );
       } catch (error) {
         next(error);
       }
