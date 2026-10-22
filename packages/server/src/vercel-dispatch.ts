@@ -24,6 +24,26 @@ export interface VercelDispatchHandlers {
   ogImage: VercelDispatchHandler;
 }
 
+export function createLazyVercelHandler(
+  load: () => Promise<{ default: VercelDispatchHandler }>,
+): VercelDispatchHandler {
+  let handlerPromise: Promise<VercelDispatchHandler> | undefined;
+
+  return async (request, response) => {
+    if (!handlerPromise) {
+      handlerPromise = load()
+        .then((module) => module.default)
+        .catch((error: unknown) => {
+          handlerPromise = undefined;
+          throw error;
+        });
+    }
+
+    const handler = await handlerPromise;
+    return handler(request, response);
+  };
+}
+
 const INTERNAL_ROUTE_PARAMETER = "__vercel_route";
 const API_PATH_PATTERN = /^[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/;
 

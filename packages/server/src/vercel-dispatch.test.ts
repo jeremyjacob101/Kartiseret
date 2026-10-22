@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  createLazyVercelHandler,
   createVercelDispatchHandler,
+  type VercelDispatchHandler,
   type VercelDispatchRequest,
   type VercelDispatchResponse,
 } from "./vercel-dispatch.js";
@@ -72,6 +74,99 @@ describe("Vercel API dispatcher", () => {
     expect(imageRequest.url).toBe("/api/og-image?home=1");
     expect(imageRequest.query.home).toBe("1");
     expect(handlers.ogImage).toHaveBeenCalledWith(imageRequest, response);
+  });
+
+  it("does not load OG handlers for catalog or authentication requests", async () => {
+    const loadHtml = vi.fn();
+    const loadImage = vi.fn();
+    const handlers = {
+      api: vi.fn(),
+      og: createLazyVercelHandler(loadHtml),
+      ogImage: createLazyVercelHandler(loadImage),
+    };
+    const dispatch = createVercelDispatchHandler(handlers);
+
+    await dispatch(
+      createRequest("/api/dispatch?__vercel_route=v1%2Fcatalog%2Fnow-playing"),
+      response,
+    );
+    await dispatch(
+      createRequest("/api/dispatch?__vercel_route=auth%2Fget-session"),
+      response,
+    );
+
+    expect(handlers.api).toHaveBeenCalledTimes(2);
+    expect(loadHtml).not.toHaveBeenCalled();
+    expect(loadImage).not.toHaveBeenCalled();
+  });
+
+  it("loads each OG handler once and shares pending loads across requests", async () => {
+    const htmlHandler = vi.fn();
+    const imageHandler = vi.fn();
+    let resolveHtmlLoad!: (module: { default: VercelDispatchHandler }) => void;
+    let resolveImageLoad!: (module: { default: VercelDispatchHandler }) => void;
+    const loadHtml = vi.fn(
+      () =>
+        new Promise<{ default: VercelDispatchHandler }>((resolve) => {
+          resolveHtmlLoad = resolve;
+        }),
+    );
+    const loadImage = vi.fn(
+      () =>
+        new Promise<{ default: VercelDispatchHandler }>((resolve) => {
+          resolveImageLoad = resolve;
+        }),
+    );
+    const handlers = {
+      api: vi.fn(),
+      og: createLazyVercelHandler(loadHtml),
+      ogImage: createLazyVercelHandler(loadImage),
+    };
+    const dispatch = createVercelDispatchHandler(handlers);
+
+    const first = dispatch(
+      createRequest("/api/dispatch?__vercel_route=og&routeCode=Ab1"),
+      response,
+    );
+    const second = dispatch(
+      createRequest("/api/dispatch?__vercel_route=og&routeCode=Cd2"),
+      response,
+    );
+    const image = dispatch(
+      createRequest("/api/dispatch?__vercel_route=og-image&home=1"),
+      response,
+    );
+
+    expect(loadHtml).toHaveBeenCalledTimes(1);
+    expect(loadImage).toHaveBeenCalledTimes(1);
+    resolveHtmlLoad({ default: htmlHandler });
+    resolveImageLoad({ default: imageHandler });
+    await Promise.all([first, second, image]);
+    await dispatch(
+      createRequest("/api/dispatch?__vercel_route=og&routeCode=Ef3"),
+      response,
+    );
+
+    expect(htmlHandler).toHaveBeenCalledTimes(3);
+    expect(imageHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears a failed OG import so a later request can retry", async () => {
+    const loadedHandler = vi.fn();
+    const load = vi
+      .fn<() => Promise<{ default: VercelDispatchHandler }>>()
+      .mockRejectedValueOnce(new Error("module load failed"))
+      .mockResolvedValueOnce({ default: loadedHandler });
+    const lazyHandler = createLazyVercelHandler(load);
+    const request = createRequest("/api/og?routeCode=Ab1");
+
+    await expect(lazyHandler(request, response)).rejects.toThrow(
+      "module load failed",
+    );
+    await lazyHandler(request, response);
+
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(loadedHandler).toHaveBeenCalledTimes(1);
   });
 
   it("routes unknown API paths through Express and rejects unsafe path captures", async () => {
