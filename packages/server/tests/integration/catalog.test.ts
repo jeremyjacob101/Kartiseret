@@ -42,6 +42,8 @@ const app = createApp({
 
 const expectedTableNames = [
   "cities",
+  "coming_soon_date_watches",
+  "letterboxd_sources",
   "admin_users",
   "allShowtimes",
   "allSoons",
@@ -55,6 +57,7 @@ const expectedTableNames = [
   "tableFixes",
   "tableSkips",
   "theaters",
+  "ticket_alert_preferences",
   "ticket_alert_subscriptions",
   "userPreferences",
   "utilAvgTime",
@@ -64,6 +67,34 @@ const expectedTableNames = [
 // These Python-only pipeline tables deliberately stay out of Drizzle's
 // applicationTables, which is the schema granted to the public API runtime.
 const expectedPipelineTableColumns = {
+  letterboxd_event_alerts: [
+    "id",
+    "user_id",
+    "tmdb_id",
+    "event_key",
+    "event_type",
+    "event_payload",
+    "status",
+    "created_at",
+    "delivery_id",
+    "delivery_attempts",
+    "last_delivery_attempt_at",
+    "last_delivery_error",
+    "notified_at",
+    "resend_email_id",
+  ],
+  letterboxd_source_films: [
+    "source_id",
+    "user_id",
+    "letterboxd_slug",
+    "title",
+    "release_year",
+    "tmdb_id",
+    "first_seen_at",
+    "last_seen_at",
+    "removed_at",
+    "needs_baseline",
+  ],
   pipeline_publications: [
     "publication_id",
     "category",
@@ -132,7 +163,7 @@ describe("PostgreSQL 17 integration", () => {
     await Promise.all([runtimeDatabase.close(), adminDatabase.close()]);
   });
 
-  it("maps all 18 application tables and accounts for private pipeline tables", async () => {
+  it("maps application tables and accounts for private pipeline tables", async () => {
     const mappedTables = Object.values(schema.applicationTables);
     expect(mappedTables.map((table) => getTableName(table)).sort()).toEqual(
       [...expectedTableNames].sort(),
@@ -298,6 +329,11 @@ describe("PostgreSQL 17 integration", () => {
     `);
     expect(providerForeignKeys.map((key) => key.table_name)).toEqual([
       "admin_users",
+      "coming_soon_date_watches",
+      "letterboxd_event_alerts",
+      "letterboxd_source_films",
+      "letterboxd_sources",
+      "ticket_alert_preferences",
       "ticket_alert_subscriptions",
       "userPreferences",
     ]);
@@ -308,6 +344,23 @@ describe("PostgreSQL 17 integration", () => {
         ),
       ),
     ).toBe(true);
+    const { rows: sourceOwnershipKeys } = await adminDatabase.pool.query<{
+      definition: string;
+    }>(`
+      SELECT pg_catalog.pg_get_constraintdef(f.oid) AS definition
+      FROM pg_catalog.pg_constraint AS f
+      JOIN pg_catalog.pg_class AS c ON c.oid = f.conrelid
+      JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public'
+        AND c.relname = 'letterboxd_source_films'
+        AND f.conname = 'letterboxd_source_films_source_user_fkey'
+    `);
+    expect(sourceOwnershipKeys).toEqual([
+      {
+        definition:
+          "FOREIGN KEY (source_id, user_id) REFERENCES letterboxd_sources(id, user_id) ON DELETE CASCADE",
+      },
+    ]);
   });
 
   it("keeps pipeline tables and checkpoint RPCs service-role only", async () => {
@@ -392,6 +445,146 @@ describe("PostgreSQL 17 integration", () => {
         anon_execute: false,
         authenticated_execute: false,
       },
+    ]);
+  });
+
+  it("keeps Coming Soon date watch data owner-scoped and delivery fields worker-only", async () => {
+    const { rows } = await adminDatabase.pool.query<{
+      row_security: boolean;
+      runtime_select: boolean;
+      runtime_insert: boolean;
+      runtime_delete: boolean;
+      runtime_delivery_select: boolean;
+      runtime_delivery_update: boolean;
+      service_select: boolean;
+      service_update: boolean;
+    }>(`
+      SELECT
+        c.relrowsecurity AS row_security,
+        has_column_privilege('kartiseret_runtime', c.oid, 'title', 'SELECT') AS runtime_select,
+        has_column_privilege('kartiseret_runtime', c.oid, 'title', 'INSERT') AS runtime_insert,
+        has_table_privilege('kartiseret_runtime', c.oid, 'DELETE') AS runtime_delete,
+        has_column_privilege('kartiseret_runtime', c.oid, 'delivery_id', 'SELECT') AS runtime_delivery_select,
+        has_column_privilege('kartiseret_runtime', c.oid, 'delivery_attempts', 'UPDATE') AS runtime_delivery_update,
+        has_table_privilege('service_role', c.oid, 'SELECT') AS service_select,
+        has_table_privilege('service_role', c.oid, 'UPDATE') AS service_update
+      FROM pg_catalog.pg_class AS c
+      JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public'
+        AND c.relname = 'coming_soon_date_watches'
+    `);
+    expect(rows).toEqual([
+      {
+        row_security: true,
+        runtime_select: true,
+        runtime_insert: true,
+        runtime_delete: true,
+        runtime_delivery_select: false,
+        runtime_delivery_update: false,
+        service_select: true,
+        service_update: true,
+      },
+    ]);
+    const { rows: policies } = await adminDatabase.pool.query<{
+      policyname: string;
+      cmd: string;
+    }>(`
+      SELECT policyname, cmd
+      FROM pg_catalog.pg_policies
+      WHERE schemaname = 'public'
+        AND tablename = 'coming_soon_date_watches'
+      ORDER BY policyname
+    `);
+    expect(policies).toEqual([
+      { policyname: "api_own_delete", cmd: "DELETE" },
+      { policyname: "api_own_insert", cmd: "INSERT" },
+      { policyname: "api_own_select", cmd: "SELECT" },
+    ]);
+  });
+
+  it("keeps Letterboxd source configuration owner-scoped and source delivery worker-only", async () => {
+    const { rows: sourceRows } = await adminDatabase.pool.query<{
+      row_security: boolean;
+      runtime_select: boolean;
+      runtime_insert: boolean;
+      runtime_delete: boolean;
+      runtime_update: boolean;
+      service_select: boolean;
+      service_update: boolean;
+    }>(`
+      SELECT
+        c.relrowsecurity AS row_security,
+        has_column_privilege('kartiseret_runtime', c.oid, 'source_url', 'SELECT') AS runtime_select,
+        has_column_privilege('kartiseret_runtime', c.oid, 'source_url', 'INSERT') AS runtime_insert,
+        has_table_privilege('kartiseret_runtime', c.oid, 'DELETE') AS runtime_delete,
+        has_table_privilege('kartiseret_runtime', c.oid, 'UPDATE') AS runtime_update,
+        has_table_privilege('service_role', c.oid, 'SELECT') AS service_select,
+        has_table_privilege('service_role', c.oid, 'UPDATE') AS service_update
+      FROM pg_catalog.pg_class AS c
+      JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public'
+        AND c.relname = 'letterboxd_sources'
+    `);
+    expect(sourceRows).toEqual([
+      {
+        row_security: true,
+        runtime_select: true,
+        runtime_insert: true,
+        runtime_delete: true,
+        runtime_update: false,
+        service_select: true,
+        service_update: true,
+      },
+    ]);
+    const { rows: internalRows } = await adminDatabase.pool.query<{
+      table_name: string;
+      row_security: boolean;
+      runtime_select: boolean;
+      service_select: boolean;
+      service_update: boolean;
+    }>(`
+      SELECT
+        c.relname AS table_name,
+        c.relrowsecurity AS row_security,
+        has_table_privilege('kartiseret_runtime', c.oid, 'SELECT') AS runtime_select,
+        has_table_privilege('service_role', c.oid, 'SELECT') AS service_select,
+        has_table_privilege('service_role', c.oid, 'UPDATE') AS service_update
+      FROM pg_catalog.pg_class AS c
+      JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public'
+        AND c.relname = ANY(ARRAY['letterboxd_source_films', 'letterboxd_event_alerts'])
+      ORDER BY c.relname
+    `);
+    expect(internalRows).toEqual([
+      {
+        table_name: "letterboxd_event_alerts",
+        row_security: true,
+        runtime_select: false,
+        service_select: true,
+        service_update: true,
+      },
+      {
+        table_name: "letterboxd_source_films",
+        row_security: true,
+        runtime_select: false,
+        service_select: true,
+        service_update: true,
+      },
+    ]);
+    const { rows: policies } = await adminDatabase.pool.query<{
+      policyname: string;
+      cmd: string;
+    }>(`
+      SELECT policyname, cmd
+      FROM pg_catalog.pg_policies
+      WHERE schemaname = 'public'
+        AND tablename = 'letterboxd_sources'
+      ORDER BY policyname
+    `);
+    expect(policies).toEqual([
+      { policyname: "api_own_delete", cmd: "DELETE" },
+      { policyname: "api_own_insert", cmd: "INSERT" },
+      { policyname: "api_own_select", cmd: "SELECT" },
     ]);
   });
 

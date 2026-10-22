@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   DEFAULT_LOCATION,
   DEFAULT_RATING_SOURCES,
@@ -12,6 +12,15 @@ import type {
   PreferencePatch,
   Preferences,
   SubscriptionChange,
+  TicketAlertCriteria,
+  TicketAlertCriteriaOverride,
+  ComingSoonDateWatch,
+  ComingSoonDateWatchChange,
+  LetterboxdSource,
+} from "@kartiseret/contracts/private-data";
+import {
+  DEFAULT_TICKET_ALERT_CRITERIA,
+  matchesTicketAlertCriteria,
 } from "@kartiseret/contracts/private-data";
 import { getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
 import { shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
@@ -22,7 +31,10 @@ import type {
 import {
   adminUsers,
   userPreferences,
+  ticketAlertPreferences,
   ticketAlertSubscriptions,
+  comingSoonDateWatches,
+  letterboxdSources,
   finalMovies,
   finalSoons,
   finalShowtimes,
@@ -39,7 +51,116 @@ const subscriptionColumns = {
   notifiedAt: ticketAlertSubscriptions.notifiedAt,
   deliveryTitle: ticketAlertSubscriptions.deliveryTitle,
   deliveryDate: ticketAlertSubscriptions.deliveryDate,
+  criteriaOverrides: ticketAlertSubscriptions.criteriaOverrides,
 };
+const comingSoonDateWatchColumns = {
+  tmdbId: comingSoonDateWatches.tmdbId,
+  title: comingSoonDateWatches.title,
+  releaseYear: comingSoonDateWatches.releaseYear,
+  posterPath: comingSoonDateWatches.posterPath,
+  createdAt: comingSoonDateWatches.createdAt,
+  notifiedAt: comingSoonDateWatches.notifiedAt,
+  deliveryTitle: comingSoonDateWatches.deliveryTitle,
+  deliveryDate: comingSoonDateWatches.deliveryDate,
+};
+const letterboxdSourceColumns = {
+  id: letterboxdSources.id,
+  sourceUrl: letterboxdSources.sourceUrl,
+  sourceType: letterboxdSources.sourceType,
+  createdAt: letterboxdSources.createdAt,
+  lastSyncAttemptAt: letterboxdSources.lastSyncAttemptAt,
+  lastSuccessfulSyncAt: letterboxdSources.lastSuccessfulSyncAt,
+  lastSyncError: letterboxdSources.lastSyncError,
+  filmCount: letterboxdSources.filmCount,
+  matchedFilmCount: letterboxdSources.matchedFilmCount,
+};
+
+function parseLetterboxdSourceUrl(value: string): {
+  sourceUrl: string;
+  sourceType: "watchlist" | "list";
+} {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new HttpError(
+      400,
+      "invalid_letterboxd_source",
+      "Enter a public Letterboxd watchlist or list URL.",
+    );
+  }
+  if (
+    url.protocol !== "https:" ||
+    !["letterboxd.com", "www.letterboxd.com"].includes(
+      url.hostname.toLowerCase(),
+    ) ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash
+  )
+    throw new HttpError(
+      400,
+      "invalid_letterboxd_source",
+      "Enter a public Letterboxd watchlist or list URL.",
+    );
+
+  let parts: string[];
+  try {
+    parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+  } catch {
+    throw new HttpError(
+      400,
+      "invalid_letterboxd_source",
+      "Enter a public Letterboxd watchlist or list URL.",
+    );
+  }
+  const validSegment = (part: string) => /^[A-Za-z0-9_-]{1,100}$/.test(part);
+  const username = parts[0] ?? "";
+  const isWatchlist =
+    parts.length === 2 && parts[1]?.toLowerCase() === "watchlist";
+  const isList = parts.length === 3 && parts[1]?.toLowerCase() === "list";
+  if (
+    !validSegment(username) ||
+    (!isWatchlist && !isList) ||
+    (isList && !validSegment(parts[2] ?? ""))
+  )
+    throw new HttpError(
+      400,
+      "invalid_letterboxd_source",
+      "Use a URL ending in /username/watchlist/ or /username/list/list-name/.",
+    );
+
+  const path = parts.map(encodeURIComponent).join("/");
+  return {
+    sourceUrl: `https://letterboxd.com/${path}/`,
+    sourceType: isWatchlist ? "watchlist" : "list",
+  };
+}
+
+function mapLetterboxdSource(row: {
+  id: string;
+  sourceUrl: string;
+  sourceType: string;
+  createdAt: Date;
+  lastSyncAttemptAt: Date | null;
+  lastSuccessfulSyncAt: Date | null;
+  lastSyncError: string | null;
+  filmCount: number;
+  matchedFilmCount: number;
+}): LetterboxdSource {
+  return {
+    id: row.id,
+    sourceUrl: row.sourceUrl,
+    sourceType: row.sourceType as LetterboxdSource["sourceType"],
+    createdAt: row.createdAt.toISOString(),
+    lastSyncAttemptAt: row.lastSyncAttemptAt?.toISOString() ?? null,
+    lastSuccessfulSyncAt: row.lastSuccessfulSyncAt?.toISOString() ?? null,
+    lastSyncError: row.lastSyncError,
+    filmCount: row.filmCount,
+    matchedFilmCount: row.matchedFilmCount,
+  };
+}
 function mapSubscription(
   row:
     | typeof ticketAlertSubscriptions.$inferSelect
@@ -49,6 +170,7 @@ function mapSubscription(
         notifiedAt: Date | null;
         deliveryTitle: string | null;
         deliveryDate: string | null;
+        criteriaOverrides: TicketAlertCriteriaOverride;
       },
 ) {
   return {
@@ -57,7 +179,20 @@ function mapSubscription(
     notifiedAt: row.notifiedAt?.toISOString() ?? null,
     deliveryTitle: row.deliveryTitle,
     deliveryDate: row.deliveryDate,
+    criteriaOverrides: row.criteriaOverrides ?? {},
   };
+}
+
+function mapTicketAlertPreferences(row?: {
+  cities: string[] | null;
+  filterExclusions: TicketAlertCriteria["filters"];
+}): TicketAlertCriteria {
+  return row
+    ? {
+        cities: row.cities as TicketAlertCriteria["cities"],
+        filters: row.filterExclusions,
+      }
+    : DEFAULT_TICKET_ALERT_CRITERIA;
 }
 export class ProtectedWorkflows {
   constructor(
@@ -162,6 +297,43 @@ export class ProtectedWorkflows {
       return { ...current, ...patch };
     });
   }
+  ticketAlertPreferences(user: VerifiedIdentity) {
+    return this.asUser(user, async (tx) => {
+      const [row] = await tx
+        .select({
+          cities: ticketAlertPreferences.cities,
+          filterExclusions: ticketAlertPreferences.filterExclusions,
+        })
+        .from(ticketAlertPreferences)
+        .where(eq(ticketAlertPreferences.userId, user.id))
+        .limit(1);
+      return mapTicketAlertPreferences(row);
+    });
+  }
+  patchTicketAlertPreferences(
+    user: VerifiedIdentity,
+    criteria: TicketAlertCriteria,
+  ) {
+    return this.asUser(user, async (tx) => {
+      await tx
+        .insert(ticketAlertPreferences)
+        .values({
+          userId: user.id,
+          cities: criteria.cities,
+          filterExclusions: criteria.filters,
+          updatedAt: this.clock(),
+        })
+        .onConflictDoUpdate({
+          target: ticketAlertPreferences.userId,
+          set: {
+            cities: criteria.cities,
+            filterExclusions: criteria.filters,
+            updatedAt: this.clock(),
+          },
+        });
+      return criteria;
+    });
+  }
   subscriptions(user: VerifiedIdentity, offset: number) {
     return this.asUser(user, async (tx) => {
       const rows = await tx
@@ -180,19 +352,292 @@ export class ProtectedWorkflows {
       };
     });
   }
+
+  comingSoonDateWatches(
+    user: VerifiedIdentity,
+  ): Promise<ComingSoonDateWatch[]> {
+    return this.asUser(user, async (tx) => {
+      const rows = await tx
+        .select(comingSoonDateWatchColumns)
+        .from(comingSoonDateWatches)
+        .where(eq(comingSoonDateWatches.userId, user.id))
+        .orderBy(
+          desc(comingSoonDateWatches.createdAt),
+          asc(comingSoonDateWatches.tmdbId),
+        )
+        .limit(1000);
+      const catalogIds = rows
+        .map((row) => Number(row.tmdbId))
+        .filter(
+          (id) => Number.isSafeInteger(id) && id > 0 && id <= 2_147_483_647,
+        );
+      const localRows =
+        catalogIds.length > 0
+          ? await tx
+              .select({
+                tmdbId: finalSoons.tmdbId,
+                title: finalSoons.englishTitle,
+                releaseDate: finalSoons.releaseDate,
+              })
+              .from(finalSoons)
+              .where(
+                and(
+                  inArray(finalSoons.tmdbId, [...new Set(catalogIds)]),
+                  eq(finalSoons.soloUpdate, false),
+                ),
+              )
+              .orderBy(
+                asc(finalSoons.releaseDate),
+                sql`${finalSoons.popularity} DESC NULLS LAST`,
+                asc(finalSoons.id),
+              )
+          : [];
+      const localById = new Map<number, (typeof localRows)[number]>();
+      for (const row of localRows)
+        if (!localById.has(row.tmdbId)) localById.set(row.tmdbId, row);
+
+      return rows.map((row) => {
+        const local = localById.get(Number(row.tmdbId));
+        return {
+          tmdbId: String(row.tmdbId),
+          title: local?.title ?? row.deliveryTitle ?? row.title,
+          releaseYear: row.releaseYear,
+          posterPath: row.posterPath,
+          createdAt: row.createdAt.toISOString(),
+          notifiedAt: row.notifiedAt?.toISOString() ?? null,
+          comingSoonDate: local?.releaseDate ?? row.deliveryDate,
+        };
+      });
+    });
+  }
+
+  watchComingSoonDate(
+    user: VerifiedIdentity,
+    input: {
+      tmdbId: string;
+      title: string;
+      releaseYear: number | null;
+      posterPath: string | null;
+    },
+  ): Promise<ComingSoonDateWatchChange> {
+    return this.asUser(user, async (tx) => {
+      const tmdbId = BigInt(input.tmdbId);
+      const predicate = and(
+        eq(comingSoonDateWatches.userId, user.id),
+        eq(comingSoonDateWatches.tmdbId, tmdbId),
+      );
+      const [existing] = await tx
+        .select(comingSoonDateWatchColumns)
+        .from(comingSoonDateWatches)
+        .where(predicate)
+        .limit(1);
+      const numericId = Number(tmdbId);
+      const localRows =
+        Number.isSafeInteger(numericId) && numericId <= 2_147_483_647
+          ? await tx
+              .select({
+                title: finalSoons.englishTitle,
+                releaseDate: finalSoons.releaseDate,
+              })
+              .from(finalSoons)
+              .where(
+                and(
+                  eq(finalSoons.tmdbId, numericId),
+                  eq(finalSoons.soloUpdate, false),
+                ),
+              )
+              .orderBy(
+                asc(finalSoons.releaseDate),
+                sql`${finalSoons.popularity} DESC NULLS LAST`,
+                asc(finalSoons.id),
+              )
+              .limit(1)
+          : [];
+      const local = localRows[0];
+      if (existing) {
+        return {
+          kind: "watching",
+          watch: {
+            tmdbId: String(existing.tmdbId),
+            title: local?.title ?? existing.deliveryTitle ?? existing.title,
+            releaseYear: existing.releaseYear,
+            posterPath: existing.posterPath,
+            createdAt: existing.createdAt.toISOString(),
+            notifiedAt: existing.notifiedAt?.toISOString() ?? null,
+            comingSoonDate: local?.releaseDate ?? existing.deliveryDate,
+          },
+        };
+      }
+      if (local) {
+        return {
+          kind: "known",
+          tmdbId: input.tmdbId,
+          title: local.title,
+          comingSoonDate: local.releaseDate,
+        };
+      }
+
+      // INSERT names only user-controlled watch metadata. Delivery fields stay
+      // server-owned, and a concurrent watch request resolves through the row
+      // read below instead of overwriting its delivery state.
+      await tx.execute(sql`insert into ${comingSoonDateWatches}
+        ("user_id", "tmdb_id", "title", "release_year", "poster_path")
+        values (${user.id}, ${input.tmdbId}, ${input.title}, ${input.releaseYear}, ${input.posterPath})
+        on conflict ("user_id", "tmdb_id") do nothing`);
+      const [watch] = await tx
+        .select(comingSoonDateWatchColumns)
+        .from(comingSoonDateWatches)
+        .where(predicate)
+        .limit(1);
+      if (!watch)
+        throw new HttpError(
+          409,
+          "watch_changed",
+          "This title watch changed concurrently. Please try again.",
+        );
+      return {
+        kind: "watching",
+        watch: {
+          tmdbId: String(watch.tmdbId),
+          title: watch.title,
+          releaseYear: watch.releaseYear,
+          posterPath: watch.posterPath,
+          createdAt: watch.createdAt.toISOString(),
+          notifiedAt: watch.notifiedAt?.toISOString() ?? null,
+          comingSoonDate: watch.deliveryDate,
+        },
+      };
+    });
+  }
+
+  unwatchComingSoonDate(user: VerifiedIdentity, tmdbId: string) {
+    return this.asUser(user, async (tx) => {
+      await tx
+        .delete(comingSoonDateWatches)
+        .where(
+          and(
+            eq(comingSoonDateWatches.userId, user.id),
+            eq(comingSoonDateWatches.tmdbId, BigInt(tmdbId)),
+          ),
+        );
+      return { removed: true as const };
+    });
+  }
+
+  listLetterboxdSources(user: VerifiedIdentity): Promise<LetterboxdSource[]> {
+    return this.asUser(user, async (tx) => {
+      const rows = await tx
+        .select(letterboxdSourceColumns)
+        .from(letterboxdSources)
+        .where(eq(letterboxdSources.userId, user.id))
+        .orderBy(desc(letterboxdSources.createdAt), asc(letterboxdSources.id))
+        .limit(50);
+      return rows.map(mapLetterboxdSource);
+    });
+  }
+
+  addLetterboxdSource(
+    user: VerifiedIdentity,
+    input: { sourceUrl: string },
+  ): Promise<LetterboxdSource> {
+    const parsed = parseLetterboxdSourceUrl(input.sourceUrl);
+    return this.asUser(user, async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${user.id}, 0))`,
+      );
+      const existing = await tx
+        .select({ id: letterboxdSources.id })
+        .from(letterboxdSources)
+        .where(eq(letterboxdSources.userId, user.id))
+        .limit(50);
+      const found = await tx
+        .select(letterboxdSourceColumns)
+        .from(letterboxdSources)
+        .where(
+          and(
+            eq(letterboxdSources.userId, user.id),
+            eq(letterboxdSources.sourceUrl, parsed.sourceUrl),
+          ),
+        )
+        .limit(1);
+      if (found[0]) return mapLetterboxdSource(found[0]);
+      if (existing.length >= 50)
+        throw new HttpError(
+          409,
+          "letterboxd_source_limit",
+          "You can track up to 50 Letterboxd sources.",
+        );
+
+      // Keep this INSERT narrow: Drizzle includes omitted default columns in
+      // generated INSERT statements, but the runtime role is intentionally
+      // granted INSERT only on these three user-controlled columns.
+      await tx.execute(sql`
+        insert into public.letterboxd_sources (user_id, source_url, source_type)
+        values (${user.id}, ${parsed.sourceUrl}, ${parsed.sourceType})
+        on conflict (user_id, source_url) do nothing
+      `);
+      const [row] = await tx
+        .select(letterboxdSourceColumns)
+        .from(letterboxdSources)
+        .where(
+          and(
+            eq(letterboxdSources.userId, user.id),
+            eq(letterboxdSources.sourceUrl, parsed.sourceUrl),
+          ),
+        )
+        .limit(1);
+      if (!row)
+        throw new HttpError(
+          409,
+          "letterboxd_source_changed",
+          "This Letterboxd source changed concurrently. Please try again.",
+        );
+      return mapLetterboxdSource(row);
+    });
+  }
+
+  removeLetterboxdSource(
+    user: VerifiedIdentity,
+    sourceId: string,
+  ): Promise<{ removed: true }> {
+    return this.asUser(user, async (tx) => {
+      await tx
+        .delete(letterboxdSources)
+        .where(
+          and(
+            eq(letterboxdSources.userId, user.id),
+            eq(letterboxdSources.id, sourceId),
+          ),
+        );
+      return { removed: true as const };
+    });
+  }
+
   async subscribe(
     user: VerifiedIdentity,
     tmdbId: string,
   ): Promise<SubscriptionChange> {
     const instant = this.clock();
+    const defaults = await this.ticketAlertPreferences(user);
     const showtimes = await getTicketAvailabilityShowtimes(
       this.publicRepository,
       tmdbId,
       getJerusalemCinemaDate(instant),
     );
     if (
-      showtimes.some((row) =>
-        shouldIncludeShowtime(row.dateOfShowing, row.showtime, instant),
+      showtimes.some(
+        (row) =>
+          shouldIncludeShowtime(row.dateOfShowing, row.showtime, instant) &&
+          matchesTicketAlertCriteria(
+            {
+              city: row.screeningCity,
+              time: row.showtime,
+              screeningType: row.screeningType,
+              screeningTech: row.screeningTech,
+              dubLanguage: row.dubLanguage,
+            },
+            defaults,
+          ),
       )
     )
       return { kind: "available" };
@@ -220,6 +665,31 @@ export class ProtectedWorkflows {
           "This alert changed concurrently. Please try again.",
         );
       return { kind: "account", subscription: mapSubscription(row) };
+    });
+  }
+  updateTicketAlertCriteria(
+    user: VerifiedIdentity,
+    tmdbId: string,
+    criteriaOverrides: TicketAlertCriteriaOverride,
+  ): Promise<SubscriptionChange> {
+    return this.asUser(user, async (tx) => {
+      const rows = await tx
+        .update(ticketAlertSubscriptions)
+        .set({ criteriaOverrides })
+        .where(
+          and(
+            eq(ticketAlertSubscriptions.userId, user.id),
+            eq(ticketAlertSubscriptions.tmdbId, BigInt(tmdbId)),
+          ),
+        )
+        .returning(subscriptionColumns);
+      if (!rows[0])
+        throw new HttpError(
+          404,
+          "subscription_not_found",
+          "This ticket alert no longer exists.",
+        );
+      return { kind: "account", subscription: mapSubscription(rows[0]) };
     });
   }
   cancel(user: VerifiedIdentity, tmdbId: string): Promise<SubscriptionChange> {
@@ -352,8 +822,17 @@ export type ProtectedWorkflowService = Pick<
   | "account"
   | "preferences"
   | "patchPreferences"
+  | "ticketAlertPreferences"
+  | "patchTicketAlertPreferences"
   | "subscriptions"
+  | "comingSoonDateWatches"
+  | "watchComingSoonDate"
+  | "unwatchComingSoonDate"
+  | "listLetterboxdSources"
+  | "addLetterboxdSource"
+  | "removeLetterboxdSource"
   | "subscribe"
   | "cancel"
+  | "updateTicketAlertCriteria"
   | "correct"
 >;

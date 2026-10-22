@@ -277,13 +277,19 @@ These commands run from the repository root. Shared contracts are exported throu
 
 Email/password signups use Better Auth inside Express and require verification before private features. Signup/change/reset share an 8–128 character policy. Signed-out recovery consumes an actual reset token. Existing imported accounts retain their UUID/private records and establish a new credential through password reset; provider passwords and sessions are not imported.
 
-### Coming Soon Ticket Alerts
+### Movie Notifications
 
 SQL under `supabase/migrations/` is the only schema authority. Existing projects must not replay the baseline; use the current migration ledger and reviewed [PR5 cutover](docs/backend-overhaul/pr-5-handoff.md). Browser subscription operations go through protected Express APIs. Python retains guarded service-role table updates, stable delivery IDs and Resend idempotency, but obtains canonical verified recipient email only through the separately authenticated internal application endpoint.
 
-The final step of the now-playing dataflow checks pending account subscriptions after fresh showtimes have been published. A showtime qualifies only when it is still upcoming and contains a real HTTP(S) ticket URL. All newly available subscribed movies are grouped into one Resend email per account for that run, with links preferring the saved/current city and falling back to the earliest linked showtime elsewhere. Signed-in users can review and undo account alerts under `/user`.
+Ticket alerts still require an upcoming showtime with a valid ticket URL. Account defaults select eligible cities and the existing showtime filter groups; each watched title can override only the fields it needs. Matching titles are grouped into one email per account per run. Signed-in users can edit defaults and per-title criteria under `/user`.
 
-Keep `RESEND_API_KEY` server-side in the local runner or GitHub Actions secret store. Never prefix it with `VITE_`. The runner sends ticket notifications; Vercel uses its own server-side Resend configuration for account verification/reset mail. Production delivery from the default address also requires `seret.site` to be verified in Resend. Resend's shared `resend.dev` domain can only send to the Resend account owner.
+Signed-in users can also search TMDb and watch titles before they appear in the local Coming Soon catalog. The title search key stays on the server. A date notification uses only the date first published to the local `finalSoons` catalog, never TMDb's general release date. Existing local dates are shown without creating a date alert. Newly published dates are grouped into one email per account after the Coming Soon update commits. These watches and their retry state are separate from ticket alerts.
+
+Users can track public Letterboxd watchlists and lists without connecting an account or sharing credentials. Sources sync during the daily catalog pipeline; the first sync quietly records the existing films. A film must match one unique local English title and release year before its local Coming Soon date or eligible future ticket showtimes can trigger an alert. Showtime alerts use the account's ticket criteria and any saved per-title override. Removing a source cancels pending source alerts after the film leaves every tracked source, while manual title watches remain independent.
+
+Keep `RESEND_API_KEY` server-side in the local runner or GitHub Actions secret store. Never prefix it with `VITE_`. The runner sends movie notifications; Vercel uses its own server-side Resend configuration for account verification/reset mail. Production delivery from the default address also requires `seret.site` to be verified in Resend. Resend's shared `resend.dev` domain can only send to the Resend account owner.
+
+Set `TMDB_API_KEY` as a server-only variable for the Express API in each deployed environment that should provide movie search. The same variable is used by the Python catalog pipeline. Do not expose it through a `VITE_` browser variable. If the API key is absent, title search returns a safe unavailable response.
 
 Follow the coordinated [PR5 Production checklist](docs/backend-overhaul/pr-5-handoff.md): prepare app/worker configuration, reconcile/export accounts, apply the single auth transition during the release window, deploy, verify real recovery/private flows, then resume affected runs.
 

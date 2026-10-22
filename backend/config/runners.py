@@ -356,7 +356,11 @@ def _run_shared_updates(entries, run_id: int, context: DataflowRequestContext, *
 
 def _stage_for_dataflow_class(cls: type) -> str | None:
     name = cls.__name__
-    if name == "TicketAlertDispatcher":
+    if name in {
+        "TicketAlertDispatcher",
+        "ComingSoonDateAlertDispatcher",
+        "LetterboxdSourceDispatcher",
+    }:
         return "post"
     if name.endswith("Clean"):
         return "clean"
@@ -519,7 +523,6 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
     scrape_items: list[tuple[str, type]] = []
     seen_scrapers: set[type] = set()
     flow_selections: dict[str, dict[str, list[type]]] = {}
-    ticket_alert_selected = False
 
     for entry in plan:
         if len(entry) == 2:
@@ -543,7 +546,6 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
                 if stage is None or cls in selected[stage]:
                     continue
                 selected[stage].append(cls)
-                ticket_alert_selected = ticket_alert_selected or stage == "post"
 
     has_flow_work = any(any(classes for classes in stages.values()) for stages in flow_selections.values())
     if not scrape_items and not has_flow_work:
@@ -620,19 +622,92 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
                         overall_ok = False
             console.print()
 
-        # Ticket email delivery follows a successful selected now-playing update.
-        np_key = "nowPlayingData"
-        np_update_classes = flow_selections.get(np_key, {}).get("update", [])
-        if ticket_alert_selected:
-            alert_class = next((cls for cls in flow_selections.get(np_key, {}).get("post", []) if cls.__name__ == "TicketAlertDispatcher"), None)
-            if not np_update_classes:
-                console.print(Panel.fit(Text("Skipped Ticket alerts: Showtimes Update was not selected", style="yellow"), border_style="grey37"))
-            elif np_key in failed_categories:
-                console.print(Panel.fit(Text("Skipped Ticket alerts: Showtimes Update failed", style="yellow"), border_style="grey37"))
-            elif alert_class is not None:
-                console.print(Panel.fit(Text("Ticket alerts", style="grey70"), border_style="grey37"))
-                alert_ok = runGroup("dataflow", np_key, run_id, classes_override=[alert_class], console=console)
-                overall_ok = overall_ok and bool(alert_ok)
+        # Notification dispatchers run only after their category update commits.
+        dispatcher_labels = {
+            "TicketAlertDispatcher": ("Ticket alerts", "Showtimes Update"),
+            "ComingSoonDateAlertDispatcher": (
+                "Coming Soon date alerts",
+                "Coming Soon update",
+            ),
+            "LetterboxdSourceDispatcher": (
+                "Letterboxd source alerts",
+                "Showtimes and Coming Soon updates",
+            ),
+        }
+        for category, stages in flow_selections.items():
+            for dispatcher in stages["post"]:
+                label, required_update = dispatcher_labels.get(
+                    dispatcher.__name__, ("Notifications", "catalog update")
+                )
+                if not stages["update"]:
+                    console.print(
+                        Panel.fit(
+                            Text(
+                                f"Skipped {label}: {required_update} was not selected",
+                                style="yellow",
+                            ),
+                            border_style="grey37",
+                        )
+                    )
+                    continue
+                if dispatcher.__name__ == "LetterboxdSourceDispatcher":
+                    required_categories = ("comingSoonsData", "nowPlayingData")
+                    missing_updates = [
+                        required
+                        for required in required_categories
+                        if not flow_selections.get(required, {}).get("update")
+                    ]
+                    failed_updates = [
+                        required
+                        for required in required_categories
+                        if required in failed_categories
+                    ]
+                    if missing_updates:
+                        console.print(
+                            Panel.fit(
+                                Text(
+                                    "Skipped Letterboxd source alerts: both catalog updates must be selected",
+                                    style="yellow",
+                                ),
+                                border_style="grey37",
+                            )
+                        )
+                        continue
+                    if failed_updates:
+                        console.print(
+                            Panel.fit(
+                                Text(
+                                    "Skipped Letterboxd source alerts: "
+                                    + ", ".join(failed_updates)
+                                    + " failed",
+                                    style="yellow",
+                                ),
+                                border_style="grey37",
+                            )
+                        )
+                        continue
+                if category in failed_categories:
+                    console.print(
+                        Panel.fit(
+                            Text(
+                                f"Skipped {label}: {required_update} failed",
+                                style="yellow",
+                            ),
+                            border_style="grey37",
+                        )
+                    )
+                    continue
+                console.print(
+                    Panel.fit(Text(label, style="grey70"), border_style="grey37")
+                )
+                dispatch_ok = runGroup(
+                    "dataflow",
+                    category,
+                    run_id,
+                    classes_override=[dispatcher],
+                    console=console,
+                )
+                overall_ok = overall_ok and bool(dispatch_ok)
         return overall_ok
     finally:
         request_context.close()

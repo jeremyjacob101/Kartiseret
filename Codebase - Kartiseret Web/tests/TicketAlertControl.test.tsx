@@ -1,4 +1,5 @@
 import { TicketAlertControl } from "../src/components/scroller/TicketAlertControl";
+import { DEFAULT_TICKET_ALERT_CRITERIA } from "@kartiseret/contracts/private-data";
 import { getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
 import { useUserPreferencesStore } from "../src/stores/userPreferencesStore";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -61,36 +62,36 @@ beforeEach(() => {
     },
   });
   getAuthClientMock.mockReturnValue(createAuthFixture());
-  vi.stubGlobal(
-    "fetch",
-    async (input: RequestInfo | URL, init?: RequestInit) =>
-      new Response(
-        JSON.stringify({
-          data: String(input).includes("ticket-alerts")
-            ? init?.method === "POST"
-              ? {
-                  kind: "account",
-                  subscription: {
-                    tmdbId: "101",
-                    createdAt: "2026-09-16T12:00:00Z",
-                    notifiedAt: null,
-                    deliveryTitle: null,
-                    deliveryDate: null,
-                  },
-                }
-              : { subscriptions: [], nextOffset: null }
-            : { showtimes: [] },
-          error: null,
-        }),
-        {
-          status: 200,
-          headers: {
-            "Content-Type": "application/json",
-            "X-Kartiseret-Publication": "0",
-          },
-        },
-      ),
-  );
+  vi.stubGlobal("fetch", async (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => {
+    const pathname = new URL(String(input), "https://kartiseret.test").pathname;
+    const data = pathname.endsWith("/ticket-alerts/preferences")
+      ? { preferences: DEFAULT_TICKET_ALERT_CRITERIA }
+      : pathname.includes("/ticket-alerts")
+        ? init?.method === "POST"
+          ? {
+              kind: "account",
+              subscription: {
+                tmdbId: "101",
+                createdAt: "2026-09-16T12:00:00Z",
+                notifiedAt: null,
+                deliveryTitle: null,
+                deliveryDate: null,
+                criteriaOverrides: {},
+              },
+            }
+          : { subscriptions: [], nextOffset: null }
+        : { showtimes: [] };
+    return new Response(JSON.stringify({ data, error: null }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Kartiseret-Publication": "0",
+      },
+    });
+  });
 });
 
 afterEach(() => {
@@ -178,8 +179,13 @@ describe("TicketAlertControl", () => {
         notifiedAt: "2026-09-15T12:00:00Z",
         deliveryTitle: "Sample Movie",
         deliveryDate: date,
+        criteriaOverrides: {},
       },
     ]);
+    queryClient.setQueryData(
+      ticketAlertQueryKeys.preferences(userId),
+      DEFAULT_TICKET_ALERT_CRITERIA,
+    );
     renderControl();
 
     expect(screen.getByRole("button", { name: "Alert sent" })).toBeDisabled();

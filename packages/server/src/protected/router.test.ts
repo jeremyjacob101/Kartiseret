@@ -3,7 +3,12 @@ import request from "supertest";
 import { createApp } from "../app.js";
 import { HttpError } from "../http-errors.js";
 import type { ProtectedWorkflowService } from "./service.js";
+import {
+  DEFAULT_TICKET_ALERT_CRITERIA,
+  type TicketAlertCriteria,
+} from "@kartiseret/contracts/private-data";
 const id = "00000000-0000-4000-8000-000000000001";
+const sourceId = "00000000-0000-4000-8000-000000000099";
 const preferences = {
   ratingSources: ["imdbRating" as const],
   location: "Haifa",
@@ -15,8 +20,39 @@ function setup() {
     account: vi.fn(async () => ({ user, isAdmin: false })),
     preferences: vi.fn(async () => preferences),
     patchPreferences: vi.fn(async () => preferences),
+    ticketAlertPreferences: vi.fn(async () => DEFAULT_TICKET_ALERT_CRITERIA),
+    patchTicketAlertPreferences: vi.fn(
+      async () => DEFAULT_TICKET_ALERT_CRITERIA,
+    ),
     subscriptions: vi.fn(async () => ({ subscriptions: [], nextOffset: null })),
     subscribe: vi.fn(async () => ({ kind: "available" as const })),
+    updateTicketAlertCriteria: vi.fn(async () => ({
+      kind: "available" as const,
+    })),
+    comingSoonDateWatches: vi.fn(async () => []),
+    watchComingSoonDate: vi.fn(async (_user, input) => ({
+      kind: "watching" as const,
+      watch: {
+        ...input,
+        createdAt: "2026-10-21T10:00:00.000Z",
+        notifiedAt: null,
+        comingSoonDate: null,
+      },
+    })),
+    unwatchComingSoonDate: vi.fn(async () => ({ removed: true as const })),
+    listLetterboxdSources: vi.fn(async () => []),
+    addLetterboxdSource: vi.fn(async (_user, input) => ({
+      id: sourceId,
+      sourceUrl: input.sourceUrl,
+      sourceType: "watchlist" as const,
+      createdAt: "2026-10-21T10:00:00.000Z",
+      lastSyncAttemptAt: null,
+      lastSuccessfulSyncAt: null,
+      lastSyncError: null,
+      filmCount: 0,
+      matchedFilmCount: 0,
+    })),
+    removeLetterboxdSource: vi.fn(async () => ({ removed: true as const })),
     cancel: vi.fn(async () => ({
       kind: "account" as const,
       subscription: null,
@@ -134,6 +170,178 @@ describe("protected HTTP contracts", () => {
           })
       ).status,
     ).toBe(403);
+  });
+  it("reads and updates owner-scoped ticket alert criteria through protected routes", async () => {
+    const { app, workflows } = setup();
+    const defaults: TicketAlertCriteria = {
+      cities: ["Haifa", "Tel Aviv"],
+      filters: {
+        showType: ["Premium"],
+        screenFormat: [],
+        screeningTech: ["IMAX"],
+        dubLanguage: [],
+      },
+    };
+    vi.mocked(workflows.ticketAlertPreferences).mockResolvedValue(defaults);
+    vi.mocked(workflows.patchTicketAlertPreferences).mockResolvedValue(
+      defaults,
+    );
+    const read = await request(app)
+      .get("/api/v1/ticket-alerts/preferences")
+      .set("Cookie", "valid");
+    expect(read.status).toBe(200);
+    expect(read.body.data.preferences).toEqual(defaults);
+    expect(read.headers["cache-control"]).toBe("no-store");
+
+    const saved = await request(app)
+      .patch("/api/v1/ticket-alerts/preferences")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send(defaults);
+    expect(saved.status).toBe(200);
+    expect(workflows.patchTicketAlertPreferences).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      defaults,
+    );
+
+    const override = {
+      cities: null,
+      filters: { screeningTech: ["4DX"] },
+    };
+    const updated = await request(app)
+      .patch("/api/v1/ticket-alerts/101/criteria")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({ criteriaOverrides: override });
+    expect(updated.status).toBe(200);
+    expect(workflows.updateTicketAlertCriteria).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      "101",
+      override,
+    );
+  });
+  it("rejects invalid alert criteria and unknown fields", async () => {
+    const { app, workflows } = setup();
+    const result = await request(app)
+      .patch("/api/v1/ticket-alerts/preferences")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({
+        cities: ["Mars"],
+        filters: DEFAULT_TICKET_ALERT_CRITERIA.filters,
+      });
+    expect(result.status).toBe(400);
+    expect(workflows.patchTicketAlertPreferences).not.toHaveBeenCalled();
+  });
+  it("keeps TMDb date watches behind authenticated owner-scoped routes", async () => {
+    const { app, workflows } = setup();
+    const anonymous = await request(app).get("/api/v1/coming-soon-watches");
+    expect(anonymous.status).toBe(401);
+
+    const read = await request(app)
+      .get("/api/v1/coming-soon-watches")
+      .set("Cookie", "valid");
+    expect(read.status).toBe(200);
+    expect(read.body.data.watches).toEqual([]);
+    expect(read.headers["cache-control"]).toBe("no-store");
+
+    const watch = await request(app)
+      .post("/api/v1/coming-soon-watches")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({
+        tmdbId: "9100001",
+        title: "Future Film",
+        releaseYear: 2027,
+        posterPath: "/poster.jpg",
+      });
+    expect(watch.status).toBe(200);
+    expect(watch.body.data.watch.tmdbId).toBe("9100001");
+    expect(workflows.watchComingSoonDate).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      {
+        tmdbId: "9100001",
+        title: "Future Film",
+        releaseYear: 2027,
+        posterPath: "/poster.jpg",
+      },
+    );
+
+    const massAssigned = await request(app)
+      .post("/api/v1/coming-soon-watches")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({
+        tmdbId: "9100001",
+        title: "Future Film",
+        releaseYear: 2027,
+        posterPath: "/poster.jpg",
+        notifiedAt: null,
+      });
+    expect(massAssigned.status).toBe(400);
+
+    const removed = await request(app)
+      .delete("/api/v1/coming-soon-watches/9100001")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost");
+    expect(removed.status).toBe(200);
+    expect(workflows.unwatchComingSoonDate).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      "9100001",
+    );
+  });
+  it("keeps public Letterboxd source configuration behind the verified account API", async () => {
+    const { app, workflows } = setup();
+    expect((await request(app).get("/api/v1/letterboxd-sources")).status).toBe(
+      401,
+    );
+    const source = {
+      id: sourceId,
+      sourceUrl: "https://letterboxd.com/fixture/watchlist/",
+      sourceType: "watchlist" as const,
+      createdAt: "2026-10-21T10:00:00.000Z",
+      lastSyncAttemptAt: null,
+      lastSuccessfulSyncAt: null,
+      lastSyncError: null,
+      filmCount: 0,
+      matchedFilmCount: 0,
+    };
+    vi.mocked(workflows.listLetterboxdSources).mockResolvedValue([source]);
+    const read = await request(app)
+      .get("/api/v1/letterboxd-sources")
+      .set("Cookie", "valid");
+    expect(read.status).toBe(200);
+    expect(read.body.data.sources).toEqual([source]);
+    expect(read.headers["cache-control"]).toBe("no-store");
+
+    const created = await request(app)
+      .post("/api/v1/letterboxd-sources")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({ sourceUrl: source.sourceUrl });
+    expect(created.status).toBe(200);
+    expect(created.body.data.source.id).toBe(sourceId);
+    expect(workflows.addLetterboxdSource).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      { sourceUrl: source.sourceUrl },
+    );
+
+    const massAssigned = await request(app)
+      .post("/api/v1/letterboxd-sources")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({ sourceUrl: source.sourceUrl, userId: "another-user" });
+    expect(massAssigned.status).toBe(400);
+
+    const removed = await request(app)
+      .delete(`/api/v1/letterboxd-sources/${sourceId}`)
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost");
+    expect(removed.status).toBe(200);
+    expect(workflows.removeLetterboxdSource).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      sourceId,
+    );
   });
   it("returns a safe uncacheable failure when private persistence fails", async () => {
     const { app, workflows } = setup();

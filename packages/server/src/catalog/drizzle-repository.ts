@@ -350,4 +350,33 @@ export class DrizzleCatalogRepository
       throw new CatalogDatabaseError(error);
     }
   }
+
+  async findComingSoonMoviesByIds(
+    tmdbIds: readonly string[],
+  ): Promise<readonly unknown[]> {
+    const ids = [...new Set(tmdbIds)]
+      .map(Number)
+      .filter(
+        (id) => Number.isSafeInteger(id) && id > 0 && id <= 2_147_483_647,
+      );
+    if (ids.length === 0) return [];
+    try {
+      return await this.db
+        .select(comingSoonProjection)
+        .from(finalSoons)
+        .where(
+          and(
+            inArray(finalSoons.tmdbId, ids),
+            eq(finalSoons.soloUpdate, false),
+          ),
+        )
+        .orderBy(
+          asc(finalSoons.releaseDate),
+          sql`${finalSoons.popularity} DESC NULLS LAST`,
+          asc(finalSoons.id),
+        );
+    } catch (error) {
+      throw new CatalogDatabaseError(error);
+    }
+  }
 }

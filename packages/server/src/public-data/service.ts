@@ -295,6 +295,9 @@ export async function getTicketAvailabilityShowtimes(
       showtime: normalizeLocalTime(parsedRow.data.showtime),
       englishHref: normalizeHttpUrl(parsedRow.data.englishHref),
       hebrewHref: normalizeHttpUrl(parsedRow.data.hebrewHref),
+      screeningTech: parsedRow.data.screeningTech ?? "",
+      screeningType: parsedRow.data.screeningType ?? "",
+      dubLanguage: parsedRow.data.dubLanguage,
     });
     if (
       !normalized.success ||

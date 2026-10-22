@@ -1,4 +1,5 @@
-import { selectTicketAlertAvailability, selectUserTicketAlert, ticketAlertAvailabilityQueryOptions, ticketAlertMutationOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions } from "../../data/ticketAlerts";
+import { selectTicketAlertAvailability, selectUserTicketAlert, ticketAlertAvailabilityQueryOptions, ticketAlertMutationOptions, ticketAlertPreferencesQueryOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions } from "../../data/ticketAlerts";
+import { DEFAULT_TICKET_ALERT_CRITERIA, resolveTicketAlertCriteria } from "@kartiseret/contracts/private-data";
 import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
 import { usePublicationRevision } from "../../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
@@ -25,25 +26,18 @@ function TicketAlertBellIcon({ checked }: { checked: boolean }) {
 
 export function TicketAlertControl({ movie }: TicketAlertControlProps) {
   usePublicationRevision();
-  const { userId, preferredCity, preferencesLoading } = useUserPreferencesStore(
+  const { userId, preferencesLoading } = useUserPreferencesStore(
     useShallow((state) => ({
       userId: state.user?.id ?? null,
-      preferredCity: state.preferences.location,
       preferencesLoading: state.loading,
     })),
   );
 
   return (
     <TicketAlertControlContent
-      key={JSON.stringify([
-        movie.tmdbId,
-        userId,
-        preferredCity,
-        preferencesLoading,
-      ])}
+      key={JSON.stringify([movie.tmdbId, userId, preferencesLoading])}
       movie={movie}
       userId={userId}
-      preferredCity={preferredCity}
       preferencesLoading={preferencesLoading}
     />
   );
@@ -52,11 +46,9 @@ export function TicketAlertControl({ movie }: TicketAlertControlProps) {
 function TicketAlertControlContent({
   movie,
   userId,
-  preferredCity,
   preferencesLoading,
 }: TicketAlertControlProps & {
   userId: string | null;
-  preferredCity: string;
   preferencesLoading: boolean;
 }) {
   const tmdbId = normalizeTicketAlertTmdbId(movie.tmdbId);
@@ -68,6 +60,10 @@ function TicketAlertControlContent({
     ...userTicketAlertSubscriptionsQueryOptions(userId),
     enabled: Boolean(userId) && !preferencesLoading,
   });
+  const preferencesQuery = useQuery({
+    ...ticketAlertPreferencesQueryOptions(userId),
+    enabled: Boolean(userId) && !preferencesLoading,
+  });
   const mutation = useMutation(ticketAlertMutationOptions(userId, tmdbId));
   const pending =
     useIsMutating({
@@ -75,26 +71,38 @@ function TicketAlertControlContent({
       exact: true,
     }) > 0;
   const subscription = selectUserTicketAlert(subscriptionsQuery.data, tmdbId);
+  const criteriaDefaults =
+    preferencesQuery.data ?? DEFAULT_TICKET_ALERT_CRITERIA;
+  const criteria = resolveTicketAlertCriteria(
+    criteriaDefaults,
+    subscription?.criteriaOverrides,
+  );
   const loadFailed =
     (availabilityQuery.isError && !availabilityQuery.data) ||
-    (Boolean(userId) && subscriptionsQuery.isError && !subscriptionsQuery.data);
+    (Boolean(userId) &&
+      subscriptionsQuery.isError &&
+      !subscriptionsQuery.data) ||
+    (Boolean(userId) && preferencesQuery.isError && !preferencesQuery.data);
   const state = {
     availability: selectTicketAlertAvailability(
       availabilityQuery.data ?? [],
-      preferredCity,
+      criteria,
       movie.movieCode,
     ),
     loading:
       preferencesLoading ||
       availabilityQuery.isPending ||
-      (Boolean(userId) && subscriptionsQuery.isPending),
+      (Boolean(userId) && subscriptionsQuery.isPending) ||
+      (Boolean(userId) && preferencesQuery.isPending),
     pending,
     subscribed: Boolean(subscription && !subscription.notifiedAt),
     notified: Boolean(subscription?.notifiedAt),
     error:
       mutation.error?.message ??
       availabilityQuery.error?.message ??
-      (userId ? subscriptionsQuery.error?.message : null),
+      (userId
+        ? (subscriptionsQuery.error?.message ?? preferencesQuery.error?.message)
+        : null),
   };
 
   const handleAccountToggle = () => {
@@ -102,9 +110,7 @@ function TicketAlertControlContent({
       return;
     }
     mutation.mutate(
-      state.subscribed
-        ? { action: "cancel" }
-        : { action: "subscribe", preferredCity },
+      state.subscribed ? { action: "cancel" } : { action: "subscribe" },
     );
   };
 
@@ -145,10 +151,7 @@ function TicketAlertControlContent({
         View showtimes
       </Link>
     );
-    hint =
-      state.availability.city === preferredCity
-        ? `Tickets are available in ${preferredCity}.`
-        : `Tickets are available in ${state.availability.city}.`;
+    hint = `Tickets are available in ${state.availability.city}.`;
   } else if (state.notified) {
     control = (
       <button className="ticket-alert-button is-active" type="button" disabled>

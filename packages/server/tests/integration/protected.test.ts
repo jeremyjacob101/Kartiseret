@@ -5,6 +5,10 @@ import { DrizzleCatalogRepository } from "../../src/catalog/drizzle-repository.j
 import { ProtectedWorkflows } from "../../src/protected/service.js";
 import { createApp } from "../../src/app.js";
 import { HttpError } from "../../src/http-errors.js";
+import {
+  DEFAULT_TICKET_ALERT_CRITERIA,
+  type TicketAlertCriteriaOverride,
+} from "@kartiseret/contracts/private-data";
 
 const adminUrl = process.env.TEST_DATABASE_URL,
   runtimeUrl = process.env.DATABASE_URL;
@@ -101,6 +105,15 @@ describe.sequential(
         'ALTER TABLE public."finalShowtimes" DROP CONSTRAINT IF EXISTS pr4_late_failure',
       );
       await admin.pool.query(
+        "DELETE FROM public.letterboxd_event_alerts WHERE tmdb_id BETWEEN 9200000 AND 9200999",
+      );
+      await admin.pool.query(
+        "DELETE FROM public.letterboxd_source_films WHERE tmdb_id BETWEEN 9200000 AND 9200999",
+      );
+      await admin.pool.query(
+        "DELETE FROM public.coming_soon_date_watches WHERE tmdb_id BETWEEN 9200000 AND 9200999",
+      );
+      await admin.pool.query(
         'DELETE FROM public."finalShowtimes" WHERE tmdb_id BETWEEN 9200000 AND 9200999',
       );
       await admin.pool.query(
@@ -155,6 +168,240 @@ describe.sequential(
         (await workflows.preferences({ ...bob, signupLocation: "Haifa" }))
           .location,
       ).toBe("Raanana");
+    });
+    it("persists account defaults and sparse title overrides through owner-scoped API routes", async () => {
+      expect(await workflows.ticketAlertPreferences(alice)).toEqual(
+        DEFAULT_TICKET_ALERT_CRITERIA,
+      );
+      const defaults = {
+        cities: ["Haifa", "Jerusalem"],
+        filters: {
+          showType: ["Premium"],
+          screenFormat: [],
+          screeningTech: [],
+          dubLanguage: [],
+        },
+      } as const;
+      const savedDefaults = await request(app)
+        .patch("/api/v1/ticket-alerts/preferences")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send(defaults);
+      expect(savedDefaults.status).toBe(200);
+      expect(savedDefaults.body.data.preferences).toEqual(defaults);
+      expect(await workflows.ticketAlertPreferences(bob)).toEqual(
+        DEFAULT_TICKET_ALERT_CRITERIA,
+      );
+
+      expect(await workflows.subscribe(alice, "9200010")).toMatchObject({
+        kind: "account",
+      });
+      const override: TicketAlertCriteriaOverride = {
+        cities: ["Tel Aviv"],
+        filters: { screeningTech: ["IMAX"] },
+      };
+      const savedOverride = await request(app)
+        .patch("/api/v1/ticket-alerts/9200010/criteria")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({ criteriaOverrides: override });
+      expect(savedOverride.status).toBe(200);
+      expect(
+        (await workflows.subscriptions(alice, 0)).subscriptions[0]
+          ?.criteriaOverrides,
+      ).toEqual(override);
+      await expect(
+        workflows.updateTicketAlertCriteria(bob, "9200010", override),
+      ).rejects.toMatchObject({ code: "subscription_not_found" });
+      expect(await workflows.cancel(alice, "9200010")).toMatchObject({
+        kind: "account",
+      });
+    });
+    it("watches uncatalogued TMDb titles and returns existing local dates without creating date alerts", async () => {
+      await soon(9200060);
+      const known = await request(app)
+        .post("/api/v1/coming-soon-watches")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({
+          tmdbId: "9200060",
+          title: "Search result title",
+          releaseYear: 2027,
+          posterPath: "/search.jpg",
+        });
+      expect(known.status).toBe(200);
+      expect(known.body.data).toEqual({
+        kind: "known",
+        tmdbId: "9200060",
+        title: "Soon 9200060",
+        comingSoonDate: "2026-11-01",
+      });
+      expect(
+        (
+          await admin.pool.query(
+            "SELECT tmdb_id FROM public.coming_soon_date_watches WHERE tmdb_id=9200060",
+          )
+        ).rowCount,
+      ).toBe(0);
+
+      const watched = await request(app)
+        .post("/api/v1/coming-soon-watches")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({
+          tmdbId: "9200061",
+          title: "Uncatalogued title",
+          releaseYear: null,
+          posterPath: null,
+        });
+      expect(watched.status).toBe(200);
+      expect(watched.body.data).toMatchObject({
+        kind: "watching",
+        watch: { tmdbId: "9200061", comingSoonDate: null },
+      });
+      expect(await workflows.comingSoonDateWatches(bob)).toEqual([]);
+      await workflows.unwatchComingSoonDate(bob, "9200061");
+      expect(await workflows.comingSoonDateWatches(alice)).toHaveLength(1);
+
+      await soon(9200061);
+      expect(await workflows.comingSoonDateWatches(alice)).toEqual([
+        expect.objectContaining({
+          tmdbId: "9200061",
+          title: "Soon 9200061",
+          comingSoonDate: "2026-11-01",
+        }),
+      ]);
+      const duplicate = await workflows.watchComingSoonDate(alice, {
+        tmdbId: "9200061",
+        title: "Uncatalogued title",
+        releaseYear: null,
+        posterPath: null,
+      });
+      expect(duplicate).toMatchObject({
+        kind: "watching",
+        watch: { tmdbId: "9200061", comingSoonDate: "2026-11-01" },
+      });
+      await request(app)
+        .delete("/api/v1/coming-soon-watches/9200061")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost");
+      expect(await workflows.comingSoonDateWatches(alice)).toEqual([]);
+    });
+    it("tracks public Letterboxd sources per owner and cancels source-only alerts after the last source is removed", async () => {
+      const invalid = await request(app)
+        .post("/api/v1/letterboxd-sources")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({ sourceUrl: "https://example.test/fixture/watchlist/" });
+      expect(invalid.status).toBe(400);
+
+      const first = await request(app)
+        .post("/api/v1/letterboxd-sources")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({
+          sourceUrl: "https://www.letterboxd.com/fixture/list/first-list/",
+        });
+      expect(first.status).toBe(200);
+      expect(first.body.data.source).toMatchObject({
+        sourceUrl: "https://letterboxd.com/fixture/list/first-list/",
+        sourceType: "list",
+        lastSyncAttemptAt: null,
+        filmCount: 0,
+        matchedFilmCount: 0,
+      });
+      const firstId = first.body.data.source.id as string;
+      const duplicate = await request(app)
+        .post("/api/v1/letterboxd-sources")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({
+          sourceUrl: "https://letterboxd.com/fixture/list/first-list",
+        });
+      expect(duplicate.body.data.source.id).toBe(firstId);
+
+      const second = await request(app)
+        .post("/api/v1/letterboxd-sources")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({ sourceUrl: "https://letterboxd.com/fixture/watchlist/" });
+      expect(second.status).toBe(200);
+      expect(second.body.data.source.sourceType).toBe("watchlist");
+      const secondId = second.body.data.source.id as string;
+
+      expect(
+        (await workflows.listLetterboxdSources(bob)).map((source) => source.id),
+      ).toEqual([]);
+      const ownerSources = await request(app)
+        .get("/api/v1/letterboxd-sources")
+        .set("Cookie", "alice");
+      expect(ownerSources.body.data.sources).toHaveLength(2);
+
+      const tmdbId = 9200070;
+      const eventKey = "e".repeat(64);
+      await admin.pool.query(
+        `INSERT INTO public.letterboxd_source_films
+          (source_id,user_id,letterboxd_slug,title,release_year,tmdb_id)
+         VALUES
+          ($1,$3,'shared-film','Shared Future Film',2028,$4),
+          ($2,$3,'shared-film','Shared Future Film',2028,$4)`,
+        [firstId, secondId, alice.id, tmdbId],
+      );
+      await admin.pool.query(
+        `INSERT INTO public.letterboxd_event_alerts
+          (user_id,tmdb_id,event_key,event_type,event_payload)
+         VALUES ($1,$2,$3,'coming_soon',$4::jsonb)`,
+        [
+          alice.id,
+          tmdbId,
+          eventKey,
+          JSON.stringify({
+            title: "Shared Future Film",
+            release_date: "2028-04-12",
+          }),
+        ],
+      );
+      await admin.pool.query(
+        `INSERT INTO public.coming_soon_date_watches
+          (user_id,tmdb_id,title,release_year,poster_path)
+         VALUES ($1,$2,'Manual watch',2028,NULL)`,
+        [alice.id, tmdbId],
+      );
+
+      await request(app)
+        .delete(`/api/v1/letterboxd-sources/${firstId}`)
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost");
+      let state = await admin.pool.query(
+        "SELECT status FROM public.letterboxd_event_alerts WHERE user_id=$1 AND event_key=$2",
+        [alice.id, eventKey],
+      );
+      expect(state.rows[0]?.status).toBe("pending");
+
+      await request(app)
+        .delete(`/api/v1/letterboxd-sources/${secondId}`)
+        .set("Cookie", "bob")
+        .set("Origin", "http://localhost");
+      expect(await workflows.listLetterboxdSources(alice)).toHaveLength(1);
+
+      await request(app)
+        .delete(`/api/v1/letterboxd-sources/${secondId}`)
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost");
+      state = await admin.pool.query(
+        "SELECT status,delivery_id FROM public.letterboxd_event_alerts WHERE user_id=$1 AND event_key=$2",
+        [alice.id, eventKey],
+      );
+      expect(state.rows[0]).toEqual({ status: "cancelled", delivery_id: null });
+      expect(
+        (
+          await admin.pool.query(
+            "SELECT tmdb_id FROM public.coming_soon_date_watches WHERE user_id=$1 AND tmdb_id=$2",
+            [alice.id, tmdbId],
+          )
+        ).rowCount,
+      ).toBe(1);
+      expect(await workflows.listLetterboxdSources(alice)).toEqual([]);
     });
     it("isolates accounts in SQL and HTTP, and never leaks context into a reused pool connection", async () => {
       expect(
@@ -293,7 +540,7 @@ describe.sequential(
         .post("/api/v1/ticket-alerts")
         .set("Cookie", "alice")
         .set("Origin", "http://localhost")
-        .send({ tmdbId: "9200002", preferredCity: "Jerusalem" });
+        .send({ tmdbId: "9200002" });
       expect(result.status).toBe(200);
       expect(result.body.data).toEqual({ kind: "available" });
       expect((await workflows.subscriptions(alice, 0)).subscriptions).toEqual(

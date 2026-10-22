@@ -16,12 +16,10 @@ from supabase import create_client
 
 TICKET_ALERTS_TABLE = "ticket_alert_subscriptions"
 SHOWTIMES_TABLE = "finalShowtimes"
-PREFERENCES_TABLE = "userPreferences"
 MOVIE_CODES_TABLE = "movieCodes"
 RESEND_ENDPOINT = "https://api.resend.com/emails"
 DEFAULT_FROM_EMAIL = "Kartiseret <notifications@seret.site>"
 DEFAULT_SITE_URL = "https://seret.site"
-DEFAULT_LOCATION = "Jerusalem"
 JERUSALEM_TIME_ZONE = ZoneInfo("Asia/Jerusalem")
 SHOWTIME_DAY_CUTOFF_MINUTES = 65
 SHOWTIME_GRACE_PERIOD_MINUTES = 15
@@ -60,6 +58,12 @@ CITY_CODE_BY_NAME = {
     "Rishon Letzion": "9",
     "Zichron Yaakov": "a",
     "Holon": "b",
+}
+ALERT_FILTER_OPTIONS = {
+    "showType": ("Regular", "VIP", "VIP Light", "Upgrade", "Prime", "Lounge", "Premium", "Not Just Cinema"),
+    "screenFormat": ("2D", "3D"),
+    "screeningTech": ("Standard", "HFR", "IMAX", "Atmos", "ONYX", "ScreenX", "4DX"),
+    "dubLanguage": ("Original", "Hebrew", "French"),
 }
 
 
@@ -154,6 +158,89 @@ def valid_ticket_href(row: dict[str, Any]) -> str | None:
     return None
 
 
+def _show_type_tokens(value: Any) -> list[str]:
+    normalized = _text(value) or "Regular"
+    if normalized.casefold() == "premium":
+        return ["Premium"]
+    if normalized.casefold() == "not just cinema":
+        return ["Not Just Cinema"]
+    words = {word for word in re.split(r"[+\s/,-]+", normalized.upper()) if word}
+    tokens: set[str] = set()
+    for word, token in (("REGULAR", "Regular"), ("UPGRADE", "Upgrade"), ("PRIME", "Prime"), ("LOUNGE", "Lounge"), ("VIP", "VIP")):
+        if word in words:
+            tokens.add(token)
+    if "LIGHT" in words:
+        tokens.update(("VIP Light", "VIP"))
+    if "BUSINESS" in words:
+        tokens.add("VIP")
+    return list(tokens)
+
+
+def _screening_tech_parts(value: Any) -> tuple[str, list[str]]:
+    normalized = _text(value) or "2D"
+    token_map = {
+        "IMAX": "IMAX", "HFR": "HFR", "SCREENX": "ScreenX", "4DX": "4DX",
+        "ONYX": "ONYX", "ATMOS": "Atmos", "2D": "2D", "3D": "3D",
+    }
+    tokens = [
+        token_map[part.upper()]
+        for part in re.split(r"[+\s/,-]+", normalized)
+        if part.upper() in token_map
+    ]
+    screen_format = "3D" if "3D" in tokens else "2D"
+    tech = list(dict.fromkeys(token for token in tokens if token not in {"2D", "3D", "Standard"}))
+    return screen_format, tech or ["Standard"]
+
+
+def _dub_language(value: Any) -> str:
+    raw = _text(value)
+    normalized = raw.casefold()
+    if not raw:
+        return "Original"
+    if normalized == "hebrew":
+        return "Hebrew"
+    if normalized == "french":
+        return "French"
+    if normalized == "original":
+        return "Original"
+    return raw
+
+
+def resolve_ticket_alert_criteria(
+    defaults: dict[str, Any] | None,
+    overrides: dict[str, Any] | None,
+) -> dict[str, Any]:
+    account = defaults if isinstance(defaults, dict) else {}
+    title = overrides if isinstance(overrides, dict) else {}
+    account_filters = account.get("filters") or {}
+    title_filters = title.get("filters") or {}
+    filters = {
+        group: list(title_filters.get(group, account_filters.get(group, [])) or [])
+        for group in ALERT_FILTER_OPTIONS
+    }
+    return {
+        "cities": title["cities"] if "cities" in title else account.get("cities"),
+        "filters": filters,
+    }
+
+
+def matches_ticket_alert_criteria(row: dict[str, Any], criteria: dict[str, Any]) -> bool:
+    cities = criteria.get("cities")
+    city = _text(row.get("screening_city"))
+    if cities is not None and city not in cities:
+        return False
+    exclusions = criteria.get("filters") or {}
+    show_types = _show_type_tokens(row.get("screening_type"))
+    screen_format, screening_tech = _screening_tech_parts(row.get("screening_tech"))
+    dub_language = _dub_language(row.get("dub_language"))
+    return (
+        (not exclusions.get("showType") or any(value not in exclusions["showType"] for value in show_types))
+        and (not exclusions.get("screenFormat") or screen_format not in exclusions["screenFormat"])
+        and (not exclusions.get("screeningTech") or any(value not in exclusions["screeningTech"] for value in screening_tech))
+        and (not exclusions.get("dubLanguage") or dub_language not in exclusions["dubLanguage"])
+    )
+
+
 @dataclass(frozen=True)
 class LinkedShowtime:
     city: str
@@ -182,10 +269,9 @@ class LinkedShowtime:
 
 def select_linked_showtime(
     rows: list[dict[str, Any]],
-    preferred_city: str,
     now: datetime | None = None,
+    criteria: dict[str, Any] | None = None,
 ) -> LinkedShowtime | None:
-    earliest_preferred: LinkedShowtime | None = None
     earliest_anywhere: LinkedShowtime | None = None
 
     for row in rows:
@@ -199,6 +285,7 @@ def select_linked_showtime(
             and showtime
             and ticket_href
             and is_future_showtime(showing_date, showtime, now)
+            and matches_ticket_alert_criteria(row, criteria or {})
         ):
             continue
 
@@ -212,13 +299,7 @@ def select_linked_showtime(
         )
         if earliest_anywhere is None or candidate.sort_key < earliest_anywhere.sort_key:
             earliest_anywhere = candidate
-        if city == preferred_city and (
-            earliest_preferred is None
-            or candidate.sort_key < earliest_preferred.sort_key
-        ):
-            earliest_preferred = candidate
-
-    return earliest_preferred or earliest_anywhere
+    return earliest_anywhere
 
 
 def encode_date_code(value: date) -> str:
@@ -463,9 +544,10 @@ def send_resend_email(
     to_email: str,
     delivery_id: str,
     email: RenderedEmail,
+    idempotency_prefix: str = "ticket-alert",
 ) -> str:
     if not api_key:
-        raise RuntimeError("RESEND_API_KEY is required for ticket alert delivery.")
+        raise RuntimeError("RESEND_API_KEY is required for email delivery.")
     if "\r" in from_email or "\n" in from_email or not from_email.strip():
         raise ValueError("RESEND_FROM_EMAIL is invalid.")
 
@@ -474,7 +556,7 @@ def send_resend_email(
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "Idempotency-Key": f"ticket-alert-{delivery_id}",
+            "Idempotency-Key": f"{idempotency_prefix}-{delivery_id}",
         },
         json={
             "from": from_email,
@@ -540,6 +622,7 @@ class SupabaseTicketAlertRepository:
             [
                 "user_id",
                 "tmdb_id",
+                "criteria_overrides",
                 "created_at",
                 "notified_at",
                 "delivery_id",
@@ -597,7 +680,7 @@ class SupabaseTicketAlertRepository:
     ) -> list[dict[str, Any]]:
         return self._load_rows_for_ids(
             SHOWTIMES_TABLE,
-            "tmdb_id,english_title,screening_city,date_of_showing,showtime,cinema,english_href,hebrew_href",
+            "tmdb_id,english_title,screening_city,date_of_showing,showtime,cinema,english_href,hebrew_href,screening_type,screening_tech,dub_language",
             tmdb_ids,
             earliest_date=earliest_date,
         )
@@ -627,24 +710,23 @@ class SupabaseTicketAlertRepository:
                 codes[tmdb_id] = movie_code
         return codes
 
-    def load_preferred_cities(self, user_ids: list[str]) -> dict[str, str]:
-        rows: list[dict[str, Any]] = []
+    def load_ticket_alert_preferences(self, user_ids: list[str]) -> dict[str, dict[str, Any]]:
+        preferences: dict[str, dict[str, Any]] = {}
         for start in range(0, len(user_ids), 150):
             chunk = user_ids[start : start + 150]
             response = (
-                self.supabase.table(PREFERENCES_TABLE)
-                .select("user_id,location")
+                self.supabase.table("ticket_alert_preferences")
+                .select("user_id,cities,filter_exclusions")
                 .in_("user_id", chunk)
                 .execute()
             )
-            rows.extend(response.data or [])
-
-        preferences: dict[str, str] = {}
-        for row in rows:
-            user_id = _text(row.get("user_id"))
-            location = _text(row.get("location"))
-            if user_id and location in CITY_CODE_BY_NAME:
-                preferences[user_id] = location
+            for row in self._response_rows(response):
+                user_id = _text(row.get("user_id"))
+                if user_id:
+                    preferences[user_id] = {
+                        "cities": row.get("cities"),
+                        "filters": row.get("filter_exclusions") or {},
+                    }
         return preferences
 
     def claim_delivery(
@@ -879,7 +961,7 @@ class TicketAlertDispatcher:
         )
         titles = self.repository.load_titles(tmdb_ids)
         movie_codes = self.repository.load_movie_codes(tmdb_ids)
-        preferred_cities = self.repository.load_preferred_cities(user_ids)
+        alert_preferences = self.repository.load_ticket_alert_preferences(user_ids)
         showtimes_by_tmdb: dict[int, list[dict[str, Any]]] = {}
         for row in showtime_rows:
             tmdb_id = _positive_int(row.get("tmdb_id"))
@@ -892,9 +974,14 @@ class TicketAlertDispatcher:
             tmdb_id = _positive_int(subscription.get("tmdb_id"))
             if not user_id or not tmdb_id:
                 continue
-            preferred_city = preferred_cities.get(user_id, DEFAULT_LOCATION)
+            criteria = resolve_ticket_alert_criteria(
+                alert_preferences.get(user_id),
+                subscription.get("criteria_overrides"),
+            )
             linked_showtime = select_linked_showtime(
-                showtimes_by_tmdb.get(tmdb_id, []), preferred_city, now
+                showtimes_by_tmdb.get(tmdb_id, []),
+                now,
+                criteria,
             )
             if linked_showtime is None:
                 continue

@@ -1,6 +1,5 @@
 import { httpUrlSchema, isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema, showtimeStringSchema, tmdbIdSchema } from "@kartiseret/contracts/runtime";
-import { applicationIdentitySchema } from "@kartiseret/contracts/private-data";
-import { appLocationSchema } from "../prefs/definitions/locations";
+import { applicationIdentitySchema, ticketAlertCriteriaOverrideSchema } from "@kartiseret/contracts/private-data";
 
 const userIdSchema = applicationIdentitySchema.shape.id;
 import { z } from "zod";
@@ -13,7 +12,6 @@ const timestampSchema = z.iso.datetime({ offset: true });
 
 const ticketAlertContextSchema = z.object({
   movieCode: movieCodeSchema.optional(),
-  preferredCity: appLocationSchema,
   tmdbId: ticketAlertMovieIdSchema,
 });
 export const ticketAlertStateInputSchema = ticketAlertContextSchema.extend({
@@ -29,10 +27,7 @@ export const accountTicketAlertIdentitySchema =
   });
 export const ticketAlertChangeSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("cancel") }),
-  z.object({
-    action: z.literal("subscribe"),
-    preferredCity: appLocationSchema,
-  }),
+  z.object({ action: z.literal("subscribe") }),
 ]);
 
 const subscriptionColumns = {
@@ -51,6 +46,7 @@ export const userTicketAlertSubscriptionRowSchema = z.object({
   user_id: userIdSchema,
   delivery_title: z.string().nullable(),
   delivery_date: isoDateStringSchema.nullable(),
+  criteria_overrides: ticketAlertCriteriaOverrideSchema,
 });
 export const userTicketAlertSubscriptionSchema =
   userTicketAlertSubscriptionRowSchema.transform((row) => ({
@@ -59,6 +55,7 @@ export const userTicketAlertSubscriptionSchema =
     notifiedAt: row.notified_at,
     deliveryTitle: row.delivery_title,
     deliveryDate: row.delivery_date,
+    criteriaOverrides: row.criteria_overrides,
   }));
 export const userTicketAlertSubscriptionRowsSchema =
   userTicketAlertSubscriptionSchema.array();
@@ -74,6 +71,9 @@ export const ticketAlertShowtimeRowSchema = z
     cinema: z.string().trim().nullish(),
     english_href: optionalTicketHrefSchema,
     hebrew_href: optionalTicketHrefSchema,
+    screening_type: z.string().nullish(),
+    screening_tech: z.string().nullish(),
+    dub_language: z.string().nullish(),
   })
   .transform((row, context) => {
     const ticketHref = row.english_href ?? row.hebrew_href;
@@ -93,6 +93,9 @@ export const ticketAlertShowtimeRowSchema = z
       date: row.date_of_showing,
       time: `${hour.padStart(2, "0")}:${minute}`,
       ticketHref,
+      screeningType: row.screening_type ?? "",
+      screeningTech: row.screening_tech ?? "",
+      dubLanguage: row.dub_language ?? null,
     };
   });
 export const ticketAlertShowtimePageSchema = ticketAlertShowtimeRowSchema
