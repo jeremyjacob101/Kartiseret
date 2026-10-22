@@ -3,7 +3,8 @@ import {
   PASSWORD_MAX_LENGTH,
 } from "@kartiseret/contracts/private-data";
 import { randomUUID } from "node:crypto";
-import { betterAuth } from "better-auth";
+import { betterAuth } from "better-auth/minimal";
+import type { Auth, BetterAuthOptions } from "better-auth";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Pool } from "pg";
@@ -20,12 +21,11 @@ export interface ApplicationAuthOptions {
   backgroundTask?: (promise: Promise<unknown>) => void;
 }
 
-export function createApplicationAuth(
-  pool: Pool,
+function createApplicationAuthOptions(
+  database: ReturnType<typeof drizzle>,
   options: ApplicationAuthOptions,
 ) {
-  const database = drizzle(pool, { schema: authSchema });
-  return betterAuth({
+  return {
     appName: "Kartiseret",
     baseURL: options.baseURL,
     basePath: "/api/auth",
@@ -81,6 +81,19 @@ export function createApplicationAuth(
     },
     rateLimit: { enabled: true, storage: "database", window: 60, max: 100 },
     logger: { disabled: true },
-  });
+  } satisfies BetterAuthOptions;
 }
-export type ApplicationAuth = ReturnType<typeof createApplicationAuth>;
+
+type ApplicationAuthConfiguration = ReturnType<
+  typeof createApplicationAuthOptions
+>;
+
+export function createApplicationAuth(
+  pool: Pool,
+  options: ApplicationAuthOptions,
+): Auth<ApplicationAuthConfiguration> {
+  const database = drizzle(pool, { schema: authSchema });
+  return betterAuth(createApplicationAuthOptions(database, options));
+}
+
+export type ApplicationAuth = Auth<ApplicationAuthConfiguration>;
