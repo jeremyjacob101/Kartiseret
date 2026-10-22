@@ -477,4 +477,3 @@ class ComingSoonDateAlertDispatcher:
             f"movies={summary.movies_notified}",
             flush=True,
         )
-
