@@ -215,6 +215,45 @@ describe.sequential(
         .set("Cookie", cookie);
       expect(preference.body.data.location).toBe("Haifa");
     });
+    it("refreshes an active session inside its configured update window", async () => {
+      const sessionCookie = cookie
+        .split("; ")
+        .find((value) => value.startsWith("integration.session_token="));
+      expect(sessionCookie).toBeDefined();
+      const sessionToken = sessionCookie?.slice(
+        "integration.session_token=".length,
+      );
+      expect(sessionToken).toBeTruthy();
+      await admin.pool.query(
+        "UPDATE app_auth.sessions SET expires_at=now()+interval '5 days',updated_at=now()-interval '2 days' WHERE token=$1 AND user_id=$2",
+        [sessionToken, userId],
+      );
+      const before = (
+        await admin.pool.query(
+          "SELECT expires_at FROM app_auth.sessions WHERE token=$1 AND user_id=$2",
+          [sessionToken, userId],
+        )
+      ).rows[0];
+      expect(before).toBeDefined();
+
+      const refreshed = await request(app)
+        .get("/api/auth/get-session")
+        .set("Cookie", cookie);
+      const after = (
+        await admin.pool.query(
+          "SELECT expires_at FROM app_auth.sessions WHERE token=$1 AND user_id=$2",
+          [sessionToken, userId],
+        )
+      ).rows[0];
+      expect(after).toBeDefined();
+
+      expect(refreshed.status).toBe(200);
+      expect(refreshed.body.session).not.toBeNull();
+      expect(refreshed.headers["set-cookie"]).toBeDefined();
+      expect(after.expires_at.valueOf()).toBeGreaterThan(
+        before.expires_at.valueOf(),
+      );
+    });
     it("keeps real cookie accounts isolated across preferences, alerts and admin commands", async () => {
       const otherEmail = "pr5-other@example.test";
       expect((await signup(otherEmail)).status).toBe(200);
