@@ -1,5 +1,10 @@
 # Catalog request timings
 
+The root `tsconfig.json` is shared by Vercel's API compiler and `npm run
+api:typecheck`. It keeps the deployment compiler aligned with CI's strict checking
+and modern Node.js library definitions. The frontend and server packages retain
+their own existing compiler configurations.
+
 Production emits one JSON `catalog_timing` line for each request to
 `/api/v1/catalog/now-playing` or `/api/v1/catalog/coming-soon`. Search Vercel runtime
 logs for that event. Other routes do not emit these timing records.
