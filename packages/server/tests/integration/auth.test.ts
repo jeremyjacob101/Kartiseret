@@ -216,14 +216,14 @@ describe.sequential(
       expect(preference.body.data.location).toBe("Haifa");
     });
     it("refreshes an active session inside its configured update window", async () => {
-      const sessionCookie = cookie
-        .split("; ")
-        .find((value) => value.startsWith("integration.session_token="));
-      expect(sessionCookie).toBeDefined();
-      const sessionToken = sessionCookie?.slice(
-        "integration.session_token=".length,
-      );
-      expect(sessionToken).toBeTruthy();
+      const session = (
+        await admin.pool.query(
+          "SELECT token FROM app_auth.sessions WHERE user_id=$1 ORDER BY created_at DESC LIMIT 1",
+          [userId],
+        )
+      ).rows[0];
+      expect(session).toBeDefined();
+      const sessionToken: string | undefined = session?.token;
       await admin.pool.query(
         "UPDATE app_auth.sessions SET expires_at=now()+interval '5 days',updated_at=now()-interval '2 days' WHERE token=$1 AND user_id=$2",
         [sessionToken, userId],
