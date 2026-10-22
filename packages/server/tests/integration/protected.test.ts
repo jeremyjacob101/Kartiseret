@@ -105,6 +105,9 @@ describe.sequential(
         'ALTER TABLE public."finalShowtimes" DROP CONSTRAINT IF EXISTS pr4_late_failure',
       );
       await admin.pool.query(
+        "DELETE FROM public.coming_soon_date_watches WHERE tmdb_id BETWEEN 9200000 AND 9200999",
+      );
+      await admin.pool.query(
         'DELETE FROM public."finalShowtimes" WHERE tmdb_id BETWEEN 9200000 AND 9200999',
       );
       await admin.pool.query(
@@ -207,6 +210,76 @@ describe.sequential(
       expect(await workflows.cancel(alice, "9200010")).toMatchObject({
         kind: "account",
       });
+    });
+    it("watches uncatalogued TMDb titles and returns existing local dates without creating date alerts", async () => {
+      await soon(9200060);
+      const known = await request(app)
+        .post("/api/v1/coming-soon-watches")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({
+          tmdbId: "9200060",
+          title: "Search result title",
+          releaseYear: 2027,
+          posterPath: "/search.jpg",
+        });
+      expect(known.status).toBe(200);
+      expect(known.body.data).toEqual({
+        kind: "known",
+        tmdbId: "9200060",
+        title: "Soon 9200060",
+        comingSoonDate: "2026-11-01",
+      });
+      expect(
+        (
+          await admin.pool.query(
+            "SELECT tmdb_id FROM public.coming_soon_date_watches WHERE tmdb_id=9200060",
+          )
+        ).rowCount,
+      ).toBe(0);
+
+      const watched = await request(app)
+        .post("/api/v1/coming-soon-watches")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({
+          tmdbId: "9200061",
+          title: "Uncatalogued title",
+          releaseYear: null,
+          posterPath: null,
+        });
+      expect(watched.status).toBe(200);
+      expect(watched.body.data).toMatchObject({
+        kind: "watching",
+        watch: { tmdbId: "9200061", comingSoonDate: null },
+      });
+      expect(await workflows.comingSoonDateWatches(bob)).toEqual([]);
+      await workflows.unwatchComingSoonDate(bob, "9200061");
+      expect(await workflows.comingSoonDateWatches(alice)).toHaveLength(1);
+
+      await soon(9200061);
+      expect(await workflows.comingSoonDateWatches(alice)).toEqual([
+        expect.objectContaining({
+          tmdbId: "9200061",
+          title: "Soon 9200061",
+          comingSoonDate: "2026-11-01",
+        }),
+      ]);
+      const duplicate = await workflows.watchComingSoonDate(alice, {
+        tmdbId: "9200061",
+        title: "Uncatalogued title",
+        releaseYear: null,
+        posterPath: null,
+      });
+      expect(duplicate).toMatchObject({
+        kind: "watching",
+        watch: { tmdbId: "9200061", comingSoonDate: "2026-11-01" },
+      });
+      await request(app)
+        .delete("/api/v1/coming-soon-watches/9200061")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost");
+      expect(await workflows.comingSoonDateWatches(alice)).toEqual([]);
     });
     it("isolates accounts in SQL and HTTP, and never leaks context into a reused pool connection", async () => {
       expect(

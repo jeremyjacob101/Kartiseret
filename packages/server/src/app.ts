@@ -23,6 +23,7 @@ import { PublicDataIntegrityError } from "./public-data/errors.js";
 import type { PublicDataRepository } from "./public-data/repository.js";
 import {
   publicShowtimeRangeQuerySchema,
+  tmdbTitleSearchQuerySchema,
   ticketAvailabilityQuerySchema,
 } from "@kartiseret/contracts/public-data";
 import {
@@ -30,6 +31,10 @@ import {
   type CatalogRepository,
 } from "./catalog/service.js";
 import { HttpError } from "./http-errors.js";
+import {
+  searchTmdbTitles,
+  type TmdbSearchProvider,
+} from "./public-data/tmdb-search.js";
 
 const emptyQuerySchema = z.object({}).strict();
 
@@ -46,6 +51,7 @@ export interface AppDependencies {
   authHandler?: RequestHandler;
   recipientRouter?: Router;
   trustedOrigins?: readonly string[];
+  tmdbSearch?: TmdbSearchProvider;
 }
 
 const silentLogger: AppLogger = {
@@ -88,6 +94,7 @@ export function createApp({
   authHandler,
   recipientRouter,
   trustedOrigins = [],
+  tmdbSearch,
 }: AppDependencies) {
   const app = express();
   app.disable("x-powered-by");
@@ -98,6 +105,8 @@ export function createApp({
       "/api/v1/account",
       "/api/v1/preferences",
       "/api/v1/ticket-alerts",
+      "/api/v1/coming-soon-watches",
+      "/api/v1/tmdb/search",
       "/api/v1/admin",
     ],
     (request, response, next) => {
@@ -114,6 +123,47 @@ export function createApp({
 
   app.get("/api/v1/health", (_request, response) => {
     response.json({ data: { status: "ok" }, error: null });
+  });
+
+  app.get("/api/v1/tmdb/search", async (request, response, next) => {
+    const query = tmdbTitleSearchQuerySchema.safeParse(request.query);
+    if (!query.success) {
+      next(
+        new HttpError(
+          400,
+          "invalid_request",
+          "Enter a movie title with at least two characters.",
+        ),
+      );
+      return;
+    }
+    if (!tmdbSearch || !publicDataRepository) {
+      next(
+        new HttpError(
+          503,
+          "tmdb_search_unavailable",
+          "Title search is temporarily unavailable.",
+        ),
+      );
+      return;
+    }
+    try {
+      const titles = await searchTmdbTitles(
+        query.data.query,
+        tmdbSearch,
+        publicDataRepository,
+      );
+      response.setHeader("Cache-Control", "private, no-store");
+      response.json({ data: { titles }, error: null });
+    } catch {
+      next(
+        new HttpError(
+          503,
+          "tmdb_search_unavailable",
+          "Title search is temporarily unavailable.",
+        ),
+      );
+    }
   });
 
   const publicationRead =

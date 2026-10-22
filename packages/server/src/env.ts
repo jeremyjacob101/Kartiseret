@@ -28,6 +28,7 @@ export const serverEnvironmentSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
   DATABASE_URL: databaseUrlSchema,
   DATABASE_SSL_CA_CERT: databaseSslCaCertificateSchema,
+  TMDB_API_KEY: z.string().trim().optional(),
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(20).default(1),
   SITE_ORIGIN: z.string().trim().url().optional(),
 });

@@ -3,6 +3,7 @@ import { DEFAULT_TICKET_ALERT_CRITERIA, type TicketAlertCriteria, type TicketAle
 import { movieCollectionQueryOptions, selectMovies, type Movie } from "../data/movieCatalog";
 import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
 import { TicketAlertCriteriaEditor } from "./TicketAlertCriteriaEditor";
+import { ComingSoonDateWatchlist } from "./ComingSoonDateWatchlist";
 import { Link } from "react-router";
 import { useMemo } from "react";
 
@@ -152,76 +153,81 @@ export function UserTicketAlerts({ userId }: { userId: string | null }) {
   }
 
   return (
-    <section className="prefs-setting prefs-alerts-setting">
-      <div className="prefs-setting-content prefs-setting-content--static">
-        <div className="prefs-alerts-header">
-          <div className="prefs-setting-copy">
-            <span className="prefs-setting-label">Coming Soon Alerts</span>
-            <span className="prefs-setting-summary">
-              {alerts.length === 0
-                ? "No movies being watched"
-                : `${alerts.length} movie${alerts.length === 1 ? "" : "s"} being watched`}
-            </span>
+    <>
+      <section className="prefs-setting prefs-alerts-setting">
+        <div className="prefs-setting-content prefs-setting-content--static">
+          <div className="prefs-alerts-header">
+            <div className="prefs-setting-copy">
+              <span className="prefs-setting-label">Coming Soon Alerts</span>
+              <span className="prefs-setting-summary">
+                {alerts.length === 0
+                  ? "No movies being watched"
+                  : `${alerts.length} movie${alerts.length === 1 ? "" : "s"} being watched`}
+              </span>
+            </div>
           </div>
+          <details className="ticket-alert-defaults-details">
+            <summary>Default cities and showtime filters</summary>
+            {preferencesQuery.isError ? (
+              <p className="prefs-alerts-error" role="alert">
+                {preferencesQuery.error.message}
+              </p>
+            ) : null}
+            <TicketAlertCriteriaEditor
+              key={JSON.stringify(defaults)}
+              mode="defaults"
+              value={defaults}
+              defaults={defaults}
+              saving={
+                preferencesMutation.isPending || preferencesQuery.isPending
+              }
+              onSave={(value) =>
+                preferencesMutation.mutate(value as TicketAlertCriteria)
+              }
+            />
+            {preferencesMutation.error ? (
+              <p className="prefs-alerts-error" role="alert">
+                {preferencesMutation.error.message}
+              </p>
+            ) : null}
+          </details>
+          {alertsQuery.isPending ? (
+            <p className="prefs-alerts-empty" role="status">
+              Loading your alerts…
+            </p>
+          ) : alertsQuery.isError &&
+            !alertsQuery.data ? null : alerts.length === 0 ? (
+            <p className="prefs-alerts-empty">
+              Click Notify me on a coming soon movie to see it here.
+            </p>
+          ) : (
+            <ul className="prefs-alerts-list">
+              {alerts.map((alert) => (
+                <UserTicketAlertItem
+                  key={alert.tmdbId}
+                  userId={userId}
+                  alert={alert}
+                  movie={moviesById.get(alert.tmdbId)}
+                  defaults={defaults}
+                />
+              ))}
+            </ul>
+          )}
+          {alertsQuery.error ? (
+            <div className="prefs-alerts-error" role="alert">
+              <p>{alertsQuery.error.message}</p>
+              <button
+                className="prefs-alert-remove"
+                type="button"
+                onClick={() => void alertsQuery.refetch()}
+              >
+                Try again
+              </button>
+            </div>
+          ) : null}
         </div>
-        <details className="ticket-alert-defaults-details">
-          <summary>Default cities and showtime filters</summary>
-          {preferencesQuery.isError ? (
-            <p className="prefs-alerts-error" role="alert">
-              {preferencesQuery.error.message}
-            </p>
-          ) : null}
-          <TicketAlertCriteriaEditor
-            key={JSON.stringify(defaults)}
-            mode="defaults"
-            value={defaults}
-            defaults={defaults}
-            saving={preferencesMutation.isPending || preferencesQuery.isPending}
-            onSave={(value) =>
-              preferencesMutation.mutate(value as TicketAlertCriteria)
-            }
-          />
-          {preferencesMutation.error ? (
-            <p className="prefs-alerts-error" role="alert">
-              {preferencesMutation.error.message}
-            </p>
-          ) : null}
-        </details>
-        {alertsQuery.isPending ? (
-          <p className="prefs-alerts-empty" role="status">
-            Loading your alerts…
-          </p>
-        ) : alertsQuery.isError && !alertsQuery.data ? null : alerts.length ===
-          0 ? (
-          <p className="prefs-alerts-empty">
-            Click Notify me on a coming soon movie to see it here.
-          </p>
-        ) : (
-          <ul className="prefs-alerts-list">
-            {alerts.map((alert) => (
-              <UserTicketAlertItem
-                key={alert.tmdbId}
-                userId={userId}
-                alert={alert}
-                movie={moviesById.get(alert.tmdbId)}
-                defaults={defaults}
-              />
-            ))}
-          </ul>
-        )}
-        {alertsQuery.error ? (
-          <div className="prefs-alerts-error" role="alert">
-            <p>{alertsQuery.error.message}</p>
-            <button
-              className="prefs-alert-remove"
-              type="button"
-              onClick={() => void alertsQuery.refetch()}
-            >
-              Try again
-            </button>
-          </div>
-        ) : null}
-      </div>
-    </section>
+      </section>
+      <ComingSoonDateWatchlist userId={userId} />
+    </>
   );
 }

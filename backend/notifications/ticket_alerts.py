@@ -544,9 +544,10 @@ def send_resend_email(
     to_email: str,
     delivery_id: str,
     email: RenderedEmail,
+    idempotency_prefix: str = "ticket-alert",
 ) -> str:
     if not api_key:
-        raise RuntimeError("RESEND_API_KEY is required for ticket alert delivery.")
+        raise RuntimeError("RESEND_API_KEY is required for email delivery.")
     if "\r" in from_email or "\n" in from_email or not from_email.strip():
         raise ValueError("RESEND_FROM_EMAIL is invalid.")
 
@@ -555,7 +556,7 @@ def send_resend_email(
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "Idempotency-Key": f"ticket-alert-{delivery_id}",
+            "Idempotency-Key": f"{idempotency_prefix}-{delivery_id}",
         },
         json={
             "from": from_email,

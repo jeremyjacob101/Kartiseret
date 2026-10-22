@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   DEFAULT_LOCATION,
   DEFAULT_RATING_SOURCES,
@@ -14,6 +14,8 @@ import type {
   SubscriptionChange,
   TicketAlertCriteria,
   TicketAlertCriteriaOverride,
+  ComingSoonDateWatch,
+  ComingSoonDateWatchChange,
 } from "@kartiseret/contracts/private-data";
 import {
   DEFAULT_TICKET_ALERT_CRITERIA,
@@ -30,6 +32,7 @@ import {
   userPreferences,
   ticketAlertPreferences,
   ticketAlertSubscriptions,
+  comingSoonDateWatches,
   finalMovies,
   finalSoons,
   finalShowtimes,
@@ -47,6 +50,16 @@ const subscriptionColumns = {
   deliveryTitle: ticketAlertSubscriptions.deliveryTitle,
   deliveryDate: ticketAlertSubscriptions.deliveryDate,
   criteriaOverrides: ticketAlertSubscriptions.criteriaOverrides,
+};
+const comingSoonDateWatchColumns = {
+  tmdbId: comingSoonDateWatches.tmdbId,
+  title: comingSoonDateWatches.title,
+  releaseYear: comingSoonDateWatches.releaseYear,
+  posterPath: comingSoonDateWatches.posterPath,
+  createdAt: comingSoonDateWatches.createdAt,
+  notifiedAt: comingSoonDateWatches.notifiedAt,
+  deliveryTitle: comingSoonDateWatches.deliveryTitle,
+  deliveryDate: comingSoonDateWatches.deliveryDate,
 };
 function mapSubscription(
   row:
@@ -237,6 +250,177 @@ export class ProtectedWorkflows {
         subscriptions: rows.map(mapSubscription),
         nextOffset: rows.length === 1000 ? offset + 1000 : null,
       };
+    });
+  }
+
+  comingSoonDateWatches(
+    user: VerifiedIdentity,
+  ): Promise<ComingSoonDateWatch[]> {
+    return this.asUser(user, async (tx) => {
+      const rows = await tx
+        .select(comingSoonDateWatchColumns)
+        .from(comingSoonDateWatches)
+        .where(eq(comingSoonDateWatches.userId, user.id))
+        .orderBy(
+          desc(comingSoonDateWatches.createdAt),
+          asc(comingSoonDateWatches.tmdbId),
+        )
+        .limit(1000);
+      const catalogIds = rows
+        .map((row) => Number(row.tmdbId))
+        .filter(
+          (id) => Number.isSafeInteger(id) && id > 0 && id <= 2_147_483_647,
+        );
+      const localRows =
+        catalogIds.length > 0
+          ? await tx
+              .select({
+                tmdbId: finalSoons.tmdbId,
+                title: finalSoons.englishTitle,
+                releaseDate: finalSoons.releaseDate,
+              })
+              .from(finalSoons)
+              .where(
+                and(
+                  inArray(finalSoons.tmdbId, [...new Set(catalogIds)]),
+                  eq(finalSoons.soloUpdate, false),
+                ),
+              )
+              .orderBy(
+                asc(finalSoons.releaseDate),
+                sql`${finalSoons.popularity} DESC NULLS LAST`,
+                asc(finalSoons.id),
+              )
+          : [];
+      const localById = new Map<number, (typeof localRows)[number]>();
+      for (const row of localRows)
+        if (!localById.has(row.tmdbId)) localById.set(row.tmdbId, row);
+
+      return rows.map((row) => {
+        const local = localById.get(Number(row.tmdbId));
+        return {
+          tmdbId: String(row.tmdbId),
+          title: local?.title ?? row.deliveryTitle ?? row.title,
+          releaseYear: row.releaseYear,
+          posterPath: row.posterPath,
+          createdAt: row.createdAt.toISOString(),
+          notifiedAt: row.notifiedAt?.toISOString() ?? null,
+          comingSoonDate: local?.releaseDate ?? row.deliveryDate,
+        };
+      });
+    });
+  }
+
+  watchComingSoonDate(
+    user: VerifiedIdentity,
+    input: {
+      tmdbId: string;
+      title: string;
+      releaseYear: number | null;
+      posterPath: string | null;
+    },
+  ): Promise<ComingSoonDateWatchChange> {
+    return this.asUser(user, async (tx) => {
+      const tmdbId = BigInt(input.tmdbId);
+      const predicate = and(
+        eq(comingSoonDateWatches.userId, user.id),
+        eq(comingSoonDateWatches.tmdbId, tmdbId),
+      );
+      const [existing] = await tx
+        .select(comingSoonDateWatchColumns)
+        .from(comingSoonDateWatches)
+        .where(predicate)
+        .limit(1);
+      const numericId = Number(tmdbId);
+      const localRows =
+        Number.isSafeInteger(numericId) && numericId <= 2_147_483_647
+          ? await tx
+              .select({
+                title: finalSoons.englishTitle,
+                releaseDate: finalSoons.releaseDate,
+              })
+              .from(finalSoons)
+              .where(
+                and(
+                  eq(finalSoons.tmdbId, numericId),
+                  eq(finalSoons.soloUpdate, false),
+                ),
+              )
+              .orderBy(
+                asc(finalSoons.releaseDate),
+                sql`${finalSoons.popularity} DESC NULLS LAST`,
+                asc(finalSoons.id),
+              )
+              .limit(1)
+          : [];
+      const local = localRows[0];
+      if (existing) {
+        return {
+          kind: "watching",
+          watch: {
+            tmdbId: String(existing.tmdbId),
+            title: local?.title ?? existing.deliveryTitle ?? existing.title,
+            releaseYear: existing.releaseYear,
+            posterPath: existing.posterPath,
+            createdAt: existing.createdAt.toISOString(),
+            notifiedAt: existing.notifiedAt?.toISOString() ?? null,
+            comingSoonDate: local?.releaseDate ?? existing.deliveryDate,
+          },
+        };
+      }
+      if (local) {
+        return {
+          kind: "known",
+          tmdbId: input.tmdbId,
+          title: local.title,
+          comingSoonDate: local.releaseDate,
+        };
+      }
+
+      // INSERT names only user-controlled watch metadata. Delivery fields stay
+      // server-owned, and a concurrent watch request resolves through the row
+      // read below instead of overwriting its delivery state.
+      await tx.execute(sql`insert into ${comingSoonDateWatches}
+        ("user_id", "tmdb_id", "title", "release_year", "poster_path")
+        values (${user.id}, ${input.tmdbId}, ${input.title}, ${input.releaseYear}, ${input.posterPath})
+        on conflict ("user_id", "tmdb_id") do nothing`);
+      const [watch] = await tx
+        .select(comingSoonDateWatchColumns)
+        .from(comingSoonDateWatches)
+        .where(predicate)
+        .limit(1);
+      if (!watch)
+        throw new HttpError(
+          409,
+          "watch_changed",
+          "This title watch changed concurrently. Please try again.",
+        );
+      return {
+        kind: "watching",
+        watch: {
+          tmdbId: String(watch.tmdbId),
+          title: watch.title,
+          releaseYear: watch.releaseYear,
+          posterPath: watch.posterPath,
+          createdAt: watch.createdAt.toISOString(),
+          notifiedAt: watch.notifiedAt?.toISOString() ?? null,
+          comingSoonDate: watch.deliveryDate,
+        },
+      };
+    });
+  }
+
+  unwatchComingSoonDate(user: VerifiedIdentity, tmdbId: string) {
+    return this.asUser(user, async (tx) => {
+      await tx
+        .delete(comingSoonDateWatches)
+        .where(
+          and(
+            eq(comingSoonDateWatches.userId, user.id),
+            eq(comingSoonDateWatches.tmdbId, BigInt(tmdbId)),
+          ),
+        );
+      return { removed: true as const };
     });
   }
   async subscribe(
@@ -451,6 +635,9 @@ export type ProtectedWorkflowService = Pick<
   | "ticketAlertPreferences"
   | "patchTicketAlertPreferences"
   | "subscriptions"
+  | "comingSoonDateWatches"
+  | "watchComingSoonDate"
+  | "unwatchComingSoonDate"
   | "subscribe"
   | "cancel"
   | "updateTicketAlertCriteria"

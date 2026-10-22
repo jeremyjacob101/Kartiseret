@@ -25,6 +25,12 @@ describe("server environment parsing", () => {
       PORT: 3000,
       DATABASE_POOL_MAX: 1,
     });
+    expect(
+      parseServerEnvironment({
+        DATABASE_URL: "postgresql://app:secret@localhost:5432/kartiseret",
+        TMDB_API_KEY: " server-only-test-key ",
+      }).TMDB_API_KEY,
+    ).toBe("server-only-test-key");
   });
 
   it("rejects missing and non-Postgres runtime URLs without echoing secrets", () => {

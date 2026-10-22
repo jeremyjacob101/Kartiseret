@@ -379,6 +379,106 @@ a.prefs-alert-title:focus-visible {
   color: #ffb7c3;
 }
 
+.prefs-coming-soon-watch-setting {
+  overflow: visible;
+}
+
+.coming-soon-watch-search-label {
+  display: block;
+  margin: 16px 0 6px;
+  color: rgba(245, 237, 255, 0.88);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.coming-soon-watch-search {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 35%, transparent);
+  border-radius: 11px;
+  background: rgba(15, 12, 20, 0.5);
+  color: #f5edff;
+  font: inherit;
+}
+
+.coming-soon-watch-search:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--main-app-color) 72%, white 15%);
+  outline-offset: 2px;
+}
+
+.coming-soon-watch-results {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.coming-soon-watch-result {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 20%, transparent);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.coming-soon-watch-action,
+.coming-soon-watch-badge {
+  justify-self: end;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 46%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--main-app-color) 14%, transparent);
+  color: #f5edff;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.coming-soon-watch-action {
+  cursor: pointer;
+}
+
+.coming-soon-watch-action:hover:not(:disabled),
+.coming-soon-watch-action:focus-visible {
+  background: color-mix(in srgb, var(--main-app-color) 28%, transparent);
+}
+
+.coming-soon-watch-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.coming-soon-watch-badge {
+  color: rgba(233, 218, 255, 0.8);
+}
+
+.coming-soon-watch-list-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 24px 0 10px;
+}
+
+@media (max-width: 520px) {
+  .coming-soon-watch-result {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+
+  .coming-soon-watch-action,
+  .coming-soon-watch-badge {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
 .prefs-setting-options {
   display: grid;
   gap: 8px;
