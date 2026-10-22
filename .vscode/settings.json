@@ -6,7 +6,10 @@
     "${workspaceFolder}/src"
   ],
   "files.exclude": {
-    "**/__pycache__": true
+    "**/__pycache__": true,
+    "Codebase - Kartiseret Web/dist": true,
+    "packages/contracts/dist": true,
+    "packages/server/dist": true
   },
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "[python]": {
