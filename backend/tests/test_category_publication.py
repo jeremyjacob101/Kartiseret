@@ -56,8 +56,8 @@ class CategoryPublicationTests(TestCase):
         publication = SimpleNamespace(commit=lambda: events.append("commit"))
         def stage(kind, key, run_id, **kwargs):
             names = [c.__name__ for c in kwargs["classes_override"]]
-            if "TicketAlertDispatcher" in names:
-                self.assertEqual(events[-1], "commit")
+            if any(name.endswith("Dispatcher") for name in names):
+                self.assertIn("commit", events)
                 events.append("alert")
             else:
                 events.append("map")
@@ -70,7 +70,7 @@ class CategoryPublicationTests(TestCase):
         plan = [("dataflow", "nowPlayingData", DATAFLOW_REGISTRY["nowPlayingData"][1:])]
         with patch("backend.config.runners.runGroup", side_effect=stage), patch("backend.config.runners._run_shared_updates", side_effect=update), redirect_stdout(StringIO()):
             self.assertTrue(runPlan(10, plan))
-        self.assertEqual(events, ["map", "update", "commit", "alert"])
+        self.assertEqual(events, ["map", "update", "commit", "alert", "alert"])
 
     def test_failed_update_never_publishes_or_dispatches_alerts(self):
         publication = SimpleNamespace(commit=lambda: self.fail("Failed category was published"))

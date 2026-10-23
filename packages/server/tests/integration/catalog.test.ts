@@ -59,6 +59,7 @@ const expectedTableNames = [
   "theaters",
   "ticket_alert_preferences",
   "ticket_alert_subscriptions",
+  "user_movie_display_preferences",
   "userPreferences",
   "utilAvgTime",
   "utilRunLogs",
