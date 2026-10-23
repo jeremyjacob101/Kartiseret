@@ -1,0 +1,36 @@
+- - -
+DATAFLOW SUMMARY
+- - -
+Name: NowPlayingsUpdate
+Run ID: 654
+Attempt: 1
+Result: SUCCESS
+Started (UTC): 2026-10-23T09:04:32.950995+00:00
+Finished (UTC): 2026-10-23T09:05:23.271291+00:00
+Duration Seconds: 50.3203
+Generated At (UTC): 2026-10-23T09:05:23.271379+00:00
+
+SUMMARY COUNTS
+- (none)
+
+STAGE BREAKDOWN
+- (none)
+
+COMING SOONS DETAILS
+- (none)
+
+CINEMATHEQUE GROUP DETAILS
+- (none)
+
+NOW PLAYING GROUP DETAILS
+- (none)
+
+UNRESOLVED / DROPPED ITEMS
+- (none)
+
+WRITE/DEDUPE ACTIONS
+- (none)
+
+NOTES
+- provider_unavailable | source=letterboxd | tmdb=1201328 | status=200
+- update_rows | requested=156 | updated=156
