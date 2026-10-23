@@ -56,7 +56,7 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
             "row_count": int(row_count),
             "completed_at": datetime.now(timezone.utc).isoformat(),
             "failure_reason": None,
-        }).eq("snapshot_id", self.snapshot_id).select("snapshot_id").execute()
+        }).eq("snapshot_id", self.snapshot_id).execute()
         if not (result.data or []):
             raise RuntimeError(f"Scrape snapshot manifest was not finalized: {self.snapshot_id}")
 
