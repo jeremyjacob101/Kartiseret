@@ -336,6 +336,7 @@ describe("PostgreSQL 17 integration", () => {
       "letterboxd_sources",
       "ticket_alert_preferences",
       "ticket_alert_subscriptions",
+      "user_movie_display_preferences",
       "userPreferences",
     ]);
     expect(
