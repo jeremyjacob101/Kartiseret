@@ -11,7 +11,11 @@ if (
   throw new Error(
     "Publication performance tests require local disposable kartiseret_test.",
   );
-const pool = new Pool({ connectionString: url, max: 1 });
+const pool = new Pool({
+  connectionString: url,
+  max: 1,
+  statement_timeout: 90_000,
+});
 afterAll(() => pool.end());
 const fixture = (name: string) =>
   readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
@@ -51,9 +55,16 @@ describe("publication SQL performance and parity", () => {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      const results = await client.query(fixture("publication-scale.sql"));
-      const result = Array.isArray(results) ? results.at(-1)! : results;
-      const measured = result.rows[0];
+      let measured: Record<string, unknown> | undefined;
+      for (const step of fixture("publication-scale.sql").split(/^-- step$/m)) {
+        if (!step.trim()) continue;
+        console.info("Publication scale step", step.trim().split("\n")[0]);
+        const results = await client.query(step);
+        const result = Array.isArray(results) ? results.at(-1)! : results;
+        if (result.rows[0]?.seconds !== undefined) measured = result.rows[0];
+      }
+      expect(measured).toBeDefined();
+      if (!measured) throw new Error("Missing scale measurement");
       expect(Number(measured.parts)).toBe(737);
       expect(Number(measured.bytes)).toBeGreaterThanOrEqual(128_000_000);
       expect(Number(measured.seconds)).toBeLessThan(60);

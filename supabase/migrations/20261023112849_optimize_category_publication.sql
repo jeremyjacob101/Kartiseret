@@ -143,11 +143,11 @@ BEGIN
           jsonb_populate_record(NULL::public.%1$I,coalesce(n.expected,n.after_row)) AS key_row FROM normalized n
       ), locked AS MATERIALIZED (
         SELECT r.seq,to_jsonb(t) AS actual FROM requested r JOIN public.%1$I t ON %2$s FOR UPDATE OF t
-      ) SELECT EXISTS (
-        SELECT 1 FROM requested r LEFT JOIN locked l USING(seq)
-        WHERE l.actual IS DISTINCT FROM r.expected
+      ) SELECT coalesce(bool_or(
+          l.actual IS DISTINCT FROM r.expected
           AND NOT ($1 = ''movieCodes'' AND r.before_row IS NULL AND l.actual IS NOT NULL)
-      )',target_relation,join_sql) INTO invalid USING target_relation;
+        ),false)
+        FROM requested r LEFT JOIN locked l USING(seq)',target_relation,join_sql) INTO invalid USING target_relation;
     IF target_relation = 'movieCodes' AND EXISTS (SELECT 1 FROM pg_temp._pipeline_publication_changes c WHERE c.relation = target_relation AND c.before_row IS NOT NULL) THEN
       RAISE EXCEPTION 'Permanent movie codes cannot be changed';
     END IF;
