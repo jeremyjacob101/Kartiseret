@@ -330,6 +330,12 @@ describe.sequential(
         sourceUrl: "https://boxd.it/abc456/",
         sourceType: "list",
       });
+      const shortPublicId = shortPublic.body.data.source.id as string;
+      const removedShortPublic = await request(app)
+        .delete(`/api/v1/letterboxd-sources/${shortPublicId}`)
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost");
+      expect(removedShortPublic.status).toBe(200);
 
       const shortShare = await request(app)
         .post("/api/v1/letterboxd-sources")
