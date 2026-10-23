@@ -9,6 +9,7 @@ import {
 } from "@kartiseret/contracts/preferences";
 import type {
   Correction,
+  MovieDisplayPreference,
   PreferencePatch,
   Preferences,
   SubscriptionChange,
@@ -34,6 +35,7 @@ import {
   ticketAlertPreferences,
   ticketAlertSubscriptions,
   comingSoonDateWatches,
+  userMovieDisplayPreferences,
   letterboxdSources,
   finalMovies,
   finalSoons,
@@ -552,6 +554,120 @@ export class ProtectedWorkflows {
     });
   }
 
+  movieDisplayPreferences(
+    user: VerifiedIdentity,
+  ): Promise<MovieDisplayPreference[]> {
+    return this.asUser(user, async (tx) => {
+      const rows = await tx
+        .select({
+          tmdbId: userMovieDisplayPreferences.tmdbId,
+          title: userMovieDisplayPreferences.title,
+          releaseYear: userMovieDisplayPreferences.releaseYear,
+          treatment: userMovieDisplayPreferences.treatment,
+          hideBackdrop: userMovieDisplayPreferences.hideBackdrop,
+        })
+        .from(userMovieDisplayPreferences)
+        .where(eq(userMovieDisplayPreferences.userId, user.id))
+        .orderBy(
+          asc(userMovieDisplayPreferences.title),
+          asc(userMovieDisplayPreferences.tmdbId),
+        )
+        .limit(500);
+
+      return rows.map((row) => ({
+        tmdbId: String(row.tmdbId),
+        title: row.title,
+        releaseYear: row.releaseYear,
+        treatment: row.treatment as MovieDisplayPreference["treatment"],
+        hideBackdrop: row.hideBackdrop,
+      }));
+    });
+  }
+
+  upsertMovieDisplayPreference(
+    user: VerifiedIdentity,
+    preference: MovieDisplayPreference,
+  ): Promise<MovieDisplayPreference> {
+    return this.asUser(user, async (tx) => {
+      const tmdbId = BigInt(preference.tmdbId);
+      await tx
+        .insert(userMovieDisplayPreferences)
+        .values({
+          userId: user.id,
+          tmdbId,
+          title: preference.title,
+          releaseYear: preference.releaseYear,
+          treatment: preference.treatment,
+          hideBackdrop: preference.hideBackdrop,
+        })
+        .onConflictDoUpdate({
+          target: [
+            userMovieDisplayPreferences.userId,
+            userMovieDisplayPreferences.tmdbId,
+          ],
+          set: {
+            title: preference.title,
+            releaseYear: preference.releaseYear,
+            treatment: preference.treatment,
+            hideBackdrop: preference.hideBackdrop,
+          },
+        });
+      return preference;
+    });
+  }
+
+  patchMovieDisplayPreference(
+    user: VerifiedIdentity,
+    tmdbId: string,
+    patch: Partial<Pick<MovieDisplayPreference, "treatment" | "hideBackdrop">>,
+  ): Promise<MovieDisplayPreference> {
+    return this.asUser(user, async (tx) => {
+      const [row] = await tx
+        .update(userMovieDisplayPreferences)
+        .set(patch)
+        .where(
+          and(
+            eq(userMovieDisplayPreferences.userId, user.id),
+            eq(userMovieDisplayPreferences.tmdbId, BigInt(tmdbId)),
+          ),
+        )
+        .returning({
+          tmdbId: userMovieDisplayPreferences.tmdbId,
+          title: userMovieDisplayPreferences.title,
+          releaseYear: userMovieDisplayPreferences.releaseYear,
+          treatment: userMovieDisplayPreferences.treatment,
+          hideBackdrop: userMovieDisplayPreferences.hideBackdrop,
+        });
+      if (!row)
+        throw new HttpError(
+          404,
+          "movie_display_preference_not_found",
+          "This movie display preference no longer exists.",
+        );
+      return {
+        tmdbId: String(row.tmdbId),
+        title: row.title,
+        releaseYear: row.releaseYear,
+        treatment: row.treatment as MovieDisplayPreference["treatment"],
+        hideBackdrop: row.hideBackdrop,
+      };
+    });
+  }
+
+  removeMovieDisplayPreference(user: VerifiedIdentity, tmdbId: string) {
+    return this.asUser(user, async (tx) => {
+      await tx
+        .delete(userMovieDisplayPreferences)
+        .where(
+          and(
+            eq(userMovieDisplayPreferences.userId, user.id),
+            eq(userMovieDisplayPreferences.tmdbId, BigInt(tmdbId)),
+          ),
+        );
+      return { removed: true as const };
+    });
+  }
+
   listLetterboxdSources(user: VerifiedIdentity): Promise<LetterboxdSource[]> {
     return this.asUser(user, async (tx) => {
       const rows = await tx
@@ -856,6 +972,10 @@ export type ProtectedWorkflowService = Pick<
   | "comingSoonDateWatches"
   | "watchComingSoonDate"
   | "unwatchComingSoonDate"
+  | "movieDisplayPreferences"
+  | "upsertMovieDisplayPreference"
+  | "patchMovieDisplayPreference"
+  | "removeMovieDisplayPreference"
   | "listLetterboxdSources"
   | "addLetterboxdSource"
   | "removeLetterboxdSource"

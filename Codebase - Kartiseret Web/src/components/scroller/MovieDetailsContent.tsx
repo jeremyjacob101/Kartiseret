@@ -1362,6 +1362,7 @@ export function MovieDetailsContent({
             <MoviePosterArtwork
               ref={posterRef}
               title={movie.title}
+              tmdbId={movie.tmdbId}
               imageSrc={movie.imageSrc}
               alt={movie.title}
               className={posterClassName}

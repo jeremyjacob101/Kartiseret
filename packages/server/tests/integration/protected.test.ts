@@ -114,6 +114,9 @@ describe.sequential(
         "DELETE FROM public.coming_soon_date_watches WHERE tmdb_id BETWEEN 9200000 AND 9200999",
       );
       await admin.pool.query(
+        "DELETE FROM public.user_movie_display_preferences WHERE tmdb_id BETWEEN 9200000 AND 9200999",
+      );
+      await admin.pool.query(
         'DELETE FROM public."finalShowtimes" WHERE tmdb_id BETWEEN 9200000 AND 9200999',
       );
       await admin.pool.query(
@@ -287,6 +290,73 @@ describe.sequential(
         .set("Origin", "http://localhost");
       expect(await workflows.comingSoonDateWatches(alice)).toEqual([]);
     });
+    it("stores movie display preferences per owner and upserts duplicate TMDb IDs", async () => {
+      const preference = {
+        tmdbId: "9200070",
+        title: "Poster Choice Fixture",
+        releaseYear: 2026,
+        treatment: "standard",
+        hideBackdrop: true,
+      };
+      const created = await request(app)
+        .post("/api/v1/preferences/movie-display")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send(preference);
+      expect(created.status).toBe(200);
+      expect(created.body.data.preference).toEqual(preference);
+
+      expect(await workflows.movieDisplayPreferences(alice)).toEqual([
+        preference,
+      ]);
+      expect(await workflows.movieDisplayPreferences(bob)).toEqual([]);
+      expect(
+        (
+          await request(app)
+            .get("/api/v1/preferences/movie-display")
+            .set("Cookie", "bob")
+        ).body.data.preferences,
+      ).toEqual([]);
+
+      const duplicate = await request(app)
+        .post("/api/v1/preferences/movie-display")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({ ...preference, treatment: "remove" });
+      expect(duplicate.status).toBe(200);
+      expect(duplicate.body.data.preference).toMatchObject({
+        tmdbId: preference.tmdbId,
+        treatment: "remove",
+        hideBackdrop: true,
+      });
+      expect(await workflows.movieDisplayPreferences(alice)).toHaveLength(1);
+
+      const foreignUpdate = await request(app)
+        .patch(`/api/v1/preferences/movie-display/${preference.tmdbId}`)
+        .set("Cookie", "bob")
+        .set("Origin", "http://localhost")
+        .send({ hideBackdrop: false });
+      expect(foreignUpdate.status).toBe(404);
+
+      const updated = await request(app)
+        .patch(`/api/v1/preferences/movie-display/${preference.tmdbId}`)
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({ treatment: "standard", hideBackdrop: false });
+      expect(updated.status).toBe(200);
+      expect(updated.body.data.preference).toMatchObject({
+        tmdbId: preference.tmdbId,
+        treatment: "standard",
+        hideBackdrop: false,
+      });
+
+      const removed = await request(app)
+        .delete(`/api/v1/preferences/movie-display/${preference.tmdbId}`)
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost");
+      expect(removed.status).toBe(200);
+      expect(await workflows.movieDisplayPreferences(alice)).toEqual([]);
+    });
     it("tracks public and share-link Letterboxd sources per owner and cancels source-only alerts after the last source is removed", async () => {
       const invalid = await request(app)
         .post("/api/v1/letterboxd-sources")
@@ -345,15 +415,17 @@ describe.sequential(
           "https://letterboxd.com/jeremyjacob/list/spiderman-test-list/share/l6YZtNs6NWLRSO2z/",
         sourceType: "list",
       });
-      await Promise.all([
-        shortShare.body.data.source.id,
-        canonicalShare.body.data.source.id,
-      ].map((sourceId: string) =>
-        request(app)
-          .delete(`/api/v1/letterboxd-sources/${sourceId}`)
-          .set("Cookie", "alice")
-          .set("Origin", "http://localhost"),
-      ));
+      await Promise.all(
+        [
+          shortShare.body.data.source.id,
+          canonicalShare.body.data.source.id,
+        ].map((sourceId: string) =>
+          request(app)
+            .delete(`/api/v1/letterboxd-sources/${sourceId}`)
+            .set("Cookie", "alice")
+            .set("Origin", "http://localhost"),
+        ),
+      );
 
       const second = await request(app)
         .post("/api/v1/letterboxd-sources")

@@ -1,6 +1,8 @@
 import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, getJerusalemCinemaDate, isDateInShowtimeLinkWindow, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "@kartiseret/contracts/showtime-links";
 import { findMovieByCode, isMovieShowtimeDateCovered, isValidMovieCode, mergeMovieShowtimeRangeResult, prefetchMovieShowtimesAfterDate, showtimeCityQueryOptions, showtimeRangeQueryOptions, type ShowtimeRange } from "../data/movieCatalog";
 import { getShowtimeFiltersSnapshot, saveShowtimeFilters, type ShowtimeFilterState } from "./showtimes/showtimeFilters";
+import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
+import { applyMovieDisplayPreference } from "../data/movieDisplayPreferences";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
@@ -133,6 +135,7 @@ export function MoviePage({
   movieCodesReady,
 }: MoviePageProps) {
   usePublicationRevision();
+  const displayPreferences = useMovieDisplayPreferences();
   const { movieCode: routeCode = "" } = useParams();
   const navigate = useNavigate();
   const {
@@ -150,9 +153,23 @@ export function MoviePage({
   const todayRef = useRef(today);
   const candidateMovieCode = routeCode.slice(0, 3);
   const hasValidMovieCode = isValidMovieCode(candidateMovieCode);
-  const routeMatch =
+  const catalogRouteMatch =
     catalogReady && movieCodesReady && hasValidMovieCode
       ? findMovieByCode(candidateMovieCode)
+      : null;
+  const routePreference = catalogRouteMatch
+    ? displayPreferences.preferencesById.get(catalogRouteMatch.movie.tmdbId)
+    : undefined;
+  const isRemovedByPreference = routePreference?.treatment === "remove";
+  const displayedMovie = catalogRouteMatch
+    ? applyMovieDisplayPreference(
+        catalogRouteMatch.movie,
+        displayPreferences.preferencesById,
+      )
+    : null;
+  const routeMatch =
+    catalogRouteMatch && displayedMovie
+      ? { ...catalogRouteMatch, movie: displayedMovie }
       : null;
   const routeMovie = routeMatch?.movie ?? null;
   const routeCatalogMode = routeMatch?.mode ?? null;
@@ -539,6 +556,15 @@ export function MoviePage({
       <MoviePageState
         title="Loading movie"
         message="Getting the latest movie details…"
+      />
+    );
+  }
+
+  if (isRemovedByPreference) {
+    return (
+      <MoviePageState
+        title="Movie unavailable"
+        message="This movie is hidden by your display preferences."
       />
     );
   }

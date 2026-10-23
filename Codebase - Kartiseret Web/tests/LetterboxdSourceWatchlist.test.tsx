@@ -99,7 +99,7 @@ describe("LetterboxdSourceWatchlist", () => {
     expect(screen.getByText("124 films in source")).toBeInTheDocument();
 
     await user.type(
-      screen.getByLabelText("Public Letterboxd URL"),
+      screen.getByLabelText("Letterboxd URL"),
       "https://letterboxd.com/fixture/list/favorites/",
     );
     await user.click(screen.getByRole("button", { name: "Track source" }));

@@ -4,6 +4,7 @@ import { ChevronDown } from "lucide-react";
 import { Link } from "react-router";
 import "./UserPreferencesPage.css";
 import { getSiteColorLabel, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
+import { UserMovieDisplayPreferences } from "./UserMovieDisplayPreferences";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { loadCityLocationPicker } from "./maps/loadCityLocationPicker";
 import { type RatingSource } from "../prefs/definitions/ratingSources";
@@ -270,6 +271,8 @@ export function UserPreferencesPage() {
               </div>
             ) : null}
           </section>
+
+          {user ? <UserMovieDisplayPreferences userId={user.id} /> : null}
 
           <UserTicketAlerts
             key={user?.id ?? "guest"}

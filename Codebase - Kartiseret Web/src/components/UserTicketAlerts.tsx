@@ -1,10 +1,13 @@
 import { ticketAlertCriteriaMutationOptions, ticketAlertMutationOptions, ticketAlertPreferencesMutationOptions, ticketAlertPreferencesQueryOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions, type UserTicketAlertSubscription } from "../data/ticketAlerts";
 import { DEFAULT_TICKET_ALERT_CRITERIA, type TicketAlertCriteria, type TicketAlertCriteriaOverride } from "@kartiseret/contracts/private-data";
 import { movieCollectionQueryOptions, selectMovies, type Movie } from "../data/movieCatalog";
+import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
+import { applyMovieDisplayPreferences } from "../data/movieDisplayPreferences";
 import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
 import { TicketAlertCriteriaEditor } from "./TicketAlertCriteriaEditor";
 import { LetterboxdSourceWatchlist } from "./LetterboxdSourceWatchlist";
 import { ComingSoonDateWatchlist } from "./ComingSoonDateWatchlist";
+import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { Link } from "react-router";
 import { useMemo } from "react";
 
@@ -55,18 +58,15 @@ function UserTicketAlertItem({
   return (
     <li className="prefs-alert-row">
       <div className="prefs-alert-poster-shell">
-        {movie?.imageSrc ? (
-          <img
-            className="prefs-alert-poster"
-            src={movie.imageSrc}
-            alt=""
-            loading="lazy"
-          />
-        ) : (
-          <span className="prefs-alert-poster-fallback">
-            {title.slice(0, 1)}
-          </span>
-        )}
+        <MoviePosterArtwork
+          title={title}
+          tmdbId={alert.tmdbId}
+          imageSrc={movie?.imageSrc}
+          alt=""
+          className="prefs-alert-poster"
+          fallbackClassName="prefs-alert-poster"
+          loading="lazy"
+        />
       </div>
       <div className="prefs-alert-copy">
         {movie?.movieCode ? (
@@ -122,6 +122,7 @@ function UserTicketAlertItem({
 }
 
 export function UserTicketAlerts({ userId }: { userId: string | null }) {
+  const displayPreferences = useMovieDisplayPreferences();
   const alertsQuery = useQuery(
     userTicketAlertSubscriptionsQueryOptions(userId),
   );
@@ -129,12 +130,12 @@ export function UserTicketAlerts({ userId }: { userId: string | null }) {
   const preferencesMutation = useMutation(
     ticketAlertPreferencesMutationOptions(userId),
   );
-  const { data: nowPlaying = EMPTY_MOVIES } = useQuery({
+  const { data: rawNowPlaying = EMPTY_MOVIES } = useQuery({
     ...movieCollectionQueryOptions("nowPlaying"),
     select: selectMovies,
     enabled: Boolean(userId),
   });
-  const { data: comingSoon = EMPTY_MOVIES } = useQuery({
+  const { data: rawComingSoon = EMPTY_MOVIES } = useQuery({
     ...movieCollectionQueryOptions("comingSoon"),
     select: selectMovies,
     enabled: Boolean(userId),
@@ -142,15 +143,33 @@ export function UserTicketAlerts({ userId }: { userId: string | null }) {
   const moviesById = useMemo(
     () =>
       new Map(
-        [...nowPlaying, ...comingSoon].map((movie) => [movie.tmdbId, movie]),
+        applyMovieDisplayPreferences(
+          [...rawNowPlaying, ...rawComingSoon],
+          displayPreferences.preferencesById,
+        ).map((movie) => [movie.tmdbId, movie]),
       ),
-    [nowPlaying, comingSoon],
+    [displayPreferences.preferencesById, rawComingSoon, rawNowPlaying],
   );
   const alerts = alertsQuery.data ?? EMPTY_ALERTS;
+  const visibleAlerts = alerts.filter(
+    (alert) =>
+      displayPreferences.preferencesById.get(alert.tmdbId)?.treatment !==
+      "remove",
+  );
   const defaults = preferencesQuery.data ?? DEFAULT_TICKET_ALERT_CRITERIA;
 
   if (!userId) {
     return null;
+  }
+
+  if (!displayPreferences.ready) {
+    return (
+      <section className="prefs-setting prefs-alerts-setting">
+        <p className="prefs-alerts-empty" role="status">
+          Loading your movie display preferences…
+        </p>
+      </section>
+    );
   }
 
   return (
@@ -161,9 +180,9 @@ export function UserTicketAlerts({ userId }: { userId: string | null }) {
             <div className="prefs-setting-copy">
               <span className="prefs-setting-label">Coming Soon Alerts</span>
               <span className="prefs-setting-summary">
-                {alerts.length === 0
+                {visibleAlerts.length === 0
                   ? "No movies being watched"
-                  : `${alerts.length} movie${alerts.length === 1 ? "" : "s"} being watched`}
+                  : `${visibleAlerts.length} movie${visibleAlerts.length === 1 ? "" : "s"} being watched`}
               </span>
             </div>
           </div>
@@ -197,13 +216,13 @@ export function UserTicketAlerts({ userId }: { userId: string | null }) {
               Loading your alerts…
             </p>
           ) : alertsQuery.isError &&
-            !alertsQuery.data ? null : alerts.length === 0 ? (
+            !alertsQuery.data ? null : visibleAlerts.length === 0 ? (
             <p className="prefs-alerts-empty">
               Click Notify me on a coming soon movie to see it here.
             </p>
           ) : (
             <ul className="prefs-alerts-list">
-              {alerts.map((alert) => (
+              {visibleAlerts.map((alert) => (
                 <UserTicketAlertItem
                   key={alert.tmdbId}
                   userId={userId}

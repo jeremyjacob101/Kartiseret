@@ -1,5 +1,7 @@
 import { comingSoonDateUnwatchMutationOptions, comingSoonDateWatchMutationOptions, comingSoonDateWatchesQueryOptions, tmdbTitleSearchQueryOptions, type ComingSoonDateWatch, type TmdbTitleSearchResult } from "../data/comingSoonDateWatches";
+import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { useMemo, useState } from "react";
 
 const EMPTY_WATCHES: ComingSoonDateWatch[] = [];
@@ -27,6 +29,7 @@ function posterUrl(path: string | null): string | null {
 }
 
 export function ComingSoonDateWatchlist({ userId }: { userId: string | null }) {
+  const displayPreferences = useMovieDisplayPreferences();
   const [query, setQuery] = useState("");
   const normalizedQuery = query.trim();
   const searchQuery = useQuery(tmdbTitleSearchQueryOptions(normalizedQuery));
@@ -36,11 +39,20 @@ export function ComingSoonDateWatchlist({ userId }: { userId: string | null }) {
     comingSoonDateUnwatchMutationOptions(userId),
   );
   const watches = watchesQuery.data ?? EMPTY_WATCHES;
+  const visibleWatches = watches.filter(
+    (watch) =>
+      displayPreferences.preferencesById.get(watch.tmdbId)?.treatment !==
+      "remove",
+  );
   const watchedById = useMemo(
     () => new Map(watches.map((watch) => [watch.tmdbId, watch])),
     [watches],
   );
-  const results = searchQuery.data ?? EMPTY_RESULTS;
+  const results = (searchQuery.data ?? EMPTY_RESULTS).filter(
+    (result) =>
+      displayPreferences.preferencesById.get(result.tmdbId)?.treatment !==
+      "remove",
+  );
 
   if (!userId) return null;
 
@@ -97,22 +109,18 @@ export function ComingSoonDateWatchlist({ userId }: { userId: string | null }) {
           >
             {results.map((result) => {
               const existing = watchedById.get(result.tmdbId);
-              const poster = posterUrl(result.posterPath);
               return (
                 <li className="coming-soon-watch-result" key={result.tmdbId}>
                   <div className="prefs-alert-poster-shell">
-                    {poster ? (
-                      <img
-                        className="prefs-alert-poster"
-                        src={poster}
-                        alt=""
-                        loading="lazy"
-                      />
-                    ) : (
-                      <span className="prefs-alert-poster-fallback">
-                        {result.title.slice(0, 1)}
-                      </span>
-                    )}
+                    <MoviePosterArtwork
+                      title={result.title}
+                      tmdbId={result.tmdbId}
+                      imageSrc={posterUrl(result.posterPath) ?? undefined}
+                      alt=""
+                      className="prefs-alert-poster"
+                      fallbackClassName="prefs-alert-poster"
+                      loading="lazy"
+                    />
                   </div>
                   <div className="prefs-alert-copy">
                     <span className="prefs-alert-title">
@@ -167,7 +175,8 @@ export function ComingSoonDateWatchlist({ userId }: { userId: string | null }) {
         <div className="coming-soon-watch-list-heading">
           <span className="prefs-setting-label">Titles you are watching</span>
           <span className="prefs-setting-summary">
-            {watches.length} title{watches.length === 1 ? "" : "s"}
+            {visibleWatches.length} title
+            {visibleWatches.length === 1 ? "" : "s"}
           </span>
         </div>
         {watchesQuery.isPending ? (
@@ -178,29 +187,25 @@ export function ComingSoonDateWatchlist({ userId }: { userId: string | null }) {
           <p className="prefs-alerts-error" role="alert">
             {watchesQuery.error.message}
           </p>
-        ) : watches.length === 0 ? (
+        ) : visibleWatches.length === 0 ? (
           <p className="prefs-alerts-empty">
             You are not watching any titles yet.
           </p>
         ) : (
           <ul className="prefs-alerts-list">
-            {watches.map((watch) => {
-              const poster = posterUrl(watch.posterPath);
+            {visibleWatches.map((watch) => {
               return (
                 <li className="prefs-alert-row" key={watch.tmdbId}>
                   <div className="prefs-alert-poster-shell">
-                    {poster ? (
-                      <img
-                        className="prefs-alert-poster"
-                        src={poster}
-                        alt=""
-                        loading="lazy"
-                      />
-                    ) : (
-                      <span className="prefs-alert-poster-fallback">
-                        {watch.title.slice(0, 1)}
-                      </span>
-                    )}
+                    <MoviePosterArtwork
+                      title={watch.title}
+                      tmdbId={watch.tmdbId}
+                      imageSrc={posterUrl(watch.posterPath) ?? undefined}
+                      alt=""
+                      className="prefs-alert-poster"
+                      fallbackClassName="prefs-alert-poster"
+                      loading="lazy"
+                    />
                   </div>
                   <div className="prefs-alert-copy">
                     <span className="prefs-alert-title">

@@ -1,11 +1,14 @@
 import { adminMovieEditMutationOptions, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, movieCollectionQueryOptions, reloadComingSoonMovies, reloadNowPlayingMovies, showtimeCityQueryOptions, type Movie } from "./data/movieCatalog";
 import { initializeUserPreferencesStore, useUserPreferencesStore } from "./stores/userPreferencesStore";
+import { Suspense, StrictMode, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
-import { Suspense, StrictMode, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { MovieDisplayPreferencesProvider } from "./contexts/MovieDisplayPreferencesProvider";
+import { useMovieDisplayPreferences } from "./contexts/MovieDisplayPreferencesContext";
 import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
 import { QueryClientProvider, useMutation, useQuery } from "@tanstack/react-query";
 import type { ApplicationIdentity } from "@kartiseret/contracts/private-data";
+import { applyMovieDisplayPreferences } from "./data/movieDisplayPreferences";
 import { backdropPreloader } from "./components/scroller/backdropPreloader";
 import { usePublicationRevision } from "./hooks/usePublicationRevision";
 import { type MovieSearchResult } from "./components/MovieSearchMenu";
@@ -115,8 +118,10 @@ type HomeRouteProps = {
   cardHeight: number;
   cardWidth: number;
   comingSoonReady: boolean;
+  comingSoonMovies: readonly Movie[];
   gap: number;
   nowPlayingReady: boolean;
+  nowPlayingMovies: readonly Movie[];
   scrollerSlotMinHeight: number;
 };
 
@@ -148,6 +153,14 @@ function CatalogRoute({
   scrollerSlotMinHeight,
 }: CatalogRouteProps) {
   const routeLabel = jumpMode === "nowPlaying" ? "Now Playing" : "Coming Soon";
+
+  if (movies.length === 0) {
+    return (
+      <p className="app-inline-note" role="status">
+        No movies match your display preferences.
+      </p>
+    );
+  }
 
   return view === "grid" ? (
     <Suspense fallback={null}>
@@ -197,8 +210,10 @@ function HomeRoute({
   cardHeight,
   cardWidth,
   comingSoonReady,
+  comingSoonMovies,
   gap,
   nowPlayingReady,
+  nowPlayingMovies,
   scrollerSlotMinHeight,
 }: HomeRouteProps) {
   return (
@@ -212,14 +227,19 @@ function HomeRoute({
         className="scroller-slot"
         style={{ minHeight: scrollerSlotMinHeight }}
       >
-        {nowPlayingReady ? (
+        {nowPlayingReady && nowPlayingMovies.length > 0 ? (
           <MovieScroller
             mode="nowPlaying"
+            movieItems={nowPlayingMovies}
             cardWidth={cardWidth}
             cardHeight={cardHeight}
             gap={gap}
             maxWidth={SCROLLER_MAX_WIDTH}
           />
+        ) : nowPlayingReady ? (
+          <p className="app-inline-note" role="status">
+            No movies match your display preferences.
+          </p>
         ) : null}
       </div>
       <div className="section-heading">
@@ -230,14 +250,19 @@ function HomeRoute({
         className="scroller-slot"
         style={{ minHeight: scrollerSlotMinHeight }}
       >
-        {comingSoonReady ? (
+        {comingSoonReady && comingSoonMovies.length > 0 ? (
           <MovieScroller
             mode="comingSoon"
+            movieItems={comingSoonMovies}
             cardWidth={cardWidth}
             cardHeight={cardHeight}
             gap={gap}
             maxWidth={SCROLLER_MAX_WIDTH}
           />
+        ) : comingSoonReady ? (
+          <p className="app-inline-note" role="status">
+            No movies match your display preferences.
+          </p>
         ) : null}
       </div>
     </section>
@@ -291,6 +316,7 @@ function UserRoute({
 
 export function App() {
   usePublicationRevision();
+  const displayPreferences = useMovieDisplayPreferences();
   const routeLocation = useLocation();
   const navigate = useNavigate();
   const isMobile = useDeviceStore((state) => state.isMobile);
@@ -325,12 +351,24 @@ export function App() {
   const { mutateAsync: saveAdminMovieEdit } = useMutation(
     adminMovieEditMutationOptions(),
   );
-  const nowPlayingMovies = nowPlayingQuery.data?.movies ?? [];
-  const comingSoonMovies = comingSoonQuery.data?.movies ?? [];
-  const nowPlayingReady =
-    nowPlayingQuery.isSuccess && nowPlayingMovies.length > 0;
-  const comingSoonReady =
-    comingSoonQuery.isSuccess && comingSoonMovies.length > 0;
+  const nowPlayingMovies = useMemo(
+    () =>
+      applyMovieDisplayPreferences(
+        nowPlayingQuery.data?.movies ?? [],
+        displayPreferences.preferencesById,
+      ),
+    [displayPreferences.preferencesById, nowPlayingQuery.data?.movies],
+  );
+  const comingSoonMovies = useMemo(
+    () =>
+      applyMovieDisplayPreferences(
+        comingSoonQuery.data?.movies ?? [],
+        displayPreferences.preferencesById,
+      ),
+    [comingSoonQuery.data?.movies, displayPreferences.preferencesById],
+  );
+  const nowPlayingReady = displayPreferences.ready && nowPlayingQuery.isSuccess;
+  const comingSoonReady = displayPreferences.ready && comingSoonQuery.isSuccess;
   const catalogReady = nowPlayingReady && comingSoonReady;
   const movieCodesReady =
     catalogReady &&
@@ -338,10 +376,12 @@ export function App() {
       nowPlayingQuery.data?.movieCodesStatus === "failed") &&
     (comingSoonQuery.data?.movieCodesStatus === "ready" ||
       comingSoonQuery.data?.movieCodesStatus === "failed");
-  const showtimesReady = showtimeCityQuery.data?.broadReady ?? false;
+  const showtimesReady =
+    displayPreferences.ready && (showtimeCityQuery.data?.broadReady ?? false);
   const catalogQueryError =
     nowPlayingQuery.error ??
     comingSoonQuery.error ??
+    displayPreferences.error ??
     (pathname === "/showtimes" ? showtimeCityQuery.error : null);
   const catalogError = catalogQueryError
     ? catalogQueryError instanceof Error
@@ -709,8 +749,10 @@ export function App() {
                 cardHeight={scrollerCardHeight}
                 cardWidth={scrollerCardWidth}
                 comingSoonReady={comingSoonReady}
+                comingSoonMovies={comingSoonMovies}
                 gap={scrollerGap}
                 nowPlayingReady={nowPlayingReady}
+                nowPlayingMovies={nowPlayingMovies}
                 scrollerSlotMinHeight={scrollerSlotMinHeight}
               />
             }
@@ -830,7 +872,9 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <App />
+        <MovieDisplayPreferencesProvider>
+          <App />
+        </MovieDisplayPreferencesProvider>
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,
