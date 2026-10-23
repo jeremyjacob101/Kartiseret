@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: CCsoon
+URL: https://www.cinema-city.co.il/movie/6536
+Exception: AttributeError - 'SyncFilterRequestBuilder' object has no attribute 'select'
+Call Chain: runners.py:33 > runners.py:23 > BaseCinema.py:84 > BaseCinema.py:59
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/653/unsuccessful/CCsoon-1.png
+CSV: backend/utils/log/logger_artifacts/653/unsuccessful/CCsoon-1.csv

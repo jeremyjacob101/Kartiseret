@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: LCsoon
+URL: https://www.lev.co.il/en/movies/%d7%9e%d7%99%d7%a0%d7%95%d7%98%d7%90%d7%95%d7%a8/
+Exception: AttributeError - 'SyncFilterRequestBuilder' object has no attribute 'select'
+Call Chain: runners.py:33 > runners.py:23 > BaseCinema.py:84 > BaseCinema.py:59
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/653/unsuccessful/LCsoon-3.png
+CSV: backend/utils/log/logger_artifacts/653/unsuccessful/LCsoon-3.csv
