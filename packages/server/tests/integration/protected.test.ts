@@ -320,6 +320,17 @@ describe.sequential(
         });
       expect(duplicate.body.data.source.id).toBe(firstId);
 
+      const shortPublic = await request(app)
+        .post("/api/v1/letterboxd-sources")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({ sourceUrl: "https://boxd.it/abc456" });
+      expect(shortPublic.status).toBe(200);
+      expect(shortPublic.body.data.source).toMatchObject({
+        sourceUrl: "https://boxd.it/abc456/",
+        sourceType: "list",
+      });
+
       const shortShare = await request(app)
         .post("/api/v1/letterboxd-sources")
         .set("Cookie", "alice")

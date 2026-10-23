@@ -111,7 +111,7 @@ class LetterboxdPublicPageTests(TestCase):
             "http://letterboxd.com/fixture/watchlist/",
             "https://letterboxd.com.evil.test/fixture/watchlist/",
             "https://letterboxd.com/fixture/watchlist/?page=2",
-            "https://boxd.it/Fixture123",
+            "https://boxd.it/Fixture123$",
         ):
             with self.subTest(url=source_url):
                 with self.assertRaises(LetterboxdSourceError):
@@ -159,6 +159,31 @@ class LetterboxdPublicPageTests(TestCase):
         )
         self.assertEqual(client.calls[1][1]["headers"]["Referer"], short_url)
 
+    def test_bare_boxd_short_link_resolves_to_a_public_list(self):
+        short_url = "https://boxd.it/Y9Hce"
+        public_url = "https://letterboxd.com/fixture/list/spiderman/"
+        page_html = """<div class="poster-grid"><div
+          data-item-slug="spider-man-beyond-the-spider-verse"
+          data-item-full-display-name="Spider-Man: Beyond the Spider-Verse (2027)"
+          data-item-link="/film/spider-man-beyond-the-spider-verse/"></div></div>"""
+        client = FakeHttp(
+            [
+                FakeResponse(302, headers={"Location": public_url}),
+                FakeResponse(200, page_html),
+            ]
+        )
+
+        films = fetch_letterboxd_source(short_url, http_client=client)
+
+        self.assertEqual(
+            [film.slug for film in films],
+            ["spider-man-beyond-the-spider-verse"],
+        )
+        self.assertEqual(
+            [call[0] for call in client.calls], [short_url, public_url]
+        )
+        self.assertEqual(client.calls[1][1]["headers"]["Referer"], short_url)
+
     def test_boxd_share_link_refuses_redirects_outside_letterboxd_lists(self):
         client = FakeHttp(
             [
@@ -169,7 +194,9 @@ class LetterboxdPublicPageTests(TestCase):
             ]
         )
 
-        with self.assertRaisesRegex(LetterboxdSourceError, "supported shared list"):
+        with self.assertRaisesRegex(
+            LetterboxdSourceError, "supported public or shared list"
+        ):
             fetch_letterboxd_source(
                 "https://boxd.it/Fixture123$syntheticShareToken/",
                 http_client=client,

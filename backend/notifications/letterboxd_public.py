@@ -35,7 +35,9 @@ class LetterboxdPage:
 
 
 _SLUG_RE = re.compile(r"^[A-Za-z0-9_-]{1,180}$")
-_BOXD_SHARE_RE = re.compile(r"^/[A-Za-z0-9]+\$[A-Za-z0-9_-]{1,180}/?$")
+_BOXD_SHORT_LINK_RE = re.compile(
+    r"^/[A-Za-z0-9]+(?:\$[A-Za-z0-9_-]{1,180})?/?$"
+)
 _FILM_PATH_RE = re.compile(r"^/film/([A-Za-z0-9_-]{1,180})(?:/|$)")
 _VOID_TAGS = {
     "area", "base", "br", "col", "embed", "hr", "img", "input",
@@ -238,7 +240,34 @@ def _shared_list_url(url: str) -> str | None:
         return None
 
 
-def _resolve_boxd_share_link(source_url: str, http_client: Any) -> str:
+def _public_list_url(url: str) -> str | None:
+    try:
+        parsed = urlsplit(url)
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname != "letterboxd.com"
+            or parsed.username
+            or parsed.password
+            or parsed.port
+            or parsed.query
+            or parsed.fragment
+            or not parsed.path.endswith("/")
+        ):
+            return None
+        parts = parsed.path.strip("/").split("/")
+        if (
+            len(parts) != 3
+            or not _SLUG_RE.fullmatch(parts[0])
+            or parts[1] != "list"
+            or not _SLUG_RE.fullmatch(parts[2])
+        ):
+            return None
+        return f"https://letterboxd.com/{'/'.join(parts)}/"
+    except ValueError:
+        return None
+
+
+def _resolve_boxd_short_link(source_url: str, http_client: Any) -> str:
     try:
         response = http_client.get(
             source_url,
@@ -261,10 +290,10 @@ def _resolve_boxd_share_link(source_url: str, http_client: Any) -> str:
             "This Letterboxd share link did not redirect to a visible shared list."
         )
     target = urljoin(source_url, location)
-    canonical = _shared_list_url(target)
+    canonical = _public_list_url(target) or _shared_list_url(target)
     if canonical is None:
         raise LetterboxdSourceError(
-            "This Letterboxd share link did not open a supported shared list."
+            "This Letterboxd short link did not open a supported public or shared list."
         )
     return canonical
 
@@ -306,9 +335,9 @@ def _fetch_letterboxd_source(
 
     page_referer: str | None = None
     if parsed_source.hostname == "boxd.it":
-        if not _BOXD_SHARE_RE.fullmatch(parsed_source.path):
-            raise LetterboxdSourceError("The configured Letterboxd share URL is invalid.")
-        page_url: str | None = _resolve_boxd_share_link(source_url, http_client)
+        if not _BOXD_SHORT_LINK_RE.fullmatch(parsed_source.path):
+            raise LetterboxdSourceError("The configured Letterboxd short URL is invalid.")
+        page_url: str | None = _resolve_boxd_short_link(source_url, http_client)
         page_referer = source_url
     elif parsed_source.hostname == "letterboxd.com":
         if not parsed_source.path.endswith("/"):
@@ -319,12 +348,7 @@ def _fetch_letterboxd_source(
             and _SLUG_RE.fullmatch(path_parts[0])
             and path_parts[1] == "watchlist"
         )
-        ordinary_list = (
-            len(path_parts) == 3
-            and _SLUG_RE.fullmatch(path_parts[0])
-            and path_parts[1] == "list"
-            and _SLUG_RE.fullmatch(path_parts[2])
-        )
+        ordinary_list = _public_list_url(source_url) is not None
         if not (ordinary_watchlist or ordinary_list or _shared_list_url(source_url)):
             raise LetterboxdSourceError("The configured Letterboxd URL is invalid.")
         page_url = source_url
