@@ -622,63 +622,46 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
                         overall_ok = False
             console.print()
 
-        # Notification dispatchers run after selected updates commit. Letterboxd
-        # can also run alone against the already-published catalog.
+        # Notification dispatchers run after selected updates commit, but can
+        # also run alone against the already-published catalog.
         dispatcher_labels = {
-            "TicketAlertDispatcher": ("Ticket alerts", "Showtimes Update"),
+            "TicketAlertDispatcher": (
+                "Ticket alerts",
+                {"nowPlayingData": "Showtimes Update"},
+            ),
             "ComingSoonDateAlertDispatcher": (
                 "Coming Soon date alerts",
-                "Coming Soon update",
+                {"comingSoonsData": "Coming Soon update"},
             ),
             "LetterboxdSourceDispatcher": (
                 "Letterboxd source alerts",
-                "Showtimes and Coming Soon updates",
+                {
+                    "comingSoonsData": "Coming Soon update",
+                    "nowPlayingData": "Showtimes Update",
+                },
             ),
+        }
+        selected_updates = {
+            key for key, stages in flow_selections.items() if stages["update"]
         }
         for category, stages in flow_selections.items():
             for dispatcher in stages["post"]:
-                label, required_update = dispatcher_labels.get(
-                    dispatcher.__name__, ("Notifications", "catalog update")
+                label, required_updates = dispatcher_labels.get(
+                    dispatcher.__name__, ("Notifications", {})
                 )
-                is_letterboxd_dispatcher = (
-                    dispatcher.__name__ == "LetterboxdSourceDispatcher"
-                )
-                if not stages["update"] and not is_letterboxd_dispatcher:
+                failed_updates = [
+                    update_label
+                    for update_category, update_label in required_updates.items()
+                    if update_category in selected_updates
+                    and update_category in failed_categories
+                ]
+                if failed_updates:
                     console.print(
                         Panel.fit(
                             Text(
-                                f"Skipped {label}: {required_update} was not selected",
-                                style="yellow",
-                            ),
-                            border_style="grey37",
-                        )
-                    )
-                    continue
-                if is_letterboxd_dispatcher:
-                    required_categories = ("comingSoonsData", "nowPlayingData")
-                    failed_updates = [
-                        required
-                        for required in required_categories
-                        if required in failed_categories
-                    ]
-                    if failed_updates:
-                        console.print(
-                            Panel.fit(
-                                Text(
-                                    "Skipped Letterboxd source alerts: "
-                                    + ", ".join(failed_updates)
-                                    + " failed",
-                                    style="yellow",
-                                ),
-                                border_style="grey37",
-                            )
-                        )
-                        continue
-                if category in failed_categories:
-                    console.print(
-                        Panel.fit(
-                            Text(
-                                f"Skipped {label}: {required_update} failed",
+                                f"Skipped {label}: "
+                                + ", ".join(failed_updates)
+                                + " failed",
                                 style="yellow",
                             ),
                             border_style="grey37",
