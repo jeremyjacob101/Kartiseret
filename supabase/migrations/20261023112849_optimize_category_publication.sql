@@ -134,6 +134,8 @@ BEGIN
         || format('t.%1$I = (r.key_row).%1$I AND to_jsonb(t.%1$I) = r.identity->%2$L',key_column,key_column);
       raw_join_sql := raw_join_sql || CASE WHEN raw_join_sql = '' THEN '' ELSE ',' END || format('k.%I',key_column);
     END LOOP;
+    -- Consume the full comparison: EXISTS can favor a startup-cheap nested
+    -- loop over the materialized rows, making an unchanged catalog quadratic.
     EXECUTE format(
       'WITH normalized AS MATERIALIZED (
         SELECT c.*, CASE WHEN c.before_row IS NULL THEN NULL ELSE to_jsonb(jsonb_populate_record(NULL::public.%1$I,c.before_row)) END AS expected

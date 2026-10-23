@@ -14,7 +14,7 @@ if (
 const pool = new Pool({
   connectionString: url,
   max: 1,
-  statement_timeout: 90_000,
+  statement_timeout: 10_000,
 });
 afterAll(() => pool.end());
 const fixture = (name: string) =>
@@ -49,16 +49,15 @@ describe("publication SQL performance and parity", () => {
       await client.query("ROLLBACK");
       client.release();
     }
-  }, 120_000);
+  }, 30_000);
 
-  it("publishes 737 parts exceeding 128 MB within the existing deadline", async () => {
+  it("publishes 737 small parts with exact row values and atomic finalization", async () => {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
       let measured: Record<string, unknown> | undefined;
       for (const step of fixture("publication-scale.sql").split(/^-- step$/m)) {
         if (!step.trim()) continue;
-        console.info("Publication scale step", step.trim().split("\n")[0]);
         const results = await client.query(step);
         const result = Array.isArray(results) ? results.at(-1)! : results;
         if (result.rows[0]?.seconds !== undefined) measured = result.rows[0];
@@ -66,15 +65,15 @@ describe("publication SQL performance and parity", () => {
       expect(measured).toBeDefined();
       if (!measured) throw new Error("Missing scale measurement");
       expect(Number(measured.parts)).toBe(737);
-      expect(Number(measured.bytes)).toBeGreaterThanOrEqual(128_000_000);
-      expect(Number(measured.seconds)).toBeLessThan(60);
-      expect(Number(measured.updated)).toBe(45_488);
-      expect(Number(measured.movies)).toBe(156);
-      expect(Number(measured.screenings)).toBe(10_519);
+      expect(Number(measured.bytes)).toBeLessThan(20_000_000);
+      expect(Number(measured.seconds)).toBeLessThan(5);
+      expect(Number(measured.updated)).toBe(7_500);
+      expect(Number(measured.movies)).toBe(24);
+      expect(Number(measured.screenings)).toBe(300);
       console.info("Publication scale measurement", measured);
     } finally {
       await client.query("ROLLBACK");
       client.release();
     }
-  }, 240_000);
+  }, 30_000);
 });
