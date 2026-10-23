@@ -287,7 +287,7 @@ describe.sequential(
         .set("Origin", "http://localhost");
       expect(await workflows.comingSoonDateWatches(alice)).toEqual([]);
     });
-    it("tracks public Letterboxd sources per owner and cancels source-only alerts after the last source is removed", async () => {
+    it("tracks public and share-link Letterboxd sources per owner and cancels source-only alerts after the last source is removed", async () => {
       const invalid = await request(app)
         .post("/api/v1/letterboxd-sources")
         .set("Cookie", "alice")
@@ -319,6 +319,41 @@ describe.sequential(
           sourceUrl: "https://letterboxd.com/fixture/list/first-list",
         });
       expect(duplicate.body.data.source.id).toBe(firstId);
+
+      const shortShare = await request(app)
+        .post("/api/v1/letterboxd-sources")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({ sourceUrl: "https://boxd.it/Y9Hce$l6YZtNs6NWLRSO2z" });
+      expect(shortShare.status).toBe(200);
+      expect(shortShare.body.data.source).toMatchObject({
+        sourceUrl: "https://boxd.it/Y9Hce$l6YZtNs6NWLRSO2z/",
+        sourceType: "list",
+      });
+
+      const canonicalShare = await request(app)
+        .post("/api/v1/letterboxd-sources")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({
+          sourceUrl:
+            "https://letterboxd.com/jeremyjacob/list/spiderman-test-list/share/l6YZtNs6NWLRSO2z/",
+        });
+      expect(canonicalShare.status).toBe(200);
+      expect(canonicalShare.body.data.source).toMatchObject({
+        sourceUrl:
+          "https://letterboxd.com/jeremyjacob/list/spiderman-test-list/share/l6YZtNs6NWLRSO2z/",
+        sourceType: "list",
+      });
+      await Promise.all([
+        shortShare.body.data.source.id,
+        canonicalShare.body.data.source.id,
+      ].map((sourceId: string) =>
+        request(app)
+          .delete(`/api/v1/letterboxd-sources/${sourceId}`)
+          .set("Cookie", "alice")
+          .set("Origin", "http://localhost"),
+      ));
 
       const second = await request(app)
         .post("/api/v1/letterboxd-sources")

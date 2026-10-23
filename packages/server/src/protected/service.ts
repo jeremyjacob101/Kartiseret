@@ -90,12 +90,31 @@ function parseLetterboxdSourceUrl(value: string): {
     );
   }
   if (
+    url.protocol === "https:" &&
+    url.hostname.toLowerCase() === "boxd.it" &&
+    !url.username &&
+    !url.password &&
+    !url.port &&
+    !url.search &&
+    !url.hash
+  ) {
+    const shortLink = url.pathname.match(
+      /^\/([A-Za-z0-9]+\$[A-Za-z0-9_-]{1,180})\/?$/,
+    );
+    if (shortLink)
+      return {
+        sourceUrl: `https://boxd.it/${shortLink[1]}/`,
+        sourceType: "list",
+      };
+  }
+  if (
     url.protocol !== "https:" ||
     !["letterboxd.com", "www.letterboxd.com"].includes(
       url.hostname.toLowerCase(),
     ) ||
     url.username ||
     url.password ||
+    url.port ||
     url.search ||
     url.hash
   )
@@ -120,18 +139,27 @@ function parseLetterboxdSourceUrl(value: string): {
   const isWatchlist =
     parts.length === 2 && parts[1]?.toLowerCase() === "watchlist";
   const isList = parts.length === 3 && parts[1]?.toLowerCase() === "list";
+  const isSharedList =
+    parts.length === 5 &&
+    parts[1]?.toLowerCase() === "list" &&
+    parts[3]?.toLowerCase() === "share";
   if (
     !validSegment(username) ||
-    (!isWatchlist && !isList) ||
-    (isList && !validSegment(parts[2] ?? ""))
+    (!isWatchlist && !isList && !isSharedList) ||
+    ((isList || isSharedList) && !validSegment(parts[2] ?? "")) ||
+    (isSharedList && !validSegment(parts[4] ?? ""))
   )
     throw new HttpError(
       400,
       "invalid_letterboxd_source",
-      "Use a URL ending in /username/watchlist/ or /username/list/list-name/.",
+      "Use a public watchlist or list URL, or a list share link visible to anyone with the link.",
     );
 
-  const path = parts.map(encodeURIComponent).join("/");
+  const canonicalParts = [...parts];
+  if (isWatchlist) canonicalParts[1] = "watchlist";
+  if (isList || isSharedList) canonicalParts[1] = "list";
+  if (isSharedList) canonicalParts[3] = "share";
+  const path = canonicalParts.map(encodeURIComponent).join("/");
   return {
     sourceUrl: `https://letterboxd.com/${path}/`,
     sourceType: isWatchlist ? "watchlist" : "list",

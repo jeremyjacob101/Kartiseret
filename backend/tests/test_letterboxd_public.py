@@ -13,9 +13,10 @@ BASE_URL = "https://letterboxd.com/fixture/watchlist/"
 
 
 class FakeResponse:
-    def __init__(self, status_code, text=""):
+    def __init__(self, status_code, text="", headers=None):
         self.status_code = status_code
         self.text = text
+        self.headers = headers or {}
 
 
 class FakeHttp:
@@ -105,10 +106,88 @@ class LetterboxdPublicPageTests(TestCase):
             "http://letterboxd.com/fixture/watchlist/",
             "https://letterboxd.com.evil.test/fixture/watchlist/",
             "https://letterboxd.com/fixture/watchlist/?page=2",
+            "https://boxd.it/Y9Hce",
         ):
             with self.subTest(url=source_url):
                 with self.assertRaises(LetterboxdSourceError):
                     fetch_letterboxd_source(source_url, http_client=FakeHttp([]))
+
+    def test_boxd_share_link_resolves_to_a_visible_shared_list(self):
+        short_url = "https://boxd.it/Y9Hce$l6YZtNs6NWLRSO2z/"
+        shared_url = (
+            "https://letterboxd.com/fixture/list/spiderman/share/"
+            "l6YZtNs6NWLRSO2z/"
+        )
+        page_html = """<div class="poster-grid">
+          <ul class="grid">
+            <li class="griditem">
+              <div class="react-component"
+                data-item-slug="spider-man-beyond-the-spider-verse"
+                data-item-name="Spider-Man: Beyond the Spider-Verse"
+                data-item-full-display-name="Spider-Man: Beyond the Spider-Verse (2027)"
+                data-item-link="/film/spider-man-beyond-the-spider-verse/"></div>
+            </li>
+          </ul>
+        </div>"""
+        client = FakeHttp(
+            [
+                FakeResponse(302, headers={"Location": shared_url}),
+                FakeResponse(200, page_html),
+            ]
+        )
+
+        films = fetch_letterboxd_source(short_url, http_client=client)
+
+        self.assertEqual(
+            [(film.slug, film.title, film.release_year) for film in films],
+            [
+                (
+                    "spider-man-beyond-the-spider-verse",
+                    "Spider-Man: Beyond the Spider-Verse",
+                    2027,
+                )
+            ],
+        )
+        self.assertEqual([call[0] for call in client.calls], [short_url, shared_url])
+        self.assertTrue(
+            all(call[1]["allow_redirects"] is False for call in client.calls)
+        )
+
+    def test_boxd_share_link_refuses_redirects_outside_letterboxd_lists(self):
+        client = FakeHttp(
+            [
+                FakeResponse(
+                    302,
+                    headers={"Location": "https://example.test/collect"},
+                )
+            ]
+        )
+
+        with self.assertRaisesRegex(LetterboxdSourceError, "supported shared list"):
+            fetch_letterboxd_source(
+                "https://boxd.it/Y9Hce$l6YZtNs6NWLRSO2z/",
+                http_client=client,
+            )
+
+        self.assertEqual(len(client.calls), 1)
+
+    def test_canonical_share_url_is_a_supported_letterboxd_source(self):
+        shared_url = (
+            "https://letterboxd.com/fixture/list/spiderman/share/"
+            "l6YZtNs6NWLRSO2z/"
+        )
+        page_html = """<div class="poster-grid"><div
+          data-item-slug="spider-man-beyond-the-spider-verse"
+          data-item-full-display-name="Spider-Man: Beyond the Spider-Verse (2027)"
+          data-item-link="/film/spider-man-beyond-the-spider-verse/"></div></div>"""
+
+        films = fetch_letterboxd_source(
+            shared_url,
+            http_client=FakeHttp([FakeResponse(200, page_html)]),
+        )
+
+        self.assertEqual(len(films), 1)
+        self.assertEqual(films[0].release_year, 2027)
 
 
 if __name__ == "__main__":

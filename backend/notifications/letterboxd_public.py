@@ -17,7 +17,7 @@ LETTERBOXD_USER_AGENT = (
 
 
 class LetterboxdSourceError(RuntimeError):
-    """A public Letterboxd source could not be fetched or parsed safely."""
+    """A public or link-visible Letterboxd source could not be fetched safely."""
 
 
 @dataclass(frozen=True)
@@ -34,6 +34,7 @@ class LetterboxdPage:
 
 
 _SLUG_RE = re.compile(r"^[A-Za-z0-9_-]{1,180}$")
+_BOXD_SHARE_RE = re.compile(r"^/[A-Za-z0-9]+\$[A-Za-z0-9_-]{1,180}/?$")
 _FILM_PATH_RE = re.compile(r"^/film/([A-Za-z0-9_-]{1,180})(?:/|$)")
 _VOID_TAGS = {
     "area", "base", "br", "col", "embed", "hr", "img", "input",
@@ -50,6 +51,16 @@ def _year(value: str | None) -> int | None:
         return None
     parsed = int(value)
     return parsed if 1870 <= parsed <= 2200 else None
+
+
+def _display_title_and_year(value: str) -> tuple[str, int | None]:
+    match = re.fullmatch(r"(.+?)\s+\((\d{4})\)", value.strip())
+    if not match:
+        return value.strip(), None
+    year = _year(match.group(2))
+    if year is None:
+        return value.strip(), None
+    return match.group(1).strip(), year
 
 
 def _slug(value: str | None) -> str | None:
@@ -69,8 +80,8 @@ class _LetterboxdMarkup(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.requested_url = requested_url
         self.stack: list[tuple[str, bool]] = []
-        self.poster_list_count = 0
-        self.poster_list_seen = False
+        self.film_list_depth = 0
+        self.film_list_seen = False
         self.movies: dict[str, LetterboxdFilm] = {}
         self.next_href: str | None = None
 
@@ -79,12 +90,14 @@ class _LetterboxdMarkup(HTMLParser):
         classes = _class_set(attrs)
         rel = set((attrs.get("rel") or "").lower().split())
 
-        is_poster_list = tag in {"ul", "ol", "div"} and "poster-list" in classes
-        if is_poster_list:
-            self.poster_list_seen = True
-            self.poster_list_count += 1
+        is_film_list = tag in {"ul", "ol", "div", "section"} and bool(
+            {"poster-list", "poster-grid"} & classes
+        )
+        if is_film_list:
+            self.film_list_seen = True
+            self.film_list_depth += 1
         if tag not in _VOID_TAGS:
-            self.stack.append((tag, is_poster_list))
+            self.stack.append((tag, is_film_list))
 
         if "next" in rel or (tag == "a" and "next" in classes):
             href = attrs.get("href")
@@ -95,23 +108,35 @@ class _LetterboxdMarkup(HTMLParser):
                     )
                 self.next_href = href
 
-        if self.poster_list_count == 0:
+        if self.film_list_depth == 0:
             return
 
-        film_slug = _slug(attrs.get("data-film-slug"))
-        href = attrs.get("href") or ""
+        film_slug = _slug(attrs.get("data-film-slug") or attrs.get("data-item-slug"))
+        href = (
+            attrs.get("href")
+            or attrs.get("data-item-link")
+            or attrs.get("data-target-link")
+            or ""
+        )
         if not film_slug:
             match = _FILM_PATH_RE.match(urlsplit(href).path)
             film_slug = match.group(1) if match else None
         if not film_slug:
             return
 
-        title = (attrs.get("data-film-name") or attrs.get("title") or "").strip()
+        title, display_year = _display_title_and_year(
+            attrs.get("data-film-name")
+            or attrs.get("data-item-full-display-name")
+            or attrs.get("data-item-name")
+            or attrs.get("data-original-title")
+            or attrs.get("title")
+            or ""
+        )
         year = _year(
             attrs.get("data-film-release-year")
             or attrs.get("data-release-year")
             or attrs.get("data-film-year")
-        )
+        ) or display_year
         existing = self.movies.get(film_slug)
         if existing is not None:
             title = title or existing.title
@@ -128,7 +153,7 @@ class _LetterboxdMarkup(HTMLParser):
             return
         closed = self.stack[matching:]
         del self.stack[matching:]
-        self.poster_list_count -= sum(1 for _tag, is_list in closed if is_list)
+        self.film_list_depth -= sum(1 for _tag, is_list in closed if is_list)
 
 
 def _next_url(requested_url: str, href: str | None) -> str | None:
@@ -165,6 +190,64 @@ def _next_url(requested_url: str, href: str | None) -> str | None:
         return None
 
 
+def _shared_list_url(url: str) -> str | None:
+    try:
+        parsed = urlsplit(url)
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname != "letterboxd.com"
+            or parsed.username
+            or parsed.password
+            or parsed.port
+            or parsed.query
+            or parsed.fragment
+            or not parsed.path.endswith("/")
+        ):
+            return None
+        parts = parsed.path.strip("/").split("/")
+        if (
+            len(parts) != 5
+            or not _SLUG_RE.fullmatch(parts[0])
+            or parts[1] != "list"
+            or not _SLUG_RE.fullmatch(parts[2])
+            or parts[3] != "share"
+            or not _SLUG_RE.fullmatch(parts[4])
+        ):
+            return None
+        return f"https://letterboxd.com/{'/'.join(parts)}/"
+    except ValueError:
+        return None
+
+
+def _resolve_boxd_share_link(source_url: str, http_client: Any) -> str:
+    try:
+        response = http_client.get(
+            source_url,
+            headers={
+                "Accept": "text/html,application/xhtml+xml",
+                "User-Agent": LETTERBOXD_USER_AGENT,
+            },
+            timeout=(5, 20),
+            allow_redirects=False,
+        )
+    except Exception as error:
+        raise LetterboxdSourceError("Letterboxd could not be reached.") from error
+    status = int(getattr(response, "status_code", 0) or 0)
+    headers = getattr(response, "headers", {}) or {}
+    location = headers.get("Location") or headers.get("location")
+    if status not in {301, 302, 303, 307, 308} or not location:
+        raise LetterboxdSourceError(
+            "This Letterboxd share link did not redirect to a visible shared list."
+        )
+    target = urljoin(source_url, location)
+    canonical = _shared_list_url(target)
+    if canonical is None:
+        raise LetterboxdSourceError(
+            "This Letterboxd share link did not open a supported shared list."
+        )
+    return canonical
+
+
 def parse_letterboxd_page(html: str, requested_url: str) -> LetterboxdPage:
     if not isinstance(html, str) or not html.strip():
         raise LetterboxdSourceError("Letterboxd returned an empty page.")
@@ -174,7 +257,7 @@ def parse_letterboxd_page(html: str, requested_url: str) -> LetterboxdPage:
         parser.close()
     except Exception as error:
         raise LetterboxdSourceError("Letterboxd page markup could not be parsed.") from error
-    if not parser.poster_list_seen:
+    if not parser.film_list_seen:
         raise LetterboxdSourceError("Letterboxd page did not contain a film list.")
     return LetterboxdPage(
         films=tuple(parser.movies[key] for key in sorted(parser.movies)),
@@ -192,12 +275,39 @@ def fetch_letterboxd_source(
     parsed_source = urlsplit(source_url)
     if (
         parsed_source.scheme != "https"
-        or parsed_source.hostname != "letterboxd.com"
-        or not parsed_source.path.endswith("/")
+        or parsed_source.username
+        or parsed_source.password
+        or parsed_source.port
+        or parsed_source.query
+        or parsed_source.fragment
     ):
         raise LetterboxdSourceError("The configured Letterboxd URL is invalid.")
 
-    page_url: str | None = source_url
+    if parsed_source.hostname == "boxd.it":
+        if not _BOXD_SHARE_RE.fullmatch(parsed_source.path):
+            raise LetterboxdSourceError("The configured Letterboxd share URL is invalid.")
+        page_url: str | None = _resolve_boxd_share_link(source_url, http_client)
+    elif parsed_source.hostname == "letterboxd.com":
+        if not parsed_source.path.endswith("/"):
+            raise LetterboxdSourceError("The configured Letterboxd URL is invalid.")
+        path_parts = parsed_source.path.strip("/").split("/")
+        ordinary_watchlist = (
+            len(path_parts) == 2
+            and _SLUG_RE.fullmatch(path_parts[0])
+            and path_parts[1] == "watchlist"
+        )
+        ordinary_list = (
+            len(path_parts) == 3
+            and _SLUG_RE.fullmatch(path_parts[0])
+            and path_parts[1] == "list"
+            and _SLUG_RE.fullmatch(path_parts[2])
+        )
+        if not (ordinary_watchlist or ordinary_list or _shared_list_url(source_url)):
+            raise LetterboxdSourceError("The configured Letterboxd URL is invalid.")
+        page_url = source_url
+    else:
+        raise LetterboxdSourceError("The configured Letterboxd URL is invalid.")
+
     visited: set[str] = set()
     films: dict[str, LetterboxdFilm] = {}
     for _page_number in range(max_pages):

@@ -622,7 +622,8 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
                         overall_ok = False
             console.print()
 
-        # Notification dispatchers run only after their category update commits.
+        # Notification dispatchers run after selected updates commit. Letterboxd
+        # can also run alone against the already-published catalog.
         dispatcher_labels = {
             "TicketAlertDispatcher": ("Ticket alerts", "Showtimes Update"),
             "ComingSoonDateAlertDispatcher": (
@@ -639,7 +640,10 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
                 label, required_update = dispatcher_labels.get(
                     dispatcher.__name__, ("Notifications", "catalog update")
                 )
-                if not stages["update"]:
+                is_letterboxd_dispatcher = (
+                    dispatcher.__name__ == "LetterboxdSourceDispatcher"
+                )
+                if not stages["update"] and not is_letterboxd_dispatcher:
                     console.print(
                         Panel.fit(
                             Text(
@@ -650,29 +654,13 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
                         )
                     )
                     continue
-                if dispatcher.__name__ == "LetterboxdSourceDispatcher":
+                if is_letterboxd_dispatcher:
                     required_categories = ("comingSoonsData", "nowPlayingData")
-                    missing_updates = [
-                        required
-                        for required in required_categories
-                        if not flow_selections.get(required, {}).get("update")
-                    ]
                     failed_updates = [
                         required
                         for required in required_categories
                         if required in failed_categories
                     ]
-                    if missing_updates:
-                        console.print(
-                            Panel.fit(
-                                Text(
-                                    "Skipped Letterboxd source alerts: both catalog updates must be selected",
-                                    style="yellow",
-                                ),
-                                border_style="grey37",
-                            )
-                        )
-                        continue
                     if failed_updates:
                         console.print(
                             Panel.fit(

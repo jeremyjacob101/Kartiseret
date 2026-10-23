@@ -104,6 +104,11 @@ def _plan_header(plan: List[Tuple[str, str, Optional[List[type]]]]) -> Panel:
 
     scrape_labels = {"allSoons": "Soons", "allShowtimes": "Showtimes", "allTheques": "Theques"}
     dataflow_labels = {"comingSoonsData": "Soons", "nowPlayingData": "Showtimes", "cinemathequeData": "Theques"}
+    dispatcher_labels = {
+        "ComingSoonDateAlertDispatcher": "Coming Soon date alerts",
+        "TicketAlertDispatcher": "Ticket alerts",
+        "LetterboxdSourceDispatcher": "Letterboxd source alerts",
+    }
     selected_scrapes = []
     selected_dataflows = []
     for entry in plan:
@@ -118,7 +123,15 @@ def _plan_header(plan: List[Tuple[str, str, Optional[List[type]]]]) -> Panel:
             else:
                 stages = []
                 for cls in classes_override:
-                    stage = "TMDB" if cls.__name__.endswith("Tmdb") else "Update" if cls.__name__.endswith("Update") else "Clean" if cls.__name__.endswith("Clean") else "Ticket alerts"
+                    stage = (
+                        "TMDB"
+                        if cls.__name__.endswith("Tmdb")
+                        else "Update"
+                        if cls.__name__.endswith("Update")
+                        else "Clean"
+                        if cls.__name__.endswith("Clean")
+                        else dispatcher_labels.get(cls.__name__, "Notifications")
+                    )
                     if stage not in stages:
                         stages.append(stage)
             selected_dataflows.append(f"{dataflow_labels.get(key, key)} ({' → '.join(stages)})")

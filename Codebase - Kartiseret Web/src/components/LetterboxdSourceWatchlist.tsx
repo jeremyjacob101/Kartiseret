@@ -54,20 +54,20 @@ export function LetterboxdSourceWatchlist({
           <div className="prefs-setting-copy">
             <span className="prefs-setting-label">Letterboxd sources</span>
             <span className="prefs-setting-summary">
-              Track public watchlists and lists for new Coming Soon dates and
-              future showtimes.
+              Track public watchlists and lists, including lists visible to
+              anyone with a share link, for new Coming Soon dates and future
+              showtimes.
             </span>
           </div>
         </div>
 
         <p className="prefs-alerts-empty letterboxd-source-note">
-          Add a public URL ending in <code>/username/watchlist/</code> or{" "}
-          <code>/username/list/list-name/</code>. Private sources and Letterboxd
-          sign-in are not supported. Sources sync daily; their first sync is
-          silent.
+          Add a public watchlist or list URL, or a share link for a list visible
+          to anyone with the link. Sources that require Letterboxd sign-in are
+          not supported. Sources sync daily; their first sync is silent.
         </p>
         <form className="letterboxd-source-form" onSubmit={submit}>
-          <label htmlFor="letterboxd-source-url">Public Letterboxd URL</label>
+          <label htmlFor="letterboxd-source-url">Letterboxd URL</label>
           <div className="letterboxd-source-form-row">
             <input
               id="letterboxd-source-url"
