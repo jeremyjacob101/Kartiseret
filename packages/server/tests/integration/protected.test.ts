@@ -324,10 +324,10 @@ describe.sequential(
         .post("/api/v1/letterboxd-sources")
         .set("Cookie", "alice")
         .set("Origin", "http://localhost")
-        .send({ sourceUrl: "https://boxd.it/Y9Hce$l6YZtNs6NWLRSO2z" });
+        .send({ sourceUrl: "https://boxd.it/abc123$testShareToken_1" });
       expect(shortShare.status).toBe(200);
       expect(shortShare.body.data.source).toMatchObject({
-        sourceUrl: "https://boxd.it/Y9Hce$l6YZtNs6NWLRSO2z/",
+        sourceUrl: "https://boxd.it/abc123$testShareToken_1/",
         sourceType: "list",
       });
 
@@ -337,23 +337,25 @@ describe.sequential(
         .set("Origin", "http://localhost")
         .send({
           sourceUrl:
-            "https://letterboxd.com/jeremyjacob/list/spiderman-test-list/share/l6YZtNs6NWLRSO2z/",
+            "https://letterboxd.com/fixture/list/share-link-test/share/testShareToken_1/",
         });
       expect(canonicalShare.status).toBe(200);
       expect(canonicalShare.body.data.source).toMatchObject({
         sourceUrl:
-          "https://letterboxd.com/jeremyjacob/list/spiderman-test-list/share/l6YZtNs6NWLRSO2z/",
+          "https://letterboxd.com/fixture/list/share-link-test/share/testShareToken_1/",
         sourceType: "list",
       });
-      await Promise.all([
-        shortShare.body.data.source.id,
-        canonicalShare.body.data.source.id,
-      ].map((sourceId: string) =>
-        request(app)
-          .delete(`/api/v1/letterboxd-sources/${sourceId}`)
-          .set("Cookie", "alice")
-          .set("Origin", "http://localhost"),
-      ));
+      await Promise.all(
+        [
+          shortShare.body.data.source.id,
+          canonicalShare.body.data.source.id,
+        ].map((sourceId: string) =>
+          request(app)
+            .delete(`/api/v1/letterboxd-sources/${sourceId}`)
+            .set("Cookie", "alice")
+            .set("Origin", "http://localhost"),
+        ),
+      );
 
       const second = await request(app)
         .post("/api/v1/letterboxd-sources")

@@ -1,5 +1,6 @@
 from pathlib import Path
 from unittest import TestCase
+from unittest.mock import patch
 
 from backend.notifications.letterboxd_public import (
     LetterboxdSourceError,
@@ -23,6 +24,7 @@ class FakeHttp:
     def __init__(self, responses):
         self.responses = list(responses)
         self.calls = []
+        self.closed = False
 
     def get(self, url, **kwargs):
         self.calls.append((url, kwargs))
@@ -32,6 +34,9 @@ class FakeHttp:
         if isinstance(response, Exception):
             raise response
         return response
+
+    def close(self):
+        self.closed = True
 
 
 class LetterboxdPublicPageTests(TestCase):
@@ -106,17 +111,17 @@ class LetterboxdPublicPageTests(TestCase):
             "http://letterboxd.com/fixture/watchlist/",
             "https://letterboxd.com.evil.test/fixture/watchlist/",
             "https://letterboxd.com/fixture/watchlist/?page=2",
-            "https://boxd.it/Y9Hce",
+            "https://boxd.it/Fixture123",
         ):
             with self.subTest(url=source_url):
                 with self.assertRaises(LetterboxdSourceError):
                     fetch_letterboxd_source(source_url, http_client=FakeHttp([]))
 
     def test_boxd_share_link_resolves_to_a_visible_shared_list(self):
-        short_url = "https://boxd.it/Y9Hce$l6YZtNs6NWLRSO2z/"
+        short_url = "https://boxd.it/Fixture123$syntheticShareToken/"
         shared_url = (
             "https://letterboxd.com/fixture/list/spiderman/share/"
-            "l6YZtNs6NWLRSO2z/"
+            "syntheticShareToken/"
         )
         page_html = """<div class="poster-grid">
           <ul class="grid">
@@ -152,6 +157,7 @@ class LetterboxdPublicPageTests(TestCase):
         self.assertTrue(
             all(call[1]["allow_redirects"] is False for call in client.calls)
         )
+        self.assertEqual(client.calls[1][1]["headers"]["Referer"], short_url)
 
     def test_boxd_share_link_refuses_redirects_outside_letterboxd_lists(self):
         client = FakeHttp(
@@ -165,7 +171,7 @@ class LetterboxdPublicPageTests(TestCase):
 
         with self.assertRaisesRegex(LetterboxdSourceError, "supported shared list"):
             fetch_letterboxd_source(
-                "https://boxd.it/Y9Hce$l6YZtNs6NWLRSO2z/",
+                "https://boxd.it/Fixture123$syntheticShareToken/",
                 http_client=client,
             )
 
@@ -174,7 +180,7 @@ class LetterboxdPublicPageTests(TestCase):
     def test_canonical_share_url_is_a_supported_letterboxd_source(self):
         shared_url = (
             "https://letterboxd.com/fixture/list/spiderman/share/"
-            "l6YZtNs6NWLRSO2z/"
+            "syntheticShareToken/"
         )
         page_html = """<div class="poster-grid"><div
           data-item-slug="spider-man-beyond-the-spider-verse"
@@ -188,6 +194,46 @@ class LetterboxdPublicPageTests(TestCase):
 
         self.assertEqual(len(films), 1)
         self.assertEqual(films[0].release_year, 2027)
+
+    def test_share_page_reports_browser_challenge_without_retrying_it(self):
+        short_url = "https://boxd.it/Fixture123$syntheticShareToken/"
+        shared_url = (
+            "https://letterboxd.com/fixture/list/spiderman/share/"
+            "syntheticShareToken/"
+        )
+        client = FakeHttp(
+            [
+                FakeResponse(302, headers={"Location": shared_url}),
+                FakeResponse(403, "Just a moment... challenge-platform"),
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            LetterboxdSourceError, "requires browser verification"
+        ):
+            fetch_letterboxd_source(short_url, http_client=client)
+        self.assertEqual(
+            [call[0] for call in client.calls],
+            [short_url, shared_url],
+        )
+        self.assertEqual(client.calls[1][1]["headers"]["Referer"], short_url)
+
+    def test_default_http_client_uses_and_closes_a_requests_session(self):
+        client = FakeHttp(
+            [
+                FakeResponse(200, (FIXTURES / "watchlist-page-1.html").read_text()),
+                FakeResponse(200, (FIXTURES / "watchlist-page-2.html").read_text()),
+            ]
+        )
+        with patch(
+            "backend.notifications.letterboxd_public.requests.Session",
+            return_value=client,
+        ) as create_session:
+            films = fetch_letterboxd_source(BASE_URL)
+
+        create_session.assert_called_once_with()
+        self.assertTrue(client.closed)
+        self.assertTrue(films)
 
 
 if __name__ == "__main__":
