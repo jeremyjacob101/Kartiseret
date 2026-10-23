@@ -1,7 +1,9 @@
-import { fixedAppDateString, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, movieCollectionQueryOptions, selectBroadMovieShowtimeDays, selectCityHasAnyShowtimesOnDate, selectMovies, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, type Movie, type ShowtimeCityData, type TheaterShowtimes } from "../data/movieCatalog";
+import { fixedAppDateString, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, movieCollectionQueryOptions, selectBroadMovieShowtimeDays, selectMovies, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, type Movie, type ShowtimeCityData, type TheaterShowtimes } from "../data/movieCatalog";
 import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, saveShowtimeFilters, updateShowtimeFilterState, useShowtimeFiltersStore, type ShowtimeFilterOptions, type ShowtimeFilterSelections } from "./showtimes/showtimeFilters";
 import { getMetricDisplays, getMovieInfoParts, getShowtimeDateLabel, getShowtimeTargetDate, getTrailerEmbedUrl } from "./showtimes/showtimeUtils";
 import { MovieMetricsRow, MovieTrailerModal, ShowtimeTheaters } from "./showtimes/ShowtimeShared";
+import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
+import { applyMovieDisplayPreferences } from "../data/movieDisplayPreferences";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { selectCities, theaterDataQueryOptions } from "../data/theaters";
@@ -56,6 +58,7 @@ function ShowtimesMovieRow({
         <div className="all-showtimes-poster-shell">
           <MoviePosterArtwork
             title={movie.title}
+            tmdbId={movie.tmdbId}
             imageSrc={movie.imageSrc}
             alt={movie.title}
             className="all-showtimes-poster"
@@ -105,6 +108,7 @@ function ShowtimesMovieRow({
 
 export function AllShowtimesPage() {
   usePublicationRevision();
+  const displayPreferences = useMovieDisplayPreferences();
   const { location, sources, setLocationPreference } = useUserPreferencesStore(
     useShallow((state) => ({
       location: state.preferences.location,
@@ -112,10 +116,24 @@ export function AllShowtimesPage() {
       setLocationPreference: state.setLocationPreference,
     })),
   );
-  const { data: nowPlayingMovies = [] } = useQuery({
+  const { data: rawNowPlayingMovies = [] } = useQuery({
     ...movieCollectionQueryOptions("nowPlaying"),
     select: selectMovies,
   });
+  const nowPlayingMovies = useMemo(
+    () =>
+      displayPreferences.ready
+        ? applyMovieDisplayPreferences(
+            rawNowPlayingMovies,
+            displayPreferences.preferencesById,
+          )
+        : [],
+    [
+      displayPreferences.preferencesById,
+      displayPreferences.ready,
+      rawNowPlayingMovies,
+    ],
+  );
   const showtimeCities = useMemo(
     () => [...new Set<string>([...ALL_LOCATIONS, location])],
     [location],
@@ -297,6 +315,16 @@ export function AllShowtimesPage() {
     () => new Map(cities.map((city) => [city.name, city] as const)),
     [cities],
   );
+  const cityHasVisibleShowtimesOnDate = useCallback(
+    (cityName: string, date: string) => {
+      const cityData = showtimeDataByCity.get(cityName);
+      return nowPlayingMovies.some((movie) =>
+        selectBroadMovieShowtimeDays(cityData, movie.tmdbId).some(
+          (day) => day.date === date && day.theaters.length > 0,
+        ));
+    },
+    [nowPlayingMovies, showtimeDataByCity],
+  );
   const nearbyCityChoices = useMemo<NearbyCityChoice[]>(() => {
     if (!selectedDayPanel || cities.length === 0) {
       return [];
@@ -306,19 +334,13 @@ export function AllShowtimesPage() {
       cityByName
         .get(location)
         ?.neighboringCities.filter((cityName) =>
-          selectCityHasAnyShowtimesOnDate(
-            showtimeDataByCity.get(cityName),
-            selectedDayPanel.date,
-          )) ?? [];
+          cityHasVisibleShowtimesOnDate(cityName, selectedDayPanel.date)) ?? [];
     const fallbackCityNames = cities
       .map((city) => city.name)
       .filter(
         (cityName) =>
           cityName !== location &&
-          selectCityHasAnyShowtimesOnDate(
-            showtimeDataByCity.get(cityName),
-            selectedDayPanel.date,
-          ),
+          cityHasVisibleShowtimesOnDate(cityName, selectedDayPanel.date),
       );
     const cityNamesToShow =
       neighboringCityNames.length > 0
@@ -328,7 +350,13 @@ export function AllShowtimesPage() {
     return [...new Set(cityNamesToShow)].map((name) => ({
       name,
     }));
-  }, [cities, cityByName, location, selectedDayPanel, showtimeDataByCity]);
+  }, [
+    cities,
+    cityByName,
+    cityHasVisibleShowtimesOnDate,
+    location,
+    selectedDayPanel,
+  ]);
 
   const handleNearbyCityClick = useCallback(
     async (cityName: string) => {

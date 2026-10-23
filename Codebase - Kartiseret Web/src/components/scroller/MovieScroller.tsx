@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type WheelEvent } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type WheelEvent } from "react";
 import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
 import { buildMovieShowtimeShareUrl, filterMaskFromUnchecked, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "@kartiseret/contracts/showtime-links";
 import { loadShowtimes, loadShowtimesAroundDate, movieCollectionQueryOptions, selectMovies, type Movie } from "../../data/movieCatalog";
 import { MovieDetailsContent, type MovieDetailsShareSelection, type MovieDetailsVariant } from "./MovieDetailsContent";
+import { useMovieDisplayPreferences } from "../../contexts/MovieDisplayPreferencesContext";
+import { applyMovieDisplayPreferences } from "../../data/movieDisplayPreferences";
 import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
 import { useDeviceStore } from "../../device/useDeviceType";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
@@ -530,13 +532,28 @@ export function MovieScroller({
   onExitDetail,
   ...props
 }: MovieScrollerProps) {
+  const displayPreferences = useMovieDisplayPreferences();
   const resolvedVariant = mode ?? detailVariant ?? "nowPlaying";
   const { data: queriedMovieItems = [] } = useQuery({
     ...movieCollectionQueryOptions(resolvedVariant),
     select: selectMovies,
     enabled: movieItems === undefined,
   });
-  const resolvedMovieItems = movieItems ?? queriedMovieItems;
+  const resolvedMovieItems = useMemo(
+    () =>
+      displayPreferences.ready
+        ? applyMovieDisplayPreferences(
+            movieItems ?? queriedMovieItems,
+            displayPreferences.preferencesById,
+          )
+        : [],
+    [
+      displayPreferences.preferencesById,
+      displayPreferences.ready,
+      movieItems,
+      queriedMovieItems,
+    ],
+  );
 
   if (resolvedMovieItems.length === 0) {
     return null;
@@ -2355,6 +2372,7 @@ function MovieScrollerContent({
                 >
                   <MoviePosterArtwork
                     title={previousAdjacentMovie.title}
+                    tmdbId={previousAdjacentMovie.tmdbId}
                     imageSrc={previousAdjacentMovie.imageSrc}
                     alt={previousAdjacentMovie.title}
                     className="movie-scroller-side-preview-image"
@@ -2392,6 +2410,7 @@ function MovieScrollerContent({
                 >
                   <MoviePosterArtwork
                     title={nextAdjacentMovie.title}
+                    tmdbId={nextAdjacentMovie.tmdbId}
                     imageSrc={nextAdjacentMovie.imageSrc}
                     alt={nextAdjacentMovie.title}
                     className="movie-scroller-side-preview-image"

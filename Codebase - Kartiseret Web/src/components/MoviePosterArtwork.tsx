@@ -1,7 +1,9 @@
+import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
 import { forwardRef, useCallback, useState } from "react";
 
 type MoviePosterArtworkProps = {
   title: string;
+  tmdbId?: string;
   imageSrc?: string;
   alt?: string;
   className?: string;
@@ -137,6 +139,7 @@ export const MoviePosterArtwork = forwardRef<
 >(function MoviePosterArtwork(
   {
     title,
+    tmdbId,
     imageSrc,
     alt,
     className,
@@ -151,7 +154,17 @@ export const MoviePosterArtwork = forwardRef<
   },
   ref,
 ) {
-  const resolvedImageSrc = imageSrc?.trim();
+  const displayPreferences = useMovieDisplayPreferences();
+  const preference = tmdbId
+    ? displayPreferences.preferencesById.get(tmdbId)
+    : undefined;
+  if (preference?.treatment === "remove") return null;
+  const shouldUseStandardPoster =
+    preference?.treatment === "standard" ||
+    (Boolean(tmdbId) && !displayPreferences.ready);
+  const resolvedImageSrc = shouldUseStandardPoster
+    ? undefined
+    : imageSrc?.trim();
   const resolvedAlt = alt ?? title;
   const isDecorative = resolvedAlt.length === 0;
   const shouldShowLoadingFallback =

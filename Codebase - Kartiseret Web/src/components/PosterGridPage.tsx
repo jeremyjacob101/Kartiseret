@@ -195,6 +195,7 @@ export function PosterGridPage({
             ) : null}
             <MoviePosterArtwork
               title={movie.title}
+              tmdbId={movie.tmdbId}
               imageSrc={movie.imageSrc}
               alt={movie.title}
               loading="lazy"
@@ -245,6 +246,7 @@ export function PosterGridPage({
                   />
                   <MoviePosterArtwork
                     title={option.title}
+                    tmdbId={option.tmdbId}
                     imageSrc={option.posterUrl ?? undefined}
                     alt={option.title}
                     className="poster-grid-edit-option-image"

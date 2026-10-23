@@ -373,6 +373,26 @@ export const comingSoonDateWatches = pgTable(
   ],
 );
 
+export const userMovieDisplayPreferences = pgTable(
+  "user_movie_display_preferences",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    tmdbId: bigint("tmdb_id", { mode: "bigint" }).notNull(),
+    title: text("title").notNull(),
+    releaseYear: smallint("release_year"),
+    treatment: text("treatment").notNull(),
+    hideBackdrop: boolean("hide_backdrop").notNull().default(true),
+  },
+  (table) => [
+    primaryKey({
+      name: "user_movie_display_preferences_pkey",
+      columns: [table.userId, table.tmdbId],
+    }),
+  ],
+);
+
 export const letterboxdSources = pgTable(
   "letterboxd_sources",
   {
