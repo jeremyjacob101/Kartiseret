@@ -9,13 +9,19 @@ DECLARE
   raw_id uuid := '00000000-0000-4000-8000-0000000000e2';
   started timestamptz;
 BEGIN
-  FOREACH scenario IN ARRAY ARRAY['insert','update','delete','duplicate updates','partial shapes','stale target','duplicate inserts','invalid column','numeric string key','guard mismatch','guard multiplicity'] LOOP
+  FOREACH scenario IN ARRAY ARRAY['batched catalog','insert','update','delete','duplicate updates','partial shapes','stale target','duplicate inserts','invalid column','numeric string key','guard mismatch','guard multiplicity'] LOOP
     FOREACH implementation IN ARRAY ARRAY['legacy','optimized'] LOOP
       BEGIN
         INSERT INTO public."allShowtimes"(id,english_title,added) VALUES(raw_id,'Original',false);
         SELECT to_jsonb(t) INTO before_row FROM public."allShowtimes" t WHERE id=raw_id;
         change_rows := jsonb_build_array(jsonb_build_object('table','allShowtimes','before',before_row,'after',before_row || '{"added":true}'));
         CASE scenario
+          WHEN 'batched catalog' THEN
+            INSERT INTO public."allShowtimes"(id,cinema,english_title,added)
+            SELECT md5('parity bulk '||g)::uuid,'__publication_parity_bulk__','Bulk '||g,false FROM generate_series(1,200) g;
+            SELECT jsonb_agg(jsonb_build_object('table','allShowtimes','before',to_jsonb(t),'after',to_jsonb(t)||'{"added":true}') ORDER BY id) INTO change_rows FROM public."allShowtimes" t WHERE cinema='__publication_parity_bulk__';
+            change_rows:=change_rows || (SELECT jsonb_agg(jsonb_build_object('table','finalMovies','before',NULL,'after',jsonb_build_object('tmdb_id',2101700000+g,'english_title','Bulk movie'))) FROM generate_series(1,100) g);
+            change_rows:=change_rows || (SELECT jsonb_agg(jsonb_build_object('table','finalShowtimes','before',NULL,'after',jsonb_build_object('id',md5('parity screening '||g)::uuid,'tmdb_id',2101700000+g,'cinema','__publication_parity_bulk__'))) FROM generate_series(1,100) g);
           WHEN 'insert' THEN change_rows := jsonb_build_array(jsonb_build_object('table','finalMovies','before',NULL,'after',jsonb_build_object('tmdb_id',2101999999,'english_title','Parity')));
           WHEN 'delete' THEN change_rows := jsonb_build_array(jsonb_build_object('table','allShowtimes','before',before_row,'after',NULL));
           WHEN 'duplicate updates' THEN change_rows := change_rows || jsonb_build_array(jsonb_build_object('table','allShowtimes','before',before_row,'after',before_row || '{"english_title":"Last"}'));
@@ -42,6 +48,9 @@ BEGIN
         started:=clock_timestamp();
         IF implementation='legacy' THEN outcome:=pg_temp.legacy_commit(pub,fingerprint); ELSE outcome:=public.commit_category_publication(pub,fingerprint); END IF;
         outcome := jsonb_build_object('receipt',outcome,'raw',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM public."allShowtimes" t WHERE id IN(raw_id,'00000000-0000-4000-8000-0000000000e3')),
+          'bulk_raw',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM public."allShowtimes" t WHERE cinema='__publication_parity_bulk__'),
+          'bulk_movies',(SELECT jsonb_agg(to_jsonb(t) ORDER BY tmdb_id) FROM public."finalMovies" t WHERE tmdb_id BETWEEN 2101700001 AND 2101700100),
+          'bulk_screenings',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM public."finalShowtimes" t WHERE cinema='__publication_parity_bulk__'),
           'movie',(SELECT to_jsonb(t) FROM public."finalMovies" t WHERE tmdb_id=2101999999),'staging',(SELECT count(*) FROM public.pipeline_publication_parts WHERE publication_id=pub),
           'publication',(SELECT to_jsonb(t) FROM public.pipeline_publications t WHERE publication_id=pub));
         RAISE EXCEPTION 'fixture rollback' USING ERRCODE='ZX001';
@@ -51,7 +60,7 @@ BEGIN
       END;
       IF implementation='legacy' THEN legacy_outcome:=outcome;
       ELSE
-        IF scenario IN ('insert','update','delete','duplicate updates','partial shapes','numeric string key') AND outcome ? 'error' THEN RAISE EXCEPTION 'Unexpected failure in %: %',scenario,outcome; END IF;
+        IF scenario IN ('batched catalog','insert','update','delete','duplicate updates','partial shapes','numeric string key') AND outcome ? 'error' THEN RAISE EXCEPTION 'Unexpected failure in %: %',scenario,outcome; END IF;
         IF scenario IN ('stale target','duplicate inserts','invalid column','guard mismatch','guard multiplicity') AND NOT (outcome ? 'error') THEN RAISE EXCEPTION 'Expected rejection in %',scenario; END IF;
         IF outcome IS DISTINCT FROM legacy_outcome THEN RAISE EXCEPTION 'Parity mismatch in %: legacy %, optimized %',scenario,legacy_outcome,outcome; END IF;
         INSERT INTO publication_parity_results VALUES(scenario,legacy_outcome,outcome);

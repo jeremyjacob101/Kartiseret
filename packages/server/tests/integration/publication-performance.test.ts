@@ -37,7 +37,7 @@ describe("publication SQL performance and parity", () => {
       await client.query(legacy);
       const results = await client.query(fixture("publication-parity.sql"));
       const result = Array.isArray(results) ? results.at(-1)! : results;
-      expect(result.rows).toHaveLength(11);
+      expect(result.rows).toHaveLength(12);
       expect(
         result.rows.every((row: { identical: boolean }) => row.identical),
       ).toBe(true);

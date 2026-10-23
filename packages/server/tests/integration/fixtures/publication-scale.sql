@@ -39,5 +39,22 @@ BEGIN
 END;
 $test$;
 RESET ROLE;
+DO $verify$
+BEGIN
+ IF EXISTS (
+   WITH expected AS (
+     SELECT r.value AS body,row_number() OVER(ORDER BY r.value->>'id') AS ordinal
+     FROM scale_parts p CROSS JOIN LATERAL jsonb_array_elements(p.payload::jsonb->'rows') r(value)
+     WHERE p.part<330 AND r.value->>'snapshot_id'='00000000-0000-4000-8000-0000000000d1'
+   )
+   SELECT 1 FROM expected e LEFT JOIN public."allShowtimes" t ON t.id=(e.body->>'id')::uuid
+   WHERE to_jsonb(t) IS DISTINCT FROM e.body || jsonb_build_object('added',e.ordinal<=45488)
+ ) THEN RAISE EXCEPTION 'Scale publication changed unexpected raw values'; END IF;
+ IF EXISTS (SELECT 1 FROM public.pipeline_publication_parts WHERE publication_id='00000000-0000-4000-8000-0000000000d2')
+ OR NOT EXISTS (SELECT 1 FROM public.pipeline_publication_checkpoints WHERE snapshot_id='00000000-0000-4000-8000-0000000000d1' AND phase='published') THEN
+   RAISE EXCEPTION 'Scale publication did not finalize atomically';
+ END IF;
+END;
+$verify$;
 UPDATE publication_scale_measurement SET parts=(SELECT count(*) FROM scale_parts),bytes=(SELECT sum(octet_length(payload)) FROM scale_parts);
 SELECT * FROM publication_scale_measurement;
