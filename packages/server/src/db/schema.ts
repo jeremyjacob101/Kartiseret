@@ -532,6 +532,7 @@ export const applicationTables = {
   theaters,
   ticketAlertPreferences,
   ticketAlertSubscriptions,
+  userMovieDisplayPreferences,
   userPreferences,
   utilAvgTime,
   utilRunLogs,
