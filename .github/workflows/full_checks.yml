@@ -66,23 +66,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build safeupdate for production-compatible publication tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          build_dir="$(mktemp -d)"
-          cd "$build_dir"
-          curl --fail --location --retry 3 https://ftp.postgresql.org/pub/source/v17.6/postgresql-17.6.tar.bz2 -o postgres.tar.bz2
-          echo 'e0630a3600aea27511715563259ec2111cd5f4353a4b040e0be827f94cd7a8b0  postgres.tar.bz2' | sha256sum --check
-          curl --fail --location --retry 3 https://raw.githubusercontent.com/eradman/pg-safeupdate/37dbc9c4acf5e2504adf2b218e9c6b41751022f3/safeupdate.c -o safeupdate.c
-          echo '1351fc18b9a1e2dcc72185d349c178244458b5d9eb30007609c3d599b38aeb38  safeupdate.c' | sha256sum --check
-          tar -xjf postgres.tar.bz2
-          cd postgresql-17.6
-          ./configure --without-icu --without-readline --without-zlib
-          make -C src/backend generated-headers
-          cc -shared -fPIC -I src/include ../safeupdate.c -o "$build_dir/safeupdate.so"
-          echo "TEST_SAFEUPDATE_LIBRARY=$build_dir/safeupdate.so" >> "$GITHUB_ENV"
-
       - name: Run API integration tests against disposable PostgreSQL 17
         run: npm run api:test:integration
 
