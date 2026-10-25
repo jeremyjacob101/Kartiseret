@@ -93,7 +93,9 @@ const cinemathequeMovieProjection = {
   imdbRating: finalThequeMovies.imdbRating,
   imdbVotes: sql<string | null>`${finalThequeMovies.imdbVotes}::text`,
   rtAudienceRating: finalThequeMovies.rtAudienceRating,
-  rtAudienceVotes: sql<string | null>`${finalThequeMovies.rtAudienceVotes}::text`,
+  rtAudienceVotes: sql<
+    string | null
+  >`${finalThequeMovies.rtAudienceVotes}::text`,
   rtCriticRating: finalThequeMovies.rtCriticRating,
   rtCriticVotes: sql<string | null>`${finalThequeMovies.rtCriticVotes}::text`,
   lbId: finalThequeMovies.lbId,
