@@ -1,0 +1,18 @@
+.cinematheques-page {
+  gap: 14px;
+}
+
+.cinematheques-page-title {
+  margin: 8px 20px 0;
+  color: #f4efff;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.cinematheques-page .all-showtimes-browser {
+  min-height: calc(100vh - 280px);
+}
+
+html[data-device-type="mobile"] .cinematheques-page-title {
+  margin-left: 0;
+}

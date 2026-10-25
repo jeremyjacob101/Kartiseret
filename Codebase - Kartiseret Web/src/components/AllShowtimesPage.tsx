@@ -1,30 +1,23 @@
 import { fixedAppDateString, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, movieCollectionQueryOptions, selectBroadMovieShowtimeDays, selectMovies, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, type Movie, type ShowtimeCityData, type TheaterShowtimes } from "../data/movieCatalog";
 import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, saveShowtimeFilters, updateShowtimeFilterState, useShowtimeFiltersStore, type ShowtimeFilterOptions, type ShowtimeFilterSelections } from "./showtimes/showtimeFilters";
-import { getMetricDisplays, getMovieInfoParts, getShowtimeDateLabel, getShowtimeTargetDate, getTrailerEmbedUrl } from "./showtimes/showtimeUtils";
-import { MovieMetricsRow, MovieTrailerModal, ShowtimeTheaters } from "./showtimes/ShowtimeShared";
+import { getShowtimeDateLabel, getShowtimeTargetDate, getTrailerEmbedUrl } from "./showtimes/showtimeUtils";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
 import { applyMovieDisplayPreferences } from "../data/movieDisplayPreferences";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { selectCities, theaterDataQueryOptions } from "../data/theaters";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
-import { type RatingSource } from "../prefs/definitions/ratingSources";
 import { ShowtimeFilterMenu } from "./showtimes/ShowtimeFilterMenu";
+import { ShowtimesMovieRow } from "./showtimes/ShowtimesMovieRow";
 import { ShowtimeDayPicker } from "./showtimes/ShowtimeDayPicker";
+import { MovieTrailerModal } from "./showtimes/ShowtimeShared";
 import { ALL_LOCATIONS } from "../prefs/definitions/locations";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { TheaterMapDialog } from "./maps/TheaterMapDialog";
-import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { useShallow } from "zustand/react/shallow";
 import "./AllShowtimesPage.css";
 import { MapPin } from "lucide-react";
-
-type ShowtimesMovieRowProps = {
-  movie: Movie;
-  theaters: readonly TheaterShowtimes[];
-  sources: readonly RatingSource[];
-  onOpenTrailer: (movieId: string) => void;
-};
+import { Link } from "react-router";
 
 type ShowtimesDayPanel = {
   date: string;
@@ -37,74 +30,6 @@ type ShowtimesDayPanel = {
 type NearbyCityChoice = {
   name: string;
 };
-
-function ShowtimesMovieRow({
-  movie,
-  theaters,
-  sources,
-  onOpenTrailer,
-}: ShowtimesMovieRowProps) {
-  const infoParts = getMovieInfoParts(movie);
-  const metaParts =
-    movie.genres.length > 0
-      ? [...infoParts, movie.genres.join(", ")]
-      : infoParts;
-  const metrics = getMetricDisplays(movie, sources);
-  const trailerEmbedUrl = getTrailerEmbedUrl(movie.trailerKey);
-
-  return (
-    <article className="all-showtimes-movie-row">
-      <div className="all-showtimes-movie-summary">
-        <div className="all-showtimes-poster-shell">
-          <MoviePosterArtwork
-            title={movie.title}
-            tmdbId={movie.tmdbId}
-            imageSrc={movie.imageSrc}
-            alt={movie.title}
-            className="all-showtimes-poster"
-            fallbackClassName="all-showtimes-poster"
-            draggable={false}
-          />
-        </div>
-
-        <div className="details-copy all-showtimes-copy">
-          <h3 className="details-title all-showtimes-title">{movie.title}</h3>
-
-          {metaParts.length > 0 ? (
-            <div className="details-subtitle details-subtitle--meta-row">
-              {metaParts.map((part) => (
-                <span
-                  key={`${movie.tmdbId}-showtimes-meta-${part}`}
-                  className="details-subtitle-item"
-                >
-                  {part}
-                </span>
-              ))}
-            </div>
-          ) : null}
-
-          <MovieMetricsRow
-            movie={movie}
-            metrics={metrics}
-            trailerEmbedUrl={trailerEmbedUrl}
-            onTrailerClick={
-              trailerEmbedUrl
-                ? () => {
-                    onOpenTrailer(movie.tmdbId);
-                  }
-                : undefined
-            }
-            className="all-showtimes-metrics-row"
-          />
-        </div>
-      </div>
-
-      <div className="all-showtimes-theaters">
-        <ShowtimeTheaters movie={movie} theaters={theaters} />
-      </div>
-    </article>
-  );
-}
 
 export function AllShowtimesPage() {
   usePublicationRevision();
@@ -603,6 +528,12 @@ export function AllShowtimesPage() {
           </article>
         )}
       </section>
+
+      <div className="all-showtimes-cinematheque-link">
+        <Link className="cinematheque-link-button" to="/cinematheques">
+          Cinematheque showtimes
+        </Link>
+      </div>
 
       <MovieTrailerModal
         movieTitle={openTrailerMovie?.title ?? ""}

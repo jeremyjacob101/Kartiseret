@@ -80,6 +80,39 @@
   border-left: 0;
 }
 
+.all-showtimes-cinematheque-link {
+  display: flex;
+  justify-content: center;
+  padding: 26px 0 36px;
+}
+
+.cinematheque-link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0.64rem 1rem;
+  border: 1px solid rgba(221, 194, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(18, 15, 31, 0.82);
+  color: #f6f0ff;
+  font-size: 0.9rem;
+  font-weight: 650;
+  line-height: 1;
+  text-decoration: none;
+  transition:
+    transform 140ms ease,
+    background 140ms ease,
+    border-color 140ms ease;
+}
+
+.cinematheque-link-button:hover,
+.cinematheque-link-button:focus-visible {
+  border-color: rgba(240, 232, 255, 0.38);
+  background: rgba(28, 23, 46, 0.94);
+  transform: translateY(-1px);
+}
+
 .all-showtimes-movie-list {
   display: grid;
   gap: 20px;
@@ -283,6 +316,10 @@ html[data-device-type="mobile"] .all-showtimes-day-picker-filter {
 
 html[data-device-type="mobile"] .all-showtimes-day-panel {
   padding: 8px;
+}
+
+html[data-device-type="mobile"] .all-showtimes-cinematheque-link {
+  padding-bottom: 24px;
 }
 
 html[data-device-type="mobile"] .all-showtimes-movie-row {
