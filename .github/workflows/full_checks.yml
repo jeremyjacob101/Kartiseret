@@ -2,7 +2,8 @@ name: Full checks
 
 on:
   pull_request: {}
-  push: {}
+  push:
+    branches: [main]
   repository_dispatch:
     types: [license-year-updated]
 
@@ -50,7 +51,6 @@ jobs:
         run: python -m unittest discover -s backend/tests -v
 
   api-postgres:
-    needs: web
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository

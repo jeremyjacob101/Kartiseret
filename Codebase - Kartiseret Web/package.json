@@ -10,20 +10,23 @@
     "predev": "npm run build --workspace=@kartiseret/contracts",
     "dev": "vite --config config/vite.config.ts",
     "prebuild": "npm run build --workspace=@kartiseret/contracts",
-    "build": "npm run typecheck && vite build --config config/vite.config.ts",
-    "typecheck": "npm run build --workspace=@kartiseret/contracts && npm run typecheck:contracts && tsc --noEmit -p tsconfig.json && tsc --noEmit -p config/tsconfig.node.json && tsc --noEmit -p config/tsconfig.server.json && tsc --noEmit -p tsconfig.e2e.json",
+    "build": "npm run typecheck && npm run build:bundle",
+    "typecheck": "npm run build --workspace=@kartiseret/contracts && npm run typecheck:contracts && npm run typecheck:source",
     "typecheck:contracts": "npm run typecheck --workspace=@kartiseret/contracts",
     "bundle:check": "node tests/check-client-bundle.mjs",
     "lint": "eslint .",
     "pretest": "npm run build --workspace=@kartiseret/contracts",
-    "test": "vitest run",
+    "test": "npm run test:run",
     "e2e": "npm run build --workspace=@kartiseret/contracts && node ../packages/server/scripts/with-test-database.mjs -- npm run e2e:run --workspace=kartiseret-web",
     "e2e:run": "playwright test --config playwright.config.ts",
     "test:watch": "vitest",
     "format": "prettier --ignore-path ../.gitignore --cache --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts}\"",
     "format:check": "prettier --ignore-path ../.gitignore --check \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts}\"",
     "preview": "vite preview --config config/vite.config.ts",
-    "verify": "npm run lint && npm run format:check && npm test && npm run build && npm run bundle:check && npm --prefix .. run clean:web-build"
+    "verify": "npm run lint && npm run format:check && npm test && npm run build && npm run bundle:check && npm --prefix .. run clean:web-build",
+    "build:bundle": "vite build --config config/vite.config.ts",
+    "typecheck:source": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p config/tsconfig.node.json && tsc --noEmit -p config/tsconfig.server.json && tsc --noEmit -p tsconfig.e2e.json",
+    "test:run": "vitest run"
   },
   "prettier": {
     "plugins": [

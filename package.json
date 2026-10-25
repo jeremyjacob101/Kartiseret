@@ -30,7 +30,7 @@
     "bundle:check": "npm run bundle:check --workspace=kartiseret-web",
     "clean:web-build": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('Codebase - Kartiseret Web/dist', { recursive: true, force: true });\"",
     "verify": "npm run verify:code && npm run api:test:integration && npm run web:e2e",
-    "verify:code": "npm run contracts:build && npm run lint && npm run format:check && npm run contracts:typecheck && npm run server:typecheck && npm run web:typecheck && npm run web:test && npm run api:test && npm run api:typecheck && npm run web:build && npm run web:og:smoke && npm run bundle:check && npm run clean:web-build",
+    "verify:code": "npm run server:build && npm run lint && npm run format:check && npm run typecheck:integration --workspace=@kartiseret/server && npm run typecheck:source --workspace=kartiseret-web && npm run test:run --workspace=kartiseret-web && npm run test --workspace=@kartiseret/server && npm run api:typecheck && npm run build:bundle --workspace=kartiseret-web && npm run web:og:smoke && npm run bundle:check && npm run clean:web-build",
     "server:build": "npm run contracts:build && npm run build --workspace=@kartiseret/server",
     "server:typecheck": "npm run contracts:build && npm run typecheck --workspace=@kartiseret/server",
     "server:dev": "npm run contracts:build && npm run dev --workspace=@kartiseret/server",
