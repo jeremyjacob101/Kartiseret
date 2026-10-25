@@ -176,6 +176,29 @@ class CategoryPublicationTests(TestCase):
             with self.assertRaisesRegex(RuntimeError, "was not applied"):
                 workspace.commit()
 
+    def test_configured_postgres_publisher_replaces_only_the_commit_transport(self):
+        workspace, live = self.workspace()
+        workspace.table("finalMovies").insert({"tmdb_id": 1, "english_title": "Ready"}).execute()
+        publisher = SimpleNamespace(publish=Mock(return_value={"status": "applied", "revision": "8"}))
+        with patch("backend.dataflow.utils.PublicationWorkspace.Path"), patch(
+            "backend.dataflow.utils.PublicationWorkspace.PostgresPublicationPublisher.from_environment",
+            return_value=publisher,
+        ):
+            self.assertEqual(workspace.commit(), {"status": "applied", "revision": "8"})
+        publisher.publish.assert_called_once()
+        self.assertFalse(live.actions)
+
+    def test_invalid_configured_postgres_publisher_never_falls_back_to_rest(self):
+        workspace, live = self.workspace()
+        workspace.table("finalMovies").insert({"tmdb_id": 1, "english_title": "Ready"}).execute()
+        with patch("backend.dataflow.utils.PublicationWorkspace.Path"), patch(
+            "backend.dataflow.utils.PublicationWorkspace.PostgresPublicationPublisher.from_environment",
+            side_effect=ValueError("bad publisher configuration"),
+        ):
+            with self.assertRaisesRegex(ValueError, "bad publisher configuration"):
+                workspace.commit()
+        self.assertFalse(live.actions)
+
     def test_read_only_preparation_does_not_write_receipts_and_chunk_limits_are_bounded(self):
         workspace, live = self.workspace(tables={"finalMovies": [{"tmdb_id": 1, "english_title": "Old"}]})
         workspace.table("finalMovies").select().execute()

@@ -68,6 +68,9 @@ try {
       IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'kartiseret_api') THEN
         EXECUTE 'CREATE ROLE kartiseret_api LOGIN PASSWORD ''local-test-only''';
       END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'kartiseret_publisher_login') THEN
+        EXECUTE 'CREATE ROLE kartiseret_publisher_login LOGIN PASSWORD ''local-test-only'' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS';
+      END IF;
     END;
     $roles$;
     CREATE SCHEMA IF NOT EXISTS auth;
@@ -104,6 +107,9 @@ try {
   }
 
   await client.query("GRANT kartiseret_runtime TO kartiseret_api");
+  await client.query(
+    "GRANT kartiseret_publisher TO kartiseret_publisher_login WITH INHERIT FALSE, SET TRUE",
+  );
 
   const seed = await readFile(
     resolve(repositoryRoot, "supabase/seed/dev.sql"),

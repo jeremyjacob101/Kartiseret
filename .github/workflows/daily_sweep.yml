@@ -54,6 +54,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PUBLICATION_DATABASE_URL: ${{ secrets.PUBLICATION_DATABASE_URL }}
+          PUBLICATION_DATABASE_SSL_CA_CERT: ${{ secrets.PUBLICATION_DATABASE_SSL_CA_CERT }}
         run: |
           set -e
           . .venv/bin/activate
