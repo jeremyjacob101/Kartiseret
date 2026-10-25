@@ -38,6 +38,7 @@ const FIXED_APP_PATHS = new Set([
   "/",
   "/movies",
   "/showtimes",
+  "/cinematheques",
   "/soons",
   "/user",
   "/attribution",
@@ -47,6 +48,7 @@ const loadUserPreferencesPage = () =>
   import("./components/UserPreferencesPage");
 const loadPosterGridPage = () => import("./components/PosterGridPage");
 const loadAllShowtimesPage = () => import("./components/AllShowtimesPage");
+const loadCinemathequesPage = () => import("./components/CinemathequesPage");
 const loadMoviePage = () => import("./components/MoviePage");
 
 const UserPreferencesPage = lazy(async () => {
@@ -62,6 +64,11 @@ const PosterGridPage = lazy(async () => {
 const AllShowtimesPage = lazy(async () => {
   const module = await loadAllShowtimesPage();
   return { default: module.AllShowtimesPage };
+});
+
+const CinemathequesPage = lazy(async () => {
+  const module = await loadCinemathequesPage();
+  return { default: module.CinemathequesPage };
 });
 
 const MoviePage = lazy(async () => {
@@ -468,6 +475,7 @@ export function App() {
   useEffect(() => {
     if (
       pathname === "/showtimes" ||
+      pathname === "/cinematheques" ||
       pathname === "/user" ||
       pathname === "/attribution" ||
       pathname === PASSWORD_RESET_PATH ||
@@ -793,6 +801,17 @@ export function App() {
                 catalogError={catalogError}
                 showtimesReady={showtimesReady}
               />
+            }
+          />
+          <Route
+            path="/cinematheques"
+            element={
+              <section className="page-panel">
+                <CatalogErrorNote message={catalogError} />
+                <Suspense fallback={null}>
+                  <CinemathequesPage />
+                </Suspense>
+              </section>
             }
           />
           <Route
