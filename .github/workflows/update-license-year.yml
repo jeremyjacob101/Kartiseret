@@ -102,5 +102,10 @@ jobs:
           git add "$LICENSE_FILE"
           git commit -m "chore: update license year"
           git push
+          gh api \
+            --method POST \
+            "/repos/${GITHUB_REPOSITORY}/dispatches" \
+            --field event_type=license-year-updated
         env:
           LICENSE_FILE: ${{ env.LICENSE_FILE }}
+          GH_TOKEN: ${{ github.token }}

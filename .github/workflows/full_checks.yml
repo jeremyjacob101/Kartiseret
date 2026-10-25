@@ -3,6 +3,8 @@ name: Full checks
 on:
   pull_request: {}
   push: {}
+  repository_dispatch:
+    types: [license-year-updated]
 
 permissions:
   contents: read
@@ -89,3 +91,27 @@ jobs:
 
       - name: Run the frontend against the real Express API and PostgreSQL fixture
         run: npm run web:e2e
+
+  production-gate:
+    # Require this GitHub check as a Vercel Production Deployment Check.
+    # Vercel can build in parallel, but must wait before assigning production domains.
+    if: always()
+    needs:
+      - web
+      - backend
+      - api-postgres
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every CI job to pass
+        env:
+          WEB_RESULT: ${{ needs.web.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          API_POSTGRES_RESULT: ${{ needs['api-postgres'].result }}
+        run: |
+          set -euo pipefail
+          if [[ "$WEB_RESULT" != "success" || "$BACKEND_RESULT" != "success" || "$API_POSTGRES_RESULT" != "success" ]]; then
+            echo "::error::Production is blocked because one or more CI jobs did not pass."
+            echo "web=$WEB_RESULT backend=$BACKEND_RESULT api-postgres=$API_POSTGRES_RESULT"
+            exit 1
+          fi
+          echo "All CI jobs passed; production may be promoted."
