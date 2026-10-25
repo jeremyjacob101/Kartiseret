@@ -1,5 +1,5 @@
 import { buildCinemathequeShowtimesByDate, isCinemathequeTheaterName } from "../src/data/cinematheques";
-import type { ShowtimeCityData } from "../src/data/movieCatalog";
+import type { PublicShowtime } from "@kartiseret/contracts/public-data";
 import { describe, expect, it } from "vitest";
 import { sampleMovie } from "./fixtures";
 
@@ -14,46 +14,54 @@ describe("cinematheque showtimes", () => {
     expect(isCinemathequeTheaterName("Lev Cinema")).toBe(false);
   });
 
-  it("keeps only cinematheque screenings while preserving empty days", () => {
-    const cityData = {
-      broadVisibleDayCount: 2,
-      movieShowtimesByTmdbId: {
-        [sampleMovie.tmdbId]: [
-          {
-            date: "2026-10-25",
-            theaters: [
-              {
-                theater: "Cinema City Jerusalem",
-                showtimes: [
-                  {
-                    time: "18:00",
-                    href: null,
-                    screeningTech: "2D",
-                    screeningType: "Regular",
-                    dubLanguage: null,
-                  },
-                ],
-              },
-              {
-                theater: "Jerusalem Cinematheque",
-                showtimes: [
-                  {
-                    time: "20:00",
-                    href: null,
-                    screeningTech: "35mm",
-                    screeningType: "Film",
-                    dubLanguage: null,
-                  },
-                ],
-              },
-            ],
-          },
-          { date: "2026-10-26", theaters: [] },
-        ],
+  it("groups dedicated API screenings and retains dates without screenings", () => {
+    const secondMovie = { ...sampleMovie, tmdbId: "9100002", title: "Second" };
+    const rows: PublicShowtime[] = [
+      {
+        tmdbId: sampleMovie.tmdbId,
+        screeningCity: "Jerusalem",
+        dateOfShowing: "2026-10-25",
+        cinema: "Cinema City Jerusalem",
+        showtime: "18:00",
+        englishHref: null,
+        hebrewHref: null,
+        screeningTech: "2D",
+        screeningType: "Regular",
+        dubLanguage: null,
       },
-    } as ShowtimeCityData;
+      {
+        tmdbId: sampleMovie.tmdbId,
+        screeningCity: "Jerusalem",
+        dateOfShowing: "2026-10-25",
+        cinema: "Jerusalem Cinematheque",
+        showtime: "20:00",
+        englishHref: "https://tickets.example.test/en",
+        hebrewHref: null,
+        screeningTech: "35mm",
+        screeningType: "Film",
+        dubLanguage: null,
+      },
+      {
+        tmdbId: secondMovie.tmdbId,
+        screeningCity: "Jerusalem",
+        dateOfShowing: "2026-10-27",
+        cinema: "Jaffa Cinema",
+        showtime: "19:30",
+        englishHref: null,
+        hebrewHref: "https://tickets.example.test/he",
+        screeningTech: "DCP",
+        screeningType: "Special",
+        dubLanguage: "Hebrew",
+      },
+    ];
 
-    expect(buildCinemathequeShowtimesByDate([sampleMovie], cityData)).toEqual([
+    expect(
+      buildCinemathequeShowtimesByDate([sampleMovie, secondMovie], rows, [
+        "2026-10-25",
+        "2026-10-26",
+        "2026-10-27",
+      ]),
+    ).toEqual([
       {
         date: "2026-10-25",
         movies: [
@@ -65,7 +73,7 @@ describe("cinematheque showtimes", () => {
                 showtimes: [
                   {
                     time: "20:00",
-                    href: null,
+                    href: "https://tickets.example.test/en",
                     screeningTech: "35mm",
                     screeningType: "Film",
                     dubLanguage: null,
@@ -77,6 +85,28 @@ describe("cinematheque showtimes", () => {
         ],
       },
       { date: "2026-10-26", movies: [] },
+      {
+        date: "2026-10-27",
+        movies: [
+          {
+            movie: secondMovie,
+            theaters: [
+              {
+                theater: "Jaffa Cinema",
+                showtimes: [
+                  {
+                    time: "19:30",
+                    href: "https://tickets.example.test/he",
+                    screeningTech: "DCP",
+                    screeningType: "Special",
+                    dubLanguage: "Hebrew",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
     ]);
   });
 });

@@ -9,6 +9,7 @@ export type PublicShowtimeRange = {
 
 export interface PublicDataRepository extends CatalogRepository {
   findComingSoonRows(): Promise<readonly unknown[]>;
+  findCinemathequeRows(range: PublicShowtimeRange): Promise<readonly unknown[]>;
   findShowtimeRows(range: PublicShowtimeRange): Promise<readonly unknown[]>;
   findTicketAvailabilityRows(
     tmdbId: string,

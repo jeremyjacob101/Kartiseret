@@ -4,6 +4,7 @@ import type { PublicDataRepository } from "./repository.js";
 import {
   getMovieByPermanentCode,
   getMovieCatalog,
+  getCinemathequeData,
   getPublicTheaterData,
   getShowtimeRange,
   getTicketAvailabilityShowtimes,
@@ -72,6 +73,12 @@ function createRepository(
     findNowPlayingRows: vi.fn(async () => [nowPlaying]),
     findMovieCodes: vi.fn(async () => new Map([["9100001", "Ab1"]])),
     findComingSoonRows: vi.fn(async () => [comingSoon]),
+    findCinemathequeRows: vi.fn(async () => [
+      {
+        movie: nowPlaying,
+        showtime: { ...databaseShowtime, cinema: "Jerusalem Cinematheque" },
+      },
+    ]),
     findShowtimeRows: vi.fn(async () => [databaseShowtime]),
     findTicketAvailabilityRows: vi.fn(async () => [databaseShowtime]),
     findTheaterCityRows: vi.fn(async () => []),
@@ -187,6 +194,114 @@ describe("public movie catalog service", () => {
 });
 
 describe("public showtime service", () => {
+  it("returns unique cinematheque movies with their joined screenings", async () => {
+    const morePopularMovie = {
+      ...nowPlaying,
+      tmdbId: 9100002,
+      englishTitle: "More Popular Cinematheque Film",
+      popularity: 20,
+    };
+    const range = {
+      city: "Jerusalem",
+      startDate: "2026-10-20",
+      endDate: "2026-10-21",
+    };
+    const repository = createRepository({
+      findCinemathequeRows: vi.fn(async () => [
+        {
+          movie: nowPlaying,
+          showtime: {
+            ...databaseShowtime,
+            cinema: "Jerusalem Cinematheque",
+          },
+        },
+        {
+          movie: nowPlaying,
+          showtime: {
+            ...databaseShowtime,
+            cinema: "Jaffa Cinema",
+            dateOfShowing: "2026-10-21",
+            showtime: "20:00:00",
+          },
+        },
+        {
+          movie: morePopularMovie,
+          showtime: {
+            ...databaseShowtime,
+            tmdbId: 9100002,
+            cinema: "Tel Aviv Cinematheque",
+          },
+        },
+        {
+          movie: { ...nowPlaying, tmdbId: 9100003, soloUpdate: true },
+          showtime: { ...databaseShowtime, tmdbId: 9100003 },
+        },
+      ]),
+      findMovieCodes: vi.fn(async (ids) => {
+        expect(ids).toEqual(["9100002", "9100001"]);
+        return new Map([
+          ["9100001", "Ab1"],
+          ["9100002", "Ab2"],
+        ]);
+      }),
+    });
+
+    const result = await getCinemathequeData(repository, range);
+
+    expect(result.movieCodesStatus).toBe("ready");
+    expect(result.movies.map((movie) => movie.tmdbId)).toEqual([
+      "9100002",
+      "9100001",
+    ]);
+    expect(result.movies.map((movie) => movie.movieCode)).toEqual([
+      "Ab2",
+      "Ab1",
+    ]);
+    expect(result.showtimes).toMatchObject([
+      {
+        tmdbId: "9100001",
+        cinema: "Jerusalem Cinematheque",
+        showtime: "09:05",
+      },
+      {
+        tmdbId: "9100001",
+        cinema: "Jaffa Cinema",
+        dateOfShowing: "2026-10-21",
+        showtime: "20:00",
+      },
+      {
+        tmdbId: "9100002",
+        cinema: "Tel Aviv Cinematheque",
+      },
+    ]);
+    expect(repository.findCinemathequeRows).toHaveBeenCalledWith(range);
+  });
+
+  it("keeps cinematheque screenings available when movie-code hydration fails", async () => {
+    const failure = new Error("private database error");
+    const onFailure = vi.fn();
+    const repository = createRepository({
+      findMovieCodes: vi.fn(async () => {
+        throw failure;
+      }),
+    });
+
+    const result = await getCinemathequeData(
+      repository,
+      {
+        city: "Jerusalem",
+        startDate: "2026-10-20",
+        endDate: "2026-10-20",
+      },
+      onFailure,
+    );
+
+    expect(result.movieCodesStatus).toBe("failed");
+    expect(result.movies[0]?.movieCode).toBeUndefined();
+    expect(result.showtimes).toHaveLength(1);
+    expect(onFailure).toHaveBeenCalledWith(failure);
+  });
+
   it("preserves local wall time and filters invalid availability rows without limiting cities", async () => {
     const repository = createRepository({
       findTicketAvailabilityRows: vi.fn(async () => [

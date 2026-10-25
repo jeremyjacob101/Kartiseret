@@ -76,6 +76,15 @@ export const publicShowtimeRangeResponseSchema = apiSuccessResponseSchema(
   publicShowtimeRangeDataSchema,
 );
 
+export const publicCinemathequeDataSchema = z.object({
+  movies: z.array(movieSchema),
+  movieCodesStatus: movieCodesStatusSchema,
+  showtimes: z.array(publicShowtimeSchema),
+});
+export const publicCinemathequeResponseSchema = apiSuccessResponseSchema(
+  publicCinemathequeDataSchema,
+);
+
 export const ticketAvailabilityShowtimeSchema = publicShowtimeSchema.pick({
   screeningCity: true,
   dateOfShowing: true,
@@ -165,6 +174,9 @@ export type MovieCatalogMode = z.infer<typeof movieCatalogModeSchema>;
 export type MovieCodesStatus = z.infer<typeof movieCodesStatusSchema>;
 export type TmdbTitleSearchResult = z.infer<typeof tmdbTitleSearchResultSchema>;
 export type PublicShowtime = z.infer<typeof publicShowtimeSchema>;
+export type PublicCinemathequeData = z.infer<
+  typeof publicCinemathequeDataSchema
+>;
 export type PublicShowtimeRangeQuery = z.output<
   typeof publicShowtimeRangeQuerySchema
 >;

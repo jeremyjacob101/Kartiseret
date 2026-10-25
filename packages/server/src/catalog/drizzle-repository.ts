@@ -9,6 +9,8 @@ import type {
 import {
   cities,
   finalMovies,
+  finalThequeMovies,
+  finalTheques,
   finalShowtimes,
   finalSoons,
   movieCodes,
@@ -76,6 +78,48 @@ const showtimeProjection = {
   screeningTech: finalShowtimes.screeningTech,
   screeningType: finalShowtimes.screeningType,
   dubLanguage: finalShowtimes.dubLanguage,
+};
+
+const cinemathequeMovieProjection = {
+  tmdbId: finalThequeMovies.tmdbId,
+  englishTitle: finalThequeMovies.englishTitle,
+  releaseYear: finalThequeMovies.releaseYear,
+  genres: finalThequeMovies.genres,
+  enPoster: finalThequeMovies.enPoster,
+  backdrop: finalThequeMovies.backdrop,
+  enTrailer: finalThequeMovies.enTrailer,
+  imdbId: finalThequeMovies.imdbId,
+  rtId: finalThequeMovies.rtId,
+  imdbRating: finalThequeMovies.imdbRating,
+  imdbVotes: sql<string | null>`${finalThequeMovies.imdbVotes}::text`,
+  rtAudienceRating: finalThequeMovies.rtAudienceRating,
+  rtAudienceVotes: sql<
+    string | null
+  >`${finalThequeMovies.rtAudienceVotes}::text`,
+  rtCriticRating: finalThequeMovies.rtCriticRating,
+  rtCriticVotes: sql<string | null>`${finalThequeMovies.rtCriticVotes}::text`,
+  lbId: finalThequeMovies.lbId,
+  lbRating: finalThequeMovies.lbRating,
+  lbVotes: sql<string | null>`${finalThequeMovies.lbVotes}::text`,
+  tmdbRating: finalThequeMovies.tmdbRating,
+  tmdbVotes: sql<string | null>`${finalThequeMovies.tmdbVotes}::text`,
+  runtime: finalThequeMovies.runtime,
+  popularity: finalThequeMovies.popularity,
+  altOptions: finalThequeMovies.altOptions,
+  soloUpdate: finalThequeMovies.soloUpdate,
+};
+
+const cinemathequeShowtimeProjection = {
+  tmdbId: finalTheques.tmdbId,
+  screeningCity: finalTheques.screeningCity,
+  dateOfShowing: finalTheques.dateOfShowing,
+  cinema: finalTheques.cinema,
+  showtime: finalTheques.showtime,
+  englishHref: finalTheques.englishHref,
+  hebrewHref: finalTheques.hebrewHref,
+  screeningTech: finalTheques.screeningTech,
+  screeningType: finalTheques.screeningType,
+  dubLanguage: finalTheques.dubLanguage,
 };
 
 export class DrizzleCatalogRepository
@@ -235,6 +279,46 @@ export class DrizzleCatalogRepository
           asc(finalShowtimes.screeningType),
           asc(finalShowtimes.dubLanguage),
           asc(finalShowtimes.id),
+        );
+    } catch (error) {
+      throw new CatalogDatabaseError(error);
+    }
+  }
+
+  async findCinemathequeRows(
+    range: PublicShowtimeRange,
+  ): Promise<readonly unknown[]> {
+    try {
+      const conditions = [
+        eq(finalTheques.screeningCity, range.city),
+        gte(finalTheques.dateOfShowing, range.startDate),
+        lte(finalTheques.dateOfShowing, range.endDate),
+        eq(finalThequeMovies.soloUpdate, false),
+      ];
+      if (range.tmdbId) {
+        conditions.push(eq(finalTheques.tmdbId, Number(range.tmdbId)));
+      }
+
+      return await this.db
+        .select({
+          movie: cinemathequeMovieProjection,
+          showtime: cinemathequeShowtimeProjection,
+        })
+        .from(finalTheques)
+        .innerJoin(
+          finalThequeMovies,
+          eq(finalTheques.tmdbId, finalThequeMovies.tmdbId),
+        )
+        .where(and(...conditions))
+        .orderBy(
+          asc(finalTheques.dateOfShowing),
+          asc(finalTheques.tmdbId),
+          asc(finalTheques.cinema),
+          asc(finalTheques.showtime),
+          asc(finalTheques.screeningTech),
+          asc(finalTheques.screeningType),
+          asc(finalTheques.dubLanguage),
+          asc(finalTheques.id),
         );
     } catch (error) {
       throw new CatalogDatabaseError(error);
