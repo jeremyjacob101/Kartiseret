@@ -1,0 +1,5 @@
+{
+  "state": "cancelled",
+  "elapsed_seconds": 12.141015625002183,
+  "remote_write_outcome": "unknown for database requests that were in flight at termination"
+}
