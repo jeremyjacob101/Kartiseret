@@ -1,0 +1,35 @@
+- - -
+DATAFLOW SUMMARY
+- - -
+Name: ComingSoonsUpdate
+Run ID: 654
+Attempt: 1
+Result: SUCCESS
+Started (UTC): 2026-10-23T09:04:32.876367+00:00
+Finished (UTC): 2026-10-23T09:05:22.725517+00:00
+Duration Seconds: 49.8491
+Generated At (UTC): 2026-10-23T09:05:22.725614+00:00
+
+SUMMARY COUNTS
+- (none)
+
+STAGE BREAKDOWN
+- (none)
+
+COMING SOONS DETAILS
+- (none)
+
+CINEMATHEQUE GROUP DETAILS
+- (none)
+
+NOW PLAYING GROUP DETAILS
+- (none)
+
+UNRESOLVED / DROPPED ITEMS
+- (none)
+
+WRITE/DEDUPE ACTIONS
+- (none)
+
+NOTES
+- update_rows | requested=101 | updated=101

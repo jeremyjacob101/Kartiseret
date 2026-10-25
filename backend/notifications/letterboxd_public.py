@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import closing
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from typing import Any
@@ -34,7 +35,9 @@ class LetterboxdPage:
 
 
 _SLUG_RE = re.compile(r"^[A-Za-z0-9_-]{1,180}$")
-_BOXD_SHARE_RE = re.compile(r"^/[A-Za-z0-9]+\$[A-Za-z0-9_-]{1,180}/?$")
+_BOXD_SHORT_LINK_RE = re.compile(
+    r"^/[A-Za-z0-9]+(?:\$[A-Za-z0-9_-]{1,180})?/?$"
+)
 _FILM_PATH_RE = re.compile(r"^/film/([A-Za-z0-9_-]{1,180})(?:/|$)")
 _VOID_TAGS = {
     "area", "base", "br", "col", "embed", "hr", "img", "input",
@@ -51,6 +54,24 @@ def _year(value: str | None) -> int | None:
         return None
     parsed = int(value)
     return parsed if 1870 <= parsed <= 2200 else None
+
+
+def _letterboxd_headers(referer: str | None = None) -> dict[str, str]:
+    headers = {
+        "Accept": "text/html,application/xhtml+xml",
+        "User-Agent": LETTERBOXD_USER_AGENT,
+    }
+    if referer:
+        headers["Referer"] = referer
+    return headers
+
+
+def _is_letterboxd_challenge(response: Any) -> bool:
+    body = str(getattr(response, "text", "") or "").lower()
+    return any(
+        marker in body
+        for marker in ("just a moment", "cf-challenge", "challenge-platform")
+    )
 
 
 def _display_title_and_year(value: str) -> tuple[str, int | None]:
@@ -219,20 +240,49 @@ def _shared_list_url(url: str) -> str | None:
         return None
 
 
-def _resolve_boxd_share_link(source_url: str, http_client: Any) -> str:
+def _public_list_url(url: str) -> str | None:
+    try:
+        parsed = urlsplit(url)
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname != "letterboxd.com"
+            or parsed.username
+            or parsed.password
+            or parsed.port
+            or parsed.query
+            or parsed.fragment
+            or not parsed.path.endswith("/")
+        ):
+            return None
+        parts = parsed.path.strip("/").split("/")
+        if (
+            len(parts) != 3
+            or not _SLUG_RE.fullmatch(parts[0])
+            or parts[1] != "list"
+            or not _SLUG_RE.fullmatch(parts[2])
+        ):
+            return None
+        return f"https://letterboxd.com/{'/'.join(parts)}/"
+    except ValueError:
+        return None
+
+
+def _resolve_boxd_short_link(source_url: str, http_client: Any) -> str:
     try:
         response = http_client.get(
             source_url,
-            headers={
-                "Accept": "text/html,application/xhtml+xml",
-                "User-Agent": LETTERBOXD_USER_AGENT,
-            },
+            headers=_letterboxd_headers(),
             timeout=(5, 20),
             allow_redirects=False,
         )
     except Exception as error:
         raise LetterboxdSourceError("Letterboxd could not be reached.") from error
     status = int(getattr(response, "status_code", 0) or 0)
+    if status == 403 and _is_letterboxd_challenge(response):
+        raise LetterboxdSourceError(
+            "Letterboxd requires browser verification for this source; "
+            "automated sync cannot pass that challenge."
+        )
     headers = getattr(response, "headers", {}) or {}
     location = headers.get("Location") or headers.get("location")
     if status not in {301, 302, 303, 307, 308} or not location:
@@ -240,10 +290,10 @@ def _resolve_boxd_share_link(source_url: str, http_client: Any) -> str:
             "This Letterboxd share link did not redirect to a visible shared list."
         )
     target = urljoin(source_url, location)
-    canonical = _shared_list_url(target)
+    canonical = _public_list_url(target) or _shared_list_url(target)
     if canonical is None:
         raise LetterboxdSourceError(
-            "This Letterboxd share link did not open a supported shared list."
+            "This Letterboxd short link did not open a supported public or shared list."
         )
     return canonical
 
@@ -265,7 +315,7 @@ def parse_letterboxd_page(html: str, requested_url: str) -> LetterboxdPage:
     )
 
 
-def fetch_letterboxd_source(
+def _fetch_letterboxd_source(
     source_url: str,
     *,
     http_client: Any = requests,
@@ -283,10 +333,12 @@ def fetch_letterboxd_source(
     ):
         raise LetterboxdSourceError("The configured Letterboxd URL is invalid.")
 
+    page_referer: str | None = None
     if parsed_source.hostname == "boxd.it":
-        if not _BOXD_SHARE_RE.fullmatch(parsed_source.path):
-            raise LetterboxdSourceError("The configured Letterboxd share URL is invalid.")
-        page_url: str | None = _resolve_boxd_share_link(source_url, http_client)
+        if not _BOXD_SHORT_LINK_RE.fullmatch(parsed_source.path):
+            raise LetterboxdSourceError("The configured Letterboxd short URL is invalid.")
+        page_url: str | None = _resolve_boxd_short_link(source_url, http_client)
+        page_referer = source_url
     elif parsed_source.hostname == "letterboxd.com":
         if not parsed_source.path.endswith("/"):
             raise LetterboxdSourceError("The configured Letterboxd URL is invalid.")
@@ -296,12 +348,7 @@ def fetch_letterboxd_source(
             and _SLUG_RE.fullmatch(path_parts[0])
             and path_parts[1] == "watchlist"
         )
-        ordinary_list = (
-            len(path_parts) == 3
-            and _SLUG_RE.fullmatch(path_parts[0])
-            and path_parts[1] == "list"
-            and _SLUG_RE.fullmatch(path_parts[2])
-        )
+        ordinary_list = _public_list_url(source_url) is not None
         if not (ordinary_watchlist or ordinary_list or _shared_list_url(source_url)):
             raise LetterboxdSourceError("The configured Letterboxd URL is invalid.")
         page_url = source_url
@@ -319,16 +366,18 @@ def fetch_letterboxd_source(
         try:
             response = http_client.get(
                 page_url,
-                headers={
-                    "Accept": "text/html,application/xhtml+xml",
-                    "User-Agent": LETTERBOXD_USER_AGENT,
-                },
+                headers=_letterboxd_headers(page_referer),
                 timeout=(5, 20),
                 allow_redirects=False,
             )
         except Exception as error:
             raise LetterboxdSourceError("Letterboxd could not be reached.") from error
         status = int(getattr(response, "status_code", 0) or 0)
+        if status == 403 and _is_letterboxd_challenge(response):
+            raise LetterboxdSourceError(
+                "Letterboxd requires browser verification for this source; "
+                "automated sync cannot pass that challenge."
+            )
         if status != 200:
             raise LetterboxdSourceError(
                 f"Letterboxd returned HTTP {status or 'unknown'} for this public source."
@@ -355,3 +404,26 @@ def fetch_letterboxd_source(
                 f"This Letterboxd source exceeds the {max_pages}-page limit."
             )
     return tuple(films[key] for key in sorted(films))
+
+
+def fetch_letterboxd_source(
+    source_url: str,
+    *,
+    http_client: Any = requests,
+    max_pages: int = MAX_SOURCE_PAGES,
+    max_films: int = MAX_SOURCE_FILMS,
+) -> tuple[LetterboxdFilm, ...]:
+    if http_client is requests:
+        with closing(requests.Session()) as session:
+            return _fetch_letterboxd_source(
+                source_url,
+                http_client=session,
+                max_pages=max_pages,
+                max_films=max_films,
+            )
+    return _fetch_letterboxd_source(
+        source_url,
+        http_client=http_client,
+        max_pages=max_pages,
+        max_films=max_films,
+    )

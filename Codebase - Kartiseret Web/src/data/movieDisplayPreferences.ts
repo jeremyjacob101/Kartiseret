@@ -24,12 +24,40 @@ export function movieDisplayPreferencesQueryOptions(userId: string | null) {
     queryKey: movieDisplayPreferenceQueryKeys.list(normalizedUserId),
     queryFn: normalizedUserId
       ? async ({ signal }) => {
-          const response = await privateApiResponse(
-            "/api/v1/preferences/movie-display",
-            movieDisplayPreferenceListResponseSchema,
-            { userId: normalizedUserId, signal },
+          const preferences: MovieDisplayPreference[] = [];
+          const seenCursors = new Set<string>();
+          let after: string | undefined;
+
+          while (true) {
+            const query = after ? `?after=${encodeURIComponent(after)}` : "";
+            const response = await privateApiResponse(
+              `/api/v1/preferences/movie-display${query}`,
+              movieDisplayPreferenceListResponseSchema,
+              { userId: normalizedUserId, signal },
+            );
+            preferences.push(...response.data.preferences);
+
+            const nextCursor = response.data.nextCursor;
+            if (!nextCursor) break;
+            if (
+              seenCursors.has(nextCursor) ||
+              (after && BigInt(nextCursor) <= BigInt(after))
+            ) {
+              throw new Error("Movie preference pagination did not advance.");
+            }
+            seenCursors.add(nextCursor);
+            after = nextCursor;
+          }
+
+          return preferences.sort(
+            (left, right) =>
+              left.title.localeCompare(right.title) ||
+              (BigInt(left.tmdbId) < BigInt(right.tmdbId)
+                ? -1
+                : BigInt(left.tmdbId) > BigInt(right.tmdbId)
+                  ? 1
+                  : 0),
           );
-          return response.data.preferences;
         }
       : skipToken,
     staleTime,

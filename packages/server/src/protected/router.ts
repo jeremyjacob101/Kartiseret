@@ -6,6 +6,7 @@ import {
   initializePreferencesSchema,
   preferencePatchSchema,
   movieDisplayPreferenceCreateSchema,
+  movieDisplayPreferenceListQuerySchema,
   movieDisplayPreferencePatchSchema,
   subscriptionMovieIdSchema,
   subscriptionCreateSchema,
@@ -127,13 +128,12 @@ export function createProtectedRouter(
     });
   });
   router.get("/preferences/movie-display", async (request, response) => {
-    parse(empty, request.query);
+    const query = parse(movieDisplayPreferenceListQuerySchema, request.query);
     response.json({
-      data: {
-        preferences: await workflows.movieDisplayPreferences(
-          identity(response.locals.identity),
-        ),
-      },
+      data: await workflows.movieDisplayPreferences(
+        identity(response.locals.identity),
+        query.after,
+      ),
       error: null,
     });
   });

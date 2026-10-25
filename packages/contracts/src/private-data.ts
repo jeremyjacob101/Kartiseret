@@ -70,11 +70,21 @@ export const movieDisplayPreferenceSchema = z
 export type MovieDisplayPreference = z.infer<
   typeof movieDisplayPreferenceSchema
 >;
+export const MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE = 500;
+export const movieDisplayPreferenceListQuerySchema = z
+  .object({ after: subscriptionMovieIdSchema.optional() })
+  .strict();
 export const movieDisplayPreferenceListResponseSchema = envelope(
   z.object({
-    preferences: z.array(movieDisplayPreferenceSchema).max(500),
+    preferences: z
+      .array(movieDisplayPreferenceSchema)
+      .max(MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE),
+    nextCursor: subscriptionMovieIdSchema.nullable(),
   }),
 );
+export type MovieDisplayPreferencePage = z.infer<
+  typeof movieDisplayPreferenceListResponseSchema
+>["data"];
 export const movieDisplayPreferenceCreateSchema = movieDisplayPreferenceSchema;
 export const movieDisplayPreferencePatchSchema = z
   .object({

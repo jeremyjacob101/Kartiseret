@@ -333,11 +333,17 @@ class WorkspaceQuery:
                 self.workspace.tables[self.name] = [r for r in rows if id(r) not in selected_ids]
             elif self.operation in {"insert", "upsert"}:
                 selected = []
+                # Index once per batch, preserving the first match if keys
+                # repeat. Rebuilding here also respects deletes and restores.
+                rows_by_key = {}
+                for existing_row in rows:
+                    rows_by_key.setdefault(key_for(self.name, existing_row), existing_row)
                 for payload in self.payload if isinstance(self.payload, list) else [self.payload]:
                     row = deepcopy(payload)
                     if KEYS.get(self.name, ("id",)) == ("id",):
                         row.setdefault("id", str(uuid.uuid4()))
-                    existing = next((r for r in rows if key_for(self.name, r) == key_for(self.name, row)), None)
+                    row_key = key_for(self.name, row)
+                    existing = rows_by_key.get(row_key)
                     if existing is not None:
                         if self.operation == "insert":
                             raise ValueError("Duplicate preparation key")
@@ -346,6 +352,7 @@ class WorkspaceQuery:
                     else:
                         row.setdefault("created_at", datetime.now(timezone.utc).isoformat())
                         rows.append(row)
+                        rows_by_key[row_key] = row
                     selected.append(row)
             result = deepcopy(selected)
             if self.columns != "*":

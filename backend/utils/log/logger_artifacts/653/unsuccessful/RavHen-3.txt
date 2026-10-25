@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: RavHen
+URL: https://www.rav-hen.co.il/cinemas/dizengoff/1071#/buy-tickets-by-cinema?in-cinema=1071&at=2026-10-28&view-mode=list
+Exception: AttributeError - 'SyncFilterRequestBuilder' object has no attribute 'select'
+Call Chain: runners.py:33 > runners.py:23 > BaseCinema.py:84 > BaseCinema.py:59
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/653/unsuccessful/RavHen-3.png
+CSV: backend/utils/log/logger_artifacts/653/unsuccessful/RavHen-3.csv

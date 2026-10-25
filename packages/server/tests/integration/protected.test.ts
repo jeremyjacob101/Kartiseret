@@ -7,6 +7,7 @@ import { createApp } from "../../src/app.js";
 import { HttpError } from "../../src/http-errors.js";
 import {
   DEFAULT_TICKET_ALERT_CRITERIA,
+  MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE,
   type TicketAlertCriteriaOverride,
 } from "@kartiseret/contracts/private-data";
 
@@ -306,10 +307,14 @@ describe.sequential(
       expect(created.status).toBe(200);
       expect(created.body.data.preference).toEqual(preference);
 
-      expect(await workflows.movieDisplayPreferences(alice)).toEqual([
-        preference,
-      ]);
-      expect(await workflows.movieDisplayPreferences(bob)).toEqual([]);
+      expect(await workflows.movieDisplayPreferences(alice)).toMatchObject({
+        preferences: [preference],
+        nextCursor: null,
+      });
+      expect(await workflows.movieDisplayPreferences(bob)).toMatchObject({
+        preferences: [],
+        nextCursor: null,
+      });
       expect(
         (
           await request(app)
@@ -329,7 +334,9 @@ describe.sequential(
         treatment: "remove",
         hideBackdrop: true,
       });
-      expect(await workflows.movieDisplayPreferences(alice)).toHaveLength(1);
+      expect(
+        (await workflows.movieDisplayPreferences(alice)).preferences,
+      ).toHaveLength(1);
 
       const foreignUpdate = await request(app)
         .patch(`/api/v1/preferences/movie-display/${preference.tmdbId}`)
@@ -355,7 +362,45 @@ describe.sequential(
         .set("Cookie", "alice")
         .set("Origin", "http://localhost");
       expect(removed.status).toBe(200);
-      expect(await workflows.movieDisplayPreferences(alice)).toEqual([]);
+      expect(
+        (await workflows.movieDisplayPreferences(alice)).preferences,
+      ).toEqual([]);
+    });
+    it("paginates every movie display preference without leaking owners", async () => {
+      const firstTmdbId = 9_200_100;
+      await admin.pool.query(
+        `
+          INSERT INTO public.user_movie_display_preferences
+            (user_id, tmdb_id, title, release_year, treatment, hide_backdrop)
+          SELECT $1, $2::bigint + sequence.value,
+            'Pagination Fixture ' || sequence.value::text,
+            2026, 'remove', true
+          FROM generate_series(0, $3::int) AS sequence(value)
+        `,
+        [alice.id, firstTmdbId, MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE],
+      );
+
+      const firstPage = await workflows.movieDisplayPreferences(alice);
+      expect(firstPage.preferences).toHaveLength(
+        MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE,
+      );
+      expect(firstPage.preferences[0]?.tmdbId).toBe(String(firstTmdbId));
+      expect(firstPage.nextCursor).toBe(
+        String(firstTmdbId + MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE - 1),
+      );
+
+      const secondPage = await request(app)
+        .get(`/api/v1/preferences/movie-display?after=${firstPage.nextCursor}`)
+        .set("Cookie", "alice");
+      expect(secondPage.status).toBe(200);
+      expect(secondPage.body.data.preferences).toHaveLength(1);
+      expect(secondPage.body.data.preferences[0]?.tmdbId).toBe(
+        String(firstTmdbId + MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE),
+      );
+      expect(secondPage.body.data.nextCursor).toBeNull();
+      expect(
+        (await workflows.movieDisplayPreferences(bob)).preferences,
+      ).toEqual([]);
     });
     it("tracks public and share-link Letterboxd sources per owner and cancels source-only alerts after the last source is removed", async () => {
       const invalid = await request(app)
@@ -390,14 +435,31 @@ describe.sequential(
         });
       expect(duplicate.body.data.source.id).toBe(firstId);
 
+      const shortPublic = await request(app)
+        .post("/api/v1/letterboxd-sources")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({ sourceUrl: "https://boxd.it/abc456" });
+      expect(shortPublic.status).toBe(200);
+      expect(shortPublic.body.data.source).toMatchObject({
+        sourceUrl: "https://boxd.it/abc456/",
+        sourceType: "list",
+      });
+      const shortPublicId = shortPublic.body.data.source.id as string;
+      const removedShortPublic = await request(app)
+        .delete(`/api/v1/letterboxd-sources/${shortPublicId}`)
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost");
+      expect(removedShortPublic.status).toBe(200);
+
       const shortShare = await request(app)
         .post("/api/v1/letterboxd-sources")
         .set("Cookie", "alice")
         .set("Origin", "http://localhost")
-        .send({ sourceUrl: "https://boxd.it/Y9Hce$l6YZtNs6NWLRSO2z" });
+        .send({ sourceUrl: "https://boxd.it/abc123$testShareToken_1" });
       expect(shortShare.status).toBe(200);
       expect(shortShare.body.data.source).toMatchObject({
-        sourceUrl: "https://boxd.it/Y9Hce$l6YZtNs6NWLRSO2z/",
+        sourceUrl: "https://boxd.it/abc123$testShareToken_1/",
         sourceType: "list",
       });
 
@@ -407,12 +469,12 @@ describe.sequential(
         .set("Origin", "http://localhost")
         .send({
           sourceUrl:
-            "https://letterboxd.com/jeremyjacob/list/spiderman-test-list/share/l6YZtNs6NWLRSO2z/",
+            "https://letterboxd.com/fixture/list/share-link-test/share/testShareToken_1/",
         });
       expect(canonicalShare.status).toBe(200);
       expect(canonicalShare.body.data.source).toMatchObject({
         sourceUrl:
-          "https://letterboxd.com/jeremyjacob/list/spiderman-test-list/share/l6YZtNs6NWLRSO2z/",
+          "https://letterboxd.com/fixture/list/share-link-test/share/testShareToken_1/",
         sourceType: "list",
       });
       await Promise.all(

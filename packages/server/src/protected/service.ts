@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import {
   DEFAULT_LOCATION,
   DEFAULT_RATING_SOURCES,
@@ -10,6 +10,7 @@ import {
 import type {
   Correction,
   MovieDisplayPreference,
+  MovieDisplayPreferencePage,
   PreferencePatch,
   Preferences,
   SubscriptionChange,
@@ -21,6 +22,7 @@ import type {
 } from "@kartiseret/contracts/private-data";
 import {
   DEFAULT_TICKET_ALERT_CRITERIA,
+  MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE,
   matchesTicketAlertCriteria,
 } from "@kartiseret/contracts/private-data";
 import { getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
@@ -46,6 +48,7 @@ import type { PublicDataRepository } from "../public-data/repository.js";
 import { getTicketAvailabilityShowtimes } from "../public-data/service.js";
 import { HttpError } from "../http-errors.js";
 import type { VerifiedIdentity } from "./identity.js";
+import { parseLetterboxdSourceUrl } from "./letterboxd-source-url.js";
 
 const subscriptionColumns = {
   tmdbId: ticketAlertSubscriptions.tmdbId,
@@ -76,97 +79,6 @@ const letterboxdSourceColumns = {
   filmCount: letterboxdSources.filmCount,
   matchedFilmCount: letterboxdSources.matchedFilmCount,
 };
-
-function parseLetterboxdSourceUrl(value: string): {
-  sourceUrl: string;
-  sourceType: "watchlist" | "list";
-} {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new HttpError(
-      400,
-      "invalid_letterboxd_source",
-      "Enter a public Letterboxd watchlist or list URL.",
-    );
-  }
-  if (
-    url.protocol === "https:" &&
-    url.hostname.toLowerCase() === "boxd.it" &&
-    !url.username &&
-    !url.password &&
-    !url.port &&
-    !url.search &&
-    !url.hash
-  ) {
-    const shortLink = url.pathname.match(
-      /^\/([A-Za-z0-9]+\$[A-Za-z0-9_-]{1,180})\/?$/,
-    );
-    if (shortLink)
-      return {
-        sourceUrl: `https://boxd.it/${shortLink[1]}/`,
-        sourceType: "list",
-      };
-  }
-  if (
-    url.protocol !== "https:" ||
-    !["letterboxd.com", "www.letterboxd.com"].includes(
-      url.hostname.toLowerCase(),
-    ) ||
-    url.username ||
-    url.password ||
-    url.port ||
-    url.search ||
-    url.hash
-  )
-    throw new HttpError(
-      400,
-      "invalid_letterboxd_source",
-      "Enter a public Letterboxd watchlist or list URL.",
-    );
-
-  let parts: string[];
-  try {
-    parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
-  } catch {
-    throw new HttpError(
-      400,
-      "invalid_letterboxd_source",
-      "Enter a public Letterboxd watchlist or list URL.",
-    );
-  }
-  const validSegment = (part: string) => /^[A-Za-z0-9_-]{1,100}$/.test(part);
-  const username = parts[0] ?? "";
-  const isWatchlist =
-    parts.length === 2 && parts[1]?.toLowerCase() === "watchlist";
-  const isList = parts.length === 3 && parts[1]?.toLowerCase() === "list";
-  const isSharedList =
-    parts.length === 5 &&
-    parts[1]?.toLowerCase() === "list" &&
-    parts[3]?.toLowerCase() === "share";
-  if (
-    !validSegment(username) ||
-    (!isWatchlist && !isList && !isSharedList) ||
-    ((isList || isSharedList) && !validSegment(parts[2] ?? "")) ||
-    (isSharedList && !validSegment(parts[4] ?? ""))
-  )
-    throw new HttpError(
-      400,
-      "invalid_letterboxd_source",
-      "Use a public watchlist or list URL, or a list share link visible to anyone with the link.",
-    );
-
-  const canonicalParts = [...parts];
-  if (isWatchlist) canonicalParts[1] = "watchlist";
-  if (isList || isSharedList) canonicalParts[1] = "list";
-  if (isSharedList) canonicalParts[3] = "share";
-  const path = canonicalParts.map(encodeURIComponent).join("/");
-  return {
-    sourceUrl: `https://letterboxd.com/${path}/`,
-    sourceType: isWatchlist ? "watchlist" : "list",
-  };
-}
 
 function mapLetterboxdSource(row: {
   id: string;
@@ -556,7 +468,8 @@ export class ProtectedWorkflows {
 
   movieDisplayPreferences(
     user: VerifiedIdentity,
-  ): Promise<MovieDisplayPreference[]> {
+    after?: string,
+  ): Promise<MovieDisplayPreferencePage> {
     return this.asUser(user, async (tx) => {
       const rows = await tx
         .select({
@@ -567,20 +480,29 @@ export class ProtectedWorkflows {
           hideBackdrop: userMovieDisplayPreferences.hideBackdrop,
         })
         .from(userMovieDisplayPreferences)
-        .where(eq(userMovieDisplayPreferences.userId, user.id))
-        .orderBy(
-          asc(userMovieDisplayPreferences.title),
-          asc(userMovieDisplayPreferences.tmdbId),
+        .where(
+          after
+            ? and(
+                eq(userMovieDisplayPreferences.userId, user.id),
+                gt(userMovieDisplayPreferences.tmdbId, BigInt(after)),
+              )
+            : eq(userMovieDisplayPreferences.userId, user.id),
         )
-        .limit(500);
+        .orderBy(asc(userMovieDisplayPreferences.tmdbId))
+        .limit(MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE + 1);
 
-      return rows.map((row) => ({
-        tmdbId: String(row.tmdbId),
-        title: row.title,
-        releaseYear: row.releaseYear,
-        treatment: row.treatment as MovieDisplayPreference["treatment"],
-        hideBackdrop: row.hideBackdrop,
-      }));
+      const hasMore = rows.length > MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE;
+      const pageRows = rows.slice(0, MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE);
+      return {
+        preferences: pageRows.map((row) => ({
+          tmdbId: String(row.tmdbId),
+          title: row.title,
+          releaseYear: row.releaseYear,
+          treatment: row.treatment as MovieDisplayPreference["treatment"],
+          hideBackdrop: row.hideBackdrop,
+        })),
+        nextCursor: hasMore ? String(pageRows.at(-1)!.tmdbId) : null,
+      };
     });
   }
 

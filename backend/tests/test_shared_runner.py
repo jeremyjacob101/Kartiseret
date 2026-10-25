@@ -34,6 +34,77 @@ class SharedRunnerTests(TestCase):
         self.assertEqual(events[-2][1], ["TicketAlertDispatcher"])
         self.assertEqual(events[-1][1], ["LetterboxdSourceDispatcher"])
 
+    def test_selected_dispatchers_run_without_selecting_catalog_updates(self):
+        date_alert = next(
+            cls
+            for cls in DATAFLOW_REGISTRY["comingSoonsData"]
+            if cls.__name__ == "ComingSoonDateAlertDispatcher"
+        )
+        ticket_alert = next(
+            cls
+            for cls in DATAFLOW_REGISTRY["nowPlayingData"]
+            if cls.__name__ == "TicketAlertDispatcher"
+        )
+        letterboxd_alert = next(
+            cls
+            for cls in DATAFLOW_REGISTRY["nowPlayingData"]
+            if cls.__name__ == "LetterboxdSourceDispatcher"
+        )
+        calls = []
+
+        def run_group(_kind, _key, _run_id, **kwargs):
+            classes = kwargs["classes_override"]
+            calls.extend(cls.__name__ for cls in classes)
+            return {cls: True for cls in classes}
+
+        output = StringIO()
+        plan = [
+            ("dataflow", "comingSoonsData", [date_alert]),
+            ("dataflow", "nowPlayingData", [ticket_alert, letterboxd_alert]),
+        ]
+        with patch("backend.config.runners.runGroup", side_effect=run_group), redirect_stdout(output):
+            self.assertTrue(runPlan(1, plan))
+
+        self.assertEqual(
+            calls,
+            [
+                "ComingSoonDateAlertDispatcher",
+                "TicketAlertDispatcher",
+                "LetterboxdSourceDispatcher",
+            ],
+        )
+        self.assertNotIn("was not selected", output.getvalue())
+
+    def test_dispatcher_is_skipped_when_its_selected_catalog_update_fails(self):
+        date_alert = next(
+            cls
+            for cls in DATAFLOW_REGISTRY["comingSoonsData"]
+            if cls.__name__ == "ComingSoonDateAlertDispatcher"
+        )
+        update = next(
+            cls
+            for cls in DATAFLOW_REGISTRY["comingSoonsData"]
+            if cls.__name__ == "ComingSoonsUpdate"
+        )
+        calls = []
+
+        def run_updates(entries, *_args, **_kwargs):
+            return {cls: False for _key, cls in entries}
+
+        def run_group(_kind, _key, _run_id, **kwargs):
+            calls.extend(cls.__name__ for cls in kwargs["classes_override"])
+            return {cls: True for cls in kwargs["classes_override"]}
+
+        output = StringIO()
+        plan = [("dataflow", "comingSoonsData", [update, date_alert])]
+        with patch("backend.config.runners._run_shared_updates", side_effect=run_updates), patch(
+            "backend.config.runners.runGroup", side_effect=run_group
+        ), redirect_stdout(output):
+            self.assertFalse(runPlan(1, plan))
+
+        self.assertEqual(calls, [])
+        self.assertIn("Skipped Coming Soon date alerts: Coming Soon update failed", output.getvalue())
+
     def test_coming_soon_date_alerts_run_after_the_coming_soon_publication_commits(self):
         events = []
         publication = type("Publication", (), {"commit": lambda _self: events.append("commit")})()

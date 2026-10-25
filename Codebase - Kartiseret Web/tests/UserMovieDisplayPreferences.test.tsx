@@ -2,6 +2,7 @@ import { UserMovieDisplayPreferences } from "../src/components/UserMovieDisplayP
 import type { MovieDisplayPreference } from "../src/data/movieDisplayPreferences";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
+import { privateIdentityChanged } from "../src/data/privateApi";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "../src/lib/queryClient";
 import userEvent from "@testing-library/user-event";
@@ -21,7 +22,12 @@ function response(data: unknown, status = 200) {
   return Response.json({ data, error: null }, { status });
 }
 
-function mockFetch() {
+function mockFetch(
+  pages: Record<
+    string,
+    { preferences: MovieDisplayPreference[]; nextCursor: string | null }
+  > = {},
+) {
   const fetchMock = vi.fn(async (
     input: RequestInfo | URL,
     init?: RequestInit,
@@ -44,7 +50,10 @@ function mockFetch() {
       url.pathname === "/api/v1/preferences/movie-display" &&
       (!init?.method || init.method === "GET")
     ) {
-      return response({ preferences: [...preferences] });
+      const cursor = url.searchParams.get("after") ?? "";
+      return response(
+        pages[cursor] ?? { preferences: [...preferences], nextCursor: null },
+      );
     }
     if (
       url.pathname === "/api/v1/preferences/movie-display" &&
@@ -113,6 +122,7 @@ function renderPreferences() {
 
 beforeEach(() => {
   queryClient.clear();
+  privateIdentityChanged(userId);
   preferences.splice(0, preferences.length);
   failNextSave = false;
 });
@@ -122,6 +132,49 @@ afterEach(() => {
 });
 
 describe("UserMovieDisplayPreferences", () => {
+  it("loads later pages so preferences beyond the first batch still apply", async () => {
+    const firstPagePreference: MovieDisplayPreference = {
+      tmdbId: "9100200",
+      title: "First Page Film",
+      releaseYear: 2025,
+      treatment: "remove",
+      hideBackdrop: true,
+    };
+    const secondPagePreference: MovieDisplayPreference = {
+      tmdbId: "9100201",
+      title: "Second Page Film",
+      releaseYear: 2026,
+      treatment: "standard",
+      hideBackdrop: true,
+    };
+    const fetchMock = mockFetch({
+      "": {
+        preferences: [firstPagePreference],
+        nextCursor: firstPagePreference.tmdbId,
+      },
+      [firstPagePreference.tmdbId]: {
+        preferences: [secondPagePreference],
+        nextCursor: null,
+      },
+    });
+    renderPreferences();
+
+    expect(
+      await screen.findByText("First Page Film (2025)"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Second Page Film (2026)")).toBeInTheDocument();
+    const preferenceReads = fetchMock.mock.calls.filter(
+      ([url, init]) =>
+        new URL(String(url), "http://localhost").pathname ===
+          "/api/v1/preferences/movie-display" &&
+        (!init?.method || init.method === "GET"),
+    );
+    expect(preferenceReads).toHaveLength(2);
+    expect(String(preferenceReads[1]?.[0])).toContain(
+      `after=${firstPagePreference.tmdbId}`,
+    );
+  });
+
   it("shows text-only search results, requires a treatment choice, and hides backdrops by default", async () => {
     const user = userEvent.setup();
     const fetchMock = mockFetch();

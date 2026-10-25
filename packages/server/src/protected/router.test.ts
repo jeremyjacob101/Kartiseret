@@ -40,7 +40,10 @@ function setup() {
       },
     })),
     unwatchComingSoonDate: vi.fn(async () => ({ removed: true as const })),
-    movieDisplayPreferences: vi.fn(async () => []),
+    movieDisplayPreferences: vi.fn(async () => ({
+      preferences: [],
+      nextCursor: null,
+    })),
     upsertMovieDisplayPreference: vi.fn(
       async (_user, preference) => preference,
     ),
@@ -315,7 +318,22 @@ describe("protected HTTP contracts", () => {
       .set("Cookie", "valid");
     expect(read.status).toBe(200);
     expect(read.body.data.preferences).toEqual([]);
+    expect(read.body.data.nextCursor).toBeNull();
     expect(read.headers["cache-control"]).toBe("no-store");
+
+    const nextPage = await request(app)
+      .get("/api/v1/preferences/movie-display?after=9100001")
+      .set("Cookie", "valid");
+    expect(nextPage.status).toBe(200);
+    expect(workflows.movieDisplayPreferences).toHaveBeenLastCalledWith(
+      { id, email: "qa@example.test" },
+      "9100001",
+    );
+
+    const invalidCursor = await request(app)
+      .get("/api/v1/preferences/movie-display?after=invalid")
+      .set("Cookie", "valid");
+    expect(invalidCursor.status).toBe(400);
 
     const preference = {
       tmdbId: "9100002",
