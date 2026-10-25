@@ -75,6 +75,12 @@ const environment = {
   ...process.env,
   DATABASE_URL: connectionUrl("kartiseret_api", "local-test-only", port),
   TEST_DATABASE_URL: testDatabaseUrl,
+  PUBLICATION_DATABASE_URL: connectionUrl(
+    "kartiseret_publisher_login",
+    "local-test-only",
+    port,
+  ),
+  PUBLICATION_DATABASE_TEST_MODE: "true",
 };
 
 const database = new EmbeddedPostgres({

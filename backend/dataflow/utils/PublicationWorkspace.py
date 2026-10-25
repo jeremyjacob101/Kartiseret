@@ -18,6 +18,8 @@ from threading import RLock
 from types import SimpleNamespace
 import uuid
 
+from backend.dataflow.utils.PostgresPublicationPublisher import PostgresPublicationPublisher
+
 from supabase import create_client as live_client
 
 CATEGORY_TABLES = {
@@ -225,6 +227,15 @@ class PublicationWorkspace:
         directory = Path("backend/utils/log/logger_artifacts") / str(self.run_id)
         directory.mkdir(parents=True, exist_ok=True)
         (directory / f"publication_{self.category}.json").write_text(canonical(identity))
+
+        publisher = PostgresPublicationPublisher.from_environment()
+        if publisher is not None:
+            result = publisher.publish(identity, parts)
+            if not isinstance(result, dict) or result.get("status") != "applied":
+                raise RuntimeError("PostgreSQL did not confirm an applied publication")
+            self._result = result
+            return result
+
         existing = self.client.table("pipeline_publications").select("status,fingerprint,revision").eq("publication_id", self.publication_id).execute().data
         if existing:
             if existing[0]["fingerprint"] != fingerprint:
