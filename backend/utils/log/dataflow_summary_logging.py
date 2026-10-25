@@ -12,8 +12,15 @@ def _clean_name(value: str) -> str:
     return (value or "Unknown").replace(" ", "_").strip()
 
 
-def build_summary_path(run_id: int, item_name: str, attempt: int, successful: bool) -> pathlib.Path:
-    bucket = "successful" if successful else "unsuccessful"
+def build_summary_path(
+    run_id: int,
+    item_name: str,
+    attempt: int,
+    successful: bool,
+    *,
+    publication_pending: bool = False,
+) -> pathlib.Path:
+    bucket = "prepared" if publication_pending else "successful" if successful else "unsuccessful"
     directory = ARTIFACT_ROOT / str(run_id) / bucket
     filename = f"{_clean_name(item_name)}-{int(attempt)}-summary.txt"
     return directory / filename
@@ -26,6 +33,10 @@ def _iso_utc(ts: float | None) -> str:
 
 
 def _render_header(summary: dict) -> list[str]:
+    if summary.get("publication_pending"):
+        result = "STAGED (PUBLICATION PENDING)"
+    else:
+        result = "SUCCESS" if summary.get("successful") else "FAILED"
     return [
         "- - -",
         "DATAFLOW SUMMARY",
@@ -33,7 +44,7 @@ def _render_header(summary: dict) -> list[str]:
         f"Name: {summary.get('name') or ''}",
         f"Run ID: {summary.get('run_id') or ''}",
         f"Attempt: {summary.get('attempt') or ''}",
-        f"Result: {'SUCCESS' if summary.get('successful') else 'FAILED'}",
+        f"Result: {result}",
         f"Started (UTC): {_iso_utc(summary.get('started_at'))}",
         f"Finished (UTC): {_iso_utc(summary.get('finished_at'))}",
         f"Duration Seconds: {summary.get('duration_seconds') if summary.get('duration_seconds') is not None else ''}",
@@ -186,7 +197,13 @@ def write_dataflow_summary(summary: dict, *, successful: bool) -> str | None:
         run_id = int(summary.get("run_id"))
         name = str(summary.get("name") or "Unknown")
         attempt = int(summary.get("attempt") or 1)
-        path = build_summary_path(run_id, name, attempt, successful)
+        path = build_summary_path(
+            run_id,
+            name,
+            attempt,
+            successful,
+            publication_pending=bool(summary.get("publication_pending")),
+        )
         body = render_summary_text(summary)
         _atomic_write(path, body)
         return str(path)

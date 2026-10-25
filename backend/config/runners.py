@@ -616,8 +616,23 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
                 if publication is not None:
                     try:
                         publication.commit()
+                        console.print(
+                            Panel.fit(
+                                Text(f"{key} publication committed", style="green"),
+                                border_style="green",
+                            )
+                        )
                     except Exception:
                         artifactPrinting(None, run_id, item_name=f"{key}Publication", attempt=1)
+                        console.print(
+                            Panel.fit(
+                                Text(
+                                    f"{key} publication failed or was unconfirmed; staged records are not reported as live",
+                                    style="red",
+                                ),
+                                border_style="red",
+                            )
+                        )
                         failed_categories.add(key)
                         overall_ok = False
             console.print()

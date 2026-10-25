@@ -3,7 +3,7 @@ from io import StringIO
 import json
 from types import SimpleNamespace
 from unittest import TestCase
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import uuid
 
 from dataflow_database import DB
@@ -90,6 +90,38 @@ class CategoryPublicationTests(TestCase):
         with patch("backend.config.runners.runGroup", side_effect=stage), patch("backend.config.runners._run_shared_updates", side_effect=lambda entries, *_a, **_k: {c: False for _, c in entries}), redirect_stdout(StringIO()):
             self.assertFalse(runPlan(10, [("dataflow", "nowPlayingData", DATAFLOW_REGISTRY["nowPlayingData"][1:])]))
 
+    def test_failed_category_commit_fails_the_run_and_skips_alerts(self):
+        publication = SimpleNamespace(commit=Mock(side_effect=TimeoutError("commit timed out")))
+        dispatchers = []
+        output = StringIO()
+
+        def stage(_kind, _key, _run_id, **kwargs):
+            classes = kwargs["classes_override"]
+            if any(cls.__name__.endswith("Dispatcher") for cls in classes):
+                dispatchers.extend(cls.__name__ for cls in classes)
+                return {cls: True for cls in classes}
+            kwargs["request_context"].publications["nowplayings"] = publication
+            return {cls: True for cls in classes}
+
+        with patch("backend.config.runners.runGroup", side_effect=stage), patch(
+            "backend.config.runners._run_shared_updates",
+            side_effect=lambda entries, *_args, **_kwargs: {
+                cls: True for _key, cls in entries
+            },
+        ), patch("backend.config.runners.artifactPrinting"), redirect_stdout(output):
+            successful = runPlan(
+                10,
+                [("dataflow", "nowPlayingData", DATAFLOW_REGISTRY["nowPlayingData"][1:])],
+            )
+
+        self.assertFalse(successful)
+        publication.commit.assert_called_once_with()
+        self.assertEqual(dispatchers, [])
+        self.assertIn(
+            "nowPlayingData publication failed or was unconfirmed",
+            " ".join(output.getvalue().split()),
+        )
+
     def test_failed_stage_restore_keeps_prior_clean_work_and_live_state_unchanged(self):
         workspace, live = self.workspace(tables={"allShowtimes": [{"id": "raw", "cleaned": False, "added": False}]})
         workspace.table("allShowtimes").update({"cleaned": True}).eq("id", "raw").execute()
@@ -132,6 +164,17 @@ class CategoryPublicationTests(TestCase):
             self.assertEqual(receipt["status"], "applied")
             self.assertEqual(workspace.commit(), receipt)
         self.assertEqual(calls, ["commit_category_publication"])
+
+    def test_non_applied_commit_receipt_fails(self):
+        workspace, live = self.workspace()
+        workspace.table("finalMovies").insert({"tmdb_id": 1, "english_title": "Ready"}).execute()
+        live.rpc = lambda *_args, **_kwargs: SimpleNamespace(
+            execute=lambda: SimpleNamespace(data={"status": "prepared"})
+        )
+
+        with patch("backend.dataflow.utils.PublicationWorkspace.Path"):
+            with self.assertRaisesRegex(RuntimeError, "was not applied"):
+                workspace.commit()
 
     def test_read_only_preparation_does_not_write_receipts_and_chunk_limits_are_bounded(self):
         workspace, live = self.workspace(tables={"finalMovies": [{"tmdb_id": 1, "english_title": "Old"}]})

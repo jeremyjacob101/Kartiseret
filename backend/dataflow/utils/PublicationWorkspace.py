@@ -244,6 +244,9 @@ class PublicationWorkspace:
             if not receipt or receipt[0]["status"] != "applied" or receipt[0]["fingerprint"] != fingerprint:
                 raise
             result = receipt[0]
+        if not isinstance(result, dict) or result.get("status") != "applied":
+            status = result.get("status") if isinstance(result, dict) else None
+            raise RuntimeError(f"Publication commit was not applied (status={status!r})")
         self._result = result
         return result
 
