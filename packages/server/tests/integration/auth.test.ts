@@ -520,6 +520,103 @@ describe.sequential(
       ]);
       expect(results.map((result) => result.status).sort()).toEqual([200, 400]);
     });
+    it("deletes the authenticated account and cascades account-owned data", async () => {
+      const deleteEmail = "pr5-delete@example.test";
+      const created = await signup(deleteEmail);
+      expect(created.status).toBe(200);
+      const deleteUserId: string = created.body.user.id;
+      const verification = latest("verification", deleteEmail);
+      expect(
+        (await request(app).get(verification.pathname + verification.search))
+          .status,
+      ).toBe(302);
+      const deleteCookie = await login(deleteEmail);
+
+      await admin.pool.query(
+        `INSERT INTO public."userPreferences" (user_id, location)
+         VALUES ($1, 'Haifa')`,
+        [deleteUserId],
+      );
+      await admin.pool.query(
+        "INSERT INTO public.ticket_alert_preferences (user_id) VALUES ($1)",
+        [deleteUserId],
+      );
+      await admin.pool.query(
+        "INSERT INTO public.ticket_alert_subscriptions (user_id, tmdb_id) VALUES ($1, 9100021)",
+        [deleteUserId],
+      );
+      await admin.pool.query(
+        "INSERT INTO public.coming_soon_date_watches (user_id, tmdb_id, title) VALUES ($1, 9100022, 'Test watch')",
+        [deleteUserId],
+      );
+      await admin.pool.query(
+        "INSERT INTO public.user_movie_display_preferences (user_id, tmdb_id, title, treatment) VALUES ($1, 9100023, 'Test preference', 'remove')",
+        [deleteUserId],
+      );
+      const source = (
+        await admin.pool.query(
+          `INSERT INTO public.letterboxd_sources (user_id, source_url, source_type)
+           VALUES ($1, 'https://letterboxd.com/pr5delete/watchlist/', 'watchlist')
+           RETURNING id`,
+          [deleteUserId],
+        )
+      ).rows[0];
+      await admin.pool.query(
+        `INSERT INTO public.letterboxd_source_films (source_id, user_id, letterboxd_slug, title)
+         VALUES ($1, $2, 'test-film', 'Test Film')`,
+        [source.id, deleteUserId],
+      );
+      await admin.pool.query(
+        `INSERT INTO public.letterboxd_event_alerts (user_id, tmdb_id, event_key, event_type, event_payload)
+         VALUES ($1, 9100024, repeat('a', 64), 'coming_soon', '{}'::jsonb)`,
+        [deleteUserId],
+      );
+
+      const denied = await post(
+        "/api/auth/delete-user",
+        { password: "incorrect-password-123" },
+        deleteCookie,
+      );
+      expect(denied.status).toBeGreaterThanOrEqual(400);
+      expect(
+        (
+          await admin.pool.query(
+            "SELECT count(*)::int AS count FROM app_auth.users WHERE id=$1",
+            [deleteUserId],
+          )
+        ).rows[0].count,
+      ).toBe(1);
+
+      const deleted = await post(
+        "/api/auth/delete-user",
+        { password },
+        deleteCookie,
+      );
+      expect(deleted.status).toBe(200);
+      for (const [table, userColumn] of [
+        ["app_auth.users", "id"],
+        ["app_auth.accounts", "user_id"],
+        ["app_auth.sessions", "user_id"],
+        ['public."userPreferences"', "user_id"],
+        ["public.ticket_alert_preferences", "user_id"],
+        ["public.ticket_alert_subscriptions", "user_id"],
+        ["public.coming_soon_date_watches", "user_id"],
+        ["public.user_movie_display_preferences", "user_id"],
+        ["public.letterboxd_sources", "user_id"],
+        ["public.letterboxd_source_films", "user_id"],
+        ["public.letterboxd_event_alerts", "user_id"],
+      ] as const) {
+        const count = await admin.pool.query(
+          `SELECT count(*)::int AS count FROM ${table} WHERE ${userColumn}=$1`,
+          [deleteUserId],
+        );
+        expect(count.rows[0].count, `${table} rows remain`).toBe(0);
+      }
+      expect(
+        (await request(app).get("/api/v1/account").set("Cookie", deleteCookie))
+          .status,
+      ).toBe(401);
+    });
     it("establishes credentials for a migrated identity through the library reset flow", async () => {
       const to = "legacy@example.test";
       await post("/api/auth/request-password-reset", {

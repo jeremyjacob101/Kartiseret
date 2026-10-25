@@ -49,6 +49,7 @@ function createApplicationAuthOptions(
         : {}),
     },
     user: {
+      deleteUser: { enabled: true },
       additionalFields: {
         signupLocation: {
           type: "string",
