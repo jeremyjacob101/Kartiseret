@@ -272,6 +272,11 @@ export const movieCodes = pgTable(
   (table) => [unique("movieCodes_movie_code_key").on(table.movieCode)],
 );
 
+export const movieReleaseDates = pgTable("movie_release_dates", {
+  tmdbId: integer("tmdb_id").primaryKey(),
+  localReleaseDate: calendarDate("local_release_date").notNull(),
+});
+
 export const tableFixes = pgTable("tableFixes", {
   tmdbId: text("tmdb_id").notNull(),
   titleFix: text("title_fix").notNull(),
@@ -569,6 +574,7 @@ export const applicationTables = {
   finalThequeMovies,
   finalTheques,
   movieCodes,
+  movieReleaseDates,
   tableFixes,
   tableSkips,
   theaters,

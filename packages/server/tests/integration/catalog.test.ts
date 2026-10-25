@@ -56,6 +56,7 @@ const expectedTableNames = [
   "finalThequeMovies",
   "finalTheques",
   "movieCodes",
+  "movie_release_dates",
   "tableFixes",
   "tableSkips",
   "theaters",
@@ -627,6 +628,183 @@ describe("PostgreSQL 17 integration", () => {
     expect(JSON.stringify(response.body)).not.toContain("BigInt");
   });
 
+  it("retains coming-soon release dates and updates them from later valid rows", async () => {
+    const tmdbId = 9199988;
+    const inserted = await adminDatabase.db
+      .insert(schema.finalSoons)
+      .values({
+        tmdbId,
+        englishTitle: "Release Date Archive Fixture",
+        hebrewTitle: "Fixture",
+        releaseDate: "2026-12-01",
+      })
+      .returning({ id: schema.finalSoons.id });
+
+    try {
+      const firstArchive = await runtimeDatabase.db
+        .select({ localReleaseDate: schema.movieReleaseDates.localReleaseDate })
+        .from(schema.movieReleaseDates)
+        .where(eq(schema.movieReleaseDates.tmdbId, tmdbId));
+      expect(firstArchive).toEqual([{ localReleaseDate: "2026-12-01" }]);
+
+      await adminDatabase.db
+        .update(schema.finalSoons)
+        .set({ releaseDate: "2026-12-18" })
+        .where(eq(schema.finalSoons.id, inserted[0]!.id));
+      const updatedArchive = await runtimeDatabase.db
+        .select({ localReleaseDate: schema.movieReleaseDates.localReleaseDate })
+        .from(schema.movieReleaseDates)
+        .where(eq(schema.movieReleaseDates.tmdbId, tmdbId));
+      expect(updatedArchive).toEqual([{ localReleaseDate: "2026-12-18" }]);
+
+      await expect(
+        adminDatabase.pool.query(
+          'UPDATE public."finalSoons" SET release_date = NULL WHERE id = $1',
+          [inserted[0]!.id],
+        ),
+      ).rejects.toThrow();
+      const afterMissingDate = await runtimeDatabase.db
+        .select({ localReleaseDate: schema.movieReleaseDates.localReleaseDate })
+        .from(schema.movieReleaseDates)
+        .where(eq(schema.movieReleaseDates.tmdbId, tmdbId));
+      expect(afterMissingDate).toEqual([{ localReleaseDate: "2026-12-18" }]);
+
+      await adminDatabase.db
+        .delete(schema.finalSoons)
+        .where(eq(schema.finalSoons.id, inserted[0]!.id));
+      const afterSoonCleanup = await runtimeDatabase.db
+        .select({ localReleaseDate: schema.movieReleaseDates.localReleaseDate })
+        .from(schema.movieReleaseDates)
+        .where(eq(schema.movieReleaseDates.tmdbId, tmdbId));
+      expect(afterSoonCleanup).toEqual([{ localReleaseDate: "2026-12-18" }]);
+    } finally {
+      await adminDatabase.db
+        .delete(schema.finalSoons)
+        .where(eq(schema.finalSoons.id, inserted[0]!.id));
+      await adminDatabase.db
+        .delete(schema.movieReleaseDates)
+        .where(eq(schema.movieReleaseDates.tmdbId, tmdbId));
+    }
+  });
+
+  it("backfills release dates from coming-soon rows present before the migration", async () => {
+    const tmdbId = 9499999;
+    try {
+      const archived = await runtimeDatabase.db
+        .select({ localReleaseDate: schema.movieReleaseDates.localReleaseDate })
+        .from(schema.movieReleaseDates)
+        .where(eq(schema.movieReleaseDates.tmdbId, tmdbId));
+
+      expect(archived).toEqual([{ localReleaseDate: "2026-12-09" }]);
+    } finally {
+      await adminDatabase.db
+        .delete(schema.finalSoons)
+        .where(eq(schema.finalSoons.tmdbId, tmdbId));
+      await adminDatabase.db
+        .delete(schema.movieReleaseDates)
+        .where(eq(schema.movieReleaseDates.tmdbId, tmdbId));
+    }
+  });
+
+  it("loads local dates and counts only today-or-later showtimes across cities", async () => {
+    const movieIds = [9199978, 9199979];
+    const { rows } = await adminDatabase.pool.query<{
+      today: string;
+      yesterday: string;
+      future: string;
+    }>(`
+      SELECT
+        (now() AT TIME ZONE 'Asia/Jerusalem')::date::text AS today,
+        ((now() AT TIME ZONE 'Asia/Jerusalem')::date - 1)::text AS yesterday,
+        ((now() AT TIME ZONE 'Asia/Jerusalem')::date + 2)::text AS future
+    `);
+    const { today, yesterday, future } = rows[0]!;
+
+    await adminDatabase.db.insert(schema.finalMovies).values([
+      {
+        tmdbId: movieIds[0]!,
+        englishTitle: "Two Future Shows",
+        popularity: 20,
+      },
+      { tmdbId: movieIds[1]!, englishTitle: "One Future Show", popularity: 10 },
+    ]);
+    await adminDatabase.db.insert(schema.movieReleaseDates).values([
+      { tmdbId: movieIds[0]!, localReleaseDate: "2026-01-05" },
+      { tmdbId: movieIds[1]!, localReleaseDate: "2026-02-05" },
+    ]);
+    const insertedShowtimes = await adminDatabase.db
+      .insert(schema.finalShowtimes)
+      .values([
+        {
+          tmdbId: movieIds[0]!,
+          screeningCity: "Jerusalem",
+          dateOfShowing: today,
+          cinema: "Ranking Fixture A",
+          showtime: "18:00:00",
+        },
+        {
+          tmdbId: movieIds[0]!,
+          screeningCity: "Tel Aviv",
+          dateOfShowing: future,
+          cinema: "Ranking Fixture B",
+          showtime: "20:00:00",
+        },
+        {
+          tmdbId: movieIds[0]!,
+          screeningCity: "Haifa",
+          dateOfShowing: yesterday,
+          cinema: "Ranking Fixture C",
+          showtime: "21:00:00",
+        },
+        {
+          tmdbId: movieIds[1]!,
+          screeningCity: "Beer Sheva",
+          dateOfShowing: future,
+          cinema: "Ranking Fixture D",
+          showtime: "19:00:00",
+        },
+        {
+          tmdbId: movieIds[1]!,
+          screeningCity: "Eilat",
+          dateOfShowing: yesterday,
+          cinema: "Ranking Fixture E",
+          showtime: "21:00:00",
+        },
+      ])
+      .returning({ id: schema.finalShowtimes.id });
+
+    try {
+      const rows = await runtimeRepository.findNowPlayingRows();
+      const byId = new Map(
+        (rows as Array<Record<string, unknown>>)
+          .filter((row) => movieIds.includes(Number(row.tmdbId)))
+          .map((row) => [Number(row.tmdbId), row]),
+      );
+
+      expect(byId.get(movieIds[0]!)).toMatchObject({
+        showtimeCount: 2,
+        localReleaseDate: "2026-01-05",
+      });
+      expect(byId.get(movieIds[1]!)).toMatchObject({
+        showtimeCount: 1,
+        localReleaseDate: "2026-02-05",
+      });
+    } finally {
+      await adminDatabase.db.delete(schema.finalShowtimes).where(
+        inArray(
+          schema.finalShowtimes.id,
+          insertedShowtimes.map((row) => row.id),
+        ),
+      );
+      await adminDatabase.db
+        .delete(schema.movieReleaseDates)
+        .where(inArray(schema.movieReleaseDates.tmdbId, movieIds));
+      await adminDatabase.db
+        .delete(schema.finalMovies)
+        .where(inArray(schema.finalMovies.tmdbId, movieIds));
+    }
+  });
+
   it("reads coming-soon rows and permanent codes using the runtime role", async () => {
     const response = await request(app).get("/api/v1/catalog/coming-soon");
     expect(response.status).toBe(200);
@@ -1011,11 +1189,21 @@ describe("PostgreSQL 17 integration", () => {
         SELECT * FROM public."finalMovies"
         WHERE false
       `);
+      await adminDatabase.pool.query(`
+        CREATE VIEW ${schemaName}."finalShowtimes" AS
+        SELECT * FROM public."finalShowtimes"
+        WHERE false
+      `);
+      await adminDatabase.pool.query(`
+        CREATE VIEW ${schemaName}."movie_release_dates" AS
+        SELECT * FROM public."movie_release_dates"
+        WHERE false
+      `);
       await adminDatabase.pool.query(
         `GRANT USAGE ON SCHEMA ${schemaName} TO kartiseret_api`,
       );
       await adminDatabase.pool.query(
-        `GRANT SELECT ON ${schemaName}."finalMovies" TO kartiseret_api`,
+        `GRANT SELECT ON ${schemaName}."finalMovies", ${schemaName}."finalShowtimes", ${schemaName}."movie_release_dates" TO kartiseret_api`,
       );
 
       const readinessDatabase = createDatabase(runtimeConnectionString, {

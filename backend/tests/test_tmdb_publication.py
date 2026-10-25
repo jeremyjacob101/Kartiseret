@@ -237,6 +237,39 @@ class PublicationTests(TestCase):
                     self.assertEqual(final[101], existing)
                     self.assertEqual(final[102]["release_date"], dated["release_date"])
 
+    def test_coming_soon_scrapes_publish_valid_local_dates_and_accept_corrections(self):
+        corrected_date = (date.today() + timedelta(days=60)).isoformat()
+        raw = {**raw_row("1", "Alpha"), "release_date": corrected_date}
+        flow = self.build_flow(FLOWS[0], [raw])
+        flow.supabase.tables[flow.MOVING_TO_TABLE_NAME] = [{
+            "tmdb_id": 101,
+            "english_title": "Alpha",
+            "hebrew_title": "אלפא",
+            "release_date": raw_row("old", "Alpha")["release_date"],
+            "imdb_id": "tt101",
+        }]
+        flow.refreshAllTables()
+
+        flow.logic()
+
+        final = next(
+            row for row in flow.supabase.tables[flow.MOVING_TO_TABLE_NAME]
+            if row["tmdb_id"] == 101
+        )
+        self.assertEqual(final["release_date"], corrected_date)
+        writes = [
+            action["payload"]
+            for action in flow.supabase.actions
+            if action["op"] == "upsert" and action["table"] == flow.MOVING_TO_TABLE_NAME
+        ]
+        self.assertTrue(
+            any(
+                row.get("tmdb_id") == 101 and row.get("release_date") == corrected_date
+                for payload in writes
+                for row in payload
+            )
+        )
+
     def test_all_undated_soons_stay_pending_without_inventing_a_tmdb_release_date(self):
         flow = self.build_flow(FLOWS[0], [{**raw_row("1", "Alpha"), "release_date": None}])
         flow.logic()

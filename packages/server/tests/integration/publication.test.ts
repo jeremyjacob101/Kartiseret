@@ -272,7 +272,12 @@ describe("atomic category publication and supported readers", () => {
         `delete from public."${table}" where cinema = any($1::text[])`,
         [[cinema, `${cinema}2`]],
       );
-    for (const table of ["finalMovies", "finalThequeMovies", "movieCodes"])
+    for (const table of [
+      "finalMovies",
+      "finalThequeMovies",
+      "movieCodes",
+      "movie_release_dates",
+    ])
       await pool.query(
         `delete from public."${table}" where tmdb_id = any($1::bigint[])`,
         [[movieId, movieId + 1, movieId + 2]],
@@ -439,6 +444,14 @@ describe("atomic category publication and supported readers", () => {
         )
       ).rows[0].n,
     ).toBe(1);
+    expect(
+      (
+        await pool.query(
+          "select local_release_date::text from public.movie_release_dates where tmdb_id=$1",
+          [movieId + 1],
+        )
+      ).rows[0].local_release_date,
+    ).toBe("2035-01-01");
     expect(
       (
         await pool.query(

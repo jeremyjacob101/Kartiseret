@@ -31,6 +31,7 @@ import {
   toComingSoonMovie,
   toNowPlayingMovie,
 } from "../catalog/movie-mapper.js";
+import { orderNowPlayingRows } from "../catalog/now-playing-ranking.js";
 import type { PublicDataRepository } from "./repository.js";
 import { PublicDataIntegrityError } from "./errors.js";
 import { z } from "zod";
@@ -148,9 +149,10 @@ export async function getMovieCatalog(
       pending !== "1"
     );
   });
-  const orderedRows = visibleRows.sort(
-    parsedMode === "nowPlaying" ? compareNowPlayingRows : compareComingSoonRows,
-  );
+  const orderedRows =
+    parsedMode === "nowPlaying"
+      ? orderNowPlayingRows(visibleRows)
+      : visibleRows.sort(compareComingSoonRows);
 
   const ids = orderedRows.map((row) =>
     tmdbIdSchema.parse(readField(row, "tmdbId")),

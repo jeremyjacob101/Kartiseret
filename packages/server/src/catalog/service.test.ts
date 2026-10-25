@@ -51,4 +51,31 @@ describe("catalog service ordering", () => {
       "9100001",
     ]);
   });
+
+  it("uses the balanced ranking for the legacy now-playing catalog", async () => {
+    const repository: CatalogRepository = {
+      findNowPlayingRows: async () => [
+        {
+          ...row(3, 30),
+          showtimeCount: 0,
+          localReleaseDate: "2024-01-01",
+        },
+        {
+          ...row(2, 10),
+          showtimeCount: 30,
+          localReleaseDate: "2024-01-01",
+        },
+        {
+          ...row(1, 10),
+          showtimeCount: 0,
+          localReleaseDate: "2026-01-01",
+        },
+      ],
+      findMovieCodes: async () => new Map(),
+    };
+
+    const movies = await getNowPlayingMovies(repository);
+
+    expect(movies.map((movie) => movie.tmdbId)).toEqual(["1", "2", "3"]);
+  });
 });

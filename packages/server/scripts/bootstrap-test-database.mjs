@@ -94,6 +94,12 @@ try {
     throw new Error("No timestamped SQL migrations were found.");
   }
   for (const migration of migrations) {
+    if (migration.endsWith("_movie_release_date_history.sql")) {
+      await client.query(`
+        INSERT INTO public."finalSoons" (tmdb_id, english_title, hebrew_title, release_date)
+        VALUES (9499999, 'Release Date Backfill Fixture', 'בדיקת תאריך', '2026-12-09')
+      `);
+    }
     const sql = await readFile(resolve(migrationDirectory, migration), "utf8");
     if (migration.endsWith("_better_auth_accounts.sql")) {
       await client.query(`

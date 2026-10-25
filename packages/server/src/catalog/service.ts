@@ -1,6 +1,7 @@
 import type { Movie } from "@kartiseret/contracts/movies";
 import { tmdbIdSchema } from "@kartiseret/contracts/runtime";
 import { isPendingSoloUpdate, toNowPlayingMovie } from "./movie-mapper.js";
+import { orderNowPlayingRows } from "./now-playing-ranking.js";
 
 export interface CatalogRepository {
   findNowPlayingRows(): Promise<readonly unknown[]>;
@@ -27,38 +28,14 @@ export async function getNowPlayingMovies(
   );
   const movieCodes = await repository.findMovieCodes(ids);
 
-  const orderedRows = visibleRows
-    .map((row, index) => ({ row, tmdbId: ids[index] ?? "" }))
-    .sort(compareCatalogRows);
+  const orderedRows = orderNowPlayingRows(visibleRows).map((row) => ({
+    row,
+    tmdbId: tmdbIdSchema.parse(readField(row, "tmdbId")),
+  }));
 
   return orderedRows.map(({ row, tmdbId }) =>
     toNowPlayingMovie(row, movieCodes.get(tmdbId)),
   );
-}
-
-function compareCatalogRows(
-  left: { row: unknown; tmdbId: string },
-  right: { row: unknown; tmdbId: string },
-): number {
-  const leftPopularity = readField(left.row, "popularity");
-  const rightPopularity = readField(right.row, "popularity");
-  const leftIsNull = leftPopularity === null || leftPopularity === undefined;
-  const rightIsNull = rightPopularity === null || rightPopularity === undefined;
-
-  if (leftIsNull !== rightIsNull) {
-    return leftIsNull ? 1 : -1;
-  }
-
-  if (!leftIsNull && !rightIsNull) {
-    const difference = Number(rightPopularity) - Number(leftPopularity);
-    if (difference !== 0) {
-      return difference;
-    }
-  }
-
-  const leftId = BigInt(left.tmdbId);
-  const rightId = BigInt(right.tmdbId);
-  return leftId < rightId ? -1 : leftId > rightId ? 1 : 0;
 }
 
 function readField(value: unknown, field: string): unknown {
