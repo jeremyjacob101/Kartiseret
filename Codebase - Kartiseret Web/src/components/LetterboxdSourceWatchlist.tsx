@@ -55,8 +55,8 @@ export function LetterboxdSourceWatchlist({
             <span className="prefs-setting-label">Letterboxd sources</span>
             <span className="prefs-setting-summary">
               Track public watchlists and lists, including lists visible to
-              anyone with a share link, for new Coming Soon dates and future
-              showtimes.
+              anyone with a share link, for first Coming Soon dates and first
+              ticket availability in your selected cities.
             </span>
           </div>
         </div>
@@ -64,7 +64,8 @@ export function LetterboxdSourceWatchlist({
         <p className="prefs-alerts-empty letterboxd-source-note">
           Add a public watchlist or list URL, or a share link for a list visible
           to anyone with the link. Sources that require Letterboxd sign-in are
-          not supported. Sources sync daily; their first sync is silent.
+          not supported. Sources sync daily; their first sync is silent. Your
+          movie notification cities, filters, and mode apply to these films.
         </p>
         <form className="letterboxd-source-form" onSubmit={submit}>
           <label htmlFor="letterboxd-source-url">Letterboxd URL</label>

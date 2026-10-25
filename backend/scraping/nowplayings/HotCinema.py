@@ -66,7 +66,7 @@ class HotCinema(BaseCinema):
                         self.driver.execute_script("$('.datepicker-wrapper input').datepicker('show')")
                         self.waitForVisible(".datepicker-dropdown .datepicker-days")
                         day_class_label = self.element(f".datepicker-dropdown .datepicker-days tbody > tr:nth-child({week}) > td:nth-child({day})").get_attribute("class").strip()
-                        if day_class_label == "day disabled" or day_class_label == "old day" or day_class_label == "old day disabled" or day_class_label == "old active day" or day_class_label == "new day disabled" or day_class_label == "new day":
+                        if "disabled" in day_class_label.split() or "old" in day_class_label.split() or "new" in day_class_label.split():
                             continue
                         date_element = self.element(f".datepicker-dropdown .datepicker-days tbody > tr:nth-child({week}) > td:nth-child({day})")
                         selected_date = date(int(self.element(".datepicker-dropdown .datepicker-days .datepicker-switch").text.split()[-1]), (int(self.current_month) + checking_month - 2) % 12 + 1, int(date_element.text)).strftime("%d/%m/%Y")

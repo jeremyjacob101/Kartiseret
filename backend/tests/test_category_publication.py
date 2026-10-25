@@ -76,15 +76,14 @@ class CategoryPublicationTests(TestCase):
                 "map",
                 "update",
                 "commit",
-                "TicketAlertDispatcher",
-                "LetterboxdSourceDispatcher",
+                "MovieNotificationDispatcher",
             ],
         )
 
     def test_failed_update_never_publishes_or_dispatches_alerts(self):
         publication = SimpleNamespace(commit=lambda: self.fail("Failed category was published"))
         def stage(kind, key, run_id, **kwargs):
-            self.assertNotIn("TicketAlertDispatcher", [c.__name__ for c in kwargs["classes_override"]])
+            self.assertNotIn("MovieNotificationDispatcher", [c.__name__ for c in kwargs["classes_override"]])
             kwargs["request_context"].publications["nowplayings"] = publication
             return {c: True for c in kwargs["classes_override"]}
         with patch("backend.config.runners.runGroup", side_effect=stage), patch("backend.config.runners._run_shared_updates", side_effect=lambda entries, *_a, **_k: {c: False for _, c in entries}), redirect_stdout(StringIO()):

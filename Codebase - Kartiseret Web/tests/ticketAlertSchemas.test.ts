@@ -80,6 +80,7 @@ describe("ticket alert response schemas", () => {
     ).toEqual([
       {
         tmdbId: "42",
+        completedCities: [],
         createdAt: timestamp,
         notifiedAt: "2026-09-04T12:00:00+03:00",
         deliveryTitle: "A movie",

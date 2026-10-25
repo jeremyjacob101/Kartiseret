@@ -103,6 +103,24 @@ try {
         INSERT INTO public.ticket_alert_subscriptions(user_id,tmdb_id,delivery_id,notified_at) VALUES ('00000000-0000-4000-8000-0000000000c1',9100011,'00000000-0000-4000-8000-0000000000d1','2026-10-19T12:00:00Z');
       `);
     }
+    if (migration.endsWith("_shared_first_availability_notifications.sql")) {
+      await client.query(`
+        INSERT INTO app_auth.users(id,name,email,email_verified) VALUES ('00000000-0000-4000-8000-0000000000e1','Migration fixture','notifications-migration@example.test',true);
+        INSERT INTO public."userPreferences"(user_id,location) VALUES ('00000000-0000-4000-8000-0000000000e1','Haifa');
+        INSERT INTO public.ticket_alert_preferences(user_id,cities) VALUES ('00000000-0000-4000-8000-0000000000e1',NULL);
+        INSERT INTO public.ticket_alert_subscriptions(user_id,tmdb_id,notified_at,delivery_city,criteria_overrides) VALUES
+          ('00000000-0000-4000-8000-0000000000e1',9300001,now(),'Jerusalem','{"cities":null,"filters":{"screenFormat":["3D"]}}'),
+          ('00000000-0000-4000-8000-0000000000e1',9300004,NULL,NULL,'{}');
+        INSERT INTO public.letterboxd_event_alerts(user_id,tmdb_id,event_key,event_type,event_payload,status,notified_at,delivery_attempts) VALUES
+          ('00000000-0000-4000-8000-0000000000e1',9300001,repeat('a',64),'showtime','{"screening_city":"Jerusalem","title":"Film"}','sent',now(),1),
+          ('00000000-0000-4000-8000-0000000000e1',9300001,repeat('b',64),'showtime','{"screening_city":"Jerusalem","title":"Film"}','sent',now(),1),
+          ('00000000-0000-4000-8000-0000000000e1',9300002,repeat('c',64),'showtime','{"screening_city":"Haifa","title":"Film"}','suppressed',NULL,0),
+          ('00000000-0000-4000-8000-0000000000e1',9300003,repeat('d',64),'showtime','{"screening_city":"Haifa","title":"Film"}','pending',NULL,1),
+          ('00000000-0000-4000-8000-0000000000e1',9300004,repeat('e',64),'showtime','{"screening_city":"Haifa","title":"Film"}','pending',NULL,0);
+        INSERT INTO public.coming_soon_date_watches(user_id,tmdb_id,title,notified_at,delivery_date)
+          VALUES ('00000000-0000-4000-8000-0000000000e1',9300005,'Date fixture',now(),'2027-01-01');
+      `);
+    }
     if (migration.endsWith("_postgres_atomic_publication.sql")) {
       const administrator = (await client.query("SELECT current_user AS name"))
         .rows[0].name;

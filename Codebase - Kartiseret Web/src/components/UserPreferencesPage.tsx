@@ -10,6 +10,7 @@ import { loadCityLocationPicker } from "./maps/loadCityLocationPicker";
 import { type RatingSource } from "../prefs/definitions/ratingSources";
 import { type AppLocation } from "../prefs/definitions/locations";
 import { PasswordSecurityForm } from "./PasswordSecurityForm";
+import { DeleteAccountSection } from "./DeleteAccountSection";
 import { UserTicketAlerts } from "./UserTicketAlerts";
 
 const CityLocationPicker = lazy(async () => {
@@ -280,12 +281,15 @@ export function UserPreferencesPage() {
           />
 
           {user ? (
-            <PasswordSecurityForm
-              description="Update the password used to sign in to Kartiseret."
-              requireCurrentPassword
-              submitLabel="Change password"
-              title="Change password"
-            />
+            <>
+              <PasswordSecurityForm
+                description="Update the password used to sign in to Kartiseret."
+                requireCurrentPassword
+                submitLabel="Change password"
+                title="Change password"
+              />
+              <DeleteAccountSection />
+            </>
           ) : null}
         </div>
       </div>

@@ -191,6 +191,7 @@ describe("protected HTTP contracts", () => {
   it("reads and updates owner-scoped ticket alert criteria through protected routes", async () => {
     const { app, workflows } = setup();
     const defaults: TicketAlertCriteria = {
+      notificationMode: "first_any_city",
       cities: ["Haifa", "Tel Aviv"],
       filters: {
         showType: ["Premium"],
