@@ -16,8 +16,9 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { TheaterMapDialog } from "./maps/TheaterMapDialog";
 import { useShallow } from "zustand/react/shallow";
 import "./AllShowtimesPage.css";
+import type { ShowtimesMovieRowLayoutVariant } from "./showtimes/ShowtimesMovieRow";
+import { Link, useSearchParams } from "react-router";
 import { MapPin } from "lucide-react";
-import { Link } from "react-router";
 
 type ShowtimesDayPanel = {
   date: string;
@@ -31,7 +32,37 @@ type NearbyCityChoice = {
   name: string;
 };
 
+const showtimesLayoutOptions: ReadonlyArray<{
+  description: string;
+  id: string;
+  label: string;
+  layoutVariant: ShowtimesMovieRowLayoutVariant;
+}> = [
+  {
+    id: "editorial-divider",
+    label: "Editorial divider",
+    description: "Open spacing, with a quiet dark line between films.",
+    layoutVariant: "editorial-divider",
+  },
+  {
+    id: "fade-band",
+    label: "Fading row",
+    description:
+      "A soft wash fades in around the row and disappears at both ends.",
+    layoutVariant: "fade-band",
+  },
+  {
+    id: "poster-wash",
+    label: "Poster wash",
+    description:
+      "Color flows from the poster into the details without an outer edge.",
+    layoutVariant: "poster-wash",
+  },
+];
+
 export function AllShowtimesPage() {
+  const [searchParams] = useSearchParams();
+  const isLayoutPreview = searchParams.get("layoutPreview") === "1";
   usePublicationRevision();
   const displayPreferences = useMovieDisplayPreferences();
   const { location, sources, setLocationPreference } = useUserPreferencesStore(
@@ -435,7 +466,56 @@ export function AllShowtimesPage() {
         className="details-showtimes all-showtimes-browser"
         aria-label={`All showtimes in ${location}`}
       >
-        {effectiveSelectedDayPanel ? (
+        {isLayoutPreview ? (
+          <article
+            className="details-day-panel all-showtimes-day-panel"
+            data-showtime-date={
+              effectiveSelectedDayPanel?.date ?? fixedAppDateString
+            }
+          >
+            <section
+              className="all-showtimes-layout-preview"
+              aria-label="Showtimes layout preview"
+            >
+              <header className="all-showtimes-layout-preview-heading">
+                <h2>Three ways to show this movie</h2>
+                <p>The movie and showtimes stay the same in each sample.</p>
+              </header>
+
+              {selectedDayPanel?.movies[0] ? (
+                <div className="all-showtimes-layout-options">
+                  {showtimesLayoutOptions.map((option) => (
+                    <section
+                      key={option.id}
+                      className="all-showtimes-layout-option"
+                      aria-labelledby={`all-showtimes-layout-option-${option.id}`}
+                      data-showtimes-layout-option={option.id}
+                    >
+                      <div className="all-showtimes-layout-option-heading">
+                        <h3 id={`all-showtimes-layout-option-${option.id}`}>
+                          {option.label}
+                        </h3>
+                        <p>{option.description}</p>
+                      </div>
+                      <ShowtimesMovieRow
+                        movie={selectedDayPanel.movies[0].movie}
+                        theaters={selectedDayPanel.movies[0].theaters}
+                        sources={sources}
+                        onOpenTrailer={setOpenTrailerMovieId}
+                        layoutVariant={option.layoutVariant}
+                      />
+                    </section>
+                  ))}
+                </div>
+              ) : (
+                <p className="all-showtimes-layout-preview-empty" role="status">
+                  No movie has showtimes on this date. Choose another day to
+                  preview the layouts.
+                </p>
+              )}
+            </section>
+          </article>
+        ) : effectiveSelectedDayPanel ? (
           <article
             className="details-day-panel all-showtimes-day-panel"
             data-showtime-date={effectiveSelectedDayPanel.date}
