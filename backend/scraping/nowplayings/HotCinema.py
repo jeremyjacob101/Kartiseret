@@ -5,11 +5,6 @@ from selenium.webdriver.common.by import By
 import re
 
 
-def _is_unselectable_date_cell(class_name):
-    classes = set((class_name or "").split())
-    return bool(classes & {"disabled", "old", "new"})
-
-
 class HotCinema(BaseCinema):
     CINEMA_NAME = "Hot Cinema"
     URL = "https://hotcinema.co.il/ShowingNow"
@@ -71,7 +66,7 @@ class HotCinema(BaseCinema):
                         self.driver.execute_script("$('.datepicker-wrapper input').datepicker('show')")
                         self.waitForVisible(".datepicker-dropdown .datepicker-days")
                         day_class_label = self.element(f".datepicker-dropdown .datepicker-days tbody > tr:nth-child({week}) > td:nth-child({day})").get_attribute("class").strip()
-                        if _is_unselectable_date_cell(day_class_label):
+                        if {"disabled", "old", "new"} & set(day_class_label.split()):
                             continue
                         date_element = self.element(f".datepicker-dropdown .datepicker-days tbody > tr:nth-child({week}) > td:nth-child({day})")
                         selected_date = date(int(self.element(".datepicker-dropdown .datepicker-days .datepicker-switch").text.split()[-1]), (int(self.current_month) + checking_month - 2) % 12 + 1, int(date_element.text)).strftime("%d/%m/%Y")
