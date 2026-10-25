@@ -188,8 +188,16 @@ def _run_scheduled_scrapes(items: list[tuple[str, type]], run_id: int, *, consol
     return ok
 
 
-def _run_shared_update_round(entries, run_id: int, attempt: int, context: DataflowRequestContext, on_progress=None) -> dict[type, RunResult]:
-    started_at = {cls: time.time() for _key, cls in entries}
+def _run_shared_update_round(entries, run_id: int, attempt: int, context: DataflowRequestContext, on_progress=None, on_result=None) -> dict[type, RunResult]:
+    started_at = {cls: time.monotonic() for _key, cls in entries}
+    results = {}
+
+    def record_result(cls, ok):
+        result = RunResult(cls.__name__, time.monotonic() - started_at[cls], ok, attempt)
+        results[cls] = result
+        if on_result:
+            on_result(cls, result)
+
     flows, targets, updated = {}, {}, {}
     failures: dict[type, bool] = {}
 
@@ -210,6 +218,7 @@ def _run_shared_update_round(entries, run_id: int, attempt: int, context: Datafl
                     flow.flush_summary(successful=False)
                 except Exception:
                     pass
+            record_result(cls, False)
 
     viable = [cls for _key, cls in entries if cls in flows and cls not in failures]
     all_target_rows = [row for cls in viable for row in targets.get(cls, [])]
@@ -239,10 +248,29 @@ def _run_shared_update_round(entries, run_id: int, attempt: int, context: Datafl
                     flows[cls].flush_summary(successful=False)
                 except Exception:
                     pass
+                record_result(cls, False)
+
+    def finish_category(cls):
+        try:
+            with publication_scope(getattr(flows[cls], "_publication", None)):
+                flows[cls].finishSharedUpdate(len(targets.get(cls, [])), updated[cls])
+                flows[cls].finishSharedDataRun(successful=True)
+        except Exception:
+            artifactPrinting(flows[cls], run_id, item_name=cls.__name__, attempt=attempt)
+            failures[cls] = True
+            try:
+                flows[cls].flush_summary(successful=False)
+            except Exception:
+                pass
+        record_result(cls, cls not in failures)
 
     if viable and not any(cls in failures for cls in viable):
         updated = {cls: [] for cls in viable}
         row_jobs = [(cls, row) for cls in viable for row in targets.get(cls, [])]
+        remaining = {cls: len(targets.get(cls, [])) for cls in viable}
+        for cls in viable:
+            if remaining[cls] == 0:
+                finish_category(cls)
         if row_jobs:
             with ThreadPoolExecutor(max_workers=5) as executor:
                 future_to_item = {executor.submit(flows[cls].process_row, row): (cls, row) for cls, row in row_jobs}
@@ -260,31 +288,18 @@ def _run_shared_update_round(entries, run_id: int, attempt: int, context: Datafl
                                 updated[cls].append(result)
                         except Exception as error:
                             flows[cls].trace_note(f"row_update_failed | error={type(error).__name__}")
+                        remaining[cls] -= 1
+                        if remaining[cls] == 0:
+                            # Finalize only this category; other categories keep
+                            # using the shared provider cache and worker pool.
+                            finish_category(cls)
 
-        for cls in viable:
-            try:
-                with publication_scope(getattr(flows[cls], "_publication", None)):
-                    flows[cls].finishSharedUpdate(len(targets.get(cls, [])), updated[cls])
-                    flows[cls].finishSharedDataRun(successful=True)
-            except Exception:
-                artifactPrinting(flows[cls], run_id, item_name=cls.__name__, attempt=attempt)
-                failures[cls] = True
-                try:
-                    flows[cls].flush_summary(successful=False)
-                except Exception:
-                    pass
-
-    results = {}
     for _key, cls in entries:
         flow = flows.get(cls)
-        if cls in failures:
-            if flow is not None and hasattr(flow, "discardPublicationStage"):
-                flow.discardPublicationStage()
-            results[cls] = RunResult(cls.__name__, time.time() - started_at[cls], False, attempt)
-        elif flow is not None:
-            results[cls] = RunResult(cls.__name__, time.time() - started_at[cls], True, attempt)
-        else:
-            results[cls] = RunResult(cls.__name__, time.time() - started_at[cls], False, attempt)
+        if cls in failures and flow is not None and hasattr(flow, "discardPublicationStage"):
+            flow.discardPublicationStage()
+        if cls not in results:
+            record_result(cls, False)
 
     for flow in flows.values():
         try:
@@ -322,24 +337,25 @@ def _run_shared_updates(entries, run_id: int, context: DataflowRequestContext, *
                     ui.start_item(cls, attempt=1)
                 else:
                     ui.retry_item(cls, attempt=attempts[cls])
+
+            def report_result(cls, result):
+                durations[cls] += result.secs
+                if result.ok or attempts[cls] >= 3:
+                    final[cls] = result.ok
+                    ui.finish_item(cls, RunResult(cls.__name__, durations[cls], result.ok, attempts[cls]))
+
             results = _run_shared_update_round(
                 pending,
                 run_id,
                 max(attempts[cls] for _key, cls in pending),
                 context,
                 on_progress=ui.tick,
+                on_result=report_result,
             )
             next_pending = []
             for key, cls in pending:
                 result = results[cls]
-                durations[cls] += result.secs
-                if result.ok:
-                    final[cls] = True
-                    ui.finish_item(cls, RunResult(cls.__name__, durations[cls], True, attempts[cls]))
-                elif attempts[cls] >= 3:
-                    final[cls] = False
-                    ui.finish_item(cls, RunResult(cls.__name__, durations[cls], False, attempts[cls]))
-                else:
+                if not result.ok and attempts[cls] < 3:
                     next_pending.append((key, cls))
             pending = next_pending
             ui.tick()

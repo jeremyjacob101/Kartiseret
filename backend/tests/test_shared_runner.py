@@ -1,12 +1,12 @@
 from contextlib import redirect_stdout
 from io import StringIO
-from threading import Lock
+from threading import Event, Lock
 from time import sleep
 from unittest import TestCase
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from backend.config.registry import DATAFLOW_REGISTRY, REGISTRY
-from backend.config.runners import runPlan, _run_shared_update_round
+from backend.config.runners import runPlan, _run_shared_update_round, _run_shared_updates
 from backend.dataflow.utils.DataflowRequests import DataflowRequestContext
 
 
@@ -288,6 +288,142 @@ class SharedRunnerTests(TestCase):
         self.assertEqual(observations["ratings"], [8])
         self.assertEqual(sorted(count for _cls, count in observations["finished"]), [4, 4])
         self.assertLessEqual(observations["peak"], 5)
+
+    def test_update_rows_finish_and_stop_timing_before_other_categories(self):
+        fast = DATAFLOW_REGISTRY["comingSoonsData"][2]
+        slow = DATAFLOW_REGISTRY["nowPlayingData"][2]
+        empty = DATAFLOW_REGISTRY["cinemathequeData"][2]
+        clock = [0.0]
+        fast_displayed = Event()
+        slow_returned = Event()
+        finished = []
+        ui = Mock()
+        ui.__enter__ = Mock(return_value=ui)
+        ui.__exit__ = Mock(return_value=False)
+
+        def display(cls, result):
+            finished.append((cls, result.secs, result.ok))
+            if cls is fast:
+                self.assertFalse(slow_returned.is_set())
+                fast_displayed.set()
+
+        ui.finish_item.side_effect = display
+
+        class Flow:
+            def __init__(self, cls):
+                self.cls = cls
+
+            def beginSharedUpdate(self):
+                return [] if self.cls is empty else [{"tmdb_id": 1}]
+
+            def prepareUpdateTmdb(self, _rows):
+                self._update_tmdb = {}
+
+            def loadImdbRatings(self, _rows):
+                return {}
+
+            def process_row(self, row):
+                if self.cls is slow:
+                    if not fast_displayed.wait(timeout=2):
+                        raise AssertionError("Fast category was not displayed before slow work finished")
+                    slow_returned.set()
+                return row
+
+            def finishSharedUpdate(self, count, rows):
+                self.count = count
+                self.rows = rows
+                clock[0] = {empty: 5.0, fast: 10.0, slow: 30.0}[self.cls]
+
+            def finishSharedDataRun(self, successful):
+                self.successful = successful
+
+            def trace_note(self, _note):
+                pass
+
+            def closeDataflowRequests(self):
+                pass
+
+        flows = {cls: Flow(cls) for cls in (fast, slow, empty)}
+        spec = {"make_instance": lambda cls, *_args: flows[cls], "cleanup": lambda _flow: None}
+        context = DataflowRequestContext()
+        try:
+            with patch("backend.config.runners.dataflowDictionary", spec), patch(
+                "backend.config.runners.RichRunUI", return_value=ui
+            ), patch("backend.config.runners._average_times", return_value={}), patch(
+                "backend.config.runners.time.monotonic", side_effect=lambda: clock[0]
+            ), patch("backend.config.runners.RUNNING_NON_INTERACTIVE", True):
+                output = StringIO()
+                with redirect_stdout(output):
+                    results = _run_shared_updates(
+                        [("fast", fast), ("slow", slow), ("empty", empty)],
+                        1,
+                        context,
+                        console=Mock(is_terminal=False),
+                    )
+            self.assertEqual(results, {fast: True, slow: True, empty: True})
+            self.assertEqual(finished, [(empty, 5.0, True), (fast, 10.0, True), (slow, 30.0, True)])
+            self.assertTrue(slow_returned.is_set())
+            self.assertIn(f"{fast.__name__}: 00m10s", output.getvalue())
+            self.assertIn(f"{slow.__name__}: 00m30s", output.getvalue())
+            self.assertIn(f"{empty.__name__}: 00m05s", output.getvalue())
+            for cls in (fast, slow, empty):
+                self.assertTrue(flows[cls].successful)
+                self.assertEqual(flows[cls].count, len(flows[cls].rows))
+        finally:
+            context.close()
+
+    def test_update_retry_times_accumulate_without_restarting_successful_categories(self):
+        fast = DATAFLOW_REGISTRY["comingSoonsData"][2]
+        retry = DATAFLOW_REGISTRY["nowPlayingData"][2]
+        ui = Mock()
+        ui.__enter__ = Mock(return_value=ui)
+        ui.__exit__ = Mock(return_value=False)
+        rounds = []
+
+        def round_results(entries, _run, attempt, _context, *, on_progress, on_result):
+            from backend.utils.console.progressBars import RunResult
+
+            rounds.append([cls for _key, cls in entries])
+            results = {}
+            for _key, cls in entries:
+                result = RunResult(cls.__name__, 5.0 if cls is fast else 7.0, cls is fast or attempt == 3, attempt)
+                results[cls] = result
+                on_result(cls, result)
+            return results
+
+        context = DataflowRequestContext()
+        try:
+            with patch("backend.config.runners.RichRunUI", return_value=ui), patch(
+                "backend.config.runners._average_times", return_value={}
+            ), patch("backend.config.runners._run_shared_update_round", side_effect=round_results):
+                results = _run_shared_updates([("fast", fast), ("retry", retry)], 1, context, console=Mock(is_terminal=False))
+            self.assertEqual(results, {fast: True, retry: True})
+            self.assertEqual(rounds, [[fast, retry], [retry], [retry]])
+            completed = [(call.args[0], call.args[1].secs, call.args[1].attempts) for call in ui.finish_item.call_args_list]
+            self.assertEqual(completed, [(fast, 5.0, 1), (retry, 21.0, 3)])
+        finally:
+            context.close()
+
+    def test_update_initialization_and_finalization_failures_report_failure_once(self):
+        cls = DATAFLOW_REGISTRY["comingSoonsData"][2]
+        for failed_method in ("beginSharedUpdate", "finishSharedUpdate"):
+            with self.subTest(failed_method=failed_method):
+                flow = Mock()
+                flow._publication = None
+                flow.beginSharedUpdate.return_value = []
+                getattr(flow, failed_method).side_effect = RuntimeError("controlled failure")
+                completed = Mock()
+                context = DataflowRequestContext()
+                try:
+                    with patch.dict("backend.config.runners.dataflowDictionary", {"make_instance": lambda *_args: flow}), patch("backend.config.runners.artifactPrinting"):
+                        results = _run_shared_update_round([("category", cls)], 1, 1, context, on_result=completed)
+                    self.assertFalse(results[cls].ok)
+                    completed.assert_called_once_with(cls, results[cls])
+                    flow.discardPublicationStage.assert_called_once()
+                    flow.flush_summary.assert_called_once_with(successful=False)
+                    flow.finishSharedDataRun.assert_not_called()
+                finally:
+                    context.close()
 
 
 if __name__ == "__main__":
