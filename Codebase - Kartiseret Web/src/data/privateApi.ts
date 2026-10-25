@@ -14,6 +14,7 @@ export function privateIdentityChanged(userId: string | null): void {
     predicate: (query: { queryKey: readonly unknown[] }) =>
       query.queryKey[0] === "adminStatus" ||
       query.queryKey[0] === "comingSoonDateWatches" ||
+      query.queryKey[0] === "movieDisplayPreferences" ||
       query.queryKey[0] === "letterboxdSources" ||
       (query.queryKey[0] === "ticketAlerts" &&
         query.queryKey[1] !== "availability"),

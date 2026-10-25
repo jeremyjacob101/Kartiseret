@@ -830,6 +830,7 @@ export function MovieScrollerBase({
             >
               <MoviePosterArtwork
                 title={movie.title}
+                tmdbId={movie.tmdbId}
                 imageSrc={movie.imageSrc}
                 alt={movie.title}
                 loading={isVisible ? "eager" : "lazy"}

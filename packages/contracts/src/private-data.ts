@@ -57,6 +57,48 @@ export const subscriptionMovieIdSchema = tmdbIdSchema.refine(
   (value) => BigInt(value) <= 9_223_372_036_854_775_807n,
   "Movie ID exceeds PostgreSQL bigint range.",
 );
+export const movieDisplayTreatmentSchema = z.enum(["standard", "remove"]);
+export const movieDisplayPreferenceSchema = z
+  .object({
+    tmdbId: subscriptionMovieIdSchema,
+    title: z.string().trim().min(1).max(200),
+    releaseYear: z.number().int().min(1870).max(2200).nullable(),
+    treatment: movieDisplayTreatmentSchema,
+    hideBackdrop: z.boolean(),
+  })
+  .strict();
+export type MovieDisplayPreference = z.infer<
+  typeof movieDisplayPreferenceSchema
+>;
+export const MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE = 500;
+export const movieDisplayPreferenceListQuerySchema = z
+  .object({ after: subscriptionMovieIdSchema.optional() })
+  .strict();
+export const movieDisplayPreferenceListResponseSchema = envelope(
+  z.object({
+    preferences: z
+      .array(movieDisplayPreferenceSchema)
+      .max(MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE),
+    nextCursor: subscriptionMovieIdSchema.nullable(),
+  }),
+);
+export type MovieDisplayPreferencePage = z.infer<
+  typeof movieDisplayPreferenceListResponseSchema
+>["data"];
+export const movieDisplayPreferenceCreateSchema = movieDisplayPreferenceSchema;
+export const movieDisplayPreferencePatchSchema = z
+  .object({
+    treatment: movieDisplayTreatmentSchema.optional(),
+    hideBackdrop: z.boolean().optional(),
+  })
+  .strict()
+  .refine((value) => Object.keys(value).length > 0);
+export const movieDisplayPreferenceChangeSchema = envelope(
+  z.object({ preference: movieDisplayPreferenceSchema }),
+);
+export const movieDisplayPreferenceRemoveSchema = envelope(
+  z.object({ removed: z.literal(true) }),
+);
 const ticketAlertCitiesSchema = z
   .array(z.enum(ALL_LOCATIONS))
   .max(ALL_LOCATIONS.length);

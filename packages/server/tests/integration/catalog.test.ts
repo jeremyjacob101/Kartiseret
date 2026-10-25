@@ -59,6 +59,7 @@ const expectedTableNames = [
   "theaters",
   "ticket_alert_preferences",
   "ticket_alert_subscriptions",
+  "user_movie_display_preferences",
   "userPreferences",
   "utilAvgTime",
   "utilRunLogs",
@@ -327,16 +328,19 @@ describe("PostgreSQL 17 integration", () => {
         AND f.confrelid = 'app_auth.users'::regclass
       ORDER BY c.relname
     `);
-    expect(providerForeignKeys.map((key) => key.table_name)).toEqual([
-      "admin_users",
-      "coming_soon_date_watches",
-      "letterboxd_event_alerts",
-      "letterboxd_source_films",
-      "letterboxd_sources",
-      "ticket_alert_preferences",
-      "ticket_alert_subscriptions",
-      "userPreferences",
-    ]);
+    expect(providerForeignKeys.map((key) => key.table_name).sort()).toEqual(
+      [
+        "admin_users",
+        "coming_soon_date_watches",
+        "letterboxd_event_alerts",
+        "letterboxd_source_films",
+        "letterboxd_sources",
+        "ticket_alert_preferences",
+        "ticket_alert_subscriptions",
+        "user_movie_display_preferences",
+        "userPreferences",
+      ].sort(),
+    );
     expect(
       providerForeignKeys.every((key) =>
         key.definition.includes(

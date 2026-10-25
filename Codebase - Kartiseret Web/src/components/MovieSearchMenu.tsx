@@ -225,6 +225,7 @@ export function MovieSearchMenu({
                 >
                   <MoviePosterArtwork
                     title={result.title}
+                    tmdbId={result.tmdbId}
                     imageSrc={result.imageSrc}
                     alt=""
                     className="movie-search-result-image"

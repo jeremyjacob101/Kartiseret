@@ -40,6 +40,23 @@ function setup() {
       },
     })),
     unwatchComingSoonDate: vi.fn(async () => ({ removed: true as const })),
+    movieDisplayPreferences: vi.fn(async () => ({
+      preferences: [],
+      nextCursor: null,
+    })),
+    upsertMovieDisplayPreference: vi.fn(
+      async (_user, preference) => preference,
+    ),
+    patchMovieDisplayPreference: vi.fn(async (_user, tmdbId, patch) => ({
+      tmdbId,
+      title: "Sensitive Poster",
+      releaseYear: 2026,
+      treatment: patch.treatment ?? "standard",
+      hideBackdrop: patch.hideBackdrop ?? true,
+    })),
+    removeMovieDisplayPreference: vi.fn(async () => ({
+      removed: true as const,
+    })),
     listLetterboxdSources: vi.fn(async () => []),
     addLetterboxdSource: vi.fn(async (_user, input) => ({
       id: sourceId,
@@ -288,6 +305,94 @@ describe("protected HTTP contracts", () => {
     expect(workflows.unwatchComingSoonDate).toHaveBeenCalledWith(
       { id, email: "qa@example.test" },
       "9100001",
+    );
+  });
+  it("keeps movie display choices behind authenticated owner-scoped routes", async () => {
+    const { app, workflows } = setup();
+    expect(
+      (await request(app).get("/api/v1/preferences/movie-display")).status,
+    ).toBe(401);
+
+    const read = await request(app)
+      .get("/api/v1/preferences/movie-display")
+      .set("Cookie", "valid");
+    expect(read.status).toBe(200);
+    expect(read.body.data.preferences).toEqual([]);
+    expect(read.body.data.nextCursor).toBeNull();
+    expect(read.headers["cache-control"]).toBe("no-store");
+
+    const nextPage = await request(app)
+      .get("/api/v1/preferences/movie-display?after=9100001")
+      .set("Cookie", "valid");
+    expect(nextPage.status).toBe(200);
+    expect(workflows.movieDisplayPreferences).toHaveBeenLastCalledWith(
+      { id, email: "qa@example.test" },
+      "9100001",
+    );
+
+    const invalidCursor = await request(app)
+      .get("/api/v1/preferences/movie-display?after=invalid")
+      .set("Cookie", "valid");
+    expect(invalidCursor.status).toBe(400);
+
+    const preference = {
+      tmdbId: "9100002",
+      title: "Sensitive Poster",
+      releaseYear: 2026,
+      treatment: "standard",
+      hideBackdrop: true,
+    };
+    const created = await request(app)
+      .post("/api/v1/preferences/movie-display")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send(preference);
+    expect(created.status).toBe(200);
+    expect(created.body.data.preference).toEqual(preference);
+    expect(workflows.upsertMovieDisplayPreference).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      preference,
+    );
+
+    const invalidCreate = await request(app)
+      .post("/api/v1/preferences/movie-display")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({ ...preference, treatment: "blur" });
+    expect(invalidCreate.status).toBe(400);
+
+    const updated = await request(app)
+      .patch("/api/v1/preferences/movie-display/9100002")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({ treatment: "remove" });
+    expect(updated.status).toBe(200);
+    expect(updated.body.data.preference).toMatchObject({
+      tmdbId: "9100002",
+      treatment: "remove",
+      hideBackdrop: true,
+    });
+    expect(workflows.patchMovieDisplayPreference).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      "9100002",
+      { treatment: "remove" },
+    );
+
+    const invalidPatch = await request(app)
+      .patch("/api/v1/preferences/movie-display/9100002")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({});
+    expect(invalidPatch.status).toBe(400);
+
+    const removed = await request(app)
+      .delete("/api/v1/preferences/movie-display/9100002")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost");
+    expect(removed.status).toBe(200);
+    expect(workflows.removeMovieDisplayPreference).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      "9100002",
     );
   });
   it("keeps public Letterboxd source configuration behind the verified account API", async () => {

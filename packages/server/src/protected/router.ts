@@ -5,6 +5,9 @@ import {
   correctionSchema,
   initializePreferencesSchema,
   preferencePatchSchema,
+  movieDisplayPreferenceCreateSchema,
+  movieDisplayPreferenceListQuerySchema,
+  movieDisplayPreferencePatchSchema,
   subscriptionMovieIdSchema,
   subscriptionCreateSchema,
   subscriptionListQuerySchema,
@@ -124,6 +127,61 @@ export function createProtectedRouter(
       error: null,
     });
   });
+  router.get("/preferences/movie-display", async (request, response) => {
+    const query = parse(movieDisplayPreferenceListQuerySchema, request.query);
+    response.json({
+      data: await workflows.movieDisplayPreferences(
+        identity(response.locals.identity),
+        query.after,
+      ),
+      error: null,
+    });
+  });
+  router.post("/preferences/movie-display", async (request, response) => {
+    parse(empty, request.query);
+    const preference = parse(movieDisplayPreferenceCreateSchema, request.body);
+    response.json({
+      data: {
+        preference: await workflows.upsertMovieDisplayPreference(
+          identity(response.locals.identity),
+          preference,
+        ),
+      },
+      error: null,
+    });
+  });
+  router.patch(
+    "/preferences/movie-display/:tmdbId",
+    async (request, response) => {
+      parse(empty, request.query);
+      const tmdbId = parse(subscriptionMovieIdSchema, request.params.tmdbId);
+      const patch = parse(movieDisplayPreferencePatchSchema, request.body);
+      response.json({
+        data: {
+          preference: await workflows.patchMovieDisplayPreference(
+            identity(response.locals.identity),
+            tmdbId,
+            patch,
+          ),
+        },
+        error: null,
+      });
+    },
+  );
+  router.delete(
+    "/preferences/movie-display/:tmdbId",
+    async (request, response) => {
+      parse(empty, request.query);
+      const tmdbId = parse(subscriptionMovieIdSchema, request.params.tmdbId);
+      response.json({
+        data: await workflows.removeMovieDisplayPreference(
+          identity(response.locals.identity),
+          tmdbId,
+        ),
+        error: null,
+      });
+    },
+  );
   router.get("/ticket-alerts", async (request, response) => {
     const query = parse(subscriptionListQuerySchema, request.query);
     response.json({

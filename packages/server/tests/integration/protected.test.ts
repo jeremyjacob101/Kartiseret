@@ -7,6 +7,7 @@ import { createApp } from "../../src/app.js";
 import { HttpError } from "../../src/http-errors.js";
 import {
   DEFAULT_TICKET_ALERT_CRITERIA,
+  MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE,
   type TicketAlertCriteriaOverride,
 } from "@kartiseret/contracts/private-data";
 
@@ -112,6 +113,9 @@ describe.sequential(
       );
       await admin.pool.query(
         "DELETE FROM public.coming_soon_date_watches WHERE tmdb_id BETWEEN 9200000 AND 9200999",
+      );
+      await admin.pool.query(
+        "DELETE FROM public.user_movie_display_preferences WHERE tmdb_id BETWEEN 9200000 AND 9200999",
       );
       await admin.pool.query(
         'DELETE FROM public."finalShowtimes" WHERE tmdb_id BETWEEN 9200000 AND 9200999',
@@ -286,6 +290,117 @@ describe.sequential(
         .set("Cookie", "alice")
         .set("Origin", "http://localhost");
       expect(await workflows.comingSoonDateWatches(alice)).toEqual([]);
+    });
+    it("stores movie display preferences per owner and upserts duplicate TMDb IDs", async () => {
+      const preference = {
+        tmdbId: "9200070",
+        title: "Poster Choice Fixture",
+        releaseYear: 2026,
+        treatment: "standard",
+        hideBackdrop: true,
+      };
+      const created = await request(app)
+        .post("/api/v1/preferences/movie-display")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send(preference);
+      expect(created.status).toBe(200);
+      expect(created.body.data.preference).toEqual(preference);
+
+      expect(await workflows.movieDisplayPreferences(alice)).toMatchObject({
+        preferences: [preference],
+        nextCursor: null,
+      });
+      expect(await workflows.movieDisplayPreferences(bob)).toMatchObject({
+        preferences: [],
+        nextCursor: null,
+      });
+      expect(
+        (
+          await request(app)
+            .get("/api/v1/preferences/movie-display")
+            .set("Cookie", "bob")
+        ).body.data.preferences,
+      ).toEqual([]);
+
+      const duplicate = await request(app)
+        .post("/api/v1/preferences/movie-display")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({ ...preference, treatment: "remove" });
+      expect(duplicate.status).toBe(200);
+      expect(duplicate.body.data.preference).toMatchObject({
+        tmdbId: preference.tmdbId,
+        treatment: "remove",
+        hideBackdrop: true,
+      });
+      expect(
+        (await workflows.movieDisplayPreferences(alice)).preferences,
+      ).toHaveLength(1);
+
+      const foreignUpdate = await request(app)
+        .patch(`/api/v1/preferences/movie-display/${preference.tmdbId}`)
+        .set("Cookie", "bob")
+        .set("Origin", "http://localhost")
+        .send({ hideBackdrop: false });
+      expect(foreignUpdate.status).toBe(404);
+
+      const updated = await request(app)
+        .patch(`/api/v1/preferences/movie-display/${preference.tmdbId}`)
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({ treatment: "standard", hideBackdrop: false });
+      expect(updated.status).toBe(200);
+      expect(updated.body.data.preference).toMatchObject({
+        tmdbId: preference.tmdbId,
+        treatment: "standard",
+        hideBackdrop: false,
+      });
+
+      const removed = await request(app)
+        .delete(`/api/v1/preferences/movie-display/${preference.tmdbId}`)
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost");
+      expect(removed.status).toBe(200);
+      expect(
+        (await workflows.movieDisplayPreferences(alice)).preferences,
+      ).toEqual([]);
+    });
+    it("paginates every movie display preference without leaking owners", async () => {
+      const firstTmdbId = 9_200_100;
+      await admin.pool.query(
+        `
+          INSERT INTO public.user_movie_display_preferences
+            (user_id, tmdb_id, title, release_year, treatment, hide_backdrop)
+          SELECT $1, $2::bigint + sequence.value,
+            'Pagination Fixture ' || sequence.value::text,
+            2026, 'remove', true
+          FROM generate_series(0, $3::int) AS sequence(value)
+        `,
+        [alice.id, firstTmdbId, MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE],
+      );
+
+      const firstPage = await workflows.movieDisplayPreferences(alice);
+      expect(firstPage.preferences).toHaveLength(
+        MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE,
+      );
+      expect(firstPage.preferences[0]?.tmdbId).toBe(String(firstTmdbId));
+      expect(firstPage.nextCursor).toBe(
+        String(firstTmdbId + MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE - 1),
+      );
+
+      const secondPage = await request(app)
+        .get(`/api/v1/preferences/movie-display?after=${firstPage.nextCursor}`)
+        .set("Cookie", "alice");
+      expect(secondPage.status).toBe(200);
+      expect(secondPage.body.data.preferences).toHaveLength(1);
+      expect(secondPage.body.data.preferences[0]?.tmdbId).toBe(
+        String(firstTmdbId + MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE),
+      );
+      expect(secondPage.body.data.nextCursor).toBeNull();
+      expect(
+        (await workflows.movieDisplayPreferences(bob)).preferences,
+      ).toEqual([]);
     });
     it("tracks public and share-link Letterboxd sources per owner and cancels source-only alerts after the last source is removed", async () => {
       const invalid = await request(app)
