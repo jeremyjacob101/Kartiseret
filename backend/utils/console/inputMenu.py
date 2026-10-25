@@ -11,7 +11,11 @@ from rich.live import Live
 from rich.text import Text
 
 from backend.utils.console.utils.readchar import read_key, is_back, is_enter, is_left, is_quit, is_right, is_space
-from backend.config.registry import REGISTRY, DATAFLOW_REGISTRY
+from backend.config.registry import DATAFLOW_REGISTRY, REGISTRY, registered_post_stage_dataflows
+
+
+_ALL_VALUE = "all"
+_NONE_VALUE = "none"
 
 
 @dataclass(frozen=True)
@@ -35,15 +39,22 @@ def _move_index(items: List[_MenuItem], idx: int, delta: int) -> int:
 def _render_hmenu(items: List[_MenuItem], idx: int, *, selected_values: Optional[Set[str]] = None, show_checks: bool = False) -> RenderableType:
     selected_values = selected_values or set()
     all_selected = show_checks and _is_all_selected(selected_values, items)
+    none_selected = show_checks and _is_none_selected(selected_values)
 
     t = Text()
     for i, it in enumerate(items):
         is_cursor = i == idx
         is_enabled = it.enabled
-        is_checked = (it.value in selected_values) if it.value != "all" else all_selected
+        is_checked = (
+            all_selected
+            if it.value == _ALL_VALUE
+            else none_selected
+            if it.value == _NONE_VALUE
+            else it.value in selected_values
+        )
 
         prefix = ""
-        if show_checks and it.value != "all":
+        if show_checks and it.value != _ALL_VALUE:
             prefix = "[x] " if is_checked else "[ ] "
 
         label = prefix + it.label
@@ -53,7 +64,7 @@ def _render_hmenu(items: List[_MenuItem], idx: int, *, selected_values: Optional
         else:
             style = "white"
 
-        if show_checks and it.value == "all" and is_checked and is_enabled:
+        if show_checks and it.value == _ALL_VALUE and is_checked and is_enabled:
             style = "bold green"
 
         if is_cursor:
@@ -70,27 +81,35 @@ def _panel(title: str, body: RenderableType) -> Panel:
     return Panel(Group(Text(""), body, Text("")), title=title, title_align="center", border_style="grey37")
 
 
-def _enabled_non_all(items: List[_MenuItem]) -> List[_MenuItem]:
-    return [it for it in items if it.enabled and it.value != "all"]
+def _enabled_selectable(items: List[_MenuItem]) -> List[_MenuItem]:
+    return [it for it in items if it.enabled and it.value not in {_ALL_VALUE, _NONE_VALUE}]
 
 
-def _enabled_non_all_values(items: List[_MenuItem]) -> Set[str]:
-    return {it.value for it in _enabled_non_all(items)}
+def _enabled_selectable_values(items: List[_MenuItem]) -> Set[str]:
+    return {it.value for it in _enabled_selectable(items)}
+
+
+def _is_none_selected(selected: Set[str]) -> bool:
+    return _NONE_VALUE in selected
 
 
 def _is_all_selected(selected: Set[str], items: List[_MenuItem]) -> bool:
-    non_all = _enabled_non_all_values(items)
-    return bool(non_all) and non_all.issubset(selected)
+    selectable = _enabled_selectable_values(items)
+    return bool(selectable) and selectable.issubset(selected)
 
 
 def _toggle_all(selected: Set[str], items: List[_MenuItem]) -> Set[str]:
     if _is_all_selected(selected, items):
         return set()
-    return set(_enabled_non_all_values(items))
+    return set(_enabled_selectable_values(items))
+
+
+def _toggle_none(selected: Set[str]) -> Set[str]:
+    return set() if _is_none_selected(selected) else {_NONE_VALUE}
 
 
 def _normalize_selected(selected: Set[str], items: List[_MenuItem]) -> Set[str]:
-    allowed = _enabled_non_all_values(items)
+    allowed = _enabled_selectable_values(items)
     return set(selected) & allowed
 
 
@@ -112,6 +131,7 @@ def _plan_header(plan: List[Tuple[str, str, Optional[List[type]]]]) -> Panel:
     }
     selected_scrapes = []
     selected_dataflows = []
+    selected_alerts = []
     for entry in plan:
         kind, key = entry[:2]
         classes_override = entry[2] if len(entry) > 2 else None
@@ -119,6 +139,17 @@ def _plan_header(plan: List[Tuple[str, str, Optional[List[type]]]]) -> Panel:
             count = len(classes_override) if classes_override is not None else len(REGISTRY.get(key, []))
             selected_scrapes.append(f"{scrape_labels.get(key, key)} ({count})")
         elif kind == "dataflow":
+            if key == "alerts":
+                alert_classes = (
+                    [cls for _alert_key, cls in registered_post_stage_dataflows()]
+                    if classes_override is None
+                    else classes_override
+                )
+                selected_alerts.extend(
+                    dispatcher_labels.get(cls.__name__, cls.__name__)
+                    for cls in alert_classes
+                )
+                continue
             if classes_override is None:
                 stages = ["Clean", "TMDB", "Update"]
             else:
@@ -141,14 +172,28 @@ def _plan_header(plan: List[Tuple[str, str, Optional[List[type]]]]) -> Panel:
         lines.append(f"- Scrape: {', '.join(selected_scrapes)}\n", style="white")
     if selected_dataflows:
         lines.append(f"- Dataflow: {'; '.join(selected_dataflows)}\n", style="white")
+    if selected_alerts:
+        lines.append(f"- ALERTS: {', '.join(selected_alerts)}\n", style="white")
 
     return Panel(lines, title="Run Plan", border_style="grey37")
 
 
 def _select_mode_and_groups(console: Console) -> Tuple[str, Set[str]]:
-    top = [_MenuItem("Everything", "everything"), _MenuItem("All", "all"), _MenuItem("Scrape", "scrape"), _MenuItem("Dataflow", "dataflow")]
-    groups_all_or_scrape = [_MenuItem("All", "all"), _MenuItem("Soons", "Soons"), _MenuItem("Theques", "Theques"), _MenuItem("Showtimes", "Showtimes")]
-    groups_dataflow = [_MenuItem("All", "all"), _MenuItem("Soons", "Soons"), _MenuItem("Theques", "Theques"), _MenuItem("Showtimes", "Showtimes")]
+    top = [
+        _MenuItem("Everything", "everything"),
+        _MenuItem("All", _ALL_VALUE),
+        _MenuItem("Scrape", "scrape"),
+        _MenuItem("Dataflow", "dataflow"),
+        _MenuItem("ALERTS", "alerts"),
+    ]
+    groups_all_or_scrape = [
+        _MenuItem("All", _ALL_VALUE),
+        _MenuItem("None", _NONE_VALUE),
+        _MenuItem("Soons", "Soons"),
+        _MenuItem("Theques", "Theques"),
+        _MenuItem("Showtimes", "Showtimes"),
+    ]
+    groups_dataflow = list(groups_all_or_scrape)
 
     stage: str = "top"
     idx: int = 0
@@ -193,6 +238,8 @@ def _select_mode_and_groups(console: Console) -> Tuple[str, Set[str]]:
                     mode = top[idx].value
                     if mode == "everything":
                         return "everything", set()
+                    if mode == "alerts":
+                        return "alerts", set()
 
                     idx, selected_groups = 0, set()
                     if mode == "dataflow":
@@ -217,9 +264,12 @@ def _select_mode_and_groups(console: Console) -> Tuple[str, Set[str]]:
 
                 sel = set(selected_groups)
 
-                if it.value == "all":
+                if it.value == _ALL_VALUE:
                     selected_groups = _toggle_all(sel, items)
+                elif it.value == _NONE_VALUE:
+                    selected_groups = _toggle_none(sel)
                 else:
+                    sel.discard(_NONE_VALUE)
                     if it.value in sel:
                         sel.remove(it.value)
                     else:
@@ -230,13 +280,15 @@ def _select_mode_and_groups(console: Console) -> Tuple[str, Set[str]]:
 
             if is_enter(k):
                 hovered = items[idx]
-                if hovered.value == "all":
-                    return mode, set(_enabled_non_all_values(items))
-                return mode, set(selected_groups)
+                if hovered.value == _ALL_VALUE:
+                    return mode, set(_enabled_selectable_values(items))
+                if hovered.value == _NONE_VALUE:
+                    return mode, set()
+                return mode, _normalize_selected(selected_groups, items)
 
 
 def _select_registry_items(console: Console, title: str, classes: List[type]) -> Tuple[Optional[List[type]], bool]:
-    menu_items: List[_MenuItem] = [_MenuItem("All", "all")]
+    menu_items: List[_MenuItem] = [_MenuItem("All", _ALL_VALUE), _MenuItem("None", _NONE_VALUE)]
     by_value: Dict[str, type] = {}
     for cls in classes:
         v = cls.__name__
@@ -275,9 +327,12 @@ def _select_registry_items(console: Console, title: str, classes: List[type]) ->
 
                 sel = set(selected)
 
-                if it.value == "all":
+                if it.value == _ALL_VALUE:
                     selected = _toggle_all(sel, menu_items)
+                elif it.value == _NONE_VALUE:
+                    selected = _toggle_none(sel)
                 else:
+                    sel.discard(_NONE_VALUE)
                     if it.value in sel:
                         sel.remove(it.value)
                     else:
@@ -288,8 +343,10 @@ def _select_registry_items(console: Console, title: str, classes: List[type]) ->
 
             if is_enter(k):
                 hovered = menu_items[idx]
-                if hovered.value == "all":
+                if hovered.value == _ALL_VALUE:
                     return list(classes), False
+                if hovered.value == _NONE_VALUE or _is_none_selected(selected):
+                    return [], False
 
                 if _is_all_selected(selected, menu_items):
                     return list(classes), False
@@ -323,11 +380,26 @@ def choose_run_plan() -> Tuple[List[Tuple], Panel]:
 
             return plan, _plan_header(plan)
 
+        if mode == "alerts":
+            alert_items = registered_post_stage_dataflows()
+            picked, backed = _select_registry_items(
+                console,
+                "Alerts",
+                [cls for _key, cls in alert_items],
+            )
+            if backed:
+                continue
+            selected = set(picked or [])
+            selected_alerts = [cls for _key, cls in alert_items if cls in selected]
+            plan = [("dataflow", "alerts", selected_alerts)] if selected_alerts else []
+            return plan, _plan_header(plan)
+
         if not groups:
             plan: List[Tuple[str, str, Optional[List[type]]]] = []
             return plan, _plan_header(plan)
 
         plan: List[Tuple[str, str, Optional[List[type]]]] = []
+        restart_selection = False
 
         def pick_for_group(kind: str, group: str, key_by_group: Dict[str, str], registry: Dict[str, List[type]], title_prefix: str) -> bool:
             key = key_by_group.get(group)
@@ -351,16 +423,15 @@ def choose_run_plan() -> Tuple[List[Tuple], Panel]:
 
             if mode in ("all", "scrape"):
                 if not pick_for_group("cinema", group, SCRAPE_KEY_BY_GROUP, REGISTRY, "Scrape"):
-                    plan = []
+                    restart_selection = True
                     break
 
             if mode in ("all", "dataflow"):
                 if not pick_for_group("dataflow", group, DATAFLOW_KEY_BY_GROUP, DATAFLOW_REGISTRY, "Dataflow"):
-                    plan = []
+                    restart_selection = True
                     break
 
-        if not plan:
-            if plan == []:
-                continue
+        if restart_selection:
+            continue
 
         return plan, _plan_header(plan)
