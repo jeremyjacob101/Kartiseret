@@ -19,6 +19,13 @@ Apply the migration before configuring the runner secrets. It creates two
   objects required by that implementation. It has no login, superuser,
   `BYPASSRLS`, role-management, schema-creation, or authentication-table access.
 
+The migration supports Supabase's non-superuser `postgres` administrator. It
+validates existing role attributes and temporarily permits the deploying
+administrator to inherit/set the executor role for ownership and function
+permissions. That data access is revoked before completion. PostgreSQL may
+retain the role creator's automatic administration-only membership, with
+neither inheritance nor permission to set the executor role.
+
 Provision a dedicated login with a generated password in Supabase SQL Editor or
 your controlled database administration process. Do not use the project
 `postgres`, `service_role`, or API login:
