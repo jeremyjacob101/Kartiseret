@@ -12,10 +12,19 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'kartiseret_publication_executor') THEN
     CREATE ROLE kartiseret_publication_executor NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT;
   END IF;
+  -- Supabase's postgres administrator has CREATEROLE, not SUPERUSER. It can
+  -- create these restricted roles, but cannot ALTER SUPERUSER/BYPASSRLS flags,
+  -- even to false. Validate existing roles instead of attempting to reset them.
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_roles
+    WHERE rolname IN ('kartiseret_publisher', 'kartiseret_publication_executor')
+      AND (rolcanlogin OR rolsuper OR rolcreatedb OR rolcreaterole
+           OR rolreplication OR rolbypassrls OR rolinherit)
+  ) THEN
+    RAISE EXCEPTION 'Publication role already exists with unsafe attributes';
+  END IF;
 END;
 $roles$;
-ALTER ROLE kartiseret_publisher NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT;
-ALTER ROLE kartiseret_publication_executor NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT;
 
 GRANT USAGE ON SCHEMA public, pipeline_internal TO kartiseret_publisher, kartiseret_publication_executor;
 DO $database_temp$
@@ -424,6 +433,9 @@ $$;
 -- lets the service API role call only the 60-second wrapper, not the private
 -- implementation with a caller-selected deadline.
 GRANT CREATE ON SCHEMA public, pipeline_internal TO kartiseret_publication_executor;
+-- PostgreSQL 17 CREATEROLE administrators need explicit SET permission to
+-- transfer ownership. Permit it only for this migration and revoke it below.
+GRANT kartiseret_publication_executor TO CURRENT_USER WITH INHERIT TRUE, SET TRUE;
 ALTER FUNCTION pipeline_internal.commit_category_publication_impl(uuid,text,integer) OWNER TO kartiseret_publication_executor;
 ALTER FUNCTION pipeline_internal.commit_category_publication_direct(uuid,text) OWNER TO kartiseret_publication_executor;
 ALTER FUNCTION public.commit_category_publication(uuid,text) OWNER TO kartiseret_publication_executor;
@@ -437,3 +449,4 @@ REVOKE ALL ON FUNCTION pipeline_internal.commit_category_publication_direct(uuid
   FROM PUBLIC, anon, authenticated, kartiseret_runtime, service_role;
 GRANT EXECUTE ON FUNCTION pipeline_internal.commit_category_publication_direct(uuid,text)
   TO kartiseret_publisher;
+REVOKE kartiseret_publication_executor FROM CURRENT_USER;

@@ -103,7 +103,44 @@ try {
         INSERT INTO public.ticket_alert_subscriptions(user_id,tmdb_id,delivery_id,notified_at) VALUES ('00000000-0000-4000-8000-0000000000c1',9100011,'00000000-0000-4000-8000-0000000000d1','2026-10-19T12:00:00Z');
       `);
     }
-    await client.query(sql);
+    if (migration.endsWith("_postgres_atomic_publication.sql")) {
+      const administrator = (await client.query("SELECT current_user AS name"))
+        .rows[0].name;
+      const quotedAdministrator =
+        '"' + administrator.replaceAll('"', '""') + '"';
+      await client.query(`
+        CREATE ROLE kartiseret_test_migration_admin NOLOGIN NOSUPERUSER CREATEROLE INHERIT;
+        GRANT ${quotedAdministrator} TO kartiseret_test_migration_admin WITH INHERIT TRUE, SET FALSE;
+        SET ROLE kartiseret_test_migration_admin;
+      `);
+      try {
+        const administratorRole = await client.query(
+          "SELECT rolsuper FROM pg_roles WHERE rolname=current_user",
+        );
+        if (administratorRole.rows[0].rolsuper)
+          throw new Error(
+            "Publisher migration must be tested without SUPERUSER",
+          );
+        await client.query(sql);
+      } finally {
+        await client.query("RESET ROLE");
+      }
+      const executorMembership = await client.query(`
+        SELECT EXISTS (
+          SELECT 1 FROM pg_auth_members membership
+          JOIN pg_roles granted ON granted.oid = membership.roleid
+          JOIN pg_roles member ON member.oid = membership.member
+          WHERE granted.rolname = 'kartiseret_publication_executor'
+            AND member.rolname = 'kartiseret_test_migration_admin'
+            AND (membership.inherit_option OR membership.set_option)
+        ) AS retained
+      `);
+      if (executorMembership.rows[0].retained) {
+        throw new Error("Publisher migration retained executor data access");
+      }
+    } else {
+      await client.query(sql);
+    }
   }
 
   await client.query("GRANT kartiseret_runtime TO kartiseret_api");
