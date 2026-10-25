@@ -19,7 +19,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.integration.json",
     "lint": "eslint src tests scripts vitest.config.ts vitest.integration.config.ts",
     "test": "vitest run --config vitest.config.ts",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:integration": "node scripts/with-test-database.mjs -- npm run test:integration:run --workspace=@kartiseret/server",
+    "test:integration:run": "vitest run --config vitest.integration.config.ts",
     "db:test:bootstrap": "node scripts/bootstrap-test-database.mjs",
     "start": "node --env-file-if-exists=../../.env dist/index.js",
     "dev": "node --env-file-if-exists=../../.env --import tsx --watch src/index.ts"
