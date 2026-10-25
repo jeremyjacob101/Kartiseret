@@ -114,6 +114,7 @@ describe("showtime share-link codec", () => {
 
     expect(url).toMatch(/^https:\/\/example\.test\/Ab1/);
     expect(resolveCityCode("1", "Haifa")).toBe("Haifa");
+    expect(resolveCityCode("c", "Jerusalem")).toBe("Bat Yam");
     expect(resolveCityCode("i", "Haifa")).toBe("Jerusalem");
     expect(resolveCityCode("?", "Haifa")).toBeNull();
   });

@@ -39,6 +39,7 @@ CITY_CODE_BY_NAME = {
     "Ashdod": "3",
     "Ashkelon": "4",
     "Ayalon": "5",
+    "Bat Yam": "c",
     "Beer Sheva": "7",
     "Carmiel": "f",
     "Chadera": "k",

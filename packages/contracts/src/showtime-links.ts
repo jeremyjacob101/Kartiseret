@@ -124,6 +124,7 @@ export const CITY_BY_CODE = Object.freeze({
   "3": "Ashdod",
   "4": "Ashkelon",
   "5": "Ayalon",
+  c: "Bat Yam",
   "7": "Beer Sheva",
   f: "Carmiel",
   k: "Chadera",

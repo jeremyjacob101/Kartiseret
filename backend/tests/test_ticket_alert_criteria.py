@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 from backend.notifications.ticket_alerts import (
     TicketAlertConfig,
     TicketAlertDispatcher,
+    build_ticket_alert_path,
     matches_ticket_alert_criteria,
     resolve_ticket_alert_criteria,
     select_linked_showtime,
@@ -41,6 +42,15 @@ def showtime(tmdb_id=101, **changes):
 
 
 class TicketAlertCriteriaTests(unittest.TestCase):
+    def test_bat_yam_ticket_alerts_use_the_city_short_link(self):
+        path = build_ticket_alert_path(
+            "ABC",
+            "Bat Yam",
+            "2026-10-22",
+            NOW.date(),
+        )
+        self.assertTrue(path.startswith("/ABCc"))
+
     def test_defaults_match_all_cities_and_filters_and_allow_early_showings(self):
         row = showtime(
             screening_city="Haifa",

@@ -5,6 +5,7 @@ export const ALL_LOCATIONS = [
   "Ashdod",
   "Ashkelon",
   "Ayalon",
+  "Bat Yam",
   "Beer Sheva",
   "Carmiel",
   "Chadera",
