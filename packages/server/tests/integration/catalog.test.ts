@@ -41,6 +41,8 @@ const app = createApp({
 });
 
 const expectedTableNames = [
+  "movie_notification_events",
+  "movie_notification_deliveries",
   "cities",
   "coming_soon_date_watches",
   "letterboxd_sources",
@@ -335,6 +337,8 @@ describe("PostgreSQL 17 integration", () => {
         "letterboxd_event_alerts",
         "letterboxd_source_films",
         "letterboxd_sources",
+        "movie_notification_deliveries",
+        "movie_notification_events",
         "ticket_alert_preferences",
         "ticket_alert_subscriptions",
         "user_movie_display_preferences",

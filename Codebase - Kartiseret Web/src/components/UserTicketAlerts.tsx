@@ -2,8 +2,10 @@ import { ticketAlertCriteriaMutationOptions, ticketAlertMutationOptions, ticketA
 import { DEFAULT_TICKET_ALERT_CRITERIA, type TicketAlertCriteria, type TicketAlertCriteriaOverride } from "@kartiseret/contracts/private-data";
 import { movieCollectionQueryOptions, selectMovies, type Movie } from "../data/movieCatalog";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
+import { resolveTicketAlertCriteria } from "@kartiseret/contracts/private-data";
 import { applyMovieDisplayPreferences } from "../data/movieDisplayPreferences";
 import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
+import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { TicketAlertCriteriaEditor } from "./TicketAlertCriteriaEditor";
 import { LetterboxdSourceWatchlist } from "./LetterboxdSourceWatchlist";
 import { ComingSoonDateWatchlist } from "./ComingSoonDateWatchlist";
@@ -52,6 +54,26 @@ function UserTicketAlertItem({
   const criteriaMutation = useMutation(
     ticketAlertCriteriaMutationOptions(userId, alert.tmdbId),
   );
+  const preferredCity = useUserPreferencesStore(
+    (state) => state.preferences.location,
+  );
+  const criteria = resolveTicketAlertCriteria(
+    defaults,
+    alert.criteriaOverrides,
+    preferredCity,
+  );
+  const completed = alert.completedCities ?? [];
+  const remaining = (criteria.cities ?? []).filter(
+    (city) => !completed.includes(city),
+  );
+  const watchStatus =
+    criteria.notificationMode === "first_per_city"
+      ? remaining.length
+        ? `Watching ${remaining.join(", ")}`
+        : "Selected cities covered"
+      : completed.length || alert.notifiedAt
+        ? "Alert completed"
+        : "Watching";
   const title = movie?.title ?? alert.deliveryTitle ?? "Coming soon movie";
   const releaseDate = movie?.releaseDate ?? alert.deliveryDate ?? null;
 
@@ -82,7 +104,7 @@ function UserTicketAlertItem({
         )}
         <span className="prefs-alert-date">
           {formatAlertDate(releaseDate)}
-          {alert.notifiedAt ? " · Alert sent" : " · Watching"}
+          {` · ${watchStatus}`}
         </span>
         <details className="ticket-alert-criteria-details">
           <summary>Edit notification criteria</summary>
@@ -178,7 +200,7 @@ export function UserTicketAlerts({ userId }: { userId: string | null }) {
         <div className="prefs-setting-content prefs-setting-content--static">
           <div className="prefs-alerts-header">
             <div className="prefs-setting-copy">
-              <span className="prefs-setting-label">Coming Soon Alerts</span>
+              <span className="prefs-setting-label">Movie notifications</span>
               <span className="prefs-setting-summary">
                 {visibleAlerts.length === 0
                   ? "No movies being watched"
@@ -187,7 +209,14 @@ export function UserTicketAlerts({ userId }: { userId: string | null }) {
             </div>
           </div>
           <details className="ticket-alert-defaults-details">
-            <summary>Default cities and showtime filters</summary>
+            <summary>
+              Default cities, notification mode, and showtime filters
+            </summary>
+            <p>
+              These defaults apply to manually watched films and Letterboxd
+              sources. Additional sessions and dates do not repeat an
+              availability alert.
+            </p>
             {preferencesQuery.isError ? (
               <p className="prefs-alerts-error" role="alert">
                 {preferencesQuery.error.message}

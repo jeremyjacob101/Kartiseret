@@ -561,7 +561,7 @@ class SupabaseLetterboxdRepository:
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         preferences = self._collect_pages(
             lambda start, end: self.supabase.table(PREFERENCES_TABLE)
-            .select("user_id,cities,filter_exclusions")
+            .select("user_id,cities,filter_exclusions,notification_mode")
             .in_("user_id", user_ids)
             .range(start, end)
         ) if user_ids else []

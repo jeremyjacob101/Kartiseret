@@ -210,6 +210,7 @@ def _dub_language(value: Any) -> str:
 def resolve_ticket_alert_criteria(
     defaults: dict[str, Any] | None,
     overrides: dict[str, Any] | None,
+    preferred_city: str = "Jerusalem",
 ) -> dict[str, Any]:
     account = defaults if isinstance(defaults, dict) else {}
     title = overrides if isinstance(overrides, dict) else {}
@@ -219,14 +220,18 @@ def resolve_ticket_alert_criteria(
         group: list(title_filters.get(group, account_filters.get(group, [])) or [])
         for group in ALERT_FILTER_OPTIONS
     }
+    cities = title["cities"] if "cities" in title else account.get("cities")
     return {
-        "cities": title["cities"] if "cities" in title else account.get("cities"),
+        "cities": [preferred_city or "Jerusalem"] if cities is None else cities,
+        "notificationMode": title.get("notificationMode", account.get("notificationMode", "first_any_city")),
         "filters": filters,
     }
 
 
 def matches_ticket_alert_criteria(row: dict[str, Any], criteria: dict[str, Any]) -> bool:
     cities = criteria.get("cities")
+    if cities is None:
+        cities = ["Jerusalem"]
     city = _text(row.get("screening_city"))
     if cities is not None and city not in cities:
         return False

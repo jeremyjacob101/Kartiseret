@@ -373,6 +373,7 @@ def _run_shared_updates(entries, run_id: int, context: DataflowRequestContext, *
 def _stage_for_dataflow_class(cls: type) -> str | None:
     name = cls.__name__
     if name in {
+        "MovieNotificationDispatcher",
         "TicketAlertDispatcher",
         "ComingSoonDateAlertDispatcher",
         "LetterboxdSourceDispatcher",
@@ -678,11 +679,18 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
                 },
             ),
         }
+        dispatcher_labels["MovieNotificationDispatcher"] = (
+            "Movie notifications", {"comingSoonsData": "Coming Soon update", "nowPlayingData": "Showtimes Update"}
+        )
         selected_updates = {
             key for key, stages in flow_selections.items() if stages["update"]
         }
+        dispatched = set()
         for category, stages in flow_selections.items():
             for dispatcher in stages["post"]:
+                if dispatcher in dispatched:
+                    continue
+                dispatched.add(dispatcher)
                 label, required_updates = dispatcher_labels.get(
                     dispatcher.__name__, ("Notifications", {})
                 )

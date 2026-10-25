@@ -26,9 +26,7 @@ from backend.dataflow.comingsoons.ComingSoonsUpdate import ComingSoonsUpdate
 from backend.dataflow.nowplayings.NowPlayingsClean import NowPlayingsClean
 from backend.dataflow.nowplayings.NowPlayingsTmdb import NowPlayingsTmdb
 from backend.dataflow.nowplayings.NowPlayingsUpdate import NowPlayingsUpdate
-from backend.notifications.ticket_alerts import TicketAlertDispatcher
-from backend.notifications.coming_soon_date_alerts import ComingSoonDateAlertDispatcher
-from backend.notifications.letterboxd_alerts import LetterboxdSourceDispatcher
+from backend.notifications.movie_alerts import MovieNotificationDispatcher
 
 from backend.dataflow.cinematheques.CinemathequesClean import CinemathequesClean
 from backend.dataflow.cinematheques.CinemathequesTmdb import CinemathequesTmdb
@@ -66,14 +64,13 @@ DATAFLOW_REGISTRY = {
         ComingSoonsClean,
         ComingSoonsTmdb,
         ComingSoonsUpdate,
-        ComingSoonDateAlertDispatcher,
+        MovieNotificationDispatcher,
     ],
     "nowPlayingData": [
         NowPlayingsClean,
         NowPlayingsTmdb,
         NowPlayingsUpdate,
-        TicketAlertDispatcher,
-        LetterboxdSourceDispatcher,
+        MovieNotificationDispatcher,
     ],
     "cinemathequeData": [
         CinemathequesClean,

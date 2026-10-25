@@ -43,6 +43,7 @@ function storedSubscription(
 function subscription(tmdbId = "101"): UserTicketAlertSubscription {
   return {
     tmdbId,
+    completedCities: [],
     createdAt: "2026-09-01T12:00:00Z",
     notifiedAt: null,
     deliveryTitle: null,
@@ -302,10 +303,10 @@ describe("ticket alert queries", () => {
     ).toBe("/showtimes");
   });
 
-  it("defaults to all cities and filters, including future early screenings", () => {
+  it("defaults to Jerusalem and filters, including future early screenings", () => {
     const instant = new Date("2026-09-04T16:00:00Z");
     const earlyScreening: TicketAlertShowtimeRow = {
-      screening_city: "Tel Aviv",
+      screening_city: "Jerusalem",
       date_of_showing: "2026-09-05",
       showtime: "10:00",
       english_href: "https://example.test/early",
@@ -321,7 +322,7 @@ describe("ticket alert queries", () => {
         undefined,
         instant,
       )?.city,
-    ).toBe("Tel Aviv");
+    ).toBe("Jerusalem");
   });
 
   it("includes an unknown one-off show type while the show-type group is unrestricted", () => {
@@ -386,6 +387,7 @@ describe("ticket alert queries", () => {
 
   it("resolves each per-title filter group independently from account defaults", () => {
     const defaults: TicketAlertCriteria = {
+      notificationMode: "first_any_city",
       cities: ["Haifa", "Jerusalem"],
       filters: {
         showType: ["Premium"],
@@ -400,6 +402,7 @@ describe("ticket alert queries", () => {
         filters: { screeningTech: [] },
       }),
     ).toEqual({
+      notificationMode: "first_any_city",
       cities: ["Jerusalem"],
       filters: {
         showType: ["Premium"],
@@ -564,7 +567,7 @@ describe("ticket alert mutation ownership", () => {
   it("does not register an alert if tickets become available during the pre-save check", async () => {
     rows = [
       {
-        screening_city: "Haifa",
+        screening_city: "Jerusalem",
         date_of_showing: addCalendarDays(getJerusalemCinemaDate(), 1),
         showtime: "20:00",
         cinema: "Cinema City Haifa",

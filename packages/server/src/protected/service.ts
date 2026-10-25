@@ -24,6 +24,7 @@ import {
   DEFAULT_TICKET_ALERT_CRITERIA,
   MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE,
   matchesTicketAlertCriteria,
+  resolveTicketAlertCriteria,
 } from "@kartiseret/contracts/private-data";
 import { getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
 import { shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
@@ -57,6 +58,11 @@ const subscriptionColumns = {
   deliveryTitle: ticketAlertSubscriptions.deliveryTitle,
   deliveryDate: ticketAlertSubscriptions.deliveryDate,
   criteriaOverrides: ticketAlertSubscriptions.criteriaOverrides,
+  completedCities: sql<
+    string[]
+  >`array(select scope_city from public.movie_notification_events e
+    where e.user_id = ${ticketAlertSubscriptions.userId} and e.tmdb_id = ${ticketAlertSubscriptions.tmdbId}
+      and e.event_type = 'showtime' and e.status in ('sent','suppressed'))`,
 };
 const comingSoonDateWatchColumns = {
   tmdbId: comingSoonDateWatches.tmdbId,
@@ -113,6 +119,7 @@ function mapSubscription(
         deliveryTitle: string | null;
         deliveryDate: string | null;
         criteriaOverrides: TicketAlertCriteriaOverride;
+        completedCities?: string[];
       },
 ) {
   return {
@@ -122,16 +129,21 @@ function mapSubscription(
     deliveryTitle: row.deliveryTitle,
     deliveryDate: row.deliveryDate,
     criteriaOverrides: row.criteriaOverrides ?? {},
+    completedCities:
+      "completedCities" in row ? (row.completedCities ?? []) : [],
   };
 }
 
 function mapTicketAlertPreferences(row?: {
   cities: string[] | null;
   filterExclusions: TicketAlertCriteria["filters"];
+  notificationMode?: string;
 }): TicketAlertCriteria {
   return row
     ? {
         cities: row.cities as TicketAlertCriteria["cities"],
+        notificationMode: (row.notificationMode ??
+          "first_any_city") as TicketAlertCriteria["notificationMode"],
         filters: row.filterExclusions,
       }
     : DEFAULT_TICKET_ALERT_CRITERIA;
@@ -244,6 +256,7 @@ export class ProtectedWorkflows {
       const [row] = await tx
         .select({
           cities: ticketAlertPreferences.cities,
+          notificationMode: ticketAlertPreferences.notificationMode,
           filterExclusions: ticketAlertPreferences.filterExclusions,
         })
         .from(ticketAlertPreferences)
@@ -262,6 +275,7 @@ export class ProtectedWorkflows {
         .values({
           userId: user.id,
           cities: criteria.cities,
+          notificationMode: criteria.notificationMode,
           filterExclusions: criteria.filters,
           updatedAt: this.clock(),
         })
@@ -269,6 +283,7 @@ export class ProtectedWorkflows {
           target: ticketAlertPreferences.userId,
           set: {
             cities: criteria.cities,
+            notificationMode: criteria.notificationMode,
             filterExclusions: criteria.filters,
             updatedAt: this.clock(),
           },
@@ -684,27 +699,42 @@ export class ProtectedWorkflows {
     tmdbId: string,
   ): Promise<SubscriptionChange> {
     const instant = this.clock();
-    const defaults = await this.ticketAlertPreferences(user);
+    const defaults = resolveTicketAlertCriteria(
+      await this.ticketAlertPreferences(user),
+      {},
+      (await this.preferences(user)).location,
+    );
     const showtimes = await getTicketAvailabilityShowtimes(
       this.publicRepository,
       tmdbId,
       getJerusalemCinemaDate(instant),
     );
+    const availableCities = [
+      ...new Set(
+        showtimes
+          .filter(
+            (row) =>
+              shouldIncludeShowtime(row.dateOfShowing, row.showtime, instant) &&
+              matchesTicketAlertCriteria(
+                {
+                  city: row.screeningCity,
+                  time: row.showtime,
+                  screeningType: row.screeningType,
+                  screeningTech: row.screeningTech,
+                  dubLanguage: row.dubLanguage,
+                },
+                defaults,
+              ),
+          )
+          .map((row) => row.screeningCity),
+      ),
+    ];
     if (
-      showtimes.some(
-        (row) =>
-          shouldIncludeShowtime(row.dateOfShowing, row.showtime, instant) &&
-          matchesTicketAlertCriteria(
-            {
-              city: row.screeningCity,
-              time: row.showtime,
-              screeningType: row.screeningType,
-              screeningTech: row.screeningTech,
-              dubLanguage: row.dubLanguage,
-            },
-            defaults,
-          ),
-      )
+      defaults.notificationMode === "first_per_city"
+        ? (defaults.cities ?? []).every((city) =>
+            availableCities.includes(city),
+          )
+        : availableCities.length > 0
     )
       return { kind: "available" };
     return this.asUser(user, async (tx) => {
@@ -716,8 +746,11 @@ export class ProtectedWorkflows {
       // it also avoids a failed transaction when concurrent inserts race.
       // Drizzle's table INSERT includes DEFAULT for every mapped column. Name
       // only the permitted columns here so runtime cannot write delivery state.
-      await tx.execute(sql`insert into ${ticketAlertSubscriptions} ("user_id", "tmdb_id")
-        values (${user.id}, ${tmdbId}) on conflict ("user_id", "tmdb_id") do nothing`);
+      await tx.execute(sql`insert into ${ticketAlertSubscriptions} ("user_id", "tmdb_id", "baseline_cities")
+        values (${user.id}, ${tmdbId}, ${sql`ARRAY[${sql.join(
+          availableCities.map((city) => sql`${city}`),
+          sql`, `,
+        )}]::text[]`}) on conflict ("user_id", "tmdb_id") do nothing`);
       // Read back through Drizzle's column decoders (raw pg timestamp values
       // differ from the mapped Date representation used by this service).
       const [row] = await tx
