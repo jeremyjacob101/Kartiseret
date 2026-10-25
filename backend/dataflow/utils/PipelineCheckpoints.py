@@ -103,7 +103,16 @@ class PipelineCheckpoints:
         otherwise replaying that old snapshot could delete screenings using stale
         source data.
         """
-        manifests = self.selectAll("pipeline_scrape_snapshots")
+        return self._latestScrapeSnapshots(table_name, self.selectAll("pipeline_scrape_snapshots"))
+
+    def _scrapeSnapshotOrder(self, manifest: dict) -> tuple:
+        return (
+            self.clean_int(manifest.get("run_id")) or -1,
+            self.clean_int(manifest.get("attempt")) or 0,
+            self.clean_str(manifest.get("started_at")),
+        )
+
+    def _latestScrapeSnapshots(self, table_name: str, manifests: list[dict]) -> dict[str, dict]:
         latest = {}
         for manifest in manifests:
             if manifest.get("table_name") != table_name:
@@ -111,12 +120,80 @@ class PipelineCheckpoints:
             cinema = self.clean_str(manifest.get("cinema")).strip()
             if not cinema:
                 continue
-            key = (self.clean_int(manifest.get("run_id")) or -1, self.clean_int(manifest.get("attempt")) or 0, self.clean_str(manifest.get("started_at")))
+            key = self._scrapeSnapshotOrder(manifest)
             current = latest.get(cinema)
             current_key = current[0] if current else None
             if current is None or key > current_key:
                 latest[cinema] = (key, manifest)
         return {cinema: item[1] for cinema, item in latest.items()}
+
+    def rawRowsForCleaning(self, table_name: str, rows: list[dict]) -> list[dict]:
+        """Avoid rewriting replaced failed attempts during a selected mapping run.
+
+        Pending flags alone never prove that a row is disposable. Keep legacy,
+        unknown, complete, running, and still-current failed snapshots eligible.
+        Only an explicitly failed attempt with a newer, complete, count-matched
+        replacement from the same source can be excluded. This changes neither
+        stored rows/flags nor the mapper's existing snapshot eligibility rules.
+        Clean-only and direct Clean runs retain their full historical scope.
+        """
+        context = getattr(self, "_shared_request_context", None)
+        if table_name not in getattr(context, "selected_mapping_tables", ()):
+            return rows
+
+        manifests = self.selectAll("pipeline_scrape_snapshots")
+        latest = self._latestScrapeSnapshots(table_name, manifests)
+        known = {
+            self.clean_str(manifest.get("snapshot_id")).strip(): manifest
+            for manifest in manifests
+            if manifest.get("table_name") == table_name and manifest.get("snapshot_id")
+        }
+        rows_by_snapshot = {}
+        for row in rows:
+            snapshot_id = self.clean_str(row.get("snapshot_id")).strip()
+            if snapshot_id:
+                rows_by_snapshot.setdefault(snapshot_id, []).append(row)
+
+        replacements = {}
+        for cinema, manifest in latest.items():
+            snapshot_id = self.clean_str(manifest.get("snapshot_id")).strip()
+            expected = self.clean_int(manifest.get("row_count"))
+            snapshot_rows = rows_by_snapshot.get(snapshot_id, [])
+            if (
+                manifest.get("status") == "complete"
+                and snapshot_id
+                and self.clean_str(manifest.get("source_name")).strip()
+                and expected is not None
+                and expected >= 0
+                and expected == len(snapshot_rows)
+                and all(self.clean_str(row.get("cinema")).strip() == cinema for row in snapshot_rows)
+            ):
+                replacements[cinema] = manifest
+
+        # Prove replacement once per attempt, rather than repeating manifest
+        # comparisons for every raw row in a large failed scrape backlog.
+        replaced_failed = {}
+        for snapshot_id, original in known.items():
+            cinema = self.clean_str(original.get("cinema")).strip()
+            replacement = replacements.get(cinema)
+            if (
+                replacement is not None
+                and original.get("status") == "failed"
+                and self.clean_str(original.get("source_name")).strip()
+                == self.clean_str(replacement.get("source_name")).strip()
+                and self._scrapeSnapshotOrder(original) < self._scrapeSnapshotOrder(replacement)
+            ):
+                replaced_failed[snapshot_id] = cinema
+        selected = [
+            row for row in rows
+            if replaced_failed.get(self.clean_str(row.get("snapshot_id")).strip())
+            != self.clean_str(row.get("cinema")).strip()
+        ]
+        self.trace_note(
+            f"cleaning_scope | table={table_name} | rows={len(rows)} | selected={len(selected)}"
+            f" | replaced_failed={len(rows) - len(selected)}"
+        )
+        return selected
 
     def selectLatestRawSnapshots(self, table_name: str, rows: list[dict]):
         """Use only completed, isolated attempts; legacy data stays non-authoritative."""

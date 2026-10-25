@@ -11,6 +11,21 @@ from backend.dataflow.utils.DataflowRequests import DataflowRequestContext
 
 
 class SharedRunnerTests(TestCase):
+    def test_cleaning_replacement_scope_requires_selected_mapping_stage(self):
+        clean, mapper = DATAFLOW_REGISTRY["nowPlayingData"][:2]
+        for classes, expected in (([clean], frozenset()), ([clean, mapper], frozenset({"allShowtimes"}))):
+            with self.subTest(classes=[cls.__name__ for cls in classes]):
+                contexts = []
+
+                def stage(_kind, _key, _run_id, **kwargs):
+                    contexts.append(kwargs["request_context"].selected_mapping_tables)
+                    return {cls: True for cls in kwargs["classes_override"]}
+
+                with patch("backend.config.runners.runGroup", side_effect=stage), redirect_stdout(StringIO()):
+                    self.assertTrue(runPlan(10, [("dataflow", "nowPlayingData", classes)]))
+                self.assertTrue(contexts)
+                self.assertTrue(all(selected == expected for selected in contexts))
+
     def test_everything_compiles_to_one_scrape_phase_and_three_dataflow_stages(self):
         events = []
 

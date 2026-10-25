@@ -555,6 +555,12 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
     overall_ok = True
     request_context = DataflowRequestContext()
     request_context.publications = {}
+    request_context.selected_mapping_tables = frozenset(
+        cls.MAIN_TABLE_NAME
+        for stages in flow_selections.values()
+        for cls in stages["tmdb"]
+        if getattr(cls, "MAIN_TABLE_NAME", None)
+    )
     failed_categories: set[str] = set()
     try:
         if scrape_items:
