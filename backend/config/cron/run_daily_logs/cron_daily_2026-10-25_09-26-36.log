@@ -1,0 +1,101 @@
+==== cron run start: 2026-10-25T09:26:36+0200 ====
+From github.com:jeremyjacob101/Kartiseret
+ * branch              main       -> FETCH_HEAD
+Already on 'main'
+M	backend/config/cron/cron_daily.log
+Your branch is up to date with 'origin/main'.
+HEAD is now at d496e547 Merge pull request #190 from jeremyjacob101/codex/safe-raw-cleaning-performance
+Removing backend/utils/log/logger_artifacts/630/
+╭────────────────────────────────── Run Plan ──────────────────────────────────╮
+│ Running…                                                                     │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭────────╮
+│ Scrape │
+╰────────╯
+
+--------------------
+
+MovieLand: 06m36s
+TLVtheque: 08m23s
+HERZtheque: 06m23s
+JLEMtheque: 06m01s
+RavHen: 14m49s
+CinemaCity: 18m15s
+MLsoon: 03m55s
+HAIFtheque: 08m02s
+LevCinema: 07m42s
+HCsoon: 09m37s
+JAFCtheque: 00m28s
+LCsoon: 02m32s
+YPsoon: 03m25s
+CCsoon: 06m41s
+HotCinema: 34m18s
+YesPlanet: 35m15s
+
+--------------------
+
+
+╭──────────╮
+│ Dataflow │
+╰──────────╯
+╭───────╮
+│ Clean │
+╰───────╯
+
+--------------------
+
+ComingSoonsClean: 00m01s
+CinemathequesClean: 00m03s
+NowPlayingsClean: 00m56s
+
+--------------------
+
+
+╭──────╮
+│ Tmdb │
+╰──────╯
+
+--------------------
+
+NowPlayingsTmdb: 04m51s
+ComingSoonsTmdb: 05m04s
+CinemathequesTmdb: 10m10s
+
+--------------------
+
+
+╭────────╮
+│ Update │
+╰────────╯
+
+--------------------
+
+ComingSoonsUpdate: 02m03s
+NowPlayingsUpdate: 02m03s
+CinemathequesUpdate: 02m03s
+
+--------------------
+
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ comingSoonsData publication failed or was unconfirmed; staged records are    │
+│ not reported as live                                                         │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ nowPlayingData publication failed or was unconfirmed; staged records are not │
+│ reported as live                                                             │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ cinemathequeData publication failed or was unconfirmed; staged records are   │
+│ not reported as live                                                         │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+╭────────────────────────────────────────────────────────────╮
+│ Skipped Coming Soon date alerts: Coming Soon update failed │
+╰────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────╮
+│ Skipped Ticket alerts: Showtimes Update failed │
+╰────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ Skipped Letterboxd source alerts: Coming Soon update, Showtimes Update       │
+│ failed                                                                       │
+╰──────────────────────────────────────────────────────────────────────────────╯

@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: cinemathequeDataPublication
+URL: ?
+Exception: APIError - {'message': 'UPDATE requires a WHERE clause', 'code': '21000', 'hint': None, 'details': None}
+Call Chain: runners.py:624 > PublicationWorkspace.py:240
+Selector: 
+Screenshot: 
+CSV: 

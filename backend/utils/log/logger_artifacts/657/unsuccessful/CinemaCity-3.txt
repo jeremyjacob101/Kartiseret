@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: CinemaCity
+URL: https://www.cinema-city.co.il/
+Exception: TimeoutException - Message: 
+Call Chain: runners.py:33 > runners.py:23 > BaseCinema.py:82 > CinemaCity.py:29
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/657/unsuccessful/CinemaCity-3.png
+CSV: 

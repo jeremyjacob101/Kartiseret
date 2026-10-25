@@ -1,0 +1,11 @@
+- - -
+ERROR
+- - -
+Name: RavHen
+URL: ?
+Exception: TimeoutException - Message: timeout: Timed out receiving message from renderer: 44.863
+  (Session info: chrome=154.0.8037.58)
+Call Chain: runners.py:33 > runners.py:23 > BaseCinema.py:82 > RavHen.py:33
+Selector: 
+Screenshot: 
+CSV: 
