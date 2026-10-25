@@ -288,6 +288,15 @@ def run_managed_process(
             if reason is None:
                 if _group_exists(child.pid):
                     reason = "owned_processes_remained"
+                elif state["successful"] is False:
+                    child.wait(timeout=0)
+                    return JobOutcome(
+                        child.returncode if child.returncode not in (None, 0) else 1,
+                        "run_failed",
+                        state["run_id"],
+                        False,
+                        time.monotonic() - started_at,
+                    )
                 elif child.returncode != 0:
                     reason = "worker_exited_abnormally"
                 elif state["successful"] is None:

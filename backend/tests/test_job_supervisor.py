@@ -3,7 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Event, Thread
 from unittest import TestCase
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 import json
 import os
 import signal
@@ -15,6 +15,7 @@ from pathlib import Path as PathClass
 from backend.config.job_supervisor import run_managed_process
 from backend.config.runner import _serialize_plan
 from backend.config.runner_worker import _decode_plan
+from backend.config import runner_worker
 
 
 class JobSupervisorTests(TestCase):
@@ -208,8 +209,8 @@ event = {'event': 'run_complete', 'successful': False}
 os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps(event) + '\\n').encode())
 """
         completed_unsuccessfully = run_managed_process([sys.executable, "-c", false_result_code], seconds=2, grace_seconds=0.3)
-        self.assertIsNone(completed_unsuccessfully.reason)
-        self.assertEqual(completed_unsuccessfully.exit_code, 0)
+        self.assertEqual(completed_unsuccessfully.reason, "run_failed")
+        self.assertEqual(completed_unsuccessfully.exit_code, 1)
         self.assertFalse(completed_unsuccessfully.successful)
 
         startup = run_managed_process(["/path/that/does/not/exist"], seconds=2, grace_seconds=0.3)
@@ -219,6 +220,39 @@ os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps(event) + '\\n
     def test_interactive_plan_round_trip_preserves_custom_class_selections(self):
         plan = [("cinema", "allSoons", [PathClass]), ("dataflow", "nowPlayingData", [])]
         self.assertEqual(_decode_plan(_serialize_plan(plan)), plan)
+
+    def test_worker_exits_nonzero_after_any_pipeline_step_fails(self):
+        class FakeRunLogSession:
+            def __init__(self, on_allocated=None):
+                self.run_id = 41
+                self.on_allocated = on_allocated
+
+            def __enter__(self):
+                if self.on_allocated:
+                    self.on_allocated(self.run_id)
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def set_plan(self, _plan):
+                pass
+
+            def set_successful(self, _successful):
+                pass
+
+        with patch.dict(os.environ, {"KARTISERET_RUN_PLAN_JSON": "[]"}), patch(
+            "backend.config.runners.runPlan", return_value=False
+        ), patch("backend.utils.log.artifact_logging.setup_logging"), patch(
+            "backend.utils.log.run_logging.RunLogSession", FakeRunLogSession
+        ), patch("backend.config.runner_worker.report_event") as report_event:
+            exit_code = runner_worker.main()
+
+        self.assertEqual(exit_code, 1)
+        report_event.assert_has_calls([
+            call("run_id", run_id=41),
+            call("run_complete", successful=False),
+        ])
 
     def test_run_id_finalizer_marks_failure_and_releases_running_lock(self):
         from backend.config import supervisor_finalize

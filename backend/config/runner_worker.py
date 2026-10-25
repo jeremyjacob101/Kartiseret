@@ -68,7 +68,7 @@ def main() -> int:
 
     # Send completion only after RunLogSession has finished its own finalization.
     report_event("run_complete", successful=bool(successful))
-    return 0
+    return 0 if successful else 1
 
 
 if __name__ == "__main__":

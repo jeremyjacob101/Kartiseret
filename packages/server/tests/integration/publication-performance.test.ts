@@ -76,4 +76,34 @@ describe("publication SQL performance and parity", () => {
       client.release();
     }
   }, 30_000);
+
+  it("atomically publishes a full backlog while retaining pending historical work", async () => {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SET LOCAL statement_timeout = '45s'");
+      let measured: Record<string, unknown> | undefined;
+      for (const step of fixture("publication-backlog-scale.sql").split(
+        /^-- step$/m,
+      )) {
+        if (!step.trim()) continue;
+        const results = await client.query(step);
+        const result = Array.isArray(results) ? results.at(-1)! : results;
+        if (result.rows[0]?.seconds !== undefined) measured = result.rows[0];
+      }
+      expect(measured).toBeDefined();
+      if (!measured) throw new Error("Missing backlog measurement");
+      expect(Number(measured.changes)).toBe(46_244);
+      expect(Number(measured.bytes)).toBeGreaterThan(90_000_000);
+      expect(Number(measured.bytes)).toBeLessThan(120_000_000);
+      expect(Number(measured.seconds)).toBeLessThan(30);
+      expect(Number(measured.retained_failed)).toBe(29_057);
+      expect(Number(measured.pending_legacy)).toBe(2_673);
+      expect(Number(measured.screenings)).toBe(9_044);
+      console.info("Publication backlog measurement", measured);
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+  }, 90_000);
 });

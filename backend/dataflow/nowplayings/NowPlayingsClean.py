@@ -11,7 +11,7 @@ class NowPlayingsClean(BaseDataflow):
 
         self.applyYesPlanetHebrewToRavHenEnglish()
 
-        for row in self.main_table_rows:
+        for row in self.rawRowsForCleaning(self.MAIN_TABLE_NAME, self.main_table_rows):
             if row.get("cleaned") is True:
                 continue
             if row.get("id") in fixed_row_ids:

@@ -117,12 +117,23 @@ jobs:
           path: backend/utils/log/logger_artifacts/${{ steps.runid.outputs.rid }}
           if-no-files-found: ignore
 
-      - name: Mark run as warning
+      - name: Fail if the pipeline run failed
         if: always()
         shell: bash
         run: |
+          set -euo pipefail
           rid="${{ steps.runid.outputs.rid }}"
+          if [ -z "$rid" ]; then
+            echo "::error::Pipeline run did not produce a run id; the outcome could not be verified."
+            exit 1
+          fi
           f="backend/utils/log/logger_artifacts/${rid}/.job_ok"
-          if [ "$(tr -d '[:space:]' < "$f")" = "false" ]; then
-            echo "::warning::At least one exception occurred during the run (see artifact: logger_artifacts_run_${rid})."
+          if [ ! -f "$f" ]; then
+            echo "::error::Pipeline run ${rid} has no completion status (see artifact: logger_artifacts_run_${rid})."
+            exit 1
+          fi
+          status="$(tr -d '[:space:]' < "$f")"
+          if [ "$status" != "true" ]; then
+            echo "::error::Pipeline run ${rid} failed or reported an invalid completion status (see artifact: logger_artifacts_run_${rid})."
+            exit 1
           fi

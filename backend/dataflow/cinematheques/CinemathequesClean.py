@@ -11,7 +11,7 @@ class CinemathequesClean(CinemathequesHelpers, BaseDataflow):
         _, tmdb_fix_by_title, _ = self.buildTmdbFixMaps(self.helper_table_rows)
         fixed_row_ids = {row.get("id") for row in self.main_table_rows if self.tmdbFixForTitle(row.get("english_title"), tmdb_fix_by_title)}
 
-        for row in self.main_table_rows:
+        for row in self.rawRowsForCleaning(self.MAIN_TABLE_NAME, self.main_table_rows):
             if row.get("cleaned") is True:
                 continue
             if row.get("id") in fixed_row_ids:

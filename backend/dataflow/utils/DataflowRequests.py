@@ -28,6 +28,7 @@ class DataflowRequestContext:
         self.request_workers = request_workers
         self.provider_workers = provider_workers
         self.requests_per_second = requests_per_second
+        self.selected_mapping_tables: frozenset[str] = frozenset()
 
     def get_tmdb_executor(self):
         with self.lock:
