@@ -29,6 +29,7 @@ function createPreviewRepository(options: {
     findNowPlayingRows: async () => [],
     findMovieCodes: async () => new Map(),
     findComingSoonRows: async () => [],
+    findCinemathequeRows: async () => [],
     findShowtimeRows: async () => showtimeRows,
     findTicketAvailabilityRows: async () => [],
     findTheaterCityRows: async () => [],

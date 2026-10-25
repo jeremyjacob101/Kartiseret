@@ -811,6 +811,18 @@ describe("PostgreSQL 17 integration", () => {
     ).resolves.toBeDefined();
     await expect(
       runtimeDatabase.db
+        .select({ tmdbId: schema.finalThequeMovies.tmdbId })
+        .from(schema.finalThequeMovies)
+        .limit(1),
+    ).resolves.toBeDefined();
+    await expect(
+      runtimeDatabase.db
+        .select({ id: schema.finalTheques.id })
+        .from(schema.finalTheques)
+        .limit(1),
+    ).resolves.toBeDefined();
+    await expect(
+      runtimeDatabase.db
         .select({ name: schema.cities.name })
         .from(schema.cities)
         .limit(1),
@@ -833,6 +845,38 @@ describe("PostgreSQL 17 integration", () => {
     await expect(
       runtimeDatabase.db.select().from(schema.adminUsers).limit(1),
     ).rejects.toThrow();
+  });
+
+  it("serves seeded cinematheque screenings through the restricted API runtime", async () => {
+    const dateResult = await adminDatabase.pool.query<{ date: string }>(
+      "SELECT to_char(CURRENT_DATE + 21, 'YYYY-MM-DD') AS date",
+    );
+    const date = dateResult.rows[0]?.date;
+    expect(date).toBeDefined();
+
+    const response = await request(app).get(
+      `/api/v1/cinematheques?city=Jerusalem&startDate=${date}&endDate=${date}`,
+    );
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(response.body.data.movies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          tmdbId: "9100012",
+          title: "Dev Cinematheque Film",
+        }),
+      ]),
+    );
+    expect(response.body.data.showtimes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          tmdbId: "9100012",
+          screeningCity: "Jerusalem",
+          cinema: "Development Cinematheque",
+          dateOfShowing: date,
+        }),
+      ]),
+    );
   });
 
   it("uses a metadata read for an empty code lookup and never builds invalid SQL", async () => {

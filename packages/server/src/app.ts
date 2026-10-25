@@ -16,6 +16,7 @@ import {
 } from "./catalog/errors.js";
 import {
   getMovieCatalog,
+  getCinemathequeData,
   getPublicTheaterData,
   getShowtimeRange,
   getTicketAvailabilityShowtimes,
@@ -297,6 +298,49 @@ export function createApp({
             : "public, max-age=30, stale-while-revalidate=60",
         );
         response.json({ data: { showtimes }, error: null });
+      } catch (error) {
+        next(error);
+      }
+    }),
+  );
+
+  app.get(
+    "/api/v1/cinematheques",
+    publicationRead(async (request, response, next) => {
+      if (!publicDataRepository) {
+        next(
+          new CatalogDatabaseError(new Error("Public data is unavailable.")),
+        );
+        return;
+      }
+      const query = publicShowtimeRangeQuerySchema.safeParse(request.query);
+      if (!query.success) {
+        next(
+          new HttpError(
+            400,
+            "invalid_request",
+            "The cinematheque range query is invalid or exceeds the supported range.",
+          ),
+        );
+        return;
+      }
+      try {
+        const data = await getCinemathequeData(
+          publicDataRepository,
+          query.data,
+          (error) =>
+            logger.error(
+              "Cinematheque movie-code lookup failed; screenings remain available without code hydration.",
+              safeErrorSummary(error),
+            ),
+        );
+        response.setHeader(
+          "Cache-Control",
+          request.get(PUBLICATION_REVISION_HEADER)
+            ? "private, no-store"
+            : "public, max-age=30, stale-while-revalidate=60",
+        );
+        response.json({ data, error: null });
       } catch (error) {
         next(error);
       }

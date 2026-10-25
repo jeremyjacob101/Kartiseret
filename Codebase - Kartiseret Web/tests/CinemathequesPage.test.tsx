@@ -1,9 +1,9 @@
-import type { MovieCollectionData, ShowtimeCityData } from "../src/data/movieCatalog";
-import { fixedAppDateString, movieCatalogQueryKeys } from "../src/data/movieCatalog";
+import { cinemathequeQueryKeys, type CinemathequeData } from "../src/data/cinemathequeCatalog";
 import { useUserPreferencesStore } from "../src/stores/userPreferencesStore";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CinemathequesPage } from "../src/components/CinemathequesPage";
 import { DEFAULT_LOCATION } from "../src/prefs/definitions/locations";
+import { fixedAppDateString } from "../src/data/movieCatalog";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { queryClient } from "../src/lib/queryClient";
@@ -17,65 +17,38 @@ vi.mock("../src/components/maps/TheaterMapDialog", () => ({
 
 function seedData() {
   const location = DEFAULT_LOCATION;
-  const movieCollection: MovieCollectionData = {
-    mode: "nowPlaying",
+  const data: CinemathequeData = {
     movies: [sampleMovie],
-    moviesByCode: {},
     movieCodesStatus: "ready",
+    publicationRevision: "1",
+    showtimes: [
+      {
+        tmdbId: sampleMovie.tmdbId,
+        screeningCity: location,
+        dateOfShowing: fixedAppDateString,
+        cinema: "Jerusalem Cinematheque",
+        showtime: "20:00",
+        englishHref: "https://tickets.example.test/cinematheque",
+        hebrewHref: null,
+        screeningTech: "35mm",
+        screeningType: "Film",
+        dubLanguage: null,
+      },
+      {
+        tmdbId: sampleMovie.tmdbId,
+        screeningCity: location,
+        dateOfShowing: fixedAppDateString,
+        cinema: "Cinema City Jerusalem",
+        showtime: "18:00",
+        englishHref: null,
+        hebrewHref: null,
+        screeningTech: "2D",
+        screeningType: "Regular",
+        dubLanguage: null,
+      },
+    ],
   };
-  const cityData: ShowtimeCityData = {
-    city: location,
-    broadFetchedDates: [fixedAppDateString],
-    broadLoadedDayCount: 15,
-    broadReady: true,
-    broadVisibleDayCount: 1,
-    movieShowtimesByTmdbId: {
-      [sampleMovie.tmdbId]: [
-        {
-          date: fixedAppDateString,
-          theaters: [
-            {
-              theater: "Jerusalem Cinematheque",
-              showtimes: [
-                {
-                  time: "20:00",
-                  href: "https://tickets.example.test/cinematheque",
-                  screeningTech: "35mm",
-                  screeningType: "Film",
-                  dubLanguage: null,
-                },
-              ],
-            },
-            {
-              theater: "Cinema City Jerusalem",
-              showtimes: [
-                {
-                  time: "18:00",
-                  href: null,
-                  screeningTech: "2D",
-                  screeningType: "Regular",
-                  dubLanguage: null,
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-    rowsByKey: {},
-    targetedFetchedDatesByTmdbId: {},
-    targetedLoadedDayCountByTmdbId: {},
-    visibleDayCount: 1,
-  };
-
-  queryClient.setQueryData(
-    movieCatalogQueryKeys.collection("nowPlaying"),
-    movieCollection,
-  );
-  queryClient.setQueryData(
-    movieCatalogQueryKeys.showtimeCity(location),
-    cityData,
-  );
+  queryClient.setQueryData(cinemathequeQueryKeys.data(location), data);
 }
 
 beforeEach(() => {

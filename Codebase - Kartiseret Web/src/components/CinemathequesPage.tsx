@@ -1,23 +1,24 @@
-import { fixedAppDateString, getNextShowtimePrefetchDayCount, loadAdditionalShowtimeDays, movieCollectionQueryOptions, selectMovies, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT } from "../data/movieCatalog";
+import { buildCinemathequeDateRange, cinemathequeQueryOptions, getCinemathequeDateRange } from "../data/cinemathequeCatalog";
 import { getShowtimeDateLabel, getShowtimeTargetDate, getTrailerEmbedUrl } from "./showtimes/showtimeUtils";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
 import { applyMovieDisplayPreferences } from "../data/movieDisplayPreferences";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildCinemathequeShowtimesByDate } from "../data/cinematheques";
 import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import type { CinemathequeShowtimesDay } from "../data/cinematheques";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ShowtimeDayPicker } from "./showtimes/ShowtimeDayPicker";
 import { ShowtimesMovieRow } from "./showtimes/ShowtimesMovieRow";
 import { MovieTrailerModal } from "./showtimes/ShowtimeShared";
 import { TheaterMapDialog } from "./maps/TheaterMapDialog";
+import { fixedAppDateString } from "../data/movieCatalog";
 import { useShallow } from "zustand/react/shallow";
 import { useQuery } from "@tanstack/react-query";
 import "./AllShowtimesPage.css";
 import "./CinemathequesPage.css";
 
 export function CinemathequesPage() {
-  usePublicationRevision();
+  const publicationRevision = usePublicationRevision();
   const displayPreferences = useMovieDisplayPreferences();
   const { preferenceLocation, sources } = useUserPreferencesStore(
     useShallow((state) => ({
@@ -31,33 +32,36 @@ export function CinemathequesPage() {
   const [openTrailerMovieId, setOpenTrailerMovieId] = useState<string | null>(
     null,
   );
-  const requestedShowtimePrefetchRef = useRef<string | null>(null);
-  const { data: rawNowPlayingMovies = [] } = useQuery({
-    ...movieCollectionQueryOptions("nowPlaying"),
-    select: selectMovies,
+  const cinemathequeQuery = useQuery({
+    ...cinemathequeQueryOptions(location, publicationRevision),
+    enabled: displayPreferences.ready,
   });
+  const rawMovies = cinemathequeQuery.data?.movies;
   const nowPlayingMovies = useMemo(
     () =>
       displayPreferences.ready
         ? applyMovieDisplayPreferences(
-            rawNowPlayingMovies,
+            rawMovies ?? [],
             displayPreferences.preferencesById,
           )
         : [],
-    [
-      displayPreferences.preferencesById,
-      displayPreferences.ready,
-      rawNowPlayingMovies,
-    ],
+    [displayPreferences.preferencesById, displayPreferences.ready, rawMovies],
   );
-  const showtimeCityQuery = useQuery({
-    ...showtimeCityQueryOptions(location),
-    enabled: displayPreferences.ready,
-  });
-  const cityShowtimeData = showtimeCityQuery.data;
+  const range = getCinemathequeDateRange();
+  const dates = useMemo(
+    () => buildCinemathequeDateRange(range.startDate, range.endDate),
+    [range.endDate, range.startDate],
+  );
   const dayPanels = useMemo<CinemathequeShowtimesDay[]>(
-    () => buildCinemathequeShowtimesByDate(nowPlayingMovies, cityShowtimeData),
-    [cityShowtimeData, nowPlayingMovies],
+    () =>
+      cinemathequeQuery.data
+        ? buildCinemathequeShowtimesByDate(
+            nowPlayingMovies,
+            cinemathequeQuery.data.showtimes,
+            dates,
+          )
+        : [],
+    [cinemathequeQuery.data, dates, nowPlayingMovies],
   );
   const resolvedShowtimeDate = getShowtimeTargetDate(
     dayPanels,
@@ -79,79 +83,16 @@ export function CinemathequesPage() {
   const handleLocationChange = useCallback(async (
     nextLocation: typeof location,
   ) => {
-    requestedShowtimePrefetchRef.current = null;
     setLocation(nextLocation);
     setSelectedShowtimeDate(fixedAppDateString);
     return true;
   }, []);
 
-  const handleShowtimePreviewDateChange = useCallback(
-    (date: string) => {
-      const previewDayIndex = dayPanels.findIndex((day) => day.date === date);
-      const nextDayCount = getNextShowtimePrefetchDayCount(
-        dayPanels.length,
-        previewDayIndex,
-      );
-
-      if (nextDayCount === null) {
-        return;
-      }
-
-      const requestKey = `${location}:${nextDayCount}`;
-
-      if (requestedShowtimePrefetchRef.current === requestKey) {
-        return;
-      }
-
-      requestedShowtimePrefetchRef.current = requestKey;
-      void loadAdditionalShowtimeDays(location, nextDayCount).catch(() => {
-        if (requestedShowtimePrefetchRef.current === requestKey) {
-          requestedShowtimePrefetchRef.current = null;
-        }
-      });
-    },
-    [dayPanels, location],
-  );
-
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, []);
 
-  useEffect(() => {
-    if (!cityShowtimeData?.broadReady) {
-      return;
-    }
-
-    const nextDayCount = Math.min(
-      SHOWTIME_PREFETCH_CHUNK_DAY_COUNT,
-      SHOWTIME_WINDOW_DAY_COUNT,
-    );
-
-    if (cityShowtimeData.broadLoadedDayCount >= nextDayCount) {
-      return;
-    }
-
-    const requestKey = `${location}:${nextDayCount}`;
-
-    if (requestedShowtimePrefetchRef.current === requestKey) {
-      return;
-    }
-
-    requestedShowtimePrefetchRef.current = requestKey;
-    void loadAdditionalShowtimeDays(location, nextDayCount).catch(() => {
-      if (requestedShowtimePrefetchRef.current === requestKey) {
-        requestedShowtimePrefetchRef.current = null;
-      }
-    });
-  }, [
-    cityShowtimeData?.broadLoadedDayCount,
-    cityShowtimeData?.broadReady,
-    location,
-  ]);
-
-  const isLoading =
-    !showtimeCityQuery.isError &&
-    (!cityShowtimeData?.broadReady || showtimeCityQuery.isPending);
+  const isLoading = cinemathequeQuery.isPending;
 
   return (
     <section
@@ -176,13 +117,6 @@ export function CinemathequesPage() {
           dates={dayPanels.map((day) => day.date)}
           selectedDate={resolvedShowtimeDate}
           disabledBeforeDate={fixedAppDateString}
-          trailingPlaceholderCount={Math.min(
-            dayPanels.length < SHOWTIME_PREFETCH_CHUNK_DAY_COUNT
-              ? SHOWTIME_PREFETCH_CHUNK_DAY_COUNT - dayPanels.length
-              : SHOWTIME_PREFETCH_CHUNK_DAY_COUNT,
-            SHOWTIME_WINDOW_DAY_COUNT - dayPanels.length,
-          )}
-          onPreviewDateChange={handleShowtimePreviewDateChange}
           onSelect={setSelectedShowtimeDate}
         />
       </div>
@@ -199,7 +133,7 @@ export function CinemathequesPage() {
             <p className="details-day-empty" role="status">
               Loading cinematheque showtimes…
             </p>
-          ) : showtimeCityQuery.isError ? (
+          ) : cinemathequeQuery.isError ? (
             <p className="details-day-empty" role="alert">
               Could not load cinematheque showtimes.
             </p>

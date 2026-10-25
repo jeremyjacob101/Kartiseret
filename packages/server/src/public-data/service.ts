@@ -2,11 +2,13 @@ import { timeCatalogStage } from "../catalog-timing.js";
 import {
   movieCatalogModeSchema,
   movieCatalogDataSchema,
+  publicCinemathequeDataSchema,
   publicShowtimeSchema,
   publicTheaterDataSchema,
   ticketAvailabilityShowtimeSchema,
   type MovieCatalogData,
   type MovieCatalogMode,
+  type PublicCinemathequeData,
   type PublicShowtime,
   type PublicShowtimeRangeQuery,
   type PublicTheaterData,
@@ -194,6 +196,11 @@ const databaseShowtimeRowSchema = z.object({
   dubLanguage: z.string().nullable(),
 });
 
+const databaseCinemathequeRowSchema = z.object({
+  movie: z.unknown(),
+  showtime: databaseShowtimeRowSchema,
+});
+
 function normalizeLocalTime(value: string | null): string | null {
   if (value === null) {
     return null;
@@ -275,6 +282,71 @@ export async function getShowtimeRange(
       );
     })
     .map(mapDatabaseShowtime);
+}
+
+export async function getCinemathequeData(
+  repository: PublicDataRepository,
+  range: PublicShowtimeRangeQuery,
+  onCodeLookupFailure?: (error: unknown) => void,
+): Promise<PublicCinemathequeData> {
+  const rows = await timeCatalogStage("movie_rows", () =>
+    repository.findCinemathequeRows(range),
+  );
+  const movieRowsById = new Map<string, unknown>();
+  const showtimes: PublicShowtime[] = [];
+
+  for (const value of rows) {
+    const parsed = databaseCinemathequeRowSchema.safeParse(value);
+    if (!parsed.success) {
+      throw new CatalogDataIntegrityError(
+        "A cinematheque row does not match the expected database shape.",
+        parsed.error,
+      );
+    }
+    if (readField(parsed.data.movie, "soloUpdate") === true) {
+      continue;
+    }
+
+    const tmdbId = tmdbIdSchema.parse(readField(parsed.data.movie, "tmdbId"));
+    const showtime = mapDatabaseShowtime(parsed.data.showtime);
+    if (showtime.tmdbId !== tmdbId) {
+      throw new CatalogDataIntegrityError(
+        "A cinematheque screening does not match its movie record.",
+      );
+    }
+    movieRowsById.set(tmdbId, parsed.data.movie);
+    showtimes.push(showtime);
+  }
+
+  const orderedMovieRows = [...movieRowsById.entries()]
+    .map(([tmdbId, row]) => ({ row, tmdbId }))
+    .sort((left, right) => compareNowPlayingRows(left.row, right.row));
+  const ids = orderedMovieRows.map(({ tmdbId }) => tmdbId);
+  let movieCodes: ReadonlyMap<string, string> = new Map();
+  let movieCodesStatus: PublicCinemathequeData["movieCodesStatus"] = "ready";
+
+  try {
+    movieCodes = await timeCatalogStage("movie_codes", () =>
+      repository.findMovieCodes(ids),
+    );
+  } catch (error) {
+    movieCodesStatus = "failed";
+    onCodeLookupFailure?.(error);
+  }
+
+  const codeIndex = buildMovieCodeIndex(
+    orderedMovieRows.map(({ row }) => row),
+    movieCodes,
+  );
+  const movies = orderedMovieRows.map(({ row, tmdbId }) =>
+    movieSchema.parse(toNowPlayingMovie(row, codeIndex.get(tmdbId))),
+  );
+
+  return parseBoundary(
+    publicCinemathequeDataSchema,
+    { movies, movieCodesStatus, showtimes },
+    "cinematheque response",
+  );
 }
 
 export async function getTicketAvailabilityShowtimes(
