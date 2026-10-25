@@ -108,6 +108,7 @@ def _plan_header(plan: List[Tuple[str, str, Optional[List[type]]]]) -> Panel:
         "ComingSoonDateAlertDispatcher": "Coming Soon date alerts",
         "TicketAlertDispatcher": "Ticket alerts",
         "LetterboxdSourceDispatcher": "Letterboxd source alerts",
+        "MovieNotificationDispatcher": "Movie notifications",
     }
     selected_scrapes = []
     selected_dataflows = []

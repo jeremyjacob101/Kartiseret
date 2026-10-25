@@ -43,27 +43,25 @@ class SharedRunnerTests(TestCase):
         self.assertEqual(events[0], ("scrape", sum(map(len, REGISTRY.values()))))
         self.assertEqual(
             [event[0] for event in events],
-            ["scrape", "stage", "stage", "update", "stage", "stage", "stage"],
+            ["scrape", "stage", "stage", "update", "stage"],
         )
-        self.assertEqual(events[-3][1], ["ComingSoonDateAlertDispatcher"])
-        self.assertEqual(events[-2][1], ["TicketAlertDispatcher"])
-        self.assertEqual(events[-1][1], ["LetterboxdSourceDispatcher"])
+        self.assertEqual(events[-1][1], ["MovieNotificationDispatcher"])
 
     def test_selected_dispatchers_run_without_selecting_catalog_updates(self):
         date_alert = next(
             cls
             for cls in DATAFLOW_REGISTRY["comingSoonsData"]
-            if cls.__name__ == "ComingSoonDateAlertDispatcher"
+            if cls.__name__ == "MovieNotificationDispatcher"
         )
         ticket_alert = next(
             cls
             for cls in DATAFLOW_REGISTRY["nowPlayingData"]
-            if cls.__name__ == "TicketAlertDispatcher"
+            if cls.__name__ == "MovieNotificationDispatcher"
         )
         letterboxd_alert = next(
             cls
             for cls in DATAFLOW_REGISTRY["nowPlayingData"]
-            if cls.__name__ == "LetterboxdSourceDispatcher"
+            if cls.__name__ == "MovieNotificationDispatcher"
         )
         calls = []
 
@@ -83,9 +81,7 @@ class SharedRunnerTests(TestCase):
         self.assertEqual(
             calls,
             [
-                "ComingSoonDateAlertDispatcher",
-                "TicketAlertDispatcher",
-                "LetterboxdSourceDispatcher",
+                "MovieNotificationDispatcher",
             ],
         )
         self.assertNotIn("was not selected", output.getvalue())
@@ -94,7 +90,7 @@ class SharedRunnerTests(TestCase):
         date_alert = next(
             cls
             for cls in DATAFLOW_REGISTRY["comingSoonsData"]
-            if cls.__name__ == "ComingSoonDateAlertDispatcher"
+            if cls.__name__ == "MovieNotificationDispatcher"
         )
         update = next(
             cls
@@ -118,7 +114,7 @@ class SharedRunnerTests(TestCase):
             self.assertFalse(runPlan(1, plan))
 
         self.assertEqual(calls, [])
-        self.assertIn("Skipped Coming Soon date alerts: Coming Soon update failed", output.getvalue())
+        self.assertIn("Skipped Movie notifications: Coming Soon update failed", output.getvalue())
 
     def test_coming_soon_date_alerts_run_after_the_coming_soon_publication_commits(self):
         events = []
@@ -126,7 +122,7 @@ class SharedRunnerTests(TestCase):
 
         def run_group(_kind, _key, _run_id, **kwargs):
             names = [cls.__name__ for cls in kwargs["classes_override"]]
-            if "ComingSoonDateAlertDispatcher" in names:
+            if "MovieNotificationDispatcher" in names:
                 self.assertEqual(events[-1], "commit")
                 events.append("date-alert")
             else:
@@ -160,7 +156,7 @@ class SharedRunnerTests(TestCase):
 
         def run_group(_kind, _key, _run_id, **kwargs):
             names = [cls.__name__ for cls in kwargs["classes_override"]]
-            if "LetterboxdSourceDispatcher" in names:
+            if "MovieNotificationDispatcher" in names:
                 self.assertIn("commit:comingsoons", events)
                 self.assertIn("commit:nowplayings", events)
                 events.append("letterboxd-alerts")

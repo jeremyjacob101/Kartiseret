@@ -71,12 +71,33 @@ function TicketAlertControlContent({
       exact: true,
     }) > 0;
   const subscription = selectUserTicketAlert(subscriptionsQuery.data, tmdbId);
+  const preferredCity = useUserPreferencesStore(
+    (state) => state.preferences.location,
+  );
   const criteriaDefaults =
     preferencesQuery.data ?? DEFAULT_TICKET_ALERT_CRITERIA;
   const criteria = resolveTicketAlertCriteria(
     criteriaDefaults,
     subscription?.criteriaOverrides,
+    preferredCity,
   );
+  const completedCities = subscription?.completedCities ?? [];
+  const availableCities = (criteria.cities ?? []).filter((city) =>
+    selectTicketAlertAvailability(
+      availabilityQuery.data ?? [],
+      { ...criteria, cities: [city] },
+      movie.movieCode,
+    ));
+  const hasCitiesLeft =
+    criteria.notificationMode === "first_per_city" &&
+    (criteria.cities ?? []).some(
+      (city) =>
+        !(subscription ? completedCities : availableCities).includes(city),
+    );
+  const complete =
+    criteria.notificationMode === "first_per_city"
+      ? Boolean(subscription && !hasCitiesLeft)
+      : completedCities.length > 0 || Boolean(subscription?.notifiedAt);
   const loadFailed =
     (availabilityQuery.isError && !availabilityQuery.data) ||
     (Boolean(userId) &&
@@ -95,8 +116,8 @@ function TicketAlertControlContent({
       (Boolean(userId) && subscriptionsQuery.isPending) ||
       (Boolean(userId) && preferencesQuery.isPending),
     pending,
-    subscribed: Boolean(subscription && !subscription.notifiedAt),
-    notified: Boolean(subscription?.notifiedAt),
+    subscribed: Boolean(subscription && !complete),
+    notified: complete,
     error:
       mutation.error?.message ??
       availabilityQuery.error?.message ??
@@ -141,7 +162,7 @@ function TicketAlertControlContent({
       </button>
     );
     hint = "Ticket alerts are temporarily unavailable.";
-  } else if (state.availability) {
+  } else if (state.availability && !hasCitiesLeft) {
     control = (
       <Link
         className="ticket-alert-button ticket-alert-button--available"
@@ -159,7 +180,7 @@ function TicketAlertControlContent({
         Alert sent
       </button>
     );
-    hint = "Your one-time ticket alert has already been sent.";
+    hint = "Your selected ticket availability alerts are complete.";
   } else if (!userId) {
     control = (
       <button
@@ -201,9 +222,14 @@ function TicketAlertControlContent({
             : "Notify me"}
       </button>
     );
-    hint = state.subscribed
-      ? "We’ll send one email when tickets appear. Click to cancel."
-      : "Get one email when a cinema posts a ticket link.";
+    hint =
+      criteria.notificationMode === "first_per_city"
+        ? state.subscribed
+          ? "Watching remaining selected cities. Click to cancel."
+          : "Get an alert when tickets first appear in each remaining selected city."
+        : state.subscribed
+          ? "We’ll alert you when tickets first appear in a selected city. Click to cancel."
+          : "Get one alert when tickets first appear in your selected cities.";
   }
 
   return (

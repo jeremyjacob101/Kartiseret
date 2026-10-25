@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   ALL_LOCATIONS,
+  DEFAULT_LOCATION,
   appLocationSchema,
   ratingSourceSchema,
   siteColorSchema,
@@ -118,10 +119,15 @@ export const ticketAlertFiltersSchema = z
       .max(SHOWTIME_FILTER_OPTIONS.dubLanguage.length),
   })
   .strict();
+export const notificationModeSchema = z.enum([
+  "first_any_city",
+  "first_per_city",
+]);
 export const ticketAlertCriteriaSchema = z
   .object({
-    // null means all cities; an empty array means no cities.
+    // null follows the preferred city; an empty array means no cities.
     cities: ticketAlertCitiesSchema.nullable(),
+    notificationMode: notificationModeSchema.default("first_any_city"),
     // Values are unchecked exclusions, matching the showtime filter UI.
     filters: ticketAlertFiltersSchema,
   })
@@ -129,6 +135,7 @@ export const ticketAlertCriteriaSchema = z
 export const ticketAlertCriteriaOverrideSchema = z
   .object({
     cities: ticketAlertCitiesSchema.nullable().optional(),
+    notificationMode: notificationModeSchema.optional(),
     filters: ticketAlertFiltersSchema.partial().strict().optional(),
   })
   .strict();
@@ -138,6 +145,7 @@ export type TicketAlertCriteriaOverride = z.infer<
 >;
 export const DEFAULT_TICKET_ALERT_CRITERIA: TicketAlertCriteria = {
   cities: null,
+  notificationMode: "first_any_city",
   filters: {
     showType: [],
     screenFormat: [],
@@ -150,6 +158,7 @@ export type TicketAlertShowtime = FilterableShowtime & { city: string };
 export function resolveTicketAlertCriteria(
   defaults: TicketAlertCriteria,
   overrides: TicketAlertCriteriaOverride = {},
+  preferredCity: string = DEFAULT_LOCATION,
 ): TicketAlertCriteria {
   const groups = Object.keys(SHOWTIME_FILTER_OPTIONS) as ShowtimeFilterGroup[];
   const filters = Object.fromEntries(
@@ -159,7 +168,15 @@ export function resolveTicketAlertCriteria(
     ]),
   ) as TicketAlertCriteria["filters"];
   return {
-    cities: overrides.cities === undefined ? defaults.cities : overrides.cities,
+    cities: (overrides.cities === undefined
+      ? defaults.cities
+      : overrides.cities) ?? [
+      ALL_LOCATIONS.find((city) => city === preferredCity) ?? "Jerusalem",
+    ],
+    notificationMode:
+      overrides.notificationMode ??
+      defaults.notificationMode ??
+      "first_any_city",
     filters,
   };
 }
@@ -169,8 +186,9 @@ export function matchesTicketAlertCriteria(
   criteria: TicketAlertCriteria,
 ): boolean {
   if (
-    criteria.cities !== null &&
-    !(criteria.cities as readonly string[]).includes(showtime.city)
+    !((criteria.cities ?? [DEFAULT_LOCATION]) as readonly string[]).includes(
+      showtime.city,
+    )
   )
     return false;
   const selections = buildShowtimeFilterSelections(SHOWTIME_FILTER_OPTIONS, {
@@ -200,12 +218,8 @@ export const subscriptionSchema = z.object({
   notifiedAt: z.iso.datetime({ offset: true }).nullable(),
   deliveryTitle: z.string().nullable(),
   deliveryDate: isoDateStringSchema.nullable(),
-  criteriaOverrides: z
-    .object({
-      cities: ticketAlertCitiesSchema.nullable().optional(),
-      filters: ticketAlertFiltersSchema.partial().strict().optional(),
-    })
-    .strict(),
+  criteriaOverrides: ticketAlertCriteriaOverrideSchema,
+  completedCities: z.array(z.string()).default([]),
 });
 export type Subscription = z.infer<typeof subscriptionSchema>;
 export const ticketAlertPreferencesResponseSchema = envelope(

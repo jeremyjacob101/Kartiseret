@@ -1,7 +1,8 @@
 import type { TicketAlertCriteria, TicketAlertCriteriaOverride } from "@kartiseret/contracts/private-data";
 import { SHOWTIME_FILTER_OPTIONS } from "@kartiseret/contracts/showtime-links";
+import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { ALL_LOCATIONS } from "@kartiseret/contracts/preferences";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 type FilterGroup = keyof TicketAlertCriteria["filters"];
 type Draft = TicketAlertCriteria | TicketAlertCriteriaOverride;
@@ -27,6 +28,12 @@ export function TicketAlertCriteriaEditor({
   onSave: (value: Draft) => void;
 }) {
   const [draft, setDraft] = useState<Draft>(value);
+  const modeGroup = useId();
+  const location = useUserPreferencesStore(
+    (state) => state.preferences.location,
+  );
+  const preferredCity =
+    ALL_LOCATIONS.find((city) => city === location) ?? "Jerusalem";
 
   const isTitle = mode === "title";
   const titleDraft = draft as TicketAlertCriteriaOverride;
@@ -37,6 +44,9 @@ export function TicketAlertCriteriaEditor({
       : titleDraft.cities
     : fullDraft.cities;
   const citiesInherited = isTitle && titleDraft.cities === undefined;
+  const selectedCities = effectiveCities ?? [preferredCity];
+  const effectiveMode =
+    draft.notificationMode ?? defaults.notificationMode ?? "first_any_city";
 
   function setCities(next: TicketAlertCriteria["cities"]) {
     setDraft((current) => ({ ...current, cities: next }));
@@ -87,11 +97,19 @@ export function TicketAlertCriteriaEditor({
     });
   }
 
+  function setModeInheritance(inherit: boolean) {
+    setDraft((current) => {
+      const next = { ...current };
+      if (inherit)
+        delete (next as TicketAlertCriteriaOverride).notificationMode;
+      else next.notificationMode = defaults.notificationMode;
+      return next;
+    });
+  }
+
   function toggleCity(city: (typeof ALL_LOCATIONS)[number], checked: boolean) {
     const selected =
-      effectiveCities === null
-        ? ALL_LOCATIONS.filter((entry) => entry !== city)
-        : [...effectiveCities];
+      effectiveCities === null ? [preferredCity] : [...effectiveCities];
     const next = checked
       ? [...new Set([...selected, city])]
       : selected.filter((entry) => entry !== city);
@@ -100,6 +118,55 @@ export function TicketAlertCriteriaEditor({
 
   return (
     <div className="ticket-alert-criteria-editor">
+      <fieldset className="ticket-alert-criteria-group">
+        <legend>When to notify</legend>
+        {isTitle ? (
+          <label className="ticket-alert-inherit">
+            <input
+              type="checkbox"
+              checked={titleDraft.notificationMode === undefined}
+              onChange={(event) =>
+                setModeInheritance(event.currentTarget.checked)
+              }
+            />
+            Use account notification mode
+          </label>
+        ) : null}
+        <label>
+          <input
+            type="radio"
+            name={modeGroup}
+            checked={effectiveMode === "first_any_city"}
+            disabled={
+              saving || (isTitle && titleDraft.notificationMode === undefined)
+            }
+            onChange={() =>
+              setDraft((current) => ({
+                ...current,
+                notificationMode: "first_any_city",
+              }))
+            }
+          />
+          First in any selected city — one alert per film
+        </label>
+        <label>
+          <input
+            type="radio"
+            name={modeGroup}
+            checked={effectiveMode === "first_per_city"}
+            disabled={
+              saving || (isTitle && titleDraft.notificationMode === undefined)
+            }
+            onChange={() =>
+              setDraft((current) => ({
+                ...current,
+                notificationMode: "first_per_city",
+              }))
+            }
+          />
+          First in each selected city — one alert per film per city
+        </label>
+      </fieldset>
       <fieldset className="ticket-alert-criteria-group">
         <legend>Cities</legend>
         {isTitle ? (
@@ -115,10 +182,18 @@ export function TicketAlertCriteriaEditor({
           </label>
         ) : null}
         <button
+          type="button"
+          className="ticket-alert-select-all"
+          disabled={citiesInherited || saving || effectiveCities === null}
+          onClick={() => setCities(null)}
+        >
+          Use preferred city ({preferredCity})
+        </button>
+        <button
           className="ticket-alert-select-all"
           type="button"
-          disabled={citiesInherited || effectiveCities === null}
-          onClick={() => setCities(null)}
+          disabled={citiesInherited || saving}
+          onClick={() => setCities([...ALL_LOCATIONS])}
         >
           All cities
         </button>
@@ -127,9 +202,7 @@ export function TicketAlertCriteriaEditor({
             <label key={city}>
               <input
                 type="checkbox"
-                checked={
-                  effectiveCities === null || effectiveCities.includes(city)
-                }
+                checked={selectedCities.includes(city)}
                 disabled={citiesInherited || saving}
                 onChange={(event) =>
                   toggleCity(city, event.currentTarget.checked)

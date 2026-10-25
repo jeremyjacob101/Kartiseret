@@ -178,6 +178,7 @@ describe.sequential(
         DEFAULT_TICKET_ALERT_CRITERIA,
       );
       const defaults = {
+        notificationMode: "first_any_city",
         cities: ["Haifa", "Jerusalem"],
         filters: {
           showType: ["Premium"],

@@ -51,9 +51,9 @@ class TicketAlertCriteriaTests(unittest.TestCase):
         )
         self.assertTrue(path.startswith("/ABCc"))
 
-    def test_defaults_match_all_cities_and_filters_and_allow_early_showings(self):
+    def test_defaults_use_jerusalem_and_filters_allow_early_showings(self):
         row = showtime(
-            screening_city="Haifa",
+            screening_city="Jerusalem",
             date_of_showing="2026-10-22",
             showtime="10:00",
             screening_type="Regular",
@@ -61,7 +61,7 @@ class TicketAlertCriteriaTests(unittest.TestCase):
         self.assertTrue(matches_ticket_alert_criteria(row, DEFAULTS))
         self.assertEqual(
             select_linked_showtime([row], NOW, DEFAULTS).city,
-            "Haifa",
+            "Jerusalem",
         )
 
     def test_unrestricted_show_type_includes_unknown_one_off_labels(self):
@@ -90,6 +90,7 @@ class TicketAlertCriteriaTests(unittest.TestCase):
             ),
             {
                 "cities": ["Jerusalem"],
+                "notificationMode": "first_any_city",
                 "filters": {
                     "showType": ["Premium"],
                     "screenFormat": ["3D"],

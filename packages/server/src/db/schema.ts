@@ -302,6 +302,7 @@ export const ticketAlertSubscriptions = pgTable(
       .notNull()
       .references(() => authUser.id, { onDelete: "cascade" }),
     tmdbId: bigint("tmdb_id", { mode: "bigint" }).notNull(),
+    baselineCities: text("baseline_cities").array().notNull().default([]),
     criteriaOverrides: jsonb("criteria_overrides")
       .$type<TicketAlertCriteriaOverride>()
       .notNull()
@@ -332,6 +333,9 @@ export const ticketAlertPreferences = pgTable("ticket_alert_preferences", {
     .primaryKey()
     .references(() => authUser.id, { onDelete: "cascade" }),
   cities: text("cities").array(),
+  notificationMode: text("notification_mode")
+    .notNull()
+    .default("first_any_city"),
   filterExclusions: jsonb("filter_exclusions")
     .$type<TicketAlertCriteria["filters"]>()
     .notNull()
@@ -477,6 +481,42 @@ export const letterboxdEventAlerts = pgTable(
   ],
 );
 
+export const movieNotificationEvents = pgTable("movie_notification_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => authUser.id, { onDelete: "cascade" }),
+  tmdbId: bigint("tmdb_id", { mode: "bigint" }).notNull(),
+  eventType: text("event_type").notNull(),
+  scopeCity: text("scope_city").notNull(),
+  status: text("status").notNull(),
+  eventPayload: jsonb("event_payload")
+    .$type<Record<string, JsonValue>>()
+    .notNull(),
+  notifiedAt: instant("notified_at"),
+  createdAt: instant("created_at").notNull().defaultNow(),
+  deliveryId: uuid("delivery_id"),
+});
+
+export const movieNotificationDeliveries = pgTable(
+  "movie_notification_deliveries",
+  {
+    id: uuid("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    events: jsonb("events").$type<JsonValue[]>().notNull(),
+    status: text("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    firstAttemptAt: instant("first_attempt_at"),
+    emailSnapshot: jsonb("email_snapshot").$type<JsonValue>(),
+    createdAt: instant("created_at").notNull().defaultNow(),
+    notifiedAt: instant("notified_at"),
+    resendEmailId: text("resend_email_id"),
+    lastError: text("last_error"),
+  },
+);
+
 export const userPreferences = pgTable("userPreferences", {
   signupInitialized: boolean("signup_initialized").notNull().default(false),
   // Identity references point to the app-owned auth schema.
@@ -514,6 +554,8 @@ export const utilRunLogs = pgTable("utilRunLogs", {
 });
 
 export const applicationTables = {
+  movieNotificationEvents,
+  movieNotificationDeliveries,
   cities,
   comingSoonDateWatches,
   letterboxdSources,

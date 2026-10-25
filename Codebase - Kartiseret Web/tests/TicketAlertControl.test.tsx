@@ -190,7 +190,9 @@ describe("TicketAlertControl", () => {
 
     expect(screen.getByRole("button", { name: "Alert sent" })).toBeDisabled();
     expect(
-      screen.getByText("Your one-time ticket alert has already been sent."),
+      screen.getByText(
+        "Your selected ticket availability alerts are complete.",
+      ),
     ).toBeInTheDocument();
   });
 });

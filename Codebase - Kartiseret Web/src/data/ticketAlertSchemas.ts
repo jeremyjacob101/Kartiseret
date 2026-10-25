@@ -47,6 +47,7 @@ export const userTicketAlertSubscriptionRowSchema = z.object({
   delivery_title: z.string().nullable(),
   delivery_date: isoDateStringSchema.nullable(),
   criteria_overrides: ticketAlertCriteriaOverrideSchema,
+  completed_cities: z.array(z.string()).default([]),
 });
 export const userTicketAlertSubscriptionSchema =
   userTicketAlertSubscriptionRowSchema.transform((row) => ({
@@ -56,6 +57,7 @@ export const userTicketAlertSubscriptionSchema =
     deliveryTitle: row.delivery_title,
     deliveryDate: row.delivery_date,
     criteriaOverrides: row.criteria_overrides,
+    completedCities: row.completed_cities,
   }));
 export const userTicketAlertSubscriptionRowsSchema =
   userTicketAlertSubscriptionSchema.array();
