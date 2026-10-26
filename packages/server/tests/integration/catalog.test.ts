@@ -937,96 +937,170 @@ describe("PostgreSQL 17 integration", () => {
     }
   });
 
-  it("loads local dates and counts only today-or-later showtimes across cities", async () => {
-    const movieIds = [9199978, 9199979];
+  it("splits all-city regular screenings at day 14 and applies ranking consistently in both API paths", async () => {
+    const [nearMovie, distantMovie, unreleasedMovie, releasedMovie] = [
+      9199978, 9199979, 9199980, 9199981,
+    ] as const;
+    const movieIds: number[] = [
+      nearMovie,
+      distantMovie,
+      unreleasedMovie,
+      releasedMovie,
+    ];
     const { rows } = await adminDatabase.pool.query<{
       today: string;
       yesterday: string;
-      future: string;
+      tomorrow: string;
+      day14: string;
+      day15: string;
+      day60: string;
     }>(`
       SELECT
         (now() AT TIME ZONE 'Asia/Jerusalem')::date::text AS today,
         ((now() AT TIME ZONE 'Asia/Jerusalem')::date - 1)::text AS yesterday,
-        ((now() AT TIME ZONE 'Asia/Jerusalem')::date + 2)::text AS future
+        ((now() AT TIME ZONE 'Asia/Jerusalem')::date + 1)::text AS tomorrow,
+        ((now() AT TIME ZONE 'Asia/Jerusalem')::date + 14)::text AS day14,
+        ((now() AT TIME ZONE 'Asia/Jerusalem')::date + 15)::text AS day15,
+        ((now() AT TIME ZONE 'Asia/Jerusalem')::date + 60)::text AS day60
     `);
-    const { today, yesterday, future } = rows[0]!;
+    const { today, yesterday, tomorrow, day14, day15, day60 } = rows[0]!;
 
-    await adminDatabase.db.insert(schema.finalMovies).values([
-      {
-        tmdbId: movieIds[0]!,
-        englishTitle: "Two Future Shows",
-        popularity: 20,
-      },
-      { tmdbId: movieIds[1]!, englishTitle: "One Future Show", popularity: 10 },
-    ]);
-    await adminDatabase.db.insert(schema.movieReleaseDates).values([
-      { tmdbId: movieIds[0]!, localReleaseDate: "2026-01-05" },
-      { tmdbId: movieIds[1]!, localReleaseDate: "2026-02-05" },
-    ]);
-    const insertedShowtimes = await adminDatabase.db
-      .insert(schema.finalShowtimes)
-      .values([
+    try {
+      await adminDatabase.db.insert(schema.finalMovies).values(
+        movieIds.map((tmdbId) => ({
+          tmdbId,
+          englishTitle: `Ranking Fixture ${tmdbId}`,
+          popularity: 20,
+        })),
+      );
+      await adminDatabase.db.insert(schema.movieReleaseDates).values([
+        { tmdbId: nearMovie, localReleaseDate: yesterday },
+        { tmdbId: distantMovie, localReleaseDate: yesterday },
+        { tmdbId: unreleasedMovie, localReleaseDate: tomorrow },
+        { tmdbId: releasedMovie, localReleaseDate: today },
+      ]);
+      await adminDatabase.db.insert(schema.finalShowtimes).values([
         {
-          tmdbId: movieIds[0]!,
+          tmdbId: nearMovie,
           screeningCity: "Jerusalem",
           dateOfShowing: today,
           cinema: "Ranking Fixture A",
           showtime: "18:00:00",
         },
         {
-          tmdbId: movieIds[0]!,
+          tmdbId: nearMovie,
           screeningCity: "Tel Aviv",
-          dateOfShowing: future,
+          dateOfShowing: day14,
           cinema: "Ranking Fixture B",
           showtime: "20:00:00",
         },
         {
-          tmdbId: movieIds[0]!,
+          tmdbId: nearMovie,
           screeningCity: "Haifa",
-          dateOfShowing: yesterday,
+          dateOfShowing: day15,
           cinema: "Ranking Fixture C",
           showtime: "21:00:00",
         },
         {
-          tmdbId: movieIds[1]!,
-          screeningCity: "Beer Sheva",
-          dateOfShowing: future,
-          cinema: "Ranking Fixture D",
-          showtime: "19:00:00",
-        },
-        {
-          tmdbId: movieIds[1]!,
-          screeningCity: "Eilat",
+          tmdbId: nearMovie,
+          screeningCity: "Haifa",
           dateOfShowing: yesterday,
-          cinema: "Ranking Fixture E",
+          cinema: "Ranking Fixture Past",
           showtime: "21:00:00",
         },
-      ])
-      .returning({ id: schema.finalShowtimes.id });
+        {
+          tmdbId: nearMovie,
+          screeningCity: "Haifa",
+          dateOfShowing: null,
+          cinema: "Ranking Fixture Undated",
+          showtime: "21:00:00",
+        },
+        ...Array.from({ length: 100 }, (_, index) => ({
+          tmdbId: distantMovie,
+          screeningCity: index % 2 ? "Beer Sheva" : "Eilat",
+          dateOfShowing: index % 2 ? day15 : day60,
+          cinema: `Ranking Fixture D ${index}`,
+          showtime: "19:00:00",
+        })),
+      ]);
+      await adminDatabase.db.insert(schema.finalTheques).values({
+        tmdbId: unreleasedMovie,
+        englishTitle: "Ranking Fixture Cinematheque",
+        showtime: "18:00:00",
+        runId: 991201,
+        dateOfShowing: today,
+        screeningCity: "Jerusalem",
+        cinema: "Ranking Fixture Cinematheque",
+      });
 
-    try {
-      const rows = await runtimeRepository.findNowPlayingRows();
+      const loaded = await runtimeRepository.findNowPlayingRows();
       const byId = new Map(
-        (rows as Array<Record<string, unknown>>)
+        (loaded as Array<Record<string, unknown>>)
           .filter((row) => movieIds.includes(Number(row.tmdbId)))
           .map((row) => [Number(row.tmdbId), row]),
       );
+      expect(byId.get(nearMovie)).toMatchObject({
+        nearShowtimeCount: 2,
+        distantShowtimeCount: 1,
+        localReleaseDate: yesterday,
+        rankingDate: today,
+      });
+      expect(byId.get(distantMovie)).toMatchObject({
+        nearShowtimeCount: 0,
+        distantShowtimeCount: 100,
+        localReleaseDate: yesterday,
+        rankingDate: today,
+      });
+      expect(byId.get(unreleasedMovie)).toMatchObject({
+        nearShowtimeCount: 0,
+        distantShowtimeCount: 0,
+        localReleaseDate: tomorrow,
+        rankingDate: today,
+      });
+      expect(byId.get(releasedMovie)).toMatchObject({
+        nearShowtimeCount: 0,
+        distantShowtimeCount: 0,
+        localReleaseDate: today,
+        rankingDate: today,
+      });
 
-      expect(byId.get(movieIds[0]!)).toMatchObject({
-        showtimeCount: 2,
-        localReleaseDate: "2026-01-05",
-      });
-      expect(byId.get(movieIds[1]!)).toMatchObject({
-        showtimeCount: 1,
-        localReleaseDate: "2026-02-05",
-      });
+      const legacyApp = createApp({ catalogRepository: runtimeRepository });
+      const responses = await Promise.all([
+        request(app).get("/api/v1/catalog/now-playing"),
+        request(legacyApp).get("/api/v1/catalog/now-playing"),
+      ]);
+      const orders: string[][] = [];
+      for (const response of responses) {
+        expect(response.status).toBe(200);
+        const movies = response.body.data.movies as Array<
+          Record<string, unknown>
+        >;
+        const ids = movies
+          .filter((movie) => movieIds.includes(Number(movie.tmdbId)))
+          .map((movie) => String(movie.tmdbId));
+        expect(ids).toHaveLength(4);
+        expect(ids.indexOf(String(nearMovie))).toBeLessThan(
+          ids.indexOf(String(distantMovie)),
+        );
+        expect(ids.indexOf(String(releasedMovie))).toBeLessThan(
+          ids.indexOf(String(unreleasedMovie)),
+        );
+        for (const movie of movies) {
+          expect(movie).not.toHaveProperty("rankingDate");
+          expect(movie).not.toHaveProperty("nearShowtimeCount");
+          expect(movie).not.toHaveProperty("distantShowtimeCount");
+          expect(movie).not.toHaveProperty("localReleaseDate");
+        }
+        orders.push(ids);
+      }
+      expect(orders[0]).toEqual(orders[1]);
     } finally {
-      await adminDatabase.db.delete(schema.finalShowtimes).where(
-        inArray(
-          schema.finalShowtimes.id,
-          insertedShowtimes.map((row) => row.id),
-        ),
-      );
+      await adminDatabase.db
+        .delete(schema.finalShowtimes)
+        .where(inArray(schema.finalShowtimes.tmdbId, movieIds));
+      await adminDatabase.db
+        .delete(schema.finalTheques)
+        .where(inArray(schema.finalTheques.tmdbId, movieIds));
       await adminDatabase.db
         .delete(schema.movieReleaseDates)
         .where(inArray(schema.movieReleaseDates.tmdbId, movieIds));

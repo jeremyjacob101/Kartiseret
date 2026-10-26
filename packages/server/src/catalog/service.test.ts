@@ -57,17 +57,20 @@ describe("catalog service ordering", () => {
       findNowPlayingRows: async () => [
         {
           ...row(3, 30),
-          showtimeCount: 0,
+          nearShowtimeCount: 0,
+          distantShowtimeCount: 0,
           localReleaseDate: "2024-01-01",
         },
         {
           ...row(2, 10),
-          showtimeCount: 30,
+          nearShowtimeCount: 30,
+          distantShowtimeCount: 30,
           localReleaseDate: "2024-01-01",
         },
         {
           ...row(1, 10),
-          showtimeCount: 0,
+          nearShowtimeCount: 0,
+          distantShowtimeCount: 0,
           localReleaseDate: "2026-01-01",
         },
       ],

@@ -18,6 +18,7 @@ import {
   theaters,
 } from "../db/schema.js";
 import { CatalogDatabaseError } from "./errors.js";
+import { NEAR_TERM_SHOWTIME_DAYS } from "./now-playing-ranking.js";
 import type { CatalogRepository } from "./service.js";
 import type {
   PublicDataRepository,
@@ -177,19 +178,25 @@ export class DrizzleCatalogRepository
 
   async findNowPlayingRows(): Promise<readonly unknown[]> {
     try {
+      const rankingDate = sql`(now() AT TIME ZONE 'Asia/Jerusalem')::date`;
+      const nearWindowEnd = sql`${rankingDate} + ${NEAR_TERM_SHOWTIME_DAYS}::int`;
       const futureShowtimeCounts = this.db
         .select({
           tmdbId: finalShowtimes.tmdbId,
-          showtimeCount: sql<number>`count(*)::int`.as("showtime_count"),
+          nearShowtimeCount:
+            sql<number>`(count(*) FILTER (WHERE ${finalShowtimes.dateOfShowing} <= ${nearWindowEnd}))::int`.as(
+              "near_showtime_count",
+            ),
+          distantShowtimeCount:
+            sql<number>`(count(*) FILTER (WHERE ${finalShowtimes.dateOfShowing} > ${nearWindowEnd}))::int`.as(
+              "distant_showtime_count",
+            ),
         })
         .from(finalShowtimes)
         .where(
           and(
             isNotNull(finalShowtimes.tmdbId),
-            gte(
-              finalShowtimes.dateOfShowing,
-              sql`(now() AT TIME ZONE 'Asia/Jerusalem')::date`,
-            ),
+            gte(finalShowtimes.dateOfShowing, rankingDate),
           ),
         )
         .groupBy(finalShowtimes.tmdbId)
@@ -199,7 +206,9 @@ export class DrizzleCatalogRepository
         .select({
           ...nowPlayingProjection,
           localReleaseDate: movieReleaseDates.localReleaseDate,
-          showtimeCount: sql<number>`coalesce(${futureShowtimeCounts.showtimeCount}, 0)::int`,
+          rankingDate: sql<string>`${rankingDate}::text`,
+          nearShowtimeCount: sql<number>`coalesce(${futureShowtimeCounts.nearShowtimeCount}, 0)::int`,
+          distantShowtimeCount: sql<number>`coalesce(${futureShowtimeCounts.distantShowtimeCount}, 0)::int`,
         })
         .from(finalMovies)
         .leftJoin(

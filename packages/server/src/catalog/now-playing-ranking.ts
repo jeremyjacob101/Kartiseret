@@ -1,4 +1,10 @@
 import { tmdbIdSchema } from "@kartiseret/contracts/runtime";
+import {
+  getZonedDateTimeParts,
+  SHOWTIME_TIME_ZONE,
+} from "@kartiseret/contracts/showtime-day";
+
+export const NEAR_TERM_SHOWTIME_DAYS = 14;
 
 type RankValue = number | string | null;
 
@@ -66,21 +72,44 @@ function percentileRankNumerators(values: readonly RankValue[]): number[] {
 }
 
 /**
- * Rank features as percentiles and use their sum to order rows. For a fixed
- * catalog size, each percentile has the same denominator, so integer midrank
- * numerators preserve the exact average while avoiding floating point ties.
+ * Average popularity, showtimes, and released-date recency percentiles equally.
+ * The showtime signal is 90% near-term and 10% distant; its distant contribution
+ * is therefore capped independently of the number of advance screenings.
+ * All percentiles share a denominator, so integer midrank numerators and integer
+ * weights preserve exact final ties. Future dates share the missing-date rank.
  */
-export function orderNowPlayingRows<T>(rows: readonly T[]): T[] {
+export function orderNowPlayingRows<T>(
+  rows: readonly T[],
+  instant: Date = new Date(),
+): T[] {
+  const fallbackRankingDate = getZonedDateTimeParts(
+    SHOWTIME_TIME_ZONE,
+    instant,
+  ).date;
   const popularityRanks = percentileRankNumerators(
     rows.map((row) => numericValue(readField(row, "popularity"))),
   );
-  const showtimeRanks = percentileRankNumerators(
+  const nearShowtimeRanks = percentileRankNumerators(
     rows.map((row) =>
-      Math.max(0, numericValue(readField(row, "showtimeCount")) ?? 0),
+      Math.max(0, numericValue(readField(row, "nearShowtimeCount")) ?? 0),
+    ),
+  );
+  const distantShowtimeRanks = percentileRankNumerators(
+    rows.map((row) =>
+      Math.max(0, numericValue(readField(row, "distantShowtimeCount")) ?? 0),
     ),
   );
   const releaseDateRanks = percentileRankNumerators(
-    rows.map((row) => calendarDate(readField(row, "localReleaseDate"))),
+    rows.map((row) => {
+      const releaseDate = calendarDate(readField(row, "localReleaseDate"));
+      // Database rows carry the statement's Israel calendar date, keeping this
+      // check aligned with the screening windows even across local midnight.
+      const rankingDate =
+        calendarDate(readField(row, "rankingDate")) ?? fallbackRankingDate;
+      return releaseDate !== null && releaseDate <= rankingDate
+        ? releaseDate
+        : null;
+    }),
   );
 
   return rows
@@ -88,9 +117,10 @@ export function orderNowPlayingRows<T>(rows: readonly T[]): T[] {
       row,
       tmdbId: BigInt(tmdbIdSchema.parse(readField(row, "tmdbId"))),
       score:
-        (popularityRanks[index] ?? 0) +
-        (showtimeRanks[index] ?? 0) +
-        (releaseDateRanks[index] ?? 0),
+        10 * (popularityRanks[index] ?? 0) +
+        9 * (nearShowtimeRanks[index] ?? 0) +
+        (distantShowtimeRanks[index] ?? 0) +
+        10 * (releaseDateRanks[index] ?? 0),
     }))
     .sort(
       (left, right) =>
