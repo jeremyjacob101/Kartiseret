@@ -1,6 +1,15 @@
 import { tmdbIdSchema } from "@kartiseret/contracts/runtime";
+import {
+  getZonedDateTimeParts,
+  SHOWTIME_TIME_ZONE,
+} from "@kartiseret/contracts/showtime-day";
 
-type RankValue = number | string | null;
+const MILLISECONDS_PER_DAY = 86_400_000;
+const RELEASE_RECENCY_MIDPOINT_DAYS = 17;
+const RELEASE_RECENCY_SLOPE_DAYS = 5;
+const RECENCY_SCORE_PRECISION = 1_000_000;
+
+type RankValue = number | null;
 
 function readField(value: unknown, field: string): unknown {
   return typeof value === "object" && value !== null
@@ -30,12 +39,7 @@ function compareRankValues(left: RankValue, right: RankValue): number {
     if (left !== right) return left === null ? -1 : 1;
     return 0;
   }
-  if (typeof left === "number" && typeof right === "number") {
-    return left - right;
-  }
-  const leftText = String(left);
-  const rightText = String(right);
-  return leftText < rightText ? -1 : leftText > rightText ? 1 : 0;
+  return left - right;
 }
 
 function percentileRankNumerators(values: readonly RankValue[]): number[] {
@@ -66,31 +70,57 @@ function percentileRankNumerators(values: readonly RankValue[]): number[] {
 }
 
 /**
- * Rank features as percentiles and use their sum to order rows. For a fixed
- * catalog size, each percentile has the same denominator, so integer midrank
- * numerators preserve the exact average while avoiding floating point ties.
+ * Average popularity, upcoming showtime count, and release-date proximity
+ * equally. The first two signals use catalog percentiles; release proximity is
+ * a smooth 0–1 curve that peaks on the release date and decays symmetrically
+ * before and after it. Integer-scaled signals preserve exact final ties.
  */
-export function orderNowPlayingRows<T>(rows: readonly T[]): T[] {
+export function orderNowPlayingRows<T>(
+  rows: readonly T[],
+  instant: Date = new Date(),
+): T[] {
+  const fallbackRankingDate = getZonedDateTimeParts(
+    SHOWTIME_TIME_ZONE,
+    instant,
+  ).date;
   const popularityRanks = percentileRankNumerators(
     rows.map((row) => numericValue(readField(row, "popularity"))),
   );
   const showtimeRanks = percentileRankNumerators(
     rows.map((row) =>
-      Math.max(0, numericValue(readField(row, "showtimeCount")) ?? 0),
+      Math.max(0, numericValue(readField(row, "upcomingShowtimeCount")) ?? 0),
     ),
   );
-  const releaseDateRanks = percentileRankNumerators(
-    rows.map((row) => calendarDate(readField(row, "localReleaseDate"))),
-  );
+  const releaseProximityScores = rows.map((row) => {
+    const releaseDate = calendarDate(readField(row, "localReleaseDate"));
+    // Database rows carry the statement's Israel calendar date, keeping this
+    // check aligned with showtime counts even across local midnight.
+    const rankingDate =
+      calendarDate(readField(row, "rankingDate")) ?? fallbackRankingDate;
+    if (releaseDate === null) return 0;
+    const releaseDay = Date.parse(`${releaseDate}T00:00:00.000Z`);
+    const rankingDay = Date.parse(`${rankingDate}T00:00:00.000Z`);
+    const distanceInDays =
+      Math.abs(releaseDay - rankingDay) / MILLISECONDS_PER_DAY;
+    return Math.round(
+      RECENCY_SCORE_PRECISION /
+        (1 +
+          Math.exp(
+            (distanceInDays - RELEASE_RECENCY_MIDPOINT_DAYS) /
+              RELEASE_RECENCY_SLOPE_DAYS,
+          )),
+    );
+  });
+  const percentileDenominator = Math.max(1, 2 * (rows.length - 1));
 
   return rows
     .map((row, index) => ({
       row,
       tmdbId: BigInt(tmdbIdSchema.parse(readField(row, "tmdbId"))),
       score:
-        (popularityRanks[index] ?? 0) +
-        (showtimeRanks[index] ?? 0) +
-        (releaseDateRanks[index] ?? 0),
+        (popularityRanks[index] ?? 0) * RECENCY_SCORE_PRECISION +
+        (showtimeRanks[index] ?? 0) * RECENCY_SCORE_PRECISION +
+        (releaseProximityScores[index] ?? 0) * percentileDenominator,
     }))
     .sort(
       (left, right) =>

@@ -177,19 +177,19 @@ export class DrizzleCatalogRepository
 
   async findNowPlayingRows(): Promise<readonly unknown[]> {
     try {
+      const rankingDate = sql`(now() AT TIME ZONE 'Asia/Jerusalem')::date`;
       const futureShowtimeCounts = this.db
         .select({
           tmdbId: finalShowtimes.tmdbId,
-          showtimeCount: sql<number>`count(*)::int`.as("showtime_count"),
+          upcomingShowtimeCount: sql<number>`count(*)::int`.as(
+            "upcoming_showtime_count",
+          ),
         })
         .from(finalShowtimes)
         .where(
           and(
             isNotNull(finalShowtimes.tmdbId),
-            gte(
-              finalShowtimes.dateOfShowing,
-              sql`(now() AT TIME ZONE 'Asia/Jerusalem')::date`,
-            ),
+            gte(finalShowtimes.dateOfShowing, rankingDate),
           ),
         )
         .groupBy(finalShowtimes.tmdbId)
@@ -199,7 +199,8 @@ export class DrizzleCatalogRepository
         .select({
           ...nowPlayingProjection,
           localReleaseDate: movieReleaseDates.localReleaseDate,
-          showtimeCount: sql<number>`coalesce(${futureShowtimeCounts.showtimeCount}, 0)::int`,
+          rankingDate: sql<string>`${rankingDate}::text`,
+          upcomingShowtimeCount: sql<number>`coalesce(${futureShowtimeCounts.upcomingShowtimeCount}, 0)::int`,
         })
         .from(finalMovies)
         .leftJoin(

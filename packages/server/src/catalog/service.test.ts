@@ -57,18 +57,18 @@ describe("catalog service ordering", () => {
       findNowPlayingRows: async () => [
         {
           ...row(3, 30),
-          showtimeCount: 0,
+          upcomingShowtimeCount: 0,
           localReleaseDate: "2024-01-01",
         },
         {
           ...row(2, 10),
-          showtimeCount: 30,
+          upcomingShowtimeCount: 30,
           localReleaseDate: "2024-01-01",
         },
         {
-          ...row(1, 10),
-          showtimeCount: 0,
-          localReleaseDate: "2026-01-01",
+          ...row(1, 20),
+          upcomingShowtimeCount: 15,
+          localReleaseDate: "2024-01-01",
         },
       ],
       findMovieCodes: async () => new Map(),
