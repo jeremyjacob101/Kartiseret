@@ -6,6 +6,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import EmbeddedPostgres from "embedded-postgres";
+import { exitAfterTestDatabaseCleanup } from "./exit-after-test-database-cleanup.mjs";
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(currentDirectory, "../../..");
@@ -124,4 +125,7 @@ try {
   await rm(databaseDirectory, { force: true, recursive: true });
 }
 
-process.exitCode = exitCode;
+// embedded-postgres registers an async `beforeExit` hook that ends the
+// process with status 0. The database has already been stopped and removed, so
+// exit explicitly here to preserve the test command's status.
+exitAfterTestDatabaseCleanup(exitCode);
