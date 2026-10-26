@@ -160,15 +160,18 @@ describe("private request identity and cache ownership", () => {
       ]),
     ).toEqual(["public"]);
   });
-  it("does not retry rejected writes", async () => {
+  it("surfaces protected API rate limits without retrying writes or changing the signed-in account", async () => {
     const transport = vi.fn(
       async () =>
         new Response(
           JSON.stringify({
             data: null,
-            error: { code: "unauthorized", message: "Session expired" },
+            error: {
+              code: "rate_limited",
+              message: "Please wait briefly and try again.",
+            },
           }),
-          { status: 401 },
+          { status: 429, headers: { "Retry-After": "24" } },
         ),
     );
     vi.stubGlobal("fetch", transport);
@@ -177,7 +180,8 @@ describe("private request identity and cache ownership", () => {
         method: "PATCH",
         body: { siteColor: "#123456" },
       }),
-    ).rejects.toMatchObject({ status: 401 });
+    ).rejects.toMatchObject({ status: 429, code: "rate_limited" });
     expect(transport).toHaveBeenCalledTimes(1);
+    expect(getSession).toHaveBeenCalledTimes(1);
   });
 });

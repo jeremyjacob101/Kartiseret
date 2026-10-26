@@ -2,6 +2,7 @@ import { timeCatalogStageSync } from "./catalog-timing.js";
 import { withPublicationSnapshot } from "./public-data/snapshot.js";
 import { PUBLICATION_REVISION_HEADER } from "@kartiseret/contracts/public-data";
 import { createProtectedRouter } from "./protected/router.js";
+import type { ProtectedRateLimitOptions } from "./protected/router.js";
 import type { IdentityVerifier } from "./protected/identity.js";
 import type { ProtectedWorkflowService } from "./protected/service.js";
 import express, {
@@ -54,6 +55,7 @@ export interface AppDependencies {
   recipientRouter?: Router;
   trustedOrigins?: readonly string[];
   tmdbSearch?: TmdbSearchProvider;
+  protectedRateLimit?: ProtectedRateLimitOptions;
 }
 
 const silentLogger: AppLogger = {
@@ -97,6 +99,7 @@ export function createApp({
   recipientRouter,
   trustedOrigins = [],
   tmdbSearch,
+  protectedRateLimit,
 }: AppDependencies) {
   const app = express();
   app.disable("x-powered-by");
@@ -428,6 +431,7 @@ export function createApp({
         identityVerifier,
         protectedWorkflows,
         trustedOrigins,
+        protectedRateLimit,
       ),
     );
 
