@@ -9,18 +9,18 @@ For each signal, compute a 0–1 percentile within the visible catalog. Ties sha
 the average of their occupied ranks. The overall score is:
 
 ```text
-showtimes = 0.90 × percentile(near screenings)
-          + 0.10 × percentile(distant screenings)
+showtimes = 0.80 × percentile(near screenings)
+          + 0.20 × percentile(distant screenings)
 
 score = (percentile(popularity) + showtimes + percentile(released date)) / 3
 ```
 
-The scorer uses integer midrank numerators with weights 10, 9, 1, and 10. This
+The scorer uses integer midrank numerators with weights 10, 8, 2, and 10. This
 preserves the exact ordering of the formula without floating point errors when
 final scores tie. Final ties use ascending numeric TMDb ID.
 
-The distant component can contribute at most 10% of the showtime signal, or
-1/30 of the overall normalized score. Large advance schedules cannot increase
+The distant component can contribute at most 20% of the showtime signal, or
+1/15 of the overall normalized score. Large advance schedules cannot increase
 that cap. Popularity and release recency retain one third of the score each.
 
 ## Calendar and eligibility

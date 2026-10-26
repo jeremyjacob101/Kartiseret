@@ -73,7 +73,7 @@ function percentileRankNumerators(values: readonly RankValue[]): number[] {
 
 /**
  * Average popularity, showtimes, and released-date recency percentiles equally.
- * The showtime signal is 90% near-term and 10% distant; its distant contribution
+ * The showtime signal is 80% near-term and 20% distant; its distant contribution
  * is therefore capped independently of the number of advance screenings.
  * All percentiles share a denominator, so integer midrank numerators and integer
  * weights preserve exact final ties. Future dates share the missing-date rank.
@@ -118,8 +118,8 @@ export function orderNowPlayingRows<T>(
       tmdbId: BigInt(tmdbIdSchema.parse(readField(row, "tmdbId"))),
       score:
         10 * (popularityRanks[index] ?? 0) +
-        9 * (nearShowtimeRanks[index] ?? 0) +
-        (distantShowtimeRanks[index] ?? 0) +
+        8 * (nearShowtimeRanks[index] ?? 0) +
+        2 * (distantShowtimeRanks[index] ?? 0) +
         10 * (releaseDateRanks[index] ?? 0),
     }))
     .sort(

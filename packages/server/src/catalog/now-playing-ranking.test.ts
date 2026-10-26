@@ -26,7 +26,7 @@ function orderedIds(rows: ReturnType<typeof movie>[], at = instant) {
 describe("now-playing ranking", () => {
   it("gives popularity, combined showtimes, and released-date recency equal weight", () => {
     // Each movie wins one signal, is second in another, and last in the third.
-    // Matching window orders make the 90/10 split sum to one showtime signal.
+    // Matching window orders make the 80/20 split sum to one showtime signal.
     // All totals tie, so numeric IDs decide.
     expect(
       orderedIds([
@@ -64,7 +64,7 @@ describe("now-playing ranking", () => {
     ).toEqual([2, 1]);
   });
 
-  it("caps distant screenings at 10% of the showtime signal regardless of volume", () => {
+  it("caps distant screenings at 20% of the showtime signal regardless of volume", () => {
     expect(
       orderedIds([
         movie(1, 10, 0, 1_000_000_000, "2026-10-01"),
@@ -73,13 +73,14 @@ describe("now-playing ranking", () => {
     ).toEqual([2, 1]);
   });
 
-  it("uses the 90/10 split even when near-term percentile differences are small", () => {
+  it("uses the 80/20 split even when near-term percentile differences are small", () => {
     const rows = Array.from({ length: 12 }, (_, index) =>
       movie(index + 1, 10, index, index === 11 ? 0 : 1, null),
     );
     // Near-term ranks differ by 1/11; distant ranks differ by 6/11.
-    // 0.9/11 beats 0.1 * 6/11. An 85/15 split would reverse them.
-    expect(orderedIds(rows).slice(0, 2)).toEqual([12, 11]);
+    // 0.2 * 6/11 beats 0.8/11, so the distant leader wins this close
+    // comparison. A 90/10 split would put the near-term leader first.
+    expect(orderedIds(rows).slice(0, 2)).toEqual([11, 12]);
   });
 
   it("puts future dates at the same lowest recency rank as missing dates", () => {
