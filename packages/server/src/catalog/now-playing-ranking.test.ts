@@ -64,7 +64,7 @@ describe("now-playing ranking", () => {
     ).toEqual([2, 1]);
   });
 
-  it("boosts releases within 14 days on either side and leaves farther futures low", () => {
+  it("scores dates closer to today higher, including upcoming and recent releases", () => {
     expect(
       orderedIds([
         movie(1, 10, 1, "2026-12-17"),
@@ -75,7 +75,27 @@ describe("now-playing ranking", () => {
         movie(6, 10, 1, "2026-10-11"),
         movie(7, 10, 1, null),
       ]),
-    ).toEqual([4, 2, 3, 6, 1, 5, 7]);
+    ).toEqual([4, 2, 3, 5, 6, 1, 7]);
+  });
+
+  it("gives a slightly higher release-proximity score to each closer upcoming day", () => {
+    expect(
+      orderedIds([
+        movie(3, 10, 1, "2026-10-29"),
+        movie(2, 10, 1, "2026-10-28"),
+        movie(1, 10, 1, "2026-10-27"),
+      ]),
+    ).toEqual([1, 2, 3]);
+  });
+
+  it("keeps release proximity on the same normalized scale as percentile signals", () => {
+    expect(
+      orderedIds([
+        movie(1, 20, 1, "2026-10-26"),
+        movie(2, 30, 1, "2026-11-18"),
+        movie(3, 10, 1, "2026-10-26"),
+      ]),
+    ).toEqual([1, 2, 3]);
   });
 
   it.each([

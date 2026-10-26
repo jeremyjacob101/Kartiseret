@@ -66,9 +66,9 @@ describe("catalog service ordering", () => {
           localReleaseDate: "2024-01-01",
         },
         {
-          ...row(1, 10),
-          upcomingShowtimeCount: 0,
-          localReleaseDate: "2026-01-01",
+          ...row(1, 20),
+          upcomingShowtimeCount: 15,
+          localReleaseDate: "2024-01-01",
         },
       ],
       findMovieCodes: async () => new Map(),

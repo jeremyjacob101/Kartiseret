@@ -139,9 +139,9 @@ describe("public movie catalog service", () => {
         {
           ...nowPlaying,
           tmdbId: 9100001,
-          popularity: 10,
-          upcomingShowtimeCount: 0,
-          localReleaseDate: "2026-01-01",
+          popularity: 20,
+          upcomingShowtimeCount: 15,
+          localReleaseDate: "2024-01-01",
         },
       ]),
       findMovieCodes: vi.fn(async () => new Map()),

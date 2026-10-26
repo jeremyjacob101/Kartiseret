@@ -5,9 +5,11 @@ import {
 } from "@kartiseret/contracts/showtime-day";
 
 const MILLISECONDS_PER_DAY = 86_400_000;
-const RELEASE_RECENCY_WINDOW_DAYS = 14;
+const RELEASE_RECENCY_MIDPOINT_DAYS = 17;
+const RELEASE_RECENCY_SLOPE_DAYS = 5;
+const RECENCY_SCORE_PRECISION = 1_000_000;
 
-type RankValue = number | string | null;
+type RankValue = number | null;
 
 function readField(value: unknown, field: string): unknown {
   return typeof value === "object" && value !== null
@@ -37,12 +39,7 @@ function compareRankValues(left: RankValue, right: RankValue): number {
     if (left !== right) return left === null ? -1 : 1;
     return 0;
   }
-  if (typeof left === "number" && typeof right === "number") {
-    return left - right;
-  }
-  const leftText = String(left);
-  const rightText = String(right);
-  return leftText < rightText ? -1 : leftText > rightText ? 1 : 0;
+  return left - right;
 }
 
 function percentileRankNumerators(values: readonly RankValue[]): number[] {
@@ -74,10 +71,9 @@ function percentileRankNumerators(values: readonly RankValue[]): number[] {
 
 /**
  * Average popularity, upcoming showtime count, and release-date proximity
- * percentiles equally. Dates within 14 days of today rank highest on either
- * side of the local release date; further-future dates receive no recency
- * credit, and older released dates rank newest first. All percentiles share a
- * denominator, so integer midrank numerators preserve exact final ties.
+ * equally. The first two signals use catalog percentiles; release proximity is
+ * a smooth 0–1 curve that peaks on the release date and decays symmetrically
+ * before and after it. Integer-scaled signals preserve exact final ties.
  */
 export function orderNowPlayingRows<T>(
   rows: readonly T[],
@@ -95,38 +91,36 @@ export function orderNowPlayingRows<T>(
       Math.max(0, numericValue(readField(row, "upcomingShowtimeCount")) ?? 0),
     ),
   );
-  const releaseDateRanks = percentileRankNumerators(
-    rows.map((row) => {
-      const releaseDate = calendarDate(readField(row, "localReleaseDate"));
-      // Database rows carry the statement's Israel calendar date, keeping this
-      // check aligned with showtime counts even across local midnight.
-      const rankingDate =
-        calendarDate(readField(row, "rankingDate")) ?? fallbackRankingDate;
-      if (releaseDate === null) return null;
-      const releaseDay = Date.parse(`${releaseDate}T00:00:00.000Z`);
-      const rankingDay = Date.parse(`${rankingDate}T00:00:00.000Z`);
-      const dayOffset = Math.round(
-        (releaseDay - rankingDay) / MILLISECONDS_PER_DAY,
-      );
-      const distanceFromRelease = Math.abs(dayOffset);
-      if (distanceFromRelease <= RELEASE_RECENCY_WINDOW_DAYS) {
-        const proximityRank = String(
-          RELEASE_RECENCY_WINDOW_DAYS - distanceFromRelease,
-        ).padStart(2, "0");
-        return `1:${proximityRank}`;
-      }
-      return dayOffset < 0 ? `0:${releaseDate}` : null;
-    }),
-  );
+  const releaseProximityScores = rows.map((row) => {
+    const releaseDate = calendarDate(readField(row, "localReleaseDate"));
+    // Database rows carry the statement's Israel calendar date, keeping this
+    // check aligned with showtime counts even across local midnight.
+    const rankingDate =
+      calendarDate(readField(row, "rankingDate")) ?? fallbackRankingDate;
+    if (releaseDate === null) return 0;
+    const releaseDay = Date.parse(`${releaseDate}T00:00:00.000Z`);
+    const rankingDay = Date.parse(`${rankingDate}T00:00:00.000Z`);
+    const distanceInDays =
+      Math.abs(releaseDay - rankingDay) / MILLISECONDS_PER_DAY;
+    return Math.round(
+      RECENCY_SCORE_PRECISION /
+        (1 +
+          Math.exp(
+            (distanceInDays - RELEASE_RECENCY_MIDPOINT_DAYS) /
+              RELEASE_RECENCY_SLOPE_DAYS,
+          )),
+    );
+  });
+  const percentileDenominator = Math.max(1, 2 * (rows.length - 1));
 
   return rows
     .map((row, index) => ({
       row,
       tmdbId: BigInt(tmdbIdSchema.parse(readField(row, "tmdbId"))),
       score:
-        10 * (popularityRanks[index] ?? 0) +
-        10 * (showtimeRanks[index] ?? 0) +
-        10 * (releaseDateRanks[index] ?? 0),
+        (popularityRanks[index] ?? 0) * RECENCY_SCORE_PRECISION +
+        (showtimeRanks[index] ?? 0) * RECENCY_SCORE_PRECISION +
+        (releaseProximityScores[index] ?? 0) * percentileDenominator,
     }))
     .sort(
       (left, right) =>
