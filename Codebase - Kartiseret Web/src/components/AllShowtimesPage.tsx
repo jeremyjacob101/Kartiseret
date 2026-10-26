@@ -1,39 +1,7 @@
-import {
-  fixedAppDateString,
-  getNextShowtimePrefetchDayCount,
-  INITIAL_SHOWTIME_WINDOW_DAY_COUNT,
-  loadAdditionalShowtimeDays,
-  loadShowtimesAroundDate,
-  movieCollectionQueryOptions,
-  selectBroadMovieShowtimeDays,
-  selectMovies,
-  showtimeCityQueryOptions,
-  SHOWTIME_PREFETCH_CHUNK_DAY_COUNT,
-  SHOWTIME_WINDOW_DAY_COUNT,
-  type Movie,
-  type ShowtimeCityData,
-  type TheaterShowtimes,
-} from "../data/movieCatalog";
-import {
-  buildShowtimeFilterSelections,
-  filterTheatersBySelections,
-  getShowtimeFilterOptions,
-  saveShowtimeFilters,
-  updateShowtimeFilterState,
-  useShowtimeFiltersStore,
-  type ShowtimeFilterOptions,
-  type ShowtimeFilterSelections,
-} from "./showtimes/showtimeFilters";
-import {
-  filterMoviesByReleaseCategory,
-  MOVIE_RELEASE_CATEGORY_LABELS,
-  type MovieReleaseCategory,
-} from "../domain/movieRelease";
-import {
-  getShowtimeDateLabel,
-  getShowtimeTargetDate,
-  getTrailerEmbedUrl,
-} from "./showtimes/showtimeUtils";
+import { fixedAppDateString, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, movieCollectionQueryOptions, selectBroadMovieShowtimeDays, selectMovies, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, type Movie, type ShowtimeCityData, type TheaterShowtimes } from "../data/movieCatalog";
+import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, saveShowtimeFilters, updateShowtimeFilterState, useShowtimeFiltersStore, type ShowtimeFilterOptions, type ShowtimeFilterSelections } from "./showtimes/showtimeFilters";
+import { filterMoviesByReleaseCategory, MOVIE_RELEASE_CATEGORY_LABELS, type MovieReleaseCategory } from "../domain/movieRelease";
+import { getShowtimeDateLabel, getShowtimeTargetDate, getTrailerEmbedUrl } from "./showtimes/showtimeUtils";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
 import { applyMovieDisplayPreferences } from "../data/movieDisplayPreferences";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -141,13 +109,12 @@ export function AllShowtimesPage() {
   );
   const previousShowtimeLocationRef = useRef(location);
   const requestedShowtimePrefetchRef = useRef<string | null>(null);
-  const handleReleaseCategoryChange = useCallback(
-    (category: MovieReleaseCategory) => {
-      setReleaseCategory(category);
-      setOpenTrailerMovieId(null);
-    },
-    [],
-  );
+  const handleReleaseCategoryChange = useCallback((
+    category: MovieReleaseCategory,
+  ) => {
+    setReleaseCategory(category);
+    setOpenTrailerMovieId(null);
+  }, []);
   const dayPanels = useMemo<ShowtimesDayPanel[]>(() => {
     if (nowPlayingMovies.length === 0) {
       return [];
@@ -188,8 +155,7 @@ export function AllShowtimesPage() {
   const allLoadedTheaters = useMemo(
     () =>
       dayPanels.flatMap((day) =>
-        day.movies.flatMap(({ theaters }) => theaters),
-      ),
+        day.movies.flatMap(({ theaters }) => theaters)),
     [dayPanels],
   );
   const showtimeFilterOptions = useMemo<ShowtimeFilterOptions>(
@@ -298,8 +264,7 @@ export function AllShowtimesPage() {
       return nowPlayingMovies.some((movie) =>
         selectBroadMovieShowtimeDays(cityData, movie.tmdbId).some(
           (day) => day.date === date && day.theaters.length > 0,
-        ),
-      );
+        ));
     },
     [nowPlayingMovies, showtimeDataByCity],
   );
@@ -312,8 +277,7 @@ export function AllShowtimesPage() {
       cityByName
         .get(location)
         ?.neighboringCities.filter((cityName) =>
-          cityHasVisibleShowtimesOnDate(cityName, selectedDayPanel.date),
-        ) ?? [];
+          cityHasVisibleShowtimesOnDate(cityName, selectedDayPanel.date)) ?? [];
     const fallbackCityNames = cities
       .map((city) => city.name)
       .filter(
@@ -345,8 +309,7 @@ export function AllShowtimesPage() {
         await setLocationPreference(cityName);
       } finally {
         setPendingNearbyCity((current) =>
-          current === cityName ? null : current,
-        );
+          current === cityName ? null : current);
       }
     },
     [setLocationPreference],
@@ -578,17 +541,18 @@ export function AllShowtimesPage() {
                   </div>
                 ) : (
                   <div className="all-showtimes-movie-list">
-                    {effectiveSelectedDayPanel.movies.map(
-                      ({ movie, theaters }) => (
-                        <ShowtimesMovieRow
-                          key={`${effectiveSelectedDayPanel.date}-${movie.tmdbId}`}
-                          movie={movie}
-                          theaters={theaters}
-                          sources={sources}
-                          onOpenTrailer={setOpenTrailerMovieId}
-                        />
-                      ),
-                    )}
+                    {effectiveSelectedDayPanel.movies.map(({
+                      movie,
+                      theaters,
+                    }) => (
+                      <ShowtimesMovieRow
+                        key={`${effectiveSelectedDayPanel.date}-${movie.tmdbId}`}
+                        movie={movie}
+                        theaters={theaters}
+                        sources={sources}
+                        onOpenTrailer={setOpenTrailerMovieId}
+                      />
+                    ))}
                   </div>
                 )}
               </article>
