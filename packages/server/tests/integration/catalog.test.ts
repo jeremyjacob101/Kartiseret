@@ -937,15 +937,18 @@ describe("PostgreSQL 17 integration", () => {
     }
   });
 
-  it("splits all-city regular screenings at day 14 and applies ranking consistently in both API paths", async () => {
-    const [nearMovie, distantMovie, unreleasedMovie, releasedMovie] = [
-      9199978, 9199979, 9199980, 9199981,
-    ] as const;
+  it("counts all upcoming all-city regular screenings and applies ranking consistently in both API paths", async () => {
+    const [
+      fewShowtimeMovie,
+      manyShowtimeMovie,
+      upcomingReleaseMovie,
+      todayReleaseMovie,
+    ] = [9199978, 9199979, 9199980, 9199981] as const;
     const movieIds: number[] = [
-      nearMovie,
-      distantMovie,
-      unreleasedMovie,
-      releasedMovie,
+      fewShowtimeMovie,
+      manyShowtimeMovie,
+      upcomingReleaseMovie,
+      todayReleaseMovie,
     ];
     const { rows } = await adminDatabase.pool.query<{
       today: string;
@@ -974,49 +977,49 @@ describe("PostgreSQL 17 integration", () => {
         })),
       );
       await adminDatabase.db.insert(schema.movieReleaseDates).values([
-        { tmdbId: nearMovie, localReleaseDate: yesterday },
-        { tmdbId: distantMovie, localReleaseDate: yesterday },
-        { tmdbId: unreleasedMovie, localReleaseDate: tomorrow },
-        { tmdbId: releasedMovie, localReleaseDate: today },
+        { tmdbId: fewShowtimeMovie, localReleaseDate: yesterday },
+        { tmdbId: manyShowtimeMovie, localReleaseDate: yesterday },
+        { tmdbId: upcomingReleaseMovie, localReleaseDate: tomorrow },
+        { tmdbId: todayReleaseMovie, localReleaseDate: today },
       ]);
       await adminDatabase.db.insert(schema.finalShowtimes).values([
         {
-          tmdbId: nearMovie,
+          tmdbId: fewShowtimeMovie,
           screeningCity: "Jerusalem",
           dateOfShowing: today,
-          cinema: "Ranking Fixture A",
+          cinema: "Ranking Fixture Few A",
           showtime: "18:00:00",
         },
         {
-          tmdbId: nearMovie,
+          tmdbId: fewShowtimeMovie,
           screeningCity: "Tel Aviv",
           dateOfShowing: day14,
-          cinema: "Ranking Fixture B",
+          cinema: "Ranking Fixture Few B",
           showtime: "20:00:00",
         },
         {
-          tmdbId: nearMovie,
+          tmdbId: fewShowtimeMovie,
           screeningCity: "Haifa",
           dateOfShowing: day15,
-          cinema: "Ranking Fixture C",
+          cinema: "Ranking Fixture Few C",
           showtime: "21:00:00",
         },
         {
-          tmdbId: nearMovie,
+          tmdbId: fewShowtimeMovie,
           screeningCity: "Haifa",
           dateOfShowing: yesterday,
           cinema: "Ranking Fixture Past",
           showtime: "21:00:00",
         },
         {
-          tmdbId: nearMovie,
+          tmdbId: fewShowtimeMovie,
           screeningCity: "Haifa",
           dateOfShowing: null,
           cinema: "Ranking Fixture Undated",
           showtime: "21:00:00",
         },
         ...Array.from({ length: 100 }, (_, index) => ({
-          tmdbId: distantMovie,
+          tmdbId: manyShowtimeMovie,
           screeningCity: index % 2 ? "Beer Sheva" : "Eilat",
           dateOfShowing: index % 2 ? day15 : day60,
           cinema: `Ranking Fixture D ${index}`,
@@ -1024,7 +1027,7 @@ describe("PostgreSQL 17 integration", () => {
         })),
       ]);
       await adminDatabase.db.insert(schema.finalTheques).values({
-        tmdbId: unreleasedMovie,
+        tmdbId: upcomingReleaseMovie,
         englishTitle: "Ranking Fixture Cinematheque",
         showtime: "18:00:00",
         runId: 991201,
@@ -1039,27 +1042,23 @@ describe("PostgreSQL 17 integration", () => {
           .filter((row) => movieIds.includes(Number(row.tmdbId)))
           .map((row) => [Number(row.tmdbId), row]),
       );
-      expect(byId.get(nearMovie)).toMatchObject({
-        nearShowtimeCount: 2,
-        distantShowtimeCount: 1,
+      expect(byId.get(fewShowtimeMovie)).toMatchObject({
+        upcomingShowtimeCount: 3,
         localReleaseDate: yesterday,
         rankingDate: today,
       });
-      expect(byId.get(distantMovie)).toMatchObject({
-        nearShowtimeCount: 0,
-        distantShowtimeCount: 100,
+      expect(byId.get(manyShowtimeMovie)).toMatchObject({
+        upcomingShowtimeCount: 100,
         localReleaseDate: yesterday,
         rankingDate: today,
       });
-      expect(byId.get(unreleasedMovie)).toMatchObject({
-        nearShowtimeCount: 0,
-        distantShowtimeCount: 0,
+      expect(byId.get(upcomingReleaseMovie)).toMatchObject({
+        upcomingShowtimeCount: 0,
         localReleaseDate: tomorrow,
         rankingDate: today,
       });
-      expect(byId.get(releasedMovie)).toMatchObject({
-        nearShowtimeCount: 0,
-        distantShowtimeCount: 0,
+      expect(byId.get(todayReleaseMovie)).toMatchObject({
+        upcomingShowtimeCount: 0,
         localReleaseDate: today,
         rankingDate: today,
       });
@@ -1079,16 +1078,15 @@ describe("PostgreSQL 17 integration", () => {
           .filter((movie) => movieIds.includes(Number(movie.tmdbId)))
           .map((movie) => String(movie.tmdbId));
         expect(ids).toHaveLength(4);
-        expect(ids.indexOf(String(nearMovie))).toBeLessThan(
-          ids.indexOf(String(distantMovie)),
+        expect(ids.indexOf(String(manyShowtimeMovie))).toBeLessThan(
+          ids.indexOf(String(fewShowtimeMovie)),
         );
-        expect(ids.indexOf(String(releasedMovie))).toBeLessThan(
-          ids.indexOf(String(unreleasedMovie)),
+        expect(ids.indexOf(String(todayReleaseMovie))).toBeLessThan(
+          ids.indexOf(String(upcomingReleaseMovie)),
         );
         for (const movie of movies) {
           expect(movie).not.toHaveProperty("rankingDate");
-          expect(movie).not.toHaveProperty("nearShowtimeCount");
-          expect(movie).not.toHaveProperty("distantShowtimeCount");
+          expect(movie).not.toHaveProperty("upcomingShowtimeCount");
           expect(movie).not.toHaveProperty("localReleaseDate");
         }
         orders.push(ids);

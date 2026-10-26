@@ -9,38 +9,37 @@ For each signal, compute a 0–1 percentile within the visible catalog. Ties sha
 the average of their occupied ranks. The overall score is:
 
 ```text
-showtimes = 0.70 × percentile(near screenings)
-          + 0.30 × percentile(distant screenings)
+showtimes = percentile(total upcoming regular-cinema screenings)
 
-score = (percentile(popularity) + showtimes + percentile(released date)) / 3
+score = (percentile(popularity) + showtimes + percentile(release-date recency)) / 3
 ```
 
-The scorer uses integer midrank numerators with weights 10, 7, 3, and 10. This
+The scorer uses integer midrank numerators with equal weights. This
 preserves the exact ordering of the formula without floating point errors when
 final scores tie. Final ties use ascending numeric TMDb ID.
 
-The distant component can contribute at most 30% of the showtime signal, or
-1/10 of the overall normalized score. Large advance schedules cannot increase
-that cap. Popularity and release recency retain one third of the score each.
+Popularity, upcoming showtime count, and release-date proximity each contribute
+one third of the overall score.
 
 ## Calendar and eligibility
 
 - Use the calendar date in `Asia/Jerusalem`, starting at midnight. This ranking
   deliberately uses calendar dates, rather than the show's cinema-day grace
   period used for browsing screening times.
-- Near screenings are rows in `finalShowtimes` dated today through today + 14
-  days, including both endpoints. Distant screenings are dated day 15 or later.
+- Count `finalShowtimes` rows dated today or later as one showtime signal.
 - Count regular-cinema rows across all cities. Exclude past and undated rows;
   `finalTheques` screenings are not included. Missing screening counts are zero.
-- Rank local release dates only after the date arrives. A date later than today
-  shares the lowest rank with missing or invalid dates. Today's release gets
-  normal recency credit, and newer released dates rank above older ones.
+- Give valid local release dates within 14 days before or after today's Israel
+  date the highest recency ranks, with dates closer to today ranking higher.
+  Released dates older than 14 days rank newest first. Dates more than 14 days
+  in the future share the lowest rank with missing or invalid dates, so a film
+  months from release does not gain recency credit early.
 - Null popularity ranks below numeric popularity, including zero. Release year
   is never used as a replacement for the local release date.
 - Remove pending `solo_update` movies before calculating any percentiles.
 
-The database query returns its statement's Israel date with both screening
-counts. Recency uses that same date even when the request spans local midnight.
+The database query returns its statement's Israel date with the showtime count.
+Recency uses that same date even when the request spans local midnight.
 In-memory fixtures without this metadata use the scorer's supplied instant,
 which defaults to the current instant.
 

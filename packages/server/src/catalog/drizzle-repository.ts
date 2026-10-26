@@ -18,7 +18,6 @@ import {
   theaters,
 } from "../db/schema.js";
 import { CatalogDatabaseError } from "./errors.js";
-import { NEAR_TERM_SHOWTIME_DAYS } from "./now-playing-ranking.js";
 import type { CatalogRepository } from "./service.js";
 import type {
   PublicDataRepository,
@@ -179,18 +178,12 @@ export class DrizzleCatalogRepository
   async findNowPlayingRows(): Promise<readonly unknown[]> {
     try {
       const rankingDate = sql`(now() AT TIME ZONE 'Asia/Jerusalem')::date`;
-      const nearWindowEnd = sql`${rankingDate} + ${NEAR_TERM_SHOWTIME_DAYS}::int`;
       const futureShowtimeCounts = this.db
         .select({
           tmdbId: finalShowtimes.tmdbId,
-          nearShowtimeCount:
-            sql<number>`(count(*) FILTER (WHERE ${finalShowtimes.dateOfShowing} <= ${nearWindowEnd}))::int`.as(
-              "near_showtime_count",
-            ),
-          distantShowtimeCount:
-            sql<number>`(count(*) FILTER (WHERE ${finalShowtimes.dateOfShowing} > ${nearWindowEnd}))::int`.as(
-              "distant_showtime_count",
-            ),
+          upcomingShowtimeCount: sql<number>`count(*)::int`.as(
+            "upcoming_showtime_count",
+          ),
         })
         .from(finalShowtimes)
         .where(
@@ -207,8 +200,7 @@ export class DrizzleCatalogRepository
           ...nowPlayingProjection,
           localReleaseDate: movieReleaseDates.localReleaseDate,
           rankingDate: sql<string>`${rankingDate}::text`,
-          nearShowtimeCount: sql<number>`coalesce(${futureShowtimeCounts.nearShowtimeCount}, 0)::int`,
-          distantShowtimeCount: sql<number>`coalesce(${futureShowtimeCounts.distantShowtimeCount}, 0)::int`,
+          upcomingShowtimeCount: sql<number>`coalesce(${futureShowtimeCounts.upcomingShowtimeCount}, 0)::int`,
         })
         .from(finalMovies)
         .leftJoin(

@@ -6,15 +6,13 @@ const instant = new Date("2026-10-26T12:00:00Z");
 function movie(
   tmdbId: number,
   popularity: number | null,
-  nearShowtimeCount: number,
-  distantShowtimeCount: number,
+  upcomingShowtimeCount: number,
   localReleaseDate: string | null,
 ) {
   return {
     tmdbId,
     popularity,
-    nearShowtimeCount,
-    distantShowtimeCount,
+    upcomingShowtimeCount,
     localReleaseDate,
   };
 }
@@ -25,14 +23,13 @@ function orderedIds(rows: ReturnType<typeof movie>[], at = instant) {
 
 describe("now-playing ranking", () => {
   it("gives popularity, combined showtimes, and released-date recency equal weight", () => {
-    // Each movie wins one signal, is second in another, and last in the third.
-    // Matching window orders make the 70/30 split sum to one showtime signal.
-    // All totals tie, so numeric IDs decide.
+    // Popularity and showtime ranks offset each other; all release dates tie.
+    // All three signals contribute equally, so numeric IDs decide.
     expect(
       orderedIds([
-        movie(3, 20, 0, 0, "2026-10-26"),
-        movie(2, 10, 20, 20, "2025-01-01"),
-        movie(1, 30, 10, 10, "2024-01-01"),
+        movie(3, 20, 10, "2026-10-26"),
+        movie(2, 10, 20, "2026-10-26"),
+        movie(1, 30, 0, "2026-10-26"),
       ]),
     ).toEqual([1, 2, 3]);
   });
@@ -40,91 +37,83 @@ describe("now-playing ranking", () => {
   it("uses each signal when the others tie", () => {
     expect(
       orderedIds([
-        movie(1, 10, 4, 2, "2025-03-01"),
-        movie(2, 20, 4, 2, "2025-03-01"),
+        movie(1, 10, 4, "2026-10-26"),
+        movie(2, 20, 4, "2026-10-26"),
       ]),
     ).toEqual([2, 1]);
     expect(
       orderedIds([
-        movie(1, 10, 1, 2, "2025-03-01"),
-        movie(2, 10, 2, 2, "2025-03-01"),
+        movie(1, 10, 1, "2026-10-26"),
+        movie(2, 10, 2, "2026-10-26"),
       ]),
     ).toEqual([2, 1]);
     expect(
       orderedIds([
-        movie(1, 10, 2, 1, "2025-03-01"),
-        movie(2, 10, 2, 2, "2025-03-01"),
-      ]),
-    ).toEqual([2, 1]);
-    expect(
-      orderedIds([
-        movie(1, 10, 1, 2, "2025-03-01"),
-        movie(2, 10, 1, 2, "2026-03-01"),
+        movie(1, 10, 2, "2026-10-27"),
+        movie(2, 10, 2, "2026-10-26"),
       ]),
     ).toEqual([2, 1]);
   });
 
-  it("caps distant screenings at 30% of the showtime signal regardless of volume", () => {
+  it("ranks one total count of upcoming showtimes", () => {
     expect(
       orderedIds([
-        movie(1, 10, 0, 1_000_000_000, "2026-10-01"),
-        movie(2, 10, 1, 0, "2026-10-01"),
+        movie(1, 10, 1, "2026-10-26"),
+        movie(2, 10, 1_000_000_000, "2026-10-26"),
       ]),
     ).toEqual([2, 1]);
   });
 
-  it("uses a 70/30 split when near-term and distant ranks disagree", () => {
-    const distantCounts = [0, 1, 2, 3, 4, 5, 7, 8, 9, 11, 10, 6];
-    const rows = distantCounts.map((distantCount, index) =>
-      movie(index + 1, 10, index, distantCount, null),
-    );
-    // Movie 10 is two near-rank positions behind movie 12 but five distant-
-    // rank positions ahead. At 70/30, movie 10 wins by 0.1 rank points; an
-    // 80/20 split would put movie 12 first.
-    const rankedIds = orderedIds(rows);
-    expect(rankedIds.indexOf(10)).toBeLessThan(rankedIds.indexOf(12));
-  });
-
-  it("puts future dates at the same lowest recency rank as missing dates", () => {
+  it("boosts releases within 14 days on either side and leaves farther futures low", () => {
     expect(
       orderedIds([
-        movie(1, 10, 1, 1, "2026-12-17"),
-        movie(2, 10, 1, 1, "2026-10-08"),
-        movie(3, 10, 1, 1, null),
-        movie(4, 10, 1, 1, "2026-10-26"),
+        movie(1, 10, 1, "2026-12-17"),
+        movie(2, 10, 1, "2026-11-09"),
+        movie(3, 10, 1, "2026-10-12"),
+        movie(4, 10, 1, "2026-10-26"),
+        movie(5, 10, 1, "2026-11-10"),
+        movie(6, 10, 1, "2026-10-11"),
+        movie(7, 10, 1, null),
       ]),
-    ).toEqual([4, 2, 1, 3]);
+    ).toEqual([4, 2, 3, 6, 1, 5, 7]);
   });
 
   it.each([
-    ["2026-10-26T21:59:59Z", "2026-10-26T22:00:00Z", "2026-10-27"],
-    ["2026-08-01T20:59:59Z", "2026-08-01T21:00:00Z", "2026-08-02"],
+    [
+      "2026-10-26T21:59:59Z",
+      "2026-10-26T22:00:00Z",
+      "2026-10-26",
+      "2026-10-27",
+    ],
+    [
+      "2026-08-01T20:59:59Z",
+      "2026-08-01T21:00:00Z",
+      "2026-08-01",
+      "2026-08-02",
+    ],
   ])(
-    "starts recency credit at Israel midnight in winter and summer (%s)",
-    (before, after, releaseDate) => {
-      const rows = [
-        movie(1, 10, 1, 1, releaseDate),
-        movie(2, 10, 1, 1, "2026-01-01"),
-      ];
+    "uses Israel calendar days when measuring release proximity (%s)",
+    (before, after, today, tomorrow) => {
+      const rows = [movie(1, 10, 1, tomorrow), movie(2, 10, 1, today)];
       expect(orderedIds(rows, new Date(before))).toEqual([2, 1]);
       expect(orderedIds(rows, new Date(after))).toEqual([1, 2]);
     },
   );
 
-  it("uses the database statement date to align recency and screening windows", () => {
+  it("uses the database statement date to measure release proximity", () => {
     const rows = [
-      { ...movie(1, 10, 1, 1, "2026-10-27"), rankingDate: "2026-10-26" },
-      { ...movie(2, 10, 1, 1, "2026-10-25"), rankingDate: "2026-10-26" },
+      { ...movie(1, 10, 1, "2026-10-26"), rankingDate: "2026-10-26" },
+      { ...movie(2, 10, 1, "2026-10-27"), rankingDate: "2026-10-26" },
     ];
-    expect(orderedIds(rows, new Date("2026-10-27T01:00:00Z"))).toEqual([2, 1]);
+    expect(orderedIds(rows, new Date("2026-10-27T01:00:00Z"))).toEqual([1, 2]);
   });
 
   it("scores invalid and missing dates together and keeps NULL popularity below numeric zero", () => {
     expect(
       orderedIds([
-        movie(3, 0, 0, 0, "2026-02-30"),
-        movie(2, 0, 0, 0, null),
-        movie(1, null, 0, 0, null),
+        movie(3, 0, 0, "2026-02-30"),
+        movie(2, 0, 0, null),
+        movie(1, null, 0, null),
       ]),
     ).toEqual([2, 3, 1]);
   });
@@ -134,8 +123,8 @@ describe("now-playing ranking", () => {
       orderNowPlayingRows(
         [
           { tmdbId: 10 },
-          { tmdbId: 3, nearShowtimeCount: -1, distantShowtimeCount: -10 },
-          { tmdbId: 2, nearShowtimeCount: NaN, distantShowtimeCount: Infinity },
+          { tmdbId: 3, upcomingShowtimeCount: -1 },
+          { tmdbId: 2, upcomingShowtimeCount: NaN },
         ],
         instant,
       ).map((row) => row.tmdbId),
@@ -143,10 +132,7 @@ describe("now-playing ranking", () => {
   });
 
   it("shares tied ranks, resolves final ties numerically, and leaves input order untouched", () => {
-    const rows = [
-      movie(10, 5, 2, 3, "2025-03-01"),
-      movie(2, 5, 2, 3, "2025-03-01"),
-    ];
+    const rows = [movie(10, 5, 2, "2026-10-01"), movie(2, 5, 2, "2026-10-01")];
     expect(orderedIds(rows)).toEqual([2, 10]);
     expect(rows.map((row) => row.tmdbId)).toEqual([10, 2]);
     expect(orderedIds([])).toEqual([]);
