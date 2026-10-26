@@ -10,8 +10,10 @@ from backend.utils.console.utils.readchar import Keys
 
 
 class _FakeLive:
+    last_renderable = None
+
     def __init__(self, *_args, **_kwargs):
-        pass
+        type(self).last_renderable = _args[0] if _args else None
 
     def __enter__(self):
         return self
@@ -20,7 +22,7 @@ class _FakeLive:
         return False
 
     def update(self, _renderable):
-        pass
+        type(self).last_renderable = _renderable
 
 
 class InputMenuTests(TestCase):
@@ -43,6 +45,10 @@ class InputMenuTests(TestCase):
 
         self.assertEqual(mode, "alerts")
         self.assertEqual(groups, set())
+        output = StringIO()
+        Console(file=output, width=120).print(_FakeLive.last_renderable)
+        self.assertIn("Alerts", output.getvalue())
+        self.assertNotIn("ALERTS", output.getvalue())
 
     def test_none_group_checkbox_clears_when_a_group_is_selected(self):
         mode, groups = self._select_mode(

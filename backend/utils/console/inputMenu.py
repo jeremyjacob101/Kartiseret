@@ -173,7 +173,7 @@ def _plan_header(plan: List[Tuple[str, str, Optional[List[type]]]]) -> Panel:
     if selected_dataflows:
         lines.append(f"- Dataflow: {'; '.join(selected_dataflows)}\n", style="white")
     if selected_alerts:
-        lines.append(f"- ALERTS: {', '.join(selected_alerts)}\n", style="white")
+        lines.append(f"- Alerts: {', '.join(selected_alerts)}\n", style="white")
 
     return Panel(lines, title="Run Plan", border_style="grey37")
 
@@ -184,7 +184,7 @@ def _select_mode_and_groups(console: Console) -> Tuple[str, Set[str]]:
         _MenuItem("All", _ALL_VALUE),
         _MenuItem("Scrape", "scrape"),
         _MenuItem("Dataflow", "dataflow"),
-        _MenuItem("ALERTS", "alerts"),
+        _MenuItem("Alerts", "alerts"),
     ]
     groups_all_or_scrape = [
         _MenuItem("All", _ALL_VALUE),

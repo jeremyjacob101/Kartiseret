@@ -33,7 +33,7 @@ from backend.dataflow.cinematheques.CinemathequesTmdb import CinemathequesTmdb
 from backend.dataflow.cinematheques.CinemathequesUpdate import CinemathequesUpdate
 
 # These classes are run after the catalog stages and can also be selected on
-# their own from the interactive ALERTS menu.
+# their own from the interactive Alerts menu.
 POST_STAGE_DATAFLOW_CLASS_NAMES = frozenset({
     "MovieNotificationDispatcher",
     "TicketAlertDispatcher",
