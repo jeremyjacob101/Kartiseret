@@ -16,6 +16,18 @@ async function blockExternalServices(page: Page): Promise<void> {
       return;
     }
 
+    if (
+      url.hostname === "basemaps.cartocdn.com" &&
+      url.pathname.endsWith("/style.json")
+    ) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ version: 8, sources: {}, layers: [] }),
+      });
+      return;
+    }
+
     await route.fulfill({
       status: 200,
       contentType: "image/gif",
@@ -116,6 +128,19 @@ test("catalog API supports search and permanent short-code movie details", async
   ).toBe(true);
   expect(requests.some((request) => request.includes("/rest/v1/"))).toBe(false);
 
+  await page.goBack();
+  await expect(page).toHaveURL(/\/movies$/);
+  await expect(
+    page.getByRole("button", {
+      name: "Open Dev Catalog Film in scroller view",
+    }),
+  ).toBeVisible();
+  await page.goForward();
+  await expect(page).toHaveURL(/\/D01/);
+  await expect(
+    page.getByRole("heading", { name: "Dev Catalog Film" }),
+  ).toBeVisible();
+
   const shortLinkPage = await page.context().newPage();
   await blockExternalServices(shortLinkPage);
   await shortLinkPage.goto("/D01");
@@ -180,6 +205,22 @@ test("showtimes browse a real city/date and the active filter changes results", 
   ).toBeVisible();
   await twoDimensionalFilter.click();
   await expect(page.getByText("20:15", { exact: true })).toBeVisible();
+
+  const citySelector = page.getByRole("button", {
+    name: "Open city selector. Current city: Jerusalem",
+  });
+  await citySelector.last().click();
+  const cityDialog = page.getByRole("dialog");
+  await expect(cityDialog).toBeVisible();
+  const cityListButton = cityDialog.getByRole("button", {
+    name: "Open city list",
+  });
+  await expect(cityListButton).toBeEnabled();
+  await cityListButton.click();
+  await cityDialog.getByRole("option", { name: "Tel Aviv" }).click();
+  await expect(
+    page.getByRole("region", { name: "All showtimes in Tel Aviv" }),
+  ).toBeVisible();
 });
 
 test("an encoded Tel Aviv share link opens on mobile with targeted showtimes", async ({

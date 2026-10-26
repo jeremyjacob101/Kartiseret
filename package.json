@@ -17,6 +17,7 @@
     "web:dev": "npm run dev --workspace=kartiseret-web",
     "web:lint": "npm run lint --workspace=kartiseret-web",
     "web:test": "npm run server:build && npm run test --workspace=kartiseret-web",
+    "web:coverage": "npm run contracts:build && npm run coverage --workspace=kartiseret-web",
     "web:e2e": "npm run e2e --workspace=kartiseret-web",
     "web:og:smoke": "node --import tsx \"Codebase - Kartiseret Web/scripts/og-built-smoke.mjs\"",
     "web:typecheck": "npm run server:build && npm run typecheck --workspace=kartiseret-web",
