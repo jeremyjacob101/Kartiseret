@@ -5,6 +5,9 @@ import { DrizzleCatalogRepository } from "../../src/catalog/drizzle-repository.j
 import { ProtectedWorkflows } from "../../src/protected/service.js";
 import { createApp } from "../../src/app.js";
 import { HttpError } from "../../src/http-errors.js";
+import { ipKeyGenerator } from "express-rate-limit";
+import { PROTECTED_RATE_LIMIT_WINDOW_MS } from "../../src/protected/router.js";
+import { PostgresProtectedRateLimitStore } from "../../src/protected/rate-limit-store.js";
 import {
   DEFAULT_TICKET_ALERT_CRITERIA,
   MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE,
@@ -102,6 +105,7 @@ describe.sequential(
       );
     });
     afterAll(async () => {
+      await admin.pool.query("DELETE FROM app_auth.protected_rate_limits");
       await admin.pool.query(
         'ALTER TABLE public."finalShowtimes" DROP CONSTRAINT IF EXISTS pr4_late_failure',
       );
@@ -137,6 +141,89 @@ describe.sequential(
         [[alice.id, bob.id, owner.id]],
       );
       await Promise.all([runtime.close(), admin.close()]);
+    });
+    it("shares atomic hashed counters across app instances and denies browser roles", async () => {
+      const secret = "test-only-protected-rate-limit-secret";
+      const ip = "198.51.100.223";
+      const key = ipKeyGenerator(ip, 64);
+      const storeA = new PostgresProtectedRateLimitStore(
+        runtime.pool,
+        secret,
+        PROTECTED_RATE_LIMIT_WINDOW_MS,
+      );
+      const storeB = new PostgresProtectedRateLimitStore(
+        runtime.pool,
+        secret,
+        PROTECTED_RATE_LIMIT_WINDOW_MS,
+      );
+      await storeA.resetKey(key);
+      const createLimitedApp = (store: PostgresProtectedRateLimitStore) =>
+        createApp({
+          catalogRepository: publicRepository,
+          publicDataRepository: publicRepository,
+          protectedWorkflows: workflows,
+          trustedOrigins: ["http://localhost"],
+          identityVerifier: {
+            async verify(cookie) {
+              const identity = identities[cookie as keyof typeof identities];
+              if (!identity)
+                throw new HttpError(401, "unauthorized", "Invalid session.");
+              return identity;
+            },
+          },
+          protectedRateLimit: {
+            store,
+            limit: 2,
+            clientIp: (request) => request.get("x-test-client-ip") ?? undefined,
+          },
+        });
+      const appA = createLimitedApp(storeA);
+      const appB = createLimitedApp(storeB);
+      const send = (server: typeof appA) =>
+        request(server)
+          .get("/api/v1/account")
+          .set("x-test-client-ip", ip)
+          .set("Cookie", "alice");
+
+      const responses = await Promise.all([
+        send(appA),
+        send(appB),
+        send(appA),
+        send(appB),
+      ]);
+      expect(responses.map((response) => response.status).sort()).toEqual([
+        200, 200, 429, 429,
+      ]);
+      expect(await storeB.get(key)).toMatchObject({ totalHits: 4 });
+
+      const storedKeys = await admin.pool.query<{ key: string }>(
+        "SELECT key FROM app_auth.protected_rate_limits",
+      );
+      expect(storedKeys.rows).toEqual([
+        expect.objectContaining({
+          key: expect.stringMatching(/^[a-f0-9]{64}$/),
+        }),
+      ]);
+      expect(storedKeys.rows[0]?.key).not.toBe(ip);
+
+      const privileges = await admin.pool.query<{
+        runtime_can_select: boolean;
+        anon_can_select: boolean;
+        authenticated_can_select: boolean;
+        rls_enabled: boolean;
+      }>(`
+        SELECT
+          has_table_privilege('kartiseret_runtime', 'app_auth.protected_rate_limits', 'SELECT') AS runtime_can_select,
+          has_table_privilege('anon', 'app_auth.protected_rate_limits', 'SELECT') AS anon_can_select,
+          has_table_privilege('authenticated', 'app_auth.protected_rate_limits', 'SELECT') AS authenticated_can_select,
+          (SELECT relrowsecurity FROM pg_class WHERE oid = 'app_auth.protected_rate_limits'::regclass) AS rls_enabled
+      `);
+      expect(privileges.rows[0]).toEqual({
+        runtime_can_select: true,
+        anon_can_select: false,
+        authenticated_can_select: false,
+        rls_enabled: true,
+      });
     });
     it("initializes signup location once and preserves empty source choices and existing preferences", async () => {
       await admin.pool.query(

@@ -3,6 +3,7 @@ import request from "supertest";
 import { createApp } from "../app.js";
 import { HttpError } from "../http-errors.js";
 import type { ProtectedWorkflowService } from "./service.js";
+import type { ProtectedRateLimitOptions } from "./router.js";
 import {
   DEFAULT_TICKET_ALERT_CRITERIA,
   type TicketAlertCriteria,
@@ -14,7 +15,7 @@ const preferences = {
   location: "Haifa",
   siteColor: "#123456",
 };
-function setup() {
+function setup(protectedRateLimit?: ProtectedRateLimitOptions) {
   const user = { id, email: "qa@example.test" };
   const workflows: ProtectedWorkflowService = {
     account: vi.fn(async () => ({ user, isAdmin: false })),
@@ -98,10 +99,147 @@ function setup() {
       identityVerifier: { verify },
       protectedWorkflows: workflows,
       trustedOrigins: ["http://localhost"],
+      protectedRateLimit,
     }),
   };
 }
 describe("protected HTTP contracts", () => {
+  it("allows generous protected use, returns a retryable 429, and leaves public browsing available", async () => {
+    const { app, verify, workflows } = setup({
+      limit: 2,
+      clientIp: (request) => request.get("x-test-client-ip") ?? undefined,
+    });
+    const send = () =>
+      request(app)
+        .get("/api/v1/account")
+        .set("x-test-client-ip", "192.0.2.10")
+        .set("Cookie", "valid");
+
+    expect((await send()).status).toBe(200);
+    expect((await send()).status).toBe(200);
+    const limited = await send();
+    expect(limited.status).toBe(429);
+    expect(limited.body).toEqual({
+      data: null,
+      error: {
+        code: "rate_limited",
+        message: "Please wait briefly and try again.",
+      },
+    });
+    expect(limited.headers["cache-control"]).toBe("no-store");
+    expect(Number(limited.headers["retry-after"])).toBeGreaterThan(0);
+    expect(limited.headers["ratelimit-limit"]).toBe("2");
+    expect(limited.headers["ratelimit-remaining"]).toBe("0");
+    expect(verify).toHaveBeenCalledTimes(2);
+    expect(workflows.account).toHaveBeenCalledTimes(2);
+    expect((await request(app).get("/api/v1/catalog/now-playing")).status).toBe(
+      200,
+    );
+  });
+
+  it("counts invalid-cookie traffic before session verification", async () => {
+    const { app, verify, workflows } = setup({
+      limit: 2,
+      clientIp: (request) => request.get("x-test-client-ip") ?? undefined,
+    });
+    const send = () =>
+      request(app)
+        .get("/api/v1/account")
+        .set("x-test-client-ip", "192.0.2.12")
+        .set("Cookie", "invalid");
+
+    expect((await send()).status).toBe(401);
+    expect((await send()).status).toBe(401);
+    expect((await send()).status).toBe(429);
+    expect(verify).toHaveBeenCalledTimes(2);
+    expect(workflows.account).not.toHaveBeenCalled();
+  });
+
+  it("uses separate IP counters and groups IPv6 clients by their /64", async () => {
+    const { app } = setup({
+      limit: 1,
+      clientIp: (request) => request.get("x-test-client-ip") ?? undefined,
+    });
+    const send = (ip: string) =>
+      request(app)
+        .get("/api/v1/account")
+        .set("x-test-client-ip", ip)
+        .set("Cookie", "valid");
+
+    expect((await send("192.0.2.10")).status).toBe(200);
+    expect((await send("192.0.2.11")).status).toBe(200);
+    expect((await send("192.0.2.10")).status).toBe(429);
+    expect((await send("2001:db8::1")).status).toBe(200);
+    expect((await send("2001:db8::2")).status).toBe(429);
+    expect((await send("2001:db8:1::1")).status).toBe(200);
+  });
+
+  it("ignores forwarded IPs outside Vercel and lets requests continue when identity or storage is unavailable", async () => {
+    const missingIpDiagnostic = vi.fn();
+    const missingIp = setup({
+      clientIp: () => undefined,
+      onDiagnostic: missingIpDiagnostic,
+    });
+    const missingResult = await request(missingIp.app)
+      .get("/api/v1/account")
+      .set("Cookie", "valid")
+      .set("X-Forwarded-For", "192.0.2.10");
+    expect(missingResult.status).toBe(200);
+    expect(missingIp.verify).toHaveBeenCalledTimes(1);
+    expect(missingIpDiagnostic).toHaveBeenCalledWith("client_ip_unavailable");
+
+    const storeDiagnostic = vi.fn();
+    const failedStore = setup({
+      store: {
+        increment: async () => {
+          throw new Error("sensitive SQL detail");
+        },
+        decrement: () => undefined,
+        resetKey: () => undefined,
+      },
+      onDiagnostic: storeDiagnostic,
+    });
+    const result = await request(failedStore.app)
+      .get("/api/v1/account")
+      .set("Cookie", "valid");
+    expect(result.status).toBe(200);
+    expect(failedStore.verify).toHaveBeenCalledTimes(1);
+    expect(storeDiagnostic).toHaveBeenCalledWith("rate_limit_store_error");
+  });
+
+  it("resets a fixed-window quota after the window expires", async () => {
+    const { app } = setup({
+      limit: 1,
+      windowMs: 100,
+      clientIp: (request) => request.get("x-test-client-ip") ?? undefined,
+    });
+    const send = () =>
+      request(app)
+        .get("/api/v1/account")
+        .set("x-test-client-ip", "192.0.2.40")
+        .set("Cookie", "valid");
+
+    expect((await send()).status).toBe(200);
+    expect((await send()).status).toBe(429);
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    expect((await send()).status).toBe(200);
+  });
+
+  it("ignores client supplied forwarded IPs outside Vercel", async () => {
+    const { app } = setup({
+      limit: 1,
+      clientIp: (request) => request.socket.remoteAddress ?? undefined,
+    });
+    const send = (forwardedIp: string) =>
+      request(app)
+        .get("/api/v1/account")
+        .set("X-Forwarded-For", forwardedIp)
+        .set("Cookie", "invalid");
+
+    expect((await send("192.0.2.1")).status).toBe(401);
+    expect((await send("192.0.2.2")).status).toBe(429);
+  });
+
   it.each([undefined, "Basic valid", "Bearer expired", "Bearer a,b"])(
     "rejects absent/malformed/invalid credentials before repository work: %s",
     async (authorization) => {

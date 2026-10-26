@@ -11,6 +11,11 @@ import { createApp } from "./app.js";
 import { createDatabase } from "./db/client.js";
 import { parseServerEnvironment } from "./env.js";
 import { createTmdbSearchProvider } from "./public-data/tmdb-search.js";
+import {
+  PROTECTED_RATE_LIMIT_WINDOW_MS,
+  type ProtectedRateLimitOptions,
+} from "./protected/router.js";
+import { PostgresProtectedRateLimitStore } from "./protected/rate-limit-store.js";
 
 type ProductionRuntime = ReturnType<typeof createProductionRuntime>;
 
@@ -29,6 +34,27 @@ function createProductionRuntime(
     mailer: createResendAuthMailer(authConfig.mail),
     ...(environment.VERCEL ? { backgroundTask: waitUntil } : {}),
   });
+  let lastRateLimitDiagnosticAt = 0;
+  const reportRateLimitDiagnostic = (
+    kind:
+      | "client_ip_unavailable"
+      | "rate_limit_store_error"
+      | "rate_limit_cleanup_error",
+  ) => {
+    const now = Date.now();
+    if (now - lastRateLimitDiagnosticAt < 60_000) return;
+    lastRateLimitDiagnosticAt = now;
+    console.error("Protected API rate limiter degraded.", { kind });
+  };
+  const protectedRateLimit: ProtectedRateLimitOptions = {
+    store: new PostgresProtectedRateLimitStore(
+      database.pool,
+      authConfig.secret,
+      PROTECTED_RATE_LIMIT_WINDOW_MS,
+      reportRateLimitDiagnostic,
+    ),
+    onDiagnostic: reportRateLimitDiagnostic,
+  };
 
   return {
     config,
@@ -38,6 +64,7 @@ function createProductionRuntime(
     identityVerifier: new BetterAuthIdentityVerifier(auth),
     authHandler: toNodeHandler(auth),
     trustedOrigins: authConfig.trustedOrigins,
+    protectedRateLimit,
     recipientRouter: createRecipientRouter(
       database.pool,
       authConfig.internalSecret,
@@ -73,6 +100,7 @@ export function createProductionApp(
     protectedWorkflows: runtime.workflows,
     authHandler: runtime.authHandler,
     trustedOrigins: runtime.trustedOrigins,
+    protectedRateLimit: runtime.protectedRateLimit,
     recipientRouter: runtime.recipientRouter,
     logger: {
       error: (message, error) => console.error(message, error),
