@@ -202,7 +202,7 @@ test("showtimes layout preview compares three natural treatments on the same mov
     name: "Showtimes layout preview",
   });
   await expect(
-    preview.getByRole("heading", { name: "Editorial divider" }),
+    preview.getByRole("heading", { name: "Open spacing" }),
   ).toBeVisible();
   await expect(
     preview.getByRole("heading", { name: "Fading row" }),
@@ -213,6 +213,25 @@ test("showtimes layout preview compares three natural treatments on the same mov
 
   const layoutOptions = preview.locator("[data-showtimes-layout-option]");
   await expect(layoutOptions).toHaveCount(3);
+  expect(
+    await layoutOptions.evaluateAll((elements) =>
+      elements.some((element) => {
+        const option = getComputedStyle(element);
+        const row = element.querySelector(".all-showtimes-movie-row");
+        return (
+          option.borderTopWidth !== "0px" ||
+          option.borderRightWidth !== "0px" ||
+          option.borderBottomWidth !== "0px" ||
+          option.borderLeftWidth !== "0px" ||
+          !row ||
+          getComputedStyle(row).borderTopWidth !== "0px" ||
+          getComputedStyle(row).borderRightWidth !== "0px" ||
+          getComputedStyle(row).borderBottomWidth !== "0px" ||
+          getComputedStyle(row).borderLeftWidth !== "0px" ||
+          getComputedStyle(row, "::after").content !== "none"
+        );
+      })),
+  ).toBe(false);
   const sampleContent = await layoutOptions.evaluateAll((elements) =>
     elements.map((element) => ({
       title: element.querySelector(".all-showtimes-title")?.textContent?.trim(),

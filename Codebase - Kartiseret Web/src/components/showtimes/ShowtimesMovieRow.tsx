@@ -5,7 +5,7 @@ import { MovieMetricsRow, ShowtimeTheaters } from "./ShowtimeShared";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 
 export type ShowtimesMovieRowLayoutVariant =
-  "editorial-divider" | "fade-band" | "poster-wash";
+  "editorial-open" | "fade-band" | "poster-wash";
 
 export function ShowtimesMovieRow({
   movie,

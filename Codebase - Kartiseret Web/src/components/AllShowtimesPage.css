@@ -139,7 +139,7 @@
   contain-intrinsic-size: 340px;
 }
 
-.all-showtimes-movie-row--editorial-divider,
+.all-showtimes-movie-row--editorial-open,
 .all-showtimes-movie-row--fade-band,
 .all-showtimes-movie-row--poster-wash {
   border: 0;
@@ -147,28 +147,9 @@
   box-shadow: none;
 }
 
-.all-showtimes-movie-row--editorial-divider {
-  position: relative;
-  padding: 24px 0 34px;
+.all-showtimes-movie-row--editorial-open {
+  padding: 32px 0;
   background: transparent;
-}
-
-.all-showtimes-movie-row--editorial-divider::after {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(7, 7, 9, 0.48) 14%,
-    rgba(7, 7, 9, 0.74) 50%,
-    rgba(7, 7, 9, 0.48) 86%,
-    transparent
-  );
-  content: "";
-  pointer-events: none;
 }
 
 .all-showtimes-movie-row--fade-band {
@@ -224,21 +205,12 @@
 
 .all-showtimes-layout-options {
   display: grid;
+  gap: 34px;
 }
 
 .all-showtimes-layout-option {
   display: grid;
   gap: 8px;
-  padding: 18px 0 22px;
-  border-bottom: 1px solid rgba(196, 181, 215, 0.12);
-}
-
-.all-showtimes-layout-option:first-child {
-  padding-top: 0;
-}
-
-.all-showtimes-layout-option:last-child {
-  border-bottom: 0;
 }
 
 .all-showtimes-layout-option-heading {
@@ -450,19 +422,17 @@ html[data-device-type="mobile"] .all-showtimes-layout-preview-heading h2 {
 }
 
 html[data-device-type="mobile"] .all-showtimes-layout-option {
-  padding: 16px 0 18px;
+  padding: 0;
+}
+
+html[data-device-type="mobile"] .all-showtimes-layout-options {
+  gap: 28px;
 }
 
 html[data-device-type="mobile"]
   .all-showtimes-layout-preview
   .all-showtimes-movie-row {
   padding: 22px 0;
-}
-
-html[data-device-type="mobile"]
-  .all-showtimes-layout-preview
-  .all-showtimes-movie-row--editorial-divider {
-  padding-bottom: 30px;
 }
 
 html[data-device-type="mobile"] .all-showtimes-cinematheque-link {

@@ -39,10 +39,10 @@ const showtimesLayoutOptions: ReadonlyArray<{
   layoutVariant: ShowtimesMovieRowLayoutVariant;
 }> = [
   {
-    id: "editorial-divider",
-    label: "Editorial divider",
-    description: "Open spacing, with a quiet dark line between films.",
-    layoutVariant: "editorial-divider",
+    id: "editorial-open",
+    label: "Open spacing",
+    description: "A plain, open row with extra breathing room between films.",
+    layoutVariant: "editorial-open",
   },
   {
     id: "fade-band",
