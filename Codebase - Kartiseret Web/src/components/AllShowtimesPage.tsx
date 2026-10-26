@@ -153,9 +153,19 @@ export function AllShowtimesPage() {
       }),
     }));
   }, [nowPlayingMovies, selectedCityShowtimeData]);
+  const previewShowtimeDate = useMemo(
+    () =>
+      isLayoutPreview
+        ? getShowtimeTargetDate(
+            dayPanels.filter((day) => day.movies.length > 0),
+            selectedShowtimeDate,
+          )
+        : null,
+    [dayPanels, isLayoutPreview, selectedShowtimeDate],
+  );
   const resolvedShowtimeDate = getShowtimeTargetDate(
     dayPanels,
-    selectedShowtimeDate ?? fixedAppDateString,
+    previewShowtimeDate ?? selectedShowtimeDate ?? fixedAppDateString,
   );
   const selectedDayPanel = useMemo(
     () =>
@@ -399,6 +409,11 @@ export function AllShowtimesPage() {
       void loadAdditionalShowtimeDays(location, nextDayCount).catch(() => {});
     };
 
+    if (isLayoutPreview) {
+      requestMoreDays();
+      return;
+    }
+
     if (typeof windowWithIdleCallbacks.requestIdleCallback === "function") {
       idleId = windowWithIdleCallbacks.requestIdleCallback(
         () => {
@@ -424,7 +439,7 @@ export function AllShowtimesPage() {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [dayPanels.length, location]);
+  }, [dayPanels.length, isLayoutPreview, location]);
 
   return (
     <section className="all-showtimes-page" aria-label="All Showtimes">

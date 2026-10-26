@@ -185,18 +185,11 @@ test("showtimes browse a real city/date and the active filter changes results", 
 test("showtimes layout preview compares three natural treatments on the same movie", async ({
   page,
 }) => {
-  const fixtureDate = await getFixtureShowtimeDate(page, "Jerusalem");
   await page.goto("/showtimes?layoutPreview=1");
 
   await expect(
     page.getByRole("region", { name: "All showtimes in Jerusalem" }),
   ).toBeVisible();
-  const dateButton = page.getByRole("radio", {
-    name: new RegExp(escapeRegularExpression(dateCalendarLabel(fixtureDate))),
-  });
-  await expect(dateButton).toBeVisible();
-  await dateButton.scrollIntoViewIfNeeded();
-  await dateButton.click();
 
   const preview = page.getByRole("region", {
     name: "Showtimes layout preview",
@@ -213,6 +206,11 @@ test("showtimes layout preview compares three natural treatments on the same mov
 
   const layoutOptions = preview.locator("[data-showtimes-layout-option]");
   await expect(layoutOptions).toHaveCount(3);
+  await expect(
+    preview.getByText("No movie has showtimes on this date.", {
+      exact: false,
+    }),
+  ).toHaveCount(0);
   expect(
     await layoutOptions.evaluateAll((elements) =>
       elements.some((element) => {
