@@ -119,6 +119,43 @@ describe("public movie catalog service", () => {
     expect(repository.findMovieCodes).toHaveBeenCalledTimes(1);
   });
 
+  it("uses the balanced ranking for the public now-playing catalog", async () => {
+    const repository = createRepository({
+      findNowPlayingRows: vi.fn(async () => [
+        {
+          ...nowPlaying,
+          tmdbId: 9100003,
+          popularity: 30,
+          showtimeCount: 0,
+          localReleaseDate: "2024-01-01",
+        },
+        {
+          ...nowPlaying,
+          tmdbId: 9100002,
+          popularity: 10,
+          showtimeCount: 30,
+          localReleaseDate: "2024-01-01",
+        },
+        {
+          ...nowPlaying,
+          tmdbId: 9100001,
+          popularity: 10,
+          showtimeCount: 0,
+          localReleaseDate: "2026-01-01",
+        },
+      ]),
+      findMovieCodes: vi.fn(async () => new Map()),
+    });
+
+    const result = await getMovieCatalog(repository, "nowPlaying");
+
+    expect(result.movies.map((movie) => movie.tmdbId)).toEqual([
+      "9100001",
+      "9100002",
+      "9100003",
+    ]);
+  });
+
   it("keeps a usable catalog and reports code lookup failure as a settled status", async () => {
     const lookupError = new Error("private database details");
     const onFailure = vi.fn();

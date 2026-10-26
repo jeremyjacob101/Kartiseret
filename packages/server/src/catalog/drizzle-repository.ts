@@ -1,7 +1,7 @@
 import { timeCatalogStage } from "../catalog-timing.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { HttpError } from "../http-errors.js";
-import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import type {
   ApplicationDatabase,
   ApplicationTransaction,
@@ -13,6 +13,7 @@ import {
   finalTheques,
   finalShowtimes,
   finalSoons,
+  movieReleaseDates,
   movieCodes,
   theaters,
 } from "../db/schema.js";
@@ -176,14 +177,41 @@ export class DrizzleCatalogRepository
 
   async findNowPlayingRows(): Promise<readonly unknown[]> {
     try {
+      const futureShowtimeCounts = this.db
+        .select({
+          tmdbId: finalShowtimes.tmdbId,
+          showtimeCount: sql<number>`count(*)::int`.as("showtime_count"),
+        })
+        .from(finalShowtimes)
+        .where(
+          and(
+            isNotNull(finalShowtimes.tmdbId),
+            gte(
+              finalShowtimes.dateOfShowing,
+              sql`(now() AT TIME ZONE 'Asia/Jerusalem')::date`,
+            ),
+          ),
+        )
+        .groupBy(finalShowtimes.tmdbId)
+        .as("future_showtime_counts");
+
       return await this.db
-        .select(nowPlayingProjection)
+        .select({
+          ...nowPlayingProjection,
+          localReleaseDate: movieReleaseDates.localReleaseDate,
+          showtimeCount: sql<number>`coalesce(${futureShowtimeCounts.showtimeCount}, 0)::int`,
+        })
         .from(finalMovies)
+        .leftJoin(
+          movieReleaseDates,
+          eq(finalMovies.tmdbId, movieReleaseDates.tmdbId),
+        )
+        .leftJoin(
+          futureShowtimeCounts,
+          eq(finalMovies.tmdbId, futureShowtimeCounts.tmdbId),
+        )
         .where(eq(finalMovies.soloUpdate, false))
-        .orderBy(
-          sql`${finalMovies.popularity} DESC NULLS LAST`,
-          asc(finalMovies.tmdbId),
-        );
+        .orderBy(asc(finalMovies.tmdbId));
     } catch (error) {
       throw new CatalogDatabaseError(error);
     }

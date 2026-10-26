@@ -1,0 +1,4 @@
+-- The managed Supabase migration tool recorded the production rollout under
+-- this generated version. The same schema migration is tracked in
+-- 20261026081601_movie_release_date_history.sql; this empty migration keeps
+-- DEV and production histories aligned without replaying schema changes.
