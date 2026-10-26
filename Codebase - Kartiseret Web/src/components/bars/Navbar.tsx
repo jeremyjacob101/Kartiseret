@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from "react";
 import { Clock8, Film, Settings } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import "./Navbar.css";
-import { MiniNavBar } from "./MiniNavBar";
 import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "../MovieSearchMenu";
 import { TheaterMapDialog } from "../maps/TheaterMapDialog";
-import { UserMenu } from "../UserMenu";
 import { useDeviceStore } from "../../device/useDeviceType";
+import { MiniNavBar } from "./MiniNavBar";
+import { UserMenu } from "../UserMenu";
 
 const NAVBAR_INTRO_DURATION_MS = 760;
 const MINI_NAVBAR_TRANSITION_MS = 620;

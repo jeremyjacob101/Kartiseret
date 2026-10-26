@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: ComingSoonsTmdb
+URL: ?
+Exception: APIError - {'message': 'null value in column "release_date" of relation "finalSoons" violates not-null constraint', 'code': '23502', 'hint': None, 'details': 'Failing row contains (tt37740990, The Phantom of the Opera, פנטום האופרה, null, https://image.tmdb.org/t/p/w342/2aU9dLDES0IdxB4sGYeeoJ7DOjA.jpg, https://image.tmdb.org/t/p/w1280/5zDqy29V1nuwZiSq60hYaQQcOu1.jpg, 1430841, 04d65c8a-b15b-4d4e-a49f-347116380469, 8fcdd1ee-0fd1-419d-81ff-932760956d4f, 2026-10-15 08:39:48.179844+00, 638, 2026, null, {Thriller,Romance,Mystery}, 134, [{"tmdb": 9833, "year": "2004", "title": "The Phantom of the Ope..., f, 3.0657).'}
+Call Chain: runners.py:43 > runners.py:20 > BaseDataflow.py:55 > ComingSoonsTmdb.py:249 > SupabaseTables.py:114
+Selector: 
+Screenshot: 
+CSV: 

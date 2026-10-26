@@ -1,0 +1,568 @@
+import { timeCatalogStageSync } from "./catalog-timing.js";
+import { withPublicationSnapshot } from "./public-data/snapshot.js";
+import { PUBLICATION_REVISION_HEADER } from "@kartiseret/contracts/public-data";
+import { createProtectedRouter } from "./protected/router.js";
+import type { IdentityVerifier } from "./protected/identity.js";
+import type { ProtectedWorkflowService } from "./protected/service.js";
+import express, {
+  type ErrorRequestHandler,
+  type RequestHandler,
+  type Router,
+} from "express";
+import { z } from "zod";
+import {
+  CatalogDataIntegrityError,
+  CatalogDatabaseError,
+} from "./catalog/errors.js";
+import {
+  getMovieCatalog,
+  getCinemathequeData,
+  getPublicTheaterData,
+  getShowtimeRange,
+  getTicketAvailabilityShowtimes,
+} from "./public-data/service.js";
+import { PublicDataIntegrityError } from "./public-data/errors.js";
+import type { PublicDataRepository } from "./public-data/repository.js";
+import {
+  publicShowtimeRangeQuerySchema,
+  tmdbTitleSearchQuerySchema,
+  ticketAvailabilityQuerySchema,
+} from "@kartiseret/contracts/public-data";
+import {
+  getNowPlayingMovies,
+  type CatalogRepository,
+} from "./catalog/service.js";
+import { HttpError } from "./http-errors.js";
+import {
+  searchTmdbTitles,
+  type TmdbSearchProvider,
+} from "./public-data/tmdb-search.js";
+
+const emptyQuerySchema = z.object({}).strict();
+
+export interface AppLogger {
+  error(message: string, error: unknown): void;
+}
+
+export interface AppDependencies {
+  catalogRepository: CatalogRepository;
+  publicDataRepository?: PublicDataRepository;
+  logger?: AppLogger;
+  identityVerifier?: IdentityVerifier;
+  protectedWorkflows?: ProtectedWorkflowService;
+  authHandler?: RequestHandler;
+  recipientRouter?: Router;
+  trustedOrigins?: readonly string[];
+  tmdbSearch?: TmdbSearchProvider;
+}
+
+const silentLogger: AppLogger = {
+  error: () => undefined,
+};
+
+interface SafeErrorSummary {
+  name: string;
+  code?: string;
+  cause?: SafeErrorSummary;
+}
+
+function safeErrorSummary(error: unknown, causeDepth = 0): SafeErrorSummary {
+  if (typeof error !== "object" || error === null) {
+    return { name: "UnknownError" };
+  }
+
+  const source = error as {
+    name?: unknown;
+    code?: unknown;
+    cause?: unknown;
+  };
+  return {
+    name: typeof source.name === "string" ? source.name : "Error",
+    ...(typeof source.code === "string" ? { code: source.code } : {}),
+    ...(causeDepth < 4 &&
+    typeof source.cause === "object" &&
+    source.cause !== null
+      ? { cause: safeErrorSummary(source.cause, causeDepth + 1) }
+      : {}),
+  };
+}
+
+export function createApp({
+  catalogRepository,
+  publicDataRepository,
+  logger = silentLogger,
+  identityVerifier,
+  protectedWorkflows,
+  authHandler,
+  recipientRouter,
+  trustedOrigins = [],
+  tmdbSearch,
+}: AppDependencies) {
+  const app = express();
+  app.disable("x-powered-by");
+  app.use(
+    [
+      "/api/auth",
+      "/api/internal",
+      "/api/v1/account",
+      "/api/v1/preferences",
+      "/api/v1/ticket-alerts",
+      "/api/v1/coming-soon-watches",
+      "/api/v1/tmdb/search",
+      "/api/v1/admin",
+    ],
+    (request, response, next) => {
+      response.setHeader("Cache-Control", "no-store");
+      response.vary(
+        request.baseUrl === "/api/internal" ? "Authorization" : "Cookie",
+      );
+      next();
+    },
+  );
+  if (authHandler) app.all("/api/auth/{*path}", authHandler);
+  app.use(express.json({ limit: "100kb" }));
+  if (recipientRouter) app.use("/api/internal", recipientRouter);
+
+  app.get("/api/v1/health", (_request, response) => {
+    response.json({ data: { status: "ok" }, error: null });
+  });
+
+  app.get("/api/v1/tmdb/search", async (request, response, next) => {
+    const query = tmdbTitleSearchQuerySchema.safeParse(request.query);
+    if (!query.success) {
+      next(
+        new HttpError(
+          400,
+          "invalid_request",
+          "Enter a movie title with at least two characters.",
+        ),
+      );
+      return;
+    }
+    if (!tmdbSearch || !publicDataRepository) {
+      next(
+        new HttpError(
+          503,
+          "tmdb_search_unavailable",
+          "Title search is temporarily unavailable.",
+        ),
+      );
+      return;
+    }
+    try {
+      const titles = await searchTmdbTitles(
+        query.data.query,
+        tmdbSearch,
+        publicDataRepository,
+      );
+      response.setHeader("Cache-Control", "private, no-store");
+      response.json({ data: { titles }, error: null });
+    } catch {
+      next(
+        new HttpError(
+          503,
+          "tmdb_search_unavailable",
+          "Title search is temporarily unavailable.",
+        ),
+      );
+    }
+  });
+
+  const publicationRead =
+    (handler: RequestHandler): RequestHandler =>
+    async (request, response, next) => {
+      response.vary(PUBLICATION_REVISION_HEADER);
+      const expected = request.get(PUBLICATION_REVISION_HEADER);
+      try {
+        await withPublicationSnapshot(
+          publicDataRepository ?? catalogRepository,
+          async (revision) => {
+            response.setHeader(PUBLICATION_REVISION_HEADER, revision);
+            await handler(request, response, next);
+          },
+          expected,
+        );
+      } catch (error) {
+        response.setHeader("Cache-Control", "private, no-store");
+        next(error);
+      }
+    };
+
+  app.get(
+    "/api/v1/catalog/now-playing",
+    publicationRead(async (request, response, next) => {
+      const query = emptyQuerySchema.safeParse(request.query);
+      if (!query.success) {
+        next(
+          new HttpError(
+            400,
+            "invalid_request",
+            "The request query is not supported.",
+          ),
+        );
+        return;
+      }
+
+      try {
+        const data = publicDataRepository
+          ? await getMovieCatalog(publicDataRepository, "nowPlaying", (error) =>
+              logger.error(
+                "Movie-code lookup failed; catalog remains available without code hydration.",
+                safeErrorSummary(error),
+              ),
+            )
+          : {
+              mode: "nowPlaying" as const,
+              movies: await getNowPlayingMovies(catalogRepository),
+              movieCodesStatus: "ready" as const,
+            };
+        response.setHeader("Cache-Control", "private, no-store");
+        timeCatalogStageSync("response_json", () =>
+          response.json({ data, error: null }),
+        );
+      } catch (error) {
+        next(error);
+      }
+    }),
+  );
+
+  app.get(
+    "/api/v1/catalog/coming-soon",
+    publicationRead(async (request, response, next) => {
+      const query = emptyQuerySchema.safeParse(request.query);
+      if (!query.success) {
+        next(
+          new HttpError(
+            400,
+            "invalid_request",
+            "The request query is not supported.",
+          ),
+        );
+        return;
+      }
+      if (!publicDataRepository) {
+        next(
+          new CatalogDatabaseError(new Error("Public data is unavailable.")),
+        );
+        return;
+      }
+      try {
+        const data = await getMovieCatalog(
+          publicDataRepository,
+          "comingSoon",
+          (error) =>
+            logger.error(
+              "Movie-code lookup failed; catalog remains available without code hydration.",
+              safeErrorSummary(error),
+            ),
+        );
+        response.setHeader("Cache-Control", "private, no-store");
+        timeCatalogStageSync("response_json", () =>
+          response.json({ data, error: null }),
+        );
+      } catch (error) {
+        next(error);
+      }
+    }),
+  );
+
+  app.get(
+    "/api/v1/showtimes",
+    publicationRead(async (request, response, next) => {
+      if (!publicDataRepository) {
+        next(
+          new CatalogDatabaseError(new Error("Public data is unavailable.")),
+        );
+        return;
+      }
+      const query = publicShowtimeRangeQuerySchema.safeParse(request.query);
+      if (!query.success) {
+        next(
+          new HttpError(
+            400,
+            "invalid_request",
+            "The showtime range query is invalid or exceeds the supported range.",
+          ),
+        );
+        return;
+      }
+      try {
+        const showtimes = await getShowtimeRange(
+          publicDataRepository,
+          query.data,
+        );
+        response.setHeader(
+          "Cache-Control",
+          request.get(PUBLICATION_REVISION_HEADER)
+            ? "private, no-store"
+            : "public, max-age=30, stale-while-revalidate=60",
+        );
+        response.json({ data: { showtimes }, error: null });
+      } catch (error) {
+        next(error);
+      }
+    }),
+  );
+
+  app.get(
+    "/api/v1/cinematheques",
+    publicationRead(async (request, response, next) => {
+      if (!publicDataRepository) {
+        next(
+          new CatalogDatabaseError(new Error("Public data is unavailable.")),
+        );
+        return;
+      }
+      const query = publicShowtimeRangeQuerySchema.safeParse(request.query);
+      if (!query.success) {
+        next(
+          new HttpError(
+            400,
+            "invalid_request",
+            "The cinematheque range query is invalid or exceeds the supported range.",
+          ),
+        );
+        return;
+      }
+      try {
+        const data = await getCinemathequeData(
+          publicDataRepository,
+          query.data,
+          (error) =>
+            logger.error(
+              "Cinematheque movie-code lookup failed; screenings remain available without code hydration.",
+              safeErrorSummary(error),
+            ),
+        );
+        response.setHeader(
+          "Cache-Control",
+          request.get(PUBLICATION_REVISION_HEADER)
+            ? "private, no-store"
+            : "public, max-age=30, stale-while-revalidate=60",
+        );
+        response.json({ data, error: null });
+      } catch (error) {
+        next(error);
+      }
+    }),
+  );
+
+  app.get(
+    "/api/v1/theaters",
+    publicationRead(async (request, response, next) => {
+      if (!publicDataRepository) {
+        next(
+          new CatalogDatabaseError(new Error("Public data is unavailable.")),
+        );
+        return;
+      }
+      const query = emptyQuerySchema.safeParse(request.query);
+      if (!query.success) {
+        next(
+          new HttpError(
+            400,
+            "invalid_request",
+            "The request query is not supported.",
+          ),
+        );
+        return;
+      }
+      try {
+        const data = await getPublicTheaterData(publicDataRepository);
+        response.setHeader(
+          "Cache-Control",
+          request.get(PUBLICATION_REVISION_HEADER)
+            ? "private, no-store"
+            : "public, max-age=3600, stale-while-revalidate=86400",
+        );
+        response.json({ data, error: null });
+      } catch (error) {
+        next(error);
+      }
+    }),
+  );
+
+  app.get(
+    "/api/v1/ticket-availability",
+    publicationRead(async (request, response, next) => {
+      if (!publicDataRepository) {
+        next(
+          new CatalogDatabaseError(new Error("Public data is unavailable.")),
+        );
+        return;
+      }
+      const query = ticketAvailabilityQuerySchema.safeParse(request.query);
+      if (!query.success) {
+        next(
+          new HttpError(
+            400,
+            "invalid_request",
+            "The ticket-availability query is invalid.",
+          ),
+        );
+        return;
+      }
+      try {
+        const showtimes = await getTicketAvailabilityShowtimes(
+          publicDataRepository,
+          query.data.tmdbId,
+          query.data.fromDate,
+        );
+        response.setHeader(
+          "Cache-Control",
+          request.get(PUBLICATION_REVISION_HEADER)
+            ? "private, no-store"
+            : "public, max-age=30, stale-while-revalidate=30",
+        );
+        response.json({ data: { showtimes }, error: null });
+      } catch (error) {
+        next(error);
+      }
+    }),
+  );
+
+  if (identityVerifier && protectedWorkflows)
+    app.use(
+      "/api/v1",
+      createProtectedRouter(
+        identityVerifier,
+        protectedWorkflows,
+        trustedOrigins,
+      ),
+    );
+
+  app.use((_request, _response, next) => {
+    next(
+      new HttpError(404, "not_found", "The requested API route was not found."),
+    );
+  });
+
+  const errorHandler: ErrorRequestHandler = (
+    error,
+    _request,
+    response,
+    next,
+  ) => {
+    void next;
+    if (error instanceof HttpError) {
+      if (error.status >= 500)
+        logger.error(
+          "Protected API request failed.",
+          safeErrorSummary(error.cause),
+        );
+      response.status(error.status).json({
+        data: null,
+        error: { code: error.code, message: error.message },
+      });
+      return;
+    }
+
+    if (
+      error instanceof SyntaxError &&
+      typeof error === "object" &&
+      error !== null &&
+      "type" in error &&
+      error.type === "entity.parse.failed"
+    ) {
+      response.status(400).json({
+        data: null,
+        error: {
+          code: "invalid_request",
+          message: "The JSON request body is invalid.",
+        },
+      });
+      return;
+    }
+
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "type" in error &&
+      error.type === "entity.too.large"
+    ) {
+      response.status(413).json({
+        data: null,
+        error: {
+          code: "invalid_request",
+          message: "The JSON request body is too large.",
+        },
+      });
+      return;
+    }
+
+    if (error instanceof CatalogDatabaseError) {
+      logger.error(
+        "Catalog database query failed.",
+        safeErrorSummary(error.cause),
+      );
+      response.status(503).json({
+        data: null,
+        error: {
+          code: "catalog_unavailable",
+          message: "The catalog is temporarily unavailable.",
+        },
+      });
+      return;
+    }
+
+    if (error instanceof PublicDataIntegrityError) {
+      logger.error(
+        "Public theater or city metadata did not match the public contract.",
+        { name: error.name, code: error.kind },
+      );
+      response.status(500).json({
+        data: null,
+        error: {
+          code: error.kind,
+          message: "The theater and city data is temporarily unavailable.",
+        },
+      });
+      return;
+    }
+
+    if (
+      error instanceof CatalogDataIntegrityError ||
+      error instanceof z.ZodError
+    ) {
+      logger.error(
+        "Catalog data did not match the public contract.",
+        safeErrorSummary(error),
+      );
+      response.status(500).json({
+        data: null,
+        error: {
+          code: "invalid_catalog_data",
+          message: "The catalog data is temporarily unavailable.",
+        },
+      });
+      return;
+    }
+
+    logger.error("Unhandled API request error.", safeErrorSummary(error));
+    response.status(500).json({
+      data: null,
+      error: {
+        code: "internal_error",
+        message: "The request could not be completed.",
+      },
+    });
+  };
+
+  const jsonBodyErrorHandler: ErrorRequestHandler = (
+    error,
+    request,
+    response,
+    next,
+  ) => {
+    if (request.path.startsWith("/api/") && error) {
+      errorHandler(error, request, response, next);
+      return;
+    }
+    next(error);
+  };
+
+  app.use(jsonBodyErrorHandler);
+  app.use(errorHandler);
+
+  return app;
+}

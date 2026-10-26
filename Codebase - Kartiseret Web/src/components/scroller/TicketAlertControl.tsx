@@ -1,13 +1,15 @@
+import { selectTicketAlertAvailability, selectUserTicketAlert, ticketAlertAvailabilityQueryOptions, ticketAlertMutationOptions, ticketAlertPreferencesQueryOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions } from "../../data/ticketAlerts";
+import { DEFAULT_TICKET_ALERT_CRITERIA, resolveTicketAlertCriteria } from "@kartiseret/contracts/private-data";
 import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
-import { Bell, Check, LoaderCircle, Ticket } from "lucide-react";
-import { Link } from "react-router";
-import type { ReactNode } from "react";
-import { useShallow } from "zustand/react/shallow";
-import { selectTicketAlertAvailability, selectUserTicketAlert, ticketAlertAvailabilityQueryOptions, ticketAlertMutationOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions } from "../../data/ticketAlerts";
-import { normalizeTicketAlertTmdbId } from "../../domain/ticketAlerts";
-import type { Movie } from "../../data/movieCatalog";
-import { requestAuthMenuOpen } from "../../lib/authMenu";
+import { usePublicationRevision } from "../../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
+import { normalizeTicketAlertTmdbId } from "../../domain/ticketAlerts";
+import { Bell, Check, LoaderCircle, Ticket } from "lucide-react";
+import { requestAuthMenuOpen } from "../../lib/authMenu";
+import type { Movie } from "../../data/movieCatalog";
+import { useShallow } from "zustand/react/shallow";
+import type { ReactNode } from "react";
+import { Link } from "react-router";
 
 type TicketAlertControlProps = {
   movie: Movie;
@@ -23,25 +25,19 @@ function TicketAlertBellIcon({ checked }: { checked: boolean }) {
 }
 
 export function TicketAlertControl({ movie }: TicketAlertControlProps) {
-  const { userId, preferredCity, preferencesLoading } = useUserPreferencesStore(
+  usePublicationRevision();
+  const { userId, preferencesLoading } = useUserPreferencesStore(
     useShallow((state) => ({
       userId: state.user?.id ?? null,
-      preferredCity: state.preferences.location,
       preferencesLoading: state.loading,
     })),
   );
 
   return (
     <TicketAlertControlContent
-      key={JSON.stringify([
-        movie.tmdbId,
-        userId,
-        preferredCity,
-        preferencesLoading,
-      ])}
+      key={JSON.stringify([movie.tmdbId, userId, preferencesLoading])}
       movie={movie}
       userId={userId}
-      preferredCity={preferredCity}
       preferencesLoading={preferencesLoading}
     />
   );
@@ -50,11 +46,9 @@ export function TicketAlertControl({ movie }: TicketAlertControlProps) {
 function TicketAlertControlContent({
   movie,
   userId,
-  preferredCity,
   preferencesLoading,
 }: TicketAlertControlProps & {
   userId: string | null;
-  preferredCity: string;
   preferencesLoading: boolean;
 }) {
   const tmdbId = normalizeTicketAlertTmdbId(movie.tmdbId);
@@ -66,6 +60,10 @@ function TicketAlertControlContent({
     ...userTicketAlertSubscriptionsQueryOptions(userId),
     enabled: Boolean(userId) && !preferencesLoading,
   });
+  const preferencesQuery = useQuery({
+    ...ticketAlertPreferencesQueryOptions(userId),
+    enabled: Boolean(userId) && !preferencesLoading,
+  });
   const mutation = useMutation(ticketAlertMutationOptions(userId, tmdbId));
   const pending =
     useIsMutating({
@@ -73,26 +71,59 @@ function TicketAlertControlContent({
       exact: true,
     }) > 0;
   const subscription = selectUserTicketAlert(subscriptionsQuery.data, tmdbId);
+  const preferredCity = useUserPreferencesStore(
+    (state) => state.preferences.location,
+  );
+  const criteriaDefaults =
+    preferencesQuery.data ?? DEFAULT_TICKET_ALERT_CRITERIA;
+  const criteria = resolveTicketAlertCriteria(
+    criteriaDefaults,
+    subscription?.criteriaOverrides,
+    preferredCity,
+  );
+  const completedCities = subscription?.completedCities ?? [];
+  const availableCities = (criteria.cities ?? []).filter((city) =>
+    selectTicketAlertAvailability(
+      availabilityQuery.data ?? [],
+      { ...criteria, cities: [city] },
+      movie.movieCode,
+    ));
+  const hasCitiesLeft =
+    criteria.notificationMode === "first_per_city" &&
+    (criteria.cities ?? []).some(
+      (city) =>
+        !(subscription ? completedCities : availableCities).includes(city),
+    );
+  const complete =
+    criteria.notificationMode === "first_per_city"
+      ? Boolean(subscription && !hasCitiesLeft)
+      : completedCities.length > 0 || Boolean(subscription?.notifiedAt);
   const loadFailed =
     (availabilityQuery.isError && !availabilityQuery.data) ||
-    (Boolean(userId) && subscriptionsQuery.isError && !subscriptionsQuery.data);
+    (Boolean(userId) &&
+      subscriptionsQuery.isError &&
+      !subscriptionsQuery.data) ||
+    (Boolean(userId) && preferencesQuery.isError && !preferencesQuery.data);
   const state = {
     availability: selectTicketAlertAvailability(
       availabilityQuery.data ?? [],
-      preferredCity,
+      criteria,
       movie.movieCode,
     ),
     loading:
       preferencesLoading ||
       availabilityQuery.isPending ||
-      (Boolean(userId) && subscriptionsQuery.isPending),
+      (Boolean(userId) && subscriptionsQuery.isPending) ||
+      (Boolean(userId) && preferencesQuery.isPending),
     pending,
-    subscribed: Boolean(subscription && !subscription.notifiedAt),
-    notified: Boolean(subscription?.notifiedAt),
+    subscribed: Boolean(subscription && !complete),
+    notified: complete,
     error:
       mutation.error?.message ??
       availabilityQuery.error?.message ??
-      (userId ? subscriptionsQuery.error?.message : null),
+      (userId
+        ? (subscriptionsQuery.error?.message ?? preferencesQuery.error?.message)
+        : null),
   };
 
   const handleAccountToggle = () => {
@@ -100,9 +131,7 @@ function TicketAlertControlContent({
       return;
     }
     mutation.mutate(
-      state.subscribed
-        ? { action: "cancel" }
-        : { action: "subscribe", preferredCity },
+      state.subscribed ? { action: "cancel" } : { action: "subscribe" },
     );
   };
 
@@ -133,7 +162,7 @@ function TicketAlertControlContent({
       </button>
     );
     hint = "Ticket alerts are temporarily unavailable.";
-  } else if (state.availability) {
+  } else if (state.availability && !hasCitiesLeft) {
     control = (
       <Link
         className="ticket-alert-button ticket-alert-button--available"
@@ -143,10 +172,7 @@ function TicketAlertControlContent({
         View showtimes
       </Link>
     );
-    hint =
-      state.availability.city === preferredCity
-        ? `Tickets are available in ${preferredCity}.`
-        : `Tickets are available in ${state.availability.city}.`;
+    hint = `Tickets are available in ${state.availability.city}.`;
   } else if (state.notified) {
     control = (
       <button className="ticket-alert-button is-active" type="button" disabled>
@@ -154,7 +180,7 @@ function TicketAlertControlContent({
         Alert sent
       </button>
     );
-    hint = "Your one-time ticket alert has already been sent.";
+    hint = "Your selected ticket availability alerts are complete.";
   } else if (!userId) {
     control = (
       <button
@@ -196,9 +222,14 @@ function TicketAlertControlContent({
             : "Notify me"}
       </button>
     );
-    hint = state.subscribed
-      ? "We’ll send one email when tickets appear. Click to cancel."
-      : "Get one email when a cinema posts a ticket link.";
+    hint =
+      criteria.notificationMode === "first_per_city"
+        ? state.subscribed
+          ? "Watching remaining selected cities. Click to cancel."
+          : "Get an alert when tickets first appear in each remaining selected city."
+        : state.subscribed
+          ? "We’ll alert you when tickets first appear in a selected city. Click to cancel."
+          : "Get one alert when tickets first appear in your selected cities.";
   }
 
   return (

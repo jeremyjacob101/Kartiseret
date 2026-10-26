@@ -1,14 +1,25 @@
-import { QueryClientProvider } from "@tanstack/react-query";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { sampleMovie, sampleShowtimeDays } from "./fixtures";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { theaterQueryKeys } from "../src/data/theaters";
+import { queryClient } from "../src/lib/queryClient";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { MemoryRouter } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MovieDetailsContent } from "../src/components/scroller/MovieDetailsContent";
-import { movieCatalogQueryKeys } from "../src/data/movieCatalog";
-import { theaterQueryKeys } from "../src/data/theaters";
-import { queryClient } from "../src/lib/queryClient";
-import { sampleMovie, sampleShowtimeDays } from "./fixtures";
+
+// The catalog module snapshots the current cinema date at import time. Keep
+// fixtures with explicit dates deterministic across CI runs and date rollovers.
+vi.useFakeTimers({ toFake: ["Date"] });
+vi.setSystemTime(new Date("2026-09-16T16:30:00.000Z"));
+
+const { MovieDetailsContent } =
+  await import("../src/components/scroller/MovieDetailsContent");
+const { movieCatalogQueryKeys } = await import("../src/data/movieCatalog");
+
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 vi.mock("../src/components/maps/TheaterMapDialog", () => ({
   TheaterMapDialog: ({ triggerLabel }: { triggerLabel?: string }) => (

@@ -1,0 +1,11 @@
+- - -
+ERROR
+- - -
+Name: CinemaCity
+URL: ?
+Exception: TimeoutException - Message: timeout: Timed out receiving message from renderer: 44.416
+  (Session info: chrome=154.0.8037.58)
+Call Chain: runners.py:33 > runners.py:23 > BaseCinema.py:82 > CinemaCity.py:41
+Selector: 
+Screenshot: 
+CSV: backend/utils/log/logger_artifacts/657/unsuccessful/CinemaCity-1.csv

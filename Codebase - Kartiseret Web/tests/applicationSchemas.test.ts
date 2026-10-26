@@ -1,5 +1,5 @@
+import { movieSchema, theaterSchema } from "@kartiseret/contracts/movies";
 import { describe, expect, it } from "vitest";
-import { movieSchema, theaterSchema } from "../src/data/applicationSchemas.js";
 
 describe("application model schemas", () => {
   it("validates normalized movie models", () => {

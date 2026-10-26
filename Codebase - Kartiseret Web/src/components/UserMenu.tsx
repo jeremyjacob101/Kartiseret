@@ -1,22 +1,29 @@
+import { accountPasswordSchema, PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH } from "@kartiseret/contracts/private-data";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { z } from "zod";
-import { LogOut, User } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
+import { LogOut, User } from "lucide-react";
+import { z } from "zod";
 import "./UserMenu.css";
-import { getSupabaseBrowserClient } from "../lib/supabase";
+import { DEFAULT_LOCATION, loadGuestLocation } from "../prefs/definitions/locations";
+import { useUserPreferencesStore } from "../stores/userPreferencesStore";
+import { getPasswordResetRedirectUrl } from "../lib/authRoutes";
 import { OPEN_AUTH_MENU_EVENT } from "../lib/authMenu";
-import { DEFAULT_LOCATION, loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY } from "../prefs/definitions/locations";
-import { persistSignupPreferenceDefaults, useUserPreferencesStore } from "../stores/userPreferencesStore";
+import { getAuthClient } from "../lib/authClient";
 
-type AuthMode = "login" | "signup";
+type AuthMode = "login" | "signup" | "forgotPassword";
 type UserMenuProps = {
   panelDirection?: "down" | "up";
   triggerTabIndex?: number;
 };
 
-const supabase = getSupabaseBrowserClient();
+const authClient = getAuthClient();
+const emailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .email("Enter a valid email address.");
 const authCredentialsSchema = z.object({
-  email: z.string().trim().toLowerCase().email("Enter a valid email address."),
+  email: emailSchema,
   password: z.string().min(1, "Enter both email and password."),
 });
 
@@ -27,14 +34,25 @@ export function UserMenu({
   const location = useLocation();
   const navigate = useNavigate();
   const user = useUserPreferencesStore((state) => state.user);
-  const [isOpen, setIsOpen] = useState(false);
+  const callback = new URLSearchParams(
+    location.pathname === "/" ? location.search : "",
+  );
+  const verified = callback.get("verified") === "1";
+  const verificationError = callback.has("error");
+  const [isOpen, setIsOpen] = useState(verified || verificationError);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authPending, setAuthPending] = useState(false);
   const [logoutPending, setLogoutPending] = useState(false);
-  const [authMessage, setAuthMessage] = useState<string | null>(null);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [authMessage, setAuthMessage] = useState<string | null>(
+    verified ? "Email confirmed. You can now log in." : null,
+  );
+  const [authError, setAuthError] = useState<string | null>(
+    verificationError
+      ? "This verification link is invalid or expired. Log in to request a new confirmation email."
+      : null,
+  );
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -90,7 +108,41 @@ export function UserMenu({
     setAuthMessage(null);
     setAuthError(null);
 
-    const credentials = authCredentialsSchema.safeParse({ email, password });
+    const emailResult = emailSchema.safeParse(email);
+    if (!emailResult.success) {
+      setAuthError(
+        emailResult.error.issues[0]?.message ?? "Enter a valid email address.",
+      );
+      return;
+    }
+
+    if (authMode === "forgotPassword") {
+      setAuthPending(true);
+      const { error } = await authClient.requestPasswordReset({
+        email: emailResult.data,
+        redirectTo: getPasswordResetRedirectUrl(),
+      });
+
+      setAuthPending(false);
+
+      if (error) {
+        setAuthError(
+          error.message ?? "The account request could not be completed.",
+        );
+        return;
+      }
+
+      setPassword("");
+      setAuthMessage(
+        "If an account exists for that email, you’ll receive a reset link.",
+      );
+      return;
+    }
+
+    const credentials = authCredentialsSchema.safeParse({
+      email: emailResult.data,
+      password,
+    });
     if (!credentials.success) {
       setAuthError(
         credentials.error.issues[0]?.message ?? "Enter valid credentials.",
@@ -104,50 +156,29 @@ export function UserMenu({
 
     if (authMode === "signup") {
       const signupLocation = loadGuestLocation() ?? DEFAULT_LOCATION;
-      const { data, error } = await supabase.auth.signUp({
-        email: trimmedEmail,
-        password: validatedPassword,
-        options: {
-          data: {
-            [LOCATION_SIGNUP_METADATA_KEY]: signupLocation,
-          },
-        },
-      });
-
-      if (error) {
+      if (!accountPasswordSchema.safeParse(validatedPassword).success) {
         setAuthPending(false);
-        setAuthError(error.message);
+        setAuthError("Password must be between 8 and 128 characters.");
         return;
       }
-
-      let preferenceInitializationError: string | null = null;
-
-      if (data.session && data.user) {
-        preferenceInitializationError = await persistSignupPreferenceDefaults(
-          data.user.id,
-          signupLocation,
-        );
-      }
-
+      const { error } = await authClient.signUp.email({
+        name: "Kartiseret member",
+        email: trimmedEmail,
+        password: validatedPassword,
+        signupLocation,
+        callbackURL: new URL("/?verified=1", window.location.origin).href,
+      });
       setAuthPending(false);
-
-      setPassword("");
-
-      if (preferenceInitializationError) {
-        setAuthError(preferenceInitializationError);
+      if (error) {
+        setAuthError(error.message ?? "Account creation failed.");
+        return;
       }
-
-      setAuthMessage(
-        data.session
-          ? preferenceInitializationError
-            ? "Account created. You are signed in, but default preferences could not be finalized."
-            : "Account created. You are signed in."
-          : "Account created. Check your email to confirm, then log in.",
-      );
+      setPassword("");
+      setAuthMessage("Check your email to confirm your account, then log in.");
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await authClient.signIn.email({
       email: trimmedEmail,
       password: validatedPassword,
     });
@@ -155,7 +186,9 @@ export function UserMenu({
     setAuthPending(false);
 
     if (error) {
-      setAuthError(error.message);
+      setAuthError(
+        error.message ?? "The account request could not be completed.",
+      );
       return;
     }
 
@@ -167,11 +200,13 @@ export function UserMenu({
     setAuthMessage(null);
     setAuthError(null);
     setLogoutPending(true);
-    const { error } = await supabase.auth.signOut();
+    const { error } = await authClient.signOut();
     setLogoutPending(false);
 
     if (error) {
-      setAuthError(error.message);
+      setAuthError(
+        error.message ?? "The account request could not be completed.",
+      );
       return;
     }
 
@@ -215,38 +250,52 @@ export function UserMenu({
 
           {!user ? (
             <form className="user-menu-auth-form" onSubmit={handleAuthSubmit}>
-              <div
-                className="user-menu-auth-toggle"
-                role="tablist"
-                aria-label="Auth mode"
-              >
+              {authMode === "forgotPassword" ? (
                 <button
                   type="button"
-                  className={`user-menu-mode${authMode === "login" ? " is-active" : ""}`}
-                  role="tab"
-                  aria-selected={authMode === "login"}
+                  className="user-menu-back-link"
                   onClick={() => {
                     setAuthMode("login");
                     setAuthMessage(null);
                     setAuthError(null);
                   }}
                 >
-                  Log in
+                  Back to log in
                 </button>
-                <button
-                  type="button"
-                  className={`user-menu-mode${authMode === "signup" ? " is-active" : ""}`}
-                  role="tab"
-                  aria-selected={authMode === "signup"}
-                  onClick={() => {
-                    setAuthMode("signup");
-                    setAuthMessage(null);
-                    setAuthError(null);
-                  }}
+              ) : (
+                <div
+                  className="user-menu-auth-toggle"
+                  role="tablist"
+                  aria-label="Auth mode"
                 >
-                  Sign up
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    className={`user-menu-mode${authMode === "login" ? " is-active" : ""}`}
+                    role="tab"
+                    aria-selected={authMode === "login"}
+                    onClick={() => {
+                      setAuthMode("login");
+                      setAuthMessage(null);
+                      setAuthError(null);
+                    }}
+                  >
+                    Log in
+                  </button>
+                  <button
+                    type="button"
+                    className={`user-menu-mode${authMode === "signup" ? " is-active" : ""}`}
+                    role="tab"
+                    aria-selected={authMode === "signup"}
+                    onClick={() => {
+                      setAuthMode("signup");
+                      setAuthMessage(null);
+                      setAuthError(null);
+                    }}
+                  >
+                    Sign up
+                  </button>
+                </div>
+              )}
 
               <label className="user-menu-field">
                 <span>Email</span>
@@ -262,22 +311,32 @@ export function UserMenu({
                 />
               </label>
 
-              <label className="user-menu-field">
-                <span>Password</span>
-                <input
-                  type="password"
-                  autoComplete={
-                    authMode === "signup" ? "new-password" : "current-password"
-                  }
-                  value={password}
-                  onChange={(event) => {
-                    setPassword(event.target.value);
-                  }}
-                  placeholder="••••••••"
-                  minLength={6}
-                  required
-                />
-              </label>
+              {authMode === "forgotPassword" ? (
+                <p className="user-menu-form-note">
+                  Enter your email and we&apos;ll send a password reset link if
+                  an account exists.
+                </p>
+              ) : (
+                <label className="user-menu-field">
+                  <span>Password</span>
+                  <input
+                    minLength={authMode === "signup" ? PASSWORD_MIN_LENGTH : 1}
+                    maxLength={PASSWORD_MAX_LENGTH}
+                    type="password"
+                    autoComplete={
+                      authMode === "signup"
+                        ? "new-password"
+                        : "current-password"
+                    }
+                    value={password}
+                    onChange={(event) => {
+                      setPassword(event.target.value);
+                    }}
+                    placeholder="••••••••"
+                    required
+                  />
+                </label>
+              )}
 
               <button
                 type="submit"
@@ -287,11 +346,30 @@ export function UserMenu({
                 {authPending
                   ? authMode === "signup"
                     ? "Creating..."
-                    : "Signing in..."
+                    : authMode === "forgotPassword"
+                      ? "Sending..."
+                      : "Signing in..."
                   : authMode === "signup"
                     ? "Create account"
-                    : "Log in"}
+                    : authMode === "forgotPassword"
+                      ? "Send reset link"
+                      : "Log in"}
               </button>
+
+              {authMode === "login" ? (
+                <button
+                  type="button"
+                  className="user-menu-forgot-link"
+                  onClick={() => {
+                    setAuthMode("forgotPassword");
+                    setPassword("");
+                    setAuthMessage(null);
+                    setAuthError(null);
+                  }}
+                >
+                  Forgot password?
+                </button>
+              ) : null}
             </form>
           ) : (
             <div className="user-menu-authenticated">

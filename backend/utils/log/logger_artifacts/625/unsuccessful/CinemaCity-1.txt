@@ -1,0 +1,11 @@
+- - -
+ERROR
+- - -
+Name: CinemaCity
+URL: ?
+Exception: InvalidSessionIdException - Message: invalid session id: session deleted as the browser has closed the connection
+from disconnected: Unable to receive message from renderer
+Call Chain: runners.py:43 > runners.py:19 > BaseCinema.py:28 > CinemaCity.py:110 > ScrapingHelpers.py:79
+Selector: 
+Screenshot: 
+CSV: backend/utils/log/logger_artifacts/625/unsuccessful/CinemaCity-1.csv

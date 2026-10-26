@@ -1,0 +1,108 @@
+name: Full checks
+
+on:
+  pull_request: {}
+  push:
+    branches: [main]
+  repository_dispatch:
+    types: [license-year-updated]
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify web application
+        run: npm run verify:code
+
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14.2"
+
+      - name: Compile backend
+        run: python -m compileall -q backend
+
+      - name: Install backend test dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Test dataflow requests and publication
+        run: python -m unittest discover -s backend/tests -v
+
+  api-postgres:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python for PostgreSQL publisher integration tests
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14.2"
+
+      - name: Install the pinned PostgreSQL publisher driver
+        run: python -m pip install "psycopg[binary]==3.3.6"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run API integration tests against disposable PostgreSQL 17
+        run: npm run api:test:integration
+
+      - name: Install Chromium for browser acceptance
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the frontend against the real Express API and PostgreSQL fixture
+        run: npm run web:e2e
+
+  production-gate:
+    # Require this GitHub check as a Vercel Production Deployment Check.
+    # Vercel can build in parallel, but must wait before assigning production domains.
+    if: always()
+    needs:
+      - web
+      - backend
+      - api-postgres
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every CI job to pass
+        env:
+          WEB_RESULT: ${{ needs.web.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          API_POSTGRES_RESULT: ${{ needs['api-postgres'].result }}
+        run: |
+          set -euo pipefail
+          if [[ "$WEB_RESULT" != "success" || "$BACKEND_RESULT" != "success" || "$API_POSTGRES_RESULT" != "success" ]]; then
+            echo "::error::Production is blocked because one or more CI jobs did not pass."
+            echo "web=$WEB_RESULT backend=$BACKEND_RESULT api-postgres=$API_POSTGRES_RESULT"
+            exit 1
+          fi
+          echo "All CI jobs passed; production may be promoted."

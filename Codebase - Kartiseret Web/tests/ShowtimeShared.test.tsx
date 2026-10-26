@@ -1,9 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
 import { MovieMetricsRow, MovieTrailerModal, ShowtimeTheaters } from "../src/components/showtimes/ShowtimeShared";
 import { getMetricDisplays, getTrailerEmbedUrl } from "../src/components/showtimes/showtimeUtils";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { sampleMovie, sampleShowtimes } from "./fixtures";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
 describe("showtime shared rendered surfaces", () => {
   it("renders theater links, technology badges, dub flags, and safe fallback colors", () => {

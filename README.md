@@ -54,9 +54,9 @@ Kartiseret exists to make that flow calmer and more useful:
 - Animated homepage scrollers with a custom detail mode instead of a third-party carousel.
 - Client-side search across both current and upcoming movies, with title and year-aware ranking.
 - MapLibre-based city and theater picker with search, geolocation, focus controls, and theater marker popups.
-- Supabase Auth-powered user menu with saved preferences for location, rating sources, and site accent color.
+- Better Auth cookie-session user menu with saved preferences for location, rating sources, and site accent color.
 - Zod runtime validation at browser, storage, Supabase, route, environment, and server request boundaries.
-- One-shot Coming Soon ticket alerts that group newly available movies into a single email per account.
+- First-availability alerts for manually watched and Letterboxd films, grouped into one email per account with separate Coming Soon date and ticket sections.
 - Guest-friendly local caching for location and theme color.
 - Selenium scrapers for major Israeli cinema chains plus several cinematheques.
 - Multi-stage backend dataflow for cleaning, TMDb matching, metadata enrichment, deduplication, and preview-table generation.
@@ -100,9 +100,9 @@ State ownership follows one rule: the system that owns the source of truth also 
 - `useDeviceStore` remains Zustand state because responsive/user-agent classification is synchronous and shared by multiple distant consumers.
 - Catalog view mode, jump requests, forms, dialogs, animation phases, gestures, measurements, and other single-owner values remain local React state.
 
-`useUserPreferencesStore` is a deliberate synchronization exception. Supabase auth events, the active session, guest preference persistence, cached theme bootstrap, immediate theme application, optimistic saves, rollback, auth-generation guards, and rapid-save coalescing form one small protocol. Splitting the authenticated preference row into a query plus a second client store would create two competing owners and make rollback ordering harder to trace. Confirmed-email signups use the same default-row builder as instant signups, honor signup location metadata before guest location, and initialize missing rows without overwriting existing preferences. Admin membership is not part of that protocol and is therefore a normal user-keyed query. Revisit the preference exception only if the entire synchronization protocol can move as one vertical slice without weakening guest behavior or save coalescing.
+`useUserPreferencesStore` is a deliberate synchronization exception. Better Auth session updates, the active account, guest preference persistence, cached theme bootstrap, immediate theme application, optimistic saves, rollback, auth-generation guards, and rapid-save coalescing form one small protocol. Splitting the authenticated preference row into a query plus a second client store would create two competing owners and make rollback ordering harder to trace. Verified accounts initialize missing preferences through the API, honoring ordinary signup location before guest location without overwriting existing choices. Admin membership is not part of that protocol and is therefore a normal user-keyed query. Revisit the preference exception only if the entire synchronization protocol can move as one vertical slice without weakening guest behavior or save coalescing.
 
-Run `npm test`, `npm run lint`, `npm run format:check`, and `npm run build` from the frontend directory. Focused tests cover query-key dimensions, immutable showtime/alert cache merging, request deduplication/cancellation, targeted invalidation, account isolation, failed account writes, signup defaults, and preference rollback/coalescing policy. Tests use in-memory Supabase transport, never real credentials or network writes. Browser QA must use a local read-only Supabase fixture; production data, deployments, and authenticated remote writes are outside the frontend verification workflow.
+Run JavaScript workspace commands from the repository root: `npm test`, `npm run lint`, `npm run format:check`, `npm run typecheck`, `npm run build`, or the complete `npm run verify`. `npm test` includes the PostgreSQL-backed API integration suite; `npm run verify` also runs the Chromium browser acceptance tests. The database-backed commands start real PostgreSQL 17 through the pinned `embedded-postgres` package, create a fresh cluster under the system temp directory, replay the migrations and fixtures, and stop and remove that cluster afterward. They need no Docker daemon or preinstalled PostgreSQL service. Install the browser once with `npx playwright install chromium` before running `npm run web:e2e` or `npm run verify`. Focused tests cover query-key dimensions, immutable showtime/alert cache merging, request deduplication/cancellation, targeted invalidation, account isolation, failed account writes, signup defaults, and preference rollback/coalescing policy. Unit tests inject API/auth transports. Integration and Playwright suites exercise real Express/Better Auth handlers and captured mail. Hosted acceptance uses isolated DEV accounts with explicit authorization; never use Production accounts or send live mail as a fixture test.
 
 ### Frontend UX Details
 
@@ -190,7 +190,7 @@ Within that plan, the backend currently does the following:
 
 This repo includes generic Supabase table utilities in `backend/utils/supabase/supabase_tables.py`.
 
-Create `movieCodes` in the Supabase SQL Editor before running the enrichment pipeline. The Python dataflow then fills the empty table from the current final rows and reuses the same code for every TMDb ID on later runs.
+`movieCodes` is created by the SQL migration chain; do not create it ad hoc or replay the baseline on an existing project. The Python dataflow then fills the empty table from the current final rows and reuses the same code for every TMDb ID on later runs.
 
 </details>
 
@@ -211,6 +211,8 @@ Environment variables:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `TMDB_API_KEY`
 - `RESEND_API_KEY` (required only when a pending alert is ready to send)
+- `TICKET_ALERT_RECIPIENT_API_URL` (explicit app origin; DEV must not default to Production)
+- `TICKET_ALERT_INTERNAL_API_SECRET` (matches that app environment’s server-only `INTERNAL_API_SECRET`)
 - `RESEND_FROM_EMAIL` optional; defaults to `Kartiseret <notifications@seret.site>`
 - `SITE_URL` optional; defaults to `https://seret.site`
 - `RUNNER_MACHINE` optional, but useful for local timing statistics
@@ -229,6 +231,8 @@ export SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
 export TMDB_API_KEY="your-tmdb-api-key"
 export RESEND_API_KEY="re_your_resend_api_key"
 export RUNNER_MACHINE="local"
+export TICKET_ALERT_RECIPIENT_API_URL="https://your-dev-app.example"
+# Supply TICKET_ALERT_INTERNAL_API_SECRET privately before dispatching alerts.
 
 python -m backend.config.runner
 ```
@@ -245,55 +249,55 @@ python backend/utils/supabase/clear_old_entries.py
 
 ### Frontend
 
-The frontend lives in `Codebase - Kartiseret Web/` and expects:
+The frontend lives in `Codebase - Kartiseret Web/` and calls same-origin `/api/v1` and `/api/auth`. It needs no Supabase browser key. The server owns restricted database access, Better Auth secrets and Resend configuration; copy the DEV settings in [`.env.example`](.env.example) into a private root `.env`.
 
-- `SUPABASE_URL` or `VITE_SUPABASE_URL`
-- `SUPABASE_PUBLISHABLE_KEY` or `VITE_SUPABASE_PUBLISHABLE_KEY`
-
-(These are loaded from the project-root `.env` file by the Vite config.)
-
-Setup and run:
+Setup and run in separate terminals:
 
 ```bash
-cd "Codebase - Kartiseret Web"
-npm install
+npm ci
+npm run server:dev
+```
+
+```bash
 npm run dev
 ```
 
-The app intentionally uses only the publishable key and never a service-role key.
+The example's Vite proxy targets the local API. Use DEV database credentials and exact local auth origins, never a Production runtime or service-role key in the browser. Production’s coordinated identity migration/configuration gate is in the [PR5 handoff](docs/backend-overhaul/pr-5-handoff.md).
 
 Run the fixture-only runtime-validation suite and the full production build with:
 
 ```bash
 npm test
+npm run typecheck
 npm run build
 npm run bundle:check
 ```
 
-The validation architecture and one-parse-per-boundary convention are documented in [`Codebase - Kartiseret Web/docs/runtime-validation.md`](Codebase%20-%20Kartiseret%20Web/docs/runtime-validation.md). Run `npm run verify` for the complete lint, formatting, fixture-test, build, and eager-bundle validation sequence.
+These commands run from the repository root. Shared contracts are exported through explicit `@kartiseret/contracts/*` subpaths and built before frontend or Vercel functions consume them. The validation architecture and one-parse-per-boundary convention are documented in [`Codebase - Kartiseret Web/docs/runtime-validation.md`](Codebase%20-%20Kartiseret%20Web/docs/runtime-validation.md). Run `npm run verify` for the complete lint, formatting, typecheck, fixture-test, build, and eager-bundle validation sequence.
 
-Email signups are handled by Supabase Auth. When Confirm Email is enabled, new
-users must confirm their address before logging in or creating a ticket alert;
-the first confirmed session initializes their saved preferences from the signup
-location.
+Both the root and web-workspace `verify` commands remove `Codebase - Kartiseret Web/dist/` only after all their checks pass. Failed verification preserves the output for debugging. Run `npm run build` before previewing, inspecting, or measuring the built bundle again; the build command retains its output for deployment. You can also remove the web bundle manually with root `npm run clean:web-build`. The contracts and server `dist/` folders stay available for editor imports and development sessions. VS Code hides all three generated output folders from its Explorer.
 
-### Coming Soon Ticket Alerts
+Email/password signups use Better Auth inside Express and require verification before private features. Signup/change/reset share an 8–128 character policy. Signed-out recovery consumes an actual reset token. Existing imported accounts retain their UUID/private records and establish a new credential through password reset; provider passwords and sessions are not imported.
 
-Apply the ticket-alert migrations in timestamp order, ending with [`supabase/migrations/20260916000000_remove_ticket_alert_rpcs_and_guest_subscriptions.sql`](supabase/migrations/20260916000000_remove_ticket_alert_rpcs_and_guest_subscriptions.sql), before deploying the account-only alert-enabled frontend or backend. The account subscription table uses owner-only RLS policies. The final migration removes the retired guest table and all ticket-alert RPCs; the frontend and backend use direct table access.
+### Movie Notifications
 
-The final step of the now-playing dataflow checks pending account subscriptions after fresh showtimes have been published. A showtime qualifies only when it is still upcoming and contains a real HTTP(S) ticket URL. All newly available subscribed movies are grouped into one Resend email per account for that run, with links preferring the saved/current city and falling back to the earliest linked showtime elsewhere. Signed-in users can review and undo account alerts under `/user`.
+SQL under `supabase/migrations/` is the only schema authority. Existing projects must not replay the baseline; use the current migration ledger and reviewed [PR5 cutover](docs/backend-overhaul/pr-5-handoff.md). Browser subscription operations go through protected Express APIs. Python retains guarded service-role table updates, stable delivery IDs and Resend idempotency, but obtains canonical verified recipient email only through the separately authenticated internal application endpoint.
 
-Keep `RESEND_API_KEY` server-side in the local runner or GitHub Actions secret store. Never prefix it with `VITE_`; Vercel does not send these emails in v1. Production delivery from the default address also requires `seret.site` to be verified in Resend. Resend's shared `resend.dev` domain can only send to the Resend account owner.
+Movie notifications require an upcoming showtime with a valid ticket URL. Unset city criteria follow the account’s preferred city, falling back to Jerusalem; explicit city lists select one or more cities. “All cities” saves an explicit list. The default notification mode sends once per film when any selected city first has a qualifying screening. Users can instead choose first availability separately for each selected city, with optional per-title overrides and the existing showtime filters under `/user`. Later dates, sessions, cinemas, and ticket-link changes do not repeat a completed scope. Manual watches and Letterboxd sources share delivery history and one digest per account per run, with separate Coming Soon date and ticket-availability sections. See [the notification cutover guide](docs/first-availability-notifications.md) before deployment.
 
-Recommended rollout order:
+Signed-in users can also search TMDb and watch titles before they appear in the local Coming Soon catalog. The title search key stays on the server. A date notification uses only the date first published to the local `finalSoons` catalog, never TMDb's general release date. Existing local dates are shown without creating a date alert. Newly published dates are grouped into one email per account after the Coming Soon update commits. These watches and their retry state are separate from ticket alerts.
 
-1. Apply the Supabase migration.
-2. Deploy the backend runner with `RESEND_API_KEY` and a verified sending domain.
-3. Deploy the frontend.
+Users can track public Letterboxd watchlists and lists, including lists visible to anyone with a share link, without connecting a Letterboxd account or sharing sign-in credentials. Sources sync during the daily catalog pipeline; the first sync quietly records the existing films. A film must match one unique local English title and release year before its local Coming Soon date or eligible future ticket showtimes can trigger an alert. Showtime alerts use the account's city selection, notification mode, ticket filters, and any saved per-title override. Each film’s first local Coming Soon date is a separate notification scope. Removing a source cancels pending source alerts after the film leaves every tracked source, while manual title watches remain independent.
+
+Keep `RESEND_API_KEY` server-side in the local runner or GitHub Actions secret store. Never prefix it with `VITE_`. The runner sends movie notifications; Vercel uses its own server-side Resend configuration for account verification/reset mail. Production delivery from the default address also requires `seret.site` to be verified in Resend. Resend's shared `resend.dev` domain can only send to the Resend account owner.
+
+Set `TMDB_API_KEY` as a server-only variable for the Express API in each deployed environment that should provide movie search. The same variable is used by the Python catalog pipeline. Do not expose it through a `VITE_` browser variable. If the API key is absent, title search returns a safe unavailable response.
+
+Follow the coordinated [PR5 Production checklist](docs/backend-overhaul/pr-5-handoff.md): prepare app/worker configuration, reconcile/export accounts, apply the single auth transition during the release window, deploy, verify real recovery/private flows, then resume affected runs.
 
 ## Automation
 
-- `.github/workflows/web_checks.yml` runs fixture-only web linting, formatting, tests, builds, and bundle-budget checks on relevant pull requests and `main` pushes; it does not receive Supabase credentials.
+- `.github/workflows/full_checks.yml` runs the frontend lint, formatting, test, build, and bundle-budget suite, Python compile/tests, real PostgreSQL 17 migration/API integration, and Chromium browser acceptance on every push and pull request. Database-backed checks use the same disposable embedded PostgreSQL lifecycle as local commands and do not require a PostgreSQL service or hosted database credentials.
 - `.github/workflows/run_main.yml` runs the main backend pipeline manually in GitHub Actions and uploads run artifacts.
 - `.github/workflows/daily_sweep.yml` clears old showtimes and soon entries on a daily schedule.
 - `backend/config/cron/run_weekly.sh` is a local weekly shell runner that syncs the repo, runs the full job, commits artifacts/logs, and pushes them back to `main`.
@@ -316,6 +320,8 @@ Recommended rollout order:
 │   ├── scraping/               Selenium scrapers for chains, coming-soon pages, and cinematheques
 │   ├── dataflow/               Cleaning, TMDb matching, enrichment, dedupe, and preview generation
 │   └── utils/                  Console UI, logging artifacts, and Supabase helpers
+├── packages/contracts/         Shared Zod contracts and pure domain helpers
+│   └── src/                    Explicitly exported ESM contract modules
 ├── Codebase - Kartiseret Web/  React + TypeScript frontend SPA
 │   ├── config/                 Vite, TypeScript, and prettier config
 │   ├── src/                    App source: components, data, lib, prefs
@@ -325,6 +331,8 @@ Recommended rollout order:
 │   ├── eslint.config.js
 │   ├── tsconfig.json
 │   └── package.json
+├── package.json                Root npm workspace and verification commands
+├── package-lock.json           Single npm workspace lockfile
 ├── .env                        Shared environment variables (Supabase keys, etc.)
 ├── LICENSE.md
 ├── README.md
@@ -337,7 +345,8 @@ Recommended rollout order:
 
 - `backend/config/registry.py` defines the scraper registries and the staged dataflow registries.
 - `backend/config/runner.py` is the main entry point for local, weekly, and GitHub Actions runs.
-- `backend/config/runners.py` orchestrates parallel scraper execution, sequential dataflows, retries, and runtime reporting.
+- `backend/config/job_supervisor.py` gives each selected pipeline run (starting after the local plan menu) and each realtime solo Update a whole-process deadline. Defaults are 4h 30m and 30m; `PIPELINE_JOB_DEADLINE_SECONDS` and `PIPELINE_SOLO_UPDATE_DEADLINE_SECONDS` override them. On timeout or shutdown, the supervisor stops the worker process group, escalates to a kill after a bounded grace period, and makes a bounded best-effort attempt to release an allocated run lock. `PIPELINE_TERMINATION_GRACE_SECONDS` controls the default 20-second shutdown window, including up to 5 seconds reserved for run-lock cleanup.
+- `backend/config/runners.py` runs selected scrapers through six timing-aware workers, then coordinates the shared Clean → TMDB → Update dataflow stages and runtime reporting.
 - `backend/scraping/BaseCinema.py` defines the base Selenium scraping contract used across all cinema sources.
 - `backend/dataflow/nowplayings/NowPlayingsTmdb.py` handles now-playing grouping, TMDb matching, and movement into final showtime/movie tables.
 - `backend/dataflow/nowplayings/NowPlayingsUpdate.py` performs richer metadata enrichment for now-playing movies.
@@ -347,8 +356,8 @@ Recommended rollout order:
 
 ## Current Limitations
 
-- The frontend is tightly coupled to its Supabase table names and column assumptions.
-- Focused frontend state tests are configured; broader end-to-end and scraper coverage remains limited.
+- SQL/Python retain existing physical database names; shared DTOs isolate the browser from those table details.
+- Real app/API/database/browser flows are covered; third-party scraper coverage remains limited.
 - Scrapers depend on third-party cinema DOMs, so upstream site changes can break individual sources without warning.
 
 ## Links

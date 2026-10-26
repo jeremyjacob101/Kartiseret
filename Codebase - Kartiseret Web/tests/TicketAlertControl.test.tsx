@@ -1,62 +1,32 @@
-import { createClient } from "@supabase/supabase-js";
+import { TicketAlertControl } from "../src/components/scroller/TicketAlertControl";
+import { DEFAULT_TICKET_ALERT_CRITERIA } from "@kartiseret/contracts/private-data";
+import { getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
+import { useUserPreferencesStore } from "../src/stores/userPreferencesStore";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ticketAlertQueryKeys } from "../src/data/ticketAlerts";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { OPEN_AUTH_MENU_EVENT } from "../src/lib/authMenu";
 import { render, screen } from "@testing-library/react";
+import { queryClient } from "../src/lib/queryClient";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TicketAlertControl } from "../src/components/scroller/TicketAlertControl";
-import { getJerusalemCinemaDate } from "../src/routing/showtimeLinkCodec";
-import { queryClient } from "../src/lib/queryClient";
-import { OPEN_AUTH_MENU_EVENT } from "../src/lib/authMenu";
-import { ticketAlertQueryKeys } from "../src/data/ticketAlerts";
-import { useUserPreferencesStore } from "../src/stores/userPreferencesStore";
 import { sampleMovie } from "./fixtures";
 
-const { getSupabaseBrowserClientMock } = vi.hoisted(() => ({
-  getSupabaseBrowserClientMock: vi.fn(),
+const { getAuthClientMock } = vi.hoisted(() => ({
+  getAuthClientMock: vi.fn(),
 }));
 
-vi.mock("../src/lib/supabase", () => ({
-  getSupabaseBrowserClient: getSupabaseBrowserClientMock,
+vi.mock("../src/lib/authClient", () => ({
+  getAuthClient: getAuthClientMock,
 }));
 
-function createSupabaseFixture() {
-  return createClient("http://127.0.0.1:54321", "local-test-only", {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-    global: {
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        const url = new URL(request.url);
-
-        if (url.pathname.endsWith("/finalShowtimes")) {
-          return new Response("[]", { status: 200 });
-        }
-
-        if (url.pathname.endsWith("/ticket_alert_subscriptions")) {
-          if (request.method === "POST") {
-            return new Response(
-              JSON.stringify({
-                tmdb_id: 101,
-                created_at: "2026-09-16T12:00:00Z",
-                notified_at: null,
-                delivery_title: null,
-                delivery_date: null,
-              }),
-              { status: 201 },
-            );
-          }
-
-          return new Response("null", { status: 200 });
-        }
-
-        return new Response("Unexpected fixture request", { status: 500 });
-      },
-    },
-  });
+function createAuthFixture() {
+  return {
+    getSession: vi.fn(async () => ({
+      data: { user: { id: "00000000-0000-4000-8000-000000000001" } },
+      error: null,
+    })),
+  };
 }
 
 function renderControl() {
@@ -70,6 +40,8 @@ function renderControl() {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-16T12:00:00.000Z"));
   queryClient.clear();
   const storageValues = new Map<string, string>();
   Object.defineProperty(window, "localStorage", {
@@ -89,11 +61,43 @@ beforeEach(() => {
       location: "Jerusalem",
     },
   });
-  getSupabaseBrowserClientMock.mockReturnValue(createSupabaseFixture());
+  getAuthClientMock.mockReturnValue(createAuthFixture());
+  vi.stubGlobal("fetch", async (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => {
+    const pathname = new URL(String(input), "https://kartiseret.test").pathname;
+    const data = pathname.endsWith("/ticket-alerts/preferences")
+      ? { preferences: DEFAULT_TICKET_ALERT_CRITERIA }
+      : pathname.includes("/ticket-alerts")
+        ? init?.method === "POST"
+          ? {
+              kind: "account",
+              subscription: {
+                tmdbId: "101",
+                createdAt: "2026-09-16T12:00:00Z",
+                notifiedAt: null,
+                deliveryTitle: null,
+                deliveryDate: null,
+                criteriaOverrides: {},
+              },
+            }
+          : { subscriptions: [], nextOffset: null }
+        : { showtimes: [] };
+    return new Response(JSON.stringify({ data, error: null }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Kartiseret-Publication": "0",
+      },
+    });
+  });
 });
 
 afterEach(() => {
   queryClient.clear();
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe("TicketAlertControl", () => {
@@ -175,13 +179,20 @@ describe("TicketAlertControl", () => {
         notifiedAt: "2026-09-15T12:00:00Z",
         deliveryTitle: "Sample Movie",
         deliveryDate: date,
+        criteriaOverrides: {},
       },
     ]);
+    queryClient.setQueryData(
+      ticketAlertQueryKeys.preferences(userId),
+      DEFAULT_TICKET_ALERT_CRITERIA,
+    );
     renderControl();
 
     expect(screen.getByRole("button", { name: "Alert sent" })).toBeDisabled();
     expect(
-      screen.getByText("Your one-time ticket alert has already been sent."),
+      screen.getByText(
+        "Your selected ticket availability alerts are complete.",
+      ),
     ).toBeInTheDocument();
   });
 });

@@ -1,8 +1,24 @@
+import { MoviePosterArtwork } from "../src/components/MoviePosterArtwork";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { MoviePosterArtwork } from "../src/components/MoviePosterArtwork";
 
 describe("MoviePosterArtwork", () => {
+  it("keeps its image element and fallback while an offscreen request is deferred", () => {
+    const props = {
+      title: "Deferred",
+      imageSrc: "/deferred.jpg",
+      showFallbackWhileLoading: true,
+    };
+    const { rerender } = render(<MoviePosterArtwork {...props} deferRequest />);
+    const image = screen.getByRole("img", { name: "Deferred" });
+    expect(image).not.toHaveAttribute("src");
+    expect(screen.getByText("Deferred")).toBeInTheDocument();
+    rerender(<MoviePosterArtwork {...props} deferRequest={false} />);
+    expect(screen.getByRole("img", { name: "Deferred" })).toBe(image);
+    expect(image).toHaveAttribute("src", "/deferred.jpg");
+    fireEvent.load(image);
+    expect(screen.queryByText("Deferred")).not.toBeInTheDocument();
+  });
   it("renders an accessible title fallback when no poster exists", () => {
     render(
       <MoviePosterArtwork

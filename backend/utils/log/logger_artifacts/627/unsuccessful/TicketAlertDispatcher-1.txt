@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: TicketAlertDispatcher
+URL: ?
+Exception: APIError - {'message': 'Could not find the function public.claim_ticket_alert_delivery(p_delivery_id, p_items, p_user_id) in the schema cache', 'code': 'PGRST202', 'hint': None, 'details': 'Searched for the function public.claim_ticket_alert_delivery with parameters p_delivery_id, p_items, p_user_id or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache.'}
+Call Chain: runners.py:20 > ticket_alerts.py:923 > ticket_alerts.py:862 > ticket_alerts.py:832 > ticket_alerts.py:640
+Selector: 
+Screenshot: 
+CSV: 

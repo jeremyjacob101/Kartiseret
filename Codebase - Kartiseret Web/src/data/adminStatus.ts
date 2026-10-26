@@ -1,7 +1,10 @@
+import { applicationIdentitySchema } from "@kartiseret/contracts/private-data";
+import { accountResponseSchema } from "@kartiseret/contracts/private-data";
 import { queryOptions, skipToken } from "@tanstack/react-query";
-import { getSupabaseBrowserClient } from "../lib/supabase";
-import { adminUserRowSchema, supabaseUserIdSchema } from "../lib/supabaseSchemas";
-import { parseBoundary } from "../validation/runtime";
+
+const userIdSchema = applicationIdentitySchema.shape.id;
+import { parseBoundary } from "@kartiseret/contracts/runtime";
+import { privateApiResponse } from "./privateApi";
 
 const ADMIN_STATUS_STALE_TIME = 5 * 60 * 1000;
 const ADMIN_STATUS_GC_TIME = 30 * 60 * 1000;
@@ -15,32 +18,19 @@ async function fetchAdminStatus(
   userId: string,
   signal?: AbortSignal,
 ): Promise<boolean> {
-  const supabase = getSupabaseBrowserClient();
-  let query = supabase
-    .from("admin_users")
-    .select("user_id")
-    .eq("user_id", userId);
-
-  if (signal) {
-    query = query.abortSignal(signal);
-  }
-
-  const { data, error } = await query.maybeSingle();
-
-  if (error) {
-    throw error;
-  }
-
-  return Boolean(
-    data
-      ? parseBoundary(adminUserRowSchema, data, "admin status response")
-      : null,
+  const response = await privateApiResponse(
+    "/api/v1/account",
+    accountResponseSchema,
+    { userId, signal },
   );
+  if (response.data.user.id !== userId)
+    throw new Error("Account response did not match this user.");
+  return response.data.isAdmin;
 }
 
 export function adminStatusQueryOptions(userId: string | null) {
   const validatedUserId = userId
-    ? parseBoundary(supabaseUserIdSchema, userId, "admin status user ID")
+    ? parseBoundary(userIdSchema, userId, "admin status user ID")
     : null;
   return queryOptions({
     queryKey: adminStatusQueryKeys.byUser(validatedUserId ?? "anonymous"),

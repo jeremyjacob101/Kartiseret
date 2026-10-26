@@ -1,22 +1,30 @@
-import { Suspense, StrictMode, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { User } from "@supabase/supabase-js";
-import { QueryClientProvider, useMutation, useQuery } from "@tanstack/react-query";
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
-import { createRoot } from "react-dom/client";
-import { useShallow } from "zustand/react/shallow";
-import { BottomBar } from "./components/bars/BottomBar";
-import { AttributionPage } from "./components/AttributionPage";
-import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
-import { Navbar } from "./components/bars/Navbar";
-import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
-import { type MovieSearchResult } from "./components/MovieSearchMenu";
-import { adminStatusQueryOptions } from "./data/adminStatus";
 import { adminMovieEditMutationOptions, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, movieCollectionQueryOptions, reloadComingSoonMovies, reloadNowPlayingMovies, showtimeCityQueryOptions, type Movie } from "./data/movieCatalog";
-import { useDeviceStore } from "./device/useDeviceType";
-import { filterMoviesByReleaseCategory, getMovieReleaseCategory, type MovieReleaseCategory } from "./domain/movieRelease";
+import { filterMoviesByReleaseCategory, getMovieReleaseCategory, MOVIE_RELEASE_CATEGORY_LABELS, type MovieReleaseCategory } from "./domain/movieRelease";
 import { initializeUserPreferencesStore, useUserPreferencesStore } from "./stores/userPreferencesStore";
+import { Suspense, StrictMode, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
+import { MovieDisplayPreferencesProvider } from "./contexts/MovieDisplayPreferencesProvider";
+import { useMovieDisplayPreferences } from "./contexts/MovieDisplayPreferencesContext";
+import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
+import { QueryClientProvider, useMutation, useQuery } from "@tanstack/react-query";
+import { ReleaseCategorySwitcher } from "./components/ReleaseCategorySwitcher";
+import type { ApplicationIdentity } from "@kartiseret/contracts/private-data";
+import { applyMovieDisplayPreferences } from "./data/movieDisplayPreferences";
+import { backdropPreloader } from "./components/scroller/backdropPreloader";
+import { usePublicationRevision } from "./hooks/usePublicationRevision";
+import { type MovieSearchResult } from "./components/MovieSearchMenu";
+import { PasswordResetPage } from "./components/PasswordResetPage";
+import { movieCodeSchema } from "@kartiseret/contracts/runtime";
+import { AttributionPage } from "./components/AttributionPage";
+import { adminStatusQueryOptions } from "./data/adminStatus";
+import { BottomBar } from "./components/bars/BottomBar";
+import { useDeviceStore } from "./device/useDeviceType";
+import { PASSWORD_RESET_PATH } from "./lib/authRoutes";
+import { useShallow } from "zustand/react/shallow";
+import { Navbar } from "./components/bars/Navbar";
 import { queryClient } from "./lib/queryClient";
-import { movieCodeSchema } from "./validation/runtime";
+import { createRoot } from "react-dom/client";
 import "./index.css";
 
 const SCROLLER_CARD_WIDTH = 220;
@@ -28,19 +36,21 @@ const MOBILE_SCROLLER_CARD_WIDTH = 160;
 const MOBILE_SCROLLER_CARD_HEIGHT = 240;
 const MOBILE_SCROLLER_GAP = 18;
 const MOBILE_SCROLLER_SLOT_MIN_HEIGHT = 300;
-const EMPTY_MOVIES: readonly Movie[] = Object.freeze([]);
 const FIXED_APP_PATHS = new Set([
   "/",
   "/movies",
   "/showtimes",
+  "/cinematheques",
   "/soons",
   "/user",
   "/attribution",
+  PASSWORD_RESET_PATH,
 ]);
 const loadUserPreferencesPage = () =>
   import("./components/UserPreferencesPage");
 const loadPosterGridPage = () => import("./components/PosterGridPage");
 const loadAllShowtimesPage = () => import("./components/AllShowtimesPage");
+const loadCinemathequesPage = () => import("./components/CinemathequesPage");
 const loadMoviePage = () => import("./components/MoviePage");
 
 const UserPreferencesPage = lazy(async () => {
@@ -58,6 +68,11 @@ const AllShowtimesPage = lazy(async () => {
   return { default: module.AllShowtimesPage };
 });
 
+const CinemathequesPage = lazy(async () => {
+  const module = await loadCinemathequesPage();
+  return { default: module.CinemathequesPage };
+});
+
 const MoviePage = lazy(async () => {
   const module = await loadMoviePage();
   return { default: module.MoviePage };
@@ -65,19 +80,6 @@ const MoviePage = lazy(async () => {
 
 type MovieSearchMode = "nowPlaying" | "comingSoon";
 type CatalogPageView = "grid" | "scroller";
-
-const CATALOG_RELEASE_LABELS: Record<MovieReleaseCategory, string> = {
-  newReleases: "New Releases",
-  reReleases: "Re-Releases",
-};
-
-const CATALOG_RELEASE_OPTIONS: readonly {
-  value: MovieReleaseCategory;
-  label: string;
-}[] = [
-  { value: "newReleases", label: CATALOG_RELEASE_LABELS.newReleases },
-  { value: "reReleases", label: CATALOG_RELEASE_LABELS.reReleases },
-];
 
 type CatalogMovieJumpRequest = MovieScrollerJumpRequest & {
   mode: MovieSearchMode;
@@ -127,12 +129,11 @@ type HomeRouteProps = {
   cardHeight: number;
   cardWidth: number;
   comingSoonReady: boolean;
+  comingSoonMovies: readonly Movie[];
   gap: number;
   nowPlayingReady: boolean;
   nowPlayingMovies: readonly Movie[];
   nowPlayingReReleaseMovies: readonly Movie[];
-  nowPlayingReReleasesReady: boolean;
-  comingSoonMovies: readonly Movie[];
   scrollerSlotMinHeight: number;
 };
 
@@ -145,40 +146,6 @@ function CatalogErrorNote({ message }: { message: string | null }) {
     <p className="app-inline-note" role="status">
       {message}
     </p>
-  );
-}
-
-function CatalogReleaseSwitcher({
-  category,
-  onChange,
-  routeLabel,
-}: {
-  category: MovieReleaseCategory;
-  onChange: (category: MovieReleaseCategory) => void;
-  routeLabel: string;
-}) {
-  return (
-    <div
-      className="catalog-release-switcher"
-      role="group"
-      aria-label={`${routeLabel} release filter`}
-    >
-      {CATALOG_RELEASE_OPTIONS.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          className={`catalog-release-switcher-button${
-            category === option.value ? " is-active" : ""
-          }`}
-          aria-pressed={category === option.value}
-          onClick={() => {
-            onChange(option.value);
-          }}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
   );
 }
 
@@ -200,7 +167,7 @@ function CatalogRoute({
   scrollerSlotMinHeight,
 }: CatalogRouteProps) {
   const routeLabel = jumpMode === "nowPlaying" ? "Now Playing" : "Coming Soon";
-  const releaseLabel = CATALOG_RELEASE_LABELS[releaseCategory];
+  const releaseLabel = MOVIE_RELEASE_CATEGORY_LABELS[releaseCategory];
   const catalogContent =
     movies.length === 0 ? (
       <p className="catalog-empty-state">
@@ -253,7 +220,7 @@ function CatalogRoute({
           <p className="section-kicker">{routeLabel}</p>
           <h1 className="section-title">{releaseLabel}</h1>
         </div>
-        <CatalogReleaseSwitcher
+        <ReleaseCategorySwitcher
           category={releaseCategory}
           onChange={onReleaseCategoryChange}
           routeLabel={routeLabel}
@@ -271,24 +238,23 @@ function HomeRoute({
   comingSoonReady,
   comingSoonMovies,
   gap,
+  nowPlayingReady,
   nowPlayingMovies,
   nowPlayingReReleaseMovies,
-  nowPlayingReReleasesReady,
-  nowPlayingReady,
   scrollerSlotMinHeight,
 }: HomeRouteProps) {
   return (
     <section className="scroller-panel" aria-label="Movie releases">
       <CatalogErrorNote message={catalogError} />
       <div className="section-heading">
-        <p className="section-kicker">Movies</p>
-        <h1 className="section-title">Now Playing</h1>
+        <p className="section-kicker">Now Playing</p>
+        <h1 className="section-title">New Releases</h1>
       </div>
       <div
         className="scroller-slot"
         style={{ minHeight: scrollerSlotMinHeight }}
       >
-        {nowPlayingReady ? (
+        {nowPlayingReady && nowPlayingMovies.length > 0 ? (
           <MovieScroller
             mode="nowPlaying"
             movieItems={nowPlayingMovies}
@@ -297,6 +263,10 @@ function HomeRoute({
             gap={gap}
             maxWidth={SCROLLER_MAX_WIDTH}
           />
+        ) : nowPlayingReady ? (
+          <p className="app-inline-note" role="status">
+            No new releases are currently available.
+          </p>
         ) : null}
       </div>
       <div className="section-heading">
@@ -307,7 +277,7 @@ function HomeRoute({
         className="scroller-slot"
         style={{ minHeight: scrollerSlotMinHeight }}
       >
-        {comingSoonReady ? (
+        {comingSoonReady && comingSoonMovies.length > 0 ? (
           <MovieScroller
             mode="comingSoon"
             movieItems={comingSoonMovies}
@@ -316,6 +286,10 @@ function HomeRoute({
             gap={gap}
             maxWidth={SCROLLER_MAX_WIDTH}
           />
+        ) : comingSoonReady ? (
+          <p className="app-inline-note" role="status">
+            No new releases are currently available.
+          </p>
         ) : null}
       </div>
       <div className="section-heading">
@@ -326,7 +300,7 @@ function HomeRoute({
         className="scroller-slot"
         style={{ minHeight: scrollerSlotMinHeight }}
       >
-        {nowPlayingReReleasesReady ? (
+        {nowPlayingReady && nowPlayingReReleaseMovies.length > 0 ? (
           <MovieScroller
             mode="nowPlaying"
             movieItems={nowPlayingReReleaseMovies}
@@ -335,6 +309,10 @@ function HomeRoute({
             gap={gap}
             maxWidth={SCROLLER_MAX_WIDTH}
           />
+        ) : nowPlayingReady ? (
+          <p className="app-inline-note" role="status">
+            No re-releases are currently available.
+          </p>
         ) : null}
       </div>
     </section>
@@ -360,7 +338,19 @@ function ShowtimesRoute({
   );
 }
 
-function UserRoute({ user }: { user: User | null }) {
+function UserRoute({
+  user,
+  loading,
+}: {
+  user: ApplicationIdentity | null;
+  loading: boolean;
+}) {
+  if (!user && loading)
+    return (
+      <section className="page-panel">
+        <p role="status">Loading your account…</p>
+      </section>
+    );
   if (!user) {
     return <Navigate to="/" replace />;
   }
@@ -375,6 +365,8 @@ function UserRoute({ user }: { user: User | null }) {
 }
 
 export function App() {
+  usePublicationRevision();
+  const displayPreferences = useMovieDisplayPreferences();
   const routeLocation = useLocation();
   const navigate = useNavigate();
   const isMobile = useDeviceStore((state) => state.isMobile);
@@ -390,7 +382,10 @@ export function App() {
     ...adminStatusQueryOptions(user?.id ?? null),
     enabled: Boolean(user),
   });
-  const shouldLoadCatalog = pathname !== "/user" && pathname !== "/attribution";
+  const shouldLoadCatalog =
+    pathname !== "/user" &&
+    pathname !== "/attribution" &&
+    pathname !== PASSWORD_RESET_PATH;
   const nowPlayingQuery = useQuery({
     ...movieCollectionQueryOptions("nowPlaying"),
     enabled: shouldLoadCatalog,
@@ -406,8 +401,22 @@ export function App() {
   const { mutateAsync: saveAdminMovieEdit } = useMutation(
     adminMovieEditMutationOptions(),
   );
-  const nowPlayingMovies = nowPlayingQuery.data?.movies ?? EMPTY_MOVIES;
-  const comingSoonMovies = comingSoonQuery.data?.movies ?? EMPTY_MOVIES;
+  const nowPlayingMovies = useMemo(
+    () =>
+      applyMovieDisplayPreferences(
+        nowPlayingQuery.data?.movies ?? [],
+        displayPreferences.preferencesById,
+      ),
+    [displayPreferences.preferencesById, nowPlayingQuery.data?.movies],
+  );
+  const comingSoonMovies = useMemo(
+    () =>
+      applyMovieDisplayPreferences(
+        comingSoonQuery.data?.movies ?? [],
+        displayPreferences.preferencesById,
+      ),
+    [comingSoonQuery.data?.movies, displayPreferences.preferencesById],
+  );
   const nowPlayingNewReleaseMovies = useMemo(
     () => filterMoviesByReleaseCategory(nowPlayingMovies, "newReleases"),
     [nowPlayingMovies],
@@ -424,14 +433,8 @@ export function App() {
     () => filterMoviesByReleaseCategory(comingSoonMovies, "reReleases"),
     [comingSoonMovies],
   );
-  const nowPlayingReady =
-    nowPlayingQuery.isSuccess && nowPlayingMovies.length > 0;
-  const comingSoonReady =
-    comingSoonQuery.isSuccess && comingSoonMovies.length > 0;
-  const nowPlayingNewReleaseReady =
-    nowPlayingQuery.isSuccess && nowPlayingNewReleaseMovies.length > 0;
-  const comingSoonNewReleaseReady =
-    comingSoonQuery.isSuccess && comingSoonNewReleaseMovies.length > 0;
+  const nowPlayingReady = displayPreferences.ready && nowPlayingQuery.isSuccess;
+  const comingSoonReady = displayPreferences.ready && comingSoonQuery.isSuccess;
   const catalogReady = nowPlayingReady && comingSoonReady;
   const movieCodesReady =
     catalogReady &&
@@ -439,15 +442,17 @@ export function App() {
       nowPlayingQuery.data?.movieCodesStatus === "failed") &&
     (comingSoonQuery.data?.movieCodesStatus === "ready" ||
       comingSoonQuery.data?.movieCodesStatus === "failed");
-  const showtimesReady = showtimeCityQuery.data?.broadReady ?? false;
+  const showtimesReady =
+    displayPreferences.ready && (showtimeCityQuery.data?.broadReady ?? false);
   const catalogQueryError =
     nowPlayingQuery.error ??
     comingSoonQuery.error ??
+    displayPreferences.error ??
     (pathname === "/showtimes" ? showtimeCityQuery.error : null);
   const catalogError = catalogQueryError
     ? catalogQueryError instanceof Error
       ? catalogQueryError.message
-      : "Failed to load movie data from Supabase."
+      : "Failed to load movie data."
     : null;
   const [catalogMovieJumpRequest, setCatalogMovieJumpRequest] =
     useState<CatalogMovieJumpRequest | null>(null);
@@ -481,8 +486,7 @@ export function App() {
       return;
     }
 
-    nonCriticalPreloadStartedRef.current = true;
-
+    let cancelPosterWait: (() => void) | undefined;
     let timeoutId: number | null = null;
     let idleId: number | null = null;
     const windowWithIdleCallbacks = window as Window & {
@@ -493,12 +497,14 @@ export function App() {
       ) => number;
     };
     const preloadNonCriticalExperience = () => {
-      preloadCityLocationPicker();
-
-      void Promise.allSettled([
-        loadUserPreferencesPage(),
-        loadPosterGridPage(),
-      ]);
+      cancelPosterWait = backdropPreloader.afterCriticalPosters(() => {
+        nonCriticalPreloadStartedRef.current = true;
+        preloadCityLocationPicker();
+        void Promise.allSettled([
+          loadUserPreferencesPage(),
+          loadPosterGridPage(),
+        ]);
+      });
     };
 
     if (typeof windowWithIdleCallbacks.requestIdleCallback === "function") {
@@ -515,6 +521,7 @@ export function App() {
     }
 
     return () => {
+      cancelPosterWait?.();
       if (
         idleId !== null &&
         typeof windowWithIdleCallbacks.cancelIdleCallback === "function"
@@ -531,8 +538,10 @@ export function App() {
   useEffect(() => {
     if (
       pathname === "/showtimes" ||
+      pathname === "/cinematheques" ||
       pathname === "/user" ||
       pathname === "/attribution" ||
+      pathname === PASSWORD_RESET_PATH ||
       isPotentialStandaloneMoviePath(pathname) ||
       !nowPlayingReady ||
       !comingSoonReady ||
@@ -592,6 +601,7 @@ export function App() {
       return;
     }
 
+    let cancelPosterWait: (() => void) | undefined;
     let timeoutId: number | null = null;
     let idleId: number | null = null;
     const windowWithIdleCallbacks = window as Window & {
@@ -602,7 +612,9 @@ export function App() {
       ) => number;
     };
     const runPreload = () => {
-      void loadAllShowtimesPage();
+      cancelPosterWait = backdropPreloader.afterCriticalPosters(() => {
+        void loadAllShowtimesPage();
+      });
     };
 
     if (typeof windowWithIdleCallbacks.requestIdleCallback === "function") {
@@ -619,6 +631,7 @@ export function App() {
     }
 
     return () => {
+      cancelPosterWait?.();
       if (
         idleId !== null &&
         typeof windowWithIdleCallbacks.cancelIdleCallback === "function"
@@ -636,7 +649,7 @@ export function App() {
     void Promise.all([loadNowPlayingMovies(), loadComingSoonMovies()]).catch((
       error: unknown,
     ) => {
-      console.error("Failed to load movie catalog from Supabase.", error);
+      console.error("Failed to load movie catalog.", error);
     });
   }, []);
 
@@ -837,16 +850,12 @@ export function App() {
                 catalogError={catalogError}
                 cardHeight={scrollerCardHeight}
                 cardWidth={scrollerCardWidth}
-                comingSoonReady={comingSoonNewReleaseReady}
+                comingSoonReady={comingSoonReady}
                 comingSoonMovies={comingSoonNewReleaseMovies}
                 gap={scrollerGap}
+                nowPlayingReady={nowPlayingReady}
                 nowPlayingMovies={nowPlayingNewReleaseMovies}
                 nowPlayingReReleaseMovies={nowPlayingReReleaseMovies}
-                nowPlayingReReleasesReady={
-                  nowPlayingQuery.isSuccess &&
-                  nowPlayingReReleaseMovies.length > 0
-                }
-                nowPlayingReady={nowPlayingNewReleaseReady}
                 scrollerSlotMinHeight={scrollerSlotMinHeight}
               />
             }
@@ -894,6 +903,17 @@ export function App() {
             }
           />
           <Route
+            path="/cinematheques"
+            element={
+              <section className="page-panel">
+                <CatalogErrorNote message={catalogError} />
+                <Suspense fallback={null}>
+                  <CinemathequesPage />
+                </Suspense>
+              </section>
+            }
+          />
+          <Route
             path="/soons"
             element={
               <section className="page-panel">
@@ -926,7 +946,18 @@ export function App() {
               </section>
             }
           />
-          <Route path="/user" element={<UserRoute user={user} />} />
+          <Route
+            path="/user"
+            element={<UserRoute user={user} loading={loading} />}
+          />
+          <Route
+            path={PASSWORD_RESET_PATH}
+            element={
+              <section className="page-panel">
+                <PasswordResetPage />
+              </section>
+            }
+          />
           <Route
             path="/attribution"
             element={
@@ -963,7 +994,9 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <App />
+        <MovieDisplayPreferencesProvider>
+          <App />
+        </MovieDisplayPreferencesProvider>
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,

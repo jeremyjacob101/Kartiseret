@@ -1,0 +1,11 @@
+- - -
+ERROR
+- - -
+Name: HotCinema
+URL: ?
+Exception: TimeoutException - Message: timeout: Timed out receiving message from renderer: 44.890
+  (Session info: chrome=154.0.8037.58)
+Call Chain: runners.py:33 > runners.py:23 > BaseCinema.py:82 > HotCinema.py:24
+Selector: 
+Screenshot: 
+CSV: 

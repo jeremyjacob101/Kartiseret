@@ -1,7 +1,7 @@
+import { ALL_LOCATIONS, DEFAULT_LOCATION, DEFAULT_RATING_SOURCES, DEFAULT_SITE_COLOR, normalizeLocation, normalizeRatingSources, normalizeSiteColor, ratingSourceSchema, siteColorSchema } from "@kartiseret/contracts/preferences";
+import { loadInitialPreferenceLocation } from "../src/prefs/definitions/locations.js";
+import { ticketAlertCriteriaSchema } from "@kartiseret/contracts/private-data";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_LOCATION, loadInitialPreferenceLocation, normalizeLocation } from "../src/prefs/definitions/locations.js";
-import { DEFAULT_RATING_SOURCES, normalizeRatingSources, ratingSourceSchema } from "../src/prefs/definitions/ratingSources.js";
-import { DEFAULT_SITE_COLOR, normalizeSiteColor, siteColorSchema } from "../src/prefs/definitions/siteColor.js";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -37,6 +37,22 @@ describe("preference schemas", () => {
     expect(normalizeLocation("  Tel   Aviv ")).toBe("Tel Aviv");
     expect(normalizeLocation(" ")).toBe(DEFAULT_LOCATION);
     expect(normalizeLocation({ city: "Tel Aviv" })).toBe(DEFAULT_LOCATION);
+  });
+
+  it("supports Bat Yam in location and ticket-alert preferences", () => {
+    expect(ALL_LOCATIONS).toContain("Bat Yam");
+    expect(normalizeLocation(" Bat Yam ")).toBe("Bat Yam");
+    expect(
+      ticketAlertCriteriaSchema.safeParse({
+        cities: ["Bat Yam"],
+        filters: {
+          showType: [],
+          screenFormat: [],
+          screeningTech: [],
+          dubLanguage: [],
+        },
+      }).success,
+    ).toBe(true);
   });
 
   it("keeps only supported rating sources in canonical order", () => {

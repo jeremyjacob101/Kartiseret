@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: CinemaCity
+URL: https://www.cinema-city.co.il/movie/6306
+Exception: AttributeError - 'SyncFilterRequestBuilder' object has no attribute 'select'
+Call Chain: runners.py:33 > runners.py:23 > BaseCinema.py:84 > BaseCinema.py:59
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/653/unsuccessful/CinemaCity-3.png
+CSV: backend/utils/log/logger_artifacts/653/unsuccessful/CinemaCity-3.csv

@@ -1,9 +1,9 @@
-import * as prettier from "prettier";
-import * as prettierPluginBabel from "prettier/plugins/babel";
 import * as prettierPluginTypeScript from "prettier/plugins/typescript";
 import * as prettierPluginEstree from "prettier/plugins/estree";
+import * as prettierPluginBabel from "prettier/plugins/babel";
+import * as prettier from "prettier";
 
-const { group } = prettier.doc.builders;
+const { group, hardline } = prettier.doc.builders;
 const basePrinter = prettierPluginEstree.printers.estree;
 
 function hasComments(value, seen = new WeakSet()) {
@@ -282,14 +282,185 @@ function renderSingleLineImport(node, options) {
     parts.push(";");
   }
 
-  return group(parts);
+  return parts.join("");
+}
+
+function renderSingleLineImportDoc(node, options) {
+  const text = renderSingleLineImport(node, options);
+
+  return text ? group([text]) : null;
+}
+
+function isSideEffectOnlyImport(node) {
+  return !Array.isArray(node.specifiers) || node.specifiers.length === 0;
+}
+
+function hasBlankLineBetween(previousNode, nextNode) {
+  if (!previousNode?.loc || !nextNode?.loc) {
+    return false;
+  }
+
+  return nextNode.loc.start.line > previousNode.loc.end.line + 1;
+}
+
+function getProgramNode(ast) {
+  if (ast?.type === "Program") {
+    return ast;
+  }
+
+  if (ast?.type === "File" && ast.program?.type === "Program") {
+    return ast.program;
+  }
+
+  return null;
+}
+
+function reorderTopImportsByLength(ast, options) {
+  const program = getProgramNode(ast);
+
+  if (!program || !Array.isArray(program.body) || program.body.length === 0) {
+    return ast;
+  }
+
+  const topImports = [];
+
+  for (const node of program.body) {
+    if (node?.type !== "ImportDeclaration") {
+      break;
+    }
+
+    const rendered = renderSingleLineImport(node, options);
+
+    if (!rendered) {
+      return ast;
+    }
+
+    topImports.push({ node, rendered });
+  }
+
+  if (topImports.length < 2) {
+    return ast;
+  }
+
+  const reorderedImports = [];
+  let sortableRun = [];
+
+  const flushSortableRun = () => {
+    reorderedImports.push(
+      ...sortableRun
+        .map((entry, originalIndex) => ({ ...entry, originalIndex }))
+        .sort((left, right) => {
+          if (right.rendered.length !== left.rendered.length) {
+            return right.rendered.length - left.rendered.length;
+          }
+
+          return left.originalIndex - right.originalIndex;
+        }),
+    );
+    sortableRun = [];
+  };
+
+  for (const entry of topImports) {
+    if (isSideEffectOnlyImport(entry.node)) {
+      flushSortableRun();
+      reorderedImports.push(entry);
+    } else {
+      sortableRun.push(entry);
+    }
+  }
+
+  flushSortableRun();
+
+  if (
+    reorderedImports.every(
+      (entry, index) => entry.node === topImports[index]?.node,
+    )
+  ) {
+    return ast;
+  }
+
+  const reorderedBody = [...program.body];
+
+  for (let index = 0; index < reorderedImports.length; index += 1) {
+    reorderedBody[index] = reorderedImports[index].node;
+  }
+
+  const reorderedProgram = { ...program, body: reorderedBody };
+
+  return ast.type === "File"
+    ? { ...ast, program: reorderedProgram }
+    : reorderedProgram;
 }
 
 function print(path, options, print) {
   const node = path.node;
 
+  if (
+    options.singleLineImports &&
+    options.sortTopImportsByLength &&
+    node?.type === "Program" &&
+    Array.isArray(node.body)
+  ) {
+    let topImportCount = 0;
+    const forcedTopImports = [];
+
+    for (const bodyNode of node.body) {
+      if (bodyNode?.type !== "ImportDeclaration") {
+        break;
+      }
+
+      const forcedImport = renderSingleLineImportDoc(bodyNode, options);
+
+      if (!forcedImport) {
+        return basePrinter.print.call(this, path, options, print);
+      }
+
+      forcedTopImports.push(forcedImport);
+      topImportCount += 1;
+    }
+
+    if (topImportCount > 0) {
+      const docs = [];
+
+      for (let index = 0; index < node.body.length; index += 1) {
+        const currentNode = node.body[index];
+        const nextNode = node.body[index + 1];
+        const currentDoc =
+          index < topImportCount
+            ? forcedTopImports[index]
+            : path.call(print, "body", index);
+
+        docs.push(currentDoc);
+
+        if (!nextNode) {
+          continue;
+        }
+
+        let separatorCount = 1;
+
+        if (index === topImportCount - 1) {
+          separatorCount = 2;
+        } else if (index >= topImportCount) {
+          separatorCount = hasBlankLineBetween(currentNode, nextNode) ? 2 : 1;
+        }
+
+        for (
+          let separatorIndex = 0;
+          separatorIndex < separatorCount;
+          separatorIndex += 1
+        ) {
+          docs.push(hardline);
+        }
+      }
+
+      docs.push(hardline);
+
+      return docs;
+    }
+  }
+
   if (options.singleLineImports && node?.type === "ImportDeclaration") {
-    const forcedImport = renderSingleLineImport(node, options);
+    const forcedImport = renderSingleLineImportDoc(node, options);
 
     if (forcedImport) {
       return forcedImport;
@@ -305,6 +476,13 @@ export const options = {
     category: "Global",
     default: false,
     description: "Keep safe import declarations on a single line.",
+  },
+  sortTopImportsByLength: {
+    type: "boolean",
+    category: "Global",
+    default: false,
+    description:
+      "Sort the top consecutive import block by descending one-line character count.",
   },
 };
 
@@ -326,6 +504,18 @@ export const parsers = {
 export const printers = {
   "imports-estree": {
     ...basePrinter,
+    preprocess: (ast, options) => {
+      const nextAst =
+        typeof basePrinter.preprocess === "function"
+          ? basePrinter.preprocess(ast, options)
+          : ast;
+
+      if (!options.singleLineImports || !options.sortTopImportsByLength) {
+        return nextAst;
+      }
+
+      return reorderTopImportsByLength(nextAst, options);
+    },
     print,
   },
 };

@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: HotCinema
+URL: https://hotcinema.co.il/theater/22
+Exception: AttributeError - 'SyncFilterRequestBuilder' object has no attribute 'select'
+Call Chain: runners.py:33 > runners.py:23 > BaseCinema.py:84 > BaseCinema.py:59
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/653/unsuccessful/HotCinema-2.png
+CSV: backend/utils/log/logger_artifacts/653/unsuccessful/HotCinema-2.csv

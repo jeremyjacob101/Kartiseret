@@ -26,11 +26,20 @@ from backend.dataflow.comingsoons.ComingSoonsUpdate import ComingSoonsUpdate
 from backend.dataflow.nowplayings.NowPlayingsClean import NowPlayingsClean
 from backend.dataflow.nowplayings.NowPlayingsTmdb import NowPlayingsTmdb
 from backend.dataflow.nowplayings.NowPlayingsUpdate import NowPlayingsUpdate
-from backend.notifications.ticket_alerts import TicketAlertDispatcher
+from backend.notifications.movie_alerts import MovieNotificationDispatcher
 
 from backend.dataflow.cinematheques.CinemathequesClean import CinemathequesClean
 from backend.dataflow.cinematheques.CinemathequesTmdb import CinemathequesTmdb
 from backend.dataflow.cinematheques.CinemathequesUpdate import CinemathequesUpdate
+
+# These classes are run after the catalog stages and can also be selected on
+# their own from the interactive Alerts menu.
+POST_STAGE_DATAFLOW_CLASS_NAMES = frozenset({
+    "MovieNotificationDispatcher",
+    "TicketAlertDispatcher",
+    "ComingSoonDateAlertDispatcher",
+    "LetterboxdSourceDispatcher",
+})
 
 REGISTRY = {
     "allShowtimes": [
@@ -64,12 +73,13 @@ DATAFLOW_REGISTRY = {
         ComingSoonsClean,
         ComingSoonsTmdb,
         ComingSoonsUpdate,
+        MovieNotificationDispatcher,
     ],
     "nowPlayingData": [
         NowPlayingsClean,
         NowPlayingsTmdb,
         NowPlayingsUpdate,
-        TicketAlertDispatcher,
+        MovieNotificationDispatcher,
     ],
     "cinemathequeData": [
         CinemathequesClean,
@@ -77,3 +87,16 @@ DATAFLOW_REGISTRY = {
         CinemathequesUpdate,
     ],
 }
+
+
+def registered_post_stage_dataflows() -> list[tuple[str, type]]:
+    """Return unique registered post-stage classes with their first registry key."""
+    entries: list[tuple[str, type]] = []
+    seen: set[type] = set()
+    for key, classes in DATAFLOW_REGISTRY.items():
+        for cls in classes:
+            if cls.__name__ not in POST_STAGE_DATAFLOW_CLASS_NAMES or cls in seen:
+                continue
+            seen.add(cls)
+            entries.append((key, cls))
+    return entries

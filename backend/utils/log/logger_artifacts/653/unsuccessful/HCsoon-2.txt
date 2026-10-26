@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: HCsoon
+URL: https://hotcinema.co.il/movie/3903/not-alone
+Exception: AttributeError - 'SyncFilterRequestBuilder' object has no attribute 'select'
+Call Chain: runners.py:33 > runners.py:23 > BaseCinema.py:84 > BaseCinema.py:59
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/653/unsuccessful/HCsoon-2.png
+CSV: backend/utils/log/logger_artifacts/653/unsuccessful/HCsoon-2.csv

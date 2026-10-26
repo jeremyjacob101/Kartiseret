@@ -1,7 +1,7 @@
+import { type ShowtimeFilterOptions, type ShowtimeFilterSelections } from "./showtimeFilters";
+import { Armchair, Glasses, Languages, ListFilter, TvMinimal } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Armchair, Glasses, Languages, ListFilter, TvMinimal } from "lucide-react";
-import { type ShowtimeFilterOptions, type ShowtimeFilterSelections } from "./showtimeFilters";
 import "./ShowtimeFilterMenu.css";
 
 type FilterGroup = keyof ShowtimeFilterOptions;

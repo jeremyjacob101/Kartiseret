@@ -1,5 +1,5 @@
+import { isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema, tmdbIdSchema } from "@kartiseret/contracts/runtime";
 import { z } from "zod";
-import { isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema, tmdbIdSchema } from "../../src/validation/runtime.js";
 
 const nullableNumberishSchema = z.union([
   z.number().finite(),

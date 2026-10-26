@@ -5,7 +5,8 @@ import re
 from typing import Any
 
 from dotenv import load_dotenv
-from supabase import create_client
+from backend.dataflow.utils.PublicationWorkspace import create_client, atomic_maintenance
+from backend.utils.supabase.snapshot_manifests import reconcile_snapshot_row_counts
 
 load_dotenv()
 
@@ -14,6 +15,7 @@ READ_BATCH_SIZE = 500
 DELETE_BATCH_SIZE = 200
 SOON_COLUMNS = [
     "id",
+    "snapshot_id",
     "added",
     "run_id",
     "created_at",
@@ -100,7 +102,7 @@ def select_all_soons(sb) -> list[dict]:
 def duplicate_ids(rows: list[dict]) -> list[Any]:
     rows_by_key: dict[tuple, list[dict]] = defaultdict(list)
     for row in rows:
-        rows_by_key[soon_key(row)].append(row)
+        rows_by_key[(normalize_text(row.get("snapshot_id")), *soon_key(row))].append(row)
 
     ids_to_delete: list[Any] = []
     for matching_rows in rows_by_key.values():
@@ -112,6 +114,7 @@ def duplicate_ids(rows: list[dict]) -> list[Any]:
     return ids_to_delete
 
 
+@atomic_maintenance("comingsoons")
 def dedupe_all_soons(dry_run: bool = True) -> None:
     sb = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY"))
     rows = select_all_soons(sb)
@@ -124,6 +127,14 @@ def dedupe_all_soons(dry_run: bool = True) -> None:
 
     for start in range(0, len(ids_to_delete), DELETE_BATCH_SIZE):
         sb.table("allSoons").delete().in_("id", ids_to_delete[start : start + DELETE_BATCH_SIZE]).execute()
+
+    deleted_ids = set(ids_to_delete)
+    affected_snapshots = {
+        row.get("snapshot_id")
+        for row in rows
+        if row.get("id") in deleted_ids and row.get("snapshot_id")
+    }
+    reconcile_snapshot_row_counts(sb, "allSoons", affected_snapshots)
 
     # print(f"Deleted {len(ids_to_delete)} duplicate rows from allSoons.")
 

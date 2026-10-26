@@ -1,6 +1,6 @@
+import { ShowtimeDayPicker } from "../src/components/showtimes/ShowtimeDayPicker";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { ShowtimeDayPicker } from "../src/components/showtimes/ShowtimeDayPicker";
 
 describe("ShowtimeDayPicker", () => {
   it("renders a radiogroup with selected, edge, and trailing states", () => {

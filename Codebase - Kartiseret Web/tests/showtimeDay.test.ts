@@ -1,5 +1,5 @@
+import { addShowtimeCalendarDays, getCinemaDayDate, getEffectiveShowtimeDate, getShowtimeSortValue, getZonedDateTimeParts, isPostMidnightCarryoverShowtime, parseShowtimeMinutes, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
 import { describe, expect, it } from "vitest";
-import { addShowtimeCalendarDays, getCinemaDayDate, getEffectiveShowtimeDate, getShowtimeSortValue, getZonedDateTimeParts, isPostMidnightCarryoverShowtime, parseShowtimeMinutes, shouldIncludeShowtime } from "../src/domain/showtimeDay";
 
 describe("showtime day and cutoff rules", () => {
   it("adds valid calendar days across month and leap-year boundaries", () => {

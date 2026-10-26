@@ -1,8 +1,8 @@
+import { PosterGridPage } from "../src/components/PosterGridPage";
 import { render, screen, waitFor } from "@testing-library/react";
+import type { Movie } from "../src/data/movieCatalog";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { PosterGridPage } from "../src/components/PosterGridPage";
-import type { Movie } from "../src/data/movieCatalog";
 
 function createMovie(): Movie {
   return {

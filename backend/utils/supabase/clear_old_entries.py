@@ -3,8 +3,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from datetime import date, timedelta
-from supabase import create_client
+from backend.dataflow.utils.PublicationWorkspace import create_client, maintenance_publication
 import os
+from backend.utils.supabase.snapshot_manifests import reconcile_snapshot_row_counts
 
 ALL_SHOWTIMES_CUTOFF_DAYS_AGO = 5
 ALL_SOONS_CUTOFF_DAYS_AGO = 31
@@ -13,22 +14,27 @@ FINAL_SHOWTIMES_CUTOFF_DAYS_AGO = 1
 FINAL_SOONS_CUTOFF_DAYS_AGO = 0
 FINAL_THEQUES_CUTOFF_DAYS_AGO = 1
 DELETE_CHUNK_SIZE = 200
+SNAPSHOT_TABLES = {"allShowtimes", "allSoons", "allTheques"}
 
 
 def delete_entries_on_or_before(sb, table_name, date_column, cutoff):
     deleted_count = 0
+    affected_snapshots = set()
+    select_columns = "id,snapshot_id" if table_name in SNAPSHOT_TABLES else "id"
 
     while True:
-        rows = sb.table(table_name).select("id").lte(date_column, cutoff).order("id").range(0, DELETE_CHUNK_SIZE - 1).execute().data or []
+        rows = sb.table(table_name).select(select_columns).lte(date_column, cutoff).order("id").range(0, DELETE_CHUNK_SIZE - 1).execute().data or []
         row_ids = [row.get("id") for row in rows if row.get("id")]
         if not row_ids:
+            reconcile_snapshot_row_counts(sb, table_name, affected_snapshots)
             return deleted_count
 
+        affected_snapshots.update(row.get("snapshot_id") for row in rows if row.get("snapshot_id"))
         sb.table(table_name).delete().in_("id", row_ids).execute()
         deleted_count += len(row_ids)
 
 
-def clear_old_entries(category=None, showtimes_days_ago=ALL_SHOWTIMES_CUTOFF_DAYS_AGO, soons_days_ago=ALL_SOONS_CUTOFF_DAYS_AGO, theques_days_ago=ALL_THEQUES_CUTOFF_DAYS_AGO, final_showtimes_days_ago=FINAL_SHOWTIMES_CUTOFF_DAYS_AGO, final_soons_days_ago=FINAL_SOONS_CUTOFF_DAYS_AGO, final_theques_days_ago=FINAL_THEQUES_CUTOFF_DAYS_AGO):
+def _clear_old_entries(category=None, showtimes_days_ago=ALL_SHOWTIMES_CUTOFF_DAYS_AGO, soons_days_ago=ALL_SOONS_CUTOFF_DAYS_AGO, theques_days_ago=ALL_THEQUES_CUTOFF_DAYS_AGO, final_showtimes_days_ago=FINAL_SHOWTIMES_CUTOFF_DAYS_AGO, final_soons_days_ago=FINAL_SOONS_CUTOFF_DAYS_AGO, final_theques_days_ago=FINAL_THEQUES_CUTOFF_DAYS_AGO):
     sb = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY"))
 
     if category in (None, "nowplayings"):
@@ -54,6 +60,19 @@ def clear_old_entries(category=None, showtimes_days_ago=ALL_SHOWTIMES_CUTOFF_DAY
         final_theques_deleted = delete_entries_on_or_before(sb, "finalTheques", "date_of_showing", final_theques_cutoff)
         # print(f"Deleted {all_theques_deleted} old allTheques rows on or before {all_theques_cutoff}.")
         # print(f"Deleted {final_theques_deleted} old finalTheques rows on or before {final_theques_cutoff}.")
+
+
+def clear_old_entries(*args, **kwargs):
+    from inspect import signature
+    arguments = signature(_clear_old_entries).bind(*args, **kwargs).arguments
+    selected = arguments.pop("category", None)
+    categories = {"nowplayings": "nowplayings", "soons": "comingsoons", "cinematheques": "cinematheques"}
+    if selected is not None and selected not in categories:
+        raise ValueError("Unsupported cleanup category")
+    for name, category in categories.items():
+        if selected is None or selected == name:
+            with maintenance_publication(category):
+                _clear_old_entries(category=name, **arguments)
 
 
 if __name__ == "__main__":

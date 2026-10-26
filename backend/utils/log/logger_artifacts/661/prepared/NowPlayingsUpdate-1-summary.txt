@@ -1,0 +1,37 @@
+- - -
+DATAFLOW SUMMARY
+- - -
+Name: NowPlayingsUpdate
+Run ID: 661
+Attempt: 1
+Result: STAGED (PUBLICATION PENDING)
+Started (UTC): 2026-10-25T12:42:14.340312+00:00
+Finished (UTC): 2026-10-25T12:43:01.146649+00:00
+Duration Seconds: 46.8063
+Generated At (UTC): 2026-10-25T12:43:01.146951+00:00
+
+SUMMARY COUNTS
+- (none)
+
+STAGE BREAKDOWN
+- (none)
+
+COMING SOONS DETAILS
+- (none)
+
+CINEMATHEQUE GROUP DETAILS
+- (none)
+
+NOW PLAYING GROUP DETAILS
+- (none)
+
+UNRESOLVED / DROPPED ITEMS
+- (none)
+
+WRITE/DEDUPE ACTIONS
+- (none)
+
+NOTES
+- provider_unavailable | source=letterboxd | tmdb=1201328 | status=200
+- update_rows | requested=151 | updated=151
+- Changes are staged; they are not live until category publication commits.

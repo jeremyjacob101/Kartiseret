@@ -1,8 +1,8 @@
+import { MovieSearchMenu } from "../src/components/MovieSearchMenu";
 import { render, screen, waitFor } from "@testing-library/react";
+import type { Movie } from "../src/data/movieCatalog";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { MovieSearchMenu } from "../src/components/MovieSearchMenu";
-import type { Movie } from "../src/data/movieCatalog";
 import { sampleMovie } from "./fixtures";
 
 function movie(overrides: Partial<Movie>): Movie {

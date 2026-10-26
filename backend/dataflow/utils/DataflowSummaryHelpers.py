@@ -9,7 +9,7 @@ from backend.utils.log.dataflow_summary_logging import write_dataflow_summary
 class DataflowSummaryHelpers:
     def init_dataflow_summary_state(self):
         self.summaryStartTime = time.time()
-        self.summaryEnabled = self.__class__.__name__ in {"CinemathequesTmdb", "ComingSoonsTmdb", "NowPlayingsTmdb"}
+        self.summaryEnabled = self.__class__.__name__ in {"CinemathequesTmdb", "ComingSoonsTmdb", "NowPlayingsTmdb", "CinemathequesUpdate", "ComingSoonsUpdate", "NowPlayingsUpdate"}
         self.summaryCounts = defaultdict(int)
         self.summaryStageBreakdown = defaultdict(int)
         self.summaryComingSoonDetails = []
@@ -101,14 +101,22 @@ class DataflowSummaryHelpers:
             finished_at = time.time()
             started_at = float(getattr(self, "summaryStartTime", finished_at))
             duration = max(0.0, finished_at - started_at)
+            publication_pending = bool(
+                successful
+                and getattr(self, "_publication", None) is not None
+                and not getattr(self, "_owns_publication", True)
+            )
             summary = {
                 "name": self.__class__.__name__,
                 "run_id": self.run_id,
                 "attempt": getattr(self, "_artifact_attempt", 1) or 1,
                 "successful": bool(successful),
+                "publication_pending": publication_pending,
                 "started_at": started_at,
                 "finished_at": finished_at,
                 "duration_seconds": round(duration, 4),
+                "provider_examples": dict(getattr(self, "providerOutcomeExamples", {}) or {}),
+                "provider_outcomes": dict(getattr(self, "providerOutcomeCounts", {}) or {}),
                 "summary_counts": dict(getattr(self, "summaryCounts", {}) or {}),
                 "stage_breakdown": dict(getattr(self, "summaryStageBreakdown", {}) or {}),
                 "coming_soon_details": list(getattr(self, "summaryComingSoonDetails", []) or []),
@@ -120,6 +128,8 @@ class DataflowSummaryHelpers:
             }
             if not successful:
                 summary["notes"].append("Partial summary written from failure path before retry/re-raise.")
+            elif publication_pending:
+                summary["notes"].append("Changes are staged; they are not live until category publication commits.")
             write_dataflow_summary(summary, successful=bool(successful))
         except Exception:
             pass

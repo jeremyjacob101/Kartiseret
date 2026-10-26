@@ -1,80 +1,27 @@
-import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
-import { z } from "zod";
-import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime as shouldIncludeShowtimeAtInstant, SHOWTIME_TIME_ZONE } from "../domain/showtimeDay.js";
-import { queryClient } from "../lib/queryClient.js";
-import { getSupabaseBrowserClient } from "../lib/supabase.js";
+import { movieCatalogResponseSchema, publicShowtimeRangeResponseSchema, type MovieCodesStatus as ApiMovieCodesStatus, type MovieCatalogMode, type PublicShowtime } from "@kartiseret/contracts/public-data";
+import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime as shouldIncludeShowtimeAtInstant, SHOWTIME_TIME_ZONE } from "@kartiseret/contracts/showtime-day";
+import { addCalendarDays, getJerusalemCinemaDate, getTargetedShowtimePrefetchRange, SHOWTIME_LINK_DATE_COUNT } from "@kartiseret/contracts/showtime-links";
+import { assertPublication, currentPublicationRevision, publicationOf, refreshPublicationCollections, tagPublication } from "./publicationRevision.js";
 import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/definitions/locations.js";
-import { addCalendarDays, getJerusalemCinemaDate, getTargetedShowtimePrefetchRange, SHOWTIME_LINK_DATE_COUNT } from "../routing/showtimeLinkCodec.js";
+import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
+import { movieAltOptionSchema, type Movie } from "@kartiseret/contracts/movies";
+import { parseBoundary, movieCodeSchema } from "@kartiseret/contracts/runtime";
+import { correctionResponseSchema } from "@kartiseret/contracts/private-data";
+import { getPublicationResponse, ApiRequestError } from "./apiClient";
+import { adminMovieEditPayloadSchema } from "./externalSchemas";
 import { ticketAlertQueryKeys } from "./ticketAlerts";
-import { adminMovieEditPayloadSchema, comingSoonMovieRowSchema, existingMovieTargetRowSchema, movieCodeRowSchema, movieAltOptionInputSchema, movieRowSchema, showtimeRowSchema, type ComingSoonMovieRow, type MovieRow } from "./externalSchemas";
-import { movieSchema, movieAltOptionSchema } from "./applicationSchemas";
-import { parseBoundary, movieCodeSchema, safeParseJson } from "../validation/runtime";
+import { queryClient } from "../lib/queryClient.js";
+import { privateApiResponse } from "./privateApi";
+import { z } from "zod";
 
-const SUPABASE_PAGE_SIZE = 1000;
+export type { Movie } from "@kartiseret/contracts/movies";
+
 export const APP_TIME_ZONE = SHOWTIME_TIME_ZONE;
 export const INITIAL_SHOWTIME_WINDOW_DAY_COUNT = 1;
 export const SHOWTIME_WINDOW_DAY_COUNT = 180;
 export const SHOWTIME_PREFETCH_CHUNK_DAY_COUNT = 15;
 export const SHOWTIME_PREFETCH_TRIGGER_DAY_COUNT = 10;
 
-const MOVIES_TABLE_NAME = "finalMovies";
-const COMING_SOON_TABLE_NAME = "finalSoons";
-const SHOWTIMES_TABLE_NAME = "finalShowtimes";
-const MOVIE_CODES_TABLE_NAME = "movieCodes";
-const MOVIE_CODE_QUERY_CHUNK_SIZE = 200;
-const MOVIE_SELECT_COLUMNS = [
-  "tmdb_id",
-  "english_title",
-  "release_year",
-  "solo_update",
-  "genres",
-  "en_poster",
-  "alt_options",
-  "en_trailer",
-  "backdrop",
-  "imdbRating",
-  "rtCriticRating",
-  "rtAudienceRating",
-  "runtime",
-  "popularity",
-] as const;
-const OPTIONAL_MOVIE_SELECT_COLUMNS = [
-  "imdb_id",
-  "rt_id",
-  "rtCriticVotes",
-  "rtAudienceVotes",
-  "lb_id",
-  "lbRating",
-  "lbVotes",
-  "tmdbRating",
-  "tmdbVotes",
-] as const;
-const COMING_SOON_SELECT_COLUMNS = [
-  "tmdb_id",
-  "english_title",
-  "release_year",
-  "solo_update",
-  "release_date",
-  "genres",
-  "en_poster",
-  "alt_options",
-  "backdrop",
-  "en_trailer",
-] as const;
-const OPTIONAL_COMING_SOON_SELECT_COLUMNS = ["runtime", "popularity"] as const;
-const SHOWTIME_SELECT_COLUMNS = [
-  "tmdb_id",
-  "screening_city",
-  "date_of_showing",
-  "cinema",
-  "showtime",
-  "english_href",
-] as const;
-const OPTIONAL_SHOWTIME_SELECT_COLUMNS = [
-  "screening_tech",
-  "screening_type",
-  "dub_language",
-] as const;
 const THEATER_SORT_ORDER = [
   "MovieLand",
   "Yes Planet",
@@ -93,20 +40,12 @@ export const fixedAppDateString = getCinemaDayDate(
   APP_TIME_ZONE,
 );
 
-type SupabaseValue = unknown;
-type SupabaseRow = Record<string, SupabaseValue | undefined>;
-type CatalogMovieRow = MovieRow | ComingSoonMovieRow;
-
-// Production tables always populate these columns, so downstream consumers do
-// not need to model them as nullable. Some fields like tmdb_id may still arrive
-// as numbers from Supabase, so we normalize them through stringify helpers.
-export type ShowtimeRow = z.input<typeof showtimeRowSchema>;
-export type Movie = z.infer<typeof movieSchema>;
+export type ShowtimeRow = PublicShowtime;
 export type MovieAltOption = z.infer<typeof movieAltOptionSchema>;
 
-export type CatalogMode = "nowPlaying" | "comingSoon";
+export type CatalogMode = MovieCatalogMode;
 
-export type MovieCodesStatus = "pending" | "ready" | "failed";
+export type MovieCodesStatus = "pending" | ApiMovieCodesStatus;
 
 export type MovieRouteMatch = {
   movie: Movie;
@@ -134,6 +73,7 @@ export type ShowtimeEntry = {
 const EMPTY_SHOWTIME_CITIES: readonly AppLocation[] = Object.freeze([]);
 
 export type MovieCollectionData = {
+  publicationRevision?: string;
   mode: CatalogMode;
   movies: Movie[];
   moviesByCode: Record<string, Movie>;
@@ -141,6 +81,7 @@ export type MovieCollectionData = {
 };
 
 export type ShowtimeRange = {
+  publicationRevision?: string;
   city: AppLocation;
   startDate: string;
   endDate: string;
@@ -148,6 +89,7 @@ export type ShowtimeRange = {
 };
 
 export type ShowtimeCityData = {
+  publicationRevision?: string;
   city: AppLocation;
   broadFetchedDates: string[];
   broadLoadedDayCount: number;
@@ -161,6 +103,7 @@ export type ShowtimeCityData = {
 };
 
 export type ShowtimeCacheMerge = {
+  publicationRevision?: string;
   city: AppLocation;
   dates: readonly string[];
   movies: readonly Movie[];
@@ -183,190 +126,37 @@ export const movieCatalogQueryKeys = {
     ["movieCatalog", "collections", mode] as const,
   showtimes: () => ["movieCatalog", "showtimes"] as const,
   showtimeCities: () => ["movieCatalog", "showtimes", "cities"] as const,
-  showtimeCity: (city: AppLocation) =>
-    ["movieCatalog", "showtimes", "cities", city] as const,
+  showtimeCity: (city: AppLocation) => {
+    const revision = currentPublicationRevision();
+    return revision === undefined
+      ? (["movieCatalog", "showtimes", "cities", city] as const)
+      : (["movieCatalog", "showtimes", "cities", city, revision] as const);
+  },
   showtimeRanges: () => ["movieCatalog", "showtimes", "ranges"] as const,
-  showtimeRange: ({ city, startDate, endDate, tmdbId }: ShowtimeRange) =>
+  showtimeRange: ({
+    city,
+    startDate,
+    endDate,
+    tmdbId,
+    publicationRevision = currentPublicationRevision(),
+  }: ShowtimeRange) =>
     [
       "movieCatalog",
       "showtimes",
       "ranges",
-      { city, startDate, endDate, tmdbId: tmdbId?.trim() || null },
+      {
+        city,
+        startDate,
+        endDate,
+        tmdbId: tmdbId?.trim() || null,
+        ...(publicationRevision === undefined ? {} : { publicationRevision }),
+      },
     ] as const,
   adminEdits: () => ["movieCatalog", "adminEdits"] as const,
 };
 
-function stringifySupabaseValue(value: SupabaseValue | undefined): string {
-  if (value == null) {
-    return "";
-  }
-
-  return typeof value === "string"
-    ? value
-    : Array.isArray(value)
-      ? JSON.stringify(value)
-      : String(value);
-}
-
-function parseNumberValue(
-  value: SupabaseValue | undefined,
-  fallback = 0,
-): number {
-  const parsed = Number.parseFloat(stringifySupabaseValue(value));
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function parseOptionalNumberValue(
-  value: SupabaseValue | undefined,
-): number | null {
-  const normalizedValue = stringifySupabaseValue(value).trim();
-
-  if (!normalizedValue) {
-    return null;
-  }
-
-  const parsed = Number.parseFloat(normalizedValue);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function parseBooleanValue(
-  value: SupabaseValue | undefined,
-  fallback = false,
-): boolean {
-  if (typeof value === "boolean") {
-    return value;
-  }
-
-  const normalized = normalizeText(stringifySupabaseValue(value)).toLowerCase();
-
-  if (!normalized) {
-    return fallback;
-  }
-
-  if (normalized === "true" || normalized === "t" || normalized === "1") {
-    return true;
-  }
-
-  if (normalized === "false" || normalized === "f" || normalized === "0") {
-    return false;
-  }
-
-  return fallback;
-}
-
 function normalizeText(value: string): string {
   return value.trim().replace(/\s+/g, " ");
-}
-
-function getFirstNormalizedText(
-  row: SupabaseRow,
-  keys: readonly string[],
-): string {
-  for (const key of keys) {
-    const normalizedValue = normalizeText(stringifySupabaseValue(row[key]));
-
-    if (normalizedValue) {
-      return normalizedValue;
-    }
-  }
-
-  return "";
-}
-
-function normalizeTitle(value: string): string {
-  return normalizeText(value)
-    .replace(/^"+|"+$/g, "")
-    .trim();
-}
-
-function parseGenres(value: SupabaseValue | undefined): string[] {
-  const normalizedGenres = new Set<string>();
-  const addGenre = (genre: string) => {
-    const normalizedGenre = normalizeText(genre.replace(/^"+|"+$/g, ""));
-
-    if (normalizedGenre) {
-      normalizedGenres.add(normalizedGenre);
-    }
-  };
-
-  if (Array.isArray(value)) {
-    value.forEach(addGenre);
-    return [...normalizedGenres];
-  }
-
-  const normalizedValue = stringifySupabaseValue(value).trim();
-
-  if (!normalizedValue) {
-    return [];
-  }
-
-  if (
-    (normalizedValue.startsWith("[") && normalizedValue.endsWith("]")) ||
-    (normalizedValue.startsWith("{") && normalizedValue.endsWith("}"))
-  ) {
-    const jsonCandidate = normalizedValue.startsWith("{")
-      ? `[${normalizedValue.slice(1, -1)}]`
-      : normalizedValue;
-
-    const parsedValue = safeParseJson(jsonCandidate, z.array(z.unknown()));
-
-    if (parsedValue) {
-      for (const item of parsedValue) {
-        if (typeof item === "string") {
-          addGenre(item);
-        }
-      }
-
-      return [...normalizedGenres];
-    }
-  }
-
-  normalizedValue.split(",").forEach(addGenre);
-
-  return [...normalizedGenres];
-}
-
-function getReleaseYearFromDate(releaseDate: string | undefined): number {
-  if (!releaseDate) {
-    return 0;
-  }
-
-  const [year] = releaseDate.split("-");
-  return Number.parseInt(year, 10) || 0;
-}
-
-function parseAltOptions(value: SupabaseValue | undefined): MovieAltOption[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .flatMap((entry) => {
-      const result = movieAltOptionInputSchema.safeParse(entry);
-      if (!result.success) return [];
-      const year = parseOptionalNumberValue(result.data.year);
-      return [
-        {
-          tmdbId: result.data.tmdb,
-          title: normalizeTitle(result.data.title),
-          year: year === null ? null : Math.trunc(year),
-          posterUrl: normalizeText(result.data.poster_url ?? "") || null,
-        },
-      ];
-    })
-    .slice(0, 10);
-}
-
-function compareByReleaseDate(
-  left: ComingSoonMovieRow,
-  right: ComingSoonMovieRow,
-): number {
-  return (
-    stringifySupabaseValue(left.release_date).localeCompare(
-      stringifySupabaseValue(right.release_date),
-    ) ||
-    parseNumberValue(right.popularity) - parseNumberValue(left.popularity) ||
-    normalizeTitle(left.english_title).localeCompare(
-      normalizeTitle(right.english_title),
-    )
-  );
 }
 
 function formatShowtime(value: string): string {
@@ -452,77 +242,6 @@ function compareTheaters(left: string, right: string): number {
   return left.localeCompare(right);
 }
 
-type BuildMoviesOptions = {
-  movieCodesByTmdbId?: ReadonlyMap<string, string>;
-  sortMode?: "popularity" | "releaseDate";
-};
-
-function buildMovies(
-  rows: CatalogMovieRow[],
-  {
-    movieCodesByTmdbId = new Map<string, string>(),
-    sortMode = "popularity",
-  }: BuildMoviesOptions = {},
-): Movie[] {
-  return [...rows]
-    .filter((row) => !parseBooleanValue(row.solo_update))
-    .sort((left, right) => {
-      if (sortMode === "releaseDate") {
-        return compareByReleaseDate(
-          left as ComingSoonMovieRow,
-          right as ComingSoonMovieRow,
-        );
-      }
-
-      return (
-        parseNumberValue(right.popularity) - parseNumberValue(left.popularity)
-      );
-    })
-    .map((row) => {
-      const imageSrc = getFirstNormalizedText(row, [
-        "en_poster",
-        "poster",
-        "backdrop",
-      ]);
-      const backdropSrc =
-        getFirstNormalizedText(row, ["backdrop", "en_poster", "poster"]) ||
-        imageSrc;
-      const trailerKey = getFirstNormalizedText(row, ["en_trailer"]);
-      const releaseDate =
-        normalizeText(stringifySupabaseValue(row.release_date)) || undefined;
-      const parsedReleaseYear =
-        Number.parseInt(stringifySupabaseValue(row.release_year), 10) || 0;
-      const tmdbId = normalizeText(stringifySupabaseValue(row.tmdb_id));
-
-      return {
-        tmdbId,
-        movieCode: movieCodesByTmdbId.get(tmdbId),
-        imdbId: getFirstNormalizedText(row, ["imdb_id"]) || undefined,
-        rtId: getFirstNormalizedText(row, ["rt_id"]) || undefined,
-        title: normalizeTitle(stringifySupabaseValue(row.english_title)),
-        year: parsedReleaseYear || getReleaseYearFromDate(releaseDate),
-        releaseDate,
-        genres: parseGenres(row.genres),
-        imageSrc,
-        backdropSrc,
-        trailerKey: trailerKey || undefined,
-        imdbRating: parseOptionalNumberValue(row.imdbRating),
-        lbId: getFirstNormalizedText(row, ["lb_id"]) || undefined,
-        lbRating: parseOptionalNumberValue(row.lbRating),
-        lbVotes: parseOptionalNumberValue(row.lbVotes),
-        tmdbRating: parseOptionalNumberValue(row.tmdbRating),
-        tmdbVotes: parseOptionalNumberValue(row.tmdbVotes),
-        rtCriticRating: parseOptionalNumberValue(row.rtCriticRating),
-        rtCriticVotes: parseOptionalNumberValue(row.rtCriticVotes),
-        rtAudienceRating: parseOptionalNumberValue(row.rtAudienceRating),
-        rtAudienceVotes: parseOptionalNumberValue(row.rtAudienceVotes),
-        runtime: Number.parseInt(stringifySupabaseValue(row.runtime), 10) || 0,
-        popularity: parseNumberValue(row.popularity),
-        altOptions: parseAltOptions(row.alt_options),
-      };
-    });
-}
-
 function buildMovieShowtimesForCity(
   rows: ShowtimeRow[],
   selectedMovies: readonly Movie[],
@@ -540,19 +259,19 @@ function buildMovieShowtimesForCity(
   >();
 
   for (const row of rows) {
-    const tmdbId = normalizeText(stringifySupabaseValue(row.tmdb_id));
+    const tmdbId = row.tmdbId;
 
     if (!selectedMovieIds.has(tmdbId)) {
       continue;
     }
 
-    const city = normalizeText(row.screening_city);
+    const city = normalizeText(row.screeningCity);
 
     if (city !== selectedCity) {
       continue;
     }
 
-    const date = normalizeText(row.date_of_showing);
+    const date = normalizeText(row.dateOfShowing);
 
     if (date < fixedAppDateString || date > windowEndDateString) {
       continue;
@@ -560,15 +279,10 @@ function buildMovieShowtimesForCity(
 
     const theater = normalizeText(row.cinema);
     const showtime = formatShowtime(row.showtime);
-    const showtimeHref =
-      normalizeText(stringifySupabaseValue(row.english_href)) || null;
-    const screeningTech = normalizeText(
-      stringifySupabaseValue(row.screening_tech),
-    );
-    const screeningType = normalizeText(
-      stringifySupabaseValue(row.screening_type),
-    );
-    const dubLanguage = getFirstNormalizedText(row, ["dub_language"]) || null;
+    const showtimeHref = normalizeText(row.englishHref ?? "") || null;
+    const screeningTech = normalizeText(row.screeningTech);
+    const screeningType = normalizeText(row.screeningType);
+    const dubLanguage = normalizeText(row.dubLanguage ?? "") || null;
 
     if (!shouldIncludeShowtime(date, showtime)) {
       continue;
@@ -633,71 +347,6 @@ function buildMovieShowtimesForCity(
 
       return [movie.tmdbId, days];
     }),
-  );
-}
-
-async function fetchAllTableRows<Row>(
-  tableName: string,
-  selectColumns: readonly string[],
-  orderColumns: readonly string[],
-  rowSchema: z.ZodType<Row>,
-  signal?: AbortSignal,
-): Promise<Row[]> {
-  const supabase = getSupabaseBrowserClient();
-  const allRows: Row[] = [];
-  let fromIndex = 0;
-
-  while (true) {
-    let query = supabase
-      .from(tableName)
-      .select(selectColumns.join(","))
-      .range(fromIndex, fromIndex + SUPABASE_PAGE_SIZE - 1);
-
-    for (const column of orderColumns) {
-      query = query.order(column, { ascending: true });
-    }
-
-    if (signal) {
-      query = query.abortSignal(signal);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw new Error(
-        `Failed to load ${tableName} from Supabase: ${error.message}`,
-      );
-    }
-
-    const batchRows = parseBoundary(
-      rowSchema.array(),
-      data ?? [],
-      `${tableName} response`,
-    );
-    allRows.push(...batchRows);
-
-    if (batchRows.length < SUPABASE_PAGE_SIZE) {
-      return allRows;
-    }
-
-    fromIndex += SUPABASE_PAGE_SIZE;
-  }
-}
-
-function isMissingOptionalColumnError(
-  error: unknown,
-  optionalColumns: readonly string[],
-): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  const message = error.message.toLowerCase();
-
-  return optionalColumns.some(
-    (column) =>
-      message.includes(column.toLowerCase()) &&
-      (message.includes("column") || message.includes("schema cache")),
   );
 }
 
@@ -767,143 +416,16 @@ export function getNextShowtimePrefetchDayCount(
 
 function getCachedShowtimeRowKey(row: ShowtimeRow): string {
   return [
-    normalizeText(stringifySupabaseValue(row.tmdb_id)),
-    normalizeText(row.screening_city),
-    normalizeText(row.date_of_showing),
-    normalizeText(row.cinema),
-    normalizeText(row.showtime),
-    normalizeText(stringifySupabaseValue(row.screening_tech)),
-    normalizeText(stringifySupabaseValue(row.screening_type)),
-    getFirstNormalizedText(row, ["dub_language"]) || "original",
-    normalizeText(stringifySupabaseValue(row.english_href)) || "none",
+    row.tmdbId,
+    row.screeningCity,
+    row.dateOfShowing,
+    row.cinema,
+    row.showtime,
+    row.screeningTech,
+    row.screeningType,
+    row.dubLanguage ?? "original",
+    row.englishHref ?? "none",
   ].join("::");
-}
-
-async function fetchMovieRows(signal?: AbortSignal): Promise<MovieRow[]> {
-  const selectColumns = [
-    ...MOVIE_SELECT_COLUMNS,
-    ...OPTIONAL_MOVIE_SELECT_COLUMNS,
-  ];
-
-  try {
-    return await fetchAllTableRows<MovieRow>(
-      MOVIES_TABLE_NAME,
-      selectColumns,
-      ["tmdb_id"],
-      movieRowSchema,
-      signal,
-    );
-  } catch (error) {
-    if (!isMissingOptionalColumnError(error, OPTIONAL_MOVIE_SELECT_COLUMNS)) {
-      throw error;
-    }
-
-    return fetchAllTableRows<MovieRow>(
-      MOVIES_TABLE_NAME,
-      MOVIE_SELECT_COLUMNS,
-      ["tmdb_id"],
-      movieRowSchema,
-      signal,
-    );
-  }
-}
-
-async function fetchComingSoonMovieRows(
-  signal?: AbortSignal,
-): Promise<ComingSoonMovieRow[]> {
-  const selectColumns = [
-    ...COMING_SOON_SELECT_COLUMNS,
-    ...OPTIONAL_COMING_SOON_SELECT_COLUMNS,
-  ];
-
-  try {
-    return await fetchAllTableRows<ComingSoonMovieRow>(
-      COMING_SOON_TABLE_NAME,
-      selectColumns,
-      ["tmdb_id"],
-      comingSoonMovieRowSchema,
-      signal,
-    );
-  } catch (error) {
-    if (
-      !isMissingOptionalColumnError(error, OPTIONAL_COMING_SOON_SELECT_COLUMNS)
-    ) {
-      throw error;
-    }
-
-    return fetchAllTableRows<ComingSoonMovieRow>(
-      COMING_SOON_TABLE_NAME,
-      COMING_SOON_SELECT_COLUMNS,
-      ["tmdb_id"],
-      comingSoonMovieRowSchema,
-      signal,
-    );
-  }
-}
-
-async function fetchMovieCodesByTmdbId(
-  movieRows: readonly CatalogMovieRow[],
-  signal?: AbortSignal,
-): Promise<Map<string, string>> {
-  const tmdbIds = [
-    ...new Set(
-      movieRows
-        .map((row) => normalizeText(stringifySupabaseValue(row.tmdb_id)))
-        .filter(Boolean),
-    ),
-  ];
-
-  if (tmdbIds.length === 0) {
-    return new Map();
-  }
-
-  const supabase = getSupabaseBrowserClient();
-  const chunks = Array.from(
-    { length: Math.ceil(tmdbIds.length / MOVIE_CODE_QUERY_CHUNK_SIZE) },
-    (_, index) =>
-      tmdbIds.slice(
-        index * MOVIE_CODE_QUERY_CHUNK_SIZE,
-        (index + 1) * MOVIE_CODE_QUERY_CHUNK_SIZE,
-      ),
-  );
-  const chunkRows = await Promise.all(
-    chunks.map(async (tmdbIdChunk) => {
-      let query = supabase
-        .from(MOVIE_CODES_TABLE_NAME)
-        .select("tmdb_id,movie_code")
-        .in("tmdb_id", tmdbIdChunk);
-
-      if (signal) {
-        query = query.abortSignal(signal);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        throw new Error(
-          `Failed to load ${MOVIE_CODES_TABLE_NAME} from Supabase: ${error.message}`,
-        );
-      }
-
-      return parseBoundary(
-        movieCodeRowSchema.array(),
-        data ?? [],
-        `${MOVIE_CODES_TABLE_NAME} response`,
-      );
-    }),
-  );
-  const movieCodesByTmdbId = new Map<string, string>();
-
-  for (const row of chunkRows.flat()) {
-    const tmdbId = normalizeText(stringifySupabaseValue(row.tmdb_id));
-    const movieCode = normalizeText(row.movie_code);
-
-    if (tmdbId && movieCodeSchema.safeParse(movieCode).success) {
-      movieCodesByTmdbId.set(tmdbId, movieCode);
-    }
-  }
-
-  return movieCodesByTmdbId;
 }
 
 function indexMoviesByCode(
@@ -915,167 +437,41 @@ function indexMoviesByCode(
   );
 }
 
-type MovieCodeHydrationRevision = Record<CatalogMode, number>;
-
-const movieCodeHydrationRevisions = new WeakMap<
-  QueryClient,
-  MovieCodeHydrationRevision
->();
-
-function nextMovieCodeHydrationRevision(
-  client: QueryClient,
-  mode: CatalogMode,
-): number {
-  const revisions =
-    movieCodeHydrationRevisions.get(client) ??
-    ({ nowPlaying: 0, comingSoon: 0 } satisfies MovieCodeHydrationRevision);
-  const nextRevision = revisions[mode] + 1;
-
-  revisions[mode] = nextRevision;
-  movieCodeHydrationRevisions.set(client, revisions);
-
-  return nextRevision;
-}
-
-function isCurrentMovieCodeHydrationRevision(
-  client: QueryClient,
-  mode: CatalogMode,
-  revision: number,
-): boolean {
-  return movieCodeHydrationRevisions.get(client)?.[mode] === revision;
-}
-
-function scheduleMovieCodeHydrationUpdate(
-  client: QueryClient,
-  mode: CatalogMode,
-  revision: number,
-  update: (current: MovieCollectionData) => MovieCollectionData,
-): void {
-  const queryKey = movieCatalogQueryKeys.collection(mode);
-  let retryCount = 0;
-
-  const applyUpdate = () => {
-    if (!isCurrentMovieCodeHydrationRevision(client, mode, revision)) {
-      return;
-    }
-
-    if (!client.getQueryData<MovieCollectionData>(queryKey)) {
-      if (retryCount < 1) {
-        retryCount += 1;
-        globalThis.setTimeout(applyUpdate, 0);
-      }
-
-      return;
-    }
-
-    client.setQueryData<MovieCollectionData>(queryKey, (current) =>
-      current ? update(current) : current);
-  };
-
-  applyUpdate();
-}
-
-function beginMovieCodeHydration(
-  client: QueryClient,
-  mode: CatalogMode,
-  baseCollection: MovieCollectionData,
-  movieCodesPromise: Promise<Map<string, string>>,
-  signal?: AbortSignal,
-): void {
-  const revision = nextMovieCodeHydrationRevision(client, mode);
-  const baseMovieIds = baseCollection.movies.map((movie) => movie.tmdbId);
-
-  const matchesBaseCollection = (current: MovieCollectionData): boolean =>
-    current.mode === mode &&
-    current.movies.length === baseMovieIds.length &&
-    current.movies.every(
-      (movie, index) => movie.tmdbId === baseMovieIds[index],
-    );
-
-  void movieCodesPromise
-    .then((movieCodesByTmdbId) => {
-      if (signal?.aborted) {
-        return;
-      }
-
-      scheduleMovieCodeHydrationUpdate(client, mode, revision, (current) => {
-        if (!matchesBaseCollection(current)) {
-          return current;
-        }
-
-        const movies = current.movies.map((movie) => ({
-          ...movie,
-          movieCode: movieCodesByTmdbId.get(movie.tmdbId),
-        }));
-
-        return {
-          ...current,
-          movies,
-          moviesByCode: indexMoviesByCode(movies),
-          movieCodesStatus: "ready",
-        };
-      });
-    })
-    .catch((error: unknown) => {
-      if (signal?.aborted) {
-        return;
-      }
-
-      console.error(
-        `Failed to hydrate ${MOVIE_CODES_TABLE_NAME} for ${mode}.`,
-        error,
-      );
-      scheduleMovieCodeHydrationUpdate(client, mode, revision, (current) =>
-        matchesBaseCollection(current)
-          ? { ...current, movieCodesStatus: "failed" }
-          : current);
-    });
-}
-
 async function fetchMovieCollection(
   mode: CatalogMode,
   signal?: AbortSignal,
-  client: QueryClient = queryClient,
 ): Promise<MovieCollectionData> {
-  const movieRows =
+  const path =
     mode === "nowPlaying"
-      ? await fetchMovieRows(signal)
-      : await fetchComingSoonMovieRows(signal);
-
-  const movieCodesPromise = fetchMovieCodesByTmdbId(movieRows, signal);
-  const movies = buildMovies(movieRows, {
-    sortMode: mode === "comingSoon" ? "releaseDate" : "popularity",
-  });
-
-  if (movies.length === 0) {
-    const tableName =
-      mode === "nowPlaying" ? MOVIES_TABLE_NAME : COMING_SOON_TABLE_NAME;
-
-    throw new Error(`Supabase table ${tableName} returned no movie rows.`);
-  }
-
-  const baseCollection = {
-    mode,
-    movies,
-    moviesByCode: {},
-    movieCodesStatus: "pending" as const,
-  } satisfies MovieCollectionData;
-
-  beginMovieCodeHydration(
-    client,
-    mode,
-    baseCollection,
-    movieCodesPromise,
+      ? "/api/v1/catalog/now-playing"
+      : "/api/v1/catalog/coming-soon";
+  const { response, revision } = await getPublicationResponse(
+    path,
+    movieCatalogResponseSchema,
     signal,
   );
+  if (response.data.mode !== mode) {
+    throw new Error("The catalog API returned the wrong catalog mode.");
+  }
+  if (response.data.movies.length === 0) {
+    throw new Error(
+      `The ${mode === "nowPlaying" ? "now-playing" : "coming-soon"} catalog is empty.`,
+    );
+  }
 
-  return baseCollection;
+  tagPublication(response.data.movies, revision);
+  return {
+    ...response.data,
+    publicationRevision: revision,
+    moviesByCode: indexMoviesByCode(response.data.movies),
+  };
 }
 
 export function movieCollectionQueryOptions(mode: CatalogMode) {
   return queryOptions({
     queryKey: movieCatalogQueryKeys.collection(mode),
-    queryFn: ({ signal, client }) => fetchMovieCollection(mode, signal, client),
+    queryFn: ({ signal }) => fetchMovieCollection(mode, signal),
+    structuralSharing: false,
     staleTime: MOVIE_COLLECTION_STALE_TIME,
     gcTime: MOVIE_COLLECTION_GC_TIME,
   });
@@ -1117,85 +513,45 @@ async function fetchShowtimeRowsForDateRange(
   endDateString: string,
   tmdbId?: string,
   signal?: AbortSignal,
+  publicationRevision?: string,
 ): Promise<ShowtimeRow[]> {
   if (startDateString > endDateString) {
     return [];
   }
 
-  const selectColumns = [
-    ...SHOWTIME_SELECT_COLUMNS,
-    ...OPTIONAL_SHOWTIME_SELECT_COLUMNS,
-  ];
-
-  const fetchRange = async (
-    requestedColumns: readonly string[],
-  ): Promise<ShowtimeRow[]> => {
-    const supabase = getSupabaseBrowserClient();
-    const allRows: ShowtimeRow[] = [];
-    let fromIndex = 0;
-
-    while (true) {
-      let query = supabase
-        .from(SHOWTIMES_TABLE_NAME)
-        .select(requestedColumns.join(","))
-        .eq("screening_city", city)
-        .gte("date_of_showing", startDateString)
-        .lte("date_of_showing", endDateString)
-        .range(fromIndex, fromIndex + SUPABASE_PAGE_SIZE - 1);
-
-      if (tmdbId) {
-        query = query.eq("tmdb_id", tmdbId);
-      }
-
-      query = query
-        .order("tmdb_id", { ascending: true })
-        .order("date_of_showing", { ascending: true })
-        .order("cinema", { ascending: true })
-        .order("showtime", { ascending: true });
-
-      if (signal) {
-        query = query.abortSignal(signal);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        throw new Error(
-          `Failed to load ${SHOWTIMES_TABLE_NAME} from Supabase: ${error.message}`,
-        );
-      }
-
-      const batchRows = parseBoundary(
-        showtimeRowSchema.array(),
-        data ?? [],
-        `${SHOWTIMES_TABLE_NAME} response`,
-      );
-      allRows.push(...batchRows);
-
-      if (batchRows.length < SUPABASE_PAGE_SIZE) {
-        return allRows;
-      }
-
-      fromIndex += SUPABASE_PAGE_SIZE;
-    }
-  };
+  const params = new URLSearchParams({
+    city,
+    startDate: startDateString,
+    endDate: endDateString,
+  });
+  const normalizedTmdbId = tmdbId?.trim();
+  if (normalizedTmdbId) {
+    params.set("tmdbId", normalizedTmdbId);
+  }
 
   try {
-    return await fetchRange(selectColumns);
+    const { response, revision } = await getPublicationResponse(
+      `/api/v1/showtimes?${params.toString()}`,
+      publicShowtimeRangeResponseSchema,
+      signal,
+      publicationRevision,
+    );
+    return tagPublication(response.data.showtimes, revision);
   } catch (error) {
     if (
-      !isMissingOptionalColumnError(error, OPTIONAL_SHOWTIME_SELECT_COLUMNS)
-    ) {
-      throw error;
-    }
-
-    return fetchRange(SHOWTIME_SELECT_COLUMNS);
+      error instanceof ApiRequestError &&
+      error.code === "publication_changed"
+    )
+      await refreshPublicationCollections();
+    throw error;
   }
 }
 
 export function showtimeRangeQueryOptions(range: ShowtimeRange) {
   const normalizedRange = {
     ...range,
+    publicationRevision:
+      range.publicationRevision ?? currentPublicationRevision(),
     tmdbId: range.tmdbId?.trim() || undefined,
   };
 
@@ -1208,7 +564,12 @@ export function showtimeRangeQueryOptions(range: ShowtimeRange) {
         normalizedRange.endDate,
         normalizedRange.tmdbId,
         signal,
+        normalizedRange.publicationRevision,
       ),
+    retry: (count, error) =>
+      !(
+        error instanceof ApiRequestError && error.code === "publication_changed"
+      ) && count < 1,
     staleTime: SHOWTIME_RANGE_STALE_TIME,
     gcTime: SHOWTIME_RANGE_GC_TIME,
   });
@@ -1256,11 +617,17 @@ export function mergeShowtimeCityData(
   current: ShowtimeCityData | undefined,
   merge: ShowtimeCacheMerge,
 ): ShowtimeCityData {
-  const previous = current ?? createEmptyShowtimeCityData(merge.city);
+  const revision = merge.publicationRevision ?? publicationOf(merge.rows);
+  const previous =
+    (current?.publicationRevision !== undefined &&
+    revision !== undefined &&
+    current.publicationRevision !== revision
+      ? undefined
+      : current) ?? createEmptyShowtimeCityData(merge.city);
   const requestedDates = new Set(merge.dates);
   const rowsByKey = Object.fromEntries(
     Object.entries(previous.rowsByKey).filter(([, row]) => {
-      const rowDate = normalizeText(row.date_of_showing);
+      const rowDate = normalizeText(row.dateOfShowing);
 
       if (!requestedDates.has(rowDate)) {
         return true;
@@ -1270,10 +637,7 @@ export function mergeShowtimeCityData(
         return false;
       }
 
-      return (
-        normalizeText(stringifySupabaseValue(row.tmdb_id)) !==
-        merge.scope.tmdbId
-      );
+      return row.tmdbId !== merge.scope.tmdbId;
     }),
   );
 
@@ -1334,6 +698,7 @@ export function mergeShowtimeCityData(
 
   return {
     city: merge.city,
+    ...(revision === undefined ? {} : { publicationRevision: revision }),
     broadFetchedDates,
     broadLoadedDayCount,
     broadReady: previous.broadReady || merge.scope === "broad",
@@ -1401,6 +766,20 @@ async function ensureMovieByTmdbId(tmdbId: string): Promise<Movie | null> {
 }
 
 function mergeShowtimeCache(merge: ShowtimeCacheMerge): ShowtimeCityData {
+  assertPublication(merge.rows);
+  assertPublication(merge.movies);
+  const rowsRevision = publicationOf(merge.rows);
+  const movieRevision = publicationOf(merge.movies);
+  if (
+    rowsRevision !== undefined &&
+    movieRevision !== undefined &&
+    rowsRevision !== movieRevision
+  )
+    throw new ApiRequestError(
+      409,
+      "publication_changed",
+      "Published data changed. Reload the catalog.",
+    );
   let nextData: ShowtimeCityData | undefined;
 
   queryClient.setQueryData(movieCatalogQueryKeys.showtimeCity(merge.city), (
@@ -1417,7 +796,15 @@ async function fetchAndMergeShowtimeRange(
   range: ShowtimeRange,
   merge: Omit<ShowtimeCacheMerge, "city" | "dates" | "rows">,
 ): Promise<ShowtimeCityData> {
-  const rows = await queryClient.fetchQuery(showtimeRangeQueryOptions(range));
+  const rows = await queryClient.fetchQuery(
+    showtimeRangeQueryOptions({
+      ...range,
+      publicationRevision:
+        merge.publicationRevision ??
+        publicationOf(merge.movies) ??
+        currentPublicationRevision(),
+    }),
+  );
 
   return mergeShowtimeCache({
     ...merge,
@@ -1438,6 +825,7 @@ export function showtimeCityQueryOptions(city: AppLocation) {
         city,
         startDate: fixedAppDateString,
         endDate: fixedAppDateString,
+        publicationRevision: collection.publicationRevision,
       } satisfies ShowtimeRange;
       const rows = await queryClient.fetchQuery(
         showtimeRangeQueryOptions(range),
@@ -1446,15 +834,22 @@ export function showtimeCityQueryOptions(city: AppLocation) {
         movieCatalogQueryKeys.showtimeCity(city),
       );
 
+      assertPublication(rows, collection.publicationRevision);
+      assertPublication(rows);
       return mergeShowtimeCityData(current, {
         city,
         dates: [fixedAppDateString],
         movies: collection.movies,
+        publicationRevision: collection.publicationRevision,
         rows,
         scope: "broad",
         visibleDayCount: INITIAL_SHOWTIME_WINDOW_DAY_COUNT,
       });
     },
+    retry: (count, error) =>
+      !(
+        error instanceof ApiRequestError && error.code === "publication_changed"
+      ) && count < 1,
     staleTime: (query) =>
       query.state.data?.broadReady ? SHOWTIME_CITY_STALE_TIME : 0,
     gcTime: MOVIE_COLLECTION_GC_TIME,
@@ -1924,134 +1319,11 @@ export async function applyAdminMovieEdit(
     payload,
     "admin movie edit input",
   );
-  const supabase = getSupabaseBrowserClient();
-  const tableName =
-    validatedPayload.mode === "nowPlaying"
-      ? MOVIES_TABLE_NAME
-      : COMING_SOON_TABLE_NAME;
-  const normalizedCurrentTmdbId = validatedPayload.currentTmdbId;
-  const normalizedSelectedTmdbId = validatedPayload.selectedTmdbId;
-
-  if (normalizedCurrentTmdbId === normalizedSelectedTmdbId) {
-    return;
-  }
-
-  const { error: tableFixInsertError } = await supabase
-    .from("tableFixes")
-    .insert({
-      tmdb_id: normalizedSelectedTmdbId,
-      title_fix: normalizedCurrentTmdbId,
-    });
-
-  if (tableFixInsertError) {
-    throw new Error(tableFixInsertError.message);
-  }
-
-  const { data: existingTarget, error: existingTargetError } = await supabase
-    .from(tableName)
-    .select("tmdb_id, english_title")
-    .eq("tmdb_id", normalizedSelectedTmdbId)
-    .maybeSingle();
-
-  if (existingTargetError) {
-    throw new Error(existingTargetError.message);
-  }
-
-  const existingMovieTarget = existingTarget
-    ? parseBoundary(
-        existingMovieTargetRowSchema,
-        existingTarget,
-        "admin movie target response",
-      )
-    : null;
-  const selectedTitle = normalizeTitle(
-    validatedPayload.selectedTitle ??
-      (existingTarget
-        ? stringifySupabaseValue(existingMovieTarget?.english_title)
-        : ""),
+  await privateApiResponse(
+    "/api/v1/admin/movie-corrections",
+    correctionResponseSchema,
+    { method: "POST", body: validatedPayload },
   );
-
-  if (existingTarget) {
-    if (validatedPayload.mode === "nowPlaying") {
-      const { error: showtimesUpdateError } = await supabase
-        .from(SHOWTIMES_TABLE_NAME)
-        .update({
-          tmdb_id: normalizedSelectedTmdbId,
-          english_title: selectedTitle,
-        })
-        .eq("tmdb_id", normalizedCurrentTmdbId);
-
-      if (showtimesUpdateError) {
-        throw new Error(showtimesUpdateError.message);
-      }
-    }
-
-    const { error: deleteError } = await supabase
-      .from(tableName)
-      .delete()
-      .eq("tmdb_id", normalizedCurrentTmdbId);
-
-    if (deleteError) {
-      throw new Error(deleteError.message);
-    }
-
-    return;
-  }
-
-  const updatePayload: Record<string, unknown> = {
-    tmdb_id: normalizedSelectedTmdbId,
-    solo_update: true,
-    english_title: "",
-    release_year: null,
-    en_poster: "",
-    backdrop: "",
-    en_trailer: "",
-    genres: [],
-  };
-
-  if (validatedPayload.mode === "nowPlaying") {
-    updatePayload.imdb_id = null;
-    updatePayload.imdbRating = null;
-    updatePayload.imdbVotes = null;
-    updatePayload.rt_id = null;
-    updatePayload.rtCriticRating = null;
-    updatePayload.rtCriticVotes = null;
-    updatePayload.rtAudienceRating = null;
-    updatePayload.rtAudienceVotes = null;
-    updatePayload.lb_id = null;
-    updatePayload.lbRating = null;
-    updatePayload.lbVotes = null;
-    updatePayload.tmdbRating = null;
-    updatePayload.tmdbVotes = null;
-    updatePayload.runtime = null;
-    updatePayload.popularity = null;
-  } else {
-    updatePayload.release_date = null;
-    updatePayload.runtime = null;
-  }
-
-  const { error } = await supabase
-    .from(tableName)
-    .update(updatePayload)
-    .eq("tmdb_id", normalizedCurrentTmdbId);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (validatedPayload.mode === "nowPlaying") {
-    const { error: showtimesUpdateError } = await supabase
-      .from(SHOWTIMES_TABLE_NAME)
-      .update({
-        tmdb_id: normalizedSelectedTmdbId,
-        english_title: selectedTitle,
-      })
-      .eq("tmdb_id", normalizedCurrentTmdbId);
-
-    if (showtimesUpdateError) {
-      throw new Error(showtimesUpdateError.message);
-    }
-  }
 }
 
 export type AdminMovieEditInvalidationRule = {

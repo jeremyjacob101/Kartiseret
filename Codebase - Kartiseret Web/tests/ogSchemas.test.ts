@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { databaseMovieSchema, databaseShowtimeSchema, ogRequestQuerySchema, previewDataSchema } from "../server/og/schemas.js";
+import { describe, expect, it } from "vitest";
 
 describe("Open Graph request schemas", () => {
   it("parses scalar query parameters", () => {

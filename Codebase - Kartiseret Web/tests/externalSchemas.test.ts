@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { adminMovieEditPayloadSchema, comingSoonMovieRowSchema, movieRowSchema, showtimeRowSchema, theaterRowSchema } from "../src/data/externalSchemas.js";
+import { describe, expect, it } from "vitest";
 
 const validMovieRow = {
   tmdb_id: 693134,

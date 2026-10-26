@@ -685,6 +685,27 @@ html[data-device-type="mobile"] .movie-search-results {
   }
 }
 
+@media (min-width: 381px) and (max-width: 460px) {
+  html[data-device-type="mobile"] .topnav-link {
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    font-size: 0.79rem;
+    line-height: 1.08;
+    text-align: center;
+  }
+
+  html[data-device-type="mobile"] .topnav-icon {
+    height: 20px;
+  }
+
+  html[data-device-type="mobile"] .topnav-label {
+    text-align: center;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+}
+
 @media (max-width: 380px) {
   html[data-device-type="mobile"] .navbar-content {
     gap: 10px;

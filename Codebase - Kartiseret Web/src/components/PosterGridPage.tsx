@@ -1,9 +1,8 @@
 import { type CSSProperties, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Pencil } from "lucide-react";
-
+import { tmdbIdSchema } from "@kartiseret/contracts/runtime";
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { type Movie } from "../data/movieCatalog";
-import { tmdbIdSchema } from "../validation/runtime";
+import { Pencil } from "lucide-react";
 
 const POSTER_GRID_MIN_COLUMN_WIDTH_FALLBACK = 150;
 
@@ -196,6 +195,7 @@ export function PosterGridPage({
             ) : null}
             <MoviePosterArtwork
               title={movie.title}
+              tmdbId={movie.tmdbId}
               imageSrc={movie.imageSrc}
               alt={movie.title}
               loading="lazy"
@@ -246,6 +246,7 @@ export function PosterGridPage({
                   />
                   <MoviePosterArtwork
                     title={option.title}
+                    tmdbId={option.tmdbId}
                     imageSrc={option.posterUrl ?? undefined}
                     alt={option.title}
                     className="poster-grid-edit-option-image"

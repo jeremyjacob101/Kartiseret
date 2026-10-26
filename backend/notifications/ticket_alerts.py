@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 from html import escape
 from typing import Any, Callable
 from urllib.parse import urlsplit
-from uuid import uuid4
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 import os
 import re
@@ -16,12 +16,10 @@ from supabase import create_client
 
 TICKET_ALERTS_TABLE = "ticket_alert_subscriptions"
 SHOWTIMES_TABLE = "finalShowtimes"
-PREFERENCES_TABLE = "userPreferences"
 MOVIE_CODES_TABLE = "movieCodes"
 RESEND_ENDPOINT = "https://api.resend.com/emails"
 DEFAULT_FROM_EMAIL = "Kartiseret <notifications@seret.site>"
 DEFAULT_SITE_URL = "https://seret.site"
-DEFAULT_LOCATION = "Jerusalem"
 JERUSALEM_TIME_ZONE = ZoneInfo("Asia/Jerusalem")
 SHOWTIME_DAY_CUTOFF_MINUTES = 65
 SHOWTIME_GRACE_PERIOD_MINUTES = 15
@@ -41,6 +39,7 @@ CITY_CODE_BY_NAME = {
     "Ashdod": "3",
     "Ashkelon": "4",
     "Ayalon": "5",
+    "Bat Yam": "c",
     "Beer Sheva": "7",
     "Carmiel": "f",
     "Chadera": "k",
@@ -60,6 +59,12 @@ CITY_CODE_BY_NAME = {
     "Rishon Letzion": "9",
     "Zichron Yaakov": "a",
     "Holon": "b",
+}
+ALERT_FILTER_OPTIONS = {
+    "showType": ("Regular", "VIP", "VIP Light", "Upgrade", "Prime", "Lounge", "Premium", "Not Just Cinema"),
+    "screenFormat": ("2D", "3D"),
+    "screeningTech": ("Standard", "HFR", "IMAX", "Atmos", "ONYX", "ScreenX", "4DX"),
+    "dubLanguage": ("Original", "Hebrew", "French"),
 }
 
 
@@ -154,6 +159,94 @@ def valid_ticket_href(row: dict[str, Any]) -> str | None:
     return None
 
 
+def _show_type_tokens(value: Any) -> list[str]:
+    normalized = _text(value) or "Regular"
+    if normalized.casefold() == "premium":
+        return ["Premium"]
+    if normalized.casefold() == "not just cinema":
+        return ["Not Just Cinema"]
+    words = {word for word in re.split(r"[+\s/,-]+", normalized.upper()) if word}
+    tokens: set[str] = set()
+    for word, token in (("REGULAR", "Regular"), ("UPGRADE", "Upgrade"), ("PRIME", "Prime"), ("LOUNGE", "Lounge"), ("VIP", "VIP")):
+        if word in words:
+            tokens.add(token)
+    if "LIGHT" in words:
+        tokens.update(("VIP Light", "VIP"))
+    if "BUSINESS" in words:
+        tokens.add("VIP")
+    return list(tokens)
+
+
+def _screening_tech_parts(value: Any) -> tuple[str, list[str]]:
+    normalized = _text(value) or "2D"
+    token_map = {
+        "IMAX": "IMAX", "HFR": "HFR", "SCREENX": "ScreenX", "4DX": "4DX",
+        "ONYX": "ONYX", "ATMOS": "Atmos", "2D": "2D", "3D": "3D",
+    }
+    tokens = [
+        token_map[part.upper()]
+        for part in re.split(r"[+\s/,-]+", normalized)
+        if part.upper() in token_map
+    ]
+    screen_format = "3D" if "3D" in tokens else "2D"
+    tech = list(dict.fromkeys(token for token in tokens if token not in {"2D", "3D", "Standard"}))
+    return screen_format, tech or ["Standard"]
+
+
+def _dub_language(value: Any) -> str:
+    raw = _text(value)
+    normalized = raw.casefold()
+    if not raw:
+        return "Original"
+    if normalized == "hebrew":
+        return "Hebrew"
+    if normalized == "french":
+        return "French"
+    if normalized == "original":
+        return "Original"
+    return raw
+
+
+def resolve_ticket_alert_criteria(
+    defaults: dict[str, Any] | None,
+    overrides: dict[str, Any] | None,
+    preferred_city: str = "Jerusalem",
+) -> dict[str, Any]:
+    account = defaults if isinstance(defaults, dict) else {}
+    title = overrides if isinstance(overrides, dict) else {}
+    account_filters = account.get("filters") or {}
+    title_filters = title.get("filters") or {}
+    filters = {
+        group: list(title_filters.get(group, account_filters.get(group, [])) or [])
+        for group in ALERT_FILTER_OPTIONS
+    }
+    cities = title["cities"] if "cities" in title else account.get("cities")
+    return {
+        "cities": [preferred_city or "Jerusalem"] if cities is None else cities,
+        "notificationMode": title.get("notificationMode", account.get("notificationMode", "first_any_city")),
+        "filters": filters,
+    }
+
+
+def matches_ticket_alert_criteria(row: dict[str, Any], criteria: dict[str, Any]) -> bool:
+    cities = criteria.get("cities")
+    if cities is None:
+        cities = ["Jerusalem"]
+    city = _text(row.get("screening_city"))
+    if cities is not None and city not in cities:
+        return False
+    exclusions = criteria.get("filters") or {}
+    show_types = _show_type_tokens(row.get("screening_type"))
+    screen_format, screening_tech = _screening_tech_parts(row.get("screening_tech"))
+    dub_language = _dub_language(row.get("dub_language"))
+    return (
+        (not exclusions.get("showType") or any(value not in exclusions["showType"] for value in show_types))
+        and (not exclusions.get("screenFormat") or screen_format not in exclusions["screenFormat"])
+        and (not exclusions.get("screeningTech") or any(value not in exclusions["screeningTech"] for value in screening_tech))
+        and (not exclusions.get("dubLanguage") or dub_language not in exclusions["dubLanguage"])
+    )
+
+
 @dataclass(frozen=True)
 class LinkedShowtime:
     city: str
@@ -182,10 +275,9 @@ class LinkedShowtime:
 
 def select_linked_showtime(
     rows: list[dict[str, Any]],
-    preferred_city: str,
     now: datetime | None = None,
+    criteria: dict[str, Any] | None = None,
 ) -> LinkedShowtime | None:
-    earliest_preferred: LinkedShowtime | None = None
     earliest_anywhere: LinkedShowtime | None = None
 
     for row in rows:
@@ -199,6 +291,7 @@ def select_linked_showtime(
             and showtime
             and ticket_href
             and is_future_showtime(showing_date, showtime, now)
+            and matches_ticket_alert_criteria(row, criteria or {})
         ):
             continue
 
@@ -212,13 +305,7 @@ def select_linked_showtime(
         )
         if earliest_anywhere is None or candidate.sort_key < earliest_anywhere.sort_key:
             earliest_anywhere = candidate
-        if city == preferred_city and (
-            earliest_preferred is None
-            or candidate.sort_key < earliest_preferred.sort_key
-        ):
-            earliest_preferred = candidate
-
-    return earliest_preferred or earliest_anywhere
+    return earliest_anywhere
 
 
 def encode_date_code(value: date) -> str:
@@ -301,6 +388,8 @@ class TicketAlertConfig:
     resend_api_key: str
     from_email: str
     site_url: str
+    recipient_api_url: str = ""
+    internal_api_secret: str = ""
 
     @classmethod
     def from_environment(cls) -> "TicketAlertConfig":
@@ -308,6 +397,8 @@ class TicketAlertConfig:
             resend_api_key=os.environ.get("RESEND_API_KEY", "").strip(),
             from_email=os.environ.get("RESEND_FROM_EMAIL", DEFAULT_FROM_EMAIL).strip()
             or DEFAULT_FROM_EMAIL,
+            recipient_api_url=os.environ.get("TICKET_ALERT_RECIPIENT_API_URL", "").strip(),
+            internal_api_secret=os.environ.get("TICKET_ALERT_INTERNAL_API_SECRET", "").strip(),
             site_url=os.environ.get("SITE_URL", DEFAULT_SITE_URL).strip()
             or DEFAULT_SITE_URL,
         )
@@ -417,19 +508,37 @@ def render_ticket_alert_email(
     return RenderedEmail(subject=subject, html=html_body, text=text_body)
 
 
-def get_canonical_auth_email(supabase_client: Any, user_id: str) -> str:
-    response = supabase_client.auth.admin.get_user_by_id(user_id)
-    user = getattr(response, "user", None)
-    if user is None and isinstance(response, dict):
-        user = response.get("user")
-
-    if isinstance(user, dict):
-        email = _text(user.get("email"))
-    else:
-        email = _text(getattr(user, "email", None))
-
-    if not EMAIL_PATTERN.fullmatch(email) or "\r" in email or "\n" in email:
-        raise ValueError(f"Supabase Auth user {user_id} has no deliverable email address.")
+def get_canonical_app_email(
+    http_client: Any, *, base_url: str, secret: str, user_id: str
+) -> str:
+    UUID(user_id)
+    target = urlsplit(base_url)
+    if (
+        not base_url or not secret or target.username or target.password
+        or target.query or target.fragment or target.path not in ("", "/")
+        or not target.hostname
+        or (target.scheme != "https" and not (
+            target.scheme == "http" and target.hostname in ("localhost", "127.0.0.1", "::1")
+        ))
+    ):
+        raise RuntimeError("A valid recipient API origin and internal credential are required.")
+    response = http_client.post(
+        base_url.rstrip("/") + "/api/internal/ticket-alert-recipients",
+        headers={"Authorization": f"Bearer {secret}", "Content-Type": "application/json"},
+        json={"userIds": [user_id]}, timeout=(5, 15), allow_redirects=False,
+    )
+    if response.status_code != 200:
+        raise RuntimeError("Canonical recipient lookup failed.")
+    body = response.json()
+    rows = body.get("data") if isinstance(body, dict) and body.get("error") is None else None
+    if not isinstance(rows, list):
+        raise ValueError("Canonical recipient response is invalid.")
+    matches = [row for row in rows if isinstance(row, dict) and row.get("id") == user_id]
+    if len(matches) != 1 or matches[0].get("emailVerified") is not True:
+        raise ValueError("The account has no verified canonical recipient.")
+    email = matches[0].get("email")
+    if not isinstance(email, str) or not EMAIL_PATTERN.fullmatch(email) or "\r" in email or "\n" in email:
+        raise ValueError("The account has no deliverable canonical recipient.")
     return email
 
 
@@ -441,9 +550,10 @@ def send_resend_email(
     to_email: str,
     delivery_id: str,
     email: RenderedEmail,
+    idempotency_prefix: str = "ticket-alert",
 ) -> str:
     if not api_key:
-        raise RuntimeError("RESEND_API_KEY is required for ticket alert delivery.")
+        raise RuntimeError("RESEND_API_KEY is required for email delivery.")
     if "\r" in from_email or "\n" in from_email or not from_email.strip():
         raise ValueError("RESEND_FROM_EMAIL is invalid.")
 
@@ -452,7 +562,7 @@ def send_resend_email(
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "Idempotency-Key": f"ticket-alert-{delivery_id}",
+            "Idempotency-Key": f"{idempotency_prefix}-{delivery_id}",
         },
         json={
             "from": from_email,
@@ -482,8 +592,21 @@ def send_resend_email(
 
 
 class SupabaseTicketAlertRepository:
-    def __init__(self, supabase_client: Any):
+    def __init__(self, supabase_client: Any, *, recipient_api_url: str = "", internal_api_secret: str = "", http_client: Any = requests):
         self.supabase = supabase_client
+        self.recipient_api_url = recipient_api_url
+        self.internal_api_secret = internal_api_secret
+        self.http_client = http_client
+        self._recipient_cache: dict[str, str] = {}
+
+    @staticmethod
+    def _response_rows(response: Any) -> list[dict[str, Any]]:
+        data = getattr(response, "data", None)
+        if isinstance(data, dict):
+            return [data]
+        if isinstance(data, list):
+            return [row for row in data if isinstance(row, dict)]
+        return []
 
     @staticmethod
     def _collect_pages(
@@ -505,6 +628,7 @@ class SupabaseTicketAlertRepository:
             [
                 "user_id",
                 "tmdb_id",
+                "criteria_overrides",
                 "created_at",
                 "notified_at",
                 "delivery_id",
@@ -562,7 +686,7 @@ class SupabaseTicketAlertRepository:
     ) -> list[dict[str, Any]]:
         return self._load_rows_for_ids(
             SHOWTIMES_TABLE,
-            "tmdb_id,english_title,screening_city,date_of_showing,showtime,cinema,english_href,hebrew_href",
+            "tmdb_id,english_title,screening_city,date_of_showing,showtime,cinema,english_href,hebrew_href,screening_type,screening_tech,dub_language",
             tmdb_ids,
             earliest_date=earliest_date,
         )
@@ -592,24 +716,23 @@ class SupabaseTicketAlertRepository:
                 codes[tmdb_id] = movie_code
         return codes
 
-    def load_preferred_cities(self, user_ids: list[str]) -> dict[str, str]:
-        rows: list[dict[str, Any]] = []
+    def load_ticket_alert_preferences(self, user_ids: list[str]) -> dict[str, dict[str, Any]]:
+        preferences: dict[str, dict[str, Any]] = {}
         for start in range(0, len(user_ids), 150):
             chunk = user_ids[start : start + 150]
             response = (
-                self.supabase.table(PREFERENCES_TABLE)
-                .select("user_id,location")
+                self.supabase.table("ticket_alert_preferences")
+                .select("user_id,cities,filter_exclusions")
                 .in_("user_id", chunk)
                 .execute()
             )
-            rows.extend(response.data or [])
-
-        preferences: dict[str, str] = {}
-        for row in rows:
-            user_id = _text(row.get("user_id"))
-            location = _text(row.get("location"))
-            if user_id and location in CITY_CODE_BY_NAME:
-                preferences[user_id] = location
+            for row in self._response_rows(response):
+                user_id = _text(row.get("user_id"))
+                if user_id:
+                    preferences[user_id] = {
+                        "cities": row.get("cities"),
+                        "filters": row.get("filter_exclusions") or {},
+                    }
         return preferences
 
     def claim_delivery(
@@ -618,6 +741,9 @@ class SupabaseTicketAlertRepository:
         delivery_id: str,
         items: tuple[DeliveryItem, ...],
     ) -> list[dict[str, Any]]:
+        # PostgREST updates can return their representation directly. Each
+        # guarded update is one item in the user's delivery batch; the shared
+        # delivery_id makes a partial REST failure recoverable on the next run.
         claimed_rows: list[dict[str, Any]] = []
         for item in items:
             response = (
@@ -631,16 +757,22 @@ class SupabaseTicketAlertRepository:
                         "delivery_href": item.ticket_href,
                         "delivery_movie_code": item.movie_code,
                         "last_delivery_error": None,
-                    }
+                    },
+                    returning="representation",
                 )
                 .eq("user_id", user_id)
                 .eq("tmdb_id", item.tmdb_id)
                 .is_("notified_at", "null")
                 .is_("delivery_id", "null")
-                .select("*")
                 .execute()
             )
-            claimed_rows.extend(response.data or [])
+            item_rows = self._response_rows(response)
+            if not item_rows:
+                raise RuntimeError(
+                    f"Could not claim ticket alert movie {item.tmdb_id} "
+                    "for the delivery batch."
+                )
+            claimed_rows.extend(item_rows)
         return claimed_rows
 
     def record_attempt(self, user_id: str, delivery_id: str) -> None:
@@ -652,7 +784,11 @@ class SupabaseTicketAlertRepository:
             .is_("notified_at", "null")
             .execute()
         )
-        rows = list(response.data or [])
+        rows = self._response_rows(response)
+        if not rows:
+            raise RuntimeError("The ticket alert delivery batch is no longer pending.")
+
+        attempted_at = datetime.now(JERUSALEM_TIME_ZONE).isoformat()
         updated_count = 0
         for row in rows:
             tmdb_id = _positive_int(row.get("tmdb_id"))
@@ -665,28 +801,32 @@ class SupabaseTicketAlertRepository:
                 .update(
                     {
                         "delivery_attempts": attempts + 1,
-                        "last_delivery_attempt_at": datetime.now(
-                            JERUSALEM_TIME_ZONE
-                        ).isoformat(),
+                        "last_delivery_attempt_at": attempted_at,
                         "last_delivery_error": None,
-                    }
+                    },
+                    returning="representation",
                 )
                 .eq("user_id", user_id)
                 .eq("tmdb_id", tmdb_id)
                 .eq("delivery_id", delivery_id)
                 .eq("delivery_attempts", attempts)
                 .is_("notified_at", "null")
-                .select("tmdb_id")
                 .execute()
             )
-            if update_response.data:
-                updated_count += len(update_response.data)
+            updated_count += len(self._response_rows(update_response))
 
-        if updated_count <= 0:
-            raise RuntimeError("The ticket alert delivery batch is no longer pending.")
+        if updated_count != len(rows):
+            raise RuntimeError(
+                "Could not record every attempt in the ticket alert delivery batch."
+            )
 
     def canonical_email(self, user_id: str) -> str:
-        return get_canonical_auth_email(self.supabase, user_id)
+        if user_id not in self._recipient_cache:
+            self._recipient_cache[user_id] = get_canonical_app_email(
+                self.http_client, base_url=self.recipient_api_url,
+                secret=self.internal_api_secret, user_id=user_id,
+            )
+        return self._recipient_cache[user_id]
 
     def mark_success(
         self,
@@ -750,7 +890,10 @@ class TicketAlertDispatcher:
                     "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required for ticket alerts."
                 )
             repository = SupabaseTicketAlertRepository(
-                create_client(supabase_url, service_role_key)
+                create_client(supabase_url, service_role_key),
+                recipient_api_url=self.config.recipient_api_url,
+                internal_api_secret=self.config.internal_api_secret,
+                http_client=self.http_client,
             )
         self.repository = repository
 
@@ -824,7 +967,7 @@ class TicketAlertDispatcher:
         )
         titles = self.repository.load_titles(tmdb_ids)
         movie_codes = self.repository.load_movie_codes(tmdb_ids)
-        preferred_cities = self.repository.load_preferred_cities(user_ids)
+        alert_preferences = self.repository.load_ticket_alert_preferences(user_ids)
         showtimes_by_tmdb: dict[int, list[dict[str, Any]]] = {}
         for row in showtime_rows:
             tmdb_id = _positive_int(row.get("tmdb_id"))
@@ -837,9 +980,14 @@ class TicketAlertDispatcher:
             tmdb_id = _positive_int(subscription.get("tmdb_id"))
             if not user_id or not tmdb_id:
                 continue
-            preferred_city = preferred_cities.get(user_id, DEFAULT_LOCATION)
+            criteria = resolve_ticket_alert_criteria(
+                alert_preferences.get(user_id),
+                subscription.get("criteria_overrides"),
+            )
             linked_showtime = select_linked_showtime(
-                showtimes_by_tmdb.get(tmdb_id, []), preferred_city, now
+                showtimes_by_tmdb.get(tmdb_id, []),
+                now,
+                criteria,
             )
             if linked_showtime is None:
                 continue

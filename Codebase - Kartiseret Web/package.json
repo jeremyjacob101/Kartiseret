@@ -7,22 +7,33 @@
     "node": "24.x"
   },
   "scripts": {
+    "predev": "npm run build --workspace=@kartiseret/contracts",
     "dev": "vite --config config/vite.config.ts",
-    "build": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p config/tsconfig.node.json && tsc --noEmit -p config/tsconfig.server.json && vite build --config config/vite.config.ts",
+    "prebuild": "npm run build --workspace=@kartiseret/contracts",
+    "build": "npm run typecheck && npm run build:bundle",
+    "typecheck": "npm run build --workspace=@kartiseret/contracts && npm run typecheck:contracts && npm run typecheck:source",
+    "typecheck:contracts": "npm run typecheck --workspace=@kartiseret/contracts",
     "bundle:check": "node tests/check-client-bundle.mjs",
     "lint": "eslint .",
-    "test": "vitest run",
+    "pretest": "npm run build --workspace=@kartiseret/contracts",
+    "test": "npm run test:run",
+    "e2e": "npm run build --workspace=@kartiseret/contracts && node ../packages/server/scripts/with-test-database.mjs -- npm run e2e:run --workspace=kartiseret-web",
+    "e2e:run": "playwright test --config playwright.config.ts",
     "test:watch": "vitest",
     "format": "prettier --ignore-path ../.gitignore --cache --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts}\"",
     "format:check": "prettier --ignore-path ../.gitignore --check \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts}\"",
     "preview": "vite preview --config config/vite.config.ts",
-    "verify": "npm run lint && npm run format:check && npm test && npm run build && npm run bundle:check"
+    "verify": "npm run lint && npm run format:check && npm test && npm run build && npm run bundle:check && npm --prefix .. run clean:web-build",
+    "build:bundle": "vite build --config config/vite.config.ts",
+    "typecheck:source": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p config/tsconfig.node.json && tsc --noEmit -p config/tsconfig.server.json && tsc --noEmit -p tsconfig.e2e.json",
+    "test:run": "vitest run"
   },
   "prettier": {
     "plugins": [
       "./config/prettier-plugin-single-line-imports.mjs"
     ],
     "singleLineImports": true,
+    "sortTopImportsByLength": true,
     "overrides": [
       {
         "files": [
@@ -43,14 +54,15 @@
     ]
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.110.1",
+    "@kartiseret/contracts": "^1.0.0",
     "@tanstack/react-query": "^5.101.4",
+    "better-auth": "1.7.11",
     "lucide-react": "^1.23.0",
     "maplibre-gl": "^6.10.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router": "^8.3.0",
-    "sharp": "^0.35.3",
+    "sharp": "^0.35.5",
     "zod": "^4.4.3",
     "zustand": "^5.0.15"
   },
@@ -58,6 +70,7 @@
     "@emnapi/core": "^1.11.3",
     "@emnapi/runtime": "^1.11.3",
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",
@@ -75,7 +88,7 @@
     "tsx": "4.19.4",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.63.0",
-    "vite": "^8.1.4",
+    "vite": "^8.1.6",
     "vitest": "^4.1.11"
   }
 }

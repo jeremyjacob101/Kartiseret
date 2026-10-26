@@ -1,4 +1,5 @@
 from backend.scraping.BaseCinema import BaseCinema
+from selenium.webdriver.common.by import By
 
 from datetime import datetime
 import re
@@ -6,44 +7,52 @@ import re
 
 class CCsoon(BaseCinema):
     CINEMA_NAME = "Cinema City"
-    URL = "https://www.cinema-city.co.il/comingsoon"
+    URL = "https://www.cinema-city.co.il/movie-categories/coming-soon"
+
+    def parseReleaseDate(self, value):
+        release_date = re.sub(r"[\u200b-\u200f\u202a-\u202e\u2066-\u2069]", "", value or "").strip().replace(".", "/")
+        if match := re.fullmatch(r"(\d{1,2})\s+ב?([א-ת]+)\s+(\d{4})", release_date):
+            day, month, year = match.groups()
+            months = ("ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר")
+            release_date = f"{day}/{months.index(month) + 1}/{year}"
+        return datetime.strptime(release_date, "%d/%m/%y" if len(release_date.split("/")[-1]) == 2 else "%d/%m/%Y").date().isoformat()
 
     def logic(self):
-        self.sleep(3)
-        self.driver.execute_script("var el=document.querySelector('body > flashy-popup');if(el){el.remove();}")
-        self.sleep(3)
-        self.driver.execute_script("var el=document.querySelector('#popupVSChat');if(el){el.remove();}")
-        self.sleep(5)
-        self.zoomOut(50)
+        self.driver.set_page_load_timeout(45)
+        self.driver.set_script_timeout(15)
+        self.zoomOut(50, 0)
+        self.waitForElement("[id^='comp-mrjafvop__']")
 
-        for _ in range(10):
-            element = self.element("#change-bg > div > div > div > div.movies.row > div > p > a")
-            self.driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", element)
-            self.sleep(1)
-            try:
-                self.driver.execute_script("arguments[0].click();", element)
-                self.sleep(3)
-            except:
+        while self.lenElements("//button[normalize-space()='תראו לי עוד סרטים']"):
+            more_button = self.element("//button[normalize-space()='תראו לי עוד סרטים']")
+            if not more_button.is_displayed():
                 break
+            film_count = self.lenElements("[id^='comp-mrjafvop__']")
+            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", more_button)
+            self.clickWhenReady("//button[normalize-space()='תראו לי עוד סרטים']")
+            self.waitUntil(lambda driver: len(driver.find_elements(By.CSS_SELECTOR, "[id^='comp-mrjafvop__']")) > film_count)
 
-        for cinema_block in range(1, self.lenElements("#moviesContainer > div", "row mainThumbWrapper") + 1):
-            for film_card in range(1, self.lenElements(f"/html/body/div[4]/div/div/div/div[1]/div[2]/div/div[{cinema_block}]/div") + 1):
-                self.hebrew_title = self.element(f"/html/body/div[4]/div/div/div/div[1]/div[2]/div/div[{cinema_block}]/div[{film_card}]/div/div/div[1]/div/h2").get_attribute("textContent").strip()
-                if "מדובב לרוסית" in self.hebrew_title or "בתרגום לרוסית" in self.hebrew_title or "מדובב לצרפתית" in self.hebrew_title or "בתרגום לצרפתית" in self.hebrew_title or "סינמה קידס" in self.hebrew_title or "cook" in self.hebrew_title.lower() or "מדובב" in self.hebrew_title or "hfr" in self.hebrew_title.lower():
-                    continue
-                elif "תלת מימד" in self.hebrew_title:
-                    self.hebrew_title = re.sub(r"\s*[-–—־]?\s*תלת מימד\s*[-–—־]?\s*", "", self.hebrew_title).strip()
-                elif "אנגלית" in self.hebrew_title:
-                    self.hebrew_title = re.sub(r"\s*[-–—־]?\s*אנגלית\s*[-–—־]?\s*", "", self.hebrew_title).strip()
+        for film_card in self.elements("[id^='comp-mrjafvop__']"):
+            movie_id = film_card.get_attribute("id").split("__")[-1]
+            self.hebrew_hrefs.append(f"https://www.cinema-city.co.il/movie/{movie_id}")
 
-                self.english_title = self.element(f"/html/body/div[4]/div/div/div/div[1]/div[2]/div/div[{cinema_block}]/div[{film_card}]/div/div/div[2]/div/p[1]").get_attribute("textContent").strip()
-                if self.english_title == "" or self.english_title == None:
-                    self.english_title = self.hebrew_title
+        for href in self.hebrew_hrefs:
+            self.driver.get(href)
+            if "/movie/" not in self.driver.current_url:
+                continue
+            self.hebrew_title = self.waitForElement("main h1").get_attribute("textContent").strip()
+            if "מדובב לרוסית" in self.hebrew_title or "בתרגום לרוסית" in self.hebrew_title or "מדובב לצרפתית" in self.hebrew_title or "בתרגום לצרפתית" in self.hebrew_title or "מתורגם לצרפתית" in self.hebrew_title or "מתורגם לרוסית" in self.hebrew_title or "סינמה קידס" in self.hebrew_title or "cook" in self.hebrew_title.lower() or "מדובב" in self.hebrew_title or "hfr" in self.hebrew_title.lower():
+                continue
+            elif "תלת מימד" in self.hebrew_title:
+                self.hebrew_title = re.sub(r"\s*[-–—־]?\s*תלת מימד\s*[-–—־]?\s*", "", self.hebrew_title).strip()
+            elif "אנגלית" in self.hebrew_title:
+                self.hebrew_title = re.sub(r"\s*[-–—־]?\s*אנגלית\s*[-–—־]?\s*", "", self.hebrew_title).strip()
 
-                self.runtime = self.element(f"/html/body/div[4]/div/div/div/div[1]/div[2]/div/div[{cinema_block}]/div[{film_card}]/div/div/div[2]/div/div[1]/p[2]/span").get_attribute("textContent").strip()
-                self.rating = self.element(f"/html/body/div[4]/div/div/div/div[1]/div[2]/div/div[{cinema_block}]/div[{film_card}]/div/div/div[2]/div/div[1]/p[4]/span").get_attribute("textContent").strip()
+            self.english_title = self.waitForElement("#comp-mkb98jrw").get_attribute("textContent").replace("\u200b", "").strip() or self.hebrew_title
+            self.runtime = self.tryExceptNone(lambda: int(re.sub(r"\D", "", self.waitForElement("#comp-mkbdaczu").get_attribute("textContent"))))
+            self.rating = self.waitForElement("#comp-mkbdcdtv").get_attribute("textContent").split(":", 1)[-1].strip()
 
-                release_date = self.element(f"/html/body/div[4]/div/div/div/div[1]/div[2]/div/div[{cinema_block}]/div[{film_card}]/div/div/div[2]/div/div[1]/p[3]/span").get_attribute("textContent").strip()
-                self.release_date = datetime.strptime(release_date, "%d/%m/%Y").date().isoformat()
+            release_date = self.waitForElement("#comp-mkbdbb73").get_attribute("textContent").split(":", 1)[-1].strip()
+            self.release_date = self.parseReleaseDate(release_date)
 
-                self.appendToGatheringInfo()
+            self.appendToGatheringInfo()

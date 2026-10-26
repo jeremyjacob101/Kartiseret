@@ -1,22 +1,14 @@
-import type { User } from "@supabase/supabase-js";
-import { create } from "zustand";
-import { z } from "zod";
-import { getSupabaseBrowserClient } from "../lib/supabase";
-import { supabaseUserIdSchema, supabaseUserIdentitySchema } from "../lib/supabaseSchemas";
-import { loadGuestLocation, LOCATION_SIGNUP_METADATA_KEY, locationPreferenceDefinition, type AppLocation } from "../prefs/definitions/locations";
-import { ratingSourcesPreferenceDefinition, type RatingSource } from "../prefs/definitions/ratingSources";
 import { DEFAULT_SITE_COLOR, applySiteColor, initializeSiteColorTheme, siteColorPreferenceDefinition, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
+import { DEFAULT_LOCATION, loadGuestLocation, locationPreferenceDefinition, type AppLocation } from "../prefs/definitions/locations";
+import { preferencesResponseSchema, applicationIdentitySchema, type ApplicationIdentity } from "@kartiseret/contracts/private-data";
+import { ratingSourcesPreferenceDefinition, type RatingSource } from "../prefs/definitions/ratingSources";
+import { privateApiResponse, privateIdentityChanged } from "../data/privateApi";
 import type { UserPreferenceDefinition } from "../prefs/definitions/shared";
 import { shouldRollbackOptimisticSave } from "./preferenceSavePolicy";
-import { buildInitialPreferencesRow } from "../prefs/initialPreferences";
-import { parseBoundary } from "../validation/runtime";
+import { getAuthClient } from "../lib/authClient";
+import { create } from "zustand";
 
-const PREFERENCES_TABLE = "userPreferences";
-const supabase = getSupabaseBrowserClient();
-
-const userPreferencesRowSchema = z
-  .object({ user_id: supabaseUserIdSchema })
-  .passthrough();
+const authClient = getAuthClient();
 
 initializeSiteColorTheme();
 
@@ -54,16 +46,12 @@ type SavePreference = <Key extends PreferenceKey>(
   value: UserPreferences[Key],
 ) => Promise<boolean>;
 
-type UserPreferencesRow = {
-  user_id: string;
-} & Record<string, unknown>;
-
 type QueuedPreferenceSaves = Partial<{
   [Key in PreferenceKey]: UserPreferences[Key];
 }>;
 
 export type UserPreferencesStoreState = {
-  user: User | null;
+  user: ApplicationIdentity | null;
   preferences: UserPreferences;
   preferenceOptions: UserPreferenceOptions;
   allSources: readonly RatingSource[];
@@ -220,67 +208,6 @@ function clearCachedPreferences(): void {
   }
 }
 
-async function loadPreferencesRow(userId: string) {
-  const selectClause = ["user_id"]
-    .concat(preferenceKeys.map((key) => preferenceDefinitions[key].column.name))
-    .join(", ");
-  const { data, error } = await supabase
-    .from(PREFERENCES_TABLE)
-    .select(selectClause)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error) {
-    return { error, row: null as UserPreferencesRow | null };
-  }
-
-  if (data === null) {
-    return { error: null, row: null };
-  }
-
-  try {
-    return {
-      error: null,
-      row: parseBoundary(
-        userPreferencesRowSchema,
-        data,
-        "user preferences response",
-      ) as UserPreferencesRow,
-    };
-  } catch (validationError) {
-    return {
-      error:
-        validationError instanceof Error
-          ? validationError
-          : new Error("Invalid user preferences row."),
-      row: null as UserPreferencesRow | null,
-    };
-  }
-}
-
-export async function persistSignupPreferenceDefaults(
-  userId: string,
-  signupLocationMetadata: unknown,
-  { onlyIfMissing = false }: { onlyIfMissing?: boolean } = {},
-): Promise<string | null> {
-  const validatedUserId = parseBoundary(
-    supabaseUserIdSchema,
-    userId,
-    "user preferences user ID",
-  );
-  const { error } = await supabase.from(PREFERENCES_TABLE).upsert(
-    buildInitialPreferencesRow(
-      validatedUserId,
-      signupLocationMetadata,
-      loadGuestLocation(),
-    ),
-    // Missing-row repair must not replace an existing row. Explicit signup
-    // still applies the chosen location to any trigger-created default row.
-    { onConflict: "user_id", ignoreDuplicates: onlyIfMissing },
-  );
-  return error?.message ?? null;
-}
-
 function getGuestPreferences(): UserPreferences {
   return createPreferenceValues((key, definition) => {
     const guestValue = definition.guestPersistence?.load();
@@ -291,41 +218,6 @@ function getGuestPreferences(): UserPreferences {
 
     return normalizePreferenceValue(key, guestValue);
   });
-}
-
-function normalizePreferencesRow(row: UserPreferencesRow): UserPreferences {
-  return createPreferenceValues((key, definition) =>
-    normalizePreferenceValue(key, row[definition.column.name]));
-}
-
-function shouldPersistPreferenceDefault(value: unknown): boolean {
-  return (
-    value === null ||
-    value === undefined ||
-    (typeof value === "string" && value.trim() === "")
-  );
-}
-
-function buildMissingPreferenceDefaultsPatch(
-  row: UserPreferencesRow,
-): Partial<UserPreferencesRow> {
-  const patch: Partial<UserPreferencesRow> = {};
-
-  for (const key of preferenceKeys) {
-    const definition = preferenceDefinitions[key];
-    const rawValue = row[definition.column.name];
-
-    if (!shouldPersistPreferenceDefault(rawValue)) {
-      continue;
-    }
-
-    patch[definition.column.name] = copyPreferenceValue(
-      key,
-      getDefaultPreferenceValue(key),
-    );
-  }
-
-  return patch;
 }
 
 const preferenceOptions = createPreferenceOptions();
@@ -377,16 +269,23 @@ async function flushQueuedPreferenceSave(key: PreferenceKey): Promise<void> {
         key,
         queuedValue as UserPreferences[typeof key],
       );
-      const definition = preferenceDefinitions[key];
-      const { error: upsertError } = await supabase
-        .from(PREFERENCES_TABLE)
-        .upsert(
+      let upsertError: Error | null = null;
+      try {
+        await privateApiResponse(
+          "/api/v1/preferences",
+          preferencesResponseSchema,
           {
-            user_id: requestUserId,
-            [definition.column.name]: copyPreferenceValue(key, nextValue),
+            method: "PATCH",
+            userId: requestUserId,
+            body: { [key]: copyPreferenceValue(key, nextValue) },
           },
-          { onConflict: "user_id" },
         );
+      } catch (error) {
+        upsertError =
+          error instanceof Error
+            ? error
+            : new Error("Could not save preferences.");
+      }
       const becameStale =
         saveGeneration !== generation || activeUserId !== requestUserId;
 
@@ -538,91 +437,37 @@ async function syncPreferencesWithUser(userId: string | null): Promise<void> {
   }
 
   useUserPreferencesStore.setState({ syncing: true });
-  let { row, error: loadError } = await loadPreferencesRow(userId);
-
-  if (!isCurrentPreferenceSync(generation, userId)) {
-    return;
-  }
-
-  if (loadError) {
+  try {
+    const response = await privateApiResponse(
+      "/api/v1/preferences/initialize",
+      preferencesResponseSchema,
+      {
+        method: "POST",
+        userId,
+        body: { fallbackLocation: loadGuestLocation() ?? DEFAULT_LOCATION },
+      },
+    );
+    if (!isCurrentPreferenceSync(generation, userId)) return;
+    const normalizedPreferences = response.data;
+    saveCachedPreferences(normalizedPreferences);
+    confirmedPreferences = normalizedPreferences;
+    commitPreferences(normalizedPreferences);
+    useUserPreferencesStore.setState({ syncing: false, loading: false });
+  } catch (error) {
+    if (!isCurrentPreferenceSync(generation, userId)) return;
     useUserPreferencesStore.setState({
-      error: loadError.message,
+      error:
+        error instanceof Error ? error.message : "Could not load preferences.",
       syncing: false,
       loading: false,
     });
-    return;
   }
-
-  if (!row) {
-    const signupLocationMetadata =
-      useUserPreferencesStore.getState().user?.user_metadata?.[
-        LOCATION_SIGNUP_METADATA_KEY
-      ];
-    const createError = await persistSignupPreferenceDefaults(
-      userId,
-      signupLocationMetadata,
-      { onlyIfMissing: true },
-    );
-    if (!isCurrentPreferenceSync(generation, userId)) {
-      return;
-    }
-    if (createError) {
-      useUserPreferencesStore.setState({
-        error: createError,
-        syncing: false,
-        loading: false,
-      });
-      return;
-    }
-
-    // Read back the actual row, including one concurrently created by signup.
-    ({ row, error: loadError } = await loadPreferencesRow(userId));
-    if (!isCurrentPreferenceSync(generation, userId)) {
-      return;
-    }
-    if (loadError || !row) {
-      useUserPreferencesStore.setState({
-        error: loadError?.message ?? "Missing user preferences row.",
-        syncing: false,
-        loading: false,
-      });
-      return;
-    }
-  }
-
-  const defaultPatch = buildMissingPreferenceDefaultsPatch(row);
-  let nextRow = row;
-
-  if (Object.keys(defaultPatch).length > 0) {
-    const { error: defaultsError } = await supabase
-      .from(PREFERENCES_TABLE)
-      .upsert(
-        {
-          user_id: userId,
-          ...defaultPatch,
-        },
-        { onConflict: "user_id" },
-      );
-
-    if (!isCurrentPreferenceSync(generation, userId)) {
-      return;
-    }
-
-    if (defaultsError) {
-      useUserPreferencesStore.setState({ error: defaultsError.message });
-    } else {
-      nextRow = { ...row, ...defaultPatch };
-    }
-  }
-
-  const normalizedPreferences = normalizePreferencesRow(nextRow);
-  saveCachedPreferences(normalizedPreferences);
-  confirmedPreferences = normalizedPreferences;
-  commitPreferences(normalizedPreferences);
-  useUserPreferencesStore.setState({ syncing: false, loading: false });
 }
 
-function activateUser(nextUser: User | null, forceSync = false): void {
+function activateUser(
+  nextUser: ApplicationIdentity | null,
+  forceSync = false,
+): void {
   const nextUserId = nextUser?.id ?? null;
   const didIdentityChange = nextUserId !== activeUserId;
 
@@ -632,18 +477,27 @@ function activateUser(nextUser: User | null, forceSync = false): void {
     return;
   }
 
+  if (didIdentityChange) {
+    clearCachedPreferences();
+    const initial = getGuestPreferences();
+    confirmedPreferences = initial;
+    commitPreferences(initial);
+  }
   activeUserId = nextUserId;
+  privateIdentityChanged(nextUserId);
   resetPendingPreferenceSaves();
   void syncPreferencesWithUser(nextUserId);
 }
 
-function parseAuthUser(value: unknown): User | null {
+function parseAuthUser(value: unknown): ApplicationIdentity | null {
   if (value === null || value === undefined) {
     return null;
   }
 
-  const result = supabaseUserIdentitySchema.safeParse(value);
-  return result.success ? (value as User) : null;
+  const result = applicationIdentitySchema.safeParse(value);
+  return result.success
+    ? { id: result.data.id, email: result.data.email ?? null }
+    : null;
 }
 
 export function initializeUserPreferencesStore(): void {
@@ -653,23 +507,22 @@ export function initializeUserPreferencesStore(): void {
 
   initializationStarted = true;
 
-  void supabase.auth.getSession().then(({ data, error }) => {
-    if (error) {
-      useUserPreferencesStore.setState({ error: error.message });
+  let receivedSession = false;
+  disposeAuthSubscription = authClient.useSession.subscribe(({
+    data,
+    error,
+    isPending,
+  }) => {
+    if (isPending) return;
+    if (error && error.status !== 401) {
+      useUserPreferencesStore.setState({
+        error: error.message,
+        loading: false,
+      });
+      return;
     }
-
-    activateUser(parseAuthUser(data.session?.user), true);
-
-    const { data: authSubscription } = supabase.auth.onAuthStateChange((
-      _event,
-      session,
-    ) => {
-      activateUser(parseAuthUser(session?.user));
-    });
-
-    disposeAuthSubscription = () => {
-      authSubscription.subscription.unsubscribe();
-    };
+    activateUser(error ? null : parseAuthUser(data?.user), !receivedSession);
+    receivedSession = true;
   });
 }
 

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { accountTicketAlertInputSchema, nullableTicketAlertSubscriptionSchema, ticketAlertMovieIdSchema, ticketAlertShowtimePageSchema, ticketAlertShowtimeRowSchema, userTicketAlertSubscriptionRowsSchema } from "../src/data/ticketAlertSchemas";
+import { describe, expect, it } from "vitest";
 
 const userId = "11111111-1111-4111-8111-111111111111";
 const timestamp = "2026-09-04T09:00:00.123456+00:00";
@@ -7,6 +7,7 @@ const subscription = {
   tmdb_id: 42,
   created_at: timestamp,
   notified_at: null,
+  criteria_overrides: {},
 };
 const showtime = {
   screening_city: " Jerusalem ",
@@ -23,7 +24,6 @@ describe("ticket alert input schemas", () => {
       accountTicketAlertInputSchema.parse({
         tmdbId: 42,
         userId,
-        preferredCity: "Jerusalem",
       }).userId,
     ).toBe(userId);
   });
@@ -47,7 +47,6 @@ describe("ticket alert input schemas", () => {
       accountTicketAlertInputSchema.safeParse({
         tmdbId: 42,
         userId: "wrong",
-        preferredCity: "Jerusalem",
       }).success,
     ).toBe(false);
   });
@@ -61,7 +60,12 @@ describe("ticket alert response schemas", () => {
         ...subscription,
         user_id: userId,
       }),
-    ).toEqual({ ...subscription, tmdb_id: "42", user_id: userId });
+    ).toEqual({
+      tmdb_id: "42",
+      created_at: timestamp,
+      notified_at: null,
+      user_id: userId,
+    });
     expect(
       userTicketAlertSubscriptionRowsSchema.parse([
         {
@@ -76,10 +80,12 @@ describe("ticket alert response schemas", () => {
     ).toEqual([
       {
         tmdbId: "42",
+        completedCities: [],
         createdAt: timestamp,
         notifiedAt: "2026-09-04T12:00:00+03:00",
         deliveryTitle: "A movie",
         deliveryDate: "2026-09-05",
+        criteriaOverrides: {},
       },
     ]);
   });
@@ -119,6 +125,9 @@ describe("recoverable ticket alert source schemas", () => {
       time: "09:05",
       cinema: "",
       ticketHref: "https://tickets.example.test/42",
+      screeningType: "",
+      screeningTech: "",
+      dubLanguage: null,
     });
     expect(
       ticketAlertShowtimeRowSchema.parse({

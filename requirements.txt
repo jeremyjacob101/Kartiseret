@@ -6,3 +6,4 @@ pytz
 rich
 readchar
 python-dotenv
+psycopg[binary]==3.3.6

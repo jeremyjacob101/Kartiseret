@@ -1,23 +1,22 @@
+import { useUserPreferencesStore } from "../src/stores/userPreferencesStore";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { saveGuestLocation } from "../src/prefs/definitions/locations";
-import { useUserPreferencesStore } from "../src/stores/userPreferencesStore";
+import { MemoryRouter, useLocation } from "react-router";
 import { UserMenu } from "../src/components/UserMenu";
+import userEvent from "@testing-library/user-event";
 
-const { supabaseMock } = vi.hoisted(() => ({
-  supabaseMock: {
-    auth: {
-      signInWithPassword: vi.fn(),
-      signUp: vi.fn(),
-      signOut: vi.fn(),
-    },
+const { authMock } = vi.hoisted(() => ({
+  authMock: {
+    signIn: { email: vi.fn() },
+    signUp: { email: vi.fn() },
+    requestPasswordReset: vi.fn(),
+    signOut: vi.fn(),
   },
 }));
 
-vi.mock("../src/lib/supabase", () => ({
-  getSupabaseBrowserClient: vi.fn(() => supabaseMock),
+vi.mock("../src/lib/authClient", () => ({
+  getAuthClient: vi.fn(() => authMock),
 }));
 
 function PathLabel() {
@@ -45,12 +44,13 @@ beforeEach(() => {
       clear: () => storageValues.clear(),
     },
   });
-  supabaseMock.auth.signInWithPassword.mockResolvedValue({ error: null });
-  supabaseMock.auth.signUp.mockResolvedValue({
+  authMock.signIn.email.mockResolvedValue({ error: null });
+  authMock.signUp.email.mockResolvedValue({
     data: { session: null, user: null },
     error: null,
   });
-  supabaseMock.auth.signOut.mockResolvedValue({ error: null });
+  authMock.requestPasswordReset.mockResolvedValue({ error: null });
+  authMock.signOut.mockResolvedValue({ error: null });
   useUserPreferencesStore.setState({
     user: null,
     loading: false,
@@ -95,14 +95,14 @@ describe("UserMenu", () => {
     await user.click(screen.getByRole("button", { name: "Log in" }));
 
     await waitFor(() =>
-      expect(supabaseMock.auth.signInWithPassword).toHaveBeenCalledWith({
+      expect(authMock.signIn.email).toHaveBeenCalledWith({
         email: "user@example.com",
         password: "secret123",
       }));
     expect(screen.getByText("Signed in.")).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toHaveValue("");
 
-    supabaseMock.auth.signInWithPassword.mockResolvedValueOnce({
+    authMock.signIn.email.mockResolvedValueOnce({
       error: { message: "Invalid credentials" },
     });
     await user.type(screen.getByLabelText("Password"), "wrongpass");
@@ -125,14 +125,39 @@ describe("UserMenu", () => {
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
     await waitFor(() =>
-      expect(supabaseMock.auth.signUp).toHaveBeenCalledWith({
+      expect(authMock.signUp.email).toHaveBeenCalledWith({
         email: "new@example.com",
         password: "secret123",
-        options: { data: { signup_location: "Haifa" } },
+        signupLocation: "Haifa",
+        name: "Kartiseret member",
+        callbackURL: new URL("/?verified=1", window.location.origin).href,
       }));
     expect(
       screen.getByText(
-        "Account created. Check your email to confirm, then log in.",
+        "Check your email to confirm your account, then log in.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("requests password resets without requiring a password or revealing account existence", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await user.click(screen.getByRole("button", { name: "Sign up or log in" }));
+    await user.click(screen.getByRole("button", { name: "Forgot password?" }));
+    expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Email"), " USER@Example.COM ");
+    await user.click(screen.getByRole("button", { name: "Send reset link" }));
+
+    await waitFor(() =>
+      expect(authMock.requestPasswordReset).toHaveBeenCalledWith({
+        email: "user@example.com",
+        redirectTo: `${window.location.origin}/reset-password`,
+      }));
+    expect(
+      screen.getByText(
+        "If an account exists for that email, you’ll receive a reset link.",
       ),
     ).toBeInTheDocument();
   });
@@ -142,7 +167,7 @@ describe("UserMenu", () => {
     useUserPreferencesStore.setState({
       user: { id: "user-a", email: "user@example.com" } as never,
     });
-    supabaseMock.auth.signOut.mockResolvedValue({
+    authMock.signOut.mockResolvedValue({
       error: { message: "Session expired" },
     });
     renderMenu();

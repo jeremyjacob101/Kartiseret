@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: LevCinema
+URL: https://www.lev.co.il/en/
+Exception: AttributeError - 'SyncFilterRequestBuilder' object has no attribute 'select'
+Call Chain: runners.py:33 > runners.py:23 > BaseCinema.py:84 > BaseCinema.py:59
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/653/unsuccessful/LevCinema-1.png
+CSV: backend/utils/log/logger_artifacts/653/unsuccessful/LevCinema-1.csv

@@ -1,10 +1,10 @@
+import { AttributionPage } from "../src/components/AttributionPage";
+import { MiniNavBar } from "../src/components/bars/MiniNavBar";
+import { BottomBar } from "../src/components/bars/BottomBar";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router";
-import { AttributionPage } from "../src/components/AttributionPage";
-import { BottomBar } from "../src/components/bars/BottomBar";
-import { MiniNavBar } from "../src/components/bars/MiniNavBar";
 
 describe("static and portal-rendered surfaces", () => {
   it("keeps every attribution source link external and secure", () => {

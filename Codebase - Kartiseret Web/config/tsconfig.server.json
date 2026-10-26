@@ -7,10 +7,6 @@
   },
   "include": [
     "../server",
-    "../src/env.d.ts",
-    "../src/domain/showtimeDay.ts",
-    "../src/domain/showtimeFilters.ts",
-    "../src/routing/showtimeLinkCodec.ts",
-    "../src/prefs/definitions/locations.ts"
+    "../src/env.d.ts"
   ]
 }

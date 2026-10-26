@@ -10,8 +10,8 @@ class TLVtheque(BaseCinema):
     URL = "https://www.cinema.co.il/en/shown/"
 
     def logic(self):
-        self.sleep(3)
         self.driver.set_page_load_timeout(30)
+        self.driver.set_script_timeout(15)
 
         for i in range(60):
             current_date = self.today_date + timedelta(days=i)
@@ -28,17 +28,22 @@ class TLVtheque(BaseCinema):
                     continue
             if not page_loaded:
                 raise TimeoutError(f"Could not load Tel Aviv Cinematheque date {date_string}") from load_error
-            self.zoomOut(50, 0.25)
+            self.waitForElement("#nav-date")
+            self.zoomOut(50, 0)
             self.tryExceptPass(lambda: self.driver.execute_script("document.querySelector('.shown-popup-overlay')?.remove();"))
-            self.sleep(0.25)
 
             for film_block in range(1, self.lenElements("//*[@id='nav-date']/div[contains(@class, 'fest-box-parent-wrapper')]") + 1):
                 for film_card in range(1, self.lenElements(f"//*[@id='nav-date']/div[contains(@class, 'fest-box-parent-wrapper')][{film_block}]/div[contains(@class, 'festival-grid-box')]") + 1):
                     self.release_year, self.runtime = None, None
 
+                    title_info = self.elements(f"//*[@id='nav-date']/div[contains(@class, 'fest-box-parent-wrapper')][{film_block}]/div[contains(@class, 'festival-grid-box')][{film_card}]/div[contains(@class, 'text-content')]/div[contains(@class, 'title')]/p")
+                    paragraph_info = self.elements(f"//*[@id='nav-date']/div[contains(@class, 'fest-box-parent-wrapper')][{film_block}]/div[contains(@class, 'festival-grid-box')][{film_card}]/div[contains(@class, 'text-content')]/div[contains(@class, 'paragraph')]/p")
+                    title_text = title_info[0].get_attribute("textContent") if title_info else None
+                    paragraph_text = " ".join(paragraph_info[0].get_attribute("textContent").split()[:50]) if paragraph_info else None
+
                     self.english_title = self.element(f"//*[@id='nav-date']/div[contains(@class, 'fest-box-parent-wrapper')][{film_block}]/div[contains(@class, 'festival-grid-box')][{film_card}]/div[contains(@class, 'text-content')]/div[contains(@class, 'title')]/h3/a").text.strip()
                     if not re.search(r"[A-Za-z]", self.english_title):
-                        fallback_text = self.tryExceptNone(lambda: " ".join(self.element(f"//*[@id='nav-date']/div[contains(@class, 'fest-box-parent-wrapper')][{film_block}]/div[contains(@class, 'festival-grid-box')][{film_card}]/div[contains(@class, 'text-content')]/div[contains(@class, 'paragraph')]/p").get_attribute("textContent").split()[:50]))
+                        fallback_text = paragraph_text
                         if fallback_text:
                             words = fallback_text.split()
                             english_words = []
@@ -51,8 +56,8 @@ class TLVtheque(BaseCinema):
                                     break
                             self.english_title = " ".join(english_words) if english_words else None
 
-                    trying_year_1 = self.tryExceptNone(lambda: self.element(f"//*[@id='nav-date']/div[contains(@class, 'fest-box-parent-wrapper')][{film_block}]/div[contains(@class, 'festival-grid-box')][{film_card}]/div[contains(@class, 'text-content')]/div[contains(@class, 'title')]/p").get_attribute("textContent"))
-                    trying_year_2 = self.tryExceptNone(lambda: " ".join(self.element(f"//*[@id='nav-date']/div[contains(@class, 'fest-box-parent-wrapper')][{film_block}]/div[contains(@class, 'festival-grid-box')][{film_card}]/div[contains(@class, 'text-content')]/div[contains(@class, 'paragraph')]/p").get_attribute("textContent").split()[:50]))
+                    trying_year_1 = title_text
+                    trying_year_2 = paragraph_text
                     for candidate in (trying_year_1, trying_year_2):
                         if candidate:
                             match = re.search(r"\b\d{4}\b", candidate)
@@ -60,8 +65,8 @@ class TLVtheque(BaseCinema):
                                 self.release_year = match.group(0)
                                 break
 
-                    trying_runtime_1 = self.tryExceptNone(lambda: self.element(f"//*[@id='nav-date']/div[contains(@class, 'fest-box-parent-wrapper')][{film_block}]/div[contains(@class, 'festival-grid-box')][{film_card}]/div[contains(@class, 'text-content')]/div[contains(@class, 'title')]/p").get_attribute("textContent"))
-                    trying_runtime_2 = self.tryExceptNone(lambda: " ".join(self.element(f"//*[@id='nav-date']/div[contains(@class, 'fest-box-parent-wrapper')][{film_block}]/div[contains(@class, 'festival-grid-box')][{film_card}]/div[contains(@class, 'text-content')]/div[contains(@class, 'paragraph')]/p").get_attribute("textContent").split()[:50]))
+                    trying_runtime_1 = title_text
+                    trying_runtime_2 = paragraph_text
                     if trying_runtime_1 and "Length:" in trying_runtime_1:
                         match = re.search(r"Length:\s*(\d+)", trying_runtime_1)
                         if match:

@@ -1,5 +1,5 @@
+import { SHOWTIME_DAY_CUTOFF_MINUTES, SHOWTIME_GRACE_PERIOD_MINUTES, addShowtimeCalendarDays, getCinemaDayDate, getEffectiveShowtimeDate, getShowtimeSortValue, isPostMidnightCarryoverShowtime, parseShowtimeMinutes, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
 import { describe, expect, it } from "vitest";
-import { SHOWTIME_DAY_CUTOFF_MINUTES, SHOWTIME_GRACE_PERIOD_MINUTES, addShowtimeCalendarDays, getCinemaDayDate, getEffectiveShowtimeDate, getShowtimeSortValue, isPostMidnightCarryoverShowtime, parseShowtimeMinutes, shouldIncludeShowtime } from "../src/domain/showtimeDay";
 
 describe("showtime calendar boundary invariants", () => {
   it.each([

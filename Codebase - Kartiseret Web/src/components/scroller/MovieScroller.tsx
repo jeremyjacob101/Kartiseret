@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type WheelEvent } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type WheelEvent } from "react";
+import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
+import { buildMovieShowtimeShareUrl, filterMaskFromUnchecked, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "@kartiseret/contracts/showtime-links";
+import { loadShowtimes, loadShowtimesAroundDate, movieCollectionQueryOptions, selectMovies, type Movie } from "../../data/movieCatalog";
+import { MovieDetailsContent, type MovieDetailsShareSelection, type MovieDetailsVariant } from "./MovieDetailsContent";
+import { useMovieDisplayPreferences } from "../../contexts/MovieDisplayPreferencesContext";
+import { applyMovieDisplayPreferences } from "../../data/movieDisplayPreferences";
+import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
+import { useDeviceStore } from "../../device/useDeviceType";
+import { MoviePosterArtwork } from "../MoviePosterArtwork";
+import { shareLink } from "../../routing/shareLink";
 import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
-import { MoviePosterArtwork } from "../MoviePosterArtwork";
-import { loadShowtimes, loadShowtimesAroundDate, movieCollectionQueryOptions, selectMovies, type Movie } from "../../data/movieCatalog";
-import { useDeviceStore } from "../../device/useDeviceType";
-import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
-import { shareLink } from "../../routing/shareLink";
-import { buildMovieShowtimeShareUrl, filterMaskFromUnchecked, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "../../routing/showtimeLinkCodec";
-import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
-import { MovieDetailsContent, type MovieDetailsShareSelection, type MovieDetailsVariant } from "./MovieDetailsContent";
 import "./MovieScroller.css";
+import { backdropPreloader } from "./backdropPreloader";
 
 type FocusPhase = "collapsed" | "opening" | "open" | "closing";
 type NavigationDirection = -1 | 1;
@@ -529,13 +532,28 @@ export function MovieScroller({
   onExitDetail,
   ...props
 }: MovieScrollerProps) {
+  const displayPreferences = useMovieDisplayPreferences();
   const resolvedVariant = mode ?? detailVariant ?? "nowPlaying";
   const { data: queriedMovieItems = [] } = useQuery({
     ...movieCollectionQueryOptions(resolvedVariant),
     select: selectMovies,
     enabled: movieItems === undefined,
   });
-  const resolvedMovieItems = movieItems ?? queriedMovieItems;
+  const resolvedMovieItems = useMemo(
+    () =>
+      displayPreferences.ready
+        ? applyMovieDisplayPreferences(
+            movieItems ?? queriedMovieItems,
+            displayPreferences.preferencesById,
+          )
+        : [],
+    [
+      displayPreferences.preferencesById,
+      displayPreferences.ready,
+      movieItems,
+      queriedMovieItems,
+    ],
+  );
 
   if (resolvedMovieItems.length === 0) {
     return null;
@@ -2075,6 +2093,11 @@ function MovieScrollerContent({
     }
 
     const preloadMovieIndexes = new Set<number>();
+    const selectedBackdrop = movieItems[displayMovieIndex].backdropSrc;
+    if (selectedBackdrop) {
+      backdropPreloader.requestBackdropNow(selectedBackdrop);
+      seenPosterSrcRef.current.add(selectedBackdrop);
+    }
 
     for (
       let offset = -DETAIL_PRELOAD_RADIUS;
@@ -2214,6 +2237,7 @@ function MovieScrollerContent({
               }`}
               decoding="async"
               loading="eager"
+              fetchPriority="high"
             />
           </div>
         ) : null}
@@ -2348,6 +2372,7 @@ function MovieScrollerContent({
                 >
                   <MoviePosterArtwork
                     title={previousAdjacentMovie.title}
+                    tmdbId={previousAdjacentMovie.tmdbId}
                     imageSrc={previousAdjacentMovie.imageSrc}
                     alt={previousAdjacentMovie.title}
                     className="movie-scroller-side-preview-image"
@@ -2385,6 +2410,7 @@ function MovieScrollerContent({
                 >
                   <MoviePosterArtwork
                     title={nextAdjacentMovie.title}
+                    tmdbId={nextAdjacentMovie.tmdbId}
                     imageSrc={nextAdjacentMovie.imageSrc}
                     alt={nextAdjacentMovie.title}
                     className="movie-scroller-side-preview-image"

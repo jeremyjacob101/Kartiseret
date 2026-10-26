@@ -1,7 +1,21 @@
-import { QueryClient } from "@tanstack/react-query";
-import { describe, expect, it } from "vitest";
-import { fixedAppDateString, invalidateAdminMovieEditQueries, mergeShowtimeCityData, movieCatalogQueryKeys, type Movie, type ShowtimeRow } from "../src/data/movieCatalog";
+import type { Movie, ShowtimeRow } from "../src/data/movieCatalog";
 import { ticketAlertQueryKeys } from "../src/data/ticketAlerts";
+import { afterAll, describe, expect, it, vi } from "vitest";
+import { QueryClient } from "@tanstack/react-query";
+
+vi.useFakeTimers();
+vi.setSystemTime(new Date("2026-09-16T16:30:00.000Z"));
+
+const {
+  fixedAppDateString,
+  invalidateAdminMovieEditQueries,
+  mergeShowtimeCityData,
+  movieCatalogQueryKeys,
+} = await import("../src/data/movieCatalog");
+
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 function addDay(date: string): string {
   const value = new Date(`${date}T12:00:00.000Z`);
@@ -37,15 +51,16 @@ function createShowtimeRow(
   overrides: Partial<ShowtimeRow> = {},
 ): ShowtimeRow {
   return {
-    tmdb_id: "101",
-    screening_city: "Jerusalem",
-    date_of_showing: date,
+    tmdbId: "101",
+    screeningCity: "Jerusalem",
+    dateOfShowing: date,
     cinema: "Cinema City",
     showtime: "20:00",
-    english_href: "https://example.test/tickets",
-    screening_tech: "2D",
-    screening_type: "Regular",
-    dub_language: null,
+    englishHref: "https://example.test/tickets",
+    hebrewHref: null,
+    screeningTech: "2D",
+    screeningType: "Regular",
+    dubLanguage: null,
     ...overrides,
   };
 }
@@ -170,7 +185,7 @@ describe("showtime city cache merging", () => {
       movies: [movie],
       rows: [
         createShowtimeRow(fixedAppDateString, {
-          english_href: "https://example.test/updated",
+          englishHref: "https://example.test/updated",
         }),
       ],
       scope: "broad",

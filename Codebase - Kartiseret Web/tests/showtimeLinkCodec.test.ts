@@ -1,5 +1,5 @@
+import { addCalendarDays, buildMovieShowtimeShareUrl, decodeBase62, decodeDateCode, decodeFilterMask, encodeBase62Fixed, encodeDateCode, encodeFilterMask, encodeMovieRouteCode, filterMaskFromUnchecked, getTargetedShowtimePrefetchRange, isCanonicalShowtimeFilterMatch, isDateInShowtimeLinkWindow, migrateShowtimeFilterState, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask } from "@kartiseret/contracts/showtime-links";
 import { describe, expect, it } from "vitest";
-import { addCalendarDays, buildMovieShowtimeShareUrl, decodeBase62, decodeDateCode, decodeFilterMask, encodeBase62Fixed, encodeDateCode, encodeFilterMask, encodeMovieRouteCode, filterMaskFromUnchecked, getTargetedShowtimePrefetchRange, isCanonicalShowtimeFilterMatch, isDateInShowtimeLinkWindow, migrateShowtimeFilterState, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask } from "../src/routing/showtimeLinkCodec";
 
 describe("showtime share-link codec", () => {
   it("round-trips fixed-width base62 values and rejects unsafe input", () => {
@@ -114,6 +114,7 @@ describe("showtime share-link codec", () => {
 
     expect(url).toMatch(/^https:\/\/example\.test\/Ab1/);
     expect(resolveCityCode("1", "Haifa")).toBe("Haifa");
+    expect(resolveCityCode("c", "Jerusalem")).toBe("Bat Yam");
     expect(resolveCityCode("i", "Haifa")).toBe("Jerusalem");
     expect(resolveCityCode("?", "Haifa")).toBeNull();
   });

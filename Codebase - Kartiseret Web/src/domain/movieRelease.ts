@@ -2,20 +2,23 @@ import type { Movie } from "../data/movieCatalog";
 
 export type MovieReleaseCategory = "newReleases" | "reReleases";
 
-const RE_RELEASE_YEAR_OFFSET = 3;
+export const MOVIE_RELEASE_CATEGORY_LABELS: Record<
+  MovieReleaseCategory,
+  string
+> = {
+  newReleases: "New Releases",
+  reReleases: "Re-Releases",
+};
 
-export function isMovieReRelease(
-  movie: Pick<Movie, "year">,
-  currentYear = new Date().getFullYear(),
-): boolean {
-  return movie.year > 0 && movie.year <= currentYear - RE_RELEASE_YEAR_OFFSET;
-}
+const RE_RELEASE_YEAR_OFFSET = 3;
 
 export function getMovieReleaseCategory(
   movie: Pick<Movie, "year">,
   currentYear = new Date().getFullYear(),
 ): MovieReleaseCategory {
-  return isMovieReRelease(movie, currentYear) ? "reReleases" : "newReleases";
+  return movie.year > 0 && movie.year <= currentYear - RE_RELEASE_YEAR_OFFSET
+    ? "reReleases"
+    : "newReleases";
 }
 
 export function filterMoviesByReleaseCategory<T extends Pick<Movie, "year">>(

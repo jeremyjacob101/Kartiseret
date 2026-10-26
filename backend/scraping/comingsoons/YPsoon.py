@@ -1,10 +1,12 @@
 from backend.scraping.BaseCinema import BaseCinema
+from backend.scraping.utils.QuickbookHelpers import QuickbookHelpers
+from selenium.webdriver.common.by import By
 
 from datetime import datetime
 import re
 
 
-class YPsoon(BaseCinema):
+class YPsoon(QuickbookHelpers, BaseCinema):
     CINEMA_NAME = "Yes Planet"
     URL = "https://www.planetcinema.co.il/?lang=en_gb#/"
 
@@ -12,8 +14,10 @@ class YPsoon(BaseCinema):
     first_click = False
 
     def logic(self):
-        self.sleep(5)
-        self.waitAndClick("#onetrust-accept-btn-handler", 1)
+        self.driver.set_page_load_timeout(45)
+        self.driver.set_script_timeout(15)
+        self.acceptQuickbookCookies()
+        self.waitForVisible("/html/body/div[6]/section/div[4]/div/div/div/div[2]/div/div/div/div[1]/div/a")
 
         for film_card in range(1, self.lenElements("/html/body/div[6]/section/div[4]/div/div/div/div[2]/div/div/div/div[1]/div") + 1):
             self.english_hrefs.append(self.element(f"/html/body/div[6]/section/div[4]/div/div/div/div[2]/div/div/div/div[1]/div[{film_card}]/a").get_attribute("href"))
@@ -23,10 +27,12 @@ class YPsoon(BaseCinema):
                 continue
 
             self.driver.get(href)
-            self.sleep(0.1)
+            self.reloadQuickbookErrorPage()
+            self.waitUntil(lambda driver: driver.find_element(By.CSS_SELECTOR, "#more-info dd").get_attribute("textContent").strip())
+            self.waitForResponse("/films/byDistributorCode/" + self.driver.execute_script("return window.filmDetails.id"))
 
             if not self.first_click:
-                self.tryExceptPass(lambda: self.element("/html/body/div[15]/div/div/div/div[2]/div[3]/div[1]/div/h2/small").click())
+                self.tryExceptPass(lambda: self.click("/html/body/div[15]/div/div/div/div[2]/div[3]/div[1]/div/h2/small"))
                 self.first_click = True
 
             self.english_title = self.element("/html/body/div[5]/section[1]/div/div[2]/div[1]/div/ul/li/h1").get_attribute("textContent").strip()

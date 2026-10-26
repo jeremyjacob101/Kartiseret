@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: ComingSoonDateAlertDispatcher
+URL: ?
+Exception: RuntimeError - Coming Soon date delivery failed for 1 batch(es): d2531909-8993-4e86-a883-b52148d97bec: RuntimeError: A valid recipient API origin and internal credential are required.
+Call Chain: runners.py:33 > runners.py:24 > coming_soon_date_alerts.py:473 > coming_soon_date_alerts.py:466
+Selector: 
+Screenshot: 
+CSV: 

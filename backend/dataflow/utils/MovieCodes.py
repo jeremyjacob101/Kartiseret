@@ -1,8 +1,10 @@
 from typing import Any, Iterable
 import secrets
+from threading import RLock
 
 
 class MovieCodes:
+    MOVIE_CODES_LOCK = RLock()
     MOVIE_CODES_TABLE_NAME = "movieCodes"
     MOVIE_CODE_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     MOVIE_CODE_LENGTH = 3
@@ -56,6 +58,12 @@ class MovieCodes:
         raise ValueError("Available non-reserved movie code capacity has been reached")
 
     def ensureMovieCodes(self, tmdb_ids: Iterable[Any]) -> dict[int, str]:
+        # Multiple category mappers can publish movie codes at the same time.
+        # Keep the read/allocate/insert sequence atomic within this process.
+        with self.MOVIE_CODES_LOCK:
+            return self._ensureMovieCodesLocked(tmdb_ids)
+
+    def _ensureMovieCodesLocked(self, tmdb_ids: Iterable[Any]) -> dict[int, str]:
         normalized_ids: set[int] = set()
         for tmdb_id in tmdb_ids:
             try:
@@ -84,6 +92,10 @@ class MovieCodes:
                     movie_codes_by_tmdb[tmdb_id] = movie_code
 
         used_codes = {str(row.get("movie_code") or "").strip() for row in self.selectAll(self.MOVIE_CODES_TABLE_NAME, select="movie_code")}
+        # Categories prepare privately, so reserve codes across their workspaces
+        # under the same allocation lock even before any category commits.
+        reservations = getattr(self.supabase, "reserved_movie_codes", set())
+        used_codes.update(reservations)
         new_rows = []
 
         for tmdb_id in requested_ids:
@@ -97,6 +109,7 @@ class MovieCodes:
 
         if new_rows:
             self.supabase.table(self.MOVIE_CODES_TABLE_NAME).insert(new_rows).execute()
+            reservations.update(row["movie_code"] for row in new_rows)
 
         return movie_codes_by_tmdb
 

@@ -1,0 +1,86 @@
+- - -
+DATAFLOW SUMMARY
+- - -
+Name: CinemathequesTmdb
+Run ID: 659
+Attempt: 1
+Result: STAGED (PUBLICATION PENDING)
+Started (UTC): 2026-10-25T09:03:12.403907+00:00
+Finished (UTC): 2026-10-25T09:04:34.138671+00:00
+Duration Seconds: 81.7348
+Generated At (UTC): 2026-10-25T09:04:34.138916+00:00
+
+SUMMARY COUNTS
+- mapped: 19
+- merged: 16
+
+STAGE BREAKDOWN
+- dedupe|merged|deduped_into_tmdb: 16
+- tmdb_choice|mapped|director_match: 2
+- tmdb_choice|mapped|title_first_match: 14
+- write|mapped|marked_added: 1
+- write|mapped|upserted: 2
+
+COMING SOONS DETAILS
+- (none)
+
+CINEMATHEQUE GROUP DETAILS
+- key=hunt | status=mapped | reason=title_first_match | rep_title=the hunt | rows=1 | parsed_year=2012 | candidates=24 | chosen_tmdb=103663 | path=title_first_match
+- key=call me by your name | status=mapped | reason=title_first_match | rep_title=call me by your name | rows=1 | parsed_year=2017 | candidates=1 | chosen_tmdb=398818 | path=title_first_match
+- key=dreamers | status=mapped | reason=title_first_match | rep_title=the dreamers | rows=1 | parsed_year=2003 | candidates=20 | chosen_tmdb=1278 | path=title_first_match
+- key=there will be blood | status=mapped | reason=title_first_match | rep_title=there will be blood | rows=1 | parsed_year=2007 | candidates=3 | chosen_tmdb=7345 | path=title_first_match
+- key=wild at heart | status=mapped | reason=title_first_match | rep_title=wild at heart | rows=1 | parsed_year=1990 | candidates=6 | chosen_tmdb=483 | path=title_first_match
+- key=late summer blues | status=mapped | reason=title_first_match | rep_title=late summer blues | rows=1 | parsed_year=1987 | candidates=2 | chosen_tmdb=117334 | path=title_first_match
+- key=metzitzim | status=mapped | reason=director_match | rep_title=metzitzim | rows=1 | parsed_year=1972 | candidates=1 | chosen_tmdb=73147 | path=director_match
+- key=celebration | status=mapped | reason=director_match | rep_title=the celebration | rows=1 | parsed_year=1996 | candidates=20 | chosen_tmdb=309 | path=director_match
+- key=vertigo | status=mapped | reason=title_first_match | rep_title=vertigo | rows=1 | parsed_year=1958 | candidates=20 | chosen_tmdb=426 | path=title_first_match
+- key=dinner rush | status=mapped | reason=title_first_match | rep_title=dinner rush | rows=1 | parsed_year=2000 | candidates=2 | chosen_tmdb=22617 | path=title_first_match
+- key=no | status=mapped | reason=title_first_match | rep_title=no | rows=1 | parsed_year=2012 | candidates=24 | chosen_tmdb=110398 | path=title_first_match
+- key=paris texas | status=mapped | reason=title_first_match | rep_title=paris texas | rows=1 | parsed_year=1984 | candidates=5 | chosen_tmdb=655 | path=title_first_match
+- key=passenger | status=mapped | reason=title_first_match | rep_title=the passenger | rows=1 | parsed_year=1975 | candidates=20 | chosen_tmdb=9652 | path=title_first_match
+- key=sentimental value | status=mapped | reason=title_first_match | rep_title=sentimental value | rows=1 | parsed_year=2025 | candidates=4 | chosen_tmdb=1124566 | path=title_first_match
+- key=vagabond | status=mapped | reason=title_first_match | rep_title=vagabond | rows=1 | parsed_year=1985 | candidates=20 | chosen_tmdb=44018 | path=title_first_match
+- key=anora | status=mapped | reason=title_first_match | rep_title=anora | rows=1 | parsed_year=2024 | candidates=19 | chosen_tmdb=1064213 | path=title_first_match
+- key=hunt | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=103663 | path=deduped_into_tmdb
+- key=call me by your name | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=398818 | path=deduped_into_tmdb
+- key=dreamers | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1278 | path=deduped_into_tmdb
+- key=there will be blood | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=7345 | path=deduped_into_tmdb
+- key=wild at heart | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=483 | path=deduped_into_tmdb
+- key=late summer blues | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=117334 | path=deduped_into_tmdb
+- key=metzitzim | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=73147 | path=deduped_into_tmdb
+- key=celebration | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=309 | path=deduped_into_tmdb
+- key=vertigo | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=426 | path=deduped_into_tmdb
+- key=dinner rush | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=22617 | path=deduped_into_tmdb
+- key=no | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=110398 | path=deduped_into_tmdb
+- key=paris texas | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=655 | path=deduped_into_tmdb
+- key=passenger | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=9652 | path=deduped_into_tmdb
+- key=sentimental value | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1124566 | path=deduped_into_tmdb
+- key=vagabond | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=44018 | path=deduped_into_tmdb
+- key=anora | status=merged | reason=deduped_into_tmdb | rep_title= | rows=1 | parsed_year= | candidates=0 | chosen_tmdb=1064213 | path=deduped_into_tmdb
+- key=Jaffa Cinema | status=mapped | reason=upserted | rep_title= | rows=16 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_by_cinema
+- key=finalThequeMovies | status=mapped | reason=upserted | rep_title= | rows=16 | parsed_year= | candidates=0 | chosen_tmdb= | path=final_movies
+- key=Jaffa Cinema | status=mapped | reason=marked_added | rep_title= | rows=16 | parsed_year= | candidates=0 | chosen_tmdb= | path=publish_after_final_movies
+
+NOW PLAYING GROUP DETAILS
+- (none)
+
+UNRESOLVED / DROPPED ITEMS
+- (none)
+
+WRITE/DEDUPE ACTIONS
+- dedupeFinalShowtimes(finalTheques)
+- dedupeFinalMovies(finalThequeMovies)
+- upsertUpdates(finalTheques) cinema=Jaffa Cinema rows=16
+- dedupeFinalShowtimes(finalTheques)
+- upsertUpdates(finalThequeMovies) rows=16
+- ensureMovieCodes(movieCodes) rows=238
+- dedupeFinalMovies(finalThequeMovies)
+- delete_stale(finalTheques) cinema=Jaffa Cinema rows=15
+- mark_added(allTheques) cinema=Jaffa Cinema rows=16
+
+NOTES
+- snapshot_not_complete | cinema=Jerusalem Cinematheque | status=running
+- snapshot_not_complete | cinema=Herziliya Cinematheque | status=running
+- snapshot_not_complete | cinema=Tel Aviv Cinematheque | status=running
+- snapshot_not_complete | cinema=Haifa Cinematheque | status=running
+- Changes are staged; they are not live until category publication commits.

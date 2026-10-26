@@ -1,7 +1,9 @@
+import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
 import { forwardRef, useCallback, useState } from "react";
 
 type MoviePosterArtworkProps = {
   title: string;
+  tmdbId?: string;
   imageSrc?: string;
   alt?: string;
   className?: string;
@@ -12,6 +14,7 @@ type MoviePosterArtworkProps = {
   fetchPriority?: "high" | "low" | "auto";
   draggable?: boolean;
   showFallbackWhileLoading?: boolean;
+  deferRequest?: boolean;
 };
 
 type PosterFallbackProps = {
@@ -24,6 +27,7 @@ type PosterFallbackProps = {
 type LoadingFallbackPosterImageProps = PosterFallbackProps & {
   resolvedAlt: string;
   resolvedImageSrc: string;
+  deferRequest: boolean;
   className?: string;
   loading?: "eager" | "lazy";
   decoding: "async" | "auto" | "sync";
@@ -62,6 +66,7 @@ const LoadingFallbackPosterImage = forwardRef<
   {
     title,
     resolvedImageSrc,
+    deferRequest,
     resolvedAlt,
     className,
     fallbackClassName,
@@ -87,7 +92,7 @@ const LoadingFallbackPosterImage = forwardRef<
         ref.current = node;
       }
 
-      if (!node || !node.complete) {
+      if (!node || !node.getAttribute("src") || !node.complete) {
         return;
       }
 
@@ -108,7 +113,7 @@ const LoadingFallbackPosterImage = forwardRef<
       ) : null}
       <img
         ref={setImageNode}
-        src={resolvedImageSrc}
+        src={deferRequest ? undefined : resolvedImageSrc}
         alt={resolvedAlt}
         aria-hidden={isDecorative ? "true" : undefined}
         loading={loading}
@@ -134,6 +139,7 @@ export const MoviePosterArtwork = forwardRef<
 >(function MoviePosterArtwork(
   {
     title,
+    tmdbId,
     imageSrc,
     alt,
     className,
@@ -144,10 +150,21 @@ export const MoviePosterArtwork = forwardRef<
     fetchPriority,
     draggable = false,
     showFallbackWhileLoading = false,
+    deferRequest = false,
   },
   ref,
 ) {
-  const resolvedImageSrc = imageSrc?.trim();
+  const displayPreferences = useMovieDisplayPreferences();
+  const preference = tmdbId
+    ? displayPreferences.preferencesById.get(tmdbId)
+    : undefined;
+  if (preference?.treatment === "remove") return null;
+  const shouldUseStandardPoster =
+    preference?.treatment === "standard" ||
+    (Boolean(tmdbId) && !displayPreferences.ready);
+  const resolvedImageSrc = shouldUseStandardPoster
+    ? undefined
+    : imageSrc?.trim();
   const resolvedAlt = alt ?? title;
   const isDecorative = resolvedAlt.length === 0;
   const shouldShowLoadingFallback =
@@ -161,6 +178,7 @@ export const MoviePosterArtwork = forwardRef<
           ref={ref}
           title={title}
           resolvedImageSrc={resolvedImageSrc}
+          deferRequest={deferRequest}
           resolvedAlt={resolvedAlt}
           className={className}
           fallbackClassName={fallbackClassName}
@@ -177,7 +195,7 @@ export const MoviePosterArtwork = forwardRef<
     return (
       <img
         ref={ref}
-        src={resolvedImageSrc}
+        src={deferRequest ? undefined : resolvedImageSrc}
         alt={resolvedAlt}
         aria-hidden={isDecorative ? "true" : undefined}
         loading={loading}

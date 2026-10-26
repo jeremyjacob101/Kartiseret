@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
 import { LOCATION_DISABLED_MESSAGE, TheaterMapActionControl, TheaterMapAttributionControl, TheaterMapCloseControl } from "../src/components/maps/theaterMapControls";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => {
   vi.useRealTimers();

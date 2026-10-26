@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Clapperboard, List, Search } from "lucide-react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { Map as MapLibreMap, Marker, NavigationControl, Popup, setWorkerUrl } from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Clapperboard, List, Search } from "lucide-react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { useQuery } from "@tanstack/react-query";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { INITIAL_MAP_ZOOM, MAP_MAX_ZOOM, MAP_STYLE_URL, PRIMARY_CITY_COLLISION_PADDING, SECONDARY_CITIES, SELECTED_CITY_Z_INDEX, SINGLE_CITY_FOCUS_ZOOM, THEATER_DOT_COLORS, THEATER_MARKER_Z_INDEX, THEATER_POPUP_OFFSET, buildBounds, buildCityEntries, buildCityRevealConfig, chooseTheaterPopupAnchor, cityMatchesSearchQuery, configureBaseLabels, estimateCityBubbleSize, estimateSecondaryCityLabelSize, getCityLabelOpacity, getCityMarkerZIndex, getCityPriority, getFitPadding, getGeolocationErrorMessage, getInitialMapCenter, getMaxVisibleSecondaryCities, getNearestCityLocation, getSearchCityMarkerZIndex, getSecondaryCityCollisionPadding, getStartBounds, getTheaterPopupMaxWidth, isCityLabelRevealed, isMapAtStartingView, normalizeCitySearchQuery, normalizeTheaterChain, rectanglesOverlap, styleCityLabel, styleSecondaryCityLabel, styleTheaterDot, type CityMarkerState, type SecondaryCityMarkerState, type TheaterMarkerState } from "./cityLocationMapUtils";
 import { selectTheaters, theaterDataQueryOptions } from "../../data/theaters";
 import { type AppLocation } from "../../prefs/definitions/locations";
-import { INITIAL_MAP_ZOOM, MAP_MAX_ZOOM, MAP_STYLE_URL, PRIMARY_CITY_COLLISION_PADDING, SECONDARY_CITIES, SELECTED_CITY_Z_INDEX, SINGLE_CITY_FOCUS_ZOOM, THEATER_DOT_COLORS, THEATER_MARKER_Z_INDEX, THEATER_POPUP_OFFSET, buildBounds, buildCityEntries, buildCityRevealConfig, chooseTheaterPopupAnchor, cityMatchesSearchQuery, configureBaseLabels, estimateCityBubbleSize, estimateSecondaryCityLabelSize, getCityLabelOpacity, getCityMarkerZIndex, getCityPriority, getFitPadding, getGeolocationErrorMessage, getInitialMapCenter, getMaxVisibleSecondaryCities, getNearestCityLocation, getSearchCityMarkerZIndex, getSecondaryCityCollisionPadding, getStartBounds, getTheaterPopupMaxWidth, isCityLabelRevealed, isMapAtStartingView, normalizeCitySearchQuery, normalizeTheaterChain, rectanglesOverlap, styleCityLabel, styleSecondaryCityLabel, styleTheaterDot, type CityMarkerState, type SecondaryCityMarkerState, type TheaterMarkerState } from "./cityLocationMapUtils";
 
 const THEATER_MARKER_ICON = renderToStaticMarkup(
   <Clapperboard size={16} strokeWidth={2.5} />,

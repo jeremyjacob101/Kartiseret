@@ -1,0 +1,38 @@
+- - -
+DATAFLOW SUMMARY
+- - -
+Name: CinemathequesUpdate
+Run ID: 643
+Attempt: 1
+Result: SUCCESS
+Started (UTC): 2026-10-15T13:00:56.008215+00:00
+Finished (UTC): 2026-10-15T13:02:58.355173+00:00
+Duration Seconds: 122.347
+Generated At (UTC): 2026-10-15T13:02:58.355276+00:00
+
+SUMMARY COUNTS
+- (none)
+
+STAGE BREAKDOWN
+- (none)
+
+COMING SOONS DETAILS
+- (none)
+
+CINEMATHEQUE GROUP DETAILS
+- (none)
+
+NOW PLAYING GROUP DETAILS
+- (none)
+
+UNRESOLVED / DROPPED ITEMS
+- (none)
+
+WRITE/DEDUPE ACTIONS
+- (none)
+
+NOTES
+- provider_unavailable | source=letterboxd | tmdb=107054 | status=200
+- provider_unavailable | source=letterboxd | tmdb=1782956 | status=200
+- provider_unavailable | source=letterboxd | tmdb=1782998 | status=200
+- update_rows | requested=227 | updated=227

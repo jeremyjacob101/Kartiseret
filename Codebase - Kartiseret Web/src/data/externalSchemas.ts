@@ -1,5 +1,5 @@
+import { isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema, showtimeStringSchema, tmdbIdSchema } from "@kartiseret/contracts/runtime";
 import { z } from "zod";
-import { isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema, showtimeStringSchema, tmdbIdSchema } from "../validation/runtime.js";
 
 const nullableTextSchema = z.string().nullable();
 const nullableNumberishSchema = z.union([
@@ -200,15 +200,8 @@ export const theaterRowSchema = z.object({
   city_details: cityRowSchema,
 });
 
-export const adminMovieEditPayloadSchema = z.object({
-  mode: z.enum(["nowPlaying", "comingSoon"]),
-  currentTmdbId: tmdbIdSchema,
-  selectedTmdbId: tmdbIdSchema,
-  selectedTitle: z.string().nullable().optional(),
-  selectedYear: z.number().int().positive().nullable().optional(),
-  selectedPosterUrl: z.string().nullable().optional(),
-  isManualEntry: z.boolean(),
-});
+export { correctionSchema as adminMovieEditPayloadSchema } from "@kartiseret/contracts/private-data";
+import { correctionSchema as adminMovieEditPayloadSchema } from "@kartiseret/contracts/private-data";
 
 export type MovieRow = z.infer<typeof movieRowSchema>;
 export type ComingSoonMovieRow = z.infer<typeof comingSoonMovieRowSchema>;
