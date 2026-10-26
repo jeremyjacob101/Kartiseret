@@ -26,7 +26,7 @@ function orderedIds(rows: ReturnType<typeof movie>[], at = instant) {
 describe("now-playing ranking", () => {
   it("gives popularity, combined showtimes, and released-date recency equal weight", () => {
     // Each movie wins one signal, is second in another, and last in the third.
-    // Matching window orders make the 80/20 split sum to one showtime signal.
+    // Matching window orders make the 70/30 split sum to one showtime signal.
     // All totals tie, so numeric IDs decide.
     expect(
       orderedIds([
@@ -64,7 +64,7 @@ describe("now-playing ranking", () => {
     ).toEqual([2, 1]);
   });
 
-  it("caps distant screenings at 20% of the showtime signal regardless of volume", () => {
+  it("caps distant screenings at 30% of the showtime signal regardless of volume", () => {
     expect(
       orderedIds([
         movie(1, 10, 0, 1_000_000_000, "2026-10-01"),
@@ -73,14 +73,16 @@ describe("now-playing ranking", () => {
     ).toEqual([2, 1]);
   });
 
-  it("uses the 80/20 split even when near-term percentile differences are small", () => {
-    const rows = Array.from({ length: 12 }, (_, index) =>
-      movie(index + 1, 10, index, index === 11 ? 0 : 1, null),
+  it("uses a 70/30 split when near-term and distant ranks disagree", () => {
+    const distantCounts = [0, 1, 2, 3, 4, 5, 7, 8, 9, 11, 10, 6];
+    const rows = distantCounts.map((distantCount, index) =>
+      movie(index + 1, 10, index, distantCount, null),
     );
-    // Near-term ranks differ by 1/11; distant ranks differ by 6/11.
-    // 0.2 * 6/11 beats 0.8/11, so the distant leader wins this close
-    // comparison. A 90/10 split would put the near-term leader first.
-    expect(orderedIds(rows).slice(0, 2)).toEqual([11, 12]);
+    // Movie 10 is two near-rank positions behind movie 12 but five distant-
+    // rank positions ahead. At 70/30, movie 10 wins by 0.1 rank points; an
+    // 80/20 split would put movie 12 first.
+    const rankedIds = orderedIds(rows);
+    expect(rankedIds.indexOf(10)).toBeLessThan(rankedIds.indexOf(12));
   });
 
   it("puts future dates at the same lowest recency rank as missing dates", () => {
