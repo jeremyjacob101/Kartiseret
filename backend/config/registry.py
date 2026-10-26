@@ -32,6 +32,15 @@ from backend.dataflow.cinematheques.CinemathequesClean import CinemathequesClean
 from backend.dataflow.cinematheques.CinemathequesTmdb import CinemathequesTmdb
 from backend.dataflow.cinematheques.CinemathequesUpdate import CinemathequesUpdate
 
+# These classes are run after the catalog stages and can also be selected on
+# their own from the interactive Alerts menu.
+POST_STAGE_DATAFLOW_CLASS_NAMES = frozenset({
+    "MovieNotificationDispatcher",
+    "TicketAlertDispatcher",
+    "ComingSoonDateAlertDispatcher",
+    "LetterboxdSourceDispatcher",
+})
+
 REGISTRY = {
     "allShowtimes": [
         LevCinema,
@@ -78,3 +87,16 @@ DATAFLOW_REGISTRY = {
         CinemathequesUpdate,
     ],
 }
+
+
+def registered_post_stage_dataflows() -> list[tuple[str, type]]:
+    """Return unique registered post-stage classes with their first registry key."""
+    entries: list[tuple[str, type]] = []
+    seen: set[type] = set()
+    for key, classes in DATAFLOW_REGISTRY.items():
+        for cls in classes:
+            if cls.__name__ not in POST_STAGE_DATAFLOW_CLASS_NAMES or cls in seen:
+                continue
+            seen.add(cls)
+            entries.append((key, cls))
+    return entries

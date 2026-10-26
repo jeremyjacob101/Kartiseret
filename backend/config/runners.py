@@ -10,7 +10,7 @@ from rich.live import Live
 from rich.text import Text
 
 from backend.utils.console.progressBars import RunResult, RichRunUI
-from backend.config.registry import REGISTRY, DATAFLOW_REGISTRY
+from backend.config.registry import DATAFLOW_REGISTRY, POST_STAGE_DATAFLOW_CLASS_NAMES, REGISTRY
 from backend.utils.log.artifact_logging import artifactPrinting
 from backend.config.scrape_scheduler import optimal_assignment, duration_to_milliseconds, WORKER_COUNT
 from backend.dataflow.utils.DataflowRequests import DataflowRequestContext
@@ -372,12 +372,7 @@ def _run_shared_updates(entries, run_id: int, context: DataflowRequestContext, *
 
 def _stage_for_dataflow_class(cls: type) -> str | None:
     name = cls.__name__
-    if name in {
-        "MovieNotificationDispatcher",
-        "TicketAlertDispatcher",
-        "ComingSoonDateAlertDispatcher",
-        "LetterboxdSourceDispatcher",
-    }:
+    if name in POST_STAGE_DATAFLOW_CLASS_NAMES:
         return "post"
     if name.endswith("Clean"):
         return "clean"

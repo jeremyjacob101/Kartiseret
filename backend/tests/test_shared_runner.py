@@ -5,12 +5,43 @@ from time import sleep
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
-from backend.config.registry import DATAFLOW_REGISTRY, REGISTRY
+from backend.config.registry import DATAFLOW_REGISTRY, REGISTRY, registered_post_stage_dataflows
 from backend.config.runners import runPlan, _run_shared_update_round, _run_shared_updates
 from backend.dataflow.utils.DataflowRequests import DataflowRequestContext
 
 
 class SharedRunnerTests(TestCase):
+    def test_alert_only_plan_runs_unique_dispatcher_without_catalog_stages(self):
+        dispatchers = [cls for _key, cls in registered_post_stage_dataflows()]
+        calls = []
+
+        def run_group(kind, key, _run_id, **kwargs):
+            calls.append((kind, key, kwargs["classes_override"]))
+            return True
+
+        with patch("backend.config.runners._run_scheduled_scrapes") as scrape, patch(
+            "backend.config.runners._run_shared_updates"
+        ) as update, patch("backend.config.runners.runGroup", side_effect=run_group):
+            with redirect_stdout(StringIO()):
+                self.assertTrue(runPlan(1, [("dataflow", "alerts", dispatchers)]))
+
+        self.assertEqual(calls, [("dataflow", "alerts", dispatchers)])
+        scrape.assert_not_called()
+        update.assert_not_called()
+
+    def test_empty_plan_is_a_successful_no_op(self):
+        with patch("backend.config.runners._run_scheduled_scrapes") as scrape, patch(
+            "backend.config.runners._run_shared_updates"
+        ) as update, patch("backend.config.runners.runGroup") as run_group:
+            output = StringIO()
+            with redirect_stdout(output):
+                self.assertTrue(runPlan(1, []))
+
+        self.assertIn("Nothing selected.", output.getvalue())
+        scrape.assert_not_called()
+        update.assert_not_called()
+        run_group.assert_not_called()
+
     def test_cleaning_replacement_scope_requires_selected_mapping_stage(self):
         clean, mapper = DATAFLOW_REGISTRY["nowPlayingData"][:2]
         for classes, expected in (([clean], frozenset()), ([clean, mapper], frozenset({"allShowtimes"}))):
