@@ -1,0 +1,36 @@
+- - -
+DATAFLOW SUMMARY
+- - -
+Name: CinemathequesUpdate
+Run ID: 665
+Attempt: 1
+Result: STAGED (PUBLICATION PENDING)
+Started (UTC): 2026-10-27T18:06:06.171942+00:00
+Finished (UTC): 2026-10-27T18:08:22.304854+00:00
+Duration Seconds: 136.1329
+Generated At (UTC): 2026-10-27T18:08:22.304903+00:00
+
+SUMMARY COUNTS
+- (none)
+
+STAGE BREAKDOWN
+- (none)
+
+COMING SOONS DETAILS
+- (none)
+
+CINEMATHEQUE GROUP DETAILS
+- (none)
+
+NOW PLAYING GROUP DETAILS
+- (none)
+
+UNRESOLVED / DROPPED ITEMS
+- (none)
+
+WRITE/DEDUPE ACTIONS
+- (none)
+
+NOTES
+- update_rows | requested=348 | updated=348
+- Changes are staged; they are not live until category publication commits.
