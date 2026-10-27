@@ -19,7 +19,7 @@ mkdir -p "$LOG_DIR"
 # --------------------
 # Phase 1: run everything and write output to the log (and terminal)
 # --------------------
-run_phase() {
+sync_phase() {
   echo "==== cron run start: $(date '+%Y-%m-%dT%H:%M:%S%z') ===="
 
   # Sync code (robust even if main was force-pushed)
@@ -27,15 +27,25 @@ run_phase() {
   git checkout main
   git reset --hard origin/main
   git clean -fd -e backend/config/cron/
-
-  # Run the job
-  "$PYTHON" -u -m backend.config.runner "$@"
-
-  echo "==== cron run end: $(date '+%Y-%m-%dT%H:%M:%S%z') ===="
 }
 
-# Capture ALL output of the run phase. After this returns, the log file is DONE being written.
-run_phase "$@" 2>&1 | tee "$LOG_FILE"
+# Keep code-sync failures fatal; never run or publish against an unsynced checkout.
+sync_phase 2>&1 | tee "$LOG_FILE"
+
+# Only the runner may fail without skipping artifact publication. Capture both
+# pipeline statuses immediately, before another command overwrites PIPESTATUS.
+set +e
+"$PYTHON" -u -m backend.config.runner "$@" 2>&1 | tee -a "$LOG_FILE"
+RUN_STATUSES=("${PIPESTATUS[@]}")
+set -e
+RUN_STATUS=${RUN_STATUSES[0]}
+LOG_STATUS=${RUN_STATUSES[1]}
+if (( LOG_STATUS != 0 )); then
+  echo "Failed to write cron log (tee exit $LOG_STATUS)." >&2
+  exit "$LOG_STATUS"
+fi
+
+echo "==== cron run end: $(date '+%Y-%m-%dT%H:%M:%S%z') (runner exit $RUN_STATUS) ====" | tee -a "$LOG_FILE"
 
 # --------------------
 # Phase 2: git add/commit/rebase/push (NO tee running now)
@@ -49,12 +59,15 @@ git add "$LOG_FILE"
 
 # If nothing staged, we’re done
 if git diff --cached --quiet; then
-  exit 0
+  exit "$RUN_STATUS"
 fi
 
-git commit -m "[W-RUN] weekly artifacts and log $(date +%Y-%m-%d_%H-%M-%S)"
+git commit -m "[W-RUN] weekly artifacts and log (runner exit $RUN_STATUS) $(date +%Y-%m-%d_%H-%M-%S)"
 
 # Update again in case main moved while the job ran, then push
 git fetch origin main
 git rebase origin/main
 git push origin main
+
+# Preserve the runner outcome after its artifacts and completed log are pushed.
+exit "$RUN_STATUS"
