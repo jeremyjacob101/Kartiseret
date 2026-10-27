@@ -302,6 +302,7 @@ Follow the coordinated [PR5 Production checklist](docs/backend-overhaul/pr-5-han
 - `.github/workflows/daily_sweep.yml` clears old showtimes and soon entries on a daily schedule.
 - `backend/config/cron/run_weekly.sh` is a local weekly shell runner that syncs the repo, runs the full job, commits artifacts/logs, and pushes them back to `main`.
 - `backend/config/cron/run_daily.sh` is a local daily shell runner that performs the same default headless run, writes separate daily logs, and pushes artifacts/logs back to `main`.
+- Both local cron runners commit and push artifacts and the completed log even when the Python runner fails, record its exit code in the log and commit message, and then exit with that code. Code-sync, log-writing, and Git publication errors remain fatal.
 - `backend/config/realtime/start_realtime_watcher_background.sh` starts/restarts a local realtime listener for `finalMovies`, `finalThequeMovies`, and `finalSoons`, loads Supabase credentials from the project-root `.env`, and writes logs to `backend/config/cron/run_realtime_logs/realtime_watcher.log`.
   - watcher-triggered update runs use `solo_update` mode (`SOLO_UPDATE_ONLY=true`) and process only rows where `solo_update = true`, then reset `solo_update` back to `false` on processed rows.
   - watcher-triggered runs write `utilRunLogs.run_from` as `np_solo_update` (for `finalMovies`), `theque_solo_update` (for `finalThequeMovies`), or `cs_solo_update` (for `finalSoons`).
