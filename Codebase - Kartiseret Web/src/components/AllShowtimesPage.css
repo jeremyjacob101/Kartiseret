@@ -1,6 +1,18 @@
 .all-showtimes-page {
   width: min(100%, 1100px);
   display: grid;
+  gap: 20px;
+}
+
+.all-showtimes-page-header {
+  padding: 0 20px;
+}
+
+.all-showtimes-empty-category {
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  padding: 24px;
 }
 
 .all-showtimes-page-city {
