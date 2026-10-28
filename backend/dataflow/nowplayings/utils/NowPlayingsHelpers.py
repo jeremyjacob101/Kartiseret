@@ -3,18 +3,36 @@ from datetime import datetime
 
 class NowPlayingsHelpers:
     def applyYesPlanetHebrewToRavHenEnglish(self):
-        yes_map = {}
+        """Fill missing cinema titles from an unambiguous Yes Planet title.
+
+        Leave unresolved titles empty so the publication guard retains the
+        snapshot for a later run, rather than publishing a guessed identity.
+        """
+        from backend.scraping.utils.EnglishTitles import english_title_or_empty
+
+        candidates = {}
         for row in self.main_table_rows:
+            if row.get("cinema") != "Yes Planet":
+                continue
+            hebrew = (row.get("hebrew_title") or "").strip().casefold()
+            english = english_title_or_empty(row.get("english_title"), row.get("hebrew_title"))
+            normalized = self.normalizeTitle(english)
+            if hebrew and normalized:
+                candidates.setdefault(hebrew, {})[normalized] = english
+        for row in self.main_table_rows:
+            if row.get("cleaned") is True:
+                continue
+            raw_english = (row.get("english_title") or "").strip()
+            if english_title_or_empty(raw_english, row.get("hebrew_title")):
+                continue
             if row.get("cinema") == "Yes Planet":
-                hebrew = (row.get("hebrew_title") or "").strip()
-                english = (row.get("english_title") or "").strip()
-                if hebrew and english and hebrew not in yes_map:
-                    yes_map[hebrew] = english
-        for row in self.main_table_rows:
-            if row.get("cinema") == "Rav Hen":
-                key = (row.get("english_title") or "").strip()
-                if key in yes_map:
-                    row["english_title"] = yes_map[key]
+                row["english_title"] = ""
+                continue
+            key = (row.get("hebrew_title") or raw_english).strip().casefold()
+            matches = candidates.get(key, {})
+            if not matches and raw_english:
+                matches = candidates.get(raw_english.casefold(), {})
+            row["english_title"] = next(iter(matches.values())) if len(matches) == 1 else ""
 
     def createdAtToDatetime(self, ca):
         if isinstance(ca, datetime):

@@ -104,6 +104,11 @@ class ComingSoonsTmdb(BaseDataflow):
                 self.trace_event("row_filter", "skipped", "already_added", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
                 continue
 
+            if not title_norm:
+                self.protectUnresolvedSnapshot([row], category="comingsoons", identity_key=identity_key)
+                self.trace_unresolved(f"missing_english_title | row_id={row.get('id')}")
+                continue
+
             if not self.release_date:
                 self.protectUnresolvedSnapshot([row], category="comingsoons", identity_key=identity_key)
                 self.trace_event("row_filter", "skipped", "missing_release_date", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})

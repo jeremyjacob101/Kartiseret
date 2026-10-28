@@ -34,7 +34,7 @@ class LCsoon(BaseCinema):
 
             self.release_date = self.release_dates[idx]
 
-            self.english_title = str(self.element("#content .movie_title h1").text).strip() or self.hebrew_title
+            self.english_title = str(self.element("#content .movie_title h1").text).strip()
             if "dubbed" in self.english_title.lower() or "dubbded" in self.english_title.lower():
                 continue
 

@@ -1,5 +1,6 @@
 import csv, json, pathlib
 from datetime import date
+from backend.scraping.utils.EnglishTitles import english_title_or_empty
 
 ARTIFACT_ROOT = pathlib.Path("backend/utils/log/logger_artifacts")
 
@@ -106,7 +107,10 @@ class AppendToInfo:
         self.fixRating()
 
         self.gathering_info["showtime"].append(self.showtime)
-        self.gathering_info["english_title"].append(self.english_title)
+        title = self.english_title
+        if self.CINEMA_NAME in {"Cinema City", "Hot Cinema", "Lev Cinema", "MovieLand", "Rav Hen"}:
+            title = english_title_or_empty(title, self.hebrew_title)
+        self.gathering_info["english_title"].append(title)
         self.gathering_info["hebrew_title"].append(self.hebrew_title)
         self.gathering_info["english_href"].append(self.english_href)
         self.gathering_info["hebrew_href"].append(self.hebrew_href)
