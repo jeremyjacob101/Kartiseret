@@ -1,0 +1,11 @@
+- - -
+ERROR
+- - -
+Name: HCsoon
+URL: https://hotcinema.co.il/movie/3919/reuti
+Exception: TimeoutException - Message: timeout: Timed out receiving message from renderer: 44.648
+  (Session info: chrome=156.0.8078.48)
+Call Chain: runners.py:33 > runners.py:23 > BaseCinema.py:82 > HCsoon.py:25
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/666/unsuccessful/HCsoon-1.png
+CSV: backend/utils/log/logger_artifacts/666/unsuccessful/HCsoon-1.csv
