@@ -62,6 +62,11 @@ class NowPlayingsTmdb(BaseDataflow):
                 continue
 
             override_tmdb = self.tmdbFixForTitle(self.english_title, self.tmdb_fix_by_title)
+            fix_match = self.tmdbFixMatch(self.english_title, self.tmdb_fix_by_title)
+            if fix_match and fix_match["conflict"]:
+                self.protectUnresolvedSnapshot([row], category="nowplayings")
+                self.trace_unresolved(f"ambiguous_tmdb_fix | title={self.english_title!r} | tier={fix_match['tier']} | fixes={fix_match['titles']!r} | ids={fix_match['ids']!r}")
+                continue
             if override_tmdb:
                 title_for_count = self.clean_str(self.english_title).strip()
                 key = f"tmdb_fix:{override_tmdb}"
@@ -131,21 +136,6 @@ class NowPlayingsTmdb(BaseDataflow):
                 self.trace_unresolved(f"skip_token | group={key} | rows={row_count}")
                 continue
             representative_title = candidate_titles[0]
-
-            # TMDB FIX OVERRIDE (title -> tmdb_id)
-            for title in candidate_titles:
-                self.override_tmdb = self.tmdbFixForTitle(title, self.tmdb_fix_by_title)
-                if self.override_tmdb:
-                    break
-            if self.override_tmdb:
-                self.potential_chosen_id = self.override_tmdb
-                if str(self.potential_chosen_id).lower() in self.skip_tokens:
-                    self.trace_event("tmdb_choice", "dropped", "skip_token", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": 0, "chosen_tmdb": self.potential_chosen_id, "chosen_path": "tmdb_fix_override"})
-                    self.trace_unresolved(f"skip_token_on_override | group={key} | title={representative_title}")
-                    continue
-                self.key_result[key] = {"tmdb_id": self.potential_chosen_id, "imdb_id": None, "hebrew_title": self.hebrew_title, "alt_options": self.alt_options}
-                self.trace_event("tmdb_choice", "mapped", "tmdb_fix_override", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": 0, "chosen_tmdb": self.potential_chosen_id, "chosen_path": "tmdb_fix_override"})
-                continue
 
             # 1) SEARCH TMDB AND COLLECT CANDIDATES
             if self.parsed_year:
