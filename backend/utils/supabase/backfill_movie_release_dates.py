@@ -16,12 +16,19 @@ import re
 from pathlib import Path
 from zoneinfo import ZoneInfo
 import unicodedata
+import sys
+
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 
 DEFAULT_ARTIFACT_ROOT = Path("backend/utils/log/logger_artifacts")
 SOON_SOURCES = {"CCsoon", "HCsoon", "LCsoon", "MLsoon", "YPsoon"}
 CSV_NAME = re.compile(r"(?P<source>CCsoon|HCsoon|LCsoon|MLsoon|YPsoon)-(?P<attempt>\d+)\.csv\Z")
 SUMMARY_LINE = re.compile(r"^- \[(?P<status>[^\]]+)\] (?P<stage>[^|]+) \| title=(?P<tail>.*)\Z")
+
+
+from backend.dataflow.utils.DataflowHelpers import DataflowHelpers
 
 
 class BackfillInputError(ValueError):
@@ -223,7 +230,7 @@ def _snapshot_maps(snapshot: dict) -> tuple[dict, dict, dict, dict, dict, dict]:
                 "kind": "numeric_tmdb_alias",
             })
         else:
-            normalized = normalize_english(fixed_title)
+            normalized = DataflowHelpers().normalizeFixTitle(fixed_title)
             if normalized:
                 fixes[normalized].add(tmdb_id)
                 fix_records[normalized].append({
@@ -302,6 +309,10 @@ def build_report(
     as_of = as_of.astimezone(timezone.utc)
     cutoff = as_of - timedelta(days=lookback_days)
     visible, title_index, fixes, _canonical_ids, title_evidence, fix_evidence = _snapshot_maps(snapshot)
+    fix_helper = DataflowHelpers()
+    _, fix_maps, _ = fix_helper.buildTmdbFixMaps([
+        fix for fix in snapshot["title_fixes"] if not _positive_id(fix.get("title_fix"))
+    ])
 
     summary_aliases: list[dict] = []
     source_runs: dict[str, tuple[datetime, dict[str, Path]]] = {}
@@ -380,17 +391,15 @@ def build_report(
                             "en": normalize_english(raw_titles["en"]),
                             "he": normalize_hebrew(raw_titles["he"]),
                         }
-                        explicit_ids: set[int] = set()
-                        for language in ("en", "he"):
-                            key = normalized[language]
-                            if key:
-                                explicit_ids.update(fixes.get(key, set()) if language == "en" else set())
+                        fix_key = fix_helper.normalizeFixTitle(raw_titles["en"])
+                        fix_match = fix_helper.tmdbFixMatch(raw_titles["en"], fix_maps)
+                        explicit_ids: set[int] = _canonical_ids(set(fix_match["ids"])) if fix_match else set()
                         if explicit_ids:
                             candidate_ids = explicit_ids
                             match_method = "explicit_title_fix"
                             identity_evidence = [
-                                item
-                                for key in (normalized["en"],)
+                                {**item, "match_tier": fix_match["tier"]}
+                                for key in (fix_key,)
                                 for item in fix_evidence.get(key, [])
                                 if item["tmdb_id"] in candidate_ids
                             ]

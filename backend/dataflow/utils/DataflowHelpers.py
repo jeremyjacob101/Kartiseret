@@ -221,56 +221,66 @@ class DataflowHelpers:
         new_row["solo_update"] = False
         return new_row
 
+    def normalizeFixTitle(self, title):
+        # Preserve non-Latin scripts while keeping the existing Latin punctuation rules.
+        text = unicodedata.normalize("NFKD", self.clean_str(title)).casefold()
+        result = []
+        latin_base = False
+        for c in text:
+            category = unicodedata.category(c)[0]
+            if category == "M":
+                if not latin_base:
+                    result.append(c)
+            elif category in "LN":
+                result.append(c)
+                latin_base = "LATIN" in unicodedata.name(c, "")
+            elif c in "-–—:?!&" or c.isspace():
+                result.append(" ")
+                latin_base = False
+            else:
+                latin_base = False
+        return " ".join("".join(result).split())
+
     def buildTmdbFixMaps(self, fix_rows: list[dict]):
         tmdb_fix_ids = set()
-        tmdb_fix_by_title = {"exact": {}, "lower": {}, "normalized": {}}
-        tmdb_fix_alias_by_tmdb = {}
-
+        maps = {"exact": {}, "lower": {}, "normalized": {}}
+        aliases = {}
         for fix in fix_rows or []:
             if not isinstance(fix, dict):
                 continue
-
-            desired_tmdb_id = self.clean_int(fix.get("tmdb_id"))
-            title_fix = self.clean_str(fix.get("title_fix")).strip()
-            if not desired_tmdb_id or not title_fix:
+            tmdb_id = self.clean_int(fix.get("tmdb_id"))
+            title = self.clean_str(fix.get("title_fix")).strip()
+            if not tmdb_id or not title:
                 continue
+            tmdb_fix_ids.add(tmdb_id)
+            for tier, key in (("exact", title), ("lower", title.casefold()), ("normalized", self.normalizeFixTitle(title))):
+                if key:
+                    maps[tier].setdefault(key, set()).add((title, tmdb_id))
+            source_id = self.clean_int(title)
+            if source_id:
+                aliases[source_id] = tmdb_id
+        return tmdb_fix_ids, maps, aliases
 
-            tmdb_fix_ids.add(desired_tmdb_id)
-
-            tmdb_fix_by_title["exact"][title_fix] = desired_tmdb_id
-            tmdb_fix_by_title["lower"][title_fix.lower()] = desired_tmdb_id
-
-            title_norm = self.normalizeTitle(title_fix).strip().lower()
-            if title_norm:
-                tmdb_fix_by_title["normalized"][title_norm] = desired_tmdb_id
-
-            source_tmdb_id = self.clean_int(title_fix)
-            if source_tmdb_id:
-                tmdb_fix_alias_by_tmdb[source_tmdb_id] = desired_tmdb_id
-
-        return tmdb_fix_ids, tmdb_fix_by_title, tmdb_fix_alias_by_tmdb
+    def tmdbFixMatch(self, title, maps):
+        title = self.clean_str(title).strip()
+        if not title:
+            return None
+        for tier, key in (("exact", title), ("lower", title.casefold()), ("normalized", self.normalizeFixTitle(title))):
+            entries = (maps or {}).get(tier, {}).get(key, set()) if key else set()
+            if entries:
+                ids = {item[1] for item in entries}
+                return {"tier": tier, "titles": sorted({item[0] for item in entries}),
+                        "tmdb_id": next(iter(ids)) if len(ids) == 1 else None,
+                        "conflict": len(ids) > 1, "ids": sorted(ids)}
+        return None
 
     def tmdbFixForTitle(self, title, tmdb_fix_by_title: dict):
-        title_exact = self.clean_str(title).strip()
-        if not title_exact:
-            return None
-
-        exact_map = (tmdb_fix_by_title or {}).get("exact") or {}
-        lower_map = (tmdb_fix_by_title or {}).get("lower") or {}
-        normalized_map = (tmdb_fix_by_title or {}).get("normalized") or {}
-
-        if title_exact in exact_map:
-            return exact_map[title_exact]
-
-        title_lower = title_exact.lower()
-        if title_lower in lower_map:
-            return lower_map[title_lower]
-
-        title_norm = self.normalizeTitle(title_exact).strip().lower()
-        if title_norm in normalized_map:
-            return normalized_map[title_norm]
-
-        return None
+        match = self.tmdbFixMatch(title, tmdb_fix_by_title)
+        if match and getattr(self, "summaryEnabled", False):
+            note = f"tmdb_fix_match | title={title!r} | tier={match['tier']} | fixes={match['titles']!r} | ids={match['ids']!r} | conflict={match['conflict']}"
+            if note not in self.summaryNotes:
+                self.trace_note(note)
+        return match["tmdb_id"] if match and not match["conflict"] else None
 
     def tmdbFixAliasForTmdbId(self, tmdb_id, tmdb_fix_alias_by_tmdb: dict):
         source_tmdb_id = self.clean_int(tmdb_id)

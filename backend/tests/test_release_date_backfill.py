@@ -195,6 +195,23 @@ class ReleaseDateBackfillTests(TestCase):
             "tableFixes",
         )
 
+    def test_fix_matching_preserves_hebrew_and_exact_precedence(self):
+        self.snapshot["title_fixes"] = [
+            {"tmdb_id": "101", "title_fix": "movieretro הוק"},
+            {"tmdb_id": "102", "title_fix": "movieretro אסירים"},
+            {"tmdb_id": "102", "title_fix": "A: Film"},
+            {"tmdb_id": "103", "title_fix": "A - Film"},
+        ]
+        self.add_run(10, "2026-10-01 12:00:00", [
+            {"english_title": "MovieRetro- הוק", "hebrew_title": "", "release_date": "2031-06-20"},
+            {"english_title": "A: Film", "hebrew_title": "", "release_date": "2031-06-21"},
+        ])
+        report = self.report()
+        self.assertEqual(self.movie(report, 101)["proposed_date"], "2031-06-20")
+        self.assertEqual(self.movie(report, 102)["proposed_date"], "2031-06-21")
+        evidence = self.movie(report, 101)["latest_observations"][0]["identity_evidence"]
+        self.assertEqual(evidence[0]["match_tier"], "normalized")
+
     def test_invalid_date_rows_are_reported_and_not_written(self):
         self.add_run(10, "2026-10-01 12:00:00", [
             {"english_title": "Alpha", "hebrew_title": "", "release_date": "2031-02-30"},

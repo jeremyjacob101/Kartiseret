@@ -122,6 +122,12 @@ class ComingSoonsTmdb(BaseDataflow):
                 self.trace_unresolved(f"skip_token | {self.english_title} | row_id={row.get('id')}")
                 continue
 
+            fix_match = self.tmdbFixMatch(self.english_title, tmdb_fix_by_title)
+            if fix_match and fix_match["conflict"]:
+                self.tmdbFixForTitle(self.english_title, tmdb_fix_by_title)
+                self.protectUnresolvedSnapshot([row], category="comingsoons", identity_key=identity_key)
+                self.trace_unresolved(f"ambiguous_tmdb_fix | title={self.english_title!r} | tier={fix_match['tier']} | fixes={fix_match['titles']!r} | ids={fix_match['ids']!r}")
+                continue
             if override_tmdb := self.tmdbFixForTitle(self.english_title, tmdb_fix_by_title):
                 if str(override_tmdb).lower() in self.skip_tokens:
                     intentional_skip_ids.add(row.get("id"))
