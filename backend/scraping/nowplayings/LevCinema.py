@@ -22,7 +22,7 @@ class LevCinema(BaseCinema):
 
                 self.driver.get(href)
 
-                self.english_title = str(self.waitForElement("#content .movie_title h1").text).strip() or self.hebrew_title
+                self.english_title = str(self.waitForElement("#content .movie_title h1").text).strip()
                 self.dub_language = None
                 if "dubbed" in self.english_title.lower():
                     self.english_title = re.sub(r"\b[dD]ubbed\b", "", self.english_title).strip()

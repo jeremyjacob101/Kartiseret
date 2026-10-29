@@ -8,6 +8,7 @@ class ComingSoonsClean(BaseDataflow):
 
     def logic(self):
         self.dedupeAllSoons(self.MAIN_TABLE_NAME)
+        self.applyYesPlanetHebrewToRavHenEnglish()
         _, tmdb_fix_by_title, _ = self.buildTmdbFixMaps(self.helper_table_rows)
 
         for row in self.rawRowsForCleaning(self.MAIN_TABLE_NAME, self.main_table_rows):
@@ -15,6 +16,9 @@ class ComingSoonsClean(BaseDataflow):
                 continue
             if self.tmdbFixForTitle(row.get("english_title"), tmdb_fix_by_title):
                 self.updates.append({**row, "cleaned": True})
+                continue
+            if not (row.get("english_title") or "").strip():
+                self.updates.append({"id": row["id"], "english_title": "", "cleaned": False})
                 continue
             row["english_title"] = self.normalizeTitle(row.get("english_title") or "")
             row["hebrew_title"] = (row.get("hebrew_title") or "").lower()
