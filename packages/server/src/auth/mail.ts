@@ -8,15 +8,10 @@ export type AuthMailer = (email: AuthEmail) => Promise<void>;
 export function createResendAuthMailer(options: {
   apiKey?: string;
   from: string;
-  allowedRecipients?: readonly string[];
   transport?: typeof fetch;
 }): AuthMailer {
   return async ({ to, url, kind }) => {
-    if (
-      !options.apiKey ||
-      (options.allowedRecipients &&
-        !options.allowedRecipients.includes(to.toLowerCase()))
-    ) {
+    if (!options.apiKey) {
       throw new Error(
         "Account email delivery is not configured for this recipient.",
       );

@@ -5,7 +5,7 @@ const secrets = {
   INTERNAL_API_SECRET: "test-internal-secret-at-least-32-characters",
 };
 describe("auth deployment configuration", () => {
-  it("uses exact Preview origins, host-only environment cookies and an explicit mail allowlist", () => {
+  it("uses exact Preview origins and host-only environment cookies without a mail allowlist", () => {
     expect(
       parseAuthEnvironment({
         ...secrets,
@@ -20,8 +20,15 @@ describe("auth deployment configuration", () => {
         "https://branch.vercel.app",
       ],
       cookiePrefix: "kartiseret-preview",
-      mail: { allowedRecipients: [] },
+      mail: { from: "Kartiseret <notifications@seret.site>" },
     });
+    expect(
+      parseAuthEnvironment({
+        ...secrets,
+        VERCEL_ENV: "preview",
+        VERCEL_URL: "deployment.vercel.app",
+      }).mail,
+    ).not.toHaveProperty("allowedRecipients");
   });
   it.each([
     "http://remote.test",

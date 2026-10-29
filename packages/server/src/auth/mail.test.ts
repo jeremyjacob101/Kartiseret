@@ -1,24 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { createResendAuthMailer } from "./mail.js";
 describe("account mail transport", () => {
-  it("bounds delivery, uses text URLs and rejects recipients outside the Preview allowlist", async () => {
-    const transport = vi.fn(async () => new Response("{}"));
+  it("sends account emails to recipients without an allowlist", async () => {
+    const transport = vi.fn<typeof fetch>(async () => new Response("{}"));
     const mailer = createResendAuthMailer({
       apiKey: "test",
       from: "Kartiseret <test@example.test>",
-      allowedRecipients: ["allowed@example.test"],
       transport,
     });
-    await expect(
-      mailer({
-        to: "blocked@example.test",
-        url: "https://dev.test/reset?token=sensitive",
-        kind: "reset",
-      }),
-    ).rejects.toThrow("not configured");
-    expect(transport).not.toHaveBeenCalled();
     await mailer({
-      to: "allowed@example.test",
+      to: "recipient@example.test",
       url: "https://dev.test/verify",
       kind: "verification",
     });
@@ -30,6 +21,10 @@ describe("account mail transport", () => {
         signal: expect.any(AbortSignal),
       }),
     );
+    expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toMatchObject({
+      to: ["recipient@example.test"],
+      text: expect.stringContaining("https://dev.test/verify"),
+    });
   });
   it("does not expose provider response details", async () => {
     const mailer = createResendAuthMailer({

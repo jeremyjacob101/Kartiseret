@@ -64,9 +64,6 @@ export function parseAuthEnvironment(env: Record<string, string | undefined>) {
   const from = env.AUTH_EMAIL_FROM ?? "Kartiseret <notifications@seret.site>";
   if (!from.trim() || /[\r\n]/.test(from))
     throw new ServerConfigurationError("AUTH_EMAIL_FROM is invalid.");
-  const allowedRecipients = env.AUTH_EMAIL_ALLOWED_RECIPIENTS?.split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
   return {
     baseURL,
     trustedOrigins,
@@ -76,10 +73,6 @@ export function parseAuthEnvironment(env: Record<string, string | undefined>) {
     mail: {
       apiKey: env.RESEND_API_KEY,
       from,
-      allowedRecipients:
-        env.VERCEL_ENV === "preview"
-          ? (allowedRecipients ?? [])
-          : allowedRecipients,
     },
   };
 }
