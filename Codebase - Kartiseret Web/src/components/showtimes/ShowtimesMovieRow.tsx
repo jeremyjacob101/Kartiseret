@@ -4,16 +4,21 @@ import type { Movie, TheaterShowtimes } from "../../data/movieCatalog";
 import { MovieMetricsRow, ShowtimeTheaters } from "./ShowtimeShared";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 
+export type ShowtimesMovieRowLayoutVariant =
+  "editorial-open" | "fade-band" | "poster-wash";
+
 export function ShowtimesMovieRow({
   movie,
   theaters,
   sources,
   onOpenTrailer,
+  layoutVariant,
 }: {
   movie: Movie;
   theaters: readonly TheaterShowtimes[];
   sources: readonly RatingSource[];
   onOpenTrailer: (movieId: string) => void;
+  layoutVariant?: ShowtimesMovieRowLayoutVariant;
 }) {
   const infoParts = getMovieInfoParts(movie);
   const metaParts =
@@ -22,9 +27,15 @@ export function ShowtimesMovieRow({
       : infoParts;
   const metrics = getMetricDisplays(movie, sources);
   const trailerEmbedUrl = getTrailerEmbedUrl(movie.trailerKey);
+  const rowClassName = [
+    "all-showtimes-movie-row",
+    layoutVariant ? `all-showtimes-movie-row--${layoutVariant}` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <article className="all-showtimes-movie-row">
+    <article className={rowClassName}>
       <div className="all-showtimes-movie-summary">
         <div className="all-showtimes-poster-shell">
           <MoviePosterArtwork

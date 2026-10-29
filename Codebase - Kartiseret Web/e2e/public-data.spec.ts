@@ -223,6 +223,79 @@ test("showtimes browse a real city/date and the active filter changes results", 
   ).toBeVisible();
 });
 
+test("showtimes layout preview compares three natural treatments on the same movie", async ({
+  page,
+}) => {
+  await page.goto("/showtimes?layoutPreview=1");
+
+  await expect(
+    page.getByRole("region", { name: "All showtimes in Jerusalem" }),
+  ).toBeVisible();
+
+  const preview = page.getByRole("region", {
+    name: "Showtimes layout preview",
+  });
+  await expect(
+    preview.getByRole("heading", { name: "Open spacing" }),
+  ).toBeVisible();
+  await expect(
+    preview.getByRole("heading", { name: "Fading row" }),
+  ).toBeVisible();
+  await expect(
+    preview.getByRole("heading", { name: "Poster wash" }),
+  ).toBeVisible();
+
+  const layoutOptions = preview.locator("[data-showtimes-layout-option]");
+  await expect(layoutOptions).toHaveCount(3);
+  await expect(
+    preview.getByText("No movie has showtimes on this date.", {
+      exact: false,
+    }),
+  ).toHaveCount(0);
+  expect(
+    await layoutOptions.evaluateAll((elements) =>
+      elements.some((element) => {
+        const option = getComputedStyle(element);
+        const row = element.querySelector(".all-showtimes-movie-row");
+        return (
+          option.borderTopWidth !== "0px" ||
+          option.borderRightWidth !== "0px" ||
+          option.borderBottomWidth !== "0px" ||
+          option.borderLeftWidth !== "0px" ||
+          !row ||
+          getComputedStyle(row).borderTopWidth !== "0px" ||
+          getComputedStyle(row).borderRightWidth !== "0px" ||
+          getComputedStyle(row).borderBottomWidth !== "0px" ||
+          getComputedStyle(row).borderLeftWidth !== "0px" ||
+          getComputedStyle(row, "::after").content !== "none"
+        );
+      })),
+  ).toBe(false);
+  const sampleContent = await layoutOptions.evaluateAll((elements) =>
+    elements.map((element) => ({
+      title: element.querySelector(".all-showtimes-title")?.textContent?.trim(),
+      posterAlt: element
+        .querySelector(".all-showtimes-poster")
+        ?.getAttribute("alt"),
+      times: Array.from(
+        element.querySelectorAll(".details-time-pill-label"),
+      ).map((time) => time.textContent?.trim()),
+    })));
+  expect(sampleContent[0]?.title).toBeTruthy();
+  expect(sampleContent[0]?.posterAlt).toBe(sampleContent[0]?.title);
+  expect(sampleContent[0]?.times.length).toBeGreaterThan(0);
+  expect(sampleContent[1]).toEqual(sampleContent[0]);
+  expect(sampleContent[2]).toEqual(sampleContent[0]);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(layoutOptions.nth(2)).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+});
+
 test("an encoded Tel Aviv share link opens on mobile with targeted showtimes", async ({
   page,
 }) => {
