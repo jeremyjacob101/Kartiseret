@@ -46,11 +46,9 @@ export function parseAuthEnvironment(env: Record<string, string | undefined>) {
     trustedOrigins = [
       ...new Set([
         baseURL,
-        ...(env.AUTH_TRUSTED_ORIGINS ?? "")
-          .split(",")
-          .map((value) => value.trim())
-          .filter(Boolean)
-          .map(origin),
+        ...(env.VERCEL_ENV === "production"
+          ? ["https://seret.site", "https://www.seret.site"]
+          : []),
         ...(env.VERCEL_ENV === "preview" && env.VERCEL_BRANCH_URL
           ? [origin(`https://${env.VERCEL_BRANCH_URL}`)]
           : []),
@@ -58,12 +56,9 @@ export function parseAuthEnvironment(env: Record<string, string | undefined>) {
     ];
   } catch {
     throw new ServerConfigurationError(
-      "BETTER_AUTH_URL or AUTH_TRUSTED_ORIGINS contains an invalid origin.",
+      "BETTER_AUTH_URL or VERCEL_BRANCH_URL contains an invalid origin.",
     );
   }
-  const from = env.AUTH_EMAIL_FROM ?? "Kartiseret <notifications@seret.site>";
-  if (!from.trim() || /[\r\n]/.test(from))
-    throw new ServerConfigurationError("AUTH_EMAIL_FROM is invalid.");
   return {
     baseURL,
     trustedOrigins,
@@ -72,7 +67,7 @@ export function parseAuthEnvironment(env: Record<string, string | undefined>) {
     cookiePrefix: `kartiseret-${env.VERCEL_ENV ?? env.NODE_ENV ?? "development"}`,
     mail: {
       apiKey: env.RESEND_API_KEY,
-      from,
+      from: "Kartiseret <notifications@seret.site>",
     },
   };
 }

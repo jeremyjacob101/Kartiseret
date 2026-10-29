@@ -40,6 +40,18 @@ describe("auth deployment configuration", () => {
       parseAuthEnvironment({ ...secrets, BETTER_AUTH_URL: value }),
     ).toThrow();
   });
+  it("trusts the production site origins and uses the configured sender in code", () => {
+    const config = parseAuthEnvironment({
+      ...secrets,
+      VERCEL_ENV: "production",
+      BETTER_AUTH_URL: "https://seret.site",
+    });
+    expect(config.trustedOrigins).toEqual([
+      "https://seret.site",
+      "https://www.seret.site",
+    ]);
+    expect(config.mail.from).toBe("Kartiseret <notifications@seret.site>");
+  });
   it("requires separate secrets and an explicit non-Vercel origin", () => {
     expect(() =>
       parseAuthEnvironment({ BETTER_AUTH_URL: "https://seret.site" }),
