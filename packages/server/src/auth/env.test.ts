@@ -31,31 +31,35 @@ describe("auth deployment configuration", () => {
     ).not.toHaveProperty("allowedRecipients");
   });
   it.each([
-    "http://remote.test",
-    "https://user:secret@example.test",
-    "https://example.test/path",
-    "ftp://localhost",
-  ])("rejects unsafe auth origins %s", (value) => {
+    "user:secret@example.test",
+    "example.test/path",
+    "example.test?x=1",
+  ])("rejects unsafe Preview origins %s", (value) => {
     expect(() =>
-      parseAuthEnvironment({ ...secrets, BETTER_AUTH_URL: value }),
+      parseAuthEnvironment({
+        ...secrets,
+        VERCEL_ENV: "preview",
+        VERCEL_URL: value,
+      }),
     ).toThrow();
   });
   it("trusts the production site origins and uses the configured sender in code", () => {
     const config = parseAuthEnvironment({
       ...secrets,
       VERCEL_ENV: "production",
-      BETTER_AUTH_URL: "https://seret.site",
     });
     expect(config.trustedOrigins).toEqual([
       "https://seret.site",
       "https://www.seret.site",
     ]);
+    expect(config.baseURL).toBe("https://seret.site");
     expect(config.mail.from).toBe("Kartiseret <notifications@seret.site>");
   });
-  it("requires separate secrets and an explicit non-Vercel origin", () => {
+  it("uses localhost for development and requires the Preview deployment URL", () => {
+    expect(parseAuthEnvironment(secrets).baseURL).toBe("http://localhost:5173");
     expect(() =>
-      parseAuthEnvironment({ BETTER_AUTH_URL: "https://seret.site" }),
+      parseAuthEnvironment({ ...secrets, VERCEL_ENV: "preview" }),
     ).toThrow();
-    expect(() => parseAuthEnvironment(secrets)).toThrow();
+    expect(() => parseAuthEnvironment({ VERCEL_ENV: "production" })).toThrow();
   });
 });

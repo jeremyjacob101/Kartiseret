@@ -52,7 +52,7 @@ export default defineConfig({
       env: {
         NODE_ENV: "test",
         PORT: String(apiPort),
-        BETTER_AUTH_URL: webUrl,
+        E2E_WEB_URL: webUrl,
       },
       reuseExistingServer: false,
       timeout: 120_000,

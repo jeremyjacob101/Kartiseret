@@ -20,7 +20,7 @@ if (
   );
 }
 const database = createDatabase(target.href, { poolMax: 3 });
-const baseURL = process.env.BETTER_AUTH_URL;
+const baseURL = process.env.E2E_WEB_URL;
 if (!baseURL || new URL(baseURL).hostname !== "127.0.0.1")
   throw new Error("E2E auth origin must be local.");
 const mail = [];

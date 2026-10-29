@@ -33,11 +33,14 @@ export function parseAuthEnvironment(env: Record<string, string | undefined>) {
       "BETTER_AUTH_SECRET and INTERNAL_API_SECRET must each contain at least 32 characters.",
     );
   const rawUrl =
-    env.BETTER_AUTH_URL ??
-    (env.VERCEL_URL ? `https://${env.VERCEL_URL}` : undefined);
+    env.VERCEL_ENV === "production"
+      ? "https://seret.site"
+      : env.VERCEL_ENV === "preview"
+        ? env.VERCEL_URL && `https://${env.VERCEL_URL}`
+        : "http://localhost:5173";
   if (!rawUrl)
     throw new ServerConfigurationError(
-      "BETTER_AUTH_URL is required outside a Vercel deployment.",
+      "VERCEL_URL is required for Preview deployments.",
     );
   let baseURL: string;
   let trustedOrigins: string[];
@@ -56,7 +59,7 @@ export function parseAuthEnvironment(env: Record<string, string | undefined>) {
     ];
   } catch {
     throw new ServerConfigurationError(
-      "BETTER_AUTH_URL or VERCEL_BRANCH_URL contains an invalid origin.",
+      "VERCEL_URL or VERCEL_BRANCH_URL contains an invalid origin.",
     );
   }
   return {
