@@ -1,0 +1,107 @@
+==== cron run start: 2026-10-30T04:00:00+0200 ====
+From github.com:jeremyjacob101/Kartiseret
+ * branch              main       -> FETCH_HEAD
+   87e8f686..644c1533  main       -> origin/main
+Already on 'main'
+M	backend/config/cron/cron_daily.log
+Your branch is behind 'origin/main' by 5 commits, and can be fast-forwarded.
+  (use "git pull" to update your local branch)
+HEAD is now at 644c1533 Set authentication base URL by environment
+╭────────────────────────────────── Run Plan ──────────────────────────────────╮
+│ Running…                                                                     │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭────────╮
+│ Scrape │
+╰────────╯
+
+--------------------
+
+RavHen: 06m40s
+TLVtheque: 09m05s
+MovieLand: 09m21s
+HERZtheque: 07m02s
+JLEMtheque: 05m39s
+HAIFtheque: 09m43s
+LevCinema: 07m34s
+MLsoon: 03m46s
+YPsoon: 04m04s
+LCsoon: 03m16s
+HCsoon: 16m29s
+JAFCtheque: 00m28s
+CCsoon: 11m22s
+CinemaCity: 39m17s
+HotCinema: 42m00s
+YesPlanet: 46m36s
+
+--------------------
+
+
+╭──────────╮
+│ Dataflow │
+╰──────────╯
+╭───────╮
+│ Clean │
+╰───────╯
+
+--------------------
+
+ComingSoonsClean: 00m04s
+CinemathequesClean: 00m08s
+NowPlayingsClean: 01m55s
+
+--------------------
+
+
+╭──────╮
+│ Tmdb │
+╰──────╯
+
+--------------------
+
+ComingSoonsTmdb: 05m11s
+NowPlayingsTmdb: 06m24s
+CinemathequesTmdb: 11m46s
+
+--------------------
+
+
+╭────────╮
+│ Update │
+╰────────╯
+
+--------------------
+
+ComingSoonsUpdate: 00m13s
+NowPlayingsUpdate: 00m55s
+CinemathequesUpdate: 02m21s
+
+--------------------
+
+2026-10-30 05:02:51,231 INFO PostgresPublicationPublisher.py:265 publication_metric={"event":"publication_stage_complete","publication_id":"67180167-07d7-4802-84f0-dadc6f5e2941","run_id":669,"category":"comingsoons","parts":19,"payload_bytes":2071055,"seconds":2.439}
+2026-10-30 05:02:52,718 INFO PostgresPublicationPublisher.py:321 publication_metric={"event":"publication_apply_committed","publication_id":"67180167-07d7-4802-84f0-dadc6f5e2941","run_id":669,"category":"comingsoons","transaction_seconds":1.091,"function_seconds":0.654,"commit_and_ack_seconds":0.066,"revision":"33"}
+╭───────────────────────────────────────╮
+│ comingSoonsData publication committed │
+╰───────────────────────────────────────╯
+2026-10-30 05:03:21,338 INFO PostgresPublicationPublisher.py:265 publication_metric={"event":"publication_stage_complete","publication_id":"ad6c69ec-03fb-480c-9821-8fc4ddf488f0","run_id":669,"category":"nowplayings","parts":733,"payload_bytes":109788738,"seconds":22.484}
+2026-10-30 05:04:40,186 INFO PostgresPublicationPublisher.py:321 publication_metric={"event":"publication_apply_committed","publication_id":"ad6c69ec-03fb-480c-9821-8fc4ddf488f0","run_id":669,"category":"nowplayings","transaction_seconds":78.497,"function_seconds":78.052,"commit_and_ack_seconds":0.113,"revision":"34"}
+╭──────────────────────────────────────╮
+│ nowPlayingData publication committed │
+╰──────────────────────────────────────╯
+2026-10-30 05:04:45,334 INFO PostgresPublicationPublisher.py:265 publication_metric={"event":"publication_stage_complete","publication_id":"1666c3d5-99d3-492a-a24f-1bf967871f41","run_id":669,"category":"cinematheques","parts":59,"payload_bytes":12981641,"seconds":4.492}
+2026-10-30 05:04:51,630 INFO PostgresPublicationPublisher.py:321 publication_metric={"event":"publication_apply_committed","publication_id":"1666c3d5-99d3-492a-a24f-1bf967871f41","run_id":669,"category":"cinematheques","transaction_seconds":5.911,"function_seconds":5.468,"commit_and_ack_seconds":0.073,"revision":"35"}
+╭────────────────────────────────────────╮
+│ cinemathequeData publication committed │
+╰────────────────────────────────────────╯
+
+╭─────────────────────╮
+│ Movie notifications │
+╰─────────────────────╯
+Movie notifications: 0 emails, 0 first-availability updates; 2 sources synced, 0 sources failed.
+
+--------------------
+
+MovieNotificationDispatcher: 00m09s
+
+--------------------
+
+==== cron run end: 2026-10-30T05:05:02+0200 (runner exit 1) ====
