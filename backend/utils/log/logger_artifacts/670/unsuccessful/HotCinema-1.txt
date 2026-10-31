@@ -1,0 +1,11 @@
+- - -
+ERROR
+- - -
+Name: HotCinema
+URL: https://hotcinema.co.il/movie/2885/pretty-woman
+Exception: TimeoutException - Message: timeout: Timed out receiving message from renderer: 44.909
+  (Session info: chrome=156.0.8078.76)
+Call Chain: runners.py:33 > runners.py:23 > BaseCinema.py:82 > HotCinema.py:24
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/670/unsuccessful/HotCinema-1.png
+CSV: 
