@@ -6,13 +6,28 @@ from datetime import datetime
 import re
 
 
+def _is_non_screening_card(title, has_ticket_links):
+    """Skip blank promotional cards, but reject cards that hide bookable shows."""
+    if title and title.strip():
+        return False
+    if has_ticket_links:
+        raise ValueError("Yes Planet schedule card has ticket links but no film title")
+    return True
+
+
 class YesPlanet(QuickbookHelpers, BaseCinema):
     CINEMA_NAME = "Yes Planet"
     URL = "https://www.planetcinema.co.il/?lang=en_gb#/"
+    DEFAULT_SCRAPE_MODE = "auto"
+
+    def requests_logic(self):
+        from backend.scraping.utils.YesPlanetRequests import collect_yes_planet
+        return collect_yes_planet(self)
 
     month_mapping = {"January": "01", "February": "02", "March": "03", "April": "04", "May": "05", "June": "06", "July": "07", "August": "08", "September": "09", "October": "10", "November": "11", "December": "12"}
 
     def logic(self):
+        self._coverage = {"untitled_non_screening_cards_skipped": 0}
         self.driver.set_page_load_timeout(45)
         self.driver.set_script_timeout(15)
         self.acceptQuickbookCookies()
@@ -118,11 +133,19 @@ class YesPlanet(QuickbookHelpers, BaseCinema):
                         self.clickWhenReady("/html/body/div[12]/div[2]/div/ul/li[1]/a")
 
                         for film_index in range(1, self.lenElements("/html/body/section[3]/section/div[1]/div/section/div[2]/div") + 1):
+                            card_path = f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]"
                             selector = f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div/div/h4"
                             if self.lenElements(selector) and self.element(selector).text == "PRE-ORDER YOUR TICKETS NOW":
                                 continue
 
-                            checking_film_name = str(self.element(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[1]/a/h3").text).lower()
+                            title_selector = f"{card_path}/div/div/div[2]/div/div[1]/a/h3"
+                            title_elements = self.elements(title_selector)
+                            checking_film_name = title_elements[0].text if title_elements else ""
+                            ticket_links = self.elements(f"{card_path}//a[@data-url]")
+                            if _is_non_screening_card(checking_film_name, bool(ticket_links)):
+                                self._coverage["untitled_non_screening_cards_skipped"] += 1
+                                continue
+                            checking_film_name = str(checking_film_name).lower()
                             checking_film = name_to_idx.get(checking_film_name)
                             if checking_film is None:
                                 continue

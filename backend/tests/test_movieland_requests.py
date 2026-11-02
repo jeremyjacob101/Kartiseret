@@ -24,16 +24,35 @@ class MovieLandBusinessDateTests(TestCase):
         InitializeBaseCinema.__init__(scraper)
         scraper.today_date = datetime(2026, 12, 31, 12)
         scraper.run_id = 1
-        fields = ['סרט', 'Film'] + [''] * 7 + ['12+'] + [''] * 4 + ['2026', 'דובר: אנגלית']
+        fields = ['סרט (מדובב)', 'Film'] + [''] * 7 + ['12+'] + [''] * 4 + ['2026', 'דובר: אנגלית']
         home = '<div id="change-bg"><div class="movies-page"><a poster-summary href="/movie/1"></a></div></div><div class="newnav-upper-menu"><a class="dropdown-item" href="/theater/1296/test">בת ים</a></div>'
         film = '<div id="change-bg"><div class="bg-more-b">' + ''.join('<span>' + value + '</span>' for value in fields) + '</div></div>'
         theater = '<div id="change-bg"><div class="container-fluid inner-page-header"><h1>בת ים</h1></div></div><script>eventsList.dates = [{"date":"2027-01-01T00:00:00"}];</script>'
         event = {'Date': '2027-01-02T00:30:00', 'Day': 'יום שישי 01.01', 'EventId': '7', 'TheaterId': 1296, 'Hour': '00:30', 'IsVip': True}
         session = Mock()
-        session.get.side_effect = [Mock(text=home), Mock(text=film), Mock(text=theater), Mock(**{'json.return_value': [{'Name': 'סרט', 'Dates': [event]}]})]
+        session.get.side_effect = [Mock(text=home), Mock(text=film), Mock(text=theater), Mock(**{'json.return_value': [{'Name': 'סרט  (מדובב)', 'Dates': [event]}]})]
         with patch('backend.scraping.utils.MovieLandRequests.requests.Session') as factory:
             factory.return_value.__enter__.return_value = session
             scraper.requests_logic()
         self.assertEqual(scraper.gathering_info['date_of_showing'], ['2027-01-01'])
         self.assertEqual(scraper.gathering_info['screening_type'], ['Upgrade'])
+        self.assertEqual(scraper.gathering_info['dub_language'], ['Hebrew'])
         self.assertEqual(session.get.call_args.kwargs['params']['Date'], '2027-01-01T00:00:00')
+
+    def test_unlisted_event_fails_closed_instead_of_accepting_partial_catalog(self):
+        scraper = MovieLand.__new__(MovieLand)
+        InitializeBaseCinema.__init__(scraper)
+        scraper.today_date = datetime(2026, 12, 31, 12)
+        scraper.run_id = 1
+        fields = ['סרט', 'Film'] + [''] * 7 + ['12+'] + [''] * 4 + ['2026', 'דובר: אנגלית']
+        home = '<div id="change-bg"><div class="movies-page"><a poster-summary href="/movie/1"></a></div></div><div class="newnav-upper-menu"><a class="dropdown-item" href="/theater/1296/test">בת ים</a></div>'
+        film = '<div id="change-bg"><div class="bg-more-b">' + ''.join('<span>' + value + '</span>' for value in fields) + '</div></div>'
+        theater = '<div id="change-bg"><div class="container-fluid inner-page-header"><h1>בת ים</h1></div></div><script>eventsList.dates = [{"date":"2027-01-01T00:00:00"}];</script>'
+        event = {'Date': '2027-01-02T00:30:00', 'Day': 'יום שישי 01.01', 'EventId': '7', 'TheaterId': 1296, 'Hour': '00:30'}
+        session = Mock()
+        session.get.side_effect = [Mock(text=home), Mock(text=film), Mock(text=theater), Mock(**{'json.return_value': [{'Name': 'סרט חדש', 'Dates': [event]}]})]
+        with patch('backend.scraping.utils.MovieLandRequests.requests.Session') as factory:
+            factory.return_value.__enter__.return_value = session
+            with self.assertRaisesRegex(ValueError, 'absent from the discovered catalog'):
+                scraper.requests_logic()
+        self.assertEqual(scraper._coverage['unlisted_films_skipped'], 1)

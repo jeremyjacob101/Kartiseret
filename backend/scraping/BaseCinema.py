@@ -99,8 +99,10 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
         navigate(self)
         self.selenium_logic()
 
-    def _reset_collection(self):
+    def _reset_collection(self, initial_attributes):
         # A fallback must not reuse partial rows or source-specific lists.
+        for attribute in set(self.__dict__) - initial_attributes:
+            delattr(self, attribute)
         start, today, year, month = self.startTime, self.today_date, self.current_year, self.current_month
         InitializeBaseCinema.__init__(self)
         self.startTime, self.today_date, self.current_year, self.current_month = start, today, year, month
@@ -137,6 +139,7 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
                 'observed_retries': getattr(self, '_http_stats', {}).get('observed_retries', 0) if transport == 'requests' else 0,
                 'coverage': getattr(self, '_coverage', {}),
                 'failure_type': type(error).__name__ if error else None,
+                'failure_reason': str(error)[:500] if error else None,
             }
             path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
         except Exception:
@@ -148,6 +151,7 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
             mode = getattr(self, "scrape_mode", "selenium" if self.USES_BROWSER else "requests")
             self._http_stats = {'requests': 0, 'observed_retries': 0}
             self._coverage = {}
+            initial_attributes = set(self.__dict__)
             collection_started = time.perf_counter()
             if mode == "selenium":
                 try:
@@ -164,7 +168,7 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
                     self._record_collection('requests', collection_started, 'failed', error)
                     if mode != "auto":
                         raise
-                    logging.getLogger(__name__).warning("Requests collection failed for %s (%s); retrying with Selenium", self.__class__.__name__, type(error).__name__)
+                    logging.getLogger(__name__).warning("Requests collection failed for %s (%s: %s); retrying with Selenium", self.__class__.__name__, type(error).__name__, error)
                     self.failScrapeSnapshot(error)
                     previous_name = getattr(self, "_artifact_item_name", None)
                     self._artifact_item_name = f"{previous_name or self.__class__.__name__}_requests"
@@ -172,7 +176,7 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
                         formatAndWriteCsv(self, successful=False)
                     finally:
                         self._artifact_item_name = previous_name
-                    self._reset_collection()
+                    self._reset_collection(initial_attributes)
                     self.startScrapeSnapshot()
                     self._coverage = {}
                     fallback_started = time.perf_counter()

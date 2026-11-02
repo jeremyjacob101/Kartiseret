@@ -121,12 +121,14 @@ class JaffaRequestsTests(TestCase):
         scraper.failScrapeSnapshot = Mock()
 
         def fail_after_row():
+            scraper._partial_source_cache = {'film': 'incomplete'}
             scraper.english_title = 'partial HTTP'
             scraper.appendToGatheringInfo()
             raise ValueError('incomplete response')
 
         def browser_rows():
             self.assertEqual(scraper.gathering_info['english_title'], [])
+            self.assertFalse(hasattr(scraper, '_partial_source_cache'))
             scraper.english_title = 'complete browser'
             scraper.appendToGatheringInfo()
 

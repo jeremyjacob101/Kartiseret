@@ -2,12 +2,14 @@
 
 Run with ``python -m backend.scraping.compare SCRAPER --output DIR``.
 The output directory contains both snapshots and an exact multiset comparison.
+Add ``--capture-source-responses`` to save compressed raw HTTP responses for diagnosis.
 """
 
 import argparse
 from collections import Counter
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import time
 import traceback
@@ -38,7 +40,7 @@ def compare_rows(left, right):
     }
 
 
-def collect(cls, mode):
+def collect(cls, mode, source_capture_dir=None):
     started = time.perf_counter()
     scraper = cls.__new__(cls)
     InitializeBaseCinema.__init__(scraper)
@@ -48,12 +50,15 @@ def collect(cls, mode):
     scraper._http_stats = {'requests': 0, 'observed_retries': 0}
     scraper._coverage = {}
     result = {"transport": mode, "started_at": datetime.now(timezone.utc).isoformat()}
+    previous_capture_dir = os.environ.get("SCRAPER_SOURCE_CAPTURE_DIR")
     try:
         if mode == "selenium":
             scraper.driver = build_chrome(scraper.HEADLESS)
             navigate(scraper)
             scraper.selenium_logic()
         else:
+            if source_capture_dir is not None:
+                os.environ["SCRAPER_SOURCE_CAPTURE_DIR"] = str(source_capture_dir)
             scraper.requests_logic()
         rows = rows_from_columns(scraper.gathering_info)
         if not rows and not scraper._empty_snapshot_evidence:
@@ -74,6 +79,12 @@ def collect(cls, mode):
         result["seconds"] = time.perf_counter() - started
         result["http_stats"] = scraper._http_stats
         result["coverage"] = scraper._coverage
+        if source_capture_dir is not None:
+            result["source_capture"] = str(source_capture_dir)
+        if previous_capture_dir is None:
+            os.environ.pop("SCRAPER_SOURCE_CAPTURE_DIR", None)
+        else:
+            os.environ["SCRAPER_SOURCE_CAPTURE_DIR"] = previous_capture_dir
     return result
 
 
@@ -82,16 +93,21 @@ def main():
     parser.add_argument("scraper")
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--first", choices=("selenium", "requests"), default="selenium")
+    parser.add_argument("--capture-source-responses", action="store_true")
     args = parser.parse_args()
     classes = {cls.__name__: cls for group in REGISTRY.values() for cls in group}
     if args.scraper not in classes:
         parser.error(f"Unknown scraper {args.scraper!r}")
     order = [args.first, "requests" if args.first == "selenium" else "selenium"]
-    snapshots = {mode: collect(classes[args.scraper], mode) for mode in order}
+    args.output.mkdir(parents=True, exist_ok=True)
+    snapshots = {}
+    for mode in order:
+        stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+        capture_dir = args.output / "sources" / args.scraper / f"{stamp}-{mode}" if args.capture_source_responses else None
+        snapshots[mode] = collect(classes[args.scraper], mode, capture_dir)
     comparison = None
     if all(snapshots[mode]["status"] == "ok" for mode in order):
         comparison = compare_rows(snapshots["selenium"]["rows"], snapshots["requests"]["rows"])
-    args.output.mkdir(parents=True, exist_ok=True)
     path = args.output / f"{args.scraper}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}.json"
     path.write_text(json.dumps({"scraper": args.scraper, "order": order, "snapshots": snapshots, "comparison": comparison}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(path)

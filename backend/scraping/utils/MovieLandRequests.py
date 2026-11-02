@@ -117,6 +117,8 @@ def collect_movieland(scraper):
                 name = film.get('Name')
                 if not isinstance(name, str):
                     raise ValueError('MovieLand event film has no name')
+                # Selenium reads the displayed title, which collapses HTML whitespace.
+                name = ' '.join(name.split())
                 if name not in metadata:
                     scraper._coverage['unlisted_films_skipped'] += 1
                     continue
@@ -161,3 +163,7 @@ def collect_movieland(scraper):
                     scraper.screening_city = city
                     scraper.appendToGatheringInfo()
             scraper._coverage['cinemas_completed'] += 1
+    if scraper._coverage['unlisted_films_skipped']:
+        raise ValueError(
+            f"MovieLand schedule referenced {scraper._coverage['unlisted_films_skipped']} films absent from the discovered catalog"
+        )

@@ -11,7 +11,12 @@ class JLEMtheque(BaseCinema):
     SCREENING_CITY = "Jerusalem"
     URL = "https://jer-cin.org.il/en/article/4284"
     DAYS = 45
+    DEFAULT_SCRAPE_MODE = "auto"
     date_selector = "//div[contains(@class, 'calenders-filter-date')]/p"
+
+    def requests_logic(self):
+        from backend.scraping.utils.JerusalemRequests import collect_jerusalem
+        return collect_jerusalem(self)
 
     def logic(self):
         self.driver.set_page_load_timeout(45)

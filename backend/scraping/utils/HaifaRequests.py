@@ -16,7 +16,7 @@ def _text(element):
 
 
 def collect_haifa(scraper):
-    scraper._coverage = {'pagination_requests': 0, 'cards_completed': 0}
+    scraper._coverage = {'pagination_requests': 0, 'cards_completed': 0, 'rows_emitted': 0}
     with requests.Session() as session:
         configure_scrape_session(session, stats=getattr(scraper, '_http_stats', None))
         session.headers.update({'User-Agent': CHROME_USER_AGENT})
@@ -76,6 +76,7 @@ def collect_haifa(scraper):
             date = page.select_one('.event-details-date')
             if any(value is None for value in (title, english, ticket, time, date)) or not ticket.get('href'):
                 raise ValueError(f'Haifa event page is missing required fields: {href}')
+            scraper._coverage['cards_completed'] += 1
             scraper.english_title = _text(english)
             scraper.hebrew_title = _text(title)
             scraper.english_href = urljoin(href, ticket['href'])
@@ -93,4 +94,4 @@ def collect_haifa(scraper):
                 match = re.search(r'\b(\d{4})\b', _text(release))
                 scraper.release_year = int(match.group(1)) if match else None
                 scraper.appendToGatheringInfo()
-            scraper._coverage['cards_completed'] += 1
+                scraper._coverage['rows_emitted'] += 1

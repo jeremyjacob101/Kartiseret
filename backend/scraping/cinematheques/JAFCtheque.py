@@ -15,6 +15,7 @@ class JAFCtheque(BaseCinema):
     SCREENING_CITY = "Jaffa"
     URL = "https://www.jaffacinema.com/"
     USES_BROWSER = False
+    DEFAULT_SCRAPE_MODE = "auto"
     ENGLISH_URL = "https://www.jaffacinema.com/en/main/"
 
     def selenium_logic(self):

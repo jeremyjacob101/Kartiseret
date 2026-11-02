@@ -8,6 +8,7 @@ import re
 class HotCinema(BaseCinema):
     CINEMA_NAME = "Hot Cinema"
     URL = "https://hotcinema.co.il/ShowingNow"
+    DEFAULT_SCRAPE_MODE = "auto"
 
     def requests_logic(self):
         from backend.scraping.utils.HotCinemaRequests import collect_hot_cinema

@@ -28,6 +28,8 @@ class HotCinemaRequestsTests(TestCase):
             response.text = HOME
         elif '/movie/' in url:
             response.text = FILM
+        elif '/theater/' in url:
+            response.text = '<h1>HOT CINEMA כפר סבא</h1>'
         elif url.endswith('/MovieEventsDaysFilter'):
             response.json.return_value = ['01/01/2027']
         elif url.endswith('/tickets/TheaterEvents2'):

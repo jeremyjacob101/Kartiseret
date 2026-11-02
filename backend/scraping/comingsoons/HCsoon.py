@@ -7,6 +7,11 @@ import re
 class HCsoon(BaseCinema):
     CINEMA_NAME = "Hot Cinema"
     URL = "https://hotcinema.co.il/ComingSoon"
+    DEFAULT_SCRAPE_MODE = "auto"
+
+    def requests_logic(self):
+        from backend.scraping.utils.HotCinemaSoonRequests import collect_hot_soon
+        return collect_hot_soon(self)
 
     def logic(self):
         self.driver.set_page_load_timeout(45)

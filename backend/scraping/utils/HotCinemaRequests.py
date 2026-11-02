@@ -70,6 +70,11 @@ def collect_hot_cinema(scraper):
         for cinema, city in cinemas.items():
             if cinema not in ticket_sites or not city:
                 raise ValueError(f'Hot Cinema theater has no known booking site: {cinema}')
+            theater = BeautifulSoup(get(urljoin(scraper.URL, f'/theater/{cinema}')).text, 'html.parser')
+            heading = theater.select_one('h1')
+            if heading is None or not _text(heading):
+                raise ValueError(f'Hot Cinema theater page has no heading: {cinema}')
+            city = _text(heading)
             query = {'movieid': '', 'date': '', 'theatreid': cinema, 'time': '', 'type': '', 'lang': ''}
             dates = get('https://hotcinema.co.il/MovieEventsDaysFilter', query).json()
             if not isinstance(dates, list):

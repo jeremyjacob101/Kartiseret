@@ -44,3 +44,15 @@ class HaifaRequestsTests(TestCase):
             factory.return_value.__enter__.return_value = session
             with self.assertRaisesRegex(ValueError, 'unrecognized'):
                 self.make_scraper().requests_logic()
+
+    def test_missing_release_year_is_counted_as_processed_source_card_but_not_a_row(self):
+        session = Mock()
+        detail = DETAIL.replace('<div class="event-details-content"><strong>2026</strong></div>', '')
+        session.get.side_effect = [Mock(text=HOME), Mock(text=''), Mock(text=detail)]
+        scraper = self.make_scraper()
+        with patch('backend.scraping.utils.HaifaRequests.requests.Session') as factory:
+            factory.return_value.__enter__.return_value = session
+            scraper.requests_logic()
+        self.assertEqual(scraper._coverage['cards_expected'], 1)
+        self.assertEqual(scraper._coverage['cards_completed'], 1)
+        self.assertEqual(scraper._coverage['rows_emitted'], 0)

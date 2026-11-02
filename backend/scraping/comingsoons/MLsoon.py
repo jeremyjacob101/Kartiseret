@@ -14,6 +14,7 @@ class MLsoon(BaseCinema):
     CINEMA_NAME = "MovieLand"
     URL = "https://www.movieland.co.il/soon"
     USES_BROWSER = False
+    DEFAULT_SCRAPE_MODE = "auto"
 
     def selenium_logic(self):
         from backend.scraping.legacy.movieland_soon import MLsoon as LegacyMovieLandSoon

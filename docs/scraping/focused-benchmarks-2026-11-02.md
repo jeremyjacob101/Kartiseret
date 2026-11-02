@@ -1,5 +1,7 @@
 # Focused scraper benchmarks — 2026-11-02
 
+This records the initial focused probes only. The later full-output comparisons, final production defaults, latest timings, and unresolved sources are documented in [the request-transition status](request-transition-status-2026-11-02.md).
+
 Timings include browser startup or HTTP session creation, listing retrieval, and the film metadata and screening fields needed for the selected output. Except where marked full, the browser scraper stopped after ten gathered rows; the request prototype collected the corresponding focused subset. Full-row comparisons use every gathered field and preserve duplicate rows. These are live, non-atomic snapshots; the site may change between runs.
 
 Two browser runs and two request runs were used for each sample unless noted. The first browser pass ran up to three scrapers at a time; the second ran sequentially. Request runs were sequential. Times are local elapsed seconds and include network variation and caching. They are not controlled production pipeline timings or memory/CPU measurements. Selenium sometimes reads metadata for the whole listing before emitting the first ten rows, whereas request prototypes fetch only the data necessary for the selected rows; that difference is part of the potential optimization, but these are not full-catalog comparisons.
