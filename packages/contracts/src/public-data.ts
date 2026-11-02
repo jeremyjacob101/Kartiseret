@@ -151,6 +151,20 @@ export const publicShowtimeRangeQuerySchema = z
     }
   });
 
+export const publicCinemathequeQuerySchema = z.union([
+  publicShowtimeRangeQuerySchema,
+  z
+    .object({
+      city: appLocationSchema,
+      startDate: isoDateStringSchema,
+    })
+    .strict(),
+]);
+
+export type PublicCinemathequeQuery = z.output<
+  typeof publicCinemathequeQuerySchema
+>;
+
 export const ticketAvailabilityQuerySchema = z
   .object({
     tmdbId: tmdbIdSchema,

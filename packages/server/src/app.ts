@@ -26,6 +26,7 @@ import { PublicDataIntegrityError } from "./public-data/errors.js";
 import type { PublicDataRepository } from "./public-data/repository.js";
 import {
   publicShowtimeRangeQuerySchema,
+  publicCinemathequeQuerySchema,
   tmdbTitleSearchQuerySchema,
   ticketAvailabilityQuerySchema,
 } from "@kartiseret/contracts/public-data";
@@ -316,7 +317,7 @@ export function createApp({
         );
         return;
       }
-      const query = publicShowtimeRangeQuerySchema.safeParse(request.query);
+      const query = publicCinemathequeQuerySchema.safeParse(request.query);
       if (!query.success) {
         next(
           new HttpError(

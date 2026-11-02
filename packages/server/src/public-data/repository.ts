@@ -7,9 +7,15 @@ export type PublicShowtimeRange = {
   tmdbId?: string;
 };
 
+export type PublicCinemathequeRange = Omit<PublicShowtimeRange, "endDate"> & {
+  endDate?: string;
+};
+
 export interface PublicDataRepository extends CatalogRepository {
   findComingSoonRows(): Promise<readonly unknown[]>;
-  findCinemathequeRows(range: PublicShowtimeRange): Promise<readonly unknown[]>;
+  findCinemathequeRows(
+    range: PublicCinemathequeRange,
+  ): Promise<readonly unknown[]>;
   findShowtimeRows(range: PublicShowtimeRange): Promise<readonly unknown[]>;
   findTicketAvailabilityRows(
     tmdbId: string,

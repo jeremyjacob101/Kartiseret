@@ -22,6 +22,7 @@ import type { CatalogRepository } from "./service.js";
 import type {
   PublicDataRepository,
   PublicShowtimeRange,
+  PublicCinemathequeRange,
 } from "../public-data/repository.js";
 
 const MOVIE_CODE_QUERY_CHUNK_SIZE = 500;
@@ -315,15 +316,17 @@ export class DrizzleCatalogRepository
   }
 
   async findCinemathequeRows(
-    range: PublicShowtimeRange,
+    range: PublicCinemathequeRange,
   ): Promise<readonly unknown[]> {
     try {
       const conditions = [
         eq(finalTheques.screeningCity, range.city),
         gte(finalTheques.dateOfShowing, range.startDate),
-        lte(finalTheques.dateOfShowing, range.endDate),
         eq(finalThequeMovies.soloUpdate, false),
       ];
+      if (range.endDate) {
+        conditions.push(lte(finalTheques.dateOfShowing, range.endDate));
+      }
       if (range.tmdbId) {
         conditions.push(eq(finalTheques.tmdbId, Number(range.tmdbId)));
       }
