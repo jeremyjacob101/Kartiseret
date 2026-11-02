@@ -17,7 +17,8 @@ html[data-device-type="mobile"] .cinematheques-page-title {
   margin-left: 0;
 }
 
-.cinematheques-day {
+.cinematheques-page .cinematheques-day {
+  flex: none;
   margin-bottom: 24px;
 }
 .cinematheques-date {
