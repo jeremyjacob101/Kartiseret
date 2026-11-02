@@ -9,6 +9,10 @@ class HERZtheque(BaseCinema):
     SCREENING_CITY = "Herziliya"
     URL = "https://www.hcinema.org.il/"
 
+    def requests_logic(self):
+        from backend.scraping.utils.HerzliyaRequests import collect_herzliya
+        return collect_herzliya(self)
+
     def logic(self):
         self.driver.set_page_load_timeout(45)
         self.driver.set_script_timeout(15)

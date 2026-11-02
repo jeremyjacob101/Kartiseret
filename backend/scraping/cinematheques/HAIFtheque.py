@@ -9,6 +9,10 @@ class HAIFtheque(BaseCinema):
     SCREENING_CITY = "Haifa"
     URL = "https://www.haifacin.co.il/Events/trom/%D7%AA%D7%95%D7%9B%D7%A0%D7%99%D7%AA_%D7%94%D7%97%D7%95%D7%93%D7%A9"
 
+    def requests_logic(self):
+        from backend.scraping.utils.HaifaRequests import collect_haifa
+        return collect_haifa(self)
+
     def logic(self):
         self.driver.set_page_load_timeout(45)
         self.driver.set_script_timeout(15)

@@ -8,6 +8,7 @@ class TLVtheque(BaseCinema):
     CINEMA_NAME = "Tel Aviv Cinematheque"
     SCREENING_CITY = "Tel Aviv"
     URL = "https://www.cinema.co.il/en/shown/"
+    DEFAULT_SCRAPE_MODE = "auto"
 
     def requests_logic(self):
         from backend.scraping.utils.TLVRequests import collect_tel_aviv
