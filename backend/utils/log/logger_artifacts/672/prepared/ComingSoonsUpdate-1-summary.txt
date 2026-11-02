@@ -1,0 +1,36 @@
+- - -
+DATAFLOW SUMMARY
+- - -
+Name: ComingSoonsUpdate
+Run ID: 672
+Attempt: 1
+Result: STAGED (PUBLICATION PENDING)
+Started (UTC): 2026-11-02T02:44:58.298061+00:00
+Finished (UTC): 2026-11-02T02:45:11.507662+00:00
+Duration Seconds: 13.2096
+Generated At (UTC): 2026-11-02T02:45:11.507882+00:00
+
+SUMMARY COUNTS
+- (none)
+
+STAGE BREAKDOWN
+- (none)
+
+COMING SOONS DETAILS
+- (none)
+
+CINEMATHEQUE GROUP DETAILS
+- (none)
+
+NOW PLAYING GROUP DETAILS
+- (none)
+
+UNRESOLVED / DROPPED ITEMS
+- (none)
+
+WRITE/DEDUPE ACTIONS
+- (none)
+
+NOTES
+- update_rows | requested=97 | updated=97
+- Changes are staged; they are not live until category publication commits.

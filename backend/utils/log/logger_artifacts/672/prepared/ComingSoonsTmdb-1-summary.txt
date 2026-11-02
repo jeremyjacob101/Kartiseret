@@ -1,0 +1,367 @@
+- - -
+DATAFLOW SUMMARY
+- - -
+Name: ComingSoonsTmdb
+Run ID: 672
+Attempt: 1
+Result: STAGED (PUBLICATION PENDING)
+Started (UTC): 2026-11-02T02:34:15.147007+00:00
+Finished (UTC): 2026-11-02T02:39:50.261809+00:00
+Duration Seconds: 335.1148
+Generated At (UTC): 2026-11-02T02:39:50.261930+00:00
+
+SUMMARY COUNTS
+- dropped: 7
+- mapped: 454
+- merged: 88
+
+STAGE BREAKDOWN
+- dedupe|merged|deduped_into_tmdb: 88
+- enrich|mapped|enriched: 88
+- tmdb_choice|mapped|director_match: 6
+- tmdb_choice|mapped|fallback_first_candidate: 94
+- tmdb_choice|mapped|runtime_match: 58
+- tmdb_choice|mapped|title_first_match: 204
+- tmdb_choice|mapped|tmdb_fix_override: 2
+- tmdb_search|dropped|no_candidates: 7
+- write|mapped|marked_added: 1
+- write|mapped|upserted: 1
+
+COMING SOONS DETAILS
+- [mapped] write | title= | key=allSoons | reason=marked_added | tmdb=
+- [mapped] write | title= | key=finalSoons | reason=upserted | tmdb=
+- [mapped] enrich | title=13 Days, 13 Nights | key=eff034a0-88d2-451a-91cb-475b72c16db8 | reason=enriched | tmdb=1254135
+- [merged] dedupe | title=a talent for murder | key=f8118be4-e4dd-4058-b97b-11fe7d85fa5e | reason=deduped_into_tmdb | tmdb=1084409
+- [mapped] enrich | title=A Talent for Murder | key=f8118be4-e4dd-4058-b97b-11fe7d85fa5e | reason=enriched | tmdb=1084409
+- [mapped] tmdb_choice | title=a talent for murder | key=f8118be4-e4dd-4058-b97b-11fe7d85fa5e | reason=runtime_match | tmdb=1084409 x2
+- [mapped] tmdb_choice | title=a talent for murder | key=7407566c-dc3f-4e17-a09d-4738b80def48 | reason=title_first_match | tmdb=1084409 x8
+- [merged] dedupe | title=angry birds 3 | key=4dd36aa8-369b-4818-b3e6-0514e01e2e2e | reason=deduped_into_tmdb | tmdb=1300926
+- [mapped] tmdb_choice | title=angry birds 3 | key=4dd36aa8-369b-4818-b3e6-0514e01e2e2e | reason=fallback_first_candidate | tmdb=1300926 x2
+- [merged] dedupe | title=ata thambaycha naay | key=838ab72e-e519-4b46-9a6e-f199ca6174c9 | reason=deduped_into_tmdb | tmdb=1446710
+- [mapped] enrich | title=Ata Thambaycha Naay! | key=838ab72e-e519-4b46-9a6e-f199ca6174c9 | reason=enriched | tmdb=1446710
+- [mapped] tmdb_choice | title=ata thambaycha naay | key=838ab72e-e519-4b46-9a6e-f199ca6174c9 | reason=title_first_match | tmdb=1446710 x2
+- [merged] dedupe | title=avengers doomsday | key=54d446c4-0648-4b90-9863-98ce93ea0d1e | reason=deduped_into_tmdb | tmdb=1003596
+- [mapped] enrich | title=Avengers: Doomsday | key=54d446c4-0648-4b90-9863-98ce93ea0d1e | reason=enriched | tmdb=1003596
+- [mapped] tmdb_choice | title=avengers doomsday | key=9a734ebc-59fb-470c-945c-400c171bedfa | reason=title_first_match | tmdb=1003596 x4
+- [mapped] tmdb_choice | title=Avengers: Doomsday Infinity Vision | key=814eca2e-8f9f-408d-b29f-d78bf84176ed | reason=tmdb_fix_override | tmdb=1003596
+- [merged] dedupe | title=band together | key=14330e40-cf9d-4a0c-99e1-bda7b0a71beb | reason=deduped_into_tmdb | tmdb=1437873
+- [mapped] enrich | title=Band Together | key=14330e40-cf9d-4a0c-99e1-bda7b0a71beb | reason=enriched | tmdb=1437873
+- [mapped] tmdb_choice | title=band together | key=14330e40-cf9d-4a0c-99e1-bda7b0a71beb | reason=title_first_match | tmdb=1437873 x2
+- [merged] dedupe | title=berlin hero | key=00da1e07-a277-4558-bc1e-09cdbd26bed8 | reason=deduped_into_tmdb | tmdb=1248217
+- [mapped] enrich | title=Berlin Hero | key=00da1e07-a277-4558-bc1e-09cdbd26bed8 | reason=enriched | tmdb=1248217
+- [mapped] tmdb_choice | title=berlin hero | key=00da1e07-a277-4558-bc1e-09cdbd26bed8 | reason=fallback_first_candidate | tmdb=1248217 x2
+- [merged] dedupe | title=beware boiuna | key=70f16fae-e412-444e-8501-7d5d97c87544 | reason=deduped_into_tmdb | tmdb=1244523
+- [mapped] enrich | title=Beware Boiúna | key=70f16fae-e412-444e-8501-7d5d97c87544 | reason=enriched | tmdb=1244523
+- [mapped] tmdb_choice | title=beware boiuna | key=70f16fae-e412-444e-8501-7d5d97c87544 | reason=runtime_match | tmdb=1244523 x2
+- [mapped] tmdb_choice | title=beware boiuna | key=229edd4b-0dad-4772-b130-15400b277221 | reason=title_first_match | tmdb=1244523 x2
+- [merged] dedupe | title=black swan | key=3a887b82-5858-4811-8b76-45f91e333a79 | reason=deduped_into_tmdb | tmdb=44214
+- [mapped] enrich | title=Black Swan | key=3a887b82-5858-4811-8b76-45f91e333a79 | reason=enriched | tmdb=44214
+- [mapped] tmdb_choice | title=black swan | key=3a887b82-5858-4811-8b76-45f91e333a79 | reason=title_first_match | tmdb=44214 x2
+- [merged] dedupe | title=brothers under fire | key=1db561a0-4812-41f6-bc38-d7778778311b | reason=deduped_into_tmdb | tmdb=1414413
+- [mapped] enrich | title=Brothers Under Fire | key=1db561a0-4812-41f6-bc38-d7778778311b | reason=enriched | tmdb=1414413
+- [mapped] tmdb_choice | title=brothers under fire | key=1db561a0-4812-41f6-bc38-d7778778311b | reason=fallback_first_candidate | tmdb=1414413 x2
+- [merged] dedupe | title=cetait mieux demain | key=d5eb7439-3647-486b-962d-4866673152e7 | reason=deduped_into_tmdb | tmdb=1284496
+- [mapped] tmdb_choice | title=cetait mieux demain | key=d5eb7439-3647-486b-962d-4866673152e7 | reason=runtime_match | tmdb=1284496 x2
+- [dropped] tmdb_search | title=cetait vmieux demain | key=38c33dc5-c6d9-4b55-9c77-ecfc74c300bd | reason=no_candidates | tmdb=
+- [merged] dedupe | title=children of blood and bone | key=315f5a9f-bcc9-4a5c-8174-99660b83536f | reason=deduped_into_tmdb | tmdb=621304
+- [mapped] enrich | title=Children of Blood and Bone | key=315f5a9f-bcc9-4a5c-8174-99660b83536f | reason=enriched | tmdb=621304
+- [mapped] tmdb_choice | title=children of blood and bone | key=315f5a9f-bcc9-4a5c-8174-99660b83536f | reason=title_first_match | tmdb=621304 x4
+- [merged] dedupe | title=club kid | key=194a54da-388c-43b0-9648-6d94f0efb2c5 | reason=deduped_into_tmdb | tmdb=1585239
+- [mapped] enrich | title=Club Kid | key=194a54da-388c-43b0-9648-6d94f0efb2c5 | reason=enriched | tmdb=1585239
+- [mapped] tmdb_choice | title=club kid | key=194a54da-388c-43b0-9648-6d94f0efb2c5 | reason=fallback_first_candidate | tmdb=1585239 x2
+- [mapped] tmdb_choice | title=club kid | key=cdfbdf3c-9201-4e5c-9bff-8124efb9f806 | reason=title_first_match | tmdb=1585239 x8
+- [mapped] enrich | title=Cycle of Time | key=d5eb7439-3647-486b-962d-4866673152e7 | reason=enriched | tmdb=1284496
+- [mapped] tmdb_choice | title=cycle of time | key=82c6f90c-5b33-419a-8445-565a7f78fd54 | reason=runtime_match | tmdb=1284496 x2
+- [merged] dedupe | title=dune part three | key=2b34242d-81d1-4b43-a52c-478d8e0f8d5c | reason=deduped_into_tmdb | tmdb=1170608
+- [mapped] enrich | title=Dune: Part Three | key=2b34242d-81d1-4b43-a52c-478d8e0f8d5c | reason=enriched | tmdb=1170608
+- [mapped] tmdb_choice | title=dune part three | key=2b34242d-81d1-4b43-a52c-478d8e0f8d5c | reason=title_first_match | tmdb=1170608 x4
+- [merged] dedupe | title=ebenezer | key=69acedb7-f2da-41eb-ab0c-dd37a82b3caf | reason=deduped_into_tmdb | tmdb=1567605
+- [mapped] enrich | title=Ebenezer | key=69acedb7-f2da-41eb-ab0c-dd37a82b3caf | reason=enriched | tmdb=1567605
+- [mapped] tmdb_choice | title=ebenezer | key=69acedb7-f2da-41eb-ab0c-dd37a82b3caf | reason=fallback_first_candidate | tmdb=1567605 x2
+- [mapped] tmdb_choice | title=ebenezer | key=a79481f8-b3ce-465b-b88f-89bc4cc75e8d | reason=title_first_match | tmdb=1567605 x4
+- [merged] dedupe | title=ebenezer a christmas carol | key=84c8a024-b5e5-4784-a078-2fac6a94f3fb | reason=deduped_into_tmdb | tmdb=1749825
+- [mapped] tmdb_choice | title=ebenezer a christmas carol | key=84c8a024-b5e5-4784-a078-2fac6a94f3fb | reason=fallback_first_candidate | tmdb=1749825 x2
+- [mapped] enrich | title=Ebenezer Scrooge: A Christmas Carol Horror | key=84c8a024-b5e5-4784-a078-2fac6a94f3fb | reason=enriched | tmdb=1749825
+- [mapped] enrich | title=Fantastic Beasts and Where to Find Them | key=6bffb233-ae24-4782-92db-9c120638b855 | reason=enriched | tmdb=259316
+- [merged] dedupe | title=fatherland | key=436c1ed9-364f-4b09-97b4-adc6850782e4 | reason=deduped_into_tmdb | tmdb=1437696
+- [mapped] enrich | title=Fatherland | key=436c1ed9-364f-4b09-97b4-adc6850782e4 | reason=enriched | tmdb=1437696
+- [mapped] tmdb_choice | title=fatherland | key=436c1ed9-364f-4b09-97b4-adc6850782e4 | reason=title_first_match | tmdb=1437696 x2
+- [merged] dedupe | title=fever | key=628be3cf-1316-45b1-bed9-506030f52edd | reason=deduped_into_tmdb | tmdb=326359
+- [mapped] tmdb_choice | title=fever | key=628be3cf-1316-45b1-bed9-506030f52edd | reason=fallback_first_candidate | tmdb=326359 x2
+- [merged] dedupe | title=fjord | key=b3447c75-746f-438d-8e33-0a50f35ec843 | reason=deduped_into_tmdb | tmdb=1401459
+- [mapped] enrich | title=Fjord | key=b3447c75-746f-438d-8e33-0a50f35ec843 | reason=enriched | tmdb=1401459
+- [mapped] tmdb_choice | title=fjord | key=b3447c75-746f-438d-8e33-0a50f35ec843 | reason=title_first_match | tmdb=1401459 x2
+- [merged] dedupe | title=focker in law | key=8767a233-3407-4caf-9f5e-0713bf1a7dce | reason=deduped_into_tmdb | tmdb=1400336
+- [mapped] enrich | title=Focker-in-Law | key=8767a233-3407-4caf-9f5e-0713bf1a7dce | reason=enriched | tmdb=1400336
+- [mapped] tmdb_choice | title=focker in law | key=8767a233-3407-4caf-9f5e-0713bf1a7dce | reason=runtime_match | tmdb=1400336 x2
+- [mapped] tmdb_choice | title=focker in law | key=3e2387ba-a260-44f3-bedd-ecd2891004ce | reason=title_first_match | tmdb=1400336 x6
+- [mapped] enrich | title=Frozen Fever | key=628be3cf-1316-45b1-bed9-506030f52edd | reason=enriched | tmdb=326359
+- [merged] dedupe | title=gatto | key=790020cc-07d7-4e2e-8e41-fb8f7907a597 | reason=deduped_into_tmdb | tmdb=1497464
+- [merged] dedupe | title=gatto | key=4d0a9297-ab1d-4e5a-b0fc-ab062fa43f5f | reason=deduped_into_tmdb | tmdb=1735982
+- [mapped] enrich | title=Gatto | key=790020cc-07d7-4e2e-8e41-fb8f7907a597 | reason=enriched | tmdb=1497464
+- [mapped] tmdb_choice | title=gatto | key=790020cc-07d7-4e2e-8e41-fb8f7907a597 | reason=fallback_first_candidate | tmdb=1497464 x2
+- [mapped] tmdb_choice | title=gatto | key=4d0a9297-ab1d-4e5a-b0fc-ab062fa43f5f | reason=fallback_first_candidate | tmdb=1735982 x2
+- [mapped] tmdb_choice | title=gatto | key=8540e704-35c8-427c-b7bd-b23bc7e6b908 | reason=title_first_match | tmdb=1497464 x2
+- [merged] dedupe | title=hershey | key=d2792513-13fd-46af-800a-d0b8fd4ef130 | reason=deduped_into_tmdb | tmdb=1461490
+- [mapped] enrich | title=Hershey | key=d2792513-13fd-46af-800a-d0b8fd4ef130 | reason=enriched | tmdb=1461490
+- [mapped] tmdb_choice | title=hershey | key=7603cee2-f62a-418e-964e-c99874ebc616 | reason=title_first_match | tmdb=1461490 x4
+- [dropped] tmdb_search | title=hershy | key=3f57b04c-5497-4a3a-9dca-47175cfdfd72 | reason=no_candidates | tmdb=
+- [merged] dedupe | title=hexed | key=7b1da6a2-a42d-498c-8772-3ec059ee836d | reason=deduped_into_tmdb | tmdb=1538497
+- [mapped] enrich | title=Hexed | key=7b1da6a2-a42d-498c-8772-3ec059ee836d | reason=enriched | tmdb=1538497
+- [mapped] tmdb_choice | title=hexed | key=7b1da6a2-a42d-498c-8772-3ec059ee836d | reason=fallback_first_candidate | tmdb=1538497 x2
+- [mapped] tmdb_choice | title=hexed | key=d095cf0a-8d7a-494b-92bf-d2329845ae80 | reason=title_first_match | tmdb=1538497 x6
+- [merged] dedupe | title=how to rob a bank | key=2d2b60c5-5a97-467a-903e-54cc91a87f76 | reason=deduped_into_tmdb | tmdb=1437511
+- [mapped] enrich | title=How to Rob a Bank | key=2d2b60c5-5a97-467a-903e-54cc91a87f76 | reason=enriched | tmdb=1437511
+- [mapped] tmdb_choice | title=how to rob a bank | key=2d2b60c5-5a97-467a-903e-54cc91a87f76 | reason=runtime_match | tmdb=1437511 x2
+- [mapped] tmdb_choice | title=how to rob a bank | key=a2bc1d39-b7cf-4484-8f9f-27e8e25630fa | reason=title_first_match | tmdb=1437511 x4
+- [merged] dedupe | title=i play rocky | key=cf25efe3-b2f2-45fd-956b-87813d1d6f78 | reason=deduped_into_tmdb | tmdb=1286656
+- [mapped] enrich | title=I Play Rocky | key=cf25efe3-b2f2-45fd-956b-87813d1d6f78 | reason=enriched | tmdb=1286656
+- [mapped] tmdb_choice | title=i play rocky | key=cf25efe3-b2f2-45fd-956b-87813d1d6f78 | reason=runtime_match | tmdb=1286656 x4
+- [mapped] tmdb_choice | title=i play rocky | key=43d0953b-abeb-47b8-859b-0b1105582583 | reason=title_first_match | tmdb=1286656 x8
+- [merged] dedupe | title=ice age boiling point | key=660b106d-4592-4892-a227-839ba41762db | reason=deduped_into_tmdb | tmdb=1384758
+- [mapped] enrich | title=Ice Age: Boiling Point | key=660b106d-4592-4892-a227-839ba41762db | reason=enriched | tmdb=1384758
+- [mapped] tmdb_choice | title=ice age boiling point | key=660b106d-4592-4892-a227-839ba41762db | reason=runtime_match | tmdb=1384758 x2
+- [mapped] tmdb_choice | title=ice age boiling point | key=e1b38f3e-addf-468c-a3ea-2c6091d062d5 | reason=title_first_match | tmdb=1384758 x4
+- [merged] dedupe | title=IN THE HELL OF KABUL: 13 DAYS, 13 NIGHTS | key=eff034a0-88d2-451a-91cb-475b72c16db8 | reason=deduped_into_tmdb | tmdb=1254135
+- [mapped] tmdb_choice | title=IN THE HELL OF KABUL: 13 DAYS, 13 NIGHTS | key=eff034a0-88d2-451a-91cb-475b72c16db8 | reason=tmdb_fix_override | tmdb=1254135
+- [merged] dedupe | title=jumanji open world | key=38953c7b-82c4-48c5-b5f9-c946c78bff19 | reason=deduped_into_tmdb | tmdb=1260649
+- [mapped] enrich | title=Jumanji: Open World | key=38953c7b-82c4-48c5-b5f9-c946c78bff19 | reason=enriched | tmdb=1260649
+- [mapped] tmdb_choice | title=jumanji open world | key=38953c7b-82c4-48c5-b5f9-c946c78bff19 | reason=fallback_first_candidate | tmdb=1260649 x2
+- [mapped] tmdb_choice | title=jumanji open world | key=3fde2cb9-44d6-4d3e-a33c-7f808c1b9f7e | reason=title_first_match | tmdb=1260649 x6
+- [merged] dedupe | title=lethal weapon | key=49bc7e3b-a0cb-4c40-858f-eefb60b3ff84 | reason=deduped_into_tmdb | tmdb=941
+- [mapped] enrich | title=Lethal Weapon | key=49bc7e3b-a0cb-4c40-858f-eefb60b3ff84 | reason=enriched | tmdb=941
+- [mapped] tmdb_choice | title=lethal weapon | key=49bc7e3b-a0cb-4c40-858f-eefb60b3ff84 | reason=title_first_match | tmdb=941 x2
+- [merged] dedupe | title=louise | key=9f8ab485-6abe-48bb-9d1c-00016975ab2b | reason=deduped_into_tmdb | tmdb=1197125
+- [mapped] enrich | title=Louise | key=9f8ab485-6abe-48bb-9d1c-00016975ab2b | reason=enriched | tmdb=1197125
+- [mapped] tmdb_choice | title=louise | key=9f8ab485-6abe-48bb-9d1c-00016975ab2b | reason=runtime_match | tmdb=1197125 x2
+- [merged] dedupe | title=love in separate beds | key=48a9906a-9de7-45e8-8027-dc6f659472a2 | reason=deduped_into_tmdb | tmdb=1397055
+- [mapped] enrich | title=Love In Separate Beds | key=48a9906a-9de7-45e8-8027-dc6f659472a2 | reason=enriched | tmdb=1397055
+- [mapped] tmdb_choice | title=love in separate beds | key=48a9906a-9de7-45e8-8027-dc6f659472a2 | reason=fallback_first_candidate | tmdb=1397055 x6
+- [merged] dedupe | title=lucky strike | key=90893329-82aa-4d4d-bea9-8409d226ca99 | reason=deduped_into_tmdb | tmdb=1594914
+- [mapped] enrich | title=Lucky Strike | key=90893329-82aa-4d4d-bea9-8409d226ca99 | reason=enriched | tmdb=1594914
+- [mapped] tmdb_choice | title=lucky strike | key=90893329-82aa-4d4d-bea9-8409d226ca99 | reason=fallback_first_candidate | tmdb=1594914 x2
+- [dropped] tmdb_search | title=magical band | key=9bea17e4-b5be-4224-9542-13427a6288c5 | reason=no_candidates | tmdb=
+- [merged] dedupe | title=minotaur | key=0707da2b-0ab5-40f7-8c35-8279b58d7a0d | reason=deduped_into_tmdb | tmdb=848700
+- [mapped] enrich | title=Minotaur | key=0707da2b-0ab5-40f7-8c35-8279b58d7a0d | reason=enriched | tmdb=848700
+- [mapped] tmdb_choice | title=minotaur | key=0707da2b-0ab5-40f7-8c35-8279b58d7a0d | reason=title_first_match | tmdb=848700 x2
+- [merged] dedupe | title=moss freud | key=52da2140-2ab5-4138-9e0a-e63001ab7418 | reason=deduped_into_tmdb | tmdb=1086247
+- [mapped] enrich | title=Moss & Freud | key=52da2140-2ab5-4138-9e0a-e63001ab7418 | reason=enriched | tmdb=1086247
+- [mapped] tmdb_choice | title=moss freud | key=52da2140-2ab5-4138-9e0a-e63001ab7418 | reason=fallback_first_candidate | tmdb=1086247 x2
+- [merged] dedupe | title=muzzle city of wolves | key=2feacfd5-ed89-4f0d-b434-4b5c47133d6b | reason=deduped_into_tmdb | tmdb=1439112
+- [mapped] enrich | title=Muzzle: City of Wolves | key=2feacfd5-ed89-4f0d-b434-4b5c47133d6b | reason=enriched | tmdb=1439112
+- [mapped] tmdb_choice | title=muzzle city of wolves | key=2feacfd5-ed89-4f0d-b434-4b5c47133d6b | reason=title_first_match | tmdb=1439112 x2
+- [merged] dedupe | title=narnia the magicians nephew | key=6dfc4ed9-f396-4a15-b8de-a18e298106d7 | reason=deduped_into_tmdb | tmdb=1147572
+- [mapped] enrich | title=Narnia: The Magician's Nephew | key=6dfc4ed9-f396-4a15-b8de-a18e298106d7 | reason=enriched | tmdb=1147572
+- [mapped] tmdb_choice | title=narnia the magicians nephew | key=6dfc4ed9-f396-4a15-b8de-a18e298106d7 | reason=fallback_first_candidate | tmdb=1147572 x2
+- [mapped] tmdb_choice | title=narnia the magicians nephew | key=3073f24a-c21a-42a1-9529-9e5cecfe011f | reason=title_first_match | tmdb=1147572 x4
+- [merged] dedupe | title=natural born killers | key=f4baa2ce-4c62-40a6-aa67-ed5303bc7032 | reason=deduped_into_tmdb | tmdb=241
+- [mapped] enrich | title=Natural Born Killers | key=f4baa2ce-4c62-40a6-aa67-ed5303bc7032 | reason=enriched | tmdb=241
+- [mapped] tmdb_choice | title=natural born killers | key=f4baa2ce-4c62-40a6-aa67-ed5303bc7032 | reason=title_first_match | tmdb=241 x2
+- [merged] dedupe | title=not alone | key=34a3b98b-7dae-4046-af26-297d7f19e62a | reason=deduped_into_tmdb | tmdb=1718699
+- [mapped] enrich | title=Not Alone | key=34a3b98b-7dae-4046-af26-297d7f19e62a | reason=enriched | tmdb=1718699
+- [mapped] tmdb_choice | title=not alone | key=34a3b98b-7dae-4046-af26-297d7f19e62a | reason=title_first_match | tmdb=1718699 x2
+- [mapped] enrich | title=Oliviero Toscani. Chi mi ama mi segua | key=75702db7-91cc-44f7-8ece-7f5d88f86a03 | reason=enriched | tmdb=1774362
+- [merged] dedupe | title=paper tiger | key=e935f662-2627-4cee-a08e-b628ecc0dd0c | reason=deduped_into_tmdb | tmdb=1381273
+- [mapped] enrich | title=Paper Tiger | key=e935f662-2627-4cee-a08e-b628ecc0dd0c | reason=enriched | tmdb=1381273
+- [mapped] tmdb_choice | title=paper tiger | key=e935f662-2627-4cee-a08e-b628ecc0dd0c | reason=runtime_match | tmdb=1381273 x2
+- [mapped] tmdb_choice | title=paper tiger | key=7f9efee3-584d-4bb2-b7be-bb37f36e6361 | reason=title_first_match | tmdb=1381273 x4
+- [merged] dedupe | title=pendulum | key=a318b222-4514-445d-859b-38db28302cb0 | reason=deduped_into_tmdb | tmdb=1380163
+- [mapped] enrich | title=Pendulum | key=a318b222-4514-445d-859b-38db28302cb0 | reason=enriched | tmdb=1380163
+- [mapped] tmdb_choice | title=pendulum | key=c6898635-fe8a-4fe5-8257-0266ec648ff7 | reason=fallback_first_candidate | tmdb=1380163 x2
+- [mapped] tmdb_choice | title=pendulum | key=a318b222-4514-445d-859b-38db28302cb0 | reason=runtime_match | tmdb=1380163 x2
+- [merged] dedupe | title=perla | key=28565078-3b53-40f0-b580-bcc70a6f3e64 | reason=deduped_into_tmdb | tmdb=1367997
+- [mapped] enrich | title=Perla | key=28565078-3b53-40f0-b580-bcc70a6f3e64 | reason=enriched | tmdb=1367997
+- [mapped] tmdb_choice | title=perla | key=81cb412e-6b4d-4b0e-9193-16077bf9f9e0 | reason=director_match | tmdb=1367997 x2
+- [mapped] tmdb_choice | title=perla | key=28565078-3b53-40f0-b580-bcc70a6f3e64 | reason=runtime_match | tmdb=1367997 x6
+- [merged] dedupe | title=phantom of the opera | key=cbcc8ea9-359d-4b8c-b730-bf3e8d9db79a | reason=deduped_into_tmdb | tmdb=1430841
+- [mapped] tmdb_choice | title=phantom of the opera | key=cbcc8ea9-359d-4b8c-b730-bf3e8d9db79a | reason=runtime_match | tmdb=1430841 x2
+- [merged] dedupe | title=pressure | key=0fa3c1a5-1475-42f2-a463-7d37336b8095 | reason=deduped_into_tmdb | tmdb=1318413
+- [mapped] enrich | title=Pressure | key=0fa3c1a5-1475-42f2-a463-7d37336b8095 | reason=enriched | tmdb=1318413
+- [mapped] tmdb_choice | title=pressure | key=0fa3c1a5-1475-42f2-a463-7d37336b8095 | reason=fallback_first_candidate | tmdb=1318413 x2
+- [merged] dedupe | title=prima facie | key=811b3ccb-ef6e-46a8-9dd4-40bf049251e9 | reason=deduped_into_tmdb | tmdb=1127282
+- [mapped] enrich | title=Prima Facie | key=811b3ccb-ef6e-46a8-9dd4-40bf049251e9 | reason=enriched | tmdb=1127282
+- [mapped] tmdb_choice | title=prima facie | key=811b3ccb-ef6e-46a8-9dd4-40bf049251e9 | reason=fallback_first_candidate | tmdb=1127282 x2
+- [merged] dedupe | title=protector | key=21e757eb-7e81-4487-8c75-d571a63d858a | reason=deduped_into_tmdb | tmdb=957042
+- [mapped] tmdb_choice | title=protector | key=21e757eb-7e81-4487-8c75-d571a63d858a | reason=runtime_match | tmdb=957042 x6
+- [merged] dedupe | title=ramayana rise of a legend | key=40c078af-cb42-444b-bcc7-904ebd9a295c | reason=deduped_into_tmdb | tmdb=656908
+- [mapped] enrich | title=Ramayana: Rise of a Legend | key=40c078af-cb42-444b-bcc7-904ebd9a295c | reason=enriched | tmdb=656908
+- [mapped] tmdb_choice | title=ramayana rise of a legend | key=40c078af-cb42-444b-bcc7-904ebd9a295c | reason=runtime_match | tmdb=656908 x2
+- [mapped] tmdb_choice | title=ramayana rise of a legend | key=4e991135-a56a-4013-912a-86cd271712ee | reason=title_first_match | tmdb=656908 x4
+- [merged] dedupe | title=remain | key=7c2fa29a-bdfd-4a65-be15-a2c911bca0bc | reason=deduped_into_tmdb | tmdb=1425859
+- [mapped] enrich | title=Remain | key=7c2fa29a-bdfd-4a65-be15-a2c911bca0bc | reason=enriched | tmdb=1425859
+- [mapped] tmdb_choice | title=remain | key=57c4d543-0f2f-4c41-86b8-16dbbfdb8f27 | reason=title_first_match | tmdb=1425859 x4
+- [dropped] tmdb_search | title=reuti | key=06303df6-2ec0-4f65-afe9-fac465926cff | reason=no_candidates | tmdb=
+- [merged] dedupe | title=rocky | key=05cadb1d-4878-41f7-ae02-f6ad3bb74b11 | reason=deduped_into_tmdb | tmdb=1366
+- [mapped] enrich | title=Rocky | key=05cadb1d-4878-41f7-ae02-f6ad3bb74b11 | reason=enriched | tmdb=1366
+- [mapped] tmdb_choice | title=rocky | key=96ddcb62-ef55-41d1-a4e9-53e780836adc | reason=title_first_match | tmdb=1366 x4
+- [merged] dedupe | title=rolling loud | key=82b0709f-7be3-4213-a53e-8785b025e723 | reason=deduped_into_tmdb | tmdb=1336166
+- [mapped] tmdb_choice | title=rolling loud | key=8d66fbf5-00d6-4c21-b16e-c24fe111268b | reason=director_match | tmdb=1336166 x2
+- [mapped] tmdb_choice | title=rolling loud | key=82b0709f-7be3-4213-a53e-8785b025e723 | reason=fallback_first_candidate | tmdb=1336166 x2
+- [mapped] enrich | title=Rolling Loud: The Movie | key=82b0709f-7be3-4213-a53e-8785b025e723 | reason=enriched | tmdb=1336166
+- [merged] dedupe | title=shrek | key=92106a3d-d819-47c6-879b-ace4f8984670 | reason=deduped_into_tmdb | tmdb=808
+- [mapped] enrich | title=Shrek | key=92106a3d-d819-47c6-879b-ace4f8984670 | reason=enriched | tmdb=808
+- [mapped] tmdb_choice | title=shrek | key=92106a3d-d819-47c6-879b-ace4f8984670 | reason=title_first_match | tmdb=808 x4
+- [dropped] tmdb_search | title=shrek 25 years | key=8112b7c2-2f2f-475f-858e-a00fca611fa4 | reason=no_candidates | tmdb=
+- [dropped] tmdb_search | title=shrek 25th anniversary | key=964faad7-8e58-4ed6-b55d-1b3aaf9cc51d | reason=no_candidates | tmdb= x2
+- [merged] dedupe | title=shrek 5 | key=7137fe29-fc00-44ef-a258-03e1826d1089 | reason=deduped_into_tmdb | tmdb=421892
+- [mapped] enrich | title=Shrek 5 | key=7137fe29-fc00-44ef-a258-03e1826d1089 | reason=enriched | tmdb=421892
+- [mapped] tmdb_choice | title=shrek 5 | key=7137fe29-fc00-44ef-a258-03e1826d1089 | reason=fallback_first_candidate | tmdb=421892 x2
+- [mapped] tmdb_choice | title=shrek 5 | key=c348273e-b321-446f-a552-49f59a55a242 | reason=title_first_match | tmdb=421892 x2
+- [merged] dedupe | title=slayground | key=2921119e-870d-476e-a01e-e88c14758b63 | reason=deduped_into_tmdb | tmdb=1442761
+- [mapped] enrich | title=Slayground | key=2921119e-870d-476e-a01e-e88c14758b63 | reason=enriched | tmdb=1442761
+- [mapped] tmdb_choice | title=slayground | key=2921119e-870d-476e-a01e-e88c14758b63 | reason=fallback_first_candidate | tmdb=1442761 x2
+- [merged] dedupe | title=sonic the hedgehog 4 | key=1be7c87b-0e89-41b9-bfa5-3012f72cebe1 | reason=deduped_into_tmdb | tmdb=1401586
+- [mapped] enrich | title=Sonic the Hedgehog 4 | key=1be7c87b-0e89-41b9-bfa5-3012f72cebe1 | reason=enriched | tmdb=1401586
+- [mapped] tmdb_choice | title=sonic the hedgehog 4 | key=1be7c87b-0e89-41b9-bfa5-3012f72cebe1 | reason=title_first_match | tmdb=1401586 x2
+- [merged] dedupe | title=spider island | key=05924624-9e8d-4462-9628-bea19026d62a | reason=deduped_into_tmdb | tmdb=1462861
+- [mapped] enrich | title=Spider Island | key=05924624-9e8d-4462-9628-bea19026d62a | reason=enriched | tmdb=1462861
+- [mapped] tmdb_choice | title=spider island | key=05924624-9e8d-4462-9628-bea19026d62a | reason=fallback_first_candidate | tmdb=1462861 x2
+- [mapped] enrich | title=The Angry Birds Movie 3 | key=4dd36aa8-369b-4818-b3e6-0514e01e2e2e | reason=enriched | tmdb=1300926
+- [mapped] tmdb_choice | title=the angry birds movie 3 | key=2652cbc9-4bfa-4025-b649-28efb8766560 | reason=title_first_match | tmdb=1300926 x4
+- [merged] dedupe | title=the baltimorons | key=0b003c88-f7b3-409e-966d-3eccfa53a7dd | reason=deduped_into_tmdb | tmdb=1421990
+- [mapped] enrich | title=The Baltimorons | key=0b003c88-f7b3-409e-966d-3eccfa53a7dd | reason=enriched | tmdb=1421990
+- [mapped] tmdb_choice | title=the baltimorons | key=0b003c88-f7b3-409e-966d-3eccfa53a7dd | reason=title_first_match | tmdb=1421990 x2
+- [merged] dedupe | title=the beast | key=ade1b02c-1f02-4252-a200-5cc50575526b | reason=deduped_into_tmdb | tmdb=1185344
+- [mapped] enrich | title=The Beast | key=ade1b02c-1f02-4252-a200-5cc50575526b | reason=enriched | tmdb=1185344
+- [mapped] tmdb_choice | title=the beast | key=e5dcf7eb-acc4-4d09-81e3-b0e55c9cbdd2 | reason=runtime_match | tmdb=1185344 x2
+- [mapped] tmdb_choice | title=the beast | key=55f0e8b4-b269-4a57-84e9-462008102622 | reason=title_first_match | tmdb=1185344 x6
+- [merged] dedupe | title=the bluey movie | key=2bcf212a-5d79-4eff-b9d4-d3e737608837 | reason=deduped_into_tmdb | tmdb=1403836
+- [mapped] enrich | title=The Bluey Movie | key=2bcf212a-5d79-4eff-b9d4-d3e737608837 | reason=enriched | tmdb=1403836
+- [mapped] tmdb_choice | title=the bluey movie | key=2bcf212a-5d79-4eff-b9d4-d3e737608837 | reason=title_first_match | tmdb=1403836 x2
+- [merged] dedupe | title=the cat in the hat | key=64cd6e4d-cd56-419b-85cc-9fe264d6e7c0 | reason=deduped_into_tmdb | tmdb=10588
+- [merged] dedupe | title=the cat in the hat | key=69a5207f-6b1a-4da8-95f3-17f345d7b4c0 | reason=deduped_into_tmdb | tmdb=1117898
+- [mapped] enrich | title=The Cat in the Hat | key=64cd6e4d-cd56-419b-85cc-9fe264d6e7c0 | reason=enriched | tmdb=10588
+- [mapped] enrich | title=The Cat in the Hat | key=69a5207f-6b1a-4da8-95f3-17f345d7b4c0 | reason=enriched | tmdb=1117898
+- [mapped] tmdb_choice | title=the cat in the hat | key=64cd6e4d-cd56-419b-85cc-9fe264d6e7c0 | reason=fallback_first_candidate | tmdb=10588 x2
+- [mapped] tmdb_choice | title=the cat in the hat | key=69a5207f-6b1a-4da8-95f3-17f345d7b4c0 | reason=title_first_match | tmdb=1117898 x6
+- [mapped] enrich | title=The Cat Wakes Up And Yawns; Then Love | key=4d0a9297-ab1d-4e5a-b0fc-ab062fa43f5f | reason=enriched | tmdb=1735982
+- [merged] dedupe | title=the christophers | key=d14d8ab0-5afa-485f-a388-aad2f619964c | reason=deduped_into_tmdb | tmdb=1400357
+- [mapped] enrich | title=The Christophers | key=d14d8ab0-5afa-485f-a388-aad2f619964c | reason=enriched | tmdb=1400357
+- [mapped] tmdb_choice | title=the christophers | key=d14d8ab0-5afa-485f-a388-aad2f619964c | reason=fallback_first_candidate | tmdb=1400357 x2
+- [mapped] tmdb_choice | title=the christophers | key=a6eb7cc6-f4e7-46d5-a97c-59131a6a4b67 | reason=title_first_match | tmdb=1400357 x2
+- [merged] dedupe | title=the exorcist martyrs | key=ed92dfd7-91b0-4651-bf8e-a5e083d659c9 | reason=deduped_into_tmdb | tmdb=1297467
+- [mapped] enrich | title=The Exorcist: Martyrs | key=ed92dfd7-91b0-4651-bf8e-a5e083d659c9 | reason=enriched | tmdb=1297467
+- [mapped] tmdb_choice | title=the exorcist martyrs | key=ed92dfd7-91b0-4651-bf8e-a5e083d659c9 | reason=fallback_first_candidate | tmdb=1297467 x2
+- [merged] dedupe | title=the hunger games sunrise on the reaping | key=9bd0e211-f540-484a-bfb9-83c16705e7ea | reason=deduped_into_tmdb | tmdb=1300968
+- [mapped] enrich | title=The Hunger Games: Sunrise on the Reaping | key=9bd0e211-f540-484a-bfb9-83c16705e7ea | reason=enriched | tmdb=1300968
+- [mapped] tmdb_choice | title=the hunger games sunrise on the reaping | key=9bd0e211-f540-484a-bfb9-83c16705e7ea | reason=runtime_match | tmdb=1300968 x2
+- [mapped] tmdb_choice | title=the hunger games sunrise on the reaping | key=9586c862-e342-44c6-bf8e-bc0afabb3c82 | reason=title_first_match | tmdb=1300968 x6
+- [mapped] enrich | title=The Legend of Condor Hero: What is Love | key=37c6b697-0528-4cdb-becd-079ef30ee16b | reason=enriched | tmdb=1269732
+- [merged] dedupe | title=the money maker | key=60b72f66-7b2c-486a-8fc3-21a607addc15 | reason=deduped_into_tmdb | tmdb=1376415
+- [mapped] enrich | title=The Money Maker | key=60b72f66-7b2c-486a-8fc3-21a607addc15 | reason=enriched | tmdb=1376415
+- [mapped] tmdb_choice | title=the money maker | key=60b72f66-7b2c-486a-8fc3-21a607addc15 | reason=runtime_match | tmdb=1376415 x2
+- [mapped] tmdb_choice | title=the money maker | key=daf15ab3-d4ef-4f8a-999d-c1da14311d56 | reason=title_first_match | tmdb=1376415 x2
+- [merged] dedupe | title=the mongoose | key=a14d6b0d-e9a3-4580-a34c-46a22a63b1a5 | reason=deduped_into_tmdb | tmdb=1294189
+- [mapped] enrich | title=The Mongoose | key=a14d6b0d-e9a3-4580-a34c-46a22a63b1a5 | reason=enriched | tmdb=1294189
+- [mapped] tmdb_choice | title=the mongoose | key=a14d6b0d-e9a3-4580-a34c-46a22a63b1a5 | reason=fallback_first_candidate | tmdb=1294189 x2
+- [mapped] tmdb_choice | title=the mongoose | key=98a2e0cd-1605-4e1e-8dc1-e15103686920 | reason=title_first_match | tmdb=1294189 x4
+- [mapped] enrich | title=The Phantom of the Opera | key=cbcc8ea9-359d-4b8c-b730-bf3e8d9db79a | reason=enriched | tmdb=1430841
+- [mapped] enrich | title=The Protector | key=21e757eb-7e81-4487-8c75-d571a63d858a | reason=enriched | tmdb=957042
+- [merged] dedupe | title=the rescue | key=3d4aa8fd-5b54-4cf2-8d8f-ff071f728a52 | reason=deduped_into_tmdb | tmdb=1425472
+- [mapped] enrich | title=The Rescue | key=3d4aa8fd-5b54-4cf2-8d8f-ff071f728a52 | reason=enriched | tmdb=1425472
+- [mapped] tmdb_choice | title=the rescue | key=3d4aa8fd-5b54-4cf2-8d8f-ff071f728a52 | reason=title_first_match | tmdb=1425472 x2
+- [merged] dedupe | title=the richest woman in the world | key=31c177ed-5f6a-4ed2-8e93-ccbbf332c3c9 | reason=deduped_into_tmdb | tmdb=1309725
+- [mapped] enrich | title=The Richest Woman in the World | key=31c177ed-5f6a-4ed2-8e93-ccbbf332c3c9 | reason=enriched | tmdb=1309725
+- [mapped] tmdb_choice | title=the richest woman in the world | key=31c177ed-5f6a-4ed2-8e93-ccbbf332c3c9 | reason=fallback_first_candidate | tmdb=1309725 x2
+- [mapped] tmdb_choice | title=the richest woman in the world | key=782a3906-66e2-4fe4-b1c3-a06def13f5e7 | reason=title_first_match | tmdb=1309725 x6
+- [merged] dedupe | title=the rivals of amziah king | key=217c1492-e54b-452e-92b8-2c990b5697e2 | reason=deduped_into_tmdb | tmdb=1124142
+- [mapped] enrich | title=The Rivals of Amziah King | key=217c1492-e54b-452e-92b8-2c990b5697e2 | reason=enriched | tmdb=1124142
+- [mapped] tmdb_choice | title=the rivals of amziah king | key=217c1492-e54b-452e-92b8-2c990b5697e2 | reason=fallback_first_candidate | tmdb=1124142 x2
+- [mapped] tmdb_choice | title=the rivals of amziah king | key=57167721-3bfe-43fd-8f0b-1e6ac2bed701 | reason=title_first_match | tmdb=1124142 x4
+- [merged] dedupe | title=the thomas crown affair | key=ea3ce63b-d394-4538-94e2-cd3dc8967b52 | reason=deduped_into_tmdb | tmdb=913
+- [merged] dedupe | title=the thomas crown affair | key=54e89686-4893-4dac-ab5e-4a9a0eecdf68 | reason=deduped_into_tmdb | tmdb=615121
+- [mapped] enrich | title=The Thomas Crown Affair | key=ea3ce63b-d394-4538-94e2-cd3dc8967b52 | reason=enriched | tmdb=913
+- [mapped] enrich | title=The Thomas Crown Affair | key=54e89686-4893-4dac-ab5e-4a9a0eecdf68 | reason=enriched | tmdb=615121
+- [mapped] tmdb_choice | title=the thomas crown affair | key=ea3ce63b-d394-4538-94e2-cd3dc8967b52 | reason=fallback_first_candidate | tmdb=913 x2
+- [mapped] tmdb_choice | title=the thomas crown affair | key=54e89686-4893-4dac-ab5e-4a9a0eecdf68 | reason=title_first_match | tmdb=615121 x2
+- [mapped] enrich | title=The Wedding Entertainer (or the Tale of Moishe Badhan) | key=18dd9f28-90ab-44dc-870d-11cd6d1c98b8 | reason=enriched | tmdb=1573783
+- [merged] dedupe | title=the wedding entertainer the tale of moishe badhan | key=18dd9f28-90ab-44dc-870d-11cd6d1c98b8 | reason=deduped_into_tmdb | tmdb=1573783
+- [mapped] tmdb_choice | title=the wedding entertainer the tale of moishe badhan | key=18dd9f28-90ab-44dc-870d-11cd6d1c98b8 | reason=director_match | tmdb=1573783 x2
+- [merged] dedupe | title=the world will tremble | key=055ebaf3-e694-46f3-ad4e-cd7068f0e994 | reason=deduped_into_tmdb | tmdb=1419826
+- [mapped] enrich | title=The World Will Tremble | key=055ebaf3-e694-46f3-ad4e-cd7068f0e994 | reason=enriched | tmdb=1419826
+- [mapped] tmdb_choice | title=the world will tremble | key=055ebaf3-e694-46f3-ad4e-cd7068f0e994 | reason=runtime_match | tmdb=1419826 x2
+- [mapped] tmdb_choice | title=the world will tremble | key=d35cabea-b3c0-402f-869d-d3da99716408 | reason=title_first_match | tmdb=1419826 x2
+- [merged] dedupe | title=the wrong girls | key=29aa84b8-6476-472b-8695-8a6ced4ae32c | reason=deduped_into_tmdb | tmdb=1226699
+- [mapped] enrich | title=The Wrong Girls | key=29aa84b8-6476-472b-8695-8a6ced4ae32c | reason=enriched | tmdb=1226699
+- [mapped] tmdb_choice | title=the wrong girls | key=29aa84b8-6476-472b-8695-8a6ced4ae32c | reason=fallback_first_candidate | tmdb=1226699 x2
+- [merged] dedupe | title=tosca | key=75702db7-91cc-44f7-8ece-7f5d88f86a03 | reason=deduped_into_tmdb | tmdb=1774362
+- [mapped] tmdb_choice | title=tosca | key=75702db7-91cc-44f7-8ece-7f5d88f86a03 | reason=fallback_first_candidate | tmdb=1774362 x4
+- [merged] dedupe | title=violent night 2 | key=98ea6313-c277-4ff5-a400-59ef129283db | reason=deduped_into_tmdb | tmdb=1078446
+- [mapped] enrich | title=Violent Night 2 | key=98ea6313-c277-4ff5-a400-59ef129283db | reason=enriched | tmdb=1078446
+- [mapped] tmdb_choice | title=violent night 2 | key=98ea6313-c277-4ff5-a400-59ef129283db | reason=fallback_first_candidate | tmdb=1078446 x2
+- [mapped] tmdb_choice | title=violent night 2 | key=9708ab76-f007-4628-9e41-0d3ecb05bd73 | reason=title_first_match | tmdb=1078446 x4
+- [merged] dedupe | title=werewolf | key=16bb2587-99bb-4f82-ac3b-faddb58965e2 | reason=deduped_into_tmdb | tmdb=894205
+- [mapped] tmdb_choice | title=werewolf | key=16bb2587-99bb-4f82-ac3b-faddb58965e2 | reason=fallback_first_candidate | tmdb=894205 x2
+- [mapped] enrich | title=Werewolf by Night | key=16bb2587-99bb-4f82-ac3b-faddb58965e2 | reason=enriched | tmdb=894205
+- [merged] dedupe | title=werwulf | key=3d96424a-31d2-4ac5-950a-9a2b41dc813a | reason=deduped_into_tmdb | tmdb=1421903
+- [mapped] enrich | title=Werwulf | key=3d96424a-31d2-4ac5-950a-9a2b41dc813a | reason=enriched | tmdb=1421903
+- [mapped] tmdb_choice | title=werwulf | key=3d96424a-31d2-4ac5-950a-9a2b41dc813a | reason=fallback_first_candidate | tmdb=1421903 x2
+- [mapped] tmdb_choice | title=werwulf | key=df804054-dc3a-4804-9841-222991faeacc | reason=title_first_match | tmdb=1421903 x2
+- [merged] dedupe | title=what is love | key=4538bea4-4c5b-4d51-ba71-c7855c5a5c8e | reason=deduped_into_tmdb | tmdb=25973
+- [merged] dedupe | title=what is love | key=37c6b697-0528-4cdb-becd-079ef30ee16b | reason=deduped_into_tmdb | tmdb=1269732
+- [merged] dedupe | title=what is love | key=da60083e-ee7a-49b5-bec9-4b7d1e0c96b0 | reason=deduped_into_tmdb | tmdb=1369286
+- [mapped] enrich | title=What is Love? | key=da60083e-ee7a-49b5-bec9-4b7d1e0c96b0 | reason=enriched | tmdb=1369286
+- [mapped] tmdb_choice | title=what is love | key=4538bea4-4c5b-4d51-ba71-c7855c5a5c8e | reason=fallback_first_candidate | tmdb=25973 x2
+- [mapped] tmdb_choice | title=what is love | key=37c6b697-0528-4cdb-becd-079ef30ee16b | reason=fallback_first_candidate | tmdb=1269732 x4
+- [mapped] tmdb_choice | title=what is love | key=da60083e-ee7a-49b5-bec9-4b7d1e0c96b0 | reason=title_first_match | tmdb=1369286 x2
+- [merged] dedupe | title=what is to come | key=c616899c-d374-4610-8d20-af1847f4c957 | reason=deduped_into_tmdb | tmdb=1675138
+- [mapped] enrich | title=What Is To Come | key=c616899c-d374-4610-8d20-af1847f4c957 | reason=enriched | tmdb=1675138
+- [mapped] tmdb_choice | title=what is to come | key=c616899c-d374-4610-8d20-af1847f4c957 | reason=runtime_match | tmdb=1675138 x2
+- [mapped] enrich | title=What Love Is | key=4538bea4-4c5b-4d51-ba71-c7855c5a5c8e | reason=enriched | tmdb=25973
+- [merged] dedupe | title=where to | key=6bffb233-ae24-4782-92db-9c120638b855 | reason=deduped_into_tmdb | tmdb=259316
+- [merged] dedupe | title=where to | key=8139db28-9c0b-48bd-9d51-b82c6104efc1 | reason=deduped_into_tmdb | tmdb=1766282
+- [mapped] tmdb_choice | title=where to | key=6bffb233-ae24-4782-92db-9c120638b855 | reason=fallback_first_candidate | tmdb=259316 x4
+- [mapped] tmdb_choice | title=where to | key=8139db28-9c0b-48bd-9d51-b82c6104efc1 | reason=fallback_first_candidate | tmdb=1766282 x6
+- [mapped] enrich | title=Where to Find Foxes | key=8139db28-9c0b-48bd-9d51-b82c6104efc1 | reason=enriched | tmdb=1766282
+- [merged] dedupe | title=wild horse nine | key=72cf34bc-64eb-4e19-afc5-433f67ec9a7e | reason=deduped_into_tmdb | tmdb=891621
+- [mapped] enrich | title=Wild Horse Nine | key=72cf34bc-64eb-4e19-afc5-433f67ec9a7e | reason=enriched | tmdb=891621
+- [mapped] tmdb_choice | title=wild horse nine | key=72cf34bc-64eb-4e19-afc5-433f67ec9a7e | reason=fallback_first_candidate | tmdb=891621 x2
+- [mapped] tmdb_choice | title=wild horse nine | key=46f9e434-f4c0-4ebb-a65b-8e1b2bf17f77 | reason=title_first_match | tmdb=891621 x8
+- [merged] dedupe | title=wildwood | key=7728ad07-808e-4b67-8442-40c94f148b5b | reason=deduped_into_tmdb | tmdb=791523
+- [mapped] enrich | title=Wildwood | key=7728ad07-808e-4b67-8442-40c94f148b5b | reason=enriched | tmdb=791523
+- [mapped] tmdb_choice | title=wildwood | key=7728ad07-808e-4b67-8442-40c94f148b5b | reason=fallback_first_candidate | tmdb=791523 x2
+- [mapped] tmdb_choice | title=wildwood | key=235e7a15-beac-4dfc-95ba-ee53016e4f69 | reason=title_first_match | tmdb=791523 x4
+- [merged] dedupe | title=wolfgang | key=1af099bd-ac35-43e2-a43e-c8b51f064656 | reason=deduped_into_tmdb | tmdb=1306284
+- [mapped] enrich | title=Wolfgang | key=1af099bd-ac35-43e2-a43e-c8b51f064656 | reason=enriched | tmdb=1306284
+- [mapped] tmdb_choice | title=wolfgang | key=1af099bd-ac35-43e2-a43e-c8b51f064656 | reason=runtime_match | tmdb=1306284 x2
+- [mapped] tmdb_choice | title=wolfgang | key=6dccc84f-a487-4bef-90de-4c48daa698bd | reason=title_first_match | tmdb=1306284 x4
+- [merged] dedupe | title=yellow letters | key=8ddeb4b8-d4b8-42b0-ae3e-18fdceafd722 | reason=deduped_into_tmdb | tmdb=1315657
+- [mapped] enrich | title=Yellow Letters | key=8ddeb4b8-d4b8-42b0-ae3e-18fdceafd722 | reason=enriched | tmdb=1315657
+- [mapped] tmdb_choice | title=yellow letters | key=8ddeb4b8-d4b8-42b0-ae3e-18fdceafd722 | reason=runtime_match | tmdb=1315657 x2
+- [mapped] tmdb_choice | title=yellow letters | key=24f1f0ac-6854-4869-b140-d87875893312 | reason=title_first_match | tmdb=1315657 x2
+- [merged] dedupe | title=you can see everything | key=e0124b09-d994-4b0a-899e-f6d4e47d327a | reason=deduped_into_tmdb | tmdb=1765072
+- [mapped] enrich | title=You Can See Everything | key=e0124b09-d994-4b0a-899e-f6d4e47d327a | reason=enriched | tmdb=1765072
+- [mapped] tmdb_choice | title=you can see everything | key=e0124b09-d994-4b0a-899e-f6d4e47d327a | reason=runtime_match | tmdb=1765072 x2
+- [mapped] tmdb_choice | title=you can see everything | key=cd85b532-9bd1-4759-91f9-a5f1057a3dbf | reason=title_first_match | tmdb=1765072 x4
+- [merged] dedupe | title=young washington | key=f6f14259-e153-4868-98d8-a76e6389e0d6 | reason=deduped_into_tmdb | tmdb=1308767
+- [mapped] enrich | title=Young Washington | key=f6f14259-e153-4868-98d8-a76e6389e0d6 | reason=enriched | tmdb=1308767
+- [mapped] tmdb_choice | title=young washington | key=f6f14259-e153-4868-98d8-a76e6389e0d6 | reason=runtime_match | tmdb=1308767 x2
+- [mapped] tmdb_choice | title=young washington | key=a20f27ba-6af5-4069-a045-a0f9dcaa40f3 | reason=title_first_match | tmdb=1308767 x2
+
+CINEMATHEQUE GROUP DETAILS
+- (none)
+
+NOW PLAYING GROUP DETAILS
+- (none)
+
+UNRESOLVED / DROPPED ITEMS
+- no_candidates | cetait vmieux demain | row_id=38c33dc5-c6d9-4b55-9c77-ecfc74c300bd
+- no_candidates | hershy | row_id=3f57b04c-5497-4a3a-9dca-47175cfdfd72
+- no_candidates | shrek 25 years | row_id=8112b7c2-2f2f-475f-858e-a00fca611fa4
+- no_candidates | reuti | row_id=06303df6-2ec0-4f65-afe9-fac465926cff
+- no_candidates | shrek 25th anniversary | row_id=964faad7-8e58-4ed6-b55d-1b3aaf9cc51d
+- no_candidates | magical band | row_id=9bea17e4-b5be-4224-9542-13427a6288c5
+- no_candidates | shrek 25th anniversary | row_id=91f0ed91-271a-4bf6-ac36-f5fd44b7ea06
+
+WRITE/DEDUPE ACTIONS
+- dedupeAllSoons(allSoons)
+- dedupeFinalSoons(finalSoons)
+- upsertUpdates(finalSoons) rows=88
+- ensureMovieCodes(movieCodes) rows=97
+- mark_added(allSoons) rows=183
+- dedupeFinalSoons(finalSoons)
+
+NOTES
+- tmdb_fix_match | title='IN THE HELL OF KABUL: 13 DAYS, 13 NIGHTS' | tier=normalized | fixes=['in the hell of kabul 13 days 13 nights'] | ids=[1254135] | conflict=False
+- tmdb_fix_match | title='Avengers: Doomsday Infinity Vision' | tier=normalized | fixes=['Avengers: Doomsday - Infinity Vision'] | ids=[1003596] | conflict=False
+- Changes are staged; they are not live until category publication commits.
