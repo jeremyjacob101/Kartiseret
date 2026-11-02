@@ -30,7 +30,7 @@ function assertDisposableDatabase(): void {
 assertDisposableDatabase();
 
 export default defineConfig({
-  testDir: "./e2e",
+  testDir: "./tests/e2e",
   testMatch: "**/*.spec.ts",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
