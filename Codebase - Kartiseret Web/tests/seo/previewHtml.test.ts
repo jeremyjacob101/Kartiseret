@@ -1,5 +1,5 @@
-import { injectOpenGraphTags } from "../server/og/previewHtml.js";
-import type { PreviewData } from "../server/og/previewData.js";
+import { injectOpenGraphTags } from "../../server/og/previewHtml.js";
+import type { PreviewData } from "../../server/og/previewData.js";
 import { describe, expect, it } from "vitest";
 
 const preview: PreviewData = {

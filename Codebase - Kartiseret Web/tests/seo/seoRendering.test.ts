@@ -1,4 +1,4 @@
-import { buildSitemapXml, injectSeoPage, safeHttpUrl, xmlEscape } from "../server/seo/renderHtml.js";
+import { buildSitemapXml, injectSeoPage, safeHttpUrl, xmlEscape } from "../../server/seo/renderHtml.js";
 import { describe, expect, it } from "vitest";
 
 describe("SEO HTML rendering", () => {

@@ -1,4 +1,4 @@
-import { hasInitialSeoContentForPath, removeInitialSeoContent, setSeoMetadata } from "../src/routing/seoMetadata";
+import { hasInitialSeoContentForPath, removeInitialSeoContent, setSeoMetadata } from "../../src/routing/seoMetadata";
 import { afterEach, describe, expect, it } from "vitest";
 
 afterEach(() => {

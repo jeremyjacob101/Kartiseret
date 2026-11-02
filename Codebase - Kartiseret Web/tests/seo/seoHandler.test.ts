@@ -1,7 +1,7 @@
 import { addCalendarDays, buildMovieShowtimeShareUrl, getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
 import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { sampleMovie } from "./fixtures";
+import { sampleMovie } from "../fixtures";
 
 const mocks = vi.hoisted(() => ({
   getMovieCatalog: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock("node:fs", async (importOriginal) => ({
     '<!doctype html><html lang="en"><head><!-- SEO_META_START --><title>base</title><!-- SEO_META_END --></head><body><!-- SEO_CONTENT_START --><div id="seo-content"></div><!-- SEO_CONTENT_END --><div id="root"></div></body></html>',
 }));
 
-const { default: seoHandler } = await import("../server/seo/handler.js");
+const { default: seoHandler } = await import("../../server/seo/handler.js");
 
 const cinema = CINEMA_IDENTITIES.find(
   (identity) => identity.displayName === "Cinema City Jerusalem",

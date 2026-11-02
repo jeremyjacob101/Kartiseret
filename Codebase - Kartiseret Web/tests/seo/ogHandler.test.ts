@@ -5,14 +5,14 @@ const mocks = vi.hoisted(() => ({
   resolvePreviewRouteSelection: vi.fn(),
 }));
 
-vi.mock("../server/og/previewData.js", () => mocks);
+vi.mock("../../server/og/previewData.js", () => mocks);
 vi.mock("node:fs", async (importOriginal) => ({
   ...(await importOriginal<typeof import("node:fs")>()),
   readFileSync: () =>
     '<!doctype html><html lang="en"><head><!-- SEO_META_START --><!-- SEO_META_END --></head><body><!-- SEO_CONTENT_START --><div id="seo-content"></div><!-- SEO_CONTENT_END --><div id="root"></div></body></html>',
 }));
 
-const { default: handler } = await import("../server/og/handler.js");
+const { default: handler } = await import("../../server/og/handler.js");
 
 function createResponse() {
   const response = {
