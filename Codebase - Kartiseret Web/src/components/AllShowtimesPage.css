@@ -115,26 +115,14 @@
 
 .all-showtimes-movie-list {
   display: grid;
-  gap: 20px;
+  gap: 8px;
 }
 
 .all-showtimes-movie-row {
   display: grid;
   grid-template-columns: minmax(380px, 500px) minmax(0, 510px);
   gap: 24px;
-  padding: 20px;
-  border: 1px solid rgba(221, 194, 255, 0.14);
-  border-radius: 24px;
-  background:
-    radial-gradient(
-      circle at top right,
-      rgba(52, 44, 88, 0.18),
-      transparent 46%
-    ),
-    rgba(11, 9, 20, 0.92);
-  box-shadow:
-    0 24px 48px rgba(0, 0, 0, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  padding: 32px 0;
   content-visibility: auto;
   contain-intrinsic-size: 340px;
 }
@@ -326,7 +314,7 @@ html[data-device-type="mobile"] .all-showtimes-movie-row {
   grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   min-width: 0;
-  padding: 18px 16px;
+  padding: 22px 0;
   contain-intrinsic-size: 460px;
 }
 
