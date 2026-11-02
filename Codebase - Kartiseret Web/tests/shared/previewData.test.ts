@@ -31,7 +31,7 @@ function createPreviewRepository(options: {
     findComingSoonRows: async () => [],
     findCinemathequeRows: async () => [],
     findShowtimeRows: async () => showtimeRows,
-    findTicketAvailabilityRows: async () => [],
+    findMovieShowtimeRows: async () => [],
     findTheaterCityRows: async () => [],
     findMovieCodeByCode: async () =>
       options.codeRows?.length === 0 ? null : tmdbId,

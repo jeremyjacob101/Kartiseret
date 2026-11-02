@@ -1,12 +1,12 @@
-import { getMovieCatalog, getCinemathequeData, getMovieByPermanentCode, getPublicTheaterData, getShowtimeRange, getTicketAvailabilityShowtimes, withPublicationSnapshot } from "@kartiseret/server/public-data";
+import { getMovieCatalog, getCinemathequeData, getMovieByPermanentCode, getMovieShowtimes, getPublicTheaterData, getShowtimeRange, withPublicationSnapshot } from "@kartiseret/server/public-data";
 import { cinemaIdForLocation, findCinemaIdentityForScreening, findTheaterByCinemaId, getCinemaIdentityById } from "./identities.js";
 import { escapeHtml, injectSeoPage, SITE_ORIGIN, buildSitemapXml, safeHttpUrl } from "./renderHtml.js";
-import type { PublicShowtime, TicketAvailabilityShowtime } from "@kartiseret/contracts/public-data";
 import { getCinemaDayDate, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
 import { filterShowtimeRows, resolvePreviewRouteSelection } from "../og/previewData.js";
 import { getProductionPublicDataRepository } from "@kartiseret/server/production";
 import { parseMovieRouteCode } from "@kartiseret/contracts/showtime-links";
 import type { VercelRequest, VercelResponse } from "../og/vercelTypes.js";
+import type { PublicShowtime } from "@kartiseret/contracts/public-data";
 import { DEFAULT_LOCATION } from "@kartiseret/contracts/preferences";
 import type { Movie } from "@kartiseret/contracts/movies";
 import { readFileSync } from "node:fs";
@@ -26,7 +26,7 @@ function getBaseHtml(): string {
     );
   } catch {
     baseHtml =
-      '<!doctype html><html lang="en"><head><meta charset="utf-8"></head><body><div id="seo-content"></div><div id="root"></div></body></html>';
+      '<!doctype html><html lang="en"><head><meta charset="utf-8"><!-- SEO_META_START --><!-- SEO_META_END --></head><body><!-- SEO_CONTENT_START --><div id="seo-content"></div><!-- SEO_CONTENT_END --><div id="root"></div></body></html>';
   }
   return baseHtml;
 }
@@ -113,14 +113,10 @@ async function getMoviePage(routeCode: string, instant = new Date()) {
     if (!result) return null;
     const { movie, isComingSoon } = result;
     const parsedRoute = parseMovieRouteCode(routeCode);
-    let rows: TicketAvailabilityShowtime[] = [];
+    let rows: PublicShowtime[] = [];
     if (!isComingSoon) {
       const fromDate = getCinemaDayDate(instant);
-      rows = await getTicketAvailabilityShowtimes(
-        repository,
-        movie.tmdbId,
-        fromDate,
-      );
+      rows = await getMovieShowtimes(repository, movie.tmdbId, fromDate);
       if (parsedRoute?.kind === "encoded") {
         rows = rows.filter(
           (row) =>

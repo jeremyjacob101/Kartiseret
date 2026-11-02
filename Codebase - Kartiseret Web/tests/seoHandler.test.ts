@@ -7,9 +7,9 @@ const mocks = vi.hoisted(() => ({
   getMovieCatalog: vi.fn(),
   getCinemathequeData: vi.fn(),
   getMovieByPermanentCode: vi.fn(),
+  getMovieShowtimes: vi.fn(),
   getPublicTheaterData: vi.fn(),
   getShowtimeRange: vi.fn(),
-  getTicketAvailabilityShowtimes: vi.fn(),
   getProductionPublicDataRepository: vi.fn(),
   withPublicationSnapshot: vi.fn(),
 }));
@@ -105,13 +105,13 @@ beforeEach(() => {
   });
   mocks.getPublicTheaterData.mockResolvedValue(theaterData());
   mocks.getShowtimeRange.mockResolvedValue([]);
-  mocks.getTicketAvailabilityShowtimes.mockResolvedValue([]);
+  mocks.getMovieShowtimes.mockResolvedValue([]);
 });
 
 describe("SEO request handler", () => {
   it("serves permanent movie HTML with a short canonical and verified cinema links", async () => {
     const date = addCalendarDays(getJerusalemCinemaDate(), 1)!;
-    mocks.getTicketAvailabilityShowtimes.mockResolvedValue([
+    mocks.getMovieShowtimes.mockResolvedValue([
       {
         screeningCity: "Jerusalem",
         dateOfShowing: date,
@@ -135,8 +135,36 @@ describe("SEO request handler", () => {
     expect(response.headers.get("content-type")).toBe(
       "text/html; charset=utf-8",
     );
-    expect(mocks.getTicketAvailabilityShowtimes).toHaveBeenCalledOnce();
+    expect(mocks.getMovieShowtimes).toHaveBeenCalledOnce();
     expect(mocks.getPublicTheaterData).toHaveBeenCalledOnce();
+  });
+
+  it("renders published screenings without inventing booking links", async () => {
+    const date = addCalendarDays(getJerusalemCinemaDate(), 1)!;
+    mocks.getMovieShowtimes.mockResolvedValue([
+      {
+        tmdbId: sampleMovie.tmdbId,
+        screeningCity: "Jerusalem",
+        dateOfShowing: date,
+        cinema: "Unmapped Cinema",
+        showtime: "20:30",
+        englishHref: null,
+        hebrewHref: null,
+        screeningTech: "2D",
+        screeningType: "Regular",
+        dubLanguage: null,
+      },
+    ]);
+    const response = createResponse();
+
+    await seoHandler(
+      createRequest("/api/movie?routeCode=Ab1", { routeCode: "Ab1" }),
+      response as never,
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain(`Unmapped Cinema · ${date} 20:30`);
+    expect(response.body).not.toContain("Booking information");
   });
 
   it("serves verified cinema pages with cinematheque screenings and movie shortlinks", async () => {

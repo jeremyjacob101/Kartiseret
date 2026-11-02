@@ -357,7 +357,7 @@ export class DrizzleCatalogRepository
     }
   }
 
-  async findTicketAvailabilityRows(
+  async findMovieShowtimeRows(
     tmdbId: string,
     fromDate: string,
   ): Promise<readonly unknown[]> {
