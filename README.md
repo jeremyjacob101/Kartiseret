@@ -273,7 +273,7 @@ npm run build
 npm run bundle:check
 ```
 
-These commands run from the repository root. Shared contracts are exported through explicit `@kartiseret/contracts/*` subpaths and built before frontend or Vercel functions consume them. The validation architecture and one-parse-per-boundary convention are documented in [`Codebase - Kartiseret Web/docs/runtime-validation.md`](Codebase%20-%20Kartiseret%20Web/docs/runtime-validation.md). Run `npm run verify` for the complete lint, formatting, typecheck, fixture-test, build, and eager-bundle validation sequence.
+These commands run from the repository root. Shared contracts are exported through explicit `@kartiseret/contracts/*` subpaths and built before frontend or Vercel functions consume them. The validation architecture and one-parse-per-boundary convention are documented in [`docs/runtime-validation.md`](docs/runtime-validation.md). Run `npm run verify` for the complete lint, formatting, typecheck, fixture-test, build, and eager-bundle validation sequence.
 
 Both the root and web-workspace `verify` commands remove `Codebase - Kartiseret Web/dist/` only after all their checks pass. Failed verification preserves the output for debugging. Run `npm run build` before previewing, inspecting, or measuring the built bundle again; the build command retains its output for deployment. You can also remove the web bundle manually with root `npm run clean:web-build`. The contracts and server `dist/` folders stay available for editor imports and development sessions. VS Code hides all three generated output folders from its Explorer.
 
