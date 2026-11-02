@@ -53,7 +53,7 @@ REGISTRY = {
     "allTheques": [
         JAFCtheque,
         SSCtheque,
-        # HOLONtheque,
+        HOLONtheque,
         HERZtheque,
         HAIFtheque,
         JLEMtheque,
