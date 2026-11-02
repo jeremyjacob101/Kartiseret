@@ -81,7 +81,7 @@ export function resolvePreviewRouteSelection(
   };
 }
 
-function filterShowtimeRows<
+export function filterShowtimeRows<
   T extends {
     showtime: string;
     screeningTech: string;

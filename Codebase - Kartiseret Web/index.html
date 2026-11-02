@@ -1,41 +1,130 @@
 <!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://image.tmdb.org" crossorigin />
+    <link rel="dns-prefetch" href="https://image.tmdb.org" />
+    <link
+      id="site-favicon"
+      rel="icon"
+      href="/favicon.ico"
+      type="image/x-icon"
+    />
+    <!-- SEO_META_START -->
+    <title>Kartiseret — Movie showtimes across Israel</title>
+    <meta
+      name="description"
+      content="Find movie showtimes across Israeli cinemas in one place."
+    />
+    <link rel="canonical" href="https://seret.site/" />
+    <meta name="robots" content="index, follow" />
+    <meta
+      property="og:title"
+      content="Kartiseret — Movie showtimes across Israel"
+    />
+    <meta
+      property="og:description"
+      content="Find movie showtimes across Israeli cinemas in one place."
+    />
+    <meta
+      property="og:image"
+      content="https://seret.site/api/og-image?home=1"
+    />
+    <meta
+      property="og:image:secure_url"
+      content="https://seret.site/api/og-image?home=1"
+    />
+    <meta property="og:image:alt" content="Kartiseret movie showtimes" />
+    <meta property="og:url" content="https://seret.site/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Kartiseret" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="Kartiseret — Movie showtimes across Israel"
+    />
+    <meta
+      name="twitter:description"
+      content="Find movie showtimes across Israeli cinemas in one place."
+    />
+    <meta
+      name="twitter:image"
+      content="https://seret.site/api/og-image?home=1"
+    />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "name": "Kartiseret",
+            "url": "https://seret.site/"
+          },
+          {
+            "@type": "Organization",
+            "name": "Kartiseret",
+            "url": "https://seret.site/",
+            "logo": "https://seret.site/logos/kartiseret1.svg"
+          }
+        ]
+      }
+    </script>
+    <!-- SEO_META_END -->
+    <script>
+      var favicon = document.getElementById("site-favicon");
+      if (favicon) {
+        favicon.setAttribute("href", "/logos/kartiseret1.svg?v=1");
+        favicon.setAttribute("type", "image/svg+xml");
+        favicon.setAttribute("sizes", "any");
+      }
+    </script>
+  </head>
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="preconnect" href="https://image.tmdb.org" crossorigin />
-  <link rel="dns-prefetch" href="https://image.tmdb.org" />
-  <link id="site-favicon" rel="icon" href="/favicon.ico" type="image/x-icon" />
-  <script>
-    var favicon = document.getElementById("site-favicon");
-    if (favicon) {
-      favicon.setAttribute("href", "/logos/kartiseret1.svg?v=1");
-      favicon.setAttribute("type", "image/svg+xml");
-      favicon.setAttribute("sizes", "any");
-    }
-  </script>
-  <!-- OG_START -->
-  <title>Kartiseret — Movie showtimes across Israel</title>
-  <meta name="description" content="Find movie showtimes across Israeli cinemas in one place." />
-
-  <meta property="og:title" content="Kartiseret — Movie showtimes across Israel" />
-  <meta property="og:description" content="Find movie showtimes across Israeli cinemas in one place." />
-  <meta property="og:image" content="https://seret.site/api/og-image?home=1" />
-  <meta property="og:image:secure_url" content="https://seret.site/api/og-image?home=1" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-  <meta property="og:url" content="https://seret.site/" />
-  <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Kartiseret" />
-
-  <meta name="twitter:card" content="summary_large_image" />
-  <!-- OG_END -->
-</head>
-
-<body>
-  <div id="root"></div>
-  <script type="module" src="/src/App.tsx"></script>
-</body>
-
+  <body>
+    <style>
+      #seo-content {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 32px 24px;
+        color: #f2ebfc;
+        font:
+          16px/1.55 "Avenir Next",
+          "Segoe UI",
+          sans-serif;
+      }
+      #seo-content h1,
+      #seo-content h2 {
+        line-height: 1.2;
+      }
+      #seo-content a {
+        color: #c89eff;
+      }
+      #seo-content img {
+        display: block;
+        max-width: min(300px, 100%);
+        height: auto;
+        object-fit: contain;
+      }
+      #seo-content li {
+        margin-block: 4px;
+      }
+    </style>
+    <!-- SEO_CONTENT_START -->
+    <div id="seo-content" class="seo-content" data-seo-route="/">
+      <main>
+        <h1>Kartiseret movie showtimes across Israel</h1>
+        <p>Find movies and current showtimes from Israeli cinemas.</p>
+        <nav aria-label="Movie listings">
+          <a href="/movies">Now playing</a>
+          <a href="/soons">Coming soon</a>
+          <a href="/showtimes">Showtimes</a>
+          <a href="/cinematheques">Cinematheques</a>
+        </nav>
+      </main>
+    </div>
+    <!-- SEO_CONTENT_END -->
+    <div id="root"></div>
+    <script type="module" src="/src/App.tsx"></script>
+  </body>
 </html>

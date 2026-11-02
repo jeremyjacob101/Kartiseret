@@ -34,6 +34,7 @@ function createHandlers() {
     api: vi.fn(),
     og: vi.fn(),
     ogImage: vi.fn(),
+    seo: vi.fn(),
   };
 }
 
@@ -76,6 +77,35 @@ describe("Vercel API dispatcher", () => {
     expect(handlers.ogImage).toHaveBeenCalledWith(imageRequest, response);
   });
 
+  it("dispatches SEO page, cinema, sitemap, and robots paths without losing route data", async () => {
+    const handlers = createHandlers();
+    const dispatch = createVercelDispatchHandler(handlers);
+    const sitemapRequest = createRequest(
+      "/api/dispatch?__vercel_route=sitemap",
+    );
+    const cinemaRequest = createRequest(
+      "/api/dispatch?__vercel_route=cinema&cinemaId=AbcDef123456",
+    );
+    const pageRequest = createRequest(
+      "/api/dispatch?__vercel_route=page&path=%2Fmovies",
+    );
+    const robotsRequest = createRequest("/api/dispatch?__vercel_route=robots");
+
+    await Promise.all([
+      dispatch(sitemapRequest, response),
+      dispatch(cinemaRequest, response),
+      dispatch(pageRequest, response),
+      dispatch(robotsRequest, response),
+    ]);
+
+    expect(handlers.seo).toHaveBeenCalledTimes(4);
+    expect(sitemapRequest.url).toBe("/api/sitemap");
+    expect(cinemaRequest.url).toBe("/api/cinema?cinemaId=AbcDef123456");
+    expect(cinemaRequest.query.cinemaId).toBe("AbcDef123456");
+    expect(pageRequest.url).toBe("/api/page?path=%2Fmovies");
+    expect(robotsRequest.url).toBe("/api/robots");
+  });
+
   it("does not load OG handlers for catalog or authentication requests", async () => {
     const loadHtml = vi.fn();
     const loadImage = vi.fn();
@@ -83,6 +113,7 @@ describe("Vercel API dispatcher", () => {
       api: vi.fn(),
       og: createLazyVercelHandler(loadHtml),
       ogImage: createLazyVercelHandler(loadImage),
+      seo: vi.fn(),
     };
     const dispatch = createVercelDispatchHandler(handlers);
 
@@ -121,6 +152,7 @@ describe("Vercel API dispatcher", () => {
       api: vi.fn(),
       og: createLazyVercelHandler(loadHtml),
       ogImage: createLazyVercelHandler(loadImage),
+      seo: vi.fn(),
     };
     const dispatch = createVercelDispatchHandler(handlers);
 

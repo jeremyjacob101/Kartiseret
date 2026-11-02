@@ -1,7 +1,9 @@
+import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { sampleMovie, sampleShowtimeDays } from "../fixtures";
 import { QueryClientProvider } from "@tanstack/react-query";
+import type { Theater } from "@kartiseret/contracts/movies";
 import { theaterQueryKeys } from "../../src/data/theaters";
 import { queryClient } from "../../src/lib/queryClient";
 import userEvent from "@testing-library/user-event";
@@ -118,6 +120,38 @@ describe("MovieDetailsContent", () => {
 
     await user.click(screen.getByRole("radio", { name: /September 16, 2026/ }));
     expect(onPreferredShowtimeDateChange).toHaveBeenCalledWith("2026-09-16");
+  });
+
+  it("links a verified screening venue to its stable cinema short URL", () => {
+    const cinema = CINEMA_IDENTITIES.find(
+      (identity) => identity.displayName === "Cinema City Jerusalem",
+    )!;
+    const theater: Theater = {
+      city: {
+        name: cinema.city,
+        altSpellings: [],
+        latitude: 31.78,
+        longitude: 35.2,
+        zoomLayer: 10,
+        neighboringCities: [],
+      },
+      chain: "Cinema City",
+      address: "Derech Yitzhak Rabin 10",
+      theaterName: cinema.displayName,
+      location: cinema.locationKeys[0]!,
+      lat: 31.78,
+      lng: 35.2,
+    };
+    queryClient.setQueryData(theaterQueryKeys.all, {
+      theaters: [theater],
+      cities: [theater.city],
+    });
+
+    renderDetails({ preferredShowtimeDate: "2026-09-17" });
+
+    expect(
+      screen.getByRole("link", { name: "Cinema City Jerusalem" }),
+    ).toHaveAttribute("href", `/c/${cinema.id}`);
   });
 
   it("renders a precise no-results state when every loaded filter option is unchecked", () => {

@@ -2,6 +2,18 @@
   "regions": ["fra1"],
   "headers": [
     {
+      "source": "/user",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    },
+    {
+      "source": "/reset-password",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    },
+    {
+      "source": "/attribution",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    },
+    {
       "source": "/assets/(.*-[A-Za-z0-9_-]{8}\\.(?:js|css))",
       "headers": [
         {
@@ -22,19 +34,39 @@
   },
   "rewrites": [
     {
+      "source": "/robots.txt",
+      "destination": "/api/dispatch?__vercel_route=robots"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/dispatch?__vercel_route=sitemap"
+    },
+    {
+      "source": "/c/:cinemaId",
+      "destination": "/api/dispatch?__vercel_route=cinema&cinemaId=:cinemaId"
+    },
+    {
       "source": "/movies",
-      "destination": "/index.html"
+      "destination": "/api/dispatch?__vercel_route=page&path=/movies"
     },
     {
       "source": "/showtimes",
-      "destination": "/index.html"
+      "destination": "/api/dispatch?__vercel_route=page&path=/showtimes"
     },
     {
       "source": "/soons",
-      "destination": "/index.html"
+      "destination": "/api/dispatch?__vercel_route=page&path=/soons"
+    },
+    {
+      "source": "/cinematheques",
+      "destination": "/api/dispatch?__vercel_route=page&path=/cinematheques"
     },
     {
       "source": "/user",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/reset-password",
       "destination": "/index.html"
     },
     {
@@ -43,11 +75,11 @@
     },
     {
       "source": "/:routeCode([0-9A-Za-z]{3,10})",
-      "destination": "/api/dispatch?__vercel_route=og&routeCode=:routeCode"
+      "destination": "/api/dispatch?__vercel_route=movie&routeCode=:routeCode"
     },
     {
       "source": "/api",
-      "destination": "/api/dispatch?__vercel_route=not-found"
+      "destination": "/api/dispatch"
     },
     {
       "source": "/api/(.*)",
@@ -55,7 +87,7 @@
     },
     {
       "source": "/(.*)",
-      "destination": "/index.html"
+      "destination": "/api/dispatch?__vercel_route=not-found&path=/$1"
     }
   ]
 }

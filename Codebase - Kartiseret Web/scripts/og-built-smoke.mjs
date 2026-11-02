@@ -163,14 +163,14 @@ const htmlResponse = createResponse();
 await htmlHandler(
   {
     method: "GET",
-    query: { routeCode: "broken" },
+    query: { routeCode: "??" },
     headers: { host: "localhost" },
   },
   htmlResponse,
 );
-assert.equal(htmlResponse.statusCode, 200);
+assert.equal(htmlResponse.statusCode, 404);
 assert.match(htmlResponse.headers.get("content-type"), /^text\/html/);
-assert.match(htmlResponse.body, /<div id="root"><\/div>/);
+assert.match(htmlResponse.body, /<h1>Page not found<\/h1>/);
 
 const imageResponse = createResponse();
 await imageHandler(

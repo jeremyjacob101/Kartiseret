@@ -216,10 +216,11 @@ describe("MovieScrollerBase virtualization and interaction", () => {
     );
 
     const card = screen
-      .getAllByRole("button", { name: "Open Sample Movie details" })
+      .getAllByRole("link", { name: "Open Sample Movie details" })
       .find((element) => element.classList.contains("is-visible"));
     expect(card).toBeDefined();
     expect(card).toHaveClass("is-visible");
+    expect(card).toHaveAttribute("href", "/Ab1");
     expect(container.querySelector("section")).not.toHaveStyle({
       pointerEvents: "none",
     });
@@ -232,12 +233,14 @@ describe("MovieScrollerBase virtualization and interaction", () => {
     );
   });
 
-  it("activates cards with keyboard input and ignores repeated key events", () => {
+  it("keeps code-less scroller cards keyboard-operable as buttons", () => {
     configureReducedMotion(true);
     const onSelectMovie = vi.fn();
+    const codeLessMovie = { ...sampleMovie };
+    delete codeLessMovie.movieCode;
     render(
       <MovieScrollerBase
-        movieItems={[sampleMovie]}
+        movieItems={[codeLessMovie]}
         onSelectMovie={onSelectMovie}
         getCardClassName={({ isVisible }) =>
           isVisible ? "is-visible" : "is-hidden"

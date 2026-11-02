@@ -102,8 +102,8 @@ test("catalog API supports search and permanent short-code movie details", async
   await page.goto("/movies");
 
   await expect(
-    page.getByRole("button", {
-      name: "Open Dev Catalog Film in scroller view",
+    page.getByRole("link", {
+      name: "Open Dev Catalog Film movie page",
     }),
   ).toBeVisible();
 
@@ -131,8 +131,8 @@ test("catalog API supports search and permanent short-code movie details", async
   await page.goBack();
   await expect(page).toHaveURL(/\/movies$/);
   await expect(
-    page.getByRole("button", {
-      name: "Open Dev Catalog Film in scroller view",
+    page.getByRole("link", {
+      name: "Open Dev Catalog Film movie page",
     }),
   ).toBeVisible();
   await page.goForward();
@@ -301,7 +301,7 @@ test("an open catalog refreshes coherently when publication changes before loadi
     );
     await page.goto("/movies");
     await expect(
-      page.getByRole("button", { name: "Open PR4 old film in scroller view" }),
+      page.getByRole("link", { name: "Open PR4 old film movie page" }),
     ).toBeVisible();
     await database.query("begin");
     await database.query(

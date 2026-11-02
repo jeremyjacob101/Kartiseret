@@ -1,6 +1,7 @@
 import { adminMovieEditMutationOptions, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, movieCollectionQueryOptions, reloadComingSoonMovies, reloadNowPlayingMovies, showtimeCityQueryOptions, type Movie } from "./data/movieCatalog";
+import { hasInitialSeoContentForPath, getCurrentRobotsDirectives, removeInitialSeoContent, setSeoMetadata } from "./routing/seoMetadata";
+import { Suspense, StrictMode, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { initializeUserPreferencesStore, useUserPreferencesStore } from "./stores/userPreferencesStore";
-import { Suspense, StrictMode, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { MovieDisplayPreferencesProvider } from "./contexts/MovieDisplayPreferencesProvider";
@@ -141,6 +142,26 @@ function CatalogErrorNote({ message }: { message: string | null }) {
     <p className="app-inline-note" role="status">
       {message}
     </p>
+  );
+}
+
+function NotFoundRoute() {
+  useEffect(() => {
+    setSeoMetadata({
+      title: "Page not found | Kartiseret",
+      description: "This Kartiseret page is not available.",
+      canonicalPath: window.location.pathname,
+      robots: "noindex, nofollow",
+    });
+    removeInitialSeoContent();
+  }, []);
+
+  return (
+    <section className="page-panel">
+      <h1>Page not found</h1>
+      <p>This page is not available.</p>
+      <a href="/">Return to Kartiseret</a>
+    </section>
   );
 }
 
@@ -379,10 +400,8 @@ export function App() {
   const catalogReady = nowPlayingReady && comingSoonReady;
   const movieCodesReady =
     catalogReady &&
-    (nowPlayingQuery.data?.movieCodesStatus === "ready" ||
-      nowPlayingQuery.data?.movieCodesStatus === "failed") &&
-    (comingSoonQuery.data?.movieCodesStatus === "ready" ||
-      comingSoonQuery.data?.movieCodesStatus === "failed");
+    nowPlayingQuery.data?.movieCodesStatus === "ready" &&
+    comingSoonQuery.data?.movieCodesStatus === "ready";
   const showtimesReady =
     displayPreferences.ready && (showtimeCityQuery.data?.broadReady ?? false);
   const catalogQueryError =
@@ -412,6 +431,118 @@ export function App() {
   const scrollerSlotMinHeight = isMobile
     ? MOBILE_SCROLLER_SLOT_MIN_HEIGHT
     : SCROLLER_SLOT_MIN_HEIGHT;
+
+  useLayoutEffect(() => {
+    if (
+      document.getElementById("seo-content") &&
+      !hasInitialSeoContentForPath(pathname)
+    ) {
+      removeInitialSeoContent();
+    }
+  }, [pathname]);
+
+  useLayoutEffect(() => {
+    if (pathname === "/") {
+      setSeoMetadata({
+        title: "Kartiseret — Movie showtimes across Israel",
+        description:
+          "Find movie showtimes across Israeli cinemas in one place.",
+        canonicalPath: "/",
+      });
+      if (catalogReady) removeInitialSeoContent();
+      return;
+    }
+    if (pathname === "/movies" || pathname === "/soons") {
+      const isSoon = pathname === "/soons";
+      const listingMovies = isSoon ? comingSoonMovies : nowPlayingMovies;
+      const listingCodeStatus = isSoon
+        ? comingSoonQuery.data?.movieCodesStatus
+        : nowPlayingQuery.data?.movieCodesStatus;
+      const catalogMovies = isSoon
+        ? (comingSoonQuery.data?.movies ?? [])
+        : (nowPlayingQuery.data?.movies ?? []);
+      const hasPublicMovies = catalogMovies.some((movie) => movie.movieCode);
+      setSeoMetadata({
+        title: isSoon
+          ? "Coming soon movies in Israel | Kartiseret"
+          : "Movies showing in Israel | Kartiseret",
+        description: isSoon
+          ? "Browse upcoming movie releases on Kartiseret."
+          : "Browse movies showing at cinemas across Israel.",
+        canonicalPath: pathname,
+        robots:
+          listingCodeStatus === "ready" && hasPublicMovies
+            ? "index, follow"
+            : listingCodeStatus === "ready"
+              ? "noindex, nofollow"
+              : hasInitialSeoContentForPath(pathname)
+                ? getCurrentRobotsDirectives()
+                : "noindex, nofollow",
+      });
+      if (
+        catalogReady &&
+        listingCodeStatus === "ready" &&
+        listingMovies.length > 0
+      ) {
+        removeInitialSeoContent();
+      }
+      return;
+    }
+    if (pathname === "/showtimes") {
+      const hasPublicShowtimes = Object.entries(
+        showtimeCityQuery.data?.movieShowtimesByTmdbId ?? {},
+      ).some(
+        ([tmdbId, days]) =>
+          (nowPlayingQuery.data?.movies ?? []).some(
+            (movie) => movie.tmdbId === tmdbId && movie.movieCode,
+          ) && days.some((day) => day.theaters.length > 0),
+      );
+      setSeoMetadata({
+        title: `Movie showtimes in ${selectedCity} | Kartiseret`,
+        description: `Browse upcoming movie showtimes in ${selectedCity}.`,
+        canonicalPath: "/showtimes",
+        robots: hasInitialSeoContentForPath(pathname)
+          ? getCurrentRobotsDirectives()
+          : showtimesReady
+            ? hasPublicShowtimes
+              ? "index, follow"
+              : "noindex, nofollow"
+            : "noindex, nofollow",
+      });
+      if (showtimesReady) removeInitialSeoContent();
+      return;
+    }
+    if (
+      pathname === "/user" ||
+      pathname === "/reset-password" ||
+      pathname === "/attribution"
+    ) {
+      setSeoMetadata({
+        title:
+          pathname === "/user"
+            ? "Account | Kartiseret"
+            : pathname === "/reset-password"
+              ? "Reset password | Kartiseret"
+              : "Attribution | Kartiseret",
+        description: "Kartiseret account and site information.",
+        canonicalPath: pathname,
+        robots: "noindex, nofollow",
+      });
+      removeInitialSeoContent();
+    }
+  }, [
+    catalogReady,
+    comingSoonMovies,
+    comingSoonQuery.data?.movies,
+    comingSoonQuery.data?.movieCodesStatus,
+    nowPlayingMovies,
+    nowPlayingQuery.data?.movies,
+    nowPlayingQuery.data?.movieCodesStatus,
+    pathname,
+    selectedCity,
+    showtimeCityQuery.data,
+    showtimesReady,
+  ]);
 
   useEffect(() => {
     if (
@@ -770,7 +901,8 @@ export function App() {
             element={
               <section className="page-panel">
                 <CatalogErrorNote message={catalogError} />
-                {catalogReady ? (
+                {catalogReady &&
+                nowPlayingQuery.data?.movieCodesStatus === "ready" ? (
                   <CatalogRoute
                     catalogMovieJumpRequest={catalogMovieJumpRequest}
                     cardHeight={scrollerCardHeight}
@@ -790,6 +922,10 @@ export function App() {
                     onRefreshRequested={handleAdminRefreshRequested}
                     scrollerSlotMinHeight={scrollerSlotMinHeight}
                   />
+                ) : catalogReady ? (
+                  <p className="app-inline-note" role="status">
+                    Movie links are temporarily unavailable.
+                  </p>
                 ) : null}
               </section>
             }
@@ -819,7 +955,8 @@ export function App() {
             element={
               <section className="page-panel">
                 <CatalogErrorNote message={catalogError} />
-                {catalogReady ? (
+                {catalogReady &&
+                comingSoonQuery.data?.movieCodesStatus === "ready" ? (
                   <CatalogRoute
                     catalogMovieJumpRequest={catalogMovieJumpRequest}
                     cardHeight={scrollerCardHeight}
@@ -839,6 +976,10 @@ export function App() {
                     onRefreshRequested={handleAdminRefreshRequested}
                     scrollerSlotMinHeight={scrollerSlotMinHeight}
                   />
+                ) : catalogReady ? (
+                  <p className="app-inline-note" role="status">
+                    Movie links are temporarily unavailable.
+                  </p>
                 ) : null}
               </section>
             }
@@ -864,6 +1005,10 @@ export function App() {
             }
           />
           <Route
+            path="/c/:cinemaId"
+            element={<section className="page-panel" />}
+          />
+          <Route
             path="/:movieCode"
             element={
               <Suspense fallback={null}>
@@ -875,7 +1020,7 @@ export function App() {
               </Suspense>
             }
           />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFoundRoute />} />
         </Routes>
       </main>
 

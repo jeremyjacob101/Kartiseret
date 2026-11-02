@@ -59,13 +59,13 @@ export default async function handler(
     try {
       const fallback = await createHomepagePreviewImage();
       response
-        .status(200)
+        .status(503)
         .setHeader("Content-Type", "image/jpeg")
         .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
         .send(fallback);
     } catch {
       response
-        .status(200)
+        .status(503)
         .setHeader("Content-Type", "image/jpeg")
         .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
         .send(FALLBACK_JPEG);

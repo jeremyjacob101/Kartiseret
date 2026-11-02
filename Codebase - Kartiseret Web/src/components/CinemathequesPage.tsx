@@ -1,8 +1,9 @@
 import { getShowtimeDateLabel, getTrailerEmbedUrl, getMetricDisplays, getMovieInfoParts } from "./showtimes/showtimeUtils";
+import { hasInitialSeoContentForPath, removeInitialSeoContent, setSeoMetadata } from "../routing/seoMetadata";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
 import { MovieMetricsRow, MovieTrailerModal } from "./showtimes/ShowtimeShared";
 import { applyMovieDisplayPreferences } from "../data/movieDisplayPreferences";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { cinemathequeQueryOptions } from "../data/cinemathequeCatalog";
@@ -12,12 +13,11 @@ import { TheaterMapDialog } from "./maps/TheaterMapDialog";
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { useShallow } from "zustand/react/shallow";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router";
+import { Link } from "react-router";
 import "./AllShowtimesPage.css";
 import "./CinemathequesPage.css";
 
 export function CinemathequesPage() {
-  const navigate = useNavigate();
   const publicationRevision = usePublicationRevision();
   const displayPreferences = useMovieDisplayPreferences();
   const { preferenceLocation, sources } = useUserPreferencesStore(
@@ -79,6 +79,35 @@ export function CinemathequesPage() {
 
   const isLoading = cinemathequeQuery.isPending;
 
+  useLayoutEffect(() => {
+    if (isLoading || !cinemathequeQuery.data) return;
+    const hasPublicMovieLinks = cinemathequeQuery.data.movies.some(
+      (movie) =>
+        movie.movieCode &&
+        findMovieByCode(movie.movieCode)?.movie.tmdbId === movie.tmdbId,
+    );
+    setSeoMetadata({
+      title: `Cinematheque showtimes in ${location} | Kartiseret`,
+      description: `Browse upcoming cinematheque movie screenings in ${location}.`,
+      canonicalPath: "/cinematheques",
+      robots:
+        cinemathequeQuery.data.movieCodesStatus === "ready" &&
+        hasPublicMovieLinks
+          ? "index, follow"
+          : "noindex, nofollow",
+    });
+    if (cinemathequeQuery.data.movieCodesStatus === "ready") {
+      removeInitialSeoContent();
+    }
+  }, [cinemathequeQuery.data, isLoading, location]);
+
+  if (
+    hasInitialSeoContentForPath(window.location.pathname) &&
+    (isLoading || !cinemathequeQuery.data)
+  ) {
+    return null;
+  }
+
   return (
     <section
       className="all-showtimes-page cinematheques-page"
@@ -133,32 +162,45 @@ export function CinemathequesPage() {
                         className="cinematheques-poster-tile"
                         key={movie.tmdbId}
                       >
-                        <button
-                          className="cinematheques-poster-button"
-                          type="button"
-                          aria-label={`View details for ${movie.title}`}
-                          onClick={(event) => {
-                            const match = movie.movieCode
-                              ? findMovieByCode(movie.movieCode)
-                              : null;
-                            if (match?.movie.tmdbId === movie.tmdbId) {
-                              navigate(`/${movie.movieCode}`);
-                            } else {
+                        {movie.movieCode &&
+                        findMovieByCode(movie.movieCode)?.movie.tmdbId ===
+                          movie.tmdbId ? (
+                          <Link
+                            className="cinematheques-poster-button"
+                            to={`/${movie.movieCode}`}
+                            aria-label={`View details for ${movie.title}`}
+                          >
+                            <MoviePosterArtwork
+                              title={movie.title}
+                              tmdbId={movie.tmdbId}
+                              imageSrc={movie.imageSrc}
+                              alt=""
+                              className="cinematheques-poster"
+                              fallbackClassName="cinematheques-poster"
+                              loading="lazy"
+                            />
+                          </Link>
+                        ) : (
+                          <button
+                            className="cinematheques-poster-button"
+                            type="button"
+                            aria-label={`View details for ${movie.title}`}
+                            onClick={(event) => {
                               detailTriggerRef.current = event.currentTarget;
                               setDetailMovie(movie);
-                            }
-                          }}
-                        >
-                          <MoviePosterArtwork
-                            title={movie.title}
-                            tmdbId={movie.tmdbId}
-                            imageSrc={movie.imageSrc}
-                            alt=""
-                            className="cinematheques-poster"
-                            fallbackClassName="cinematheques-poster"
-                            loading="lazy"
-                          />
-                        </button>
+                            }}
+                          >
+                            <MoviePosterArtwork
+                              title={movie.title}
+                              tmdbId={movie.tmdbId}
+                              imageSrc={movie.imageSrc}
+                              alt=""
+                              className="cinematheques-poster"
+                              fallbackClassName="cinematheques-poster"
+                              loading="lazy"
+                            />
+                          </button>
+                        )}
                         <div
                           className="cinematheques-times"
                           aria-label={`Showtimes for ${movie.title}`}
