@@ -9,6 +9,7 @@ import re
 class RavHen(QuickbookHelpers, BaseCinema):
     CINEMA_NAME = "Rav Hen"
     URL = "https://www.rav-hen.co.il/#/"
+    DEFAULT_SCRAPE_MODE = "auto"
 
     def requests_logic(self):
         from backend.scraping.utils.RavHenRequests import collect_rav_hen

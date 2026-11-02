@@ -15,6 +15,9 @@ FILM = '''<div class="movie-page"><div class="d-none d-md-block"><div class="mov
 
 
 class HotCinemaRequestsTests(TestCase):
+    def test_verified_requests_collector_is_preferred_with_browser_fallback(self):
+        self.assertEqual(HotCinema.DEFAULT_SCRAPE_MODE, 'auto')
+
     def setUp(self):
         self.scraper = HotCinema.__new__(HotCinema)
         InitializeBaseCinema.__init__(self.scraper)

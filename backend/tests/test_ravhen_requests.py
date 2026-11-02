@@ -7,6 +7,9 @@ from backend.scraping.utils.InitializeBaseCinema import InitializeBaseCinema
 
 
 class RavHenRequestsTests(TestCase):
+    def test_verified_requests_collector_is_preferred_with_browser_fallback(self):
+        self.assertEqual(RavHen.DEFAULT_SCRAPE_MODE, 'auto')
+
     def setUp(self):
         self.scraper = RavHen.__new__(RavHen)
         InitializeBaseCinema.__init__(self.scraper)

@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta
 import re
+from urllib.parse import urljoin
 from zoneinfo import ZoneInfo
 
 import requests
@@ -170,8 +171,9 @@ def collect_jerusalem(scraper):
                 if not href:
                     scraper._coverage["english_events_skipped_missing_link"] += 1
                     continue
-                scraper.english_href = href
+                scraper.english_href = urljoin(LANGUAGE_PAGES["en"], href)
                 scraper.hebrew_href = href.replace("lang=en", "lang=he")
+                scraper.hebrew_href = urljoin(LANGUAGE_PAGES["he"], scraper.hebrew_href)
                 scraper.date_of_showing = day.isoformat()
                 scraper.screening_city = scraper.SCREENING_CITY
                 scraper.screening_type = "Regular"

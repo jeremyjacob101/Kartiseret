@@ -40,8 +40,34 @@ def _business_date(event):
     return business_day
 
 
+def _film_metadata(html, *, expected_title=None):
+    page = BeautifulSoup(html, 'html.parser')
+    block = page.select_one('#change-bg .bg-more-b')
+    spans = block.find_all('span', recursive=False) if block else []
+    if len(spans) < 16:
+        raise ValueError('MovieLand film details are incomplete')
+    hebrew = _text(spans[0])
+    if not hebrew:
+        raise ValueError('MovieLand film title is missing')
+    if expected_title is not None and hebrew != expected_title:
+        raise ValueError(
+            f'MovieLand event title does not match its film page: {expected_title!r} != {hebrew!r}'
+        )
+    english = _text(spans[1]) or hebrew
+    language = _text(spans[15]).split(':', 1)[-1].strip()
+    match = re.search(r'\b\d{4}\b', _text(spans[14]))
+    year = int(match.group()) if match else None
+    return hebrew, (english, language, year, _text(spans[9]))
+
+
 def collect_movieland(scraper):
-    scraper._coverage = {'films_completed': 0, 'cinemas_completed': 0, 'dates_completed': 0, 'unlisted_films_skipped': 0}
+    scraper._coverage = {
+        'films_completed': 0,
+        'films_enriched_from_events': 0,
+        'cinemas_completed': 0,
+        'dates_completed': 0,
+        'unlisted_films_skipped': 0,
+    }
     with requests.Session() as session:
         configure_scrape_session(session, stats=getattr(scraper, '_http_stats', None))
         session.headers.update({'User-Agent': CHROME_USER_AGENT})
@@ -59,19 +85,9 @@ def collect_movieland(scraper):
         metadata = {}
         for card in cards:
             href = urljoin(scraper.URL, card['href'])
-            page = BeautifulSoup(get(href).text, 'html.parser')
-            block = page.select_one('#change-bg .bg-more-b')
-            spans = block.find_all('span', recursive=False) if block else []
-            if len(spans) < 16:
-                raise ValueError(f'MovieLand film details are incomplete: {href}')
-            hebrew = _text(spans[0])
-            if not hebrew:
-                raise ValueError(f'MovieLand film title is missing: {href}')
-            english = _text(spans[1]) or hebrew
-            language = _text(spans[15]).split(':', 1)[-1].strip()
-            match = re.search(r'\b\d{4}\b', _text(spans[14]))
-            year = int(match.group()) if match else None
-            metadata[hebrew] = (english, language, year, _text(spans[9]))
+            detail_url = urljoin(scraper.URL, href)
+            title, film_metadata = _film_metadata(get(detail_url).text)
+            metadata[title] = film_metadata
             scraper._coverage['films_completed'] += 1
 
         cinemas = home.select(".newnav-upper-menu a.dropdown-item[href^='/theater/']")
@@ -119,9 +135,6 @@ def collect_movieland(scraper):
                     raise ValueError('MovieLand event film has no name')
                 # Selenium reads the displayed title, which collapses HTML whitespace.
                 name = ' '.join(name.split())
-                if name not in metadata:
-                    scraper._coverage['unlisted_films_skipped'] += 1
-                    continue
                 if not isinstance(film.get('Dates'), list):
                     raise ValueError('MovieLand film has no event list')
                 for event in film['Dates']:
@@ -130,6 +143,18 @@ def collect_movieland(scraper):
                         raise ValueError('MovieLand event belongs to a different selected business day')
                     if not event.get('EventId') or not event.get('Hour') or str(event.get('TheaterId')) != cinema_id:
                         raise ValueError('MovieLand event is missing its ID, time, or theater')
+                if not film['Dates']:
+                    continue
+                if name not in metadata:
+                    movie_id = film.get('MovieId')
+                    if not re.fullmatch(r'\d+', str(movie_id or '')):
+                        scraper._coverage['unlisted_films_skipped'] += 1
+                        continue
+                    detail_url = urljoin(scraper.URL, f'/movie/{movie_id}')
+                    _, detail_metadata = _film_metadata(get(detail_url).text, expected_title=name)
+                    metadata[name] = detail_metadata
+                    scraper._coverage['films_enriched_from_events'] += 1
+                for event in film['Dates']:
                     scraper.english_title, scraper.original_language, scraper.release_year, scraper.rating = metadata[name]
                     scraper.hebrew_title = name
                     scraper.dub_language = None
@@ -165,5 +190,5 @@ def collect_movieland(scraper):
             scraper._coverage['cinemas_completed'] += 1
     if scraper._coverage['unlisted_films_skipped']:
         raise ValueError(
-            f"MovieLand schedule referenced {scraper._coverage['unlisted_films_skipped']} films absent from the discovered catalog"
+            f"MovieLand schedule referenced {scraper._coverage['unlisted_films_skipped']} films without a usable discovered detail page"
         )

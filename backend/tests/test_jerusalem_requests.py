@@ -69,8 +69,8 @@ class JerusalemRequestsTests(TestCase):
     @patch("backend.scraping.utils.JerusalemRequests.requests.Session")
     def test_bilingual_date_and_event_join_preserves_duplicate_screenings(self, session_factory):
         sessions = self.configure_session(
-            [event("עברית", "42", director="Director    Name") * 2, "<div>אין הקרנות</div>"],
-            [event("English", "42", director="Director    Name") * 2, "<div>No Screenings</div>"],
+            [event("עברית", "42", link="/en/event/42", director="Director    Name") * 2, "<div>אין הקרנות</div>"],
+            [event("English", "42", link="/en/event/42", director="Director    Name") * 2, "<div>No Screenings</div>"],
         )
         session_factory.return_value = sessions
         scraper = self.make_scraper()
@@ -81,7 +81,8 @@ class JerusalemRequestsTests(TestCase):
         self.assertEqual(scraper.gathering_info["hebrew_title"], ["עברית", "עברית"])
         self.assertEqual(scraper.gathering_info["date_of_showing"], ["2026-11-02"] * 2)
         self.assertEqual(scraper.gathering_info["directed_by"], ["Director Name"] * 2)
-        self.assertEqual(scraper.gathering_info["english_href"], ["https://jer-cin.org.il/order/42?lang=en"] * 2)
+        self.assertEqual(scraper.gathering_info["english_href"], ["https://jer-cin.org.il/en/event/42"] * 2)
+        self.assertEqual(scraper.gathering_info["hebrew_href"], ["https://jer-cin.org.il/en/event/42"] * 2)
         self.assertEqual(scraper._coverage["date_responses_completed"], 4)
         self.assertEqual(scraper._coverage["explicit_empty_dates"], 1)
         self.assertEqual(sessions.post.call_count, 4)
