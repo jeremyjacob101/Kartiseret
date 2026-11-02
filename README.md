@@ -262,7 +262,7 @@ npm run server:dev
 npm run dev
 ```
 
-The example's Vite proxy targets the local API. Use DEV database credentials and exact local auth origins, never a Production runtime or service-role key in the browser. Production’s coordinated identity migration/configuration gate is in the [PR5 handoff](docs/backend-overhaul/pr-5-handoff.md).
+The example's Vite proxy targets the local API. Use DEV database credentials and exact local auth origins, never a Production runtime or service-role key in the browser. Production’s identity configuration is described in the [backend architecture decisions](docs/backend-overhaul/architecture.md) and the [verification ledger](docs/backend-overhaul/verification.md).
 
 Run the fixture-only runtime-validation suite and the full production build with:
 
@@ -281,7 +281,7 @@ Email/password signups use Better Auth inside Express and require verification b
 
 ### Movie Notifications
 
-SQL under `supabase/migrations/` is the only schema authority. Existing projects must not replay the baseline; use the current migration ledger and reviewed [PR5 cutover](docs/backend-overhaul/pr-5-handoff.md). Browser subscription operations go through protected Express APIs. Python retains guarded service-role table updates, stable delivery IDs and Resend idempotency, but obtains canonical verified recipient email only through the separately authenticated internal application endpoint.
+SQL under `supabase/migrations/` is the only schema authority. Existing projects must not replay the baseline; use the current migration ledger; the applied auth cutover is recorded in the [verification ledger](docs/backend-overhaul/verification.md). Browser subscription operations go through protected Express APIs. Python retains guarded service-role table updates, stable delivery IDs and Resend idempotency, but obtains canonical verified recipient email only through the separately authenticated internal application endpoint.
 
 Movie notifications require an upcoming showtime with a valid ticket URL. Unset city criteria follow the account’s preferred city, falling back to Jerusalem; explicit city lists select one or more cities. “All cities” saves an explicit list. The default notification mode sends once per film when any selected city first has a qualifying screening. Users can instead choose first availability separately for each selected city, with optional per-title overrides and the existing showtime filters under `/user`. Later dates, sessions, cinemas, and ticket-link changes do not repeat a completed scope. Manual watches and Letterboxd sources share delivery history and one digest per account per run, with separate Coming Soon date and ticket-availability sections. See [the notification cutover guide](docs/first-availability-notifications.md) before deployment.
 
@@ -293,7 +293,7 @@ Keep `RESEND_API_KEY` server-side in the local runner or GitHub Actions secret s
 
 Set `TMDB_API_KEY` as a server-only variable for the Express API in each deployed environment that should provide movie search. The same variable is used by the Python catalog pipeline. Do not expose it through a `VITE_` browser variable. If the API key is absent, title search returns a safe unavailable response.
 
-Follow the coordinated [PR5 Production checklist](docs/backend-overhaul/pr-5-handoff.md): prepare app/worker configuration, reconcile/export accounts, apply the single auth transition during the release window, deploy, verify real recovery/private flows, then resume affected runs.
+The coordinated Production auth transition is complete; its migration, account cleanup, reset-email delivery, and live smoke evidence are recorded in the [verification ledger](docs/backend-overhaul/verification.md).
 
 ## Automation
 

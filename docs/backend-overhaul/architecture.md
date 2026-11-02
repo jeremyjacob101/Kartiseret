@@ -1,6 +1,6 @@
 # Backend overhaul architecture decisions
 
-## Current PR5 architecture (implementation branch; Production cutover pending)
+## Current architecture (PR5 cutover complete)
 
 Better Auth 1.7.11 runs in the existing Express dispatcher with the matching Drizzle adapter, explicit adapter transactions and UUID records in non-exposed `app_auth`. SQL remains the only migration authority. The five auth tables use adapter-compatible Date timestamps; the eighteen public application tables retain their existing cinema data types. Application user FKs now target `app_auth.users`, and transaction-local `app.user_id` replaces the temporary Supabase subject in ownership RLS.
 
@@ -8,7 +8,7 @@ The browser uses Better Auth's client/session atom through the existing neutral 
 
 Verification/reset email uses an injectable Resend fetch transport. Preview blocks live mail without an explicit recipient allowlist. Python retains Supabase table/Realtime access, but canonical recipients now come from a bounded internal Express endpoint protected by a separate environment-specific secret. Missing/unverified recipients fail through the existing retry machinery with unchanged delivery IDs/idempotency keys.
 
-See [PR5 handoff](pr-5-handoff.md) for DEV/CI evidence, preserved UUIDs, mail limitations and the coordinated Production gate. The sections below record each earlier PR's architecture at its release; provider-auth descriptions are historical and superseded by PR5 on this branch.
+See the [verification ledger](verification.md) for DEV/CI evidence, preserved UUIDs and mail limitations. The sections below record each earlier PR's architecture at its release; provider-auth descriptions are historical and superseded by the current architecture.
 
 ## PR 1: workspace and contract boundaries
 
@@ -73,6 +73,6 @@ Preferences retain the existing Zustand optimistic/coalescing/rollback protocol.
 
 Alert creation checks current valid all-city showtimes on the server, then uses `ON CONFLICT DO NOTHING` with the real account/movie composite key. It does not update sent/delivery state or recover inside an aborted transaction. Responses expose only subscription summaries, and cancellation retains bigint precision. Python retains its service-role Data API grants, table shapes, publication and delivery fields.
 
-Migration `20261019152448_protected_application_workflows.sql` and `supabase/operations/pr4-retire-browser-access.sql` completed in DEV and Production on 2026-10-20. The latter retired obsolete browser privileges, including legacy subscription column grants, after private acceptance. Do not repeat these completed release steps. Evidence is in the PR4 handoff.
+Migration `20261019152448_protected_application_workflows.sql` and `supabase/operations/pr4-retire-browser-access.sql` completed in DEV and Production on 2026-10-20. The latter retired obsolete browser privileges, including legacy subscription column grants, after private acceptance. Do not repeat these completed release steps. Evidence is in the [verification ledger](verification.md).
 
-Before the PR5 identity cutover only, an emergency old-client rollback after retirement could use the following procedure. After PR5, it is insufficient and must not be used without identity/FK/policy reconciliation. For that earlier PR4 rollback, `supabase/operations/pr4-restore-browser-access.sql` restores only the observed authenticated legacy privileges while retaining owner/admin RLS. Run it before serving the old client; re-retire those privileges after corrected PR4 acceptance. Production rollout order and verification evidence are in the PR4 handoff.
+Before the PR5 identity cutover only, an emergency old-client rollback after retirement could use the following procedure. After PR5, it is insufficient and must not be used without identity/FK/policy reconciliation. For that earlier PR4 rollback, `supabase/operations/pr4-restore-browser-access.sql` restores only the observed authenticated legacy privileges while retaining owner/admin RLS. Run it before serving the old client; re-retire those privileges after corrected PR4 acceptance. Production rollout order and verification evidence are in the [verification ledger](verification.md).
