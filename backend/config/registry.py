@@ -52,7 +52,7 @@ REGISTRY = {
     ],
     "allTheques": [
         JAFCtheque,
-        # SSCtheque,
+        SSCtheque,
         # HOLONtheque,
         HERZtheque,
         HAIFtheque,
