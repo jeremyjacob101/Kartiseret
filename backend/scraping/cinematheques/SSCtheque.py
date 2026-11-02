@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date
 import re
 from urllib.parse import urlparse
 
@@ -28,6 +28,11 @@ def parse_card(headings, paragraphs, links, today):
     title = next((s for s in headings if ('|' in s or '｜' in s) and (HEBREW.search(s) or LATIN.search(s))), None)
     if not title:
         title = next((s for s in headings if (HEBREW.search(s) or LATIN.search(s)) and not DATE.search(s) and not TIME.search(s)), '')
+    # Series cards put the actual film name in a short paragraph before metadata.
+    if '|' not in title and '｜' not in title:
+        candidates = [p.strip() for p in paragraphs if len(p.strip()) < 120 and '|' in p and not re.search(r'\b(?:19|20)\d{2}\b|דקות', p)]
+        if candidates:
+            title = candidates[0]
     hebrew, english = parse_titles(title)
     dates = [DATE.fullmatch(s.strip()) for s in headings]
     times = [TIME.fullmatch(s.strip()) for s in headings]
@@ -43,6 +48,10 @@ def parse_card(headings, paragraphs, links, today):
         year -= 1
     showing = date(year, month, day).isoformat()
     info = next((p for p in paragraphs if '|' in p), '')
+    # A program of multiple shorts has no single film runtime or release year.
+    metadata_blocks = [p for p in paragraphs if re.search(r'(?:19|20)\d{2}', p) and re.search(r'\d+\s*דקות', p)]
+    if len(set(metadata_blocks)) > 2:
+        info = ''
     year_match = re.search(r'(?<!\d)(?:18|19|20)\d{2}(?!\d)', info)
     runtime_match = re.search(r'(\d{1,3})\s*(?:דקות|דק[׳\'״"]?|min(?:utes?)?)', info, re.I)
     ticket = next((url for url, label in links if urlparse(url).scheme in ('http', 'https') and ('כרטיס' in label or 'ticket' in label.lower())), None)
