@@ -11,6 +11,7 @@ import {
   type PublicCinemathequeData,
   type PublicShowtime,
   type PublicShowtimeRangeQuery,
+  type PublicCinemathequeQuery,
   type PublicTheaterData,
   type TicketAvailabilityShowtime,
 } from "@kartiseret/contracts/public-data";
@@ -288,7 +289,7 @@ export async function getShowtimeRange(
 
 export async function getCinemathequeData(
   repository: PublicDataRepository,
-  range: PublicShowtimeRangeQuery,
+  range: PublicCinemathequeQuery,
   onCodeLookupFailure?: (error: unknown) => void,
 ): Promise<PublicCinemathequeData> {
   const rows = await timeCatalogStage("movie_rows", () =>

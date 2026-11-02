@@ -1,17 +1,14 @@
-import { buildCinemathequeDateRange, cinemathequeQueryOptions, getCinemathequeDateRange } from "../data/cinemathequeCatalog";
-import { getShowtimeDateLabel, getShowtimeTargetDate, getTrailerEmbedUrl } from "./showtimes/showtimeUtils";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
+import { getShowtimeDateLabel, getTrailerEmbedUrl } from "./showtimes/showtimeUtils";
 import { applyMovieDisplayPreferences } from "../data/movieDisplayPreferences";
-import { buildCinemathequeShowtimesByDate } from "../data/cinematheques";
 import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
-import type { CinemathequeShowtimesDay } from "../data/cinematheques";
+import { cinemathequeQueryOptions } from "../data/cinemathequeCatalog";
+import { buildCinemathequeSchedule } from "../data/cinematheques";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ShowtimeDayPicker } from "./showtimes/ShowtimeDayPicker";
 import { ShowtimesMovieRow } from "./showtimes/ShowtimesMovieRow";
 import { MovieTrailerModal } from "./showtimes/ShowtimeShared";
 import { TheaterMapDialog } from "./maps/TheaterMapDialog";
-import { fixedAppDateString } from "../data/movieCatalog";
 import { useShallow } from "zustand/react/shallow";
 import { useQuery } from "@tanstack/react-query";
 import "./AllShowtimesPage.css";
@@ -27,8 +24,6 @@ export function CinemathequesPage() {
     })),
   );
   const [location, setLocation] = useState(preferenceLocation);
-  const [selectedShowtimeDate, setSelectedShowtimeDate] =
-    useState(fixedAppDateString);
   const [openTrailerMovieId, setOpenTrailerMovieId] = useState<string | null>(
     null,
   );
@@ -47,29 +42,15 @@ export function CinemathequesPage() {
         : [],
     [displayPreferences.preferencesById, displayPreferences.ready, rawMovies],
   );
-  const range = getCinemathequeDateRange();
-  const dates = useMemo(
-    () => buildCinemathequeDateRange(range.startDate, range.endDate),
-    [range.endDate, range.startDate],
-  );
-  const dayPanels = useMemo<CinemathequeShowtimesDay[]>(
+  const dayPanels = useMemo(
     () =>
       cinemathequeQuery.data
-        ? buildCinemathequeShowtimesByDate(
+        ? buildCinemathequeSchedule(
             nowPlayingMovies,
             cinemathequeQuery.data.showtimes,
-            dates,
           )
         : [],
-    [cinemathequeQuery.data, dates, nowPlayingMovies],
-  );
-  const resolvedShowtimeDate = getShowtimeTargetDate(
-    dayPanels,
-    selectedShowtimeDate,
-  );
-  const selectedDayPanel = useMemo(
-    () => dayPanels.find((day) => day.date === resolvedShowtimeDate) ?? null,
-    [dayPanels, resolvedShowtimeDate],
+    [cinemathequeQuery.data, nowPlayingMovies],
   );
   const openTrailerMovie = useMemo(
     () =>
@@ -84,7 +65,6 @@ export function CinemathequesPage() {
     nextLocation: typeof location,
   ) => {
     setLocation(nextLocation);
-    setSelectedShowtimeDate(fixedAppDateString);
     return true;
   }, []);
 
@@ -103,7 +83,7 @@ export function CinemathequesPage() {
 
       <div
         className="details-showtimes all-showtimes-day-picker-shell"
-        aria-label="Cinematheque showtime day picker"
+        aria-label="Choose city"
       >
         <TheaterMapDialog
           className="all-showtimes-page-city city-map-trigger"
@@ -111,56 +91,61 @@ export function CinemathequesPage() {
           onLocationOverrideChange={handleLocationChange}
           triggerLabel={location}
         />
-        <ShowtimeDayPicker
-          className="all-showtimes-day-picker-scroll"
-          ariaLabel="Choose cinematheque showtime day"
-          dates={dayPanels.map((day) => day.date)}
-          selectedDate={resolvedShowtimeDate}
-          disabledBeforeDate={fixedAppDateString}
-          onSelect={setSelectedShowtimeDate}
-        />
       </div>
 
       <section
         className="details-showtimes all-showtimes-browser"
         aria-label={`Cinematheque showtimes in ${location}`}
       >
-        <article
-          className="details-day-panel all-showtimes-day-panel"
-          data-showtime-date={resolvedShowtimeDate ?? fixedAppDateString}
-        >
-          {isLoading ? (
-            <p className="details-day-empty" role="status">
-              Loading cinematheque showtimes…
-            </p>
-          ) : cinemathequeQuery.isError ? (
-            <p className="details-day-empty" role="alert">
-              Could not load cinematheque showtimes.
-            </p>
-          ) : selectedDayPanel?.movies.length ? (
-            <div className="all-showtimes-movie-list">
-              {selectedDayPanel.movies.map(({ movie, theaters }) => (
-                <ShowtimesMovieRow
-                  key={`${selectedDayPanel.date}-${movie.tmdbId}`}
-                  movie={movie}
-                  theaters={theaters}
-                  sources={sources}
-                  onOpenTrailer={setOpenTrailerMovieId}
-                />
+        {isLoading ? (
+          <p className="details-day-empty" role="status">
+            Loading cinematheque showtimes…
+          </p>
+        ) : cinemathequeQuery.isError ? (
+          <p className="details-day-empty" role="alert">
+            Could not load cinematheque showtimes.
+          </p>
+        ) : dayPanels.length ? (
+          dayPanels.map((day) => (
+            <section
+              className="details-day-panel all-showtimes-day-panel cinematheques-day"
+              data-showtime-date={day.date}
+              key={day.date}
+            >
+              <h2 className="cinematheques-date">
+                {getShowtimeDateLabel(day.date)}
+              </h2>
+              {day.cinemas.map(({ cinema, movies }) => (
+                <section
+                  className="cinematheques-cinema"
+                  key={cinema}
+                  aria-label={cinema}
+                >
+                  <h3 className="cinematheques-cinema-title">{cinema}</h3>
+                  <div className="all-showtimes-movie-list">
+                    {movies.map(({ movie, theaters }) => (
+                      <ShowtimesMovieRow
+                        key={movie.tmdbId}
+                        movie={movie}
+                        theaters={theaters}
+                        sources={sources}
+                        onOpenTrailer={setOpenTrailerMovieId}
+                      />
+                    ))}
+                  </div>
+                </section>
               ))}
+            </section>
+          ))
+        ) : (
+          <div className="details-empty-state all-showtimes-empty-state">
+            <div className="details-empty-state-panel">
+              <p className="details-empty-state-title">
+                No cinematheque showtimes listed in {location}
+              </p>
             </div>
-          ) : (
-            <div className="details-empty-state all-showtimes-empty-state">
-              <div className="details-empty-state-panel">
-                <p className="details-empty-state-title">
-                  {selectedDayPanel
-                    ? `No cinematheque showtimes on ${getShowtimeDateLabel(selectedDayPanel.date)} in ${location}`
-                    : `No cinematheque showtimes listed in ${location}`}
-                </p>
-              </div>
-            </div>
-          )}
-        </article>
+          </div>
+        )}
       </section>
 
       <MovieTrailerModal

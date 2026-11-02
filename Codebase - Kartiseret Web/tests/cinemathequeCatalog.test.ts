@@ -1,5 +1,6 @@
-import { cinemathequeQueryOptions, getCinemathequeDateRange } from "../src/data/cinemathequeCatalog";
 import { PUBLICATION_REVISION_HEADER } from "@kartiseret/contracts/public-data";
+import { cinemathequeQueryOptions } from "../src/data/cinemathequeCatalog";
+import { fixedAppDateString } from "../src/data/movieCatalog";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import { sampleMovie } from "./fixtures";
@@ -10,13 +11,12 @@ afterEach(() => {
 
 describe("cinematheque query", () => {
   it("requests the dedicated endpoint with the selected city and full date window", async () => {
-    const range = getCinemathequeDateRange();
     const fetchMock = vi.fn(async (
       input: RequestInfo | URL,
       init?: RequestInit,
     ) => {
       expect(String(input)).toBe(
-        `/api/v1/cinematheques?city=Jerusalem&startDate=${range.startDate}&endDate=${range.endDate}`,
+        `/api/v1/cinematheques?city=Jerusalem&startDate=${fixedAppDateString}`,
       );
       expect(new Headers(init?.headers).get(PUBLICATION_REVISION_HEADER)).toBe(
         "7",

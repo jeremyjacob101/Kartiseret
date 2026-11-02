@@ -16,3 +16,20 @@
 html[data-device-type="mobile"] .cinematheques-page-title {
   margin-left: 0;
 }
+
+.cinematheques-day {
+  margin-bottom: 24px;
+}
+.cinematheques-date {
+  margin: 0 0 16px;
+  color: #f4efff;
+  font-size: 1.2rem;
+}
+.cinematheques-cinema {
+  margin-bottom: 24px;
+}
+.cinematheques-cinema-title {
+  margin: 0 0 12px;
+  color: #d7c8f3;
+  font-size: 1rem;
+}

@@ -59,8 +59,10 @@ export function cinemathequeQueryOptions(
   return queryOptions({
     queryKey: cinemathequeQueryKeys.data(city, publicationRevision),
     queryFn: async ({ signal }): Promise<CinemathequeData> => {
-      const range = getCinemathequeDateRange();
-      const params = new URLSearchParams({ city, ...range });
+      const params = new URLSearchParams({
+        city,
+        startDate: fixedAppDateString,
+      });
 
       try {
         const { response, revision } = await getPublicationResponse(

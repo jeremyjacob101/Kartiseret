@@ -64,7 +64,34 @@ afterEach(() => {
 });
 
 describe("CinemathequesPage", () => {
-  it("shows the city, shared date scroller, and only cinematheque showtimes", () => {
+  it("renders multiple dates with distinct cinema sections", () => {
+    const current = queryClient.getQueryData<CinemathequeData>(
+      cinemathequeQueryKeys.data(DEFAULT_LOCATION),
+    )!;
+    const first = current.showtimes[0]!;
+    queryClient.setQueryData(cinemathequeQueryKeys.data(DEFAULT_LOCATION), {
+      ...current,
+      showtimes: [
+        first,
+        { ...first, cinema: "Jaffa Cinema" },
+        { ...first, dateOfShowing: "2099-01-01" },
+      ],
+    });
+    const { container } = render(
+      <QueryClientProvider client={queryClient}>
+        <CinemathequesPage />
+      </QueryClientProvider>,
+    );
+    expect(container.querySelectorAll("[data-showtime-date]")).toHaveLength(2);
+    expect(
+      screen.getByRole("heading", { name: "Jaffa Cinema" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("heading", { name: "Jerusalem Cinematheque" }),
+    ).toHaveLength(2);
+  });
+
+  it("shows the city and vertical schedule with only cinematheque showtimes", () => {
     render(
       <QueryClientProvider client={queryClient}>
         <CinemathequesPage />
@@ -78,11 +105,13 @@ describe("CinemathequesPage", () => {
       screen.getByRole("button", { name: DEFAULT_LOCATION }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("radiogroup", {
+      screen.queryByRole("radiogroup", {
         name: "Choose cinematheque showtime day",
       }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Jerusalem Cinematheque" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Jerusalem Cinematheque")).toBeInTheDocument();
     expect(screen.queryByText("Cinema City Jerusalem")).not.toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /20:00 showtime/ }),

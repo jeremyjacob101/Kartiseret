@@ -91,3 +91,43 @@ export function buildCinemathequeShowtimesByDate(
     }),
   }));
 }
+
+export function buildCinemathequeSchedule(
+  movies: readonly Movie[],
+  showtimes: readonly PublicShowtime[],
+): Array<{
+  date: string;
+  cinemas: Array<{
+    cinema: string;
+    movies: CinemathequeShowtimesDay["movies"];
+  }>;
+}> {
+  const dates = [
+    ...new Set(showtimes.map((showtime) => showtime.dateOfShowing)),
+  ].sort();
+  return buildCinemathequeShowtimesByDate(movies, showtimes, dates).flatMap((
+    day,
+  ) => {
+    const cinemas = new Map<string, CinemathequeShowtimesDay["movies"]>();
+    for (const { movie, theaters } of day.movies) {
+      for (const theater of theaters) {
+        const entries = cinemas.get(theater.theater) ?? [];
+        entries.push({ movie, theaters: [theater] });
+        cinemas.set(theater.theater, entries);
+      }
+    }
+    return cinemas.size
+      ? [
+          {
+            date: day.date,
+            cinemas: [...cinemas.entries()]
+              .sort(([left], [right]) => left.localeCompare(right))
+              .map(([cinema, cinemaMovies]) => ({
+                cinema,
+                movies: cinemaMovies,
+              })),
+          },
+        ]
+      : [];
+  });
+}

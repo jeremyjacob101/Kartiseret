@@ -452,6 +452,21 @@ describe("Express API composition", () => {
     expect(repository.findNowPlayingRows).not.toHaveBeenCalled();
   });
 
+  it("accepts an open-ended cinematheque schedule", async () => {
+    const repository = createPublicDataRepository();
+    const response = await request(
+      createApp({
+        catalogRepository: repository,
+        publicDataRepository: repository,
+      }),
+    ).get("/api/v1/cinematheques?city=Jerusalem&startDate=2026-10-20");
+    expect(response.status).toBe(200);
+    expect(repository.findCinemathequeRows).toHaveBeenCalledWith({
+      city: "Jerusalem",
+      startDate: "2026-10-20",
+    });
+  });
+
   it("rejects invalid cinematheque ranges before querying the repository", async () => {
     const repository = createPublicDataRepository();
     const response = await request(
