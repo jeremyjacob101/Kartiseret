@@ -124,7 +124,12 @@ export function buildCinemathequeSchedule(
               .sort(([left], [right]) => left.localeCompare(right))
               .map(([cinema, cinemaMovies]) => ({
                 cinema,
-                movies: cinemaMovies,
+                movies: cinemaMovies.sort(
+                  (left, right) =>
+                    (left.theaters[0]?.showtimes[0]?.time ?? "").localeCompare(
+                      right.theaters[0]?.showtimes[0]?.time ?? "",
+                    ) || left.movie.title.localeCompare(right.movie.title),
+                ),
               })),
           },
         ]

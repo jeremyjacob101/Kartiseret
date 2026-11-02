@@ -1,11 +1,12 @@
 import { cinemathequeQueryKeys, type CinemathequeData } from "../src/data/cinemathequeCatalog";
+import { fixedAppDateString, movieCatalogQueryKeys } from "../src/data/movieCatalog";
 import { useUserPreferencesStore } from "../src/stores/userPreferencesStore";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CinemathequesPage } from "../src/components/CinemathequesPage";
 import { DEFAULT_LOCATION } from "../src/prefs/definitions/locations";
-import { fixedAppDateString } from "../src/data/movieCatalog";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router";
 import { queryClient } from "../src/lib/queryClient";
 import { sampleMovie } from "./fixtures";
 
@@ -64,6 +65,86 @@ afterEach(() => {
 });
 
 describe("CinemathequesPage", () => {
+  it("sorts poster tiles by earliest time and shows all ticket times", () => {
+    const key = cinemathequeQueryKeys.data(DEFAULT_LOCATION);
+    const current = queryClient.getQueryData<CinemathequeData>(key)!;
+    const first = current.showtimes[0]!;
+    const earlier = { ...sampleMovie, tmdbId: "102", title: "Earlier Film" };
+    queryClient.setQueryData(key, {
+      ...current,
+      movies: [sampleMovie, earlier],
+      showtimes: [
+        first,
+        { ...first, showtime: "22:00" },
+        { ...first, tmdbId: earlier.tmdbId, showtime: "17:00" },
+      ],
+    });
+    const { container } = render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <CinemathequesPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const tiles = [...container.querySelectorAll(".cinematheques-poster-tile")];
+    expect(
+      within(tiles[0] as HTMLElement).getByRole("button", {
+        name: "View details for Earlier Film",
+      }),
+    ).toBeInTheDocument();
+    expect(within(tiles[1] as HTMLElement).getAllByRole("link")).toHaveLength(
+      2,
+    );
+    expect(
+      screen.queryByRole("heading", { name: sampleMovie.title }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens and closes details for a cinematheque-only movie", () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <CinemathequesPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const poster = screen.getByRole("button", {
+      name: `View details for ${sampleMovie.title}`,
+    });
+    fireEvent.click(poster);
+    expect(screen.getByRole("dialog")).toHaveTextContent(sampleMovie.title);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Close movie details" }),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(poster).toHaveFocus();
+  });
+
+  it("opens the existing details route for a catalog movie", () => {
+    queryClient.setQueryData(movieCatalogQueryKeys.collection("nowPlaying"), {
+      mode: "nowPlaying",
+      movies: [sampleMovie],
+      moviesByCode: { [sampleMovie.movieCode!]: sampleMovie },
+      movieCodesStatus: "ready",
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/cinematheques"]}>
+          <Routes>
+            <Route path="/cinematheques" element={<CinemathequesPage />} />
+            <Route path="/:movieCode" element={<p>Movie page</p>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: `View details for ${sampleMovie.title}`,
+      }),
+    );
+    expect(screen.getByText("Movie page")).toBeInTheDocument();
+  });
+
   it("renders multiple dates with distinct cinema sections", () => {
     const current = queryClient.getQueryData<CinemathequeData>(
       cinemathequeQueryKeys.data(DEFAULT_LOCATION),
@@ -79,7 +160,9 @@ describe("CinemathequesPage", () => {
     });
     const { container } = render(
       <QueryClientProvider client={queryClient}>
-        <CinemathequesPage />
+        <MemoryRouter>
+          <CinemathequesPage />
+        </MemoryRouter>
       </QueryClientProvider>,
     );
     expect(container.querySelectorAll("[data-showtime-date]")).toHaveLength(2);
@@ -94,7 +177,9 @@ describe("CinemathequesPage", () => {
   it("shows the city and vertical schedule with only cinematheque showtimes", () => {
     render(
       <QueryClientProvider client={queryClient}>
-        <CinemathequesPage />
+        <MemoryRouter>
+          <CinemathequesPage />
+        </MemoryRouter>
       </QueryClientProvider>,
     );
 

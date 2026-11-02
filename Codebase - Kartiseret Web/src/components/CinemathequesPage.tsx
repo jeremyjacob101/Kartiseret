@@ -1,20 +1,23 @@
+import { getShowtimeDateLabel, getTrailerEmbedUrl, getMetricDisplays, getMovieInfoParts } from "./showtimes/showtimeUtils";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
-import { getShowtimeDateLabel, getTrailerEmbedUrl } from "./showtimes/showtimeUtils";
+import { MovieMetricsRow, MovieTrailerModal } from "./showtimes/ShowtimeShared";
 import { applyMovieDisplayPreferences } from "../data/movieDisplayPreferences";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { cinemathequeQueryOptions } from "../data/cinemathequeCatalog";
+import { findMovieByCode, type Movie } from "../data/movieCatalog";
 import { buildCinemathequeSchedule } from "../data/cinematheques";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ShowtimesMovieRow } from "./showtimes/ShowtimesMovieRow";
-import { MovieTrailerModal } from "./showtimes/ShowtimeShared";
 import { TheaterMapDialog } from "./maps/TheaterMapDialog";
+import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { useShallow } from "zustand/react/shallow";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router";
 import "./AllShowtimesPage.css";
 import "./CinemathequesPage.css";
 
 export function CinemathequesPage() {
+  const navigate = useNavigate();
   const publicationRevision = usePublicationRevision();
   const displayPreferences = useMovieDisplayPreferences();
   const { preferenceLocation, sources } = useUserPreferencesStore(
@@ -24,6 +27,8 @@ export function CinemathequesPage() {
     })),
   );
   const [location, setLocation] = useState(preferenceLocation);
+  const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const [detailMovie, setDetailMovie] = useState<Movie | null>(null);
   const [openTrailerMovieId, setOpenTrailerMovieId] = useState<string | null>(
     null,
   );
@@ -122,15 +127,68 @@ export function CinemathequesPage() {
                   aria-label={cinema}
                 >
                   <h3 className="cinematheques-cinema-title">{cinema}</h3>
-                  <div className="all-showtimes-movie-list">
+                  <div className="cinematheques-poster-grid">
                     {movies.map(({ movie, theaters }) => (
-                      <ShowtimesMovieRow
+                      <article
+                        className="cinematheques-poster-tile"
                         key={movie.tmdbId}
-                        movie={movie}
-                        theaters={theaters}
-                        sources={sources}
-                        onOpenTrailer={setOpenTrailerMovieId}
-                      />
+                      >
+                        <button
+                          className="cinematheques-poster-button"
+                          type="button"
+                          aria-label={`View details for ${movie.title}`}
+                          onClick={(event) => {
+                            const match = movie.movieCode
+                              ? findMovieByCode(movie.movieCode)
+                              : null;
+                            if (match?.movie.tmdbId === movie.tmdbId) {
+                              navigate(`/${movie.movieCode}`);
+                            } else {
+                              detailTriggerRef.current = event.currentTarget;
+                              setDetailMovie(movie);
+                            }
+                          }}
+                        >
+                          <MoviePosterArtwork
+                            title={movie.title}
+                            tmdbId={movie.tmdbId}
+                            imageSrc={movie.imageSrc}
+                            alt=""
+                            className="cinematheques-poster"
+                            fallbackClassName="cinematheques-poster"
+                            loading="lazy"
+                          />
+                        </button>
+                        <div
+                          className="cinematheques-times"
+                          aria-label={`Showtimes for ${movie.title}`}
+                        >
+                          {theaters[0]?.showtimes.map((showtime, index) => {
+                            const label = `${movie.title} ${showtime.time} showtime at ${cinema}`;
+                            const key = `${showtime.time}-${showtime.screeningTech}-${showtime.screeningType}-${showtime.dubLanguage}-${index}`;
+                            return showtime.href ? (
+                              <a
+                                key={key}
+                                className="cinematheques-time"
+                                href={showtime.href}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-label={`Open ${label}`}
+                              >
+                                {showtime.time}
+                              </a>
+                            ) : (
+                              <span
+                                key={key}
+                                className="cinematheques-time cinematheques-time--unavailable"
+                                aria-label={`${label}, ticket link unavailable`}
+                              >
+                                {showtime.time}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </article>
                     ))}
                   </div>
                 </section>
@@ -148,6 +206,19 @@ export function CinemathequesPage() {
         )}
       </section>
 
+      {detailMovie ? (
+        <CinemathequeMovieDialog
+          movie={detailMovie}
+          returnFocusRef={detailTriggerRef}
+          sources={sources}
+          onClose={() => setDetailMovie(null)}
+          onOpenTrailer={(id) => {
+            setDetailMovie(null);
+            setOpenTrailerMovieId(id);
+          }}
+        />
+      ) : null}
+
       <MovieTrailerModal
         movieTitle={openTrailerMovie?.title ?? ""}
         embedUrl={openTrailerEmbedUrl}
@@ -157,5 +228,65 @@ export function CinemathequesPage() {
         }}
       />
     </section>
+  );
+}
+
+function CinemathequeMovieDialog({
+  movie,
+  sources,
+  onClose,
+  onOpenTrailer,
+  returnFocusRef,
+}: {
+  movie: Movie;
+  returnFocusRef: React.RefObject<HTMLButtonElement | null>;
+  sources: Parameters<typeof getMetricDisplays>[1];
+  onClose: () => void;
+  onOpenTrailer: (id: string) => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const returnFocus = returnFocusRef.current;
+    if (dialog && typeof dialog.showModal === "function") dialog.showModal();
+    else dialog?.setAttribute("open", "");
+    return () => {
+      returnFocus?.focus();
+    };
+  }, [returnFocusRef]);
+  const info = [...getMovieInfoParts(movie), ...movie.genres];
+  const trailer = getTrailerEmbedUrl(movie.trailerKey);
+  return (
+    <dialog
+      className="cinematheques-dialog"
+      aria-label={`${movie.title} details`}
+      ref={dialogRef}
+      onClose={onClose}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="cinematheques-dialog-content">
+        <button
+          className="cinematheques-dialog-close"
+          type="button"
+          onClick={onClose}
+          aria-label="Close movie details"
+          autoFocus
+        >
+          ×
+        </button>
+        <h2>{movie.title}</h2>
+        {info.length ? <p>{info.join(" · ")}</p> : null}
+        <MovieMetricsRow
+          movie={movie}
+          metrics={getMetricDisplays(movie, sources)}
+          trailerEmbedUrl={trailer}
+          onTrailerClick={
+            trailer ? () => onOpenTrailer(movie.tmdbId) : undefined
+          }
+        />
+      </div>
+    </dialog>
   );
 }
