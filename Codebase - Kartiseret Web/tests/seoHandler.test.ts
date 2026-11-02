@@ -109,6 +109,40 @@ beforeEach(() => {
 });
 
 describe("SEO request handler", () => {
+  it("allows production crawlers and blocks indexing on Vercel previews", async () => {
+    const previousVercelEnvironment = process.env.VERCEL_ENV;
+    try {
+      process.env.VERCEL_ENV = "production";
+      const productionResponse = createResponse();
+      await seoHandler(
+        createRequest("/api/robots", {}),
+        productionResponse as never,
+      );
+
+      expect(productionResponse.statusCode).toBe(200);
+      expect(productionResponse.headers.get("content-type")).toBe(
+        "text/plain; charset=utf-8",
+      );
+      expect(productionResponse.body).toBe(
+        "User-agent: *\nAllow: /\nSitemap: https://seret.site/sitemap.xml\n",
+      );
+
+      process.env.VERCEL_ENV = "preview";
+      const previewResponse = createResponse();
+      await seoHandler(
+        createRequest("/api/robots", {}),
+        previewResponse as never,
+      );
+      expect(previewResponse.body).toBe("User-agent: *\nDisallow: /\n");
+    } finally {
+      if (previousVercelEnvironment === undefined) {
+        delete process.env.VERCEL_ENV;
+      } else {
+        process.env.VERCEL_ENV = previousVercelEnvironment;
+      }
+    }
+  });
+
   it("serves permanent movie HTML with a short canonical and verified cinema links", async () => {
     const date = addCalendarDays(getJerusalemCinemaDate(), 1)!;
     mocks.getMovieShowtimes.mockResolvedValue([
