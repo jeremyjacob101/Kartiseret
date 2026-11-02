@@ -24,6 +24,8 @@ env.
 
 # Realtime watcher logs
 backend/config/cron/run_realtime_logs/
+# Per-attempt scraper transport diagnostics
+backend/utils/log/logger_artifacts/*/transport/
 
 # IMDb daily ratings download
 /backend/dataflow/cinematheques/title.ratings.tsv.gz

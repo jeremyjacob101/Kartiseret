@@ -9,6 +9,11 @@ import re
 class YPsoon(QuickbookHelpers, BaseCinema):
     CINEMA_NAME = "Yes Planet"
     URL = "https://www.planetcinema.co.il/?lang=en_gb#/"
+    DEFAULT_SCRAPE_MODE = "auto"
+
+    def requests_logic(self):
+        from backend.scraping.utils.YesPlanetSoonRequests import collect_yes_planet_soon
+        return collect_yes_planet_soon(self)
 
     month_mapping = {"January": "01", "February": "02", "March": "03", "April": "04", "May": "05", "June": "06", "July": "07", "August": "08", "September": "09", "October": "10", "November": "11", "December": "12"}
     first_click = False
