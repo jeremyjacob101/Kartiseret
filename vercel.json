@@ -32,6 +32,12 @@
       "maxDuration": 30
     }
   },
+  "routes": [
+    {
+      "src": "^/$",
+      "dest": "/api/dispatch?__vercel_route=page&path=/"
+    }
+  ],
   "rewrites": [
     {
       "source": "/",
