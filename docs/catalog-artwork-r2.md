@@ -29,7 +29,7 @@ The separate buckets are `kartiseret-artwork-dev` and `kartiseret-artwork-prod`.
 | Production dataflow  | `kartiseret-artwork-prod-dataflow` | Object Read & Write | `kartiseret-artwork-prod` |
 | Production app       | `kartiseret-artwork-prod-app`      | Object Read only    | `kartiseret-artwork-prod` |
 
-Use the bucket-scoped R2 token flow, select the named bucket in its permission policy, and create each token independently. Keep the dataflow access key ID and secret only in server-side local/GitHub secrets. The app receives only the separate read-only key pair. Never use account-wide write permissions or expose credentials through `VITE_*` variables.
+Use the bucket-scoped R2 token flow, select the named bucket in its permission policy, and create each token independently. Keep the dataflow access key ID and secret only in the local `.env` or a server-side dataflow secret store. The app receives only the separate read-only key pair. Never use account-wide write permissions or expose credentials through `VITE_*` variables.
 
 ### Local scraper and server
 
@@ -61,9 +61,7 @@ For local artwork writing, set `DEV_R2_IMAGE_ORIGIN` to a stable development app
 
 The local Node server resolves the same `.env` profiles. Unless `NODE_ENV=production` is set, a local server defaults to the development profile. Select production explicitly with `KARTISERET_TARGET=production npm run server:dev`. Hosted Vercel environments keep their current generic environment-specific variable names and need no profile prefix.
 
-### GitHub Actions and Vercel
-
-The `Run Main` workflow asks for `development` or `production` on manual dispatch and maps the matching GitHub Environment values together. Scheduled invocations resolve to production unless the workflow supplies an explicit target. In the `development` GitHub Environment, configure `DEV_SUPABASE_URL`, `DEV_SUPABASE_PUBLISHABLE_KEY`, `DEV_SUPABASE_SERVICE_ROLE_KEY`, optional `DEV_PUBLICATION_DATABASE_URL`/`DEV_PUBLICATION_DATABASE_SSL_CA_CERT`, `DEV_R2_ACCOUNT_ID`, `DEV_R2_BUCKET=kartiseret-artwork-dev`, `DEV_R2_IMAGE_ORIGIN`, and the `DEV_R2_ACCESS_KEY_ID`/`DEV_R2_SECRET_ACCESS_KEY` secrets. Keep development notification secrets empty. In the `production` GitHub Environment, use the same names without the `DEV_` prefix and set `R2_BUCKET=kartiseret-artwork-prod`, `R2_IMAGE_ORIGIN=https://seret.site`, production Supabase values, and production-only alert credentials. The workflow environment selection prevents mixing profiles.
+### Vercel
 
 For Vercel **Development** and **Preview**, keep the dev `DATABASE_URL` and `DATABASE_SSL_CA_CERT`, and add the dev-only `R2_ACCOUNT_ID`, `R2_BUCKET=kartiseret-artwork-dev`, `R2_READ_ACCESS_KEY_ID`, and `R2_READ_SECRET_ACCESS_KEY`. For Vercel **Production**, keep the production database settings and add the prod bucket/read-only token values with `R2_BUCKET=kartiseret-artwork-prod`. The API endpoint needs only the read-only R2 key; the Supabase service-role key and R2 writer key stay in the dataflow runtime. These are server-only variables. Never put R2 credentials in browser-visible settings.
 
@@ -71,8 +69,8 @@ For Vercel **Development** and **Preview**, keep the dev `DATABASE_URL` and `DAT
 
 1. Put the four separate, bucket-scoped R2 key pairs and both Supabase profiles in local `.env`. Keep the production values protected and do not paste secrets into chat.
 2. Configure the dev Vercel runtime with the dev Supabase database settings and dev R2 read-only key; deploy the image endpoint. It returns `503` until the read settings are complete.
-3. Configure the GitHub `development` Environment and use its Run Main target. Use a controlled development catalog row to exercise one poster and backdrop, verify all variants and completion markers, check the endpoint and responsive UI, and inspect its source metadata. Then run the dev backfill in small resumable batches.
-4. Configure production Vercel and GitHub settings separately. Keep production dataflow and backfill untouched during development verification. For rollout, start with a production canary and small batch only after the explicit production deployment decision.
+3. Select the development target for a local scraper run. Use controlled development catalog data to exercise one poster and backdrop, verify all variants and completion markers, check the endpoint and responsive UI, and inspect its source metadata. Then run the dev backfill in small resumable batches.
+4. Configure production Vercel settings separately. Keep production dataflow and backfill untouched during development verification. For rollout, start with a production canary and small batch only after the explicit production deployment decision.
 
 ## Backfill and cleanup
 
@@ -89,7 +87,7 @@ python backend/dataflow/backfill_catalog_artwork.py --backfill --apply --limit 2
 python backend/dataflow/backfill_catalog_artwork.py --backfill --apply
 ```
 
-Cleanup has a 30-day grace period for recently uploaded objects. It reads every catalog poster/backdrop in all three tables, accounts for shared keys, and skips deletion if its reference scan fails or a dataflow run is active. The operator must pause workflow dispatch/schedules throughout cleanup; the environment flag is an additional assertion, not a distributed lock. First inspect the dry-run candidates, then apply only when the entire dataflow is paused:
+Cleanup has a 30-day grace period for recently uploaded objects. It reads every catalog poster/backdrop in all three tables, accounts for shared keys, and skips deletion if its reference scan fails or a dataflow run is active. The operator must pause all scheduled or manually started dataflow runs throughout cleanup; the environment flag is an additional assertion, not a distributed lock. First inspect the dry-run candidates, then apply only when the entire dataflow is paused:
 
 ```sh
 ARTWORK_CLEANUP_PIPELINE_PAUSED=true python backend/dataflow/backfill_catalog_artwork.py --cleanup
