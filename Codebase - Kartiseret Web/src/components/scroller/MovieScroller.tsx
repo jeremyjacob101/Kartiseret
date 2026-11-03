@@ -12,7 +12,7 @@ import { shareLink } from "../../routing/shareLink";
 import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import "./MovieScroller.css";
-import { backdropPreloader } from "./backdropPreloader";
+import { backdropPreloader, setResponsiveImageSource } from "./backdropPreloader";
 
 type FocusPhase = "collapsed" | "opening" | "open" | "closing";
 type NavigationDirection = -1 | 1;
@@ -2121,7 +2121,7 @@ function MovieScrollerContent({
         seenPosterSrcRef.current.add(src);
         const image = new Image();
         image.decoding = "async";
-        image.src = src;
+        setResponsiveImageSource(image, src);
       });
     });
   }, [displayMovieIndex, isDetailMounted, movieCount, movieItems]);
@@ -2231,6 +2231,8 @@ function MovieScrollerContent({
           >
             <img
               src={movie.backdropSrc}
+              srcSet={movie.backdropSrcSet}
+              sizes={movie.backdropSrcSet ? "100vw" : undefined}
               alt=""
               className={`movie-scroller-detail-backdrop${
                 shouldAnimateBackdrop ? " is-animating-in" : ""
@@ -2374,6 +2376,7 @@ function MovieScrollerContent({
                     title={previousAdjacentMovie.title}
                     tmdbId={previousAdjacentMovie.tmdbId}
                     imageSrc={previousAdjacentMovie.imageSrc}
+                    imageSrcSet={previousAdjacentMovie.imageSrcSet}
                     alt={previousAdjacentMovie.title}
                     className="movie-scroller-side-preview-image"
                     loading="eager"
@@ -2412,6 +2415,7 @@ function MovieScrollerContent({
                     title={nextAdjacentMovie.title}
                     tmdbId={nextAdjacentMovie.tmdbId}
                     imageSrc={nextAdjacentMovie.imageSrc}
+                    imageSrcSet={nextAdjacentMovie.imageSrcSet}
                     alt={nextAdjacentMovie.title}
                     className="movie-scroller-side-preview-image"
                     loading="eager"
@@ -2453,6 +2457,14 @@ function MovieScrollerContent({
         <img
           ref={ghostRef}
           src={movieItems[mod(ghostTransition.itemIndex, movieCount)].imageSrc}
+          srcSet={
+            movieItems[mod(ghostTransition.itemIndex, movieCount)].imageSrcSet
+          }
+          sizes={
+            movieItems[mod(ghostTransition.itemIndex, movieCount)].imageSrcSet
+              ? "(max-width: 640px) 38vw, (max-width: 1000px) 22vw, 300px"
+              : undefined
+          }
           alt=""
           aria-hidden="true"
           className={`movie-scroller-poster-ghost${

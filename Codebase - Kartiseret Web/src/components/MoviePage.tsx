@@ -626,6 +626,8 @@ export function MoviePage({
           >
             <img
               src={movie.backdropSrc}
+              srcSet={movie.backdropSrcSet}
+              sizes={movie.backdropSrcSet ? "100vw" : undefined}
               alt=""
               className="movie-scroller-detail-backdrop"
               decoding="async"

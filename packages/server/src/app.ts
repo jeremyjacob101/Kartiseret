@@ -36,6 +36,8 @@ import {
   type CatalogRepository,
 } from "./catalog/service.js";
 import { HttpError } from "./http-errors.js";
+import { createArtworkHandler } from "./artwork/route.js";
+import { createR2ImageStore, type R2ImageStore } from "./artwork/s3.js";
 import {
   searchTmdbTitles,
   type TmdbSearchProvider,
@@ -58,6 +60,7 @@ export interface AppDependencies {
   trustedOrigins?: readonly string[];
   tmdbSearch?: TmdbSearchProvider;
   protectedRateLimit?: ProtectedRateLimitOptions;
+  artworkStore?: R2ImageStore | null;
 }
 
 const silentLogger: AppLogger = {
@@ -102,6 +105,7 @@ export function createApp({
   trustedOrigins = [],
   tmdbSearch,
   protectedRateLimit,
+  artworkStore,
 }: AppDependencies) {
   const app = express();
   app.disable("x-powered-by");
@@ -126,6 +130,12 @@ export function createApp({
   );
   if (authHandler) app.all("/api/auth/{*path}", authHandler);
   app.use(express.json({ limit: "100kb" }));
+  app.get(
+    "/api/images/:version/:kind/:hash/:filename",
+    createArtworkHandler(
+      artworkStore === undefined ? createR2ImageStore() : artworkStore,
+    ),
+  );
   if (recipientRouter) app.use("/api/internal", recipientRouter);
 
   app.get("/api/v1/health", (_request, response) => {

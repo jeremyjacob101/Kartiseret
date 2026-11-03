@@ -31,6 +31,8 @@ export function ShowtimesMovieRow({
             title={movie.title}
             tmdbId={movie.tmdbId}
             imageSrc={movie.imageSrc}
+            imageSrcSet={movie.imageSrcSet}
+            imageSizes="(max-width: 640px) 97px, 124px"
             alt={movie.title}
             className="all-showtimes-poster"
             fallbackClassName="all-showtimes-poster"

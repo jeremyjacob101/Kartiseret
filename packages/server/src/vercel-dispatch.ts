@@ -46,7 +46,8 @@ export function createLazyVercelHandler(
 }
 
 const INTERNAL_ROUTE_PARAMETER = "__vercel_route";
-const API_PATH_PATTERN = /^[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/;
+const API_PATH_PATTERN =
+  /^(?!.*(?:^|\/)\.{1,2}(?:\/|$))[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/;
 
 function getDispatchPath(
   request: VercelDispatchRequest,

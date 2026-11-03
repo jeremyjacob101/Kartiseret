@@ -77,6 +77,19 @@ describe("Vercel API dispatcher", () => {
     expect(handlers.ogImage).toHaveBeenCalledWith(imageRequest, response);
   });
 
+  it("dispatches dot-suffixed artwork variants to the API handler", async () => {
+    const handlers = createHandlers();
+    const dispatch = createVercelDispatchHandler(handlers);
+    const request = createRequest(
+      `/api/dispatch?__vercel_route=images%2Fv1%2Fposter%2F${"a".repeat(64)}%2F342.webp`,
+    );
+    await dispatch(request, response);
+    expect(request.url).toBe(
+      `/api/images/v1/poster/${"a".repeat(64)}/342.webp`,
+    );
+    expect(handlers.api).toHaveBeenCalledWith(request, response);
+  });
+
   it("dispatches SEO page, cinema, sitemap, and robots paths without losing route data", async () => {
     const handlers = createHandlers();
     const dispatch = createVercelDispatchHandler(handlers);

@@ -4,6 +4,7 @@ from backend.dataflow.utils.RottenTomatoesScores import parse_rotten_tomatoes_sc
 
 from urllib.parse import quote_plus, urlsplit
 from backend.dataflow.utils.ProviderFreshness import utc_now, observation, failure
+from backend.dataflow.utils.ArtworkStorage import resolve_tmdb_artwork
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json, re
 
@@ -33,8 +34,7 @@ class CinemathequesUpdate(CinemathequesHelpers, BaseDataflow):
         new_row["runtime"] = data["runtime"] if data.get("runtime") is not None else existing["runtime"]
         new_row["popularity"] = data["popularity"] if data.get("popularity") is not None else existing["popularity"]
         new_row["imdb_id"] = data.get("external_ids", {}).get("imdb_id") or existing["imdb_id"]
-        new_row["en_poster"] = "https://image.tmdb.org/t/p/w342" + data["poster_path"] if data.get("poster_path") else existing["en_poster"]
-        new_row["backdrop"] = "https://image.tmdb.org/t/p/w1280" + data["backdrop_path"] if data.get("backdrop_path") else existing["backdrop"]
+        resolve_tmdb_artwork(self, new_row, data)
         new_row["release_year"] = data["release_date"][:4] if data.get("release_date") else existing["release_year"]
         new_row["tmdbRating"] = int(round(data["vote_average"] * 10)) if data.get("vote_average") is not None else existing["tmdbRating"]
         new_row["tmdbVotes"] = data["vote_count"] if data.get("vote_count") is not None else existing["tmdbVotes"]

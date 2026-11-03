@@ -205,6 +205,8 @@ export function PosterGridPage({
                   title={movie.title}
                   tmdbId={movie.tmdbId}
                   imageSrc={movie.imageSrc}
+                  imageSrcSet={movie.imageSrcSet}
+                  imageSizes="(max-width: 640px) 42vw, 210px"
                   alt={movie.title}
                   loading="lazy"
                   decoding="async"
@@ -222,6 +224,8 @@ export function PosterGridPage({
                   title={movie.title}
                   tmdbId={movie.tmdbId}
                   imageSrc={movie.imageSrc}
+                  imageSrcSet={movie.imageSrcSet}
+                  imageSizes="(max-width: 640px) 42vw, 210px"
                   alt={movie.title}
                   loading="lazy"
                   decoding="async"

@@ -5,6 +5,14 @@ on:
   #   - cron: "0 16 * * 2" # Runs every Tuesday at 6pm Israel time
   workflow_dispatch:
     inputs:
+      target:
+        description: "Select the isolated development setup, or explicitly target production"
+        type: choice
+        required: true
+        default: development
+        options:
+          - development
+          - production
       args:
         description: "Arguments to pass to runner.py (optional)"
         required: false
@@ -21,6 +29,8 @@ permissions:
 jobs:
   run:
     runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.target }}
     timeout-minutes: 300
     concurrency:
       group: run-runner-${{ github.ref }}
@@ -83,21 +93,49 @@ jobs:
           key: selenium-${{ runner.os }}-${{ steps.chrome.outputs.version }}
 
       - name: Debug env vars
+        env:
+          TARGET: ${{ inputs.target }}
+          SUPABASE_URL: ${{ inputs.target == 'development' && secrets.DEV_SUPABASE_URL || inputs.target == 'production' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ inputs.target == 'development' && secrets.DEV_SUPABASE_SERVICE_ROLE_KEY || inputs.target == 'production' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
         run: |
+          echo "Target: $TARGET"
           echo "SUPABASE_URL: $SUPABASE_URL"
           echo "SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:+set}"
 
+      - name: Validate the selected dataflow environment
+        env:
+          TARGET: ${{ inputs.target }}
+          SUPABASE_URL: ${{ inputs.target == 'development' && secrets.DEV_SUPABASE_URL || inputs.target == 'production' && secrets.SUPABASE_URL || '' }}
+        run: |
+          set -euo pipefail
+          if [ "$TARGET" = "development" ]; then
+            expected="jbydpmjjptwevyijarzl.supabase.co"
+          else
+            expected="gsdrcyrduxbrxgsvhxvr.supabase.co"
+          fi
+          actual="$(python -c 'import sys, urllib.parse; print(urllib.parse.urlsplit(sys.argv[1]).hostname or "")' "$SUPABASE_URL")"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::The $TARGET dataflow must use $expected; refusing to start."
+            exit 1
+          fi
+
       - name: Run runner.py (with secrets)
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          PUBLICATION_DATABASE_URL: ${{ secrets.PUBLICATION_DATABASE_URL }}
-          PUBLICATION_DATABASE_SSL_CA_CERT: ${{ secrets.PUBLICATION_DATABASE_SSL_CA_CERT }}
+          KARTISERET_TARGET: ${{ inputs.target }}
+          SUPABASE_URL: ${{ inputs.target == 'development' && secrets.DEV_SUPABASE_URL || inputs.target == 'production' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ inputs.target == 'development' && secrets.DEV_SUPABASE_PUBLISHABLE_KEY || inputs.target == 'production' && secrets.SUPABASE_PUBLISHABLE_KEY || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ inputs.target == 'development' && secrets.DEV_SUPABASE_SERVICE_ROLE_KEY || inputs.target == 'production' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
+          PUBLICATION_DATABASE_URL: ${{ inputs.target == 'development' && secrets.DEV_PUBLICATION_DATABASE_URL || inputs.target == 'production' && secrets.PUBLICATION_DATABASE_URL || '' }}
+          PUBLICATION_DATABASE_SSL_CA_CERT: ${{ inputs.target == 'development' && secrets.DEV_PUBLICATION_DATABASE_SSL_CA_CERT || inputs.target == 'production' && secrets.PUBLICATION_DATABASE_SSL_CA_CERT || '' }}
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          TICKET_ALERT_RECIPIENT_API_URL: ${{ vars.TICKET_ALERT_RECIPIENT_API_URL }}
-          TICKET_ALERT_INTERNAL_API_SECRET: ${{ secrets.TICKET_ALERT_INTERNAL_API_SECRET }}
+          R2_ACCOUNT_ID: ${{ inputs.target == 'development' && vars.DEV_R2_ACCOUNT_ID || inputs.target == 'production' && vars.R2_ACCOUNT_ID || '' }}
+          R2_BUCKET: ${{ inputs.target == 'development' && vars.DEV_R2_BUCKET || inputs.target == 'production' && vars.R2_BUCKET || '' }}
+          R2_IMAGE_ORIGIN: ${{ inputs.target == 'development' && vars.DEV_R2_IMAGE_ORIGIN || inputs.target == 'production' && vars.R2_IMAGE_ORIGIN || '' }}
+          R2_ACCESS_KEY_ID: ${{ inputs.target == 'development' && secrets.DEV_R2_ACCESS_KEY_ID || inputs.target == 'production' && secrets.R2_ACCESS_KEY_ID || '' }}
+          R2_SECRET_ACCESS_KEY: ${{ inputs.target == 'development' && secrets.DEV_R2_SECRET_ACCESS_KEY || inputs.target == 'production' && secrets.R2_SECRET_ACCESS_KEY || '' }}
+          RESEND_API_KEY: ${{ inputs.target == 'production' && secrets.RESEND_API_KEY || '' }}
+          TICKET_ALERT_RECIPIENT_API_URL: ${{ inputs.target == 'production' && vars.TICKET_ALERT_RECIPIENT_API_URL || '' }}
+          TICKET_ALERT_INTERNAL_API_SECRET: ${{ inputs.target == 'production' && secrets.TICKET_ALERT_INTERNAL_API_SECRET || '' }}
         run: |
           set -e
           if [ "${{ github.event.inputs.debug }}" = "true" ]; then set -x; fi

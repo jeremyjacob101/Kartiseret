@@ -146,6 +146,19 @@ function optionalId(value: string | null): string | undefined {
   return normalized || undefined;
 }
 
+function artworkSrcSet(value: string | null | undefined): string | undefined {
+  const match =
+    /^(https?:\/\/[^/]+)?\/api\/images\/v1\/(poster|backdrop)\/([a-f0-9]{64})\/(\d+)\.webp$/.exec(
+      value?.trim() ?? "",
+    );
+  if (!match) return undefined;
+  const [, , kind, hash] = match;
+  const widths = kind === "poster" ? [185, 342, 780] : [780, 1280];
+  return widths
+    .map((width) => `/api/images/v1/${kind}/${hash}/${width}.webp ${width}w`)
+    .join(", ");
+}
+
 function mapSourceMovie(row: SourceMovie, movieCode?: string): Movie {
   const title = normalizeText(row.englishTitle)
     .replace(/^"+|"+$/g, "")
@@ -153,6 +166,8 @@ function mapSourceMovie(row: SourceMovie, movieCode?: string): Movie {
   const imageSrc =
     normalizeText(row.enPoster ?? "") || normalizeText(row.backdrop ?? "");
   const backdropSrc = normalizeText(row.backdrop ?? "") || imageSrc;
+  const imageSrcSet = artworkSrcSet(row.enPoster);
+  const backdropSrcSet = artworkSrcSet(row.backdrop);
   const trailerKey = normalizeText(row.enTrailer ?? "");
 
   return movieSchema.parse({
@@ -164,7 +179,9 @@ function mapSourceMovie(row: SourceMovie, movieCode?: string): Movie {
     year: parseReleaseYear(row.releaseYear),
     genres: parseGenres(row.genres),
     imageSrc,
+    ...(imageSrcSet ? { imageSrcSet } : {}),
     backdropSrc: backdropSrc || undefined,
+    ...(backdropSrcSet ? { backdropSrcSet } : {}),
     trailerKey: trailerKey || undefined,
     imdbRating: parseOptionalNumber(row.imdbRating),
     lbId: optionalId(row.lbId),
@@ -250,6 +267,8 @@ function mapSourceComingSoonMovie(
   const imageSrc =
     normalizeText(row.enPoster ?? "") || normalizeText(row.backdrop ?? "");
   const backdropSrc = normalizeText(row.backdrop ?? "") || imageSrc;
+  const imageSrcSet = artworkSrcSet(row.enPoster);
+  const backdropSrcSet = artworkSrcSet(row.backdrop);
   const parsedYear =
     row.releaseYear !== null && row.releaseYear > 0
       ? row.releaseYear
@@ -263,7 +282,9 @@ function mapSourceComingSoonMovie(
     releaseDate: row.releaseDate,
     genres: parseGenres(row.genres),
     imageSrc,
+    ...(imageSrcSet ? { imageSrcSet } : {}),
     backdropSrc: backdropSrc || undefined,
+    ...(backdropSrcSet ? { backdropSrcSet } : {}),
     trailerKey: normalizeText(row.enTrailer ?? "") || undefined,
     imdbRating: null,
     lbRating: null,
