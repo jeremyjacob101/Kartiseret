@@ -1,4 +1,4 @@
-import { getMovieCatalog, getCinemathequeData, getCinemaPageData, getMovieByPermanentCode, getMovieShowtimes, getPublicTheaterData, getShowtimeRange, withPublicationSnapshot } from "@kartiseret/server/public-data";
+import { getMovieCatalog, getCinemathequeData, getCinemaPageData, getMovieByPermanentCode, getMovieShowtimes, getPublicTheaterData, getShowtimeRange, withPublicationSnapshot, type PublicCinemaPageContext } from "@kartiseret/server/public-data";
 import { injectRenderedApplication, injectSeoPage, SITE_ORIGIN, buildSitemapXml, safeHttpUrl } from "./renderHtml.js";
 import { publicPageBootstrapSchema, type PublicPageBootstrap } from "@kartiseret/contracts/public-render";
 import { getCinemaDayDate, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
@@ -16,6 +16,24 @@ import { resolve } from "node:path";
 
 const SEO_CACHE = "public, max-age=0, s-maxage=60";
 const SITEMAP_CACHE = "public, max-age=0, s-maxage=300";
+const PUBLIC_PAGE_DEADLINE_MS = 25_000;
+const SSR_RENDER_BUDGET_MS = 12_000;
+
+function withDeadline<Value>(
+  operation: () => Promise<Value>,
+  timeoutMs: number,
+): Promise<Value> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error("Public page request exceeded its deadline.")),
+      timeoutMs,
+    );
+  });
+  return Promise.race([operation(), deadline]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
 
 let baseHtml: string | null = null;
 function getBaseHtml(): string {
@@ -27,7 +45,7 @@ function getBaseHtml(): string {
     );
   } catch {
     baseHtml =
-      '<!doctype html><html lang="en"><head><meta charset="utf-8"><!-- SEO_META_START --><!-- SEO_META_END --></head><body><!-- SEO_CONTENT_START --><div id="seo-content"></div><!-- SEO_CONTENT_END --><div id="root"></div></body></html>';
+      '<!doctype html><html lang="en" class="no-js"><head><meta charset="utf-8"><!-- SEO_META_START --><!-- SEO_META_END --></head><body><!-- SEO_CONTENT_START --><div id="seo-content"></div><!-- SEO_CONTENT_END --><div id="root"></div></body></html>';
   }
   return baseHtml;
 }
@@ -102,6 +120,13 @@ function createPageBootstrap(
   });
 }
 
+function getInitialPosterPreloadUrls(bootstrap: PublicPageBootstrap): string[] {
+  if (bootstrap.pathname !== "/") return [];
+  const movies = bootstrap.catalogs.nowPlaying.movies;
+  return [movies.at(-1), ...movies.slice(0, 4)].flatMap((movie) =>
+    movie?.imageSrc ? [movie.imageSrc] : []);
+}
+
 async function getMoviePage(routeCode: string, instant = new Date()) {
   const selection = resolvePreviewRouteSelection(routeCode, instant);
   if (!selection) return null;
@@ -174,16 +199,6 @@ async function getMoviePage(routeCode: string, instant = new Date()) {
         theaters,
         ...(!isComingSoon
           ? {
-              showtimeCity: {
-                city: selectedCity,
-                startDate: currentDate,
-                endDate: currentDate,
-                showtimes: allMovieShowtimes.filter(
-                  (row) =>
-                    row.screeningCity === selectedCity &&
-                    row.dateOfShowing === currentDate,
-                ),
-              },
               targetedMovieShowtimes: {
                 city: selectedCity,
                 date: selectedDate,
@@ -222,12 +237,21 @@ async function getCinemaPage(cinemaId: string, instant = new Date()) {
   return withPublicationSnapshot(repository, async (publicationRevision) => {
     const identity = getCinemaIdentityById(cinemaId);
     if (!identity) return null;
-    const [cinema, nowPlaying, comingSoon] = await Promise.all([
-      getCinemaPageData(repository, cinemaId, instant),
+    const contextPromise: Promise<PublicCinemaPageContext> = Promise.all([
+      getPublicTheaterData(repository),
       getMovieCatalog(repository, "nowPlaying"),
       getMovieCatalog(repository, "comingSoon"),
+    ]).then(([theaterCatalog, nowPlaying, comingSoon]) => ({
+      theaterCatalog,
+      nowPlaying,
+      comingSoon,
+    }));
+    const [cinema, context] = await Promise.all([
+      getCinemaPageData(repository, cinemaId, instant, contextPromise),
+      contextPromise,
     ]);
     if (!cinema) return null;
+    const { nowPlaying, comingSoon } = context;
     const address = cinema.address.trim();
     const jsonLd = {
       "@context": "https://schema.org",
@@ -533,50 +557,73 @@ export default async function handler(
   if (route === "sitemap") return renderSitemap(response);
   const html = getBaseHtml();
   try {
-    let result: {
-      page: Parameters<typeof injectSeoPage>[1];
-      bootstrap: PublicPageBootstrap;
-    } | null = null;
-    if (route === "movie") {
-      const routeCode = Array.isArray(request.query.routeCode)
-        ? (request.query.routeCode.at(-1) ?? "")
-        : (request.query.routeCode ?? "");
-      const movie = await getMoviePage(routeCode);
-      result = movie ? { page: movie.page, bootstrap: movie.bootstrap } : null;
-    } else if (route === "cinema") {
-      const cinemaId = Array.isArray(request.query.cinemaId)
-        ? (request.query.cinemaId.at(-1) ?? "")
-        : (request.query.cinemaId ?? "");
-      if (!/^[A-Za-z0-9_-]{12}$/.test(cinemaId)) {
-        response
-          .status(404)
-          .setHeader("Content-Type", "text/plain; charset=utf-8")
-          .setHeader("X-Robots-Tag", "noindex")
-          .setHeader("Cache-Control", "no-store")
-          .send("Cinema not found.");
-        return;
-      }
-      result = await getCinemaPage(cinemaId);
-    } else if (route === "page") {
-      const path = Array.isArray(request.query.path)
-        ? (request.query.path.at(-1) ?? "")
-        : (request.query.path ?? "");
-      if (
-        !["/", "/movies", "/soons", "/showtimes", "/cinematheques"].includes(
-          path,
-        )
-      ) {
-        response
-          .status(404)
-          .setHeader("Content-Type", "text/plain; charset=utf-8")
-          .setHeader("X-Robots-Tag", "noindex")
-          .setHeader("Cache-Control", "no-store")
-          .send("Page not found.");
-        return;
-      }
-      result = await getListingPage(path);
+    const cinemaId = Array.isArray(request.query.cinemaId)
+      ? (request.query.cinemaId.at(-1) ?? "")
+      : (request.query.cinemaId ?? "");
+    const path = Array.isArray(request.query.path)
+      ? (request.query.path.at(-1) ?? "")
+      : (request.query.path ?? "");
+    if (route === "cinema" && !/^[A-Za-z0-9_-]{12}$/.test(cinemaId)) {
+      response
+        .status(404)
+        .setHeader("Content-Type", "text/plain; charset=utf-8")
+        .setHeader("X-Robots-Tag", "noindex")
+        .setHeader("Cache-Control", "no-store")
+        .send("Cinema not found.");
+      return;
     }
-    if (!result) {
+    if (
+      route === "page" &&
+      !["/", "/movies", "/soons", "/showtimes", "/cinematheques"].includes(path)
+    ) {
+      response
+        .status(404)
+        .setHeader("Content-Type", "text/plain; charset=utf-8")
+        .setHeader("X-Robots-Tag", "noindex")
+        .setHeader("Cache-Control", "no-store")
+        .send("Page not found.");
+      return;
+    }
+
+    const deadlineAt = Date.now() + PUBLIC_PAGE_DEADLINE_MS;
+    const rendered = await withDeadline(async () => {
+      let result: {
+        page: Parameters<typeof injectSeoPage>[1];
+        bootstrap: PublicPageBootstrap;
+      } | null = null;
+      if (route === "movie") {
+        const routeCode = Array.isArray(request.query.routeCode)
+          ? (request.query.routeCode.at(-1) ?? "")
+          : (request.query.routeCode ?? "");
+        const movie = await getMoviePage(routeCode);
+        result = movie
+          ? { page: movie.page, bootstrap: movie.bootstrap }
+          : null;
+      } else if (route === "cinema") {
+        result = await getCinemaPage(cinemaId);
+      } else if (route === "page") {
+        result = await getListingPage(path);
+      }
+      if (!result) return { result: null, output: "" };
+      const metadataHtml = injectSeoPage(html, result.page);
+      const remainingMs = deadlineAt - Date.now();
+      if (remainingMs <= 0) {
+        throw new Error("Public page request exceeded its deadline.");
+      }
+      const markup = await renderBuiltPublicApplication(
+        result.bootstrap,
+        Math.min(SSR_RENDER_BUDGET_MS, remainingMs),
+      );
+      const output = injectRenderedApplication(
+        metadataHtml,
+        markup,
+        result.bootstrap,
+        getInitialPosterPreloadUrls(result.bootstrap),
+      );
+      return { result, output };
+    }, PUBLIC_PAGE_DEADLINE_MS);
+
+    if (!rendered.result) {
       response
         .status(404)
         .setHeader("Content-Type", "text/html; charset=utf-8")
@@ -587,13 +634,7 @@ export default async function handler(
         );
       return;
     }
-    const metadataHtml = injectSeoPage(html, result.page);
-    const markup = await renderBuiltPublicApplication(result.bootstrap);
-    const output = injectRenderedApplication(
-      metadataHtml,
-      markup,
-      result.bootstrap,
-    );
+    const { result, output } = rendered;
     response
       .status(200)
       .setHeader("Content-Type", "text/html; charset=utf-8")

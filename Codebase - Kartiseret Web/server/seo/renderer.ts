@@ -13,6 +13,7 @@ let publicRendererPromise: Promise<PublicRendererModule> | null = null;
 
 export function renderBuiltPublicApplication(
   bootstrap: PublicPageBootstrap,
+  timeoutMs?: number,
 ): Promise<string> {
   if (!publicRendererPromise) {
     const entryPath = resolve(
@@ -27,5 +28,5 @@ export function renderBuiltPublicApplication(
       });
   }
   return publicRendererPromise.then((renderer) =>
-    renderer.renderPublicApplication(bootstrap));
+    renderer.renderPublicApplication(bootstrap, timeoutMs));
 }

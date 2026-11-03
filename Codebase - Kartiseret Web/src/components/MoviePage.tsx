@@ -1,22 +1,22 @@
-import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, getJerusalemCinemaDate, isDateInShowtimeLinkWindow, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "@kartiseret/contracts/showtime-links";
-import { findMovieByCode, fixedAppDateString, isMovieShowtimeDateCovered, isValidMovieCode, mergeMovieShowtimeRangeResult, prefetchMovieShowtimesAfterDate, showtimeCityQueryOptions, showtimeRangeQueryOptions, type ShowtimeRange } from "../data/movieCatalog";
+import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, isDateInShowtimeLinkWindow, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "@kartiseret/contracts/showtime-links";
+import { findMovieByCode, isMovieShowtimeDateCovered, isValidMovieCode, mergeMovieShowtimeRangeResult, prefetchMovieShowtimesAfterDate, showtimeCityQueryOptions, showtimeRangeQueryOptions, type ShowtimeRange } from "../data/movieCatalog";
 import { getShowtimeFiltersSnapshot, saveShowtimeFilters, type ShowtimeFilterState } from "./showtimes/showtimeFilters";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
 import { applyMovieDisplayPreference } from "../data/movieDisplayPreferences";
 import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
+import { usePublicRenderClock } from "../contexts/PublicRenderClock";
 import { MovieDetailsContent } from "./scroller/MovieDetailsContent";
+import { safeSeoUrl, setSeoMetadata } from "../routing/seoMetadata";
 import { DEFAULT_LOCATION } from "../prefs/definitions/locations";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router";
-import { setSeoMetadata } from "../routing/seoMetadata";
 import { useShallow } from "zustand/react/shallow";
 import { shareLink } from "../routing/shareLink";
 import "./scroller/MovieScroller.css";
 import "./MoviePage.css";
 
-const MIDNIGHT_CHECK_INTERVAL_MS = 30_000;
 const SHARE_FEEDBACK_DURATION_MS = 2_200;
 
 type MoviePageProps = {
@@ -113,21 +113,7 @@ function areQueryStatesEqual(
 }
 
 function useJerusalemToday(): string {
-  const [today, setToday] = useState(() => fixedAppDateString);
-
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      const nextToday = getJerusalemCinemaDate();
-      setToday((currentToday) =>
-        currentToday === nextToday ? currentToday : nextToday);
-    }, MIDNIGHT_CHECK_INTERVAL_MS);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, []);
-
-  return today;
+  return usePublicRenderClock().cinemaDate;
 }
 
 function createInitialEncodedQueryState(
@@ -236,6 +222,7 @@ export function MoviePage({
         activeShowtimeCityData,
         activeShowtimeRange.tmdbId,
         activeShowtimeRange.startDate,
+        today,
       )
     : false;
   const exactShowtimeRange =
@@ -413,6 +400,7 @@ export function MoviePage({
           : location
             ? `${routeMovie.title} showtimes in ${location} | Kartiseret`
             : `${routeMovie.title} showtimes in Israel | Kartiseret`;
+      const safeMovieImageUrl = safeSeoUrl(routeMovie.imageSrc);
       setSeoMetadata({
         title,
         description:
@@ -423,7 +411,15 @@ export function MoviePage({
         openGraphPath: `/${routeCode}`,
         imageUrl: isEncodedSelection
           ? `https://seret.site/api/og-image?routeCode=${encodeURIComponent(routeCode)}`
-          : routeMovie.imageSrc || undefined,
+          : safeMovieImageUrl,
+        jsonLd: {
+          "@context": "https://schema.org",
+          "@type": "Movie",
+          name: routeMovie.title,
+          ...(safeMovieImageUrl ? { image: safeMovieImageUrl } : {}),
+          ...(routeMovie.genres.length ? { genre: routeMovie.genres } : {}),
+          url: `https://seret.site/${encodeURIComponent(candidateMovieCode)}`,
+        },
       });
       return;
     }

@@ -1,5 +1,5 @@
 import { adminMovieEditMutationOptions, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, movieCollectionQueryOptions, reloadComingSoonMovies, reloadNowPlayingMovies, showtimeCityQueryOptions, type Movie } from "./data/movieCatalog";
-import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
 import { useMovieDisplayPreferences } from "./contexts/MovieDisplayPreferencesContext";
 import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
@@ -86,6 +86,28 @@ type CatalogPageView = "grid" | "scroller";
 type CatalogMovieJumpRequest = MovieScrollerJumpRequest & {
   mode: MovieSearchMode;
 };
+
+function subscribeToHydrationState() {
+  return () => {};
+}
+
+function getClientHydrationState() {
+  return true;
+}
+
+function getServerHydrationState() {
+  return false;
+}
+
+function ClientMounted({ children }: { children: ReactNode }) {
+  const isMounted = useSyncExternalStore(
+    subscribeToHydrationState,
+    getClientHydrationState,
+    getServerHydrationState,
+  );
+
+  return isMounted ? children : null;
+}
 
 function isPotentialStandaloneMoviePath(pathname: string): boolean {
   if (FIXED_APP_PATHS.has(pathname)) {
@@ -215,21 +237,23 @@ function CatalogRoute({
         className="scroller-slot"
         style={{ minHeight: scrollerSlotMinHeight }}
       >
-        <MovieScroller
-          mode={jumpMode}
-          movieItems={movies}
-          jumpRequest={
-            catalogMovieJumpRequest?.mode === jumpMode
-              ? catalogMovieJumpRequest
-              : null
-          }
-          jumpOpenMode="detail"
-          onExitDetail={onExitDetail}
-          cardWidth={cardWidth}
-          cardHeight={cardHeight}
-          gap={gap}
-          maxWidth={SCROLLER_MAX_WIDTH}
-        />
+        <ClientMounted>
+          <MovieScroller
+            mode={jumpMode}
+            movieItems={movies}
+            jumpRequest={
+              catalogMovieJumpRequest?.mode === jumpMode
+                ? catalogMovieJumpRequest
+                : null
+            }
+            jumpOpenMode="detail"
+            onExitDetail={onExitDetail}
+            cardWidth={cardWidth}
+            cardHeight={cardHeight}
+            gap={gap}
+            maxWidth={SCROLLER_MAX_WIDTH}
+          />
+        </ClientMounted>
       </div>
     </section>
   );
@@ -258,14 +282,16 @@ function HomeRoute({
         style={{ minHeight: scrollerSlotMinHeight }}
       >
         {nowPlayingReady && nowPlayingMovies.length > 0 ? (
-          <MovieScroller
-            mode="nowPlaying"
-            movieItems={nowPlayingMovies}
-            cardWidth={cardWidth}
-            cardHeight={cardHeight}
-            gap={gap}
-            maxWidth={SCROLLER_MAX_WIDTH}
-          />
+          <ClientMounted>
+            <MovieScroller
+              mode="nowPlaying"
+              movieItems={nowPlayingMovies}
+              cardWidth={cardWidth}
+              cardHeight={cardHeight}
+              gap={gap}
+              maxWidth={SCROLLER_MAX_WIDTH}
+            />
+          </ClientMounted>
         ) : nowPlayingReady ? (
           <p className="app-inline-note" role="status">
             No movies match your display preferences.
@@ -281,14 +307,16 @@ function HomeRoute({
         style={{ minHeight: scrollerSlotMinHeight }}
       >
         {comingSoonReady && comingSoonMovies.length > 0 ? (
-          <MovieScroller
-            mode="comingSoon"
-            movieItems={comingSoonMovies}
-            cardWidth={cardWidth}
-            cardHeight={cardHeight}
-            gap={gap}
-            maxWidth={SCROLLER_MAX_WIDTH}
-          />
+          <ClientMounted>
+            <MovieScroller
+              mode="comingSoon"
+              movieItems={comingSoonMovies}
+              cardWidth={cardWidth}
+              cardHeight={cardHeight}
+              gap={gap}
+              maxWidth={SCROLLER_MAX_WIDTH}
+            />
+          </ClientMounted>
         ) : comingSoonReady ? (
           <p className="app-inline-note" role="status">
             No movies match your display preferences.
@@ -441,6 +469,22 @@ export function App() {
         description:
           "Find movie showtimes across Israeli cinemas in one place.",
         canonicalPath: "/",
+        jsonLd: {
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "WebSite",
+              name: "Kartiseret",
+              url: "https://seret.site/",
+            },
+            {
+              "@type": "Organization",
+              name: "Kartiseret",
+              url: "https://seret.site/",
+              logo: "https://seret.site/logos/kartiseret1.svg",
+            },
+          ],
+        },
       });
       return;
     }

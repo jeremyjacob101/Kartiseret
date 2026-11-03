@@ -1,14 +1,33 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="no-js">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script>
       (function () {
+        document.documentElement.classList.remove("no-js");
+        document.documentElement.classList.add("js");
+        window.addEventListener(
+          "error",
+          function (event) {
+            var target = event.target;
+            if (
+              target &&
+              target.tagName === "SCRIPT" &&
+              target.type === "module"
+            ) {
+              document.documentElement.classList.remove("js");
+              document.documentElement.classList.add("no-js");
+            }
+          },
+          true,
+        );
         var ua = navigator.userAgent || "";
         var platform = navigator.platform || "";
         var isMobile =
-          /Android|webOS|iPhone|iPod|iPad|BlackBerry|IEMobile|Opera Mini/i.test(ua) ||
+          /Android|webOS|iPhone|iPod|iPad|BlackBerry|IEMobile|Opera Mini/i.test(
+            ua,
+          ) ||
           (platform === "MacIntel" && navigator.maxTouchPoints > 1) ||
           window.matchMedia("(max-width: 699px)").matches;
         document.documentElement.dataset.deviceType = isMobile

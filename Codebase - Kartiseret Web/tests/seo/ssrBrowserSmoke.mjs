@@ -15,6 +15,9 @@ const cinemaIdentity = CINEMA_IDENTITIES.find(
   (identity) => identity.displayName === "Cinema City Jerusalem",
 );
 assert.ok(cinemaIdentity);
+const posterFixture = Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450"><rect width="300" height="450" fill="#00ff00"/></svg>',
+);
 
 function escapeAttribute(value) {
   return value
@@ -49,12 +52,29 @@ async function htmlFor(
   const canonical = `https://seret.site${canonicalPath === "/" ? "/" : canonicalPath}`;
   const title = pageTitle(pathname);
   const metadata = `<!-- SEO_META_START --><title>${title}</title><meta name="description" content="${title}" /><link rel="canonical" href="${escapeAttribute(canonical)}" /><meta name="robots" content="index, follow" /><!-- SEO_META_END -->`;
+  const initialPosters =
+    pathname === "/"
+      ? [
+          bootstrap.catalogs.nowPlaying.movies.at(-1),
+          ...bootstrap.catalogs.nowPlaying.movies.slice(0, 4),
+        ]
+      : [];
+  const preloadTags = [
+    ...new Set(initialPosters.map((movie) => movie?.imageSrc)),
+  ]
+    .filter(Boolean)
+    .map(
+      (imageSrc) =>
+        `<link rel="preload" as="image" href="${escapeAttribute(imageSrc)}" fetchpriority="high" />`,
+    )
+    .join("");
   const bootstrapJson = JSON.stringify(clientBootstrap)
     .replaceAll("<", "\\u003c")
     .replaceAll(">", "\\u003e")
     .replaceAll("&", "\\u0026");
   const html = baseHtml
     .replace(/<!-- SEO_META_START -->[\s\S]*?<!-- SEO_META_END -->/, metadata)
+    .replace("</head>", () => `${preloadTags}</head>`)
     .replace(
       '<div id="root"></div>',
       `<div id="root" data-ssr="true">${markup}</div>`,
@@ -154,6 +174,279 @@ try {
     });
   }
   await noScriptPage.close();
+
+  const noScriptHomePage = await browser.newPage({
+    javaScriptEnabled: false,
+    viewport: { width: 1280, height: 900 },
+  });
+  await noScriptHomePage.goto(`${baseUrl}/`);
+  assert.equal(
+    await noScriptHomePage
+      .getByRole("heading", { name: "Now Playing" })
+      .count(),
+    1,
+  );
+  assert.equal(
+    await noScriptHomePage
+      .getByRole("heading", { name: "Coming Soon" })
+      .count(),
+    1,
+  );
+  assert.equal(
+    await noScriptHomePage.locator(".movie-scroller-card").count(),
+    0,
+    "the browser-only poster scroller remains unmounted when JavaScript is disabled",
+  );
+  if (screenshotDir) {
+    await noScriptHomePage.screenshot({
+      path: join(screenshotDir, "home-desktop-without-javascript.png"),
+      fullPage: true,
+    });
+  }
+  await noScriptHomePage.close();
+
+  const delayedHomePage = await browser.newPage({
+    viewport: { width: 1280, height: 900 },
+  });
+  const delayedHomeErrors = [];
+  let releaseHomeEntryScript;
+  let notifyHomeEntryScriptRequested;
+  const homeEntryScriptRequested = new Promise((resolveRequested) => {
+    notifyHomeEntryScriptRequested = resolveRequested;
+  });
+  const homeRequestOrder = [];
+  const homeNavigationStartedAt = Date.now();
+  let homePosterRequestAt = null;
+  delayedHomePage.on("pageerror", (error) =>
+    delayedHomeErrors.push(error.message));
+  delayedHomePage.on("console", (message) => {
+    if (/hydration|did not match|server rendered/i.test(message.text())) {
+      delayedHomeErrors.push(message.text());
+    }
+  });
+  delayedHomePage.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.hostname === "images.example.test") {
+      homeRequestOrder.push("poster");
+      homePosterRequestAt ??= Date.now();
+    }
+    if (url.pathname === "/api/auth/get-session") {
+      homeRequestOrder.push("auth");
+    }
+  });
+  await delayedHomePage.route("**/*", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.hostname === "images.example.test") {
+      await route.fulfill({
+        status: 200,
+        contentType: "image/svg+xml",
+        body: posterFixture,
+      });
+      return;
+    }
+    if (
+      url.hostname === "127.0.0.1" &&
+      /\/assets\/index-[^/]+\.js$/.test(url.pathname)
+    ) {
+      notifyHomeEntryScriptRequested();
+      await new Promise((resolveRelease) => {
+        releaseHomeEntryScript = resolveRelease;
+      });
+    }
+    await route.continue();
+  });
+  await delayedHomePage.goto(baseUrl + "/", { waitUntil: "commit" });
+  await homeEntryScriptRequested;
+  assert.equal(
+    await delayedHomePage.locator("#root[data-ssr='true']").count(),
+    1,
+  );
+  assert.equal(
+    await delayedHomePage.getByRole("heading", { name: "Now Playing" }).count(),
+    1,
+  );
+  assert.equal(
+    await delayedHomePage.locator(".movie-scroller-card").count(),
+    0,
+    "the existing poster scroller is not rendered or reshaped by SSR",
+  );
+  assert.ok(
+    homeRequestOrder.includes("poster"),
+    "the initial viewport posters are requested from HTML before the app script runs",
+  );
+  assert.ok(!homeRequestOrder.includes("auth"));
+  const desktopBeforeHydration = await delayedHomePage.evaluate(() => {
+    const slot = document.querySelector(".scroller-slot");
+    const nextHeading = [...document.querySelectorAll(".section-heading")][1];
+    return {
+      slotHeight: slot?.getBoundingClientRect().height,
+      nextHeadingY: nextHeading?.getBoundingClientRect().y,
+    };
+  });
+  if (screenshotDir) {
+    await delayedHomePage.screenshot({
+      path: join(screenshotDir, "home-desktop-before-hydration.png"),
+      fullPage: true,
+    });
+  }
+  releaseHomeEntryScript?.();
+  await delayedHomePage.waitForFunction(() =>
+    [...document.querySelectorAll(".movie-scroller-card img")].some((image) => {
+      const bounds = image.getBoundingClientRect();
+      return (
+        image.complete &&
+        image.naturalWidth > 0 &&
+        bounds.right > 0 &&
+        bounds.bottom > 0 &&
+        bounds.left < innerWidth &&
+        bounds.top < innerHeight
+      );
+    }));
+  await delayedHomePage.waitForTimeout(1400);
+  assert.deepEqual(delayedHomeErrors, []);
+  assert.ok(homeRequestOrder.includes("poster"));
+  assert.ok(homePosterRequestAt !== null);
+  const desktopAfterHydration = await delayedHomePage.evaluate(() => {
+    const slot = document.querySelector(".scroller-slot");
+    const nextHeading = [...document.querySelectorAll(".section-heading")][1];
+    return {
+      slotHeight: slot?.getBoundingClientRect().height,
+      nextHeadingY: nextHeading?.getBoundingClientRect().y,
+      visibleLoadedPosters: [
+        ...document.querySelectorAll(".movie-scroller-card img"),
+      ].filter((image) => {
+        const bounds = image.getBoundingClientRect();
+        return (
+          image.complete &&
+          image.naturalWidth > 0 &&
+          bounds.right > 0 &&
+          bounds.bottom > 0 &&
+          bounds.left < innerWidth &&
+          bounds.top < innerHeight
+        );
+      }).length,
+    };
+  });
+  assert.ok(desktopAfterHydration.visibleLoadedPosters > 0);
+  assert.ok(
+    Math.abs(
+      desktopAfterHydration.nextHeadingY - desktopBeforeHydration.nextHeadingY,
+    ) < 1,
+    "mounting the existing scroller does not move the next section",
+  );
+  if (screenshotDir) {
+    await delayedHomePage.screenshot({
+      path: join(screenshotDir, "home-desktop-after-hydration.png"),
+      fullPage: true,
+    });
+  }
+  const firstPosterRequestElapsed =
+    homePosterRequestAt - homeNavigationStartedAt;
+  await delayedHomePage.close();
+  console.log(
+    "Existing scroller mounted after hydration: first poster request " +
+      firstPosterRequestElapsed +
+      "ms, " +
+      desktopAfterHydration.visibleLoadedPosters +
+      " decoded posters visible, no hydration errors.",
+  );
+
+  const mobileHomePage = await browser.newPage({
+    viewport: { width: 390, height: 844 },
+  });
+  const mobileHomeErrors = [];
+  let releaseMobileHomeEntryScript;
+  let notifyMobileHomeEntryScriptRequested;
+  const mobileHomeEntryScriptRequested = new Promise((resolveRequested) => {
+    notifyMobileHomeEntryScriptRequested = resolveRequested;
+  });
+  mobileHomePage.on("pageerror", (error) =>
+    mobileHomeErrors.push(error.message));
+  mobileHomePage.on("console", (message) => {
+    if (/hydration|did not match|server rendered/i.test(message.text())) {
+      mobileHomeErrors.push(message.text());
+    }
+  });
+  await mobileHomePage.route("**/*", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.hostname === "images.example.test") {
+      await route.fulfill({
+        status: 200,
+        contentType: "image/svg+xml",
+        body: posterFixture,
+      });
+      return;
+    }
+    if (
+      url.hostname === "127.0.0.1" &&
+      /\/assets\/index-[^/]+\.js$/.test(url.pathname)
+    ) {
+      notifyMobileHomeEntryScriptRequested();
+      await new Promise((resolveRelease) => {
+        releaseMobileHomeEntryScript = resolveRelease;
+      });
+    }
+    await route.continue();
+  });
+  await mobileHomePage.goto(baseUrl + "/", { waitUntil: "commit" });
+  await mobileHomeEntryScriptRequested;
+  await mobileHomePage.waitForFunction(() => {
+    const slot = document.querySelector(".scroller-slot");
+    return (
+      document.documentElement.dataset.deviceType === "mobile" &&
+      slot &&
+      getComputedStyle(slot).minHeight === "300px"
+    );
+  });
+  const mobileBeforeHydration = await mobileHomePage.evaluate(() => {
+    const slot = document.querySelector(".scroller-slot");
+    const nextHeading = [...document.querySelectorAll(".section-heading")][1];
+    return {
+      slotHeight: slot?.getBoundingClientRect().height,
+      nextHeadingY: nextHeading?.getBoundingClientRect().y,
+    };
+  });
+  assert.equal(await mobileHomePage.locator(".movie-scroller-card").count(), 0);
+  if (screenshotDir) {
+    await mobileHomePage.screenshot({
+      path: join(screenshotDir, "home-mobile-before-hydration.png"),
+      fullPage: true,
+    });
+  }
+  releaseMobileHomeEntryScript?.();
+  await mobileHomePage.waitForFunction(() =>
+    [...document.querySelectorAll(".movie-scroller-card img")].some((image) => {
+      const bounds = image.getBoundingClientRect();
+      return (
+        image.complete &&
+        image.naturalWidth > 0 &&
+        bounds.right > 0 &&
+        bounds.bottom > 0 &&
+        bounds.left < innerWidth &&
+        bounds.top < innerHeight
+      );
+    }));
+  const mobileAfterHydration = await mobileHomePage.evaluate(() => {
+    const slot = document.querySelector(".scroller-slot");
+    const nextHeading = [...document.querySelectorAll(".section-heading")][1];
+    return {
+      slotHeight: slot?.getBoundingClientRect().height,
+      nextHeadingY: nextHeading?.getBoundingClientRect().y,
+    };
+  });
+  assert.deepEqual(
+    mobileAfterHydration,
+    mobileBeforeHydration,
+    "the reserved mobile scroller slot stays fixed while the original scroller mounts",
+  );
+  assert.deepEqual(mobileHomeErrors, []);
+  if (screenshotDir) {
+    await mobileHomePage.screenshot({
+      path: join(screenshotDir, "home-mobile-after-hydration.png"),
+      fullPage: true,
+    });
+  }
+  await mobileHomePage.close();
 
   const mobilePage = await browser.newPage({
     javaScriptEnabled: false,

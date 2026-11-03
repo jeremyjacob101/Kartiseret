@@ -51,13 +51,14 @@ describe("MoviePosterArtwork", () => {
 
     const image = screen.getByRole("img", { name: "Loading Movie poster" });
     expect(screen.getByText("Loading Movie")).toBeInTheDocument();
-    expect(image).toHaveStyle({ opacity: "0" });
+    expect(image).not.toHaveStyle({ opacity: "0" });
     expect(image).toHaveAttribute("loading", "lazy");
     expect(image).toHaveAttribute("draggable", "true");
+    expect(image).toHaveAttribute("data-image-status", "loading");
 
     fireEvent.load(image);
     expect(screen.queryByText("Loading Movie")).not.toBeInTheDocument();
-    expect(image).not.toHaveStyle({ opacity: "0" });
+    expect(image).toHaveAttribute("data-image-status", "loaded");
   });
 
   it("restores the fallback after an image error and supports decorative posters", () => {
@@ -74,6 +75,7 @@ describe("MoviePosterArtwork", () => {
     expect(image).not.toBeNull();
     fireEvent.error(image as HTMLImageElement);
     expect(screen.getByText("Broken Movie")).toBeInTheDocument();
+    expect(image).toHaveAttribute("data-image-status", "error");
     expect(image).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByText("Broken Movie").parentElement).toHaveAttribute(
       "aria-hidden",

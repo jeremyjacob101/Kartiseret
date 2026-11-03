@@ -226,6 +226,7 @@ describe("SEO request handler", () => {
     expect(response.statusCode).toBe(200);
     const bootstrap = mocks.renderBuiltPublicApplication.mock.calls[0]?.[0];
     expect(bootstrap).toMatchObject({ pathname: "/Ab1" });
+    expect(bootstrap?.showtimeCity).toBeUndefined();
     expect(bootstrap?.targetedMovieShowtimes?.showtimes[0]).toMatchObject({
       cinema: "Unmapped Cinema",
       dateOfShowing: date,
@@ -290,6 +291,7 @@ describe("SEO request handler", () => {
       expect.anything(),
       cinemaTheater.id,
       expect.any(Date),
+      expect.any(Promise),
     );
     expect(mocks.getMovieCatalog).toHaveBeenCalledTimes(2);
     expect(mocks.renderBuiltPublicApplication.mock.calls[0]?.[0]).toMatchObject(

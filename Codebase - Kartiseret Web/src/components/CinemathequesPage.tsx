@@ -6,6 +6,7 @@ import { applyMovieDisplayPreferences } from "../data/movieDisplayPreferences";
 import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { cinemathequeQueryOptions } from "../data/cinemathequeCatalog";
+import { usePublicRenderClock } from "../contexts/PublicRenderClock";
 import { findMovieByCode, type Movie } from "../data/movieCatalog";
 import { buildCinemathequeSchedule } from "../data/cinematheques";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -18,6 +19,7 @@ import "./AllShowtimesPage.css";
 import "./CinemathequesPage.css";
 
 export function CinemathequesPage() {
+  const { cinemaDate } = usePublicRenderClock();
   const publicationRevision = usePublicationRevision();
   const queryClient = useQueryClient();
   const displayPreferences = useMovieDisplayPreferences();
@@ -136,7 +138,7 @@ export function CinemathequesPage() {
               key={day.date}
             >
               <h2 className="cinematheques-date">
-                {getShowtimeDateLabel(day.date)}
+                {getShowtimeDateLabel(day.date, cinemaDate)}
               </h2>
               {day.cinemas.map(({ cinema, movies }) => (
                 <section

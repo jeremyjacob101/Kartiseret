@@ -10,7 +10,7 @@ function useCinemaPage(cinemaId: string | undefined) {
   return useQuery({
     queryKey: ["publicCinema", cinemaId],
     enabled: cinemaId !== undefined,
-    staleTime: 30_000,
+    staleTime: 90_000,
     queryFn: async ({ signal }) => {
       const result = await getApiResponse(
         `/api/v1/cinemas/${encodeURIComponent(cinemaId!)}`,
@@ -43,6 +43,25 @@ export function CinemaPage() {
       description: `Upcoming movie showtimes at ${identity.displayName} in ${identity.city}.`,
       canonicalPath: `/c/${identity.id}`,
       robots: cinema ? "index, follow" : "noindex, nofollow",
+      jsonLd: cinema
+        ? {
+            "@context": "https://schema.org",
+            "@type": "MovieTheater",
+            name: cinema.displayName,
+            url: `https://seret.site/c/${cinema.id}`,
+            address: {
+              "@type": "PostalAddress",
+              ...(cinema.address ? { streetAddress: cinema.address } : {}),
+              addressLocality: cinema.city,
+              addressCountry: "IL",
+            },
+            geo: {
+              "@type": "GeoCoordinates",
+              latitude: cinema.latitude,
+              longitude: cinema.longitude,
+            },
+          }
+        : undefined,
     });
   }, [cinema, identity]);
 
@@ -92,9 +111,13 @@ export function CinemaPage() {
               <li
                 key={`${screening.tmdbId}-${screening.dateOfShowing}-${screening.showtime}-${index}`}
               >
-                <Link to={`/${encodeURIComponent(movie.movieCode!)}`}>
-                  {movie.title}
-                </Link>
+                {movie.movieCode ? (
+                  <Link to={`/${encodeURIComponent(movie.movieCode)}`}>
+                    {movie.title}
+                  </Link>
+                ) : (
+                  <span>{movie.title}</span>
+                )}
                 {movie.year ? ` (${movie.year})` : ""} ·{" "}
                 {screening.dateOfShowing} · {screening.showtime}
                 {screening.englishHref ? (

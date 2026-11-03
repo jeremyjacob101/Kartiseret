@@ -1,8 +1,8 @@
 import { DEFAULT_SITE_COLOR, applySiteColor, initializeSiteColorTheme, siteColorPreferenceDefinition, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
 import { DEFAULT_LOCATION, loadGuestLocation, locationPreferenceDefinition, type AppLocation } from "../prefs/definitions/locations";
 import { preferencesResponseSchema, applicationIdentitySchema, type ApplicationIdentity } from "@kartiseret/contracts/private-data";
+import { createContext, createElement, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { ratingSourcesPreferenceDefinition, type RatingSource } from "../prefs/definitions/ratingSources";
-import { createContext, createElement, useContext, useSyncExternalStore, type ReactNode } from "react";
 import { privateApiResponse, privateIdentityChanged } from "../data/privateApi";
 import type { UserPreferenceDefinition } from "../prefs/definitions/shared";
 import { shouldRollbackOptimisticSave } from "./preferenceSavePolicy";
@@ -425,7 +425,7 @@ function useUserPreferencesStoreHook<Selected = UserPreferencesStoreState>(
   const publicSnapshot = useContext(publicPreferenceSnapshotContext);
   return useSyncExternalStore(
     userPreferencesStore.subscribe,
-    () => selector(userPreferencesStore.getState()),
+    () => selector(publicSnapshot ?? userPreferencesStore.getState()),
     () => selector(publicSnapshot ?? userPreferencesStore.getInitialState()),
   );
 }
@@ -442,27 +442,36 @@ export function PublicPreferencesSnapshotProvider({
   snapshot: UserPreferencesStoreState;
   children: ReactNode;
 }) {
+  const [hydrating, setHydrating] = useState(true);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setHydrating(false));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
   return createElement(
     publicPreferenceSnapshotContext.Provider,
-    { value: snapshot },
+    { value: hydrating ? snapshot : null },
     children,
   );
 }
 
-/** Use non-personalized public defaults for both SSR and the first hydration. */
+/** Create non-personalized public defaults without mutating the shared client store. */
 export function preparePublicPagePreferenceState(): UserPreferencesStoreState {
   const publicPreferences = createPreferenceValues((key, definition) =>
     normalizePreferenceValue(key, definition.defaultValue));
-  confirmedPreferences = publicPreferences;
-  useUserPreferencesStore.setState({
+  return {
+    ...userPreferencesStore.getInitialState(),
     user: null,
     preferences: publicPreferences,
+    preferenceOptions,
+    allSources: preferenceOptions.ratingSources ?? [],
+    allLocations: preferenceOptions.location ?? [],
+    allSiteColors: preferenceOptions.siteColor ?? [],
+    defaultSiteColor: DEFAULT_SITE_COLOR,
     loading: false,
     syncing: false,
     error: null,
-  });
-  applySiteColor(publicPreferences.siteColor);
-  return userPreferencesStore.getState();
+  };
 }
 
 function isCurrentPreferenceSync(

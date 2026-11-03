@@ -25,21 +25,54 @@ const canHydrate =
   root.dataset.ssr === "true" &&
   bootstrap?.pathname === window.location.pathname;
 
+document.documentElement.classList.remove(
+  "no-js",
+  "ssr-pending",
+  "ssr-poster-entrance",
+);
+document.documentElement.classList.add("js");
+
+function showReloadControl(): void {
+  if (!canHydrate) {
+    document.documentElement.classList.remove("js");
+    document.documentElement.classList.add("no-js");
+  }
+  if (root.querySelector('[data-route-load-error="true"]')) return;
+
+  const notice = document.createElement("p");
+  notice.className = "app-inline-note";
+  notice.setAttribute("role", "alert");
+  notice.dataset.routeLoadError = "true";
+  notice.append(
+    document.createTextNode("This page could not finish loading. "),
+  );
+
+  const reloadButton = document.createElement("button");
+  reloadButton.type = "button";
+  reloadButton.className = "app-button";
+  reloadButton.textContent = "Reload page";
+  reloadButton.addEventListener("click", () => window.location.reload());
+  notice.append(reloadButton);
+  root.append(notice);
+}
+
 async function startClientApplication() {
   if (canHydrate && bootstrap) {
     try {
       await preloadPublicRouteModules(window.location.pathname);
+      const publicPreferenceSnapshot = preparePublicPagePreferenceState();
+      seedPublicPageQueries(queryClient, bootstrap);
+      hydrateRoot(
+        root,
+        <EntryApplication
+          publicPreferenceSnapshot={publicPreferenceSnapshot}
+          renderedAt={bootstrap.renderedAt}
+        />,
+      );
     } catch {
-      // Keep the server-rendered public content visible if a route chunk fails.
-      return;
+      // Retain the rendered page and give the visitor a deliberate recovery path.
+      showReloadControl();
     }
-
-    const publicPreferenceSnapshot = preparePublicPagePreferenceState();
-    seedPublicPageQueries(queryClient, bootstrap);
-    hydrateRoot(
-      root,
-      <EntryApplication publicPreferenceSnapshot={publicPreferenceSnapshot} />,
-    );
     return;
   }
 

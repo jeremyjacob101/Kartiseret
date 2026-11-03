@@ -1,6 +1,7 @@
-import { createEmptyShowtimeCityData, mergeShowtimeCityData, fixedAppDateString, movieCatalogQueryKeys, showtimeRangeQueryOptions, type MovieCollectionData } from "./data/movieCatalog.js";
+import { createEmptyShowtimeCityData, mergeShowtimeCityData, movieCatalogQueryKeys, showtimeRangeQueryOptions, type MovieCollectionData } from "./data/movieCatalog.js";
 import { publicPageBootstrapSchema, type PublicPageBootstrap } from "@kartiseret/contracts/public-render";
 import { cinemathequeQueryOptions, type CinemathequeData } from "./data/cinemathequeCatalog.js";
+import { getCinemaDayDate, SHOWTIME_TIME_ZONE } from "@kartiseret/contracts/showtime-day";
 import { addCalendarDays } from "@kartiseret/contracts/showtime-links";
 import { theaterDataQueryOptions } from "./data/theaters.js";
 import type { QueryClient } from "@tanstack/react-query";
@@ -29,6 +30,8 @@ export function seedPublicPageQueries(
   bootstrap: PublicPageBootstrap,
 ): void {
   const updatedAt = new Date(bootstrap.renderedAt).getTime();
+  const renderInstant = new Date(bootstrap.renderedAt);
+  const renderedDate = getCinemaDayDate(renderInstant, SHOWTIME_TIME_ZONE);
   const nowPlaying = asMovieCollectionData(bootstrap.catalogs.nowPlaying);
   const comingSoon = asMovieCollectionData(bootstrap.catalogs.comingSoon);
 
@@ -63,6 +66,8 @@ export function seedPublicPageQueries(
     }
     const data = mergeShowtimeCityData(createEmptyShowtimeCityData(city), {
       city,
+      todayDate: renderedDate,
+      renderInstant,
       dates,
       movies: nowPlaying.movies,
       rows: showtimes,
@@ -87,7 +92,7 @@ export function seedPublicPageQueries(
       queryClient.getQueryData<ReturnType<typeof createEmptyShowtimeCityData>>(
         key,
       ) ?? createEmptyShowtimeCityData(city);
-    const start = new Date(`${fixedAppDateString}T00:00:00Z`);
+    const start = new Date(`${renderedDate}T00:00:00Z`);
     const from = new Date(`${date}T00:00:00Z`);
     const count = Math.min(
       180,
@@ -98,6 +103,8 @@ export function seedPublicPageQueries(
     );
     const data = mergeShowtimeCityData(current, {
       city,
+      todayDate: renderedDate,
+      renderInstant,
       dates: [date],
       movies: nowPlaying.movies,
       rows: showtimes,

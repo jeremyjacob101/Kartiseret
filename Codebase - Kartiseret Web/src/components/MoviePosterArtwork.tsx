@@ -113,6 +113,7 @@ const LoadingFallbackPosterImage = forwardRef<
       ) : null}
       <img
         ref={setImageNode}
+        data-image-status={imageStatus}
         src={deferRequest ? undefined : resolvedImageSrc}
         alt={resolvedAlt}
         aria-hidden={isDecorative ? "true" : undefined}
@@ -127,7 +128,6 @@ const LoadingFallbackPosterImage = forwardRef<
         onError={() => {
           setImageStatus("error");
         }}
-        style={showFallback ? { opacity: 0 } : undefined}
       />
     </div>
   );
