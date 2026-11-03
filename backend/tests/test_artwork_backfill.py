@@ -9,6 +9,35 @@ from backend.dataflow.utils.ArtworkStorage import VARIANTS
 
 
 class ArtworkBackfillTests(unittest.TestCase):
+    def test_cli_selects_development_profile_before_creating_clients(self):
+        env = {
+            "DEV_SUPABASE_URL": "https://jbydpmjjptwevyijarzl.supabase.co",
+            "DEV_SUPABASE_SERVICE_ROLE_KEY": "dev-secret",
+            "PROD_SUPABASE_URL": "https://gsdrcyrduxbrxgsvhxvr.supabase.co",
+            "PROD_SUPABASE_SERVICE_ROLE_KEY": "prod-secret",
+        }
+        with patch.dict(os.environ, env, clear=True), patch.object(backfill, "load_dotenv"), patch(
+            "sys.argv", ["backfill", "--target", "development", "--backfill"]
+        ), patch.object(backfill, "build_clients", return_value=(Mock(), Mock())) as clients, patch.object(
+            backfill, "run_backfill", return_value={}
+        ):
+            backfill.main()
+            self.assertEqual(os.environ["SUPABASE_URL"], env["DEV_SUPABASE_URL"])
+            self.assertEqual(os.environ["SUPABASE_SERVICE_ROLE_KEY"], "dev-secret")
+            clients.assert_called_once()
+
+    def test_cli_rejects_mismatched_profile_before_creating_clients(self):
+        env = {
+            "DEV_SUPABASE_URL": "https://gsdrcyrduxbrxgsvhxvr.supabase.co",
+            "DEV_SUPABASE_SERVICE_ROLE_KEY": "dev-secret",
+        }
+        with patch.dict(os.environ, env, clear=True), patch.object(backfill, "load_dotenv"), patch(
+            "sys.argv", ["backfill", "--target", "development", "--backfill"]
+        ), patch.object(backfill, "build_clients") as clients:
+            with self.assertRaises(ValueError):
+                backfill.main()
+            clients.assert_not_called()
+
     def test_tmdb_path_accepts_only_clean_tmdb_image_urls(self):
         self.assertEqual(
             backfill.tmdb_path("https://image.tmdb.org/t/p/w500/poster_1.jpg"),
@@ -107,9 +136,10 @@ class ArtworkBackfillTests(unittest.TestCase):
             "backdrop": "https://image.tmdb.org/t/p/w1280/old-backdrop.jpg",
         }
         client = Mock()
+        client.table.return_value.update.return_value.eq.return_value.select.return_value.execute.return_value.data = [{"tmdb_id": 42}]
         image_storage = Mock()
         image_storage.store.side_effect = [
-            SimpleNamespace(url="https://seret.site/api/images/poster/new"),
+            SimpleNamespace(source_path="/old.jpg", url="https://seret.site/api/images/poster/new", variants=((342, "https://seret.site/api/images/poster/new"),)),
             RuntimeError("upload interrupted"),
         ]
         with patch.object(
@@ -119,7 +149,10 @@ class ArtworkBackfillTests(unittest.TestCase):
         ):
             counts = backfill.run_backfill(client, image_storage, apply=True)
         self.assertEqual(counts["failed"], 1)
-        client.table.return_value.update.assert_not_called()
+        self.assertEqual(counts["updated"], 1)
+        published = client.table.return_value.update.call_args.args[0]
+        self.assertIn("en_poster", published)
+        self.assertNotIn("backdrop", published)
 
     def test_rollback_uses_the_persisted_source_identity(self):
         row = {

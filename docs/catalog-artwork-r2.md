@@ -74,24 +74,24 @@ For Vercel **Development** and **Preview**, keep the dev `DATABASE_URL` and `DAT
 
 ## Backfill and cleanup
 
-The backfill scans `finalMovies`, `finalThequeMovies`, and `finalSoons`. It is idempotent: already-mirrored rows are skipped, and completed R2 objects are reused if a run is repeated. Dry-run is the default.
+The backfill scans `finalMovies`, `finalThequeMovies`, and `finalSoons`. It is idempotent: already-mirrored rows are skipped, and completed R2 objects are reused if a run is repeated. Dry-run is the default. Select `--target development` or `--target production`; `KARTISERET_TARGET` may also supply the target. The script loads the root `.env` and validates the selected Supabase and R2 profile before creating clients.
 
 ```sh
 # Show which development rows would be migrated (no writes or uploads)
-python backend/dataflow/backfill_catalog_artwork.py --backfill --limit 25
+python -m backend.dataflow.backfill_catalog_artwork --target development --backfill --limit 25
 
 # Copy and publish a small development batch
-python backend/dataflow/backfill_catalog_artwork.py --backfill --apply --limit 25
+python -m backend.dataflow.backfill_catalog_artwork --target development --backfill --apply --limit 25
 
 # Resume the remaining development catalog
-python backend/dataflow/backfill_catalog_artwork.py --backfill --apply
+python -m backend.dataflow.backfill_catalog_artwork --target development --backfill --apply
 ```
 
 Cleanup has a 30-day grace period for recently uploaded objects. It reads every catalog poster/backdrop in all three tables, accounts for shared keys, and skips deletion if its reference scan fails or a dataflow run is active. The operator must pause all scheduled or manually started dataflow runs throughout cleanup; the environment flag is an additional assertion, not a distributed lock. First inspect the dry-run candidates, then apply only when the entire dataflow is paused:
 
 ```sh
-ARTWORK_CLEANUP_PIPELINE_PAUSED=true python backend/dataflow/backfill_catalog_artwork.py --cleanup
-ARTWORK_CLEANUP_PIPELINE_PAUSED=true python backend/dataflow/backfill_catalog_artwork.py --cleanup --apply
+ARTWORK_CLEANUP_PIPELINE_PAUSED=true python -m backend.dataflow.backfill_catalog_artwork --target development --cleanup
+ARTWORK_CLEANUP_PIPELINE_PAUSED=true python -m backend.dataflow.backfill_catalog_artwork --target development --cleanup --apply
 ```
 
 The cleanup script will not infer that an object is unused from age alone. An object remains while any catalog category references it. Never run cleanup during a backfill or while catalog updates can publish references concurrently.
@@ -109,8 +109,8 @@ The cleanup script will not infer that an object is unused from age alone. An ob
 2. Keep the app's R2 read credentials and endpoint deployed while restoring catalog URLs. The rollback reads the TMDB source paths saved in `provider_freshness.artwork` and changes only rows it can safely identify:
 
    ```sh
-   python backend/dataflow/backfill_catalog_artwork.py --rollback
-   python backend/dataflow/backfill_catalog_artwork.py --rollback --apply
+   python -m backend.dataflow.backfill_catalog_artwork --target development --rollback
+   python -m backend.dataflow.backfill_catalog_artwork --target development --rollback --apply
    ```
 
    For any future production rollback, the script requires an explicit `--allow-production` alongside `--apply`; that option was not used in this work.

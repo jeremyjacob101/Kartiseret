@@ -6,12 +6,16 @@ project. Cleanup also requires the operator to pause dataflow workflows.
 from __future__ import annotations
 
 import argparse
+import logging
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 import os
 import re
+from pathlib import Path
 from urllib.parse import urlsplit
 
+from dotenv import load_dotenv
+from backend.config.target_environment import PROFILE_KEYS, resolve_target_environment
 from backend.dataflow.utils.ArtworkStorage import ArtworkStorage, VARIANTS
 
 PRODUCTION_PROJECT_REF = "gsdrcyrduxbrxgsvhxvr"
@@ -100,21 +104,26 @@ def run_backfill(client, storage, *, apply: bool, limit: int | None = None):
                 counts["unchanged"] += 1
                 continue
             if apply:
-                try:
-                    candidate_paths = new
-                    new = {}
-                    updated_row = {"provider_freshness": deepcopy(row.get("provider_freshness") or {})}
-                    for field, kind in (("en_poster", "poster"), ("backdrop", "backdrop")):
-                        source = candidate_paths.get(field)
-                        if not source:
-                            continue
+                candidate_paths = new
+                new = {}
+                failed = False
+                updated_row = {"provider_freshness": deepcopy(row.get("provider_freshness") or {})}
+                for field, kind in (("en_poster", "poster"), ("backdrop", "backdrop")):
+                    source = candidate_paths.get(field)
+                    if not source:
+                        continue
+                    try:
                         result = storage.store(kind, source)
-                        new[field] = result.url
                         ArtworkStorage.record_metadata(updated_row, kind, result)
-                    new["provider_freshness"] = updated_row["provider_freshness"]
-                except Exception:
+                        new[field] = result.url
+                    except Exception as error:
+                        logging.warning("Artwork backfill failed for %s %s (%s)", table, kind, type(error).__name__)
+                        failed = True
+                if failed:
                     counts["failed"] += 1
+                if not new:
                     continue
+                new["provider_freshness"] = updated_row["provider_freshness"]
                 saved = client.table(table).update(new).eq(primary_key, row[primary_key]).select(primary_key).execute().data or []
                 if len(saved) != 1:
                     raise RuntimeError(f"Expected one updated row in {table}")
@@ -198,7 +207,9 @@ def run_cleanup(client, storage, *, apply: bool, grace_days=30):
 
 
 def main():
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--target", choices=("development", "production"), default=os.environ.get("KARTISERET_TARGET"))
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--backfill", action="store_true", help="Copy artwork; dry-run unless --apply is also set")
     mode.add_argument("--rollback", action="store_true", help="Restore published R2 URLs to their saved TMDB source paths")
@@ -207,6 +218,12 @@ def main():
     parser.add_argument("--allow-production", action="store_true", help="Explicitly permit an apply operation against production")
     parser.add_argument("--limit", type=int, help="Limit number of catalog rows for a test pass")
     args = parser.parse_args()
+    if not args.target:
+        parser.error("select --target development or --target production")
+    selected = resolve_target_environment(args.target, os.environ)
+    for key in PROFILE_KEYS:
+        os.environ.pop(key, None)
+    os.environ.update(selected)
     client, storage = build_clients(require_storage=not args.rollback)
     project_url = os.environ["SUPABASE_URL"].strip()
     if args.allow_production and not args.apply:
