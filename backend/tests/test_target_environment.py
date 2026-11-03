@@ -149,23 +149,19 @@ class TargetEnvironmentTests(TestCase):
         with self.assertRaisesRegex(TargetConfigurationError, "requires PUBLICATION_DATABASE_URL"):
             resolve_target_environment("development", environment)
 
-    def test_generic_ci_environment_is_validated_without_profile_remapping(self):
+    def test_unprefixed_environment_is_validated_without_profiles(self):
         environment = {
-            "GITHUB_ACTIONS": "true",
             "KARTISERET_TARGET": "development",
             "SUPABASE_URL": f"https://{PROJECT_REFS['development']}.supabase.co",
             "SUPABASE_SERVICE_ROLE_KEY": "dev-service-role",
-            "DEV_SUPABASE_URL": "must-not-be-used",
         }
         resolved = resolve_target_environment("development", environment)
 
         self.assertEqual(resolved["SUPABASE_URL"], environment["SUPABASE_URL"])
         self.assertEqual(resolved["KARTISERET_TARGET"], "development")
-        self.assertEqual(resolved["DEV_SUPABASE_URL"], "")
 
-    def test_github_target_must_match_supabase_url(self):
+    def test_unprefixed_environment_with_wrong_project_is_rejected(self):
         environment = {
-            "GITHUB_ACTIONS": "true",
             "KARTISERET_TARGET": "development",
             "SUPABASE_URL": f"https://{PROJECT_REFS['production']}.supabase.co",
             "SUPABASE_SERVICE_ROLE_KEY": "wrong-project-key",
@@ -177,7 +173,6 @@ class TargetEnvironmentTests(TestCase):
         with self.assertRaises(TargetConfigurationError):
             resolve_target_environment("staging", {})
         self.assertTrue(is_scheduled({"JJ_INTEL_MAC_DAILY_RUN": "true"}))
-        self.assertTrue(is_scheduled({"GITHUB_ACTIONS": "true"}))
         self.assertFalse(is_scheduled({}))
 
 
@@ -246,15 +241,11 @@ class RunnerTargetSelectionTests(TestCase):
         self.assertEqual(target, "development")
         self.assertEqual(selected["R2_BUCKET"], BUCKETS["development"])
 
-    def test_github_target_conflict_with_cli_is_rejected(self):
-        environment = {
-            **self.profiles,
-            "GITHUB_ACTIONS": "true",
-            "KARTISERET_TARGET": "production",
-            "SUPABASE_URL": f"https://{PROJECT_REFS['production']}.supabase.co",
-            "SUPABASE_SERVICE_ROLE_KEY": "production-key",
-        }
+    def test_cli_target_overrides_environment_target(self):
+        environment = {**self.profiles, "KARTISERET_TARGET": "production"}
         with patch.dict(os.environ, environment, clear=True):
-            with self.assertRaisesRegex(TargetConfigurationError, "conflicts with the GitHub Actions target"):
-                runner._select_target("development")
+            target, selected = runner._select_target("development")
+
+        self.assertEqual(target, "development")
+        self.assertEqual(selected["R2_BUCKET"], BUCKETS["development"])
 
