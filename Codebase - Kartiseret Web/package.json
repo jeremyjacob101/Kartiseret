@@ -24,8 +24,9 @@
     "format": "prettier --ignore-path ../.gitignore --cache --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts}\"",
     "format:check": "prettier --ignore-path ../.gitignore --check \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts}\"",
     "preview": "vite preview --config config/vite.config.ts",
-    "verify": "npm run lint && npm run format:check && npm test && npm run build && npm run bundle:check && npm --prefix .. run clean:web-build",
-    "build:bundle": "vite build --config config/vite.config.ts",
+    "verify": "npm run lint && npm run format:check && npm test && npm run build && npm run test:ssr-browser && npm run bundle:check && npm --prefix .. run clean:web-build",
+    "build:bundle": "vite build --config config/vite.config.ts && vite build --config config/vite.config.ts --ssr src/entry-server.tsx --outDir dist-ssr && node tests/seo/ssrBuiltOutput.mjs",
+    "test:ssr-browser": "node tests/seo/ssrBrowserSmoke.mjs",
     "typecheck:source": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p config/tsconfig.node.json && tsc --noEmit -p config/tsconfig.server.json && tsc --noEmit -p tsconfig.e2e.json",
     "test:run": "vitest run"
   },

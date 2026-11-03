@@ -1,4 +1,5 @@
-import { queryClient } from "../lib/queryClient.js";
+import { queryClient as browserQueryClient } from "../lib/queryClient.js";
+import type { QueryClient } from "@tanstack/react-query";
 import { ApiRequestError } from "./apiClient.js";
 
 const revisions = new WeakMap<object, string>();
@@ -13,7 +14,9 @@ export function tagPublication<T extends object>(
 export function publicationOf(value: object): string | undefined {
   return revisions.get(value);
 }
-export function currentPublicationRevision(): string | undefined {
+export function currentPublicationRevision(
+  queryClient: QueryClient = browserQueryClient,
+): string | undefined {
   return queryClient.getQueryData<{ publicationRevision?: string }>([
     "movieCatalog",
     "collections",
@@ -32,7 +35,9 @@ export function assertPublication(
       "Published data changed. Reload the catalog.",
     );
 }
-export async function refreshPublicationCollections(): Promise<void> {
+export async function refreshPublicationCollections(
+  queryClient: QueryClient = browserQueryClient,
+): Promise<void> {
   const collections = queryClient
     .getQueryCache()
     .findAll({ queryKey: ["movieCatalog", "collections"] });

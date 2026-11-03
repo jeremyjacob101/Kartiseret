@@ -305,9 +305,12 @@ export function getMovieInfoParts(movie: Movie): string[] {
   return parts;
 }
 
-export function getShowtimeDateLabel(dateString: string): string {
+export function getShowtimeDateLabel(
+  dateString: string,
+  todayString = fixedAppDateString,
+): string {
   const showDate = parseShowtimeDate(dateString);
-  const today = parseShowtimeDate(fixedAppDateString);
+  const today = parseShowtimeDate(todayString);
   const dayOffset = Math.round(
     (showDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
   );

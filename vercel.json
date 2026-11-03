@@ -28,11 +28,21 @@
   "outputDirectory": "Codebase - Kartiseret Web/dist",
   "functions": {
     "api/dispatch.ts": {
-      "includeFiles": "{Codebase - Kartiseret Web/dist/**,Codebase - Kartiseret Web/server/og/assets/**,packages/**/dist/**}",
+      "includeFiles": "{Codebase - Kartiseret Web/dist/**,Codebase - Kartiseret Web/dist-ssr/**,Codebase - Kartiseret Web/server/og/assets/**,packages/**/dist/**}",
       "maxDuration": 30
     }
   },
+  "routes": [
+    {
+      "src": "^/$",
+      "dest": "/api/dispatch?__vercel_route=page&path=/"
+    }
+  ],
   "rewrites": [
+    {
+      "source": "/",
+      "destination": "/api/dispatch?__vercel_route=page&path=/"
+    },
     {
       "source": "/robots.txt",
       "destination": "/api/dispatch?__vercel_route=robots"

@@ -58,4 +58,51 @@ describe("SEO metadata", () => {
       document.querySelector<HTMLMetaElement>('meta[name="robots"]')?.content,
     ).toBe("noindex, nofollow");
   });
+
+  it("replaces route JSON-LD and removes stale movie data on later routes", () => {
+    document.head.innerHTML =
+      '<script type="application/ld+json">{"@type":"Movie","name":"Old movie"}</script>';
+    setSeoMetadata({
+      title: "Movie | Kartiseret",
+      description: "Movie details",
+      canonicalPath: "/Ab3",
+      jsonLd: {
+        "@context": "https://schema.org",
+        "@type": "Movie",
+        name: "$&|$`|$' </script><script>alert(1)</script>",
+      },
+    });
+
+    expect(
+      document.head.querySelectorAll('script[type="application/ld+json"]'),
+    ).toHaveLength(1);
+    const script = document.head.querySelector<HTMLScriptElement>(
+      'script[type="application/ld+json"]',
+    );
+    expect(script?.textContent).toContain("\\u003c/script\\u003e");
+    expect(script?.textContent).toContain("$\\u0026|$`|$'");
+
+    setSeoMetadata({
+      title: "Movies | Kartiseret",
+      description: "Movie listings",
+      canonicalPath: "/movies",
+    });
+    expect(
+      document.head.querySelectorAll('script[type="application/ld+json"]'),
+    ).toHaveLength(0);
+  });
+
+  it("rejects unsafe client metadata image URLs", () => {
+    setSeoMetadata({
+      title: "Movie | Kartiseret",
+      description: "Movie details",
+      canonicalPath: "/Ab3",
+      imageUrl: "javascript:alert(1)",
+    });
+    expect(
+      document
+        .querySelector('meta[property="og:image"]')
+        ?.getAttribute("content"),
+    ).toBe("https://seret.site/logos/kartiseret1.svg");
+  });
 });

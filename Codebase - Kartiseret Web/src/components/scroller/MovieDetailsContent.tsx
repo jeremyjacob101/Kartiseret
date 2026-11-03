@@ -1,4 +1,4 @@
-import { APP_TIME_ZONE, fixedAppDateString, getMovieShowtimeCities, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, selectMovieShowtimeDays, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
+import { APP_TIME_ZONE, getMovieShowtimeCities, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, selectMovieShowtimeDays, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
 import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, saveShowtimeFilters, updateShowtimeFilterState, useShowtimeFiltersStore, type ShowtimeFilterOptions, type ShowtimeFilterSelections, type ShowtimeFilterState } from "../showtimes/showtimeFilters";
 import { cinemaIdForLocation, findCinemaIdentityForScreening } from "@kartiseret/contracts/cinema-identities";
 import { addCalendarDays, SHOWTIME_LINK_DATE_COUNT } from "@kartiseret/contracts/showtime-links";
@@ -8,14 +8,15 @@ import { usePublicationRevision } from "../../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
 import { theaterDataQueryOptions, type City } from "../../data/theaters";
+import { usePublicRenderClock } from "../../contexts/PublicRenderClock";
 import { type AppLocation } from "../../prefs/definitions/locations";
 import { ShowtimeFilterMenu } from "../showtimes/ShowtimeFilterMenu";
 import { ShowtimeDayPicker } from "../showtimes/ShowtimeDayPicker";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TheaterMapDialog } from "../maps/TheaterMapDialog";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { TicketAlertControl } from "./TicketAlertControl";
 import { useShallow } from "zustand/react/shallow";
-import { useQuery } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { Link } from "react-router";
 
@@ -202,9 +203,9 @@ function parseShowtimeDate(dateString: string): Date {
   return new Date(Date.UTC(year, month - 1, day, 12));
 }
 
-function getShowtimeDateLabel(dateString: string): string {
+function getShowtimeDateLabel(dateString: string, todayString: string): string {
   const showDate = parseShowtimeDate(dateString);
-  const today = parseShowtimeDate(fixedAppDateString);
+  const today = parseShowtimeDate(todayString);
   const dayOffset = Math.round(
     (showDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
   );
@@ -636,7 +637,9 @@ export function MovieDetailsContent({
   onShareShowtimes,
   shareFeedback = null,
 }: MovieDetailsContentProps) {
-  usePublicationRevision();
+  const { cinemaDate } = usePublicRenderClock();
+  const queryClient = useQueryClient();
+  const publicationRevision = usePublicationRevision();
   const {
     sources,
     location: preferenceLocation,
@@ -662,7 +665,7 @@ export function MovieDetailsContent({
     [locationOverride, onLocationOverrideChange, setLocationPreference],
   );
   const { data: showtimeCityData } = useQuery({
-    ...showtimeCityQueryOptions(location),
+    ...showtimeCityQueryOptions(location, publicationRevision),
     enabled: false,
   });
   const showtimesReady = showtimeCityData?.broadReady ?? false;
@@ -770,7 +773,7 @@ export function MovieDetailsContent({
     hasLoadedShowtimeWindow &&
     !hasTodayShowtimes &&
     firstCityShowtimeDate !== null &&
-    firstCityShowtimeDate !== fixedAppDateString;
+    firstCityShowtimeDate !== cinemaDate;
   const effectiveVisibleShowtimeDate = targetShowtimeDate;
   const selectedShowtimeDay =
     showtimeDays.find((day) => day.date === effectiveVisibleShowtimeDate) ??
@@ -890,10 +893,10 @@ export function MovieDetailsContent({
   const shouldShowTodayReturnButton =
     shouldShowSkipToShowingDayButton &&
     effectiveVisibleShowtimeDate !== null &&
-    effectiveVisibleShowtimeDate !== fixedAppDateString &&
+    effectiveVisibleShowtimeDate !== cinemaDate &&
     effectiveVisibleShowtimeDate >= firstCityShowtimeDate;
   const showtimeJumpTargetDate = shouldShowTodayReturnButton
-    ? fixedAppDateString
+    ? cinemaDate
     : firstCityShowtimeDate;
   const showtimeJumpButtonLabel = shouldShowTodayReturnButton
     ? "BACK TO TODAY"
@@ -907,7 +910,9 @@ export function MovieDetailsContent({
       return [];
     }
 
-    const cachedCities = [...getMovieShowtimeCities(movie.tmdbId)];
+    const cachedCities = [
+      ...getMovieShowtimeCities(movie.tmdbId, queryClient, publicationRevision),
+    ];
     const currentCityHasShowtimes = selectMovieShowtimeDays(
       showtimeCityData,
       movie.tmdbId,
@@ -918,7 +923,14 @@ export function MovieDetailsContent({
     }
 
     return cachedCities;
-  }, [hasLoadedShowtimeWindow, location, movie.tmdbId, showtimeCityData]);
+  }, [
+    hasLoadedShowtimeWindow,
+    location,
+    movie.tmdbId,
+    publicationRevision,
+    queryClient,
+    showtimeCityData,
+  ]);
   const nearbyCityChoices = useMemo<NearbyCityChoice[]>(() => {
     if (!hasLoadedShowtimeWindow || playingCities.length === 0) {
       return [];
@@ -929,7 +941,12 @@ export function MovieDetailsContent({
       cityByName,
       playingCities,
     ).flatMap((cityName) => {
-      const cityShowtimeDays = getMovieShowtimeDays(movie.tmdbId, cityName);
+      const cityShowtimeDays = getMovieShowtimeDays(
+        movie.tmdbId,
+        cityName,
+        queryClient,
+        publicationRevision,
+      );
       const selectedDayShowtimeDate =
         effectiveVisibleShowtimeDate &&
         cityShowtimeDays.some(
@@ -950,7 +967,9 @@ export function MovieDetailsContent({
     hasLoadedShowtimeWindow,
     location,
     movie.tmdbId,
+    publicationRevision,
     playingCities,
+    queryClient,
   ]);
   const isTrailerModalOpen =
     Boolean(trailerEmbedUrl) && openTrailerModalId === trailerModalId;
@@ -1176,9 +1195,7 @@ export function MovieDetailsContent({
   const handleNearbyCityClick = useCallback(
     async (cityName: string, nextShowtimeDate: string) => {
       const previousDate =
-        effectiveVisibleShowtimeDate ??
-        targetShowtimeDate ??
-        fixedAppDateString;
+        effectiveVisibleShowtimeDate ?? targetShowtimeDate ?? cinemaDate;
 
       setPendingNearbyCity(cityName);
       onPreferredShowtimeDateChange?.(nextShowtimeDate);
@@ -1200,6 +1217,7 @@ export function MovieDetailsContent({
     },
     [
       effectiveVisibleShowtimeDate,
+      cinemaDate,
       onPreferredShowtimeDateChange,
       targetShowtimeDate,
       updateLocation,
@@ -1218,12 +1236,13 @@ export function MovieDetailsContent({
     previousShowtimeLocationRef.current = location;
     void loadShowtimesAroundDate(
       location,
-      preferredShowtimeDate ?? fixedAppDateString,
+      preferredShowtimeDate ?? cinemaDate,
       targetShowtimeQueries ? movie.tmdbId : undefined,
     ).catch((error: unknown) => {
       console.error("Could not load showtimes for the selected city.", error);
     });
   }, [
+    cinemaDate,
     location,
     movie.tmdbId,
     preferredShowtimeDate,
@@ -1433,9 +1452,7 @@ export function MovieDetailsContent({
                 ariaLabel={`Choose ${movie.title} showtime day`}
                 dates={showtimeDays.map((day) => day.date)}
                 selectedDate={effectiveVisibleShowtimeDate}
-                disabledBeforeDate={
-                  showtimeDateWindowStart ?? fixedAppDateString
-                }
+                disabledBeforeDate={showtimeDateWindowStart ?? cinemaDate}
                 trailingPlaceholderCount={
                   exactDateShowtimeQueries
                     ? 0
@@ -1534,8 +1551,8 @@ export function MovieDetailsContent({
                     ) : effectiveSelectedShowtimeDay.theaters.length === 0 ? (
                       renderNoShowtimesState(
                         hasFilteredOutAllSelectedShowtimes
-                          ? `No showtimes match current filters on ${getShowtimeDateLabel(effectiveSelectedShowtimeDay.date)} in ${location}`
-                          : `No showtimes on ${getShowtimeDateLabel(effectiveSelectedShowtimeDay.date)} in ${location}`,
+                          ? `No showtimes match current filters on ${getShowtimeDateLabel(effectiveSelectedShowtimeDay.date, cinemaDate)} in ${location}`
+                          : `No showtimes on ${getShowtimeDateLabel(effectiveSelectedShowtimeDay.date, cinemaDate)} in ${location}`,
                       )
                     ) : (
                       <div className="details-theaters">

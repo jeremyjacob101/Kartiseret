@@ -1,4 +1,4 @@
-import { fixedAppDateString, findMovieByCode, movieCatalogQueryKeys, movieCollectionQueryOptions, selectCityHasAnyShowtimesOnDate, showtimeRangeQueryOptions } from "../../src/data/movieCatalog";
+import { createEmptyShowtimeCityData, fixedAppDateString, findMovieByCode, getMovieShowtimeDays, mergeShowtimeCityData, movieCatalogQueryKeys, movieCollectionQueryOptions, selectCityHasAnyShowtimesOnDate, showtimeCityQueryOptions, showtimeRangeQueryOptions } from "../../src/data/movieCatalog";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { queryClient } from "../../src/lib/queryClient";
 import { QueryClient } from "@tanstack/react-query";
@@ -192,6 +192,85 @@ describe("movie catalog cache selectors", () => {
 });
 
 describe("showtime range loading guards", () => {
+  it("fetches broad city data after a movie-targeted bootstrap and exposes another movie's rows", async () => {
+    const firstMovie = movie({ tmdbId: "101", movieCode: "Ab1" });
+    const secondMovie = movie({ tmdbId: "202", movieCode: "Bc2" });
+    const collection = {
+      publicationRevision: "0",
+      mode: "nowPlaying" as const,
+      movies: [firstMovie, secondMovie],
+      moviesByCode: { Ab1: firstMovie, Bc2: secondMovie },
+      movieCodesStatus: "ready" as const,
+    };
+    queryClient.setQueryData(
+      movieCatalogQueryKeys.collection("nowPlaying"),
+      collection,
+    );
+    const firstMovieRow = {
+      tmdbId: firstMovie.tmdbId,
+      screeningCity: "Jerusalem",
+      dateOfShowing: fixedAppDateString,
+      cinema: "Cinema City",
+      showtime: "23:59",
+      englishHref: "https://tickets.example/first",
+      hebrewHref: null,
+      screeningTech: "2D",
+      screeningType: "Regular",
+      dubLanguage: null,
+    };
+    const secondMovieRow = {
+      ...firstMovieRow,
+      tmdbId: secondMovie.tmdbId,
+      englishHref: "https://tickets.example/second",
+    };
+    const targeted = mergeShowtimeCityData(
+      createEmptyShowtimeCityData("Jerusalem"),
+      {
+        city: "Jerusalem",
+        todayDate: fixedAppDateString,
+        dates: [fixedAppDateString],
+        movies: [firstMovie],
+        rows: [firstMovieRow],
+        scope: { tmdbId: firstMovie.tmdbId },
+        publicationRevision: "0",
+        visibleDayCount: 1,
+      },
+    );
+    queryClient.setQueryData(
+      movieCatalogQueryKeys.showtimeCity("Jerusalem", "0"),
+      targeted,
+    );
+    const fetchMock = installFetch((input) => {
+      const url = new URL(String(input), "https://example.test");
+      expect(url.pathname).toBe("/api/v1/showtimes");
+      expect(url.searchParams.get("city")).toBe("Jerusalem");
+      expect(url.searchParams.has("tmdbId")).toBe(false);
+      return response({
+        data: { showtimes: [firstMovieRow, secondMovieRow] },
+        error: null,
+      });
+    });
+
+    expect(targeted.broadReady).toBe(false);
+    expect(
+      getMovieShowtimeDays(secondMovie.tmdbId, "Jerusalem", queryClient, "0"),
+    ).toEqual([]);
+
+    const cityData = await queryClient.fetchQuery(
+      showtimeCityQueryOptions("Jerusalem", "0"),
+    );
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(cityData.broadReady).toBe(true);
+    expect(
+      getMovieShowtimeDays("202", "Jerusalem", queryClient, "0"),
+    ).toHaveLength(1);
+    expect(
+      getMovieShowtimeDays("202", "Jerusalem", queryClient, "0")[0]?.theaters[0]
+        ?.showtimes[0]?.href,
+    ).toBe("https://tickets.example/second");
+  });
+
   it("requests a normalized same-origin range and passes cancellation", async () => {
     let requestUrl = "";
     let requestSignal: AbortSignal | undefined;

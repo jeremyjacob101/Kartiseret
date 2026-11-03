@@ -116,6 +116,31 @@ describe("movie catalog query keys", () => {
 });
 
 describe("showtime city cache merging", () => {
+  it("uses the request render date and instant when projecting SSR showtimes", () => {
+    const movie = createMovie();
+    const renderDate = "2026-11-03";
+    const data = mergeShowtimeCityData(undefined, {
+      city: "Jerusalem",
+      todayDate: renderDate,
+      renderInstant: new Date("2026-11-03T10:30:00.000Z"),
+      dates: [renderDate],
+      movies: [movie],
+      rows: [
+        createShowtimeRow(renderDate, { showtime: "10:00" }),
+        createShowtimeRow(renderDate, { showtime: "13:00" }),
+      ],
+      scope: "broad",
+      visibleDayCount: 1,
+    });
+
+    expect(data.broadLoadedDayCount).toBe(1);
+    expect(
+      data.movieShowtimesByTmdbId[
+        movie.tmdbId
+      ]?.[0]?.theaters[0]?.showtimes.map(({ time }) => time),
+    ).toEqual(["13:00"]);
+  });
+
   it("keeps targeted readiness separate and merges rows idempotently", () => {
     const movie = createMovie();
     const todayRow = createShowtimeRow(fixedAppDateString);

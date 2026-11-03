@@ -7,7 +7,29 @@ type SeoMetadata = {
   openGraphPath?: string;
   imageUrl?: string;
   robots?: string;
+  jsonLd?: unknown;
 };
+
+export function safeSeoUrl(value: string | undefined): string | undefined {
+  if (!value?.trim()) return undefined;
+  try {
+    const url = new URL(value, SITE_ORIGIN);
+    return url.protocol === "http:" || url.protocol === "https:"
+      ? url.toString()
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function serializeJsonLd(value: unknown): string {
+  return JSON.stringify(value)
+    .replaceAll("<", "\\u003c")
+    .replaceAll(">", "\\u003e")
+    .replaceAll("&", "\\u0026")
+    .replaceAll("\u2028", "\\u2028")
+    .replaceAll("\u2029", "\\u2029");
+}
 
 function setMeta(
   selector: string,
@@ -26,7 +48,8 @@ function setMeta(
 
 export function setSeoMetadata(metadata: SeoMetadata): void {
   const canonical = new URL(metadata.canonicalPath, SITE_ORIGIN).toString();
-  const image = metadata.imageUrl ?? `${SITE_ORIGIN}/logos/kartiseret1.svg`;
+  const image =
+    safeSeoUrl(metadata.imageUrl) ?? `${SITE_ORIGIN}/logos/kartiseret1.svg`;
   document.title = metadata.title;
   setMeta(
     'meta[name="description"]',
@@ -97,6 +120,24 @@ export function setSeoMetadata(metadata: SeoMetadata): void {
     document.head.append(canonicalElement);
   }
   canonicalElement.href = canonical;
+
+  const jsonLdElements = [
+    ...document.head.querySelectorAll<HTMLScriptElement>(
+      'script[type="application/ld+json"]',
+    ),
+  ];
+  let jsonLdElement = jsonLdElements.shift();
+  jsonLdElements.forEach((element) => element.remove());
+  if (metadata.jsonLd === undefined) {
+    jsonLdElement?.remove();
+  } else {
+    if (!jsonLdElement) {
+      jsonLdElement = document.createElement("script");
+      jsonLdElement.type = "application/ld+json";
+      document.head.append(jsonLdElement);
+    }
+    jsonLdElement.textContent = serializeJsonLd(metadata.jsonLd);
+  }
 }
 
 export function getCurrentRobotsDirectives(): string {

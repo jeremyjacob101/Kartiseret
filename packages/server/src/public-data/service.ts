@@ -10,8 +10,6 @@ import {
   type MovieCatalogMode,
   type PublicCinemathequeData,
   type PublicShowtime,
-  type PublicShowtimeRangeQuery,
-  type PublicCinemathequeQuery,
   type PublicTheaterData,
   type PublicCinemaPageData,
   type TicketAvailabilityShowtime,
@@ -34,7 +32,11 @@ import {
   toNowPlayingMovie,
 } from "../catalog/movie-mapper.js";
 import { orderNowPlayingRows } from "../catalog/now-playing-ranking.js";
-import type { PublicDataRepository } from "./repository.js";
+import type {
+  PublicCinemathequeRange,
+  PublicDataRepository,
+  PublicShowtimeRange,
+} from "./repository.js";
 import { PublicDataIntegrityError } from "./errors.js";
 import {
   findCinemaIdentityForScreening,
@@ -267,7 +269,7 @@ function mapDatabaseShowtime(value: unknown): PublicShowtime {
 
 export async function getShowtimeRange(
   repository: PublicDataRepository,
-  range: PublicShowtimeRangeQuery,
+  range: PublicShowtimeRange,
 ): Promise<PublicShowtime[]> {
   const rows = await repository.findShowtimeRows(range);
   return rows
@@ -298,21 +300,60 @@ export async function getShowtimeRange(
     .map(mapDatabaseShowtime);
 }
 
+export type PublicCinemaPageContext = {
+  theaterCatalog: PublicTheaterData;
+  nowPlaying: MovieCatalogData;
+  comingSoon: MovieCatalogData;
+};
+
 export async function getCinemaPageData(
   repository: PublicDataRepository,
   cinemaId: string,
   instant = new Date(),
+  context?: PublicCinemaPageContext | Promise<PublicCinemaPageContext>,
 ): Promise<PublicCinemaPageData | null> {
   const identity = getCinemaIdentityById(cinemaId);
   if (!identity) return null;
 
-  const [theaterCatalog, nowPlaying, comingSoon] = await Promise.all([
-    getPublicTheaterData(repository),
-    getMovieCatalog(repository, "nowPlaying"),
-    getMovieCatalog(repository, "comingSoon"),
+  const contextPromise: Promise<PublicCinemaPageContext> = context
+    ? Promise.resolve(context)
+    : Promise.all([
+        getPublicTheaterData(repository),
+        getMovieCatalog(repository, "nowPlaying"),
+        getMovieCatalog(repository, "comingSoon"),
+      ]).then(([theaterCatalog, nowPlaying, comingSoon]) => ({
+        theaterCatalog,
+        nowPlaying,
+        comingSoon,
+      }));
+  const fromDate = getCinemaDayDate(instant);
+  const endDate = addCalendarDays(fromDate, 29) ?? fromDate;
+  const screeningCities = [
+    ...new Set(
+      identity.screeningCityKeys.length
+        ? identity.screeningCityKeys
+        : [identity.city],
+    ),
+  ];
+  const normalizedScreeningCities = new Set(
+    screeningCities.map((city) => city.toLocaleLowerCase("en")),
+  );
+  const ordinaryRowsPromise = Promise.all(
+    screeningCities.map((city) =>
+      getShowtimeRange(repository, { city, startDate: fromDate, endDate }),
+    ),
+  );
+  const cinemathequeDataPromise = Promise.all(
+    screeningCities.map((city) =>
+      getCinemathequeData(repository, { city, startDate: fromDate, endDate }),
+    ),
+  );
+  const [pageContext, ordinaryRows, cinemathequeData] = await Promise.all([
+    contextPromise,
+    ordinaryRowsPromise,
+    cinemathequeDataPromise,
   ]);
-  const theater = findTheaterByCinemaId(theaterCatalog.theaters, identity.id);
-  if (!theater) return null;
+  const { theaterCatalog, nowPlaying, comingSoon } = pageContext;
   if (
     nowPlaying.movieCodesStatus !== "ready" ||
     comingSoon.movieCodesStatus !== "ready"
@@ -321,34 +362,76 @@ export async function getCinemaPageData(
       "Cinema listings are temporarily unavailable.",
     );
   }
-
-  const fromDate = getCinemaDayDate(instant);
-  const endDate = addCalendarDays(fromDate, 29) ?? fromDate;
-  const rows = await getShowtimeRange(repository, {
-    city: identity.city,
-    startDate: fromDate,
-    endDate,
-  });
-  const moviesById = new Map(
-    [...nowPlaying.movies, ...comingSoon.movies].map((movie) => [
+  const theater = findTheaterByCinemaId(theaterCatalog.theaters, identity.id);
+  if (!theater) return null;
+  const publicMoviesById = new Map(
+    [...comingSoon.movies, ...nowPlaying.movies].map((movie) => [
       movie.tmdbId,
       movie,
     ]),
   );
-  const screenings = rows
-    .filter(
-      (row) =>
-        findCinemaIdentityForScreening(row.screeningCity, row.cinema)?.id ===
-          identity.id &&
-        shouldIncludeShowtime(
-          row.dateOfShowing,
-          row.showtime.trim().slice(0, 5),
-          instant,
-        ),
-    )
+  const cinemaMoviesById = new Map(
+    cinemathequeData.flatMap((data) =>
+      data.movies.map((movie) => [movie.tmdbId, movie] as const),
+    ),
+  );
+  const moviesById = new Map(publicMoviesById);
+  for (const [tmdbId, movie] of cinemaMoviesById) {
+    if (!moviesById.has(tmdbId)) {
+      // Cinematheque-only records do not resolve through permanent movie
+      // routes. Keep their title and artwork, but render them as text.
+      const plainMovie = { ...movie };
+      delete plainMovie.movieCode;
+      moviesById.set(tmdbId, plainMovie);
+    }
+  }
+
+  const uniqueShowtimes = new Map<string, PublicShowtime>();
+  for (const screening of [
+    ...ordinaryRows.flat(),
+    ...cinemathequeData.flatMap((data) => data.showtimes),
+  ]) {
+    const matchingIdentity = findCinemaIdentityForScreening(
+      screening.screeningCity,
+      screening.cinema,
+    );
+    if (
+      matchingIdentity?.id !== identity.id ||
+      !normalizedScreeningCities.has(
+        screening.screeningCity.toLocaleLowerCase("en"),
+      ) ||
+      !shouldIncludeShowtime(
+        screening.dateOfShowing,
+        screening.showtime.trim().slice(0, 5),
+        instant,
+      )
+    ) {
+      continue;
+    }
+    const key = [
+      screening.tmdbId,
+      screening.dateOfShowing,
+      screening.showtime.trim().slice(0, 5),
+      screening.screeningTech.toLocaleLowerCase("en"),
+      screening.screeningType.toLocaleLowerCase("en"),
+      screening.dubLanguage?.toLocaleLowerCase("en") ?? "",
+    ].join("|");
+    const existing = uniqueShowtimes.get(key);
+    if (!existing) {
+      uniqueShowtimes.set(key, screening);
+    } else {
+      uniqueShowtimes.set(key, {
+        ...existing,
+        englishHref: existing.englishHref ?? screening.englishHref,
+        hebrewHref: existing.hebrewHref ?? screening.hebrewHref,
+      });
+    }
+  }
+
+  const screenings = [...uniqueShowtimes.values()]
     .flatMap((screening) => {
       const movie = moviesById.get(screening.tmdbId);
-      return movie?.movieCode ? [{ movie, screening }] : [];
+      return movie ? [{ movie, screening }] : [];
     })
     .sort(
       (left, right) =>
@@ -371,7 +454,7 @@ export async function getCinemaPageData(
 
 export async function getCinemathequeData(
   repository: PublicDataRepository,
-  range: PublicCinemathequeQuery,
+  range: PublicCinemathequeRange,
   onCodeLookupFailure?: (error: unknown) => void,
 ): Promise<PublicCinemathequeData> {
   const rows = await timeCatalogStage("movie_rows", () =>

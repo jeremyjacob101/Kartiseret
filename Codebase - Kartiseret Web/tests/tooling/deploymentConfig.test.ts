@@ -81,6 +81,17 @@ describe("deployment performance boundaries", () => {
     ).toContain("__vercel_route=robots");
   });
 
+  it("routes the root through SSR before Vercel can serve the static index file", () => {
+    const rootRoute = (
+      config.routes as {
+        src: string;
+        dest: string;
+      }[]
+    ).find((route) => route.src === "^/$");
+
+    expect(rootRoute?.dest).toBe("/api/dispatch?__vercel_route=page&path=/");
+  });
+
   it("marks account and reset pages as non-indexable in initial HTTP responses", () => {
     const headerRules = config.headers as {
       source: string;

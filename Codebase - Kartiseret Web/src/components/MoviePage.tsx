@@ -1,4 +1,4 @@
-import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, getJerusalemCinemaDate, isDateInShowtimeLinkWindow, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "@kartiseret/contracts/showtime-links";
+import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, isDateInShowtimeLinkWindow, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "@kartiseret/contracts/showtime-links";
 import { findMovieByCode, isMovieShowtimeDateCovered, isValidMovieCode, mergeMovieShowtimeRangeResult, prefetchMovieShowtimesAfterDate, showtimeCityQueryOptions, showtimeRangeQueryOptions, type ShowtimeRange } from "../data/movieCatalog";
 import { getShowtimeFiltersSnapshot, saveShowtimeFilters, type ShowtimeFilterState } from "./showtimes/showtimeFilters";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -6,17 +6,17 @@ import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesC
 import { applyMovieDisplayPreference } from "../data/movieDisplayPreferences";
 import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
+import { usePublicRenderClock } from "../contexts/PublicRenderClock";
 import { MovieDetailsContent } from "./scroller/MovieDetailsContent";
+import { safeSeoUrl, setSeoMetadata } from "../routing/seoMetadata";
 import { DEFAULT_LOCATION } from "../prefs/definitions/locations";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router";
-import { setSeoMetadata } from "../routing/seoMetadata";
 import { useShallow } from "zustand/react/shallow";
-import { useQuery } from "@tanstack/react-query";
 import { shareLink } from "../routing/shareLink";
 import "./scroller/MovieScroller.css";
 import "./MoviePage.css";
 
-const MIDNIGHT_CHECK_INTERVAL_MS = 30_000;
 const SHARE_FEEDBACK_DURATION_MS = 2_200;
 
 type MoviePageProps = {
@@ -113,21 +113,32 @@ function areQueryStatesEqual(
 }
 
 function useJerusalemToday(): string {
-  const [today, setToday] = useState(() => getJerusalemCinemaDate());
+  return usePublicRenderClock().cinemaDate;
+}
 
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      const nextToday = getJerusalemCinemaDate();
-      setToday((currentToday) =>
-        currentToday === nextToday ? currentToday : nextToday);
-    }, MIDNIGHT_CHECK_INTERVAL_MS);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, []);
-
-  return today;
+function createInitialEncodedQueryState(
+  routeCode: string,
+  today: string,
+  preferenceLocation: string,
+): MoviePageQueryState | null {
+  const parsedRoute = parseMovieRouteCode(routeCode);
+  if (!parsedRoute || parsedRoute.kind !== "encoded") return null;
+  const date = decodeDateCode(parsedRoute.dateCode, today);
+  const location = resolveCityCode(
+    parsedRoute.cityCode,
+    preferenceLocation || DEFAULT_LOCATION,
+  );
+  const filterState = createFilterStateFromMask(parsedRoute.filterMask);
+  if (!date || !location || !filterState) return null;
+  return {
+    movieCode: parsedRoute.movieCode,
+    cityCode: parsedRoute.cityCode,
+    location,
+    date,
+    filterMask: parsedRoute.filterMask,
+    filterState,
+    mode: parsedRoute.mode,
+  };
 }
 
 export function MoviePage({
@@ -135,7 +146,8 @@ export function MoviePage({
   catalogReady,
   movieCodesReady,
 }: MoviePageProps) {
-  usePublicationRevision();
+  const publicationRevision = usePublicationRevision();
+  const queryClient = useQueryClient();
   const displayPreferences = useMovieDisplayPreferences();
   const { movieCode: routeCode = "" } = useParams();
   const navigate = useNavigate();
@@ -156,7 +168,7 @@ export function MoviePage({
   const hasValidMovieCode = isValidMovieCode(candidateMovieCode);
   const catalogRouteMatch =
     catalogReady && movieCodesReady && hasValidMovieCode
-      ? findMovieByCode(candidateMovieCode)
+      ? findMovieByCode(candidateMovieCode, queryClient)
       : null;
   const routePreference = catalogRouteMatch
     ? displayPreferences.preferencesById.get(catalogRouteMatch.movie.tmdbId)
@@ -174,9 +186,12 @@ export function MoviePage({
       : null;
   const routeMovie = routeMatch?.movie ?? null;
   const routeCatalogMode = routeMatch?.mode ?? null;
-  const [queryState, setQueryState] = useState<MoviePageQueryState | null>(
-    null,
-  );
+  const [queryState, setQueryState] = useState<MoviePageQueryState | null>(() =>
+    createInitialEncodedQueryState(
+      routeCode,
+      today,
+      preferenceLocation || DEFAULT_LOCATION,
+    ));
   const activeQueryState =
     routeCatalogMode === "nowPlaying" &&
     queryState?.movieCode === candidateMovieCode
@@ -190,13 +205,15 @@ export function MoviePage({
             startDate: activeQueryState.date,
             endDate: activeQueryState.date,
             tmdbId: routeMovie.tmdbId,
+            publicationRevision,
           } satisfies ShowtimeRange & { tmdbId: string })
         : null,
-    [activeQueryState, routeMovie],
+    [activeQueryState, publicationRevision, routeMovie],
   );
   const { data: activeShowtimeCityData } = useQuery({
     ...showtimeCityQueryOptions(
       activeShowtimeRange?.city ?? preferenceLocation ?? DEFAULT_LOCATION,
+      publicationRevision,
     ),
     enabled: false,
   });
@@ -205,6 +222,7 @@ export function MoviePage({
         activeShowtimeCityData,
         activeShowtimeRange.tmdbId,
         activeShowtimeRange.startDate,
+        today,
       )
     : false;
   const exactShowtimeRange =
@@ -214,12 +232,13 @@ export function MoviePage({
       startDate: today,
       endDate: today,
       tmdbId: "__inactive__",
+      publicationRevision,
     } satisfies ShowtimeRange & { tmdbId: string });
   const exactShowtimeQuery = useQuery({
     ...showtimeRangeQueryOptions(exactShowtimeRange),
     enabled: Boolean(activeShowtimeRange) && !isActiveShowtimeDateLoaded,
   });
-  const queryStateRef = useRef<MoviePageQueryState | null>(null);
+  const queryStateRef = useRef<MoviePageQueryState | null>(queryState);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
   const shareFeedbackTimeoutRef = useRef<number | null>(null);
 
@@ -338,6 +357,8 @@ export function MoviePage({
       mode: parsedRoute.mode,
     };
 
+    if (areQueryStatesEqual(queryStateRef.current, nextState)) return;
+
     commitQueryState(nextState);
   }, [
     candidateMovieCode,
@@ -379,6 +400,7 @@ export function MoviePage({
           : location
             ? `${routeMovie.title} showtimes in ${location} | Kartiseret`
             : `${routeMovie.title} showtimes in Israel | Kartiseret`;
+      const safeMovieImageUrl = safeSeoUrl(routeMovie.imageSrc);
       setSeoMetadata({
         title,
         description:
@@ -389,7 +411,15 @@ export function MoviePage({
         openGraphPath: `/${routeCode}`,
         imageUrl: isEncodedSelection
           ? `https://seret.site/api/og-image?routeCode=${encodeURIComponent(routeCode)}`
-          : routeMovie.imageSrc || undefined,
+          : safeMovieImageUrl,
+        jsonLd: {
+          "@context": "https://schema.org",
+          "@type": "Movie",
+          name: routeMovie.title,
+          ...(safeMovieImageUrl ? { image: safeMovieImageUrl } : {}),
+          ...(routeMovie.genres.length ? { genre: routeMovie.genres } : {}),
+          url: `https://seret.site/${encodeURIComponent(candidateMovieCode)}`,
+        },
       });
       return;
     }
@@ -582,7 +612,7 @@ export function MoviePage({
     return <MoviePageState title="Movie unavailable" message={catalogError} />;
   }
 
-  if (!catalogReady || !movieCodesReady || preferencesLoading) {
+  if (!catalogReady || !movieCodesReady) {
     return (
       <MoviePageState
         title="Loading movie"

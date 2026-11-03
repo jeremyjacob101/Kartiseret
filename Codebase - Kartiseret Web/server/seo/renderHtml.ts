@@ -17,7 +17,6 @@ export type SeoPage = {
   description: string;
   canonicalPath: string;
   openGraphPath?: string;
-  body: string;
   imageUrl?: string;
   imageAlt?: string;
   jsonLd?: unknown;
@@ -73,14 +72,48 @@ export function injectSeoPage(html: string, page: SeoPage): string {
 <meta name="twitter:image" content="${escapeHtml(imageUrl)}" />
 ${jsonLd}
 <!-- SEO_META_END -->`;
-  const seoRoute = page.openGraphPath ?? page.canonicalPath;
-  const content = `<!-- SEO_CONTENT_START -->\n<noscript><div id="seo-content" class="seo-content" data-seo-route="${escapeHtml(seoRoute)}">${page.body}</div></noscript>\n<!-- SEO_CONTENT_END -->`;
   return html
-    .replace(/<!-- SEO_META_START -->[\s\S]*?<!-- SEO_META_END -->/, metadata)
     .replace(
-      /<!-- SEO_CONTENT_START -->[\s\S]*?<!-- SEO_CONTENT_END -->/,
-      content,
-    );
+      /<!-- SEO_META_START -->[\s\S]*?<!-- SEO_META_END -->/,
+      () => metadata,
+    )
+    .replace(/<!-- SEO_CONTENT_START -->[\s\S]*?<!-- SEO_CONTENT_END -->/, "");
+}
+
+export function injectRenderedApplication(
+  html: string,
+  markup: string,
+  bootstrap: unknown,
+  initialImagePreloadUrls: readonly string[] = [],
+): string {
+  const rootPattern = /<div\s+id=["']root["'][^>]*>\s*<\/div>/;
+  if (!rootPattern.test(html)) {
+    throw new Error("The built HTML does not contain an empty React root.");
+  }
+  const root = `<div id="root" data-ssr="true">${markup}</div>`;
+  const bootstrapJson = escapeJsonLd(bootstrap);
+  const preloadTags = [...new Set(initialImagePreloadUrls)]
+    .flatMap((value) => {
+      const safeUrl = safeHttpUrl(value);
+      if (!safeUrl) return [];
+      const url = new URL(safeUrl);
+      if (
+        url.origin !== "https://image.tmdb.org" ||
+        !url.pathname.startsWith("/t/p/w342/")
+      ) {
+        return [];
+      }
+      return [
+        `<link rel="preload" as="image" href="${escapeHtml(url.toString())}" fetchpriority="high" />`,
+      ];
+    })
+    .join("");
+  const scripts = `<script id="kartiseret-bootstrap" type="application/json">${bootstrapJson}</script><script>window.__KARTISERET_BOOTSTRAP__=JSON.parse(document.getElementById("kartiseret-bootstrap").textContent||"null")</script>`;
+  return html
+    .replace(rootPattern, () => root)
+    .replace("</head>", () => `${preloadTags}</head>`)
+    .replace(/<!-- SEO_CONTENT_START -->[\s\S]*?<!-- SEO_CONTENT_END -->/, "")
+    .replace("</body>", () => `${scripts}</body>`);
 }
 
 export function xmlEscape(value: string): string {
