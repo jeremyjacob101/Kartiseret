@@ -1,6 +1,6 @@
+import type { SocialPreviewCardData } from "@kartiseret/contracts/social-preview";
 import { httpsUrlSchema } from "@kartiseret/contracts/runtime";
 import { formatPreviewReleaseDate } from "./previewFormat.js";
-import type { PreviewData } from "./previewData.js";
 import sharp, { type OverlayOptions } from "sharp";
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
@@ -11,6 +11,7 @@ export { formatPreviewReleaseDate } from "./previewFormat.js";
 
 const IMAGE_TIMEOUT_MS = 8_000;
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_PIXELS = 20_000_000;
 const imageContentTypeSchema = z
   .string()
   .transform((value) => value.split(";", 1)[0]?.trim().toLowerCase() ?? "")
@@ -157,7 +158,10 @@ function getAudienceLogo(score: number | null, votes: number | null): string {
   return (score ?? 0) >= 60 ? RT_AUDIENCE_GOOD_LOGO : RT_AUDIENCE_BAD_LOGO;
 }
 
-function createRatings(data: PreviewData, layout: MovieLayout): string {
+function createRatings(
+  data: SocialPreviewCardData,
+  layout: MovieLayout,
+): string {
   if (data.isComingSoon) {
     return "";
   }
@@ -184,12 +188,25 @@ function createRatings(data: PreviewData, layout: MovieLayout): string {
     .join("");
 }
 
-function createTextOverlay(data: PreviewData, layout: MovieLayout): Buffer {
+function createTextOverlay(
+  data: SocialPreviewCardData,
+  layout: MovieLayout,
+  hasPoster: boolean,
+): Buffer {
   const ratingsSvg = createRatings(data, layout);
 
   const svg = [
     '<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">',
-    '<rect width="1200" height="630" fill="rgba(10,12,22,0.46)" />',
+    hasPoster
+      ? [
+          '<defs><mask id="poster-reveal" maskUnits="userSpaceOnUse" x="0" y="0" width="1200" height="630">',
+          '<rect width="1200" height="630" fill="white"/>',
+          '<rect x="35" y="45" width="330" height="495" rx="34" fill="black"/>',
+          "</mask></defs>",
+          '<rect width="1200" height="630" fill="rgba(10,12,22,0.46)" mask="url(#poster-reveal)"/>',
+          '<rect x="35" y="45" width="330" height="495" rx="34" fill="rgba(10,12,22,0.30)"/>',
+        ].join("")
+      : '<rect width="1200" height="630" fill="rgba(10,12,22,0.46)" />',
     `<image href="data:image/svg+xml;base64,${YOUTUBE_LOGO}" x="405" y="${layout.trailerTop}" width="46" height="34" preserveAspectRatio="xMidYMid meet"/>`,
     `<rect x="489" y="${layout.dividerTop}" width="1" height="82" fill="#A990D1" fill-opacity="0.7" />`,
     ratingsSvg,
@@ -223,7 +240,7 @@ async function createTextLayer(
 }
 
 async function createMovieTextLayers(
-  data: PreviewData,
+  data: SocialPreviewCardData,
   layout: MovieLayout,
 ): Promise<OverlayOptions[]> {
   const infoText = [
@@ -423,12 +440,51 @@ export async function downloadImage(
   }
 }
 
-export async function createPreviewImage(data: PreviewData): Promise<Buffer> {
+export type PreviewImageSources = {
+  /** `undefined` downloads the URL; `null` deliberately renders no image. */
+  posterSource?: Buffer | null;
+  backdropSource?: Buffer | null;
+};
+
+async function validateImageSource(
+  buffer: Buffer | null,
+): Promise<Buffer | null> {
+  if (!buffer) return null;
+  if (buffer.byteLength === 0 || buffer.byteLength > MAX_IMAGE_BYTES) {
+    throw new Error("Social preview source image exceeds the byte limit.");
+  }
+  const metadata = await sharp(buffer, {
+    limitInputPixels: MAX_IMAGE_PIXELS,
+    failOn: "error",
+  }).metadata();
+  if (
+    !metadata.width ||
+    !metadata.height ||
+    metadata.width * metadata.height > MAX_IMAGE_PIXELS
+  ) {
+    throw new Error("Social preview source image exceeds the pixel limit.");
+  }
+  return buffer;
+}
+
+async function resolveImageSource(
+  url: string,
+  supplied: Buffer | null | undefined,
+): Promise<Buffer | null> {
+  const buffer =
+    supplied !== undefined ? supplied : url ? await downloadImage(url) : null;
+  return validateImageSource(buffer);
+}
+
+export async function createPreviewImage(
+  data: SocialPreviewCardData,
+  suppliedSources?: PreviewImageSources,
+): Promise<Buffer> {
   const [posterSource, downloadedBackdrop] = await Promise.all([
-    data.posterUrl ? downloadImage(data.posterUrl) : Promise.resolve(null),
+    resolveImageSource(data.posterUrl, suppliedSources?.posterSource),
     data.backdropUrl && data.backdropUrl !== data.posterUrl
-      ? downloadImage(data.backdropUrl)
-      : Promise.resolve(null),
+      ? resolveImageSource(data.backdropUrl, suppliedSources?.backdropSource)
+      : Promise.resolve(posterSourceForSameImage(suppliedSources)),
   ]);
 
   const backdropSource = downloadedBackdrop || posterSource;
@@ -463,7 +519,7 @@ export async function createPreviewImage(data: PreviewData): Promise<Buffer> {
   }
 
   layers.push({
-    input: createTextOverlay(data, layout),
+    input: createTextOverlay(data, layout, Boolean(posterSource)),
     left: 0,
     top: 0,
   });
@@ -486,6 +542,14 @@ export async function createPreviewImage(data: PreviewData): Promise<Buffer> {
     .composite(layers)
     .jpeg({ quality: 90 })
     .toBuffer();
+}
+
+function posterSourceForSameImage(
+  suppliedSources?: PreviewImageSources,
+): Promise<Buffer | null> {
+  return suppliedSources?.backdropSource === undefined
+    ? Promise.resolve(null)
+    : validateImageSource(suppliedSources.backdropSource);
 }
 
 export async function createHomepagePreviewImage(): Promise<Buffer> {

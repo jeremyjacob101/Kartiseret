@@ -1,9 +1,10 @@
 import { getMovieCatalog, getCinemathequeData, getCinemaPageData, getMovieByPermanentCode, getMovieShowtimes, getPublicTheaterData, getShowtimeRange, withPublicationSnapshot, type PublicCinemaPageContext } from "@kartiseret/server/public-data";
-import { injectRenderedApplication, injectSeoPage, SITE_ORIGIN, buildSitemapXml, safeHttpUrl } from "./renderHtml.js";
+import { injectRenderedApplication, injectSeoPage, SITE_ORIGIN, buildSitemapXml, safeHttpUrl, getRequestOrigin } from "./renderHtml.js";
 import { publicPageBootstrapSchema, type PublicPageBootstrap } from "@kartiseret/contracts/public-render";
 import { getCinemaDayDate, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
 import { filterShowtimeRows, resolvePreviewRouteSelection } from "../og/previewData.js";
 import { getProductionPublicDataRepository } from "@kartiseret/server/production";
+import { socialPreviewImageUrl } from "@kartiseret/contracts/social-preview";
 import { cinemaIdForLocation, getCinemaIdentityById } from "./identities.js";
 import { parseMovieRouteCode } from "@kartiseret/contracts/showtime-links";
 import type { VercelRequest, VercelResponse } from "../og/vercelTypes.js";
@@ -127,7 +128,11 @@ function getInitialPosterPreloadUrls(bootstrap: PublicPageBootstrap): string[] {
     movie?.imageSrc ? [movie.imageSrc] : []);
 }
 
-async function getMoviePage(routeCode: string, instant = new Date()) {
+async function getMoviePage(
+  routeCode: string,
+  instant = new Date(),
+  imageOrigin = SITE_ORIGIN,
+) {
   const selection = resolvePreviewRouteSelection(routeCode, instant);
   if (!selection) return null;
   const repository = getProductionPublicDataRepository();
@@ -180,9 +185,10 @@ async function getMoviePage(routeCode: string, instant = new Date()) {
     const description = isEncodedSelection
       ? `${movie.title} showtimes in ${selection.city} on ${selection.date}${selectedShowtimes ? `: ${selectedShowtimes}` : ". No showtimes are listed for this selection"}.`
       : `${movie.title}${movie.year ? ` (${movie.year})` : ""}. ${isComingSoon ? "Coming soon information" : "Find upcoming movie showtimes at cinemas across Israel"} on Kartiseret.`;
-    const openGraphImageUrl = isEncodedSelection
-      ? `${SITE_ORIGIN}/api/og-image?routeCode=${encodeURIComponent(routeCode)}`
-      : posterUrl;
+    const openGraphImageUrl =
+      (movie.socialPreviewFingerprint
+        ? socialPreviewImageUrl(imageOrigin, movie.socialPreviewFingerprint)
+        : null) ?? posterUrl;
     const currentDate = getCinemaDayDate(instant);
     const selectedCity =
       parsedRoute?.kind === "encoded"
@@ -223,9 +229,7 @@ async function getMoviePage(routeCode: string, instant = new Date()) {
         canonicalPath: `/${selection.movieCode}`,
         openGraphPath: `/${routeCode}`,
         imageUrl: openGraphImageUrl,
-        imageAlt: isEncodedSelection
-          ? `${movie.title} showtimes in ${selection.city}`
-          : `${movie.title} poster`,
+        imageAlt: `${movie.title} movie preview`,
         jsonLd: movieJsonLd(movie),
       },
     };
@@ -595,7 +599,11 @@ export default async function handler(
         const routeCode = Array.isArray(request.query.routeCode)
           ? (request.query.routeCode.at(-1) ?? "")
           : (request.query.routeCode ?? "");
-        const movie = await getMoviePage(routeCode);
+        const movie = await getMoviePage(
+          routeCode,
+          new Date(),
+          getRequestOrigin(request.headers),
+        );
         result = movie
           ? { page: movie.page, bootstrap: movie.bootstrap }
           : null;

@@ -144,6 +144,97 @@ describe("catalog artwork delivery", () => {
   });
 });
 
+describe("static social preview delivery", () => {
+  const fingerprint = "b".repeat(64);
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+
+  it("serves only the immutable card object with long-lived CDN caching", async () => {
+    const getObject = vi.fn(
+      async () =>
+        new Response(jpeg, {
+          headers: { "content-type": "image/jpeg" },
+        }),
+    );
+    const app = createApp({
+      catalogRepository: createRepository(),
+      artworkStore: { getObject },
+    });
+
+    const response = await request(app).get(
+      `/api/images/social/v1/${fingerprint}/card.jpg`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toContain("image/jpeg");
+    expect(response.headers["x-content-type-options"]).toBe("nosniff");
+    expect(response.headers["cache-control"]).toContain("max-age=31536000");
+    expect(response.headers["vercel-cdn-cache-control"]).toContain(
+      "s-maxage=31536000",
+    );
+    expect(response.body).toEqual(jpeg);
+    expect(getObject).toHaveBeenCalledWith(`social/v1/${fingerprint}/card.jpg`);
+  });
+
+  it("rejects unsupported keys and returns uncached missing or invalid objects", async () => {
+    const getObject = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(
+        new Response("not jpeg", {
+          headers: { "content-type": "image/jpeg" },
+        }),
+      );
+    const app = createApp({
+      catalogRepository: createRepository(),
+      artworkStore: { getObject },
+    });
+
+    const arbitrary = await request(app).get(
+      `/api/images/social/v1/${fingerprint}/anything.jpg`,
+    );
+    const missing = await request(app).get(
+      `/api/images/social/v1/${fingerprint}/card.jpg`,
+    );
+    const invalidJpeg = await request(app).get(
+      `/api/images/social/v1/${fingerprint}/card.jpg`,
+    );
+
+    expect(arbitrary.status).toBe(404);
+    expect(missing.status).toBe(404);
+    expect(missing.headers["cache-control"]).toBe("no-store");
+    expect(invalidJpeg.status).toBe(502);
+    expect(invalidJpeg.headers["cache-control"]).toBe("no-store");
+    expect(getObject).toHaveBeenCalledTimes(2);
+  });
+
+  it("bounds returned data and hides bucket errors", async () => {
+    const getObject = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array(2 * 1024 * 1024 + 1), {
+          headers: { "content-type": "image/jpeg" },
+        }),
+      )
+      .mockRejectedValueOnce(new Error("private storage detail"));
+    const app = createApp({
+      catalogRepository: createRepository(),
+      artworkStore: { getObject },
+    });
+
+    const tooLarge = await request(app).get(
+      `/api/images/social/v1/${fingerprint}/card.jpg`,
+    );
+    const unavailable = await request(app).get(
+      `/api/images/social/v1/${fingerprint}/card.jpg`,
+    );
+
+    expect(tooLarge.status).toBe(502);
+    expect(unavailable.status).toBe(502);
+    expect(unavailable.text).not.toContain("private storage detail");
+    expect(unavailable.headers["cache-control"]).toBe("no-store");
+  });
+});
+
 const comingSoonMovie = {
   tmdbId: 9100002,
   englishTitle: "A Coming Film",

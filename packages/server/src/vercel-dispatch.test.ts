@@ -90,6 +90,20 @@ describe("Vercel API dispatcher", () => {
     expect(handlers.api).toHaveBeenCalledWith(request, response);
   });
 
+  it("dispatches immutable social card paths to the API handler", async () => {
+    const handlers = createHandlers();
+    const dispatch = createVercelDispatchHandler(handlers);
+    const fingerprint = "c".repeat(64);
+    const request = createRequest(
+      `/api/dispatch?__vercel_route=images%2Fsocial%2Fv1%2F${fingerprint}%2Fcard.jpg`,
+    );
+
+    await dispatch(request, response);
+
+    expect(request.url).toBe(`/api/images/social/v1/${fingerprint}/card.jpg`);
+    expect(handlers.api).toHaveBeenCalledWith(request, response);
+  });
+
   it("dispatches SEO page, cinema, sitemap, and robots paths without losing route data", async () => {
     const handlers = createHandlers();
     const dispatch = createVercelDispatchHandler(handlers);

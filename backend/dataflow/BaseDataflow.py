@@ -64,6 +64,16 @@ class BaseDataflow(ProviderFreshness, PipelineCheckpoints, InitializeBaseDataflo
                 self.ensureCinemathequeTimingRow()
             logSuccessfulRun(self)
             self.flush_summary(successful=True)
+            owns_catalog_publication = getattr(self, "_owns_publication", False)
+            is_catalog_table = getattr(self, "MAIN_TABLE_NAME", "") in {
+                "finalMovies",
+                "finalSoons",
+                "finalThequeMovies",
+            }
+            if owns_catalog_publication and is_catalog_table:
+                from backend.dataflow.social_previews import refresh_configured_social_previews
+
+                refresh_configured_social_previews()
         except Exception:
             self.discardPublicationStage()
             self.flush_summary(successful=False)

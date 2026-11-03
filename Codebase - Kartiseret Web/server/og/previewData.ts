@@ -214,6 +214,7 @@ async function readPreviewData(
     dateLabel: formatPreviewDate(selection.date),
     posterUrl: movie.imageSrc.trim(),
     backdropUrl: movie.backdropSrc?.trim() ?? "",
+    socialPreviewFingerprint: movie.socialPreviewFingerprint,
     isComingSoon: movieResult.isComingSoon,
     theaters,
     year: parseNumber(movie.year),

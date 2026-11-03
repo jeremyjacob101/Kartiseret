@@ -101,4 +101,22 @@ describe("SEO HTML rendering", () => {
     );
     expect(html).not.toContain("javascript:");
   });
+
+  it("uses the static homepage preview as the default share image", () => {
+    const html = injectSeoPage(
+      "<html><head><!-- SEO_META_START --><!-- SEO_META_END --></head><body><!-- SEO_CONTENT_START --><!-- SEO_CONTENT_END --></body></html>",
+      {
+        title: "Kartiseret",
+        description: "Movie showtimes",
+        canonicalPath: "/",
+      },
+    );
+
+    expect(html).toContain(
+      'property="og:image" content="https://seret.site/og/home.jpg"',
+    );
+    expect(html).toContain(
+      'name="twitter:image" content="https://seret.site/og/home.jpg"',
+    );
+  });
 });
