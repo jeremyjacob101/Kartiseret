@@ -21,7 +21,7 @@ from urllib.parse import urlsplit
 
 from backend.dataflow.backfill_catalog_artwork import each_row
 from backend.dataflow.utils.ArtworkStorage import ArtworkStorage
-from backend.config.target_environment import PROFILE_KEYS, PROJECT_REFS, resolve_target_environment
+from backend.config.target_environment import PROFILE_KEYS, resolve_target_environment
 
 LOGGER = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parents[2]
@@ -366,7 +366,7 @@ def refresh_social_previews(
                         update = update.is_("social_preview_fingerprint", "null")
                     else:
                         update = update.eq("social_preview_fingerprint", previous)
-                    saved = update.select(primary_key).execute().data or []
+                    saved = update.execute().data or []
                     if len(saved) != 1:
                         stats["stale"] += 1
                     else:
@@ -448,11 +448,7 @@ def main() -> None:
     for key in PROFILE_KEYS:
         os.environ.pop(key, None)
     os.environ.update(selected)
-    project_ref = PROJECT_REFS[args.target]
-    is_production = (
-        urlsplit(os.environ.get("SUPABASE_URL", "")).hostname
-        == f"{project_ref}.supabase.co"
-    )
+    is_production = args.target == "production"
     if args.allow_production and not args.apply:
         parser.error("--allow-production requires --apply")
     if args.apply and is_production and not args.allow_production:

@@ -2,6 +2,7 @@ import base64
 from io import BytesIO
 from types import SimpleNamespace
 import unittest
+import sys
 from unittest.mock import Mock, patch
 
 from backend.dataflow.BaseDataflow import BaseDataflow
@@ -82,6 +83,23 @@ class FakeR2:
 
 
 class SocialPreviewTests(unittest.TestCase):
+    def test_installed_supabase_update_builder_supports_direct_execute(self):
+        from supabase import create_client
+
+        update = create_client("https://example.supabase.co", "test").table("movies").update({"social_preview_fingerprint": FINGERPRINT})
+        self.assertTrue(callable(update.execute))
+        self.assertFalse(hasattr(update, "select"))
+
+    def test_cli_apply_distinguishes_development_and_production(self):
+        selected = {"SUPABASE_URL": "https://example.supabase.co", "SUPABASE_SERVICE_ROLE_KEY": "test"}
+        for target in ("development", "production"):
+            with self.subTest(target=target), patch.object(sys, "argv", ["social_previews", "--target", target, "--apply"]), patch("dotenv.load_dotenv"), patch.object(social_previews, "resolve_target_environment", return_value=selected), patch.object(social_previews.ArtworkStorage, "from_environment", return_value=object()), patch("supabase.create_client", return_value=object()), patch.object(social_previews, "refresh_social_previews", return_value={}):
+                if target == "development":
+                    social_previews.main()
+                else:
+                    with self.assertRaises(SystemExit):
+                        social_previews.main()
+
     def test_backdrop_can_supply_missing_poster(self):
         digest = "a" * 64
         url = f"https://seret.site/api/images/v1/backdrop/{digest}/780.webp"

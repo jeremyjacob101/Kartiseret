@@ -137,6 +137,18 @@ try {
     posterLuma > backdropLuma + 20,
     "poster artwork must remain brighter than the dimmed backdrop",
   );
+  const minimalImage = await createPreviewImage(
+    {
+      ...previewData,
+      posterUrl: "",
+      backdropUrl: "",
+      year: null,
+      runtime: null,
+      genres: [],
+    },
+    { posterSource: null, backdropSource: null },
+  );
+  assert.equal((await sharp(minimalImage).metadata()).format, "jpeg");
 } finally {
   globalThis.fetch = originalFetch;
 }

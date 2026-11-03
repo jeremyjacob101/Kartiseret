@@ -291,12 +291,15 @@ async function createMovieTextLayers(
       left: 400,
       top: titleTops[index],
     })),
-    {
+  ];
+
+  if (infoText) {
+    layers.push({
       input: await createTextLayer(infoText, 730, 24, "#E6DFF3"),
       left: 400,
       top: layout.metaTop,
-    },
-  ];
+    });
+  }
 
   if (data.isComingSoon) {
     layers.push({
