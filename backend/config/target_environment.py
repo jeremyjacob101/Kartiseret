@@ -60,7 +60,6 @@ def is_scheduled(environ: Mapping[str, str]) -> bool:
     return any(
         environ.get(name) == "true"
         for name in (
-            "GITHUB_ACTIONS",
             "JJ_INTEL_MAC_DAILY_RUN",
             "JJ_INTEL_MAC_WEEKLY_RUN",
         )
@@ -103,7 +102,7 @@ def _validate_database_url(name: str, value: str, project_ref: str) -> None:
 def resolve_target_environment(
     target: str, environ: Mapping[str, str]
 ) -> dict[str, str]:
-    """Resolve prefixed local profiles, or validate values already mapped by CI."""
+    """Resolve prefixed local profiles or validate values supplied directly."""
     target = validate_target(target)
     project_ref = PROJECT_REFS[target]
     prefix = "DEV_" if target == "development" else "PROD_"
@@ -128,7 +127,7 @@ def resolve_target_environment(
             if key.startswith(("DEV_", "PROD_"))
         }
     )
-    if has_profiles and environ.get("GITHUB_ACTIONS") != "true":
+    if has_profiles:
         # Clear the generic values first so one target cannot inherit another
         # target's DB or bucket when a profile entry is missing.
         for key in PROFILE_KEYS:
