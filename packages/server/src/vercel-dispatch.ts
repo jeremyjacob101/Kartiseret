@@ -22,6 +22,7 @@ export interface VercelDispatchHandlers {
   api: VercelDispatchHandler;
   og: VercelDispatchHandler;
   ogImage: VercelDispatchHandler;
+  seo: VercelDispatchHandler;
 }
 
 export function createLazyVercelHandler(
@@ -69,6 +70,7 @@ export function createVercelDispatchHandler({
   api,
   og,
   ogImage,
+  seo,
 }: VercelDispatchHandlers): VercelDispatchHandler {
   return (request, response) => {
     const requestUrl = new URL(request.url ?? "/", "http://vercel.internal");
@@ -82,6 +84,13 @@ export function createVercelDispatchHandler({
     }
     if (dispatchPath === "og-image") {
       return ogImage(request, response);
+    }
+    if (
+      ["movie", "cinema", "page", "sitemap", "robots", "not-found"].includes(
+        dispatchPath ?? "",
+      )
+    ) {
+      return seo(request, response);
     }
 
     return api(request, response);

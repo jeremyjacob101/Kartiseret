@@ -31,7 +31,7 @@ function createPreviewRepository(options: {
     findComingSoonRows: async () => [],
     findCinemathequeRows: async () => [],
     findShowtimeRows: async () => showtimeRows,
-    findTicketAvailabilityRows: async () => [],
+    findMovieShowtimeRows: async () => [],
     findTheaterCityRows: async () => [],
     findMovieCodeByCode: async () =>
       options.codeRows?.length === 0 ? null : tmdbId,
@@ -280,7 +280,7 @@ describe("social preview route and data handling", () => {
       "Cinema City: 20:00, 22:00",
     );
     const html = injectOpenGraphTags(
-      "<html><head><!-- OG_START -->old<!-- OG_END --></head></html>",
+      "<html><head><!-- SEO_META_START -->old<!-- SEO_META_END --></head><body><!-- SEO_CONTENT_START -->old body<!-- SEO_CONTENT_END --></body></html>",
       data,
       "https://example.test",
     );

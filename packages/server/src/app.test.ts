@@ -101,7 +101,7 @@ function createPublicDataRepository(
     findComingSoonRows: vi.fn(async () => [comingSoonMovie]),
     findCinemathequeRows: vi.fn(async () => [cinemathequeRow]),
     findShowtimeRows: vi.fn(async () => [showtime]),
-    findTicketAvailabilityRows: vi.fn(async () => [showtime]),
+    findMovieShowtimeRows: vi.fn(async () => [showtime]),
     findTheaterCityRows: vi.fn(async () => [
       {
         chain: "Cinema City",
@@ -624,7 +624,7 @@ describe("Express API composition", () => {
         hebrewHref: "https://tickets.example/he",
       },
     ]);
-    expect(repository.findTicketAvailabilityRows).toHaveBeenCalledWith(
+    expect(repository.findMovieShowtimeRows).toHaveBeenCalledWith(
       "9100001",
       "2026-10-20",
     );

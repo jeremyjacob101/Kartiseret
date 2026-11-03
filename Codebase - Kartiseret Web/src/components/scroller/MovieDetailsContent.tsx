@@ -1,12 +1,13 @@
 import { APP_TIME_ZONE, fixedAppDateString, getMovieShowtimeCities, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, selectMovieShowtimeDays, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
 import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, saveShowtimeFilters, updateShowtimeFilterState, useShowtimeFiltersStore, type ShowtimeFilterOptions, type ShowtimeFilterSelections, type ShowtimeFilterState } from "../showtimes/showtimeFilters";
+import { cinemaIdForLocation, findCinemaIdentityForScreening } from "@kartiseret/contracts/cinema-identities";
 import { addCalendarDays, SHOWTIME_LINK_DATE_COUNT } from "@kartiseret/contracts/showtime-links";
-import { selectCities, theaterDataQueryOptions, type City } from "../../data/theaters";
 import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from "react";
 import { Clock8, ExternalLink, MapPin, MoveRight, Star, X } from "lucide-react";
 import { usePublicationRevision } from "../../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
+import { theaterDataQueryOptions, type City } from "../../data/theaters";
 import { type AppLocation } from "../../prefs/definitions/locations";
 import { ShowtimeFilterMenu } from "../showtimes/ShowtimeFilterMenu";
 import { ShowtimeDayPicker } from "../showtimes/ShowtimeDayPicker";
@@ -102,6 +103,7 @@ const RT_AUDIENCE_HOT_MIN_SCORE = 90;
 const RT_AUDIENCE_HOT_MIN_VERIFIED_RATINGS = 500;
 const YOUTUBE_KEY_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const EMPTY_SHOWTIME_DAYS: readonly MovieShowtimeDay[] = Object.freeze([]);
+const EMPTY_CITIES: readonly City[] = Object.freeze([]);
 
 type MovieDetailsContentProps = {
   movie: Movie;
@@ -664,11 +666,20 @@ export function MovieDetailsContent({
     enabled: false,
   });
   const showtimesReady = showtimeCityData?.broadReady ?? false;
-  const { data: cities = [] } = useQuery({
+  const { data: theaterData } = useQuery({
     ...theaterDataQueryOptions(),
-    select: selectCities,
     enabled: variant === "nowPlaying",
   });
+  const cities = theaterData?.cities ?? EMPTY_CITIES;
+  const verifiedCinemaIds = useMemo(
+    () =>
+      new Set(
+        (theaterData?.theaters ?? [])
+          .map((theater) => cinemaIdForLocation(theater.location))
+          .filter((id): id is string => id !== null),
+      ),
+    [theaterData?.theaters],
+  );
   const [openTrailerModalId, setOpenTrailerModalId] = useState<string | null>(
     null,
   );
@@ -1536,6 +1547,13 @@ export function MovieDetailsContent({
                             theater.theater,
                             theaterIndex,
                           );
+                          const cinemaIdentity = findCinemaIdentityForScreening(
+                            location,
+                            theater.theater,
+                          );
+                          const cinemaLinkIsCurrent =
+                            cinemaIdentity !== null &&
+                            verifiedCinemaIds.has(cinemaIdentity.id);
 
                           return (
                             <section
@@ -1550,7 +1568,16 @@ export function MovieDetailsContent({
                                     boxShadow: `0 0 18px ${colors.glow}`,
                                   }}
                                 />
-                                <span>{theater.theater}</span>
+                                {cinemaLinkIsCurrent ? (
+                                  <a
+                                    className="details-cinema-link"
+                                    href={`/c/${cinemaIdentity.id}`}
+                                  >
+                                    {cinemaIdentity.displayName}
+                                  </a>
+                                ) : (
+                                  <span>{theater.theater}</span>
+                                )}
                               </div>
 
                               <div className="details-time-grid">

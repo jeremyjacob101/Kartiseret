@@ -490,8 +490,7 @@
   gap: 8px;
   min-height: 42px;
   padding: 0.64rem 0.9rem;
-  border: 1px solid
-    color-mix(in srgb, var(--main-app-color) 46%, transparent);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 46%, transparent);
   border-radius: 999px;
   background: color-mix(
     in srgb,
@@ -1311,6 +1310,16 @@
   gap: 10px;
   font-size: 0.98rem;
   font-weight: 700;
+}
+
+.details-cinema-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.details-cinema-link:hover,
+.details-cinema-link:focus-visible {
+  text-decoration: underline;
 }
 
 .details-theater-dot {

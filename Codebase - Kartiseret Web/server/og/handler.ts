@@ -1,23 +1,17 @@
 import { NO_STORE_CACHE_CONTROL, PREVIEW_CACHE_CONTROL } from "./cacheControl.js";
+import { getPreviewData, resolvePreviewRouteSelection } from "./previewData.js";
 import type { VercelRequest, VercelResponse } from "./vercelTypes.js";
-import { httpUrlSchema } from "@kartiseret/contracts/runtime";
 import { injectOpenGraphTags } from "./previewHtml.js";
 import { ogRequestQuerySchema } from "./schemas.js";
-import { getPreviewData } from "./previewData.js";
+import { SITE_ORIGIN } from "../seo/renderHtml.js";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { z } from "zod";
 
 const indexPath = resolve(
   process.cwd(),
   "Codebase - Kartiseret Web/dist/index.html",
 );
 let baseIndexHtml: string | null = null;
-const requestHeaderSchema = z
-  .union([z.string(), z.array(z.string()).min(1)])
-  .transform((value) => (Array.isArray(value) ? value[0] : value))
-  .pipe(z.string().trim().min(1).max(255));
-const forwardedProtocolSchema = z.enum(["http", "https"]);
 
 function loadBaseIndexHtml(): string {
   if (baseIndexHtml) {
@@ -34,31 +28,6 @@ function loadBaseIndexHtml(): string {
   return baseIndexHtml;
 }
 
-function deriveSiteOrigin(request: VercelRequest): string {
-  const protocolResult = requestHeaderSchema
-    .pipe(forwardedProtocolSchema)
-    .safeParse(request.headers["x-forwarded-proto"]);
-  const hostResult = requestHeaderSchema.safeParse(
-    request.headers["x-forwarded-host"] ?? request.headers.host,
-  );
-  const requestOriginResult = hostResult.success
-    ? httpUrlSchema.safeParse(
-        `${protocolResult.success ? protocolResult.data : "https"}://${hostResult.data}`,
-      )
-    : null;
-
-  if (requestOriginResult?.success) {
-    return new URL(requestOriginResult.data).origin;
-  }
-
-  const configuredOriginResult = httpUrlSchema.safeParse(
-    process.env.SITE_URL ?? "https://seret.site",
-  );
-  return configuredOriginResult.success
-    ? new URL(configuredOriginResult.data).origin
-    : "https://seret.site";
-}
-
 export default async function handler(
   request: VercelRequest,
   response: VercelResponse,
@@ -66,8 +35,20 @@ export default async function handler(
   try {
     const queryResult = ogRequestQuerySchema.safeParse(request.query);
     const routeCode = queryResult.success ? queryResult.data.routeCode : "";
+    const hasRouteCode = request.query.routeCode !== undefined;
 
     if (!routeCode) {
+      if (hasRouteCode) {
+        response
+          .status(404)
+          .setHeader("Content-Type", "text/html; charset=utf-8")
+          .setHeader("X-Robots-Tag", "noindex, nofollow")
+          .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
+          .send(
+            '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex, nofollow"><title>Page not found | Kartiseret</title></head><body><main><h1>Page not found</h1><a href="/">Return to Kartiseret</a></main></body></html>',
+          );
+        return;
+      }
       response
         .status(200)
         .setHeader("Content-Type", "text/html; charset=utf-8")
@@ -76,33 +57,53 @@ export default async function handler(
       return;
     }
 
+    if (!resolvePreviewRouteSelection(routeCode)) {
+      response
+        .status(404)
+        .setHeader("Content-Type", "text/html; charset=utf-8")
+        .setHeader("X-Robots-Tag", "noindex, nofollow")
+        .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
+        .send(
+          '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex, nofollow"><title>Page not found | Kartiseret</title></head><body><main><h1>Page not found</h1><p>This movie page is not available.</p><a href="/">Return to Kartiseret</a></main></body></html>',
+        );
+      return;
+    }
+
     const previewData = await getPreviewData(routeCode);
     const html = loadBaseIndexHtml();
 
     if (!previewData) {
       response
-        .status(200)
+        .status(404)
         .setHeader("Content-Type", "text/html; charset=utf-8")
+        .setHeader("X-Robots-Tag", "noindex, nofollow")
         .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
-        .send(html);
+        .send(
+          '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex, nofollow"><title>Page not found | Kartiseret</title></head><body><main><h1>Page not found</h1><p>This movie page is not available.</p><a href="/">Return to Kartiseret</a></main></body></html>',
+        );
       return;
     }
 
-    const siteOrigin = deriveSiteOrigin(request);
-    const ogHtml = injectOpenGraphTags(html, previewData, siteOrigin);
+    const ogHtml = injectOpenGraphTags(html, previewData, SITE_ORIGIN);
 
     response
       .status(200)
       .setHeader("Content-Type", "text/html; charset=utf-8")
+      .setHeader(
+        "X-Robots-Tag",
+        process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production"
+          ? "noindex, nofollow"
+          : "index, follow",
+      )
       .setHeader("Cache-Control", PREVIEW_CACHE_CONTROL)
       .send(ogHtml);
   } catch (error) {
     console.error("OG handler error:", error);
 
     response
-      .status(200)
-      .setHeader("Content-Type", "text/html; charset=utf-8")
+      .status(503)
+      .setHeader("Content-Type", "text/plain; charset=utf-8")
       .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
-      .send(loadBaseIndexHtml());
+      .send("Movie preview temporarily unavailable.");
   }
 }

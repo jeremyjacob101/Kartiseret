@@ -17,7 +17,7 @@ export interface PublicDataRepository extends CatalogRepository {
     range: PublicCinemathequeRange,
   ): Promise<readonly unknown[]>;
   findShowtimeRows(range: PublicShowtimeRange): Promise<readonly unknown[]>;
-  findTicketAvailabilityRows(
+  findMovieShowtimeRows(
     tmdbId: string,
     fromDate: string,
   ): Promise<readonly unknown[]>;

@@ -4,6 +4,7 @@ export {
   getMovieCatalog,
   getCinemathequeData,
   getPublicTheaterData,
+  getMovieShowtimes,
   getShowtimeRange,
   getTicketAvailabilityShowtimes,
 } from "./service.js";

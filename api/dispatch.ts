@@ -22,6 +22,9 @@ const ogHandler = createLazyVercelHandler(
 const ogImageHandler = createLazyVercelHandler(
   () => import("../Codebase - Kartiseret Web/server/og/imageHandler.js"),
 );
+const seoHandler = createLazyVercelHandler(
+  () => import("../Codebase - Kartiseret Web/server/seo/handler.js"),
+);
 
 function getProductionApi(): VercelDispatchHandler {
   if (!productionApi) {
@@ -46,4 +49,5 @@ export default createVercelDispatchHandler({
   },
   og: ogHandler,
   ogImage: ogImageHandler,
+  seo: seoHandler,
 });

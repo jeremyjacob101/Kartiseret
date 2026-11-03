@@ -5,6 +5,7 @@ import {
   getMovieByPermanentCode,
   getMovieCatalog,
   getCinemathequeData,
+  getMovieShowtimes,
   getPublicTheaterData,
   getShowtimeRange,
   getTicketAvailabilityShowtimes,
@@ -80,7 +81,7 @@ function createRepository(
       },
     ]),
     findShowtimeRows: vi.fn(async () => [databaseShowtime]),
-    findTicketAvailabilityRows: vi.fn(async () => [databaseShowtime]),
+    findMovieShowtimeRows: vi.fn(async () => [databaseShowtime]),
     findTheaterCityRows: vi.fn(async () => []),
     findMovieCodeByCode: vi.fn(async () => "9100001"),
     findNowPlayingMovieById: vi.fn(async () => nowPlaying),
@@ -341,7 +342,7 @@ describe("public showtime service", () => {
 
   it("preserves local wall time and filters invalid availability rows without limiting cities", async () => {
     const repository = createRepository({
-      findTicketAvailabilityRows: vi.fn(async () => [
+      findMovieShowtimeRows: vi.fn(async () => [
         databaseShowtime,
         { ...databaseShowtime, screeningCity: "Haifa" },
         { ...databaseShowtime, screeningCity: null },
@@ -389,6 +390,41 @@ describe("public showtime service", () => {
         dubLanguage: null,
         englishHref: null,
         hebrewHref: "https://tickets.example/he",
+      },
+    ]);
+  });
+
+  it("keeps published movie screenings when neither booking link is available", async () => {
+    const repository = createRepository({
+      findMovieShowtimeRows: vi.fn(async () => [
+        {
+          ...databaseShowtime,
+          englishHref: null,
+          hebrewHref: null,
+        },
+        { ...databaseShowtime, tmdbId: 9100002, screeningCity: "Haifa" },
+        { ...databaseShowtime, cinema: "  " },
+      ]),
+    });
+
+    const result = await getMovieShowtimes(repository, "9100001", "2026-10-20");
+
+    expect(repository.findMovieShowtimeRows).toHaveBeenCalledWith(
+      "9100001",
+      "2026-10-20",
+    );
+    expect(result).toEqual([
+      {
+        tmdbId: "9100001",
+        screeningCity: "Jerusalem",
+        dateOfShowing: "2026-10-20",
+        cinema: "Cinema City",
+        showtime: "09:05",
+        englishHref: null,
+        hebrewHref: null,
+        screeningTech: "",
+        screeningType: "",
+        dubLanguage: null,
       },
     ]);
   });

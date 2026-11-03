@@ -1,9 +1,10 @@
 import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, getJerusalemCinemaDate, isDateInShowtimeLinkWindow, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "@kartiseret/contracts/showtime-links";
 import { findMovieByCode, isMovieShowtimeDateCovered, isValidMovieCode, mergeMovieShowtimeRangeResult, prefetchMovieShowtimesAfterDate, showtimeCityQueryOptions, showtimeRangeQueryOptions, type ShowtimeRange } from "../data/movieCatalog";
 import { getShowtimeFiltersSnapshot, saveShowtimeFilters, type ShowtimeFilterState } from "./showtimes/showtimeFilters";
+import { hasInitialSeoContentForPath, removeInitialSeoContent, setSeoMetadata } from "../routing/seoMetadata";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
 import { applyMovieDisplayPreference } from "../data/movieDisplayPreferences";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { MovieDetailsContent } from "./scroller/MovieDetailsContent";
@@ -173,7 +174,6 @@ export function MoviePage({
       : null;
   const routeMovie = routeMatch?.movie ?? null;
   const routeCatalogMode = routeMatch?.mode ?? null;
-  const movieTitle = routeMovie?.title;
   const [queryState, setQueryState] = useState<MoviePageQueryState | null>(
     null,
   );
@@ -276,7 +276,6 @@ export function MoviePage({
     }
 
     if (!hasValidMovieCode || !routeMovie || !routeCatalogMode) {
-      navigate("/", { replace: true });
       return;
     }
 
@@ -368,19 +367,73 @@ export function MoviePage({
     });
   }, [commitQueryState, today]);
 
-  useEffect(() => {
-    const previousTitle = document.title;
-
-    document.title = movieTitle
-      ? `${movieTitle} | Kartiseret`
-      : catalogReady && movieCodesReady
-        ? "Movie not found | Kartiseret"
-        : "Loading movie | Kartiseret";
-
-    return () => {
-      document.title = previousTitle;
-    };
-  }, [catalogReady, movieCodesReady, movieTitle]);
+  useLayoutEffect(() => {
+    if (routeMovie?.movieCode) {
+      const currentState = queryStateRef.current;
+      const location = currentState?.location;
+      const isEncodedSelection =
+        parseMovieRouteCode(routeCode)?.kind === "encoded";
+      const selectionShowtimesLoaded =
+        routeCatalogMode === "comingSoon" ||
+        (routeCatalogMode === "nowPlaying" &&
+          currentState?.movieCode === candidateMovieCode &&
+          (isActiveShowtimeDateLoaded || exactShowtimeQuery.isSuccess));
+      if (
+        hasInitialSeoContentForPath(window.location.pathname) &&
+        routeCatalogMode === "nowPlaying" &&
+        !currentState
+      ) {
+        return;
+      }
+      const title =
+        routeCatalogMode === "comingSoon"
+          ? `${routeMovie.title} — Coming soon | Kartiseret`
+          : location
+            ? `${routeMovie.title} showtimes in ${location} | Kartiseret`
+            : `${routeMovie.title} showtimes in Israel | Kartiseret`;
+      setSeoMetadata({
+        title,
+        description:
+          isEncodedSelection && currentState
+            ? `${routeMovie.title} showtimes in ${currentState.location} on ${currentState.date} on Kartiseret.`
+            : `${routeMovie.title}${routeMovie.year ? ` (${routeMovie.year})` : ""}. ${routeCatalogMode === "comingSoon" ? "Coming soon information" : "Find movie showtimes at cinemas across Israel"} on Kartiseret.`,
+        canonicalPath: `/${candidateMovieCode}`,
+        openGraphPath: `/${routeCode}`,
+        imageUrl: isEncodedSelection
+          ? `https://seret.site/api/og-image?routeCode=${encodeURIComponent(routeCode)}`
+          : routeMovie.imageSrc || undefined,
+      });
+      if (
+        catalogReady &&
+        movieCodesReady &&
+        !preferencesLoading &&
+        selectionShowtimesLoaded
+      ) {
+        removeInitialSeoContent();
+      }
+      return;
+    }
+    if (catalogReady && movieCodesReady) {
+      setSeoMetadata({
+        title: "Movie not found | Kartiseret",
+        description: "This movie page is not available.",
+        canonicalPath: window.location.pathname,
+        robots: "noindex, nofollow",
+      });
+      removeInitialSeoContent();
+    }
+  }, [
+    candidateMovieCode,
+    catalogReady,
+    exactShowtimeQuery.isSuccess,
+    isActiveShowtimeDateLoaded,
+    movieCodesReady,
+    preferencesLoading,
+    queryState,
+    routeCode,
+    routeCatalogMode,
+    routeMovie,
+  ]);
 
   useEffect(() => {
     if (!activeShowtimeRange || !exactShowtimeQuery.data) {
@@ -547,11 +600,30 @@ export function MoviePage({
     }
   };
 
+  const hasMatchingSeoContent = hasInitialSeoContentForPath(
+    window.location.pathname,
+  );
+  const movieShowtimesPending =
+    routeCatalogMode === "nowPlaying" &&
+    (queryState?.movieCode !== candidateMovieCode ||
+      (!isActiveShowtimeDateLoaded && !exactShowtimeQuery.isSuccess));
+  if (
+    hasMatchingSeoContent &&
+    (catalogError ||
+      !catalogReady ||
+      !movieCodesReady ||
+      preferencesLoading ||
+      movieShowtimesPending)
+  ) {
+    return null;
+  }
+
   if (catalogError) {
     return <MoviePageState title="Movie unavailable" message={catalogError} />;
   }
 
   if (!catalogReady || !movieCodesReady || preferencesLoading) {
+    if (hasMatchingSeoContent) return null;
     return (
       <MoviePageState
         title="Loading movie"
@@ -572,8 +644,8 @@ export function MoviePage({
   if (!routeMatch) {
     return (
       <MoviePageState
-        title="Loading movie"
-        message="Opening the requested movie…"
+        title="Movie not found"
+        message="This movie is not currently listed."
       />
     );
   }

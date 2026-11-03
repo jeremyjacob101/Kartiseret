@@ -357,7 +357,7 @@ export async function getTicketAvailabilityShowtimes(
   tmdbId: string,
   fromDate: string,
 ): Promise<TicketAvailabilityShowtime[]> {
-  const rows = await repository.findTicketAvailabilityRows(tmdbId, fromDate);
+  const rows = await repository.findMovieShowtimeRows(tmdbId, fromDate);
   return rows.flatMap((row) => {
     const parsedRow = databaseShowtimeRowSchema.safeParse(row);
     if (!parsedRow.success) {
@@ -382,6 +382,39 @@ export async function getTicketAvailabilityShowtimes(
     }
     return [normalized.data];
   });
+}
+
+export async function getMovieShowtimes(
+  repository: PublicDataRepository,
+  tmdbId: string,
+  fromDate: string,
+): Promise<PublicShowtime[]> {
+  const expectedTmdbId = tmdbIdSchema.parse(tmdbId);
+  const rows = await repository.findMovieShowtimeRows(expectedTmdbId, fromDate);
+  return rows
+    .filter((value) => {
+      const rowTmdbId = readField(value, "tmdbId");
+      const city = readField(value, "screeningCity");
+      const date = readField(value, "dateOfShowing");
+      const cinema = readField(value, "cinema");
+      const showtime = readField(value, "showtime");
+
+      return (
+        rowTmdbId !== null &&
+        city !== null &&
+        typeof city === "string" &&
+        city.trim().length > 0 &&
+        date !== null &&
+        cinema !== null &&
+        typeof cinema === "string" &&
+        cinema.trim().length > 0 &&
+        showtime !== null &&
+        typeof showtime === "string" &&
+        showtime.trim().length > 0
+      );
+    })
+    .map(mapDatabaseShowtime)
+    .filter((showtime) => showtime.tmdbId === expectedTmdbId);
 }
 
 const theaterCityRowSchema = z.object({
