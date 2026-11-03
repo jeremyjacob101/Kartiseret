@@ -40,8 +40,10 @@ function profiles() {
 }
 
 describe("resolveRuntimeTargetEnvironment", () => {
-  it("defaults local development server profiles to development", () => {
-    const resolved = resolveRuntimeTargetEnvironment(profiles());
+  it("defaults local server profiles to development without NODE_ENV", () => {
+    const localProfiles = profiles();
+    delete (localProfiles as Record<string, string | undefined>).NODE_ENV;
+    const resolved = resolveRuntimeTargetEnvironment(localProfiles);
 
     expect(resolved.KARTISERET_TARGET).toBe("development");
     expect(resolved.SUPABASE_URL).toBe(

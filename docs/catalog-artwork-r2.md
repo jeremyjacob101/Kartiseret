@@ -59,7 +59,7 @@ The target Supabase URLs are fixed to the two project refs above and are checked
 
 For local artwork writing, set `DEV_R2_IMAGE_ORIGIN` to a stable development app origin whose runtime has the development read-only key. `http://localhost:5173` is useful only for purely local catalog data; do not write that origin into a shared dev catalog. Set `PROD_R2_IMAGE_ORIGIN=https://seret.site`. Leave all five writer values empty if mirroring is disabled; a partial R2 profile fails closed.
 
-The local Node server resolves the same `.env` profiles. With `NODE_ENV=development`, it defaults to the development profile. Select production for a local server explicitly with `KARTISERET_TARGET=production npm run server:dev`. Hosted Vercel environments keep their current generic environment-specific variable names and need no profile prefix.
+The local Node server resolves the same `.env` profiles. Unless `NODE_ENV=production` is set, a local server defaults to the development profile. Select production explicitly with `KARTISERET_TARGET=production npm run server:dev`. Hosted Vercel environments keep their current generic environment-specific variable names and need no profile prefix.
 
 ### GitHub Actions and Vercel
 

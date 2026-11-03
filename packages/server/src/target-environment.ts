@@ -154,7 +154,7 @@ export function resolveRuntimeTargetEnvironment(
 
   const defaultTarget =
     environment.KARTISERET_TARGET ??
-    (environment.NODE_ENV === "development" ? "development" : undefined);
+    (environment.NODE_ENV !== "production" ? "development" : undefined);
   const target = selectedTarget(defaultTarget);
   const prefix = target === "development" ? "DEV_" : "PROD_";
   const resolved = { ...environment };
