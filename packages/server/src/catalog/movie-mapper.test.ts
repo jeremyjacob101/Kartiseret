@@ -62,6 +62,19 @@ describe("toNowPlayingMovie", () => {
     });
   });
 
+  it("adds responsive variants only for app artwork URLs", () => {
+    const movie = toNowPlayingMovie({
+      ...record,
+      enPoster: `https://seret.site/api/images/v1/poster/${"a".repeat(64)}/342.webp`,
+      backdrop: `https://seret.site/api/images/v1/backdrop/${"b".repeat(64)}/1280.webp`,
+    });
+    expect(movie.imageSrcSet).toContain("/185.webp 185w");
+    expect(movie.imageSrcSet).toContain("/780.webp 780w");
+    expect(movie.backdropSrcSet).toContain("/780.webp 780w");
+    expect(movie.backdropSrcSet).toContain("/1280.webp 1280w");
+    expect(toNowPlayingMovie(record).imageSrcSet).toBeUndefined();
+  });
+
   it("rejects unsafe bigint years and a non-array alternatives value", () => {
     expect(() =>
       toNowPlayingMovie({ ...record, releaseYear: 9_007_199_254_740_992n }),

@@ -45,6 +45,105 @@ function createRepository(
   };
 }
 
+describe("catalog artwork delivery", () => {
+  const hash = "a".repeat(64);
+
+  it("serves only supported immutable variant keys from the configured store", async () => {
+    const getObject = vi.fn(
+      async () =>
+        new Response(new Uint8Array([1, 2, 3]), {
+          headers: { "content-type": "image/webp" },
+        }),
+    );
+    const app = createApp({
+      catalogRepository: createRepository(),
+      artworkStore: { getObject },
+    });
+
+    const response = await request(app).get(
+      `/api/images/v1/poster/${hash}/342.webp`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toContain("image/webp");
+    expect(response.headers["cache-control"]).toContain("max-age=86400");
+    expect(response.headers["vercel-cdn-cache-control"]).toContain("86400");
+    expect(response.body).toEqual(Buffer.from([1, 2, 3]));
+    expect(getObject).toHaveBeenCalledWith(
+      `artwork/v1/poster/${hash}/342.webp`,
+    );
+  });
+
+  it("rejects arbitrary paths and unavailable buckets without caching errors", async () => {
+    const getObject = vi.fn();
+    const app = createApp({
+      catalogRepository: createRepository(),
+      artworkStore: { getObject },
+    });
+    const invalid = await request(app).get(
+      `/api/images/v1/poster/${hash}/500.webp`,
+    );
+    const prototypeKind = await request(app).get(
+      `/api/images/v1/toString/${hash}/185.webp`,
+    );
+    expect(invalid.status).toBe(404);
+    expect(prototypeKind.status).toBe(404);
+    expect(invalid.headers["cache-control"]).toBe("no-store");
+    expect(getObject).not.toHaveBeenCalled();
+
+    getObject.mockResolvedValueOnce(new Response(null, { status: 404 }));
+    const missing = await request(app).get(
+      `/api/images/v1/poster/${hash}/342.webp`,
+    );
+    expect(missing.status).toBe(404);
+    expect(missing.headers["cache-control"]).toBe("no-store");
+  });
+
+  it("does not reveal storage errors", async () => {
+    const app = createApp({
+      catalogRepository: createRepository(),
+      artworkStore: {
+        getObject: vi.fn().mockRejectedValue(new Error("secret")),
+      },
+    });
+    const response = await request(app).get(
+      `/api/images/v1/backdrop/${hash}/1280.webp`,
+    );
+    expect(response.status).toBe(502);
+    expect(response.text).not.toContain("secret");
+    expect(response.headers["cache-control"]).toBe("no-store");
+  });
+
+  it("rejects objects with the wrong type or an excessive size", async () => {
+    const getObject = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("not an image", {
+          headers: { "content-type": "text/plain" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array(4 * 1024 * 1024 + 1), {
+          headers: { "content-type": "image/webp" },
+        }),
+      );
+    const app = createApp({
+      catalogRepository: createRepository(),
+      artworkStore: { getObject },
+    });
+
+    const wrongType = await request(app).get(
+      `/api/images/v1/poster/${hash}/342.webp`,
+    );
+    const tooLarge = await request(app).get(
+      `/api/images/v1/poster/${hash}/342.webp`,
+    );
+    expect(wrongType.status).toBe(502);
+    expect(tooLarge.status).toBe(502);
+    expect(wrongType.headers["cache-control"]).toBe("no-store");
+  });
+});
+
 const comingSoonMovie = {
   tmdbId: 9100002,
   englishTitle: "A Coming Film",

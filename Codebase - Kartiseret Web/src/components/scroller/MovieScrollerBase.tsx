@@ -831,6 +831,8 @@ export function MovieScrollerBase({
               title={movie.title}
               tmdbId={movie.tmdbId}
               imageSrc={movie.imageSrc}
+              imageSrcSet={movie.imageSrcSet}
+              imageSizes={`${cardWidth}px`}
               alt={movie.title}
               loading={isVisible ? "eager" : "lazy"}
               fetchPriority={

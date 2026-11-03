@@ -165,6 +165,8 @@ export function CinemathequesPage() {
                               title={movie.title}
                               tmdbId={movie.tmdbId}
                               imageSrc={movie.imageSrc}
+                              imageSrcSet={movie.imageSrcSet}
+                              imageSizes="(max-width: 600px) calc((100vw - 48px) / 3), 160px"
                               alt=""
                               className="cinematheques-poster"
                               fallbackClassName="cinematheques-poster"
@@ -185,6 +187,8 @@ export function CinemathequesPage() {
                               title={movie.title}
                               tmdbId={movie.tmdbId}
                               imageSrc={movie.imageSrc}
+                              imageSrcSet={movie.imageSrcSet}
+                              imageSizes="(max-width: 600px) calc((100vw - 48px) / 3), 160px"
                               alt=""
                               className="cinematheques-poster"
                               fallbackClassName="cinematheques-poster"

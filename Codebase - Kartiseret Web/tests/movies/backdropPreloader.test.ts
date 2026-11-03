@@ -6,6 +6,8 @@ class TestImage {
   static cached = new Set<string>();
   decoding = "";
   fetchPriority = "";
+  srcset = "";
+  sizes = "";
   onload: (() => void) | null = null;
   onerror: (() => void) | null = null;
   src = "";
@@ -41,6 +43,22 @@ afterEach(() => {
 });
 
 describe("shared backdrop preload scheduling", () => {
+  it("preloads the browser-selected R2 variant for poster and backdrop sizes", async () => {
+    const scheduler = createBackdropPreloader();
+    scheduler.requestPosterNow(
+      `https://seret.site/api/images/v1/poster/${"a".repeat(64)}/342.webp`,
+    );
+    scheduler.requestBackdropNow(
+      `https://seret.site/api/images/v1/backdrop/${"b".repeat(64)}/1280.webp`,
+    );
+
+    expect(TestImage.instances[0].srcset).toContain("185.webp 185w");
+    expect(TestImage.instances[0].srcset).toContain("780.webp 780w");
+    expect(TestImage.instances[0].sizes).toContain("300px");
+    expect(TestImage.instances[1].srcset).toContain("780.webp 780w");
+    expect(TestImage.instances[1].sizes).toBe("100vw");
+  });
+
   it("shares two background slots, with overscan posters ahead of backdrops", async () => {
     const scheduler = createBackdropPreloader();
     const first = gate(),

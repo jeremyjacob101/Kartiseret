@@ -1394,6 +1394,8 @@ export function MovieDetailsContent({
               title={movie.title}
               tmdbId={movie.tmdbId}
               imageSrc={movie.imageSrc}
+              imageSrcSet={movie.imageSrcSet}
+              imageSizes="(max-width: 700px) 30vw, 216px"
               alt={movie.title}
               className={posterClassName}
               draggable={false}

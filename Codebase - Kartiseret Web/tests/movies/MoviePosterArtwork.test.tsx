@@ -3,6 +3,49 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 describe("MoviePosterArtwork", () => {
+  it("selects responsive R2 variants for catalog poster URLs", () => {
+    render(
+      <MoviePosterArtwork
+        title="Responsive"
+        imageSrc={`https://seret.site/api/images/v1/poster/${"a".repeat(64)}/342.webp`}
+      />,
+    );
+    const image = screen.getByRole("img", { name: "Responsive" });
+    expect(image.getAttribute("srcSet")).toContain("185.webp 185w");
+    expect(image.getAttribute("srcSet")).toContain("780.webp 780w");
+    expect(image).toHaveAttribute("sizes", "300px");
+  });
+
+  it("uses the responsive set supplied by the catalog API", () => {
+    const supplied =
+      "https://images.example/185.webp 185w, https://images.example/342.webp 342w";
+    render(
+      <MoviePosterArtwork
+        title="API variants"
+        imageSrc="https://seret.site/api/images/v1/poster/hash/342.webp"
+        imageSrcSet={supplied}
+      />,
+    );
+    expect(screen.getByRole("img", { name: "API variants" })).toHaveAttribute(
+      "srcSet",
+      supplied,
+    );
+  });
+
+  it("uses the measured slot size when a page provides one", () => {
+    render(
+      <MoviePosterArtwork
+        title="Compact alert"
+        imageSrc={`/api/images/v1/poster/${"b".repeat(64)}/342.webp`}
+        imageSizes="42px"
+      />,
+    );
+    expect(screen.getByRole("img", { name: "Compact alert" })).toHaveAttribute(
+      "sizes",
+      "42px",
+    );
+  });
+
   it("keeps its image element and fallback while an offscreen request is deferred", () => {
     const props = {
       title: "Deferred",

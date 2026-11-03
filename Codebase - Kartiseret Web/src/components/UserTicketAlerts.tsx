@@ -84,6 +84,8 @@ function UserTicketAlertItem({
           title={title}
           tmdbId={alert.tmdbId}
           imageSrc={movie?.imageSrc}
+          imageSrcSet={movie?.imageSrcSet}
+          imageSizes="(max-width: 640px) 38px, 42px"
           alt=""
           className="prefs-alert-poster"
           fallbackClassName="prefs-alert-poster"

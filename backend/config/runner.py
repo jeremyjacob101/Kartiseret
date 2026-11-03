@@ -6,10 +6,17 @@ load_dotenv()  # Load .env before selecting a local or scheduled plan.
 
 import json
 import os
+import argparse
 from pathlib import Path
 import sys
 
 from backend.config.job_supervisor import job_seconds, run_managed_process, termination_grace_seconds
+from backend.config.target_environment import (
+    TargetConfigurationError,
+    is_scheduled,
+    resolve_target_environment,
+    validate_target,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -30,10 +37,24 @@ def _serialize_plan(plan: list[tuple]) -> str:
     return json.dumps(entries, separators=(",", ":"))
 
 
+def _select_target(cli_target: str | None = None) -> tuple[str, dict[str, str]]:
+    environment_target = os.environ.get("KARTISERET_TARGET", "").strip() or None
+    if cli_target:
+        target = validate_target(cli_target)
+    elif environment_target:
+        target = validate_target(environment_target)
+    elif is_scheduled(os.environ):
+        target = "production"
+    else:
+        from backend.utils.console.inputMenu import choose_environment_target
+
+        target = validate_target(choose_environment_target())
+    return target, resolve_target_environment(target, os.environ)
+
+
 def _select_plan():
     if (
-        os.environ.get("GITHUB_ACTIONS") == "true"
-        or os.environ.get("JJ_INTEL_MAC_DAILY_RUN") == "true"
+        os.environ.get("JJ_INTEL_MAC_DAILY_RUN") == "true"
         or os.environ.get("JJ_INTEL_MAC_WEEKLY_RUN") == "true"
     ):
         return None, None
@@ -42,14 +63,22 @@ def _select_plan():
     return choose_run_plan()
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     try:
+        parser = argparse.ArgumentParser(add_help=True)
+        parser.add_argument("--target", choices=("development", "production"))
+        args, _unknown = parser.parse_known_args(argv)
+        target, selected_environment = _select_target(args.target)
         plan, header = _select_plan()
-        environment = {"KARTISERET_RUN_SHOW_PLAN_HEADER": "true" if header is not None else "false"}
+        environment = {
+            **selected_environment,
+            "KARTISERET_RUN_SHOW_PLAN_HEADER": "true" if header is not None else "false",
+        }
         if plan is None:
             environment["KARTISERET_RUN_PLAN_JSON"] = ""
         else:
             environment["KARTISERET_RUN_PLAN_JSON"] = _serialize_plan(plan)
+        print(f"Running scraper target: {target}", flush=True)
         outcome = run_managed_process(
             [sys.executable, "-m", "backend.config.runner_worker"],
             seconds=job_seconds(),
@@ -61,7 +90,7 @@ def main() -> int:
     except KeyboardInterrupt:
         print("Pipeline plan selection interrupted.", file=sys.stderr, flush=True)
         return 130
-    except ValueError as error:
+    except (TargetConfigurationError, ValueError) as error:
         print(f"Invalid pipeline execution configuration: {error}", file=sys.stderr, flush=True)
         return 125
 

@@ -16,19 +16,22 @@ import {
   type ProtectedRateLimitOptions,
 } from "./protected/router.js";
 import { PostgresProtectedRateLimitStore } from "./protected/rate-limit-store.js";
+import { createR2ImageStore } from "./artwork/s3.js";
+import { resolveRuntimeTargetEnvironment } from "./target-environment.js";
 
 type ProductionRuntime = ReturnType<typeof createProductionRuntime>;
 
 function createProductionRuntime(
   environment: Record<string, string | undefined>,
 ) {
-  const config = parseServerEnvironment(environment);
+  const selectedEnvironment = resolveRuntimeTargetEnvironment(environment);
+  const config = parseServerEnvironment(selectedEnvironment);
   const database = createDatabase(config.DATABASE_URL, {
     poolMax: config.DATABASE_POOL_MAX,
     sslCaCertificate: config.DATABASE_SSL_CA_CERT,
   });
   const repository = new DrizzleCatalogRepository(database.db);
-  const authConfig = parseAuthEnvironment(environment);
+  const authConfig = parseAuthEnvironment(selectedEnvironment);
   const auth = createApplicationAuth(database.pool, {
     ...authConfig,
     mailer: createResendAuthMailer(authConfig.mail),
@@ -58,6 +61,7 @@ function createProductionRuntime(
 
   return {
     config,
+    artworkStore: createR2ImageStore(selectedEnvironment as NodeJS.ProcessEnv),
     repository,
     tmdbSearch: createTmdbSearchProvider(config.TMDB_API_KEY),
     workflows: new ProtectedWorkflows(database.db, repository),
@@ -102,6 +106,7 @@ export function createProductionApp(
     trustedOrigins: runtime.trustedOrigins,
     protectedRateLimit: runtime.protectedRateLimit,
     recipientRouter: runtime.recipientRouter,
+    artworkStore: runtime.artworkStore,
     logger: {
       error: (message, error) => console.error(message, error),
     },

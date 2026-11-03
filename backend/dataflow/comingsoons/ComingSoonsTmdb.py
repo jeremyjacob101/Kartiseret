@@ -1,4 +1,5 @@
 from backend.dataflow.BaseDataflow import BaseDataflow
+from backend.dataflow.utils.ArtworkStorage import resolve_tmdb_artwork
 from backend.utils.supabase.clear_old_entries import clear_old_entries
 from backend.utils.supabase.dedupe_all_soons import dedupe_all_soons
 from backend.dataflow.utils.PipelineCheckpoints import PreparedPublication
@@ -291,8 +292,7 @@ class ComingSoonsTmdb(BaseDataflow):
             new_row["runtime"] = data["runtime"] if data.get("runtime") else new_row.get("runtime")
             new_row["popularity"] = data["popularity"] if data.get("popularity") is not None else new_row.get("popularity")
             new_row["imdb_id"] = external_ids.get("imdb_id") or new_row.get("imdb_id")
-            new_row["en_poster"] = "https://image.tmdb.org/t/p/w342" + data["poster_path"] if data.get("poster_path") else new_row.get("en_poster")
-            new_row["backdrop"] = "https://image.tmdb.org/t/p/w1280" + data["backdrop_path"] if data.get("backdrop_path") else new_row.get("backdrop")
+            resolve_tmdb_artwork(self, new_row, data)
             new_row["genres"] = genres or new_row.get("genres")
             new_row["en_trailer"] = trailer.get("key") if trailer else new_row.get("en_trailer")
             new_row["release_year"] = data["release_date"][:4] if data.get("release_date") else new_row.get("release_year")

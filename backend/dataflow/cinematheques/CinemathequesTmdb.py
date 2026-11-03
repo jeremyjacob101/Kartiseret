@@ -1,4 +1,5 @@
 from backend.dataflow.BaseDataflow import BaseDataflow
+from backend.dataflow.utils.ArtworkStorage import resolve_tmdb_artwork
 from backend.dataflow.cinematheques.utils.CinemathequesHelpers import CinemathequesHelpers
 from backend.utils.supabase.clear_old_entries import clear_old_entries
 from backend.utils.supabase.clear_orphan_final_theque_movies import clear_orphan_final_theque_movies
@@ -290,8 +291,7 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
             res["runtime"] = data["runtime"] if data.get("runtime") is not None else res.get("runtime")
             res["popularity"] = data["popularity"] if data.get("popularity") is not None else res.get("popularity")
             res["imdb_id"] = external_ids.get("imdb_id") or res.get("imdb_id")
-            res["en_poster"] = "https://image.tmdb.org/t/p/w342" + data["poster_path"] if data.get("poster_path") else res.get("en_poster")
-            res["backdrop"] = "https://image.tmdb.org/t/p/w1280" + data["backdrop_path"] if data.get("backdrop_path") else res.get("backdrop")
+            resolve_tmdb_artwork(self, res, data)
             res["genres"] = genres or res.get("genres")
             res["en_trailer"] = trailer.get("key") if trailer else res.get("en_trailer")
             res["release_year"] = data["release_date"][:4] if data.get("release_date") else res.get("release_year")
