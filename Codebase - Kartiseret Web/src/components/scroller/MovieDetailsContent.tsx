@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 15666)
-Total output lines: 1807
-
 import { APP_TIME_ZONE, fixedAppDateString, getMovieShowtimeCities, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, selectMovieShowtimeDays, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
 import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, saveShowtimeFilters, updateShowtimeFilterState, useShowtimeFiltersStore, type ShowtimeFilterOptions, type ShowtimeFilterSelections, type ShowtimeFilterState } from "../showtimes/showtimeFilters";
 import { cinemaIdForLocation, findCinemaIdentityForScreening } from "@kartiseret/contracts/cinema-identities";
@@ -956,7 +953,88 @@ export function MovieDetailsContent({
     playingCities,
   ]);
   const isTrailerModalOpen =
-    Boolean(trailerEmbedUrl) && openTrailerModa…666 tokens truncated…/p>
+    Boolean(trailerEmbedUrl) && openTrailerModalId === trailerModalId;
+  const hasTrailerLaunch = variant === "nowPlaying" && Boolean(trailerEmbedUrl);
+  const hasMetrics = metrics.length > 0;
+  const renderMetricsRow = (className?: string) => {
+    if (variant !== "nowPlaying" || (!hasTrailerLaunch && !hasMetrics)) {
+      return null;
+    }
+
+    return (
+      <div
+        className={["details-metrics-row", className].filter(Boolean).join(" ")}
+      >
+        {hasTrailerLaunch ? (
+          <button
+            type="button"
+            className="details-trailer-launch details-trailer-launch--metrics"
+            aria-label={`Watch ${movie.title} trailer`}
+            onClick={() => {
+              setOpenTrailerModalId(trailerModalId);
+            }}
+          >
+            <img
+              src="/logos/youtube.svg"
+              alt=""
+              className="details-trailer-launch-logo"
+              width={28}
+              height={20}
+              decoding="async"
+            />
+          </button>
+        ) : null}
+
+        {hasTrailerLaunch && hasMetrics ? (
+          <span className="details-metrics-divider" aria-hidden="true" />
+        ) : null}
+
+        {hasMetrics ? (
+          <div className="details-metrics">
+            {metrics.map((metric) => (
+              <div
+                key={metric.key}
+                className="details-metric"
+                aria-label={metric.ariaLabel}
+              >
+                <div className="details-metric-marker">
+                  {metric.href ? (
+                    <a
+                      href={metric.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="details-metric-link"
+                      aria-label={metric.linkAriaLabel}
+                    >
+                      <img
+                        src={metric.logoSrc}
+                        alt=""
+                        className={metric.logoClassName}
+                        decoding="async"
+                      />
+                    </a>
+                  ) : (
+                    <img
+                      src={metric.logoSrc}
+                      alt=""
+                      className={metric.logoClassName}
+                      decoding="async"
+                    />
+                  )}
+                </div>
+                <strong>{metric.value}</strong>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
+  const renderNoShowtimesState = (title: string) => (
+    <div className="details-empty-state" aria-label={title}>
+      <div className="details-empty-state-panel">
+        <p className="details-empty-state-title">{title}</p>
 
         <div className="details-empty-actions">
           <Link to="/showtimes" className="details-empty-link">
@@ -1727,3 +1805,4 @@ export function MovieDetailsContent({
     </>
   );
 }
+
