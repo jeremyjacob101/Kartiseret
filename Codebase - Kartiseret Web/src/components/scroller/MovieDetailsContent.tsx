@@ -1805,4 +1805,3 @@ export function MovieDetailsContent({
     </>
   );
 }
-
