@@ -82,6 +82,18 @@ class FakeR2:
 
 
 class SocialPreviewTests(unittest.TestCase):
+    def test_backdrop_can_supply_missing_poster(self):
+        digest = "a" * 64
+        url = f"https://seret.site/api/images/v1/backdrop/{digest}/780.webp"
+        r2 = FakeR2()
+        storage = SimpleNamespace(client=r2, bucket="dev")
+        with patch.dict("os.environ", {"R2_IMAGE_ORIGIN": "https://seret.site"}):
+            poster, backdrop = social_previews._card_sources(
+                storage, {"posterUrl": url, "backdropUrl": url}
+            )
+        self.assertEqual(poster, b"fake webp")
+        self.assertEqual(backdrop, poster)
+
     def make_client(self, current_row=None):
         current_row = current_row or ROW
         client = Mock()

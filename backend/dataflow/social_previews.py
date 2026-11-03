@@ -237,7 +237,11 @@ def _read_source_image(storage: ArtworkStorage, image_url: str, kind: str) -> by
     parsed = urlsplit(image_url)
     if parsed.scheme == "https" and parsed.hostname == "image.tmdb.org":
         return _tmdb_image_source(image_url, kind)
-    return _app_image_source(storage, kind, image_url)
+    # The catalog uses a backdrop as the poster when no poster is available.
+    # Resolve the actual stored artwork kind before selecting its variants.
+    match = R2_IMAGE_PATH_RE.fullmatch(parsed.path)
+    stored_kind = match.group(1) if match else kind
+    return _app_image_source(storage, stored_kind, image_url)
 
 
 def _card_sources(storage: ArtworkStorage, data: dict[str, Any]) -> tuple[bytes | None, bytes | None]:
