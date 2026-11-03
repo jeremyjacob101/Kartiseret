@@ -43,6 +43,11 @@
       "import": "./dist/public-data.js",
       "default": "./dist/public-data.js"
     },
+    "./public-render": {
+      "types": "./dist/public-render.d.ts",
+      "import": "./dist/public-render.js",
+      "default": "./dist/public-render.js"
+    },
     "./cinema-identities": {
       "types": "./dist/cinema-identities.d.ts",
       "import": "./dist/cinema-identities.js",

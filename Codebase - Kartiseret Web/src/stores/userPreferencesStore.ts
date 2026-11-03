@@ -1,6 +1,7 @@
 import { DEFAULT_SITE_COLOR, applySiteColor, initializeSiteColorTheme, siteColorPreferenceDefinition, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
 import { DEFAULT_LOCATION, loadGuestLocation, locationPreferenceDefinition, type AppLocation } from "../prefs/definitions/locations";
 import { preferencesResponseSchema, applicationIdentitySchema, type ApplicationIdentity } from "@kartiseret/contracts/private-data";
+import { createContext, createElement, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { ratingSourcesPreferenceDefinition, type RatingSource } from "../prefs/definitions/ratingSources";
 import { privateApiResponse, privateIdentityChanged } from "../data/privateApi";
 import type { UserPreferenceDefinition } from "../prefs/definitions/shared";
@@ -223,8 +224,6 @@ function getGuestPreferences(): UserPreferences {
 const preferenceOptions = createPreferenceOptions();
 const initialPreferences = getBootstrappedPreferences();
 
-applySiteColor(initialPreferences.siteColor);
-
 let activeUserId: string | null = null;
 let confirmedPreferences = initialPreferences;
 let queuedPreferenceSaves: QueuedPreferenceSaves = {};
@@ -392,28 +391,88 @@ async function savePreferenceValue<Key extends PreferenceKey>(
   return true;
 }
 
-export const useUserPreferencesStore = create<UserPreferencesStoreState>()(
-  () => ({
+const userPreferencesStore = create<UserPreferencesStoreState>()(() => ({
+  user: null,
+  preferences: initialPreferences,
+  preferenceOptions,
+  allSources: preferenceOptions.ratingSources ?? [],
+  allLocations: preferenceOptions.location ?? [],
+  allSiteColors: preferenceOptions.siteColor ?? [],
+  defaultSiteColor: DEFAULT_SITE_COLOR,
+  loading: true,
+  syncing: false,
+  error: null,
+  savePreference: savePreferenceValue as SavePreference,
+  saveSources: (sources) => savePreferenceValue("ratingSources", [...sources]),
+  saveLocation: (location) => savePreferenceValue("location", location),
+  saveSiteColor: (siteColor) => savePreferenceValue("siteColor", siteColor),
+  resetSiteColor: () => savePreferenceValue("siteColor", DEFAULT_SITE_COLOR),
+  setLocationPreference: (location) =>
+    savePreferenceValue("location", location),
+}));
+
+const publicPreferenceSnapshotContext =
+  createContext<UserPreferencesStoreState | null>(null);
+
+type UserPreferencesSelector<Selected> = (
+  state: UserPreferencesStoreState,
+) => Selected;
+
+function useUserPreferencesStoreHook<Selected = UserPreferencesStoreState>(
+  selector: UserPreferencesSelector<Selected> = ((state) =>
+    state as Selected) as UserPreferencesSelector<Selected>,
+): Selected {
+  const publicSnapshot = useContext(publicPreferenceSnapshotContext);
+  return useSyncExternalStore(
+    userPreferencesStore.subscribe,
+    () => selector(publicSnapshot ?? userPreferencesStore.getState()),
+    () => selector(publicSnapshot ?? userPreferencesStore.getInitialState()),
+  );
+}
+
+export const useUserPreferencesStore = Object.assign(
+  useUserPreferencesStoreHook,
+  userPreferencesStore,
+);
+
+export function PublicPreferencesSnapshotProvider({
+  snapshot,
+  children,
+}: {
+  snapshot: UserPreferencesStoreState;
+  children: ReactNode;
+}) {
+  const [hydrating, setHydrating] = useState(true);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setHydrating(false));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  return createElement(
+    publicPreferenceSnapshotContext.Provider,
+    { value: hydrating ? snapshot : null },
+    children,
+  );
+}
+
+/** Create non-personalized public defaults without mutating the shared client store. */
+export function preparePublicPagePreferenceState(): UserPreferencesStoreState {
+  const publicPreferences = createPreferenceValues((key, definition) =>
+    normalizePreferenceValue(key, definition.defaultValue));
+  return {
+    ...userPreferencesStore.getInitialState(),
     user: null,
-    preferences: initialPreferences,
+    preferences: publicPreferences,
     preferenceOptions,
     allSources: preferenceOptions.ratingSources ?? [],
     allLocations: preferenceOptions.location ?? [],
     allSiteColors: preferenceOptions.siteColor ?? [],
     defaultSiteColor: DEFAULT_SITE_COLOR,
-    loading: true,
+    loading: false,
     syncing: false,
     error: null,
-    savePreference: savePreferenceValue as SavePreference,
-    saveSources: (sources) =>
-      savePreferenceValue("ratingSources", [...sources]),
-    saveLocation: (location) => savePreferenceValue("location", location),
-    saveSiteColor: (siteColor) => savePreferenceValue("siteColor", siteColor),
-    resetSiteColor: () => savePreferenceValue("siteColor", DEFAULT_SITE_COLOR),
-    setLocationPreference: (location) =>
-      savePreferenceValue("location", location),
-  }),
-);
+  };
+}
 
 function isCurrentPreferenceSync(
   generation: number,

@@ -130,6 +130,7 @@ const LoadingFallbackPosterImage = forwardRef<
       ) : null}
       <img
         ref={setImageNode}
+        data-image-status={imageStatus}
         src={deferRequest ? undefined : resolvedImageSrc}
         srcSet={deferRequest ? undefined : resolvedImageSrcSet}
         sizes={resolvedImageSrcSet ? resolvedImageSizes : undefined}
@@ -146,7 +147,6 @@ const LoadingFallbackPosterImage = forwardRef<
         onError={() => {
           setImageStatus("error");
         }}
-        style={showFallback ? { opacity: 0 } : undefined}
       />
     </div>
   );
@@ -180,9 +180,7 @@ export const MoviePosterArtwork = forwardRef<
     ? displayPreferences.preferencesById.get(tmdbId)
     : undefined;
   if (preference?.treatment === "remove") return null;
-  const shouldUseStandardPoster =
-    preference?.treatment === "standard" ||
-    (Boolean(tmdbId) && !displayPreferences.ready);
+  const shouldUseStandardPoster = preference?.treatment === "standard";
   const resolvedImageSrc = shouldUseStandardPoster
     ? undefined
     : imageSrc?.trim();

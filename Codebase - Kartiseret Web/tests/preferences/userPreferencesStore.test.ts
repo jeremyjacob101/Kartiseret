@@ -141,6 +141,31 @@ async function initialize() {
 }
 
 describe("preference synchronization protocol", () => {
+  it("creates SSR defaults without overwriting cached in-memory preferences", () => {
+    const before = storeModule.useUserPreferencesStore.getState();
+    const cachedPreferences = {
+      ...before.preferences,
+      location: "Haifa" as const,
+      siteColor: "#123456" as typeof before.preferences.siteColor,
+    };
+    storeModule.useUserPreferencesStore.setState({
+      preferences: cachedPreferences,
+    });
+    const stateBeforeSnapshot = storeModule.useUserPreferencesStore.getState();
+
+    const snapshot = storeModule.preparePublicPagePreferenceState();
+
+    expect(snapshot.user).toBeNull();
+    expect(snapshot.loading).toBe(false);
+    expect(snapshot.preferences).not.toEqual(cachedPreferences);
+    expect(storeModule.useUserPreferencesStore.getState()).toBe(
+      stateBeforeSnapshot,
+    );
+    expect(storeModule.useUserPreferencesStore.getState().preferences).toEqual(
+      cachedPreferences,
+    );
+  });
+
   it("initializes a verified account from server defaults without reviving the old Context owner", async () => {
     row = null;
     await initialize();

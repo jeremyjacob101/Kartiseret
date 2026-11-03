@@ -67,9 +67,7 @@ function applyDeviceTypeToDocument(deviceType: DeviceType): void {
   document.documentElement.dataset.deviceType = deviceType;
 }
 
-const bootstrappedDeviceInfo = buildDeviceInfo(detectDeviceType());
-
-applyDeviceTypeToDocument(bootstrappedDeviceInfo.deviceType);
+const bootstrappedDeviceInfo = buildDeviceInfo("desktop");
 
 export const useDeviceStore = create<DeviceInfo>()(
   () => bootstrappedDeviceInfo,
@@ -88,16 +86,15 @@ function synchronizeDeviceType(): void {
   useDeviceStore.setState(nextDeviceInfo);
 }
 
-function initializeDeviceStore(): void {
+export function initializeDeviceStore(): void {
   if (typeof window === "undefined" || mobileViewportMediaQuery) {
     return;
   }
 
   mobileViewportMediaQuery = window.matchMedia(MOBILE_VIEWPORT_QUERY);
   mobileViewportMediaQuery.addEventListener("change", synchronizeDeviceType);
+  synchronizeDeviceType();
 }
-
-initializeDeviceStore();
 
 export function applyBootstrappedDeviceTypeToDocument(): void {
   applyDeviceTypeToDocument(useDeviceStore.getState().deviceType);

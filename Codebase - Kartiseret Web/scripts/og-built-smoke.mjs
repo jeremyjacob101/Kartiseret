@@ -172,6 +172,20 @@ assert.equal(htmlResponse.statusCode, 404);
 assert.match(htmlResponse.headers.get("content-type"), /^text\/html/);
 assert.match(htmlResponse.body, /<h1>Page not found<\/h1>/);
 
+const { default: dispatch } = await import("../../api/dispatch.ts");
+const dispatchedResponse = createResponse();
+await dispatch(
+  {
+    url: "/api/dispatch?__vercel_route=movie&routeCode=%3F%3F",
+    query: { __vercel_route: "movie", routeCode: "??" },
+    headers: { host: "localhost" },
+  },
+  dispatchedResponse,
+);
+assert.equal(dispatchedResponse.statusCode, 404);
+assert.match(dispatchedResponse.headers.get("content-type"), /^text\/html/);
+assert.match(dispatchedResponse.body, /<h1>Page not found<\/h1>/);
+
 const imageResponse = createResponse();
 await imageHandler(
   { method: "GET", query: { home: "1" }, headers: { host: "localhost" } },

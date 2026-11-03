@@ -15,19 +15,3 @@ test("does not expose the SEO fallback in a JavaScript browser while the app bun
   });
   await expect(page.locator("#seo-content")).toHaveCount(0);
 });
-
-test.describe("JavaScript is disabled", () => {
-  test.use({ javaScriptEnabled: false });
-
-  test("keeps a useful no-script fallback", async ({ page }) => {
-    await page.goto("/");
-    await expect(
-      page.getByRole("heading", {
-        name: "Kartiseret movie showtimes across Israel",
-      }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("link", { name: "Now playing" }),
-    ).toHaveAttribute("href", "/movies");
-  });
-});

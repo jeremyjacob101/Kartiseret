@@ -1,4 +1,4 @@
-import { escapeHtml, injectSeoPage, safeHttpUrl } from "../seo/renderHtml.js";
+import { injectSeoPage, safeHttpUrl } from "../seo/renderHtml.js";
 import type { PreviewData } from "./previewData.js";
 
 export function buildPreviewDescription(data: PreviewData): string {
@@ -26,14 +26,6 @@ export function injectOpenGraphTags(
     : `${data.title} showtimes in ${data.city}`;
   const description = buildPreviewDescription(data);
   const imageUrl = `${siteOrigin}/api/og-image?routeCode=${encodeURIComponent(data.routeCode)}`;
-  const posterUrl = safeHttpUrl(data.posterUrl);
-  const rows = data.theaters
-    .map(
-      (theater) =>
-        `<li>${escapeHtml(theater.theater)}: ${theater.showtimes.map(escapeHtml).join(", ")}</li>`,
-    )
-    .join("");
-  const body = `<main><article><h1>${escapeHtml(data.title)}</h1><p>${escapeHtml(description)}</p>${posterUrl ? `<img src="${escapeHtml(posterUrl)}" alt="${escapeHtml(`${data.title} poster`)}" width="300" height="450" />` : ""}<h2>${data.isComingSoon ? "Coming soon" : "Showtimes"}</h2>${rows ? `<ul>${rows}</ul>` : "<p>No showtimes are listed for this selection.</p>"}</article></main>`;
   return injectSeoPage(html, {
     title: `${pageTitle} | Kartiseret`,
     description,
@@ -41,6 +33,5 @@ export function injectOpenGraphTags(
     openGraphPath: `/${data.routeCode}`,
     imageUrl: safeHttpUrl(imageUrl),
     imageAlt: pageTitle,
-    body,
   });
 }

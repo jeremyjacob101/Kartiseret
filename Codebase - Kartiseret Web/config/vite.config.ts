@@ -15,6 +15,11 @@ export default defineConfig(({ mode }) => {
   return {
     envDir: repoRoot,
     plugins: [react()],
+    build: {
+      // Public pages share one CSS file so route-chunk styles are present in
+      // the HTML before client JavaScript loads.
+      cssCodeSplit: false,
+    },
     server: apiProxyTarget
       ? {
           proxy: {
