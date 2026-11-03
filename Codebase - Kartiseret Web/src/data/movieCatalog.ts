@@ -34,11 +34,33 @@ const THEATER_SORT_INDEX = new Map(
 );
 
 export const defaultCity: AppLocation = DEFAULT_LOCATION;
-const fixedAppInstant = new Date();
-export const fixedAppDateString = getCinemaDayDate(
+declare global {
+  interface Window {
+    __KARTISERET_BOOTSTRAP__?: { renderedAt?: unknown };
+  }
+}
+
+function getInitialAppInstant(): Date {
+  if (typeof window !== "undefined") {
+    const renderedAt = window.__KARTISERET_BOOTSTRAP__?.renderedAt;
+    if (typeof renderedAt === "string") {
+      const date = new Date(renderedAt);
+      if (Number.isFinite(date.getTime())) return date;
+    }
+  }
+  return new Date();
+}
+
+let fixedAppInstant = getInitialAppInstant();
+export let fixedAppDateString = getCinemaDayDate(
   fixedAppInstant,
   APP_TIME_ZONE,
 );
+
+export function setAppRenderInstant(instant: Date): void {
+  fixedAppInstant = instant;
+  fixedAppDateString = getCinemaDayDate(instant, APP_TIME_ZONE);
+}
 
 export type ShowtimeRow = PublicShowtime;
 export type MovieAltOption = z.infer<typeof movieAltOptionSchema>;
@@ -126,8 +148,10 @@ export const movieCatalogQueryKeys = {
     ["movieCatalog", "collections", mode] as const,
   showtimes: () => ["movieCatalog", "showtimes"] as const,
   showtimeCities: () => ["movieCatalog", "showtimes", "cities"] as const,
-  showtimeCity: (city: AppLocation) => {
-    const revision = currentPublicationRevision();
+  showtimeCity: (
+    city: AppLocation,
+    revision = currentPublicationRevision(),
+  ) => {
     return revision === undefined
       ? (["movieCatalog", "showtimes", "cities", city] as const)
       : (["movieCatalog", "showtimes", "cities", city, revision] as const);
@@ -485,12 +509,15 @@ export function isValidMovieCode(movieCode: string): boolean {
   return movieCodeSchema.safeParse(movieCode).success;
 }
 
-export function findMovieByCode(movieCode: string): MovieRouteMatch | null {
+export function findMovieByCode(
+  movieCode: string,
+  client: QueryClient = queryClient,
+): MovieRouteMatch | null {
   if (!isValidMovieCode(movieCode)) {
     return null;
   }
 
-  const nowPlayingMovie = queryClient.getQueryData<MovieCollectionData>(
+  const nowPlayingMovie = client.getQueryData<MovieCollectionData>(
     movieCatalogQueryKeys.collection("nowPlaying"),
   )?.moviesByCode[movieCode];
 
@@ -498,7 +525,7 @@ export function findMovieByCode(movieCode: string): MovieRouteMatch | null {
     return { movie: nowPlayingMovie, mode: "nowPlaying" };
   }
 
-  const comingSoonMovie = queryClient.getQueryData<MovieCollectionData>(
+  const comingSoonMovie = client.getQueryData<MovieCollectionData>(
     movieCatalogQueryKeys.collection("comingSoon"),
   )?.moviesByCode[movieCode];
 
@@ -814,9 +841,12 @@ async function fetchAndMergeShowtimeRange(
   });
 }
 
-export function showtimeCityQueryOptions(city: AppLocation) {
+export function showtimeCityQueryOptions(
+  city: AppLocation,
+  publicationRevision = currentPublicationRevision(),
+) {
   return queryOptions({
-    queryKey: movieCatalogQueryKeys.showtimeCity(city),
+    queryKey: movieCatalogQueryKeys.showtimeCity(city, publicationRevision),
     queryFn: async () => {
       const collection = await queryClient.ensureQueryData(
         movieCollectionQueryOptions("nowPlaying"),

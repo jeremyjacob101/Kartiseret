@@ -3,6 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function () {
+        var ua = navigator.userAgent || "";
+        var platform = navigator.platform || "";
+        var isMobile =
+          /Android|webOS|iPhone|iPod|iPad|BlackBerry|IEMobile|Opera Mini/i.test(ua) ||
+          (platform === "MacIntel" && navigator.maxTouchPoints > 1) ||
+          window.matchMedia("(max-width: 699px)").matches;
+        document.documentElement.dataset.deviceType = isMobile
+          ? "mobile"
+          : "desktop";
+      })();
+    </script>
     <link rel="preconnect" href="https://image.tmdb.org" crossorigin />
     <link rel="dns-prefetch" href="https://image.tmdb.org" />
     <link
@@ -82,51 +95,7 @@
   </head>
 
   <body>
-    <style>
-      #seo-content {
-        max-width: 1100px;
-        margin: 0 auto;
-        padding: 32px 24px;
-        color: #f2ebfc;
-        font:
-          16px/1.55 "Avenir Next",
-          "Segoe UI",
-          sans-serif;
-      }
-      #seo-content h1,
-      #seo-content h2 {
-        line-height: 1.2;
-      }
-      #seo-content a {
-        color: #c89eff;
-      }
-      #seo-content img {
-        display: block;
-        max-width: min(300px, 100%);
-        height: auto;
-        object-fit: contain;
-      }
-      #seo-content li {
-        margin-block: 4px;
-      }
-    </style>
-    <!-- SEO_CONTENT_START -->
-    <noscript
-      ><div id="seo-content" class="seo-content" data-seo-route="/">
-        <main>
-          <h1>Kartiseret movie showtimes across Israel</h1>
-          <p>Find movies and current showtimes from Israeli cinemas.</p>
-          <nav aria-label="Movie listings">
-            <a href="/movies">Now playing</a>
-            <a href="/soons">Coming soon</a>
-            <a href="/showtimes">Showtimes</a>
-            <a href="/cinematheques">Cinematheques</a>
-          </nav>
-        </main>
-      </div></noscript
-    >
-    <!-- SEO_CONTENT_END -->
     <div id="root"></div>
-    <script type="module" src="/src/App.tsx"></script>
+    <script type="module" src="/src/entry-client.tsx"></script>
   </body>
 </html>

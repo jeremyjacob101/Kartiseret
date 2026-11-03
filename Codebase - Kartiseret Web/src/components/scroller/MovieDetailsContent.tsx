@@ -636,7 +636,7 @@ export function MovieDetailsContent({
   onShareShowtimes,
   shareFeedback = null,
 }: MovieDetailsContentProps) {
-  usePublicationRevision();
+  const publicationRevision = usePublicationRevision();
   const {
     sources,
     location: preferenceLocation,
@@ -662,7 +662,7 @@ export function MovieDetailsContent({
     [locationOverride, onLocationOverrideChange, setLocationPreference],
   );
   const { data: showtimeCityData } = useQuery({
-    ...showtimeCityQueryOptions(location),
+    ...showtimeCityQueryOptions(location, publicationRevision),
     enabled: false,
   });
   const showtimesReady = showtimeCityData?.broadReady ?? false;

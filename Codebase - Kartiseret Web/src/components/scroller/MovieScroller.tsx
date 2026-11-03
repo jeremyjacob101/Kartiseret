@@ -541,18 +541,11 @@ export function MovieScroller({
   });
   const resolvedMovieItems = useMemo(
     () =>
-      displayPreferences.ready
-        ? applyMovieDisplayPreferences(
-            movieItems ?? queriedMovieItems,
-            displayPreferences.preferencesById,
-          )
-        : [],
-    [
-      displayPreferences.preferencesById,
-      displayPreferences.ready,
-      movieItems,
-      queriedMovieItems,
-    ],
+      applyMovieDisplayPreferences(
+        movieItems ?? queriedMovieItems,
+        displayPreferences.preferencesById,
+      ),
+    [displayPreferences.preferencesById, movieItems, queriedMovieItems],
   );
 
   if (resolvedMovieItems.length === 0) {

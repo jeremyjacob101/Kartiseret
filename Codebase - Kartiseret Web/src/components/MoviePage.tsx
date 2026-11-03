@@ -1,5 +1,5 @@
 import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, getJerusalemCinemaDate, isDateInShowtimeLinkWindow, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "@kartiseret/contracts/showtime-links";
-import { findMovieByCode, isMovieShowtimeDateCovered, isValidMovieCode, mergeMovieShowtimeRangeResult, prefetchMovieShowtimesAfterDate, showtimeCityQueryOptions, showtimeRangeQueryOptions, type ShowtimeRange } from "../data/movieCatalog";
+import { findMovieByCode, fixedAppDateString, isMovieShowtimeDateCovered, isValidMovieCode, mergeMovieShowtimeRangeResult, prefetchMovieShowtimesAfterDate, showtimeCityQueryOptions, showtimeRangeQueryOptions, type ShowtimeRange } from "../data/movieCatalog";
 import { getShowtimeFiltersSnapshot, saveShowtimeFilters, type ShowtimeFilterState } from "./showtimes/showtimeFilters";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
@@ -8,10 +8,10 @@ import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { MovieDetailsContent } from "./scroller/MovieDetailsContent";
 import { DEFAULT_LOCATION } from "../prefs/definitions/locations";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router";
 import { setSeoMetadata } from "../routing/seoMetadata";
 import { useShallow } from "zustand/react/shallow";
-import { useQuery } from "@tanstack/react-query";
 import { shareLink } from "../routing/shareLink";
 import "./scroller/MovieScroller.css";
 import "./MoviePage.css";
@@ -113,7 +113,7 @@ function areQueryStatesEqual(
 }
 
 function useJerusalemToday(): string {
-  const [today, setToday] = useState(() => getJerusalemCinemaDate());
+  const [today, setToday] = useState(() => fixedAppDateString);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -130,12 +130,38 @@ function useJerusalemToday(): string {
   return today;
 }
 
+function createInitialEncodedQueryState(
+  routeCode: string,
+  today: string,
+  preferenceLocation: string,
+): MoviePageQueryState | null {
+  const parsedRoute = parseMovieRouteCode(routeCode);
+  if (!parsedRoute || parsedRoute.kind !== "encoded") return null;
+  const date = decodeDateCode(parsedRoute.dateCode, today);
+  const location = resolveCityCode(
+    parsedRoute.cityCode,
+    preferenceLocation || DEFAULT_LOCATION,
+  );
+  const filterState = createFilterStateFromMask(parsedRoute.filterMask);
+  if (!date || !location || !filterState) return null;
+  return {
+    movieCode: parsedRoute.movieCode,
+    cityCode: parsedRoute.cityCode,
+    location,
+    date,
+    filterMask: parsedRoute.filterMask,
+    filterState,
+    mode: parsedRoute.mode,
+  };
+}
+
 export function MoviePage({
   catalogError,
   catalogReady,
   movieCodesReady,
 }: MoviePageProps) {
-  usePublicationRevision();
+  const publicationRevision = usePublicationRevision();
+  const queryClient = useQueryClient();
   const displayPreferences = useMovieDisplayPreferences();
   const { movieCode: routeCode = "" } = useParams();
   const navigate = useNavigate();
@@ -156,7 +182,7 @@ export function MoviePage({
   const hasValidMovieCode = isValidMovieCode(candidateMovieCode);
   const catalogRouteMatch =
     catalogReady && movieCodesReady && hasValidMovieCode
-      ? findMovieByCode(candidateMovieCode)
+      ? findMovieByCode(candidateMovieCode, queryClient)
       : null;
   const routePreference = catalogRouteMatch
     ? displayPreferences.preferencesById.get(catalogRouteMatch.movie.tmdbId)
@@ -174,9 +200,12 @@ export function MoviePage({
       : null;
   const routeMovie = routeMatch?.movie ?? null;
   const routeCatalogMode = routeMatch?.mode ?? null;
-  const [queryState, setQueryState] = useState<MoviePageQueryState | null>(
-    null,
-  );
+  const [queryState, setQueryState] = useState<MoviePageQueryState | null>(() =>
+    createInitialEncodedQueryState(
+      routeCode,
+      today,
+      preferenceLocation || DEFAULT_LOCATION,
+    ));
   const activeQueryState =
     routeCatalogMode === "nowPlaying" &&
     queryState?.movieCode === candidateMovieCode
@@ -190,13 +219,15 @@ export function MoviePage({
             startDate: activeQueryState.date,
             endDate: activeQueryState.date,
             tmdbId: routeMovie.tmdbId,
+            publicationRevision,
           } satisfies ShowtimeRange & { tmdbId: string })
         : null,
-    [activeQueryState, routeMovie],
+    [activeQueryState, publicationRevision, routeMovie],
   );
   const { data: activeShowtimeCityData } = useQuery({
     ...showtimeCityQueryOptions(
       activeShowtimeRange?.city ?? preferenceLocation ?? DEFAULT_LOCATION,
+      publicationRevision,
     ),
     enabled: false,
   });
@@ -214,12 +245,13 @@ export function MoviePage({
       startDate: today,
       endDate: today,
       tmdbId: "__inactive__",
+      publicationRevision,
     } satisfies ShowtimeRange & { tmdbId: string });
   const exactShowtimeQuery = useQuery({
     ...showtimeRangeQueryOptions(exactShowtimeRange),
     enabled: Boolean(activeShowtimeRange) && !isActiveShowtimeDateLoaded,
   });
-  const queryStateRef = useRef<MoviePageQueryState | null>(null);
+  const queryStateRef = useRef<MoviePageQueryState | null>(queryState);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
   const shareFeedbackTimeoutRef = useRef<number | null>(null);
 
@@ -337,6 +369,8 @@ export function MoviePage({
       filterState,
       mode: parsedRoute.mode,
     };
+
+    if (areQueryStatesEqual(queryStateRef.current, nextState)) return;
 
     commitQueryState(nextState);
   }, [
@@ -582,7 +616,7 @@ export function MoviePage({
     return <MoviePageState title="Movie unavailable" message={catalogError} />;
   }
 
-  if (!catalogReady || !movieCodesReady || preferencesLoading) {
+  if (!catalogReady || !movieCodesReady) {
     return (
       <MoviePageState
         title="Loading movie"

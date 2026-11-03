@@ -32,7 +32,7 @@ type NearbyCityChoice = {
 };
 
 export function AllShowtimesPage() {
-  usePublicationRevision();
+  const publicationRevision = usePublicationRevision();
   const displayPreferences = useMovieDisplayPreferences();
   const { location, sources, setLocationPreference } = useUserPreferencesStore(
     useShallow((state) => ({
@@ -47,17 +47,11 @@ export function AllShowtimesPage() {
   });
   const nowPlayingMovies = useMemo(
     () =>
-      displayPreferences.ready
-        ? applyMovieDisplayPreferences(
-            rawNowPlayingMovies,
-            displayPreferences.preferencesById,
-          )
-        : [],
-    [
-      displayPreferences.preferencesById,
-      displayPreferences.ready,
-      rawNowPlayingMovies,
-    ],
+      applyMovieDisplayPreferences(
+        rawNowPlayingMovies,
+        displayPreferences.preferencesById,
+      ),
+    [displayPreferences.preferencesById, rawNowPlayingMovies],
   );
   const showtimeCities = useMemo(
     () => [...new Set<string>([...ALL_LOCATIONS, location])],
@@ -65,7 +59,7 @@ export function AllShowtimesPage() {
   );
   const showtimeCityQueries = useQueries({
     queries: showtimeCities.map((city) => ({
-      ...showtimeCityQueryOptions(city),
+      ...showtimeCityQueryOptions(city, publicationRevision),
       enabled: city === location,
     })),
   });
@@ -397,6 +391,7 @@ export function AllShowtimesPage() {
 
   return (
     <section className="all-showtimes-page" aria-label="All Showtimes">
+      <h1 className="section-title">Upcoming showtimes in {location}</h1>
       <div
         className="details-showtimes all-showtimes-day-picker-shell"
         aria-label="Showtime day picker"

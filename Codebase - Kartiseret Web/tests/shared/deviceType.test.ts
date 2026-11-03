@@ -72,6 +72,8 @@ describe("device type detection and synchronization", () => {
     [{ userAgent: "Mozilla/5.0", viewportMatches: true }, "mobile"],
   ] as const)("detects %s as %s", async (options, expected) => {
     const module = await loadDeviceModule(options);
+    module.initializeDeviceStore();
+    module.applyBootstrappedDeviceTypeToDocument();
 
     expect(module.getDeviceType()).toBe(expected);
     expect(module.getDeviceInfo()).toEqual({
@@ -84,6 +86,7 @@ describe("device type detection and synchronization", () => {
 
   it("updates the store and document when the viewport media query changes", async () => {
     const module = await loadDeviceModule({ viewportMatches: false });
+    module.initializeDeviceStore();
     expect(module.getDeviceType()).toBe("desktop");
 
     currentViewportMatches = true;
@@ -101,6 +104,7 @@ describe("device type detection and synchronization", () => {
 
   it("does not publish a redundant state update when detection is unchanged", async () => {
     const module = await loadDeviceModule({});
+    module.initializeDeviceStore();
     const listener = vi.fn();
     const unsubscribe = module.useDeviceStore.subscribe(listener);
 
@@ -112,6 +116,7 @@ describe("device type detection and synchronization", () => {
 
   it("can re-apply the bootstrapped attribute after another script changes it", async () => {
     const module = await loadDeviceModule({});
+    module.initializeDeviceStore();
     document.documentElement.dataset.deviceType = "corrupted";
 
     module.applyBootstrappedDeviceTypeToDocument();

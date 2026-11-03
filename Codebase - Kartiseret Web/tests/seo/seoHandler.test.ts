@@ -6,12 +6,14 @@ import { sampleMovie } from "../fixtures";
 const mocks = vi.hoisted(() => ({
   getMovieCatalog: vi.fn(),
   getCinemathequeData: vi.fn(),
+  getCinemaPageData: vi.fn(),
   getMovieByPermanentCode: vi.fn(),
   getMovieShowtimes: vi.fn(),
   getPublicTheaterData: vi.fn(),
   getShowtimeRange: vi.fn(),
   getProductionPublicDataRepository: vi.fn(),
   withPublicationSnapshot: vi.fn(),
+  renderBuiltPublicApplication: vi.fn(),
 }));
 
 vi.mock("@kartiseret/server/public-data", () => mocks);
@@ -21,7 +23,10 @@ vi.mock("@kartiseret/server/production", () => ({
 vi.mock("node:fs", async (importOriginal) => ({
   ...(await importOriginal<typeof import("node:fs")>()),
   readFileSync: () =>
-    '<!doctype html><html lang="en"><head><!-- SEO_META_START --><title>base</title><!-- SEO_META_END --></head><body><!-- SEO_CONTENT_START --><div id="seo-content"></div><!-- SEO_CONTENT_END --><div id="root"></div></body></html>',
+    '<!doctype html><html lang="en"><head><!-- SEO_META_START --><title>base</title><!-- SEO_META_END --></head><body><div id="root"></div></body></html>',
+}));
+vi.mock("../../server/seo/renderer.js", () => ({
+  renderBuiltPublicApplication: mocks.renderBuiltPublicApplication,
 }));
 
 const { default: seoHandler } = await import("../../server/seo/handler.js");
@@ -74,8 +79,12 @@ function createRequest(url: string, query: Record<string, string> = {}) {
   return { url, query, headers: {} as Record<string, string> };
 }
 
-function catalog(movies: readonly (typeof sampleMovie)[] = [sampleMovie]) {
+function catalog(
+  movies: readonly (typeof sampleMovie)[] = [sampleMovie],
+  mode: "nowPlaying" | "comingSoon" = "nowPlaying",
+) {
   return {
+    mode,
     movies: [...movies],
     movieCodesStatus: "ready",
   };
@@ -90,10 +99,10 @@ beforeEach(() => {
   mocks.getProductionPublicDataRepository.mockReturnValue({});
   mocks.withPublicationSnapshot.mockImplementation(async (
     _repository: unknown,
-    callback: () => unknown,
-  ) => callback());
+    callback: (revision: string) => unknown,
+  ) => callback("7"));
   mocks.getMovieCatalog.mockImplementation(async (_repository, mode) =>
-    mode === "nowPlaying" ? catalog() : catalog([]));
+    mode === "nowPlaying" ? catalog([sampleMovie], mode) : catalog([], mode));
   mocks.getCinemathequeData.mockResolvedValue({
     movies: [],
     movieCodesStatus: "ready",
@@ -103,6 +112,19 @@ beforeEach(() => {
     movie: sampleMovie,
     isComingSoon: false,
   });
+  mocks.getCinemaPageData.mockResolvedValue({
+    id: cinema.id,
+    displayName: cinema.displayName,
+    city: cinema.city,
+    address: "Derech Yitzhak Rabin 10",
+    mapUrl: cinema.locationKeys[0],
+    latitude: 31.78,
+    longitude: 35.2,
+    screenings: [],
+  });
+  mocks.renderBuiltPublicApplication.mockResolvedValue(
+    '<div class="ssr-public-content"><h1>Rendered application</h1></div>',
+  );
   mocks.getPublicTheaterData.mockResolvedValue(theaterData());
   mocks.getShowtimeRange.mockResolvedValue([]);
   mocks.getMovieShowtimes.mockResolvedValue([]);
@@ -144,9 +166,10 @@ describe("SEO request handler", () => {
   });
 
   it("serves permanent movie HTML with a short canonical and verified cinema links", async () => {
-    const date = addCalendarDays(getJerusalemCinemaDate(), 1)!;
+    const date = getJerusalemCinemaDate();
     mocks.getMovieShowtimes.mockResolvedValue([
       {
+        tmdbId: sampleMovie.tmdbId,
         screeningCity: "Jerusalem",
         dateOfShowing: date,
         cinema: "Cinema City",
@@ -171,17 +194,21 @@ describe("SEO request handler", () => {
     );
     expect(mocks.getMovieShowtimes).toHaveBeenCalledOnce();
     expect(mocks.getPublicTheaterData).toHaveBeenCalledOnce();
+    expect(response.body).toContain('data-ssr="true"');
+    expect(response.body).toContain("Rendered application");
+    expect(response.body).not.toContain("seo-content");
+    expect(mocks.renderBuiltPublicApplication).toHaveBeenCalledOnce();
   });
 
   it("renders published screenings without inventing booking links", async () => {
-    const date = addCalendarDays(getJerusalemCinemaDate(), 1)!;
+    const date = getJerusalemCinemaDate();
     mocks.getMovieShowtimes.mockResolvedValue([
       {
         tmdbId: sampleMovie.tmdbId,
         screeningCity: "Jerusalem",
         dateOfShowing: date,
         cinema: "Unmapped Cinema",
-        showtime: "20:30",
+        showtime: "23:59",
         englishHref: null,
         hebrewHref: null,
         screeningTech: "2D",
@@ -197,8 +224,14 @@ describe("SEO request handler", () => {
     );
 
     expect(response.statusCode).toBe(200);
-    expect(response.body).toContain(`Unmapped Cinema · ${date} 20:30`);
-    expect(response.body).not.toContain("Booking information");
+    const bootstrap = mocks.renderBuiltPublicApplication.mock.calls[0]?.[0];
+    expect(bootstrap).toMatchObject({ pathname: "/Ab1" });
+    expect(bootstrap?.targetedMovieShowtimes?.showtimes[0]).toMatchObject({
+      cinema: "Unmapped Cinema",
+      dateOfShowing: date,
+      showtime: "23:59",
+      englishHref: null,
+    });
   });
 
   it("serves verified cinema pages with cinematheque screenings and movie shortlinks", async () => {
@@ -217,21 +250,29 @@ describe("SEO request handler", () => {
       ],
     };
     mocks.getPublicTheaterData.mockResolvedValue(data);
-    mocks.getCinemathequeData.mockResolvedValue({
-      movies: [sampleMovie],
-      movieCodesStatus: "ready",
-      showtimes: [
+    mocks.getCinemaPageData.mockResolvedValue({
+      id: cinemaTheater.id,
+      displayName: cinemaTheater.displayName,
+      city: cinemaTheater.city,
+      address: "1 Cinema Street",
+      mapUrl: cinemaTheater.locationKeys[0],
+      latitude: 31.78,
+      longitude: 35.2,
+      screenings: [
         {
-          tmdbId: sampleMovie.tmdbId,
-          screeningCity: "Jerusalem",
-          dateOfShowing: addCalendarDays(getJerusalemCinemaDate(), 1)!,
-          cinema: "Jerusalem Cinematheque",
-          showtime: "20:00",
-          englishHref: null,
-          hebrewHref: null,
-          screeningTech: "35mm",
-          screeningType: "Film",
-          dubLanguage: null,
+          movie: sampleMovie,
+          screening: {
+            tmdbId: sampleMovie.tmdbId,
+            screeningCity: "Jerusalem",
+            dateOfShowing: addCalendarDays(getJerusalemCinemaDate(), 1)!,
+            cinema: "Jerusalem Cinematheque",
+            showtime: "20:00",
+            englishHref: null,
+            hebrewHref: null,
+            screeningTech: "35mm",
+            screeningType: "Film",
+            dubLanguage: null,
+          },
         },
       ],
     });
@@ -245,15 +286,23 @@ describe("SEO request handler", () => {
     );
 
     expect(response.statusCode).toBe(200);
-    expect(mocks.getCinemathequeData).toHaveBeenCalledWith(
+    expect(mocks.getCinemaPageData).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ city: "Jerusalem" }),
+      cinemaTheater.id,
+      expect.any(Date),
     );
     expect(mocks.getMovieCatalog).toHaveBeenCalledTimes(2);
+    expect(mocks.renderBuiltPublicApplication.mock.calls[0]?.[0]).toMatchObject(
+      {
+        pathname: `/c/${cinemaTheater.id}`,
+        cinema: { displayName: cinemaTheater.displayName },
+      },
+    );
   });
 
   it("does not publish cinematheque-only movie codes as public movie links", async () => {
-    mocks.getMovieCatalog.mockResolvedValue(catalog([]));
+    mocks.getMovieCatalog.mockImplementation(async (_repository, mode) =>
+      catalog([], mode));
     mocks.getCinemathequeData.mockResolvedValue({
       movies: [sampleMovie],
       movieCodesStatus: "ready",

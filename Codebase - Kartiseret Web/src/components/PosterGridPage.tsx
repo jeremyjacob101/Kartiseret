@@ -150,6 +150,7 @@ export function PosterGridPage({
 
   return (
     <section className="poster-grid-page" aria-label={title}>
+      <h1 className="poster-grid-page-heading section-title">{title}</h1>
       <div ref={gridRef} className="poster-grid-page-grid" aria-label={title}>
         {posterEntries.map(({ movie, rowIndex }) => (
           <div

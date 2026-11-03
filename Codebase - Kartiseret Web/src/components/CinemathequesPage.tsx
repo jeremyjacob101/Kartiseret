@@ -8,17 +8,18 @@ import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { cinemathequeQueryOptions } from "../data/cinemathequeCatalog";
 import { findMovieByCode, type Movie } from "../data/movieCatalog";
 import { buildCinemathequeSchedule } from "../data/cinematheques";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TheaterMapDialog } from "./maps/TheaterMapDialog";
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { setSeoMetadata } from "../routing/seoMetadata";
 import { useShallow } from "zustand/react/shallow";
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import "./AllShowtimesPage.css";
 import "./CinemathequesPage.css";
 
 export function CinemathequesPage() {
   const publicationRevision = usePublicationRevision();
+  const queryClient = useQueryClient();
   const displayPreferences = useMovieDisplayPreferences();
   const { preferenceLocation, sources } = useUserPreferencesStore(
     useShallow((state) => ({
@@ -34,18 +35,15 @@ export function CinemathequesPage() {
   );
   const cinemathequeQuery = useQuery({
     ...cinemathequeQueryOptions(location, publicationRevision),
-    enabled: displayPreferences.ready,
   });
   const rawMovies = cinemathequeQuery.data?.movies;
   const nowPlayingMovies = useMemo(
     () =>
-      displayPreferences.ready
-        ? applyMovieDisplayPreferences(
-            rawMovies ?? [],
-            displayPreferences.preferencesById,
-          )
-        : [],
-    [displayPreferences.preferencesById, displayPreferences.ready, rawMovies],
+      applyMovieDisplayPreferences(
+        rawMovies ?? [],
+        displayPreferences.preferencesById,
+      ),
+    [displayPreferences.preferencesById, rawMovies],
   );
   const dayPanels = useMemo(
     () =>
@@ -84,7 +82,8 @@ export function CinemathequesPage() {
     const hasPublicMovieLinks = cinemathequeQuery.data.movies.some(
       (movie) =>
         movie.movieCode &&
-        findMovieByCode(movie.movieCode)?.movie.tmdbId === movie.tmdbId,
+        findMovieByCode(movie.movieCode, queryClient)?.movie.tmdbId ===
+          movie.tmdbId,
     );
     setSeoMetadata({
       title: `Cinematheque showtimes in ${location} | Kartiseret`,
@@ -96,7 +95,7 @@ export function CinemathequesPage() {
           ? "index, follow"
           : "noindex, nofollow",
     });
-  }, [cinemathequeQuery.data, isLoading, location]);
+  }, [cinemathequeQuery.data, isLoading, location, queryClient]);
 
   return (
     <section
@@ -153,8 +152,8 @@ export function CinemathequesPage() {
                         key={movie.tmdbId}
                       >
                         {movie.movieCode &&
-                        findMovieByCode(movie.movieCode)?.movie.tmdbId ===
-                          movie.tmdbId ? (
+                        findMovieByCode(movie.movieCode, queryClient)?.movie
+                          .tmdbId === movie.tmdbId ? (
                           <Link
                             className="cinematheques-poster-button"
                             to={`/${movie.movieCode}`}

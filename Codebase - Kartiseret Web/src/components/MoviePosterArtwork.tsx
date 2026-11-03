@@ -159,9 +159,7 @@ export const MoviePosterArtwork = forwardRef<
     ? displayPreferences.preferencesById.get(tmdbId)
     : undefined;
   if (preference?.treatment === "remove") return null;
-  const shouldUseStandardPoster =
-    preference?.treatment === "standard" ||
-    (Boolean(tmdbId) && !displayPreferences.ready);
+  const shouldUseStandardPoster = preference?.treatment === "standard";
   const resolvedImageSrc = shouldUseStandardPoster
     ? undefined
     : imageSrc?.trim();

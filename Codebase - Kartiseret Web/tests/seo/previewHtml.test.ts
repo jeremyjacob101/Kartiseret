@@ -41,6 +41,7 @@ describe("movie share preview HTML", () => {
       'rel="canonical" href="https://seret.site/Ab3abc"',
     );
     expect(html).toContain("A &lt;Movie&gt;");
-    expect(html).toContain("Cinema &amp; More");
+    expect(html).not.toContain("<li>Cinema &amp; More");
+    expect(html).not.toContain("<main>");
   });
 });

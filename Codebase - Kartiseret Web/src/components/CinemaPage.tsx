@@ -42,9 +42,9 @@ export function CinemaPage() {
       title: `${identity.displayName} showtimes | Kartiseret`,
       description: `Upcoming movie showtimes at ${identity.displayName} in ${identity.city}.`,
       canonicalPath: `/c/${identity.id}`,
-      robots: cinemaQuery.isError ? "noindex, nofollow" : "index, follow",
+      robots: cinema ? "index, follow" : "noindex, nofollow",
     });
-  }, [cinemaQuery.isError, identity]);
+  }, [cinema, identity]);
 
   if (!identity) {
     return (
@@ -56,7 +56,7 @@ export function CinemaPage() {
     );
   }
 
-  if (cinemaQuery.isError) {
+  if (cinemaQuery.isError && !cinema) {
     return (
       <section className="page-panel">
         <h1>{identity.displayName}</h1>
