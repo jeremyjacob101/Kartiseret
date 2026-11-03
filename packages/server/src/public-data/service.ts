@@ -13,6 +13,7 @@ import {
   type PublicShowtimeRangeQuery,
   type PublicCinemathequeQuery,
   type PublicTheaterData,
+  type PublicCinemaPageData,
   type TicketAvailabilityShowtime,
 } from "@kartiseret/contracts/public-data";
 import {
@@ -35,6 +36,16 @@ import {
 import { orderNowPlayingRows } from "../catalog/now-playing-ranking.js";
 import type { PublicDataRepository } from "./repository.js";
 import { PublicDataIntegrityError } from "./errors.js";
+import {
+  findCinemaIdentityForScreening,
+  findTheaterByCinemaId,
+  getCinemaIdentityById,
+} from "@kartiseret/contracts/cinema-identities";
+import { addCalendarDays } from "@kartiseret/contracts/showtime-links";
+import {
+  getCinemaDayDate,
+  shouldIncludeShowtime,
+} from "@kartiseret/contracts/showtime-day";
 import { z } from "zod";
 
 function readField(value: unknown, field: string): unknown {
@@ -285,6 +296,77 @@ export async function getShowtimeRange(
       );
     })
     .map(mapDatabaseShowtime);
+}
+
+export async function getCinemaPageData(
+  repository: PublicDataRepository,
+  cinemaId: string,
+  instant = new Date(),
+): Promise<PublicCinemaPageData | null> {
+  const identity = getCinemaIdentityById(cinemaId);
+  if (!identity) return null;
+
+  const [theaterCatalog, nowPlaying, comingSoon] = await Promise.all([
+    getPublicTheaterData(repository),
+    getMovieCatalog(repository, "nowPlaying"),
+    getMovieCatalog(repository, "comingSoon"),
+  ]);
+  const theater = findTheaterByCinemaId(theaterCatalog.theaters, identity.id);
+  if (!theater) return null;
+  if (
+    nowPlaying.movieCodesStatus !== "ready" ||
+    comingSoon.movieCodesStatus !== "ready"
+  ) {
+    throw new CatalogDataIntegrityError(
+      "Cinema listings are temporarily unavailable.",
+    );
+  }
+
+  const fromDate = getCinemaDayDate(instant);
+  const endDate = addCalendarDays(fromDate, 29) ?? fromDate;
+  const rows = await getShowtimeRange(repository, {
+    city: identity.city,
+    startDate: fromDate,
+    endDate,
+  });
+  const moviesById = new Map(
+    [...nowPlaying.movies, ...comingSoon.movies].map((movie) => [
+      movie.tmdbId,
+      movie,
+    ]),
+  );
+  const screenings = rows
+    .filter(
+      (row) =>
+        findCinemaIdentityForScreening(row.screeningCity, row.cinema)?.id ===
+          identity.id &&
+        shouldIncludeShowtime(
+          row.dateOfShowing,
+          row.showtime.trim().slice(0, 5),
+          instant,
+        ),
+    )
+    .flatMap((screening) => {
+      const movie = moviesById.get(screening.tmdbId);
+      return movie?.movieCode ? [{ movie, screening }] : [];
+    })
+    .sort(
+      (left, right) =>
+        left.screening.dateOfShowing.localeCompare(
+          right.screening.dateOfShowing,
+        ) || left.screening.showtime.localeCompare(right.screening.showtime),
+    );
+
+  return {
+    id: identity.id,
+    displayName: identity.displayName,
+    city: identity.city,
+    address: theater.address,
+    mapUrl: identity.locationKeys[0]!,
+    latitude: theater.lat,
+    longitude: theater.lng,
+    screenings,
+  };
 }
 
 export async function getCinemathequeData(

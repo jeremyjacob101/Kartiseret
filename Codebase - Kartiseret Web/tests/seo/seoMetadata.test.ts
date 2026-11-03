@@ -1,4 +1,4 @@
-import { hasInitialSeoContentForPath, removeInitialSeoContent, setSeoMetadata } from "../../src/routing/seoMetadata";
+import { getCurrentRobotsDirectives, setSeoMetadata } from "../../src/routing/seoMetadata";
 import { afterEach, describe, expect, it } from "vitest";
 
 afterEach(() => {
@@ -33,8 +33,21 @@ describe("SEO metadata", () => {
     ).toBe("https://seret.site/Ab3abc");
   });
 
-  it("marks account routes as non-indexable and removes the no-JavaScript shell when ready", () => {
-    document.body.innerHTML = '<div id="seo-content">Initial content</div>';
+  it("preserves the server robots directive while public data is loading", () => {
+    document.head.innerHTML = '<meta name="robots" content="index, follow">';
+    expect(getCurrentRobotsDirectives()).toBe("index, follow");
+    setSeoMetadata({
+      title: "Movies showing in Israel | Kartiseret",
+      description: "Browse movies showing at cinemas across Israel.",
+      canonicalPath: "/movies",
+      robots: getCurrentRobotsDirectives(),
+    });
+    expect(
+      document.querySelector<HTMLMetaElement>('meta[name="robots"]')?.content,
+    ).toBe("index, follow");
+  });
+
+  it("marks account routes as non-indexable", () => {
     setSeoMetadata({
       title: "Account",
       description: "Account settings",
@@ -44,14 +57,5 @@ describe("SEO metadata", () => {
     expect(
       document.querySelector<HTMLMetaElement>('meta[name="robots"]')?.content,
     ).toBe("noindex, nofollow");
-    removeInitialSeoContent();
-    expect(document.getElementById("seo-content")).toBeNull();
-  });
-
-  it("recognizes initial SSR content only for its current short path", () => {
-    document.body.innerHTML =
-      '<div id="seo-content" data-seo-route="/Ab3abc">Movie</div>';
-    expect(hasInitialSeoContentForPath("/Ab3abc")).toBe(true);
-    expect(hasInitialSeoContentForPath("/Ab3")).toBe(false);
   });
 });

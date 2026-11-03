@@ -1,7 +1,6 @@
 import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, getJerusalemCinemaDate, isDateInShowtimeLinkWindow, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "@kartiseret/contracts/showtime-links";
 import { findMovieByCode, isMovieShowtimeDateCovered, isValidMovieCode, mergeMovieShowtimeRangeResult, prefetchMovieShowtimesAfterDate, showtimeCityQueryOptions, showtimeRangeQueryOptions, type ShowtimeRange } from "../data/movieCatalog";
 import { getShowtimeFiltersSnapshot, saveShowtimeFilters, type ShowtimeFilterState } from "./showtimes/showtimeFilters";
-import { hasInitialSeoContentForPath, removeInitialSeoContent, setSeoMetadata } from "../routing/seoMetadata";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
 import { applyMovieDisplayPreference } from "../data/movieDisplayPreferences";
@@ -10,6 +9,7 @@ import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { MovieDetailsContent } from "./scroller/MovieDetailsContent";
 import { DEFAULT_LOCATION } from "../prefs/definitions/locations";
 import { Link, useNavigate, useParams } from "react-router";
+import { setSeoMetadata } from "../routing/seoMetadata";
 import { useShallow } from "zustand/react/shallow";
 import { useQuery } from "@tanstack/react-query";
 import { shareLink } from "../routing/shareLink";
@@ -373,18 +373,6 @@ export function MoviePage({
       const location = currentState?.location;
       const isEncodedSelection =
         parseMovieRouteCode(routeCode)?.kind === "encoded";
-      const selectionShowtimesLoaded =
-        routeCatalogMode === "comingSoon" ||
-        (routeCatalogMode === "nowPlaying" &&
-          currentState?.movieCode === candidateMovieCode &&
-          (isActiveShowtimeDateLoaded || exactShowtimeQuery.isSuccess));
-      if (
-        hasInitialSeoContentForPath(window.location.pathname) &&
-        routeCatalogMode === "nowPlaying" &&
-        !currentState
-      ) {
-        return;
-      }
       const title =
         routeCatalogMode === "comingSoon"
           ? `${routeMovie.title} — Coming soon | Kartiseret`
@@ -403,14 +391,6 @@ export function MoviePage({
           ? `https://seret.site/api/og-image?routeCode=${encodeURIComponent(routeCode)}`
           : routeMovie.imageSrc || undefined,
       });
-      if (
-        catalogReady &&
-        movieCodesReady &&
-        !preferencesLoading &&
-        selectionShowtimesLoaded
-      ) {
-        removeInitialSeoContent();
-      }
       return;
     }
     if (catalogReady && movieCodesReady) {
@@ -420,7 +400,6 @@ export function MoviePage({
         canonicalPath: window.location.pathname,
         robots: "noindex, nofollow",
       });
-      removeInitialSeoContent();
     }
   }, [
     candidateMovieCode,
@@ -428,7 +407,6 @@ export function MoviePage({
     exactShowtimeQuery.isSuccess,
     isActiveShowtimeDateLoaded,
     movieCodesReady,
-    preferencesLoading,
     queryState,
     routeCode,
     routeCatalogMode,
@@ -600,30 +578,11 @@ export function MoviePage({
     }
   };
 
-  const hasMatchingSeoContent = hasInitialSeoContentForPath(
-    window.location.pathname,
-  );
-  const movieShowtimesPending =
-    routeCatalogMode === "nowPlaying" &&
-    (queryState?.movieCode !== candidateMovieCode ||
-      (!isActiveShowtimeDateLoaded && !exactShowtimeQuery.isSuccess));
-  if (
-    hasMatchingSeoContent &&
-    (catalogError ||
-      !catalogReady ||
-      !movieCodesReady ||
-      preferencesLoading ||
-      movieShowtimesPending)
-  ) {
-    return null;
-  }
-
   if (catalogError) {
     return <MoviePageState title="Movie unavailable" message={catalogError} />;
   }
 
   if (!catalogReady || !movieCodesReady || preferencesLoading) {
-    if (hasMatchingSeoContent) return null;
     return (
       <MoviePageState
         title="Loading movie"

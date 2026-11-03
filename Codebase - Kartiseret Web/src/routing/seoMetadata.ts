@@ -99,17 +99,6 @@ export function setSeoMetadata(metadata: SeoMetadata): void {
   canonicalElement.href = canonical;
 }
 
-export function removeInitialSeoContent(): void {
-  document.getElementById("seo-content")?.remove();
-}
-
-export function hasInitialSeoContentForPath(pathname: string): boolean {
-  return (
-    document.getElementById("seo-content")?.getAttribute("data-seo-route") ===
-    pathname
-  );
-}
-
 export function getCurrentRobotsDirectives(): string {
   return (
     document.head.querySelector<HTMLMetaElement>('meta[name="robots"]')

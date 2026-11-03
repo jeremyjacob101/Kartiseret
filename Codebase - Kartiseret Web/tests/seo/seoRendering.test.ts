@@ -18,7 +18,12 @@ describe("SEO HTML rendering", () => {
     expect(html).toContain('href="https://seret.site/Ab3"');
     expect(html).toContain("A &lt;movie&gt;");
     expect(html).toContain("\\u003c/script\\u003e");
+    expect(html).toContain('<noscript><div id="seo-content"');
     expect(html).toContain("<main><h1>A &amp; title</h1></main>");
+    expect(html).toMatch(/<noscript>[\s\S]*A &amp; title[\s\S]*<\/noscript>/);
+    expect(html.replace(/<noscript>[\s\S]*?<\/noscript>/g, "")).not.toContain(
+      'id="seo-content"',
+    );
   });
 
   it("builds a deduplicated XML sitemap and rejects noncanonical URL variants", () => {

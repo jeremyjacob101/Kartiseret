@@ -74,7 +74,7 @@ export function injectSeoPage(html: string, page: SeoPage): string {
 ${jsonLd}
 <!-- SEO_META_END -->`;
   const seoRoute = page.openGraphPath ?? page.canonicalPath;
-  const content = `<!-- SEO_CONTENT_START -->\n<div id="seo-content" class="seo-content" data-seo-route="${escapeHtml(seoRoute)}">${page.body}</div>\n<!-- SEO_CONTENT_END -->`;
+  const content = `<!-- SEO_CONTENT_START -->\n<noscript><div id="seo-content" class="seo-content" data-seo-route="${escapeHtml(seoRoute)}">${page.body}</div></noscript>\n<!-- SEO_CONTENT_END -->`;
   return html
     .replace(/<!-- SEO_META_START -->[\s\S]*?<!-- SEO_META_END -->/, metadata)
     .replace(

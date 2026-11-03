@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { createApp } from "./app.js";
 import { CatalogDatabaseError } from "./catalog/errors.js";
+import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
 import type { CatalogRepository } from "./catalog/service.js";
 import type { PublicDataRepository } from "./public-data/repository.js";
 
@@ -493,6 +494,58 @@ describe("Express API composition", () => {
 
     expect(response.status).toBe(400);
     expect(repository.findTheaterCityRows).not.toHaveBeenCalled();
+  });
+
+  it("serves verified cinema details and excludes past screenings", async () => {
+    const identity = CINEMA_IDENTITIES.find(
+      (candidate) => candidate.displayName === "Cinema City Jerusalem",
+    )!;
+    const repository = createPublicDataRepository({
+      findTheaterCityRows: vi.fn(async () => [
+        {
+          chain: "Cinema City",
+          address: "1 Cinema Road",
+          location: identity.locationKeys[0],
+          theaterName: identity.displayName,
+          theaterLatitude: 31.77,
+          theaterLongitude: 35.21,
+          cityName: city.name,
+          altSpellings: city.altSpellings,
+          cityLatitude: city.latitude,
+          cityLongitude: city.longitude,
+          zoomLayer: city.zoomLayer,
+          neighboringCities: city.neighboringCities,
+        },
+      ]),
+    });
+    const response = await request(
+      createApp({
+        catalogRepository: repository,
+        publicDataRepository: repository,
+      }),
+    ).get(`/api/v1/cinemas/${identity.id}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({
+      id: identity.id,
+      displayName: identity.displayName,
+      city: identity.city,
+      address: "1 Cinema Road",
+      mapUrl: identity.locationKeys[0],
+      screenings: [],
+    });
+  });
+
+  it("returns 404 for unknown cinema IDs", async () => {
+    const repository = createPublicDataRepository();
+    const response = await request(
+      createApp({
+        catalogRepository: repository,
+        publicDataRepository: repository,
+      }),
+    ).get("/api/v1/cinemas/unknownId");
+    expect(response.status).toBe(404);
+    expect(response.headers["cache-control"]).toBe("no-store");
   });
 
   it("returns cities without theaters and their theater metadata in one API DTO", async () => {

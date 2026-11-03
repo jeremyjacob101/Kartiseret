@@ -19,6 +19,7 @@ import {
   getMovieCatalog,
   getCinemathequeData,
   getPublicTheaterData,
+  getCinemaPageData,
   getShowtimeRange,
   getTicketAvailabilityShowtimes,
 } from "./public-data/service.js";
@@ -346,6 +347,48 @@ export function createApp({
         );
         response.json({ data, error: null });
       } catch (error) {
+        next(error);
+      }
+    }),
+  );
+
+  app.get(
+    "/api/v1/cinemas/:cinemaId",
+    publicationRead(async (request, response, next) => {
+      if (!publicDataRepository) {
+        next(
+          new CatalogDatabaseError(new Error("Public data is unavailable.")),
+        );
+        return;
+      }
+      const cinemaId = z
+        .string()
+        .regex(/^[A-Za-z0-9_-]{8,24}$/)
+        .safeParse(request.params.cinemaId);
+      if (!cinemaId.success) {
+        response.setHeader("Cache-Control", "no-store");
+        next(new HttpError(404, "cinema_not_found", "Cinema not found."));
+        return;
+      }
+      try {
+        const data = await getCinemaPageData(
+          publicDataRepository,
+          cinemaId.data,
+        );
+        if (!data) {
+          response.setHeader("Cache-Control", "no-store");
+          next(new HttpError(404, "cinema_not_found", "Cinema not found."));
+          return;
+        }
+        response.setHeader(
+          "Cache-Control",
+          request.get(PUBLICATION_REVISION_HEADER)
+            ? "private, no-store"
+            : "public, max-age=30, stale-while-revalidate=60",
+        );
+        response.json({ data, error: null });
+      } catch (error) {
+        response.setHeader("Cache-Control", "no-store");
         next(error);
       }
     }),
