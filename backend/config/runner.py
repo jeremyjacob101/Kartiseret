@@ -41,14 +41,6 @@ def _select_target(cli_target: str | None = None) -> tuple[str, dict[str, str]]:
     environment_target = os.environ.get("KARTISERET_TARGET", "").strip() or None
     if cli_target:
         target = validate_target(cli_target)
-        if (
-            os.environ.get("GITHUB_ACTIONS") == "true"
-            and environment_target
-            and environment_target != target
-        ):
-            raise TargetConfigurationError(
-                "--target conflicts with the GitHub Actions target."
-            )
     elif environment_target:
         target = validate_target(environment_target)
     elif is_scheduled(os.environ):
@@ -62,8 +54,7 @@ def _select_target(cli_target: str | None = None) -> tuple[str, dict[str, str]]:
 
 def _select_plan():
     if (
-        os.environ.get("GITHUB_ACTIONS") == "true"
-        or os.environ.get("JJ_INTEL_MAC_DAILY_RUN") == "true"
+        os.environ.get("JJ_INTEL_MAC_DAILY_RUN") == "true"
         or os.environ.get("JJ_INTEL_MAC_WEEKLY_RUN") == "true"
     ):
         return None, None
