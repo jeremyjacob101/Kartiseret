@@ -30,7 +30,7 @@ jobs:
   run:
     runs-on: ubuntu-latest
     environment:
-      name: ${{ inputs.target }}
+      name: ${{ (github.event.inputs.target || 'production') }}
     timeout-minutes: 300
     concurrency:
       group: run-runner-${{ github.ref }}
@@ -94,9 +94,9 @@ jobs:
 
       - name: Debug env vars
         env:
-          TARGET: ${{ inputs.target }}
-          SUPABASE_URL: ${{ inputs.target == 'development' && secrets.DEV_SUPABASE_URL || inputs.target == 'production' && secrets.SUPABASE_URL || '' }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ inputs.target == 'development' && secrets.DEV_SUPABASE_SERVICE_ROLE_KEY || inputs.target == 'production' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
+          TARGET: ${{ (github.event.inputs.target || 'production') }}
+          SUPABASE_URL: ${{ (github.event.inputs.target || 'production') == 'development' && secrets.DEV_SUPABASE_URL || (github.event.inputs.target || 'production') == 'production' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ (github.event.inputs.target || 'production') == 'development' && secrets.DEV_SUPABASE_SERVICE_ROLE_KEY || (github.event.inputs.target || 'production') == 'production' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
         run: |
           echo "Target: $TARGET"
           echo "SUPABASE_URL: $SUPABASE_URL"
@@ -104,8 +104,8 @@ jobs:
 
       - name: Validate the selected dataflow environment
         env:
-          TARGET: ${{ inputs.target }}
-          SUPABASE_URL: ${{ inputs.target == 'development' && secrets.DEV_SUPABASE_URL || inputs.target == 'production' && secrets.SUPABASE_URL || '' }}
+          TARGET: ${{ (github.event.inputs.target || 'production') }}
+          SUPABASE_URL: ${{ (github.event.inputs.target || 'production') == 'development' && secrets.DEV_SUPABASE_URL || (github.event.inputs.target || 'production') == 'production' && secrets.SUPABASE_URL || '' }}
         run: |
           set -euo pipefail
           if [ "$TARGET" = "development" ]; then
@@ -121,21 +121,21 @@ jobs:
 
       - name: Run runner.py (with secrets)
         env:
-          KARTISERET_TARGET: ${{ inputs.target }}
-          SUPABASE_URL: ${{ inputs.target == 'development' && secrets.DEV_SUPABASE_URL || inputs.target == 'production' && secrets.SUPABASE_URL || '' }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ inputs.target == 'development' && secrets.DEV_SUPABASE_PUBLISHABLE_KEY || inputs.target == 'production' && secrets.SUPABASE_PUBLISHABLE_KEY || '' }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ inputs.target == 'development' && secrets.DEV_SUPABASE_SERVICE_ROLE_KEY || inputs.target == 'production' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
-          PUBLICATION_DATABASE_URL: ${{ inputs.target == 'development' && secrets.DEV_PUBLICATION_DATABASE_URL || inputs.target == 'production' && secrets.PUBLICATION_DATABASE_URL || '' }}
-          PUBLICATION_DATABASE_SSL_CA_CERT: ${{ inputs.target == 'development' && secrets.DEV_PUBLICATION_DATABASE_SSL_CA_CERT || inputs.target == 'production' && secrets.PUBLICATION_DATABASE_SSL_CA_CERT || '' }}
+          KARTISERET_TARGET: ${{ (github.event.inputs.target || 'production') }}
+          SUPABASE_URL: ${{ (github.event.inputs.target || 'production') == 'development' && secrets.DEV_SUPABASE_URL || (github.event.inputs.target || 'production') == 'production' && secrets.SUPABASE_URL || '' }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ (github.event.inputs.target || 'production') == 'development' && secrets.DEV_SUPABASE_PUBLISHABLE_KEY || (github.event.inputs.target || 'production') == 'production' && secrets.SUPABASE_PUBLISHABLE_KEY || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ (github.event.inputs.target || 'production') == 'development' && secrets.DEV_SUPABASE_SERVICE_ROLE_KEY || (github.event.inputs.target || 'production') == 'production' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
+          PUBLICATION_DATABASE_URL: ${{ (github.event.inputs.target || 'production') == 'development' && secrets.DEV_PUBLICATION_DATABASE_URL || (github.event.inputs.target || 'production') == 'production' && secrets.PUBLICATION_DATABASE_URL || '' }}
+          PUBLICATION_DATABASE_SSL_CA_CERT: ${{ (github.event.inputs.target || 'production') == 'development' && secrets.DEV_PUBLICATION_DATABASE_SSL_CA_CERT || (github.event.inputs.target || 'production') == 'production' && secrets.PUBLICATION_DATABASE_SSL_CA_CERT || '' }}
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
-          R2_ACCOUNT_ID: ${{ inputs.target == 'development' && vars.DEV_R2_ACCOUNT_ID || inputs.target == 'production' && vars.R2_ACCOUNT_ID || '' }}
-          R2_BUCKET: ${{ inputs.target == 'development' && vars.DEV_R2_BUCKET || inputs.target == 'production' && vars.R2_BUCKET || '' }}
-          R2_IMAGE_ORIGIN: ${{ inputs.target == 'development' && vars.DEV_R2_IMAGE_ORIGIN || inputs.target == 'production' && vars.R2_IMAGE_ORIGIN || '' }}
-          R2_ACCESS_KEY_ID: ${{ inputs.target == 'development' && secrets.DEV_R2_ACCESS_KEY_ID || inputs.target == 'production' && secrets.R2_ACCESS_KEY_ID || '' }}
-          R2_SECRET_ACCESS_KEY: ${{ inputs.target == 'development' && secrets.DEV_R2_SECRET_ACCESS_KEY || inputs.target == 'production' && secrets.R2_SECRET_ACCESS_KEY || '' }}
-          RESEND_API_KEY: ${{ inputs.target == 'production' && secrets.RESEND_API_KEY || '' }}
-          TICKET_ALERT_RECIPIENT_API_URL: ${{ inputs.target == 'production' && vars.TICKET_ALERT_RECIPIENT_API_URL || '' }}
-          TICKET_ALERT_INTERNAL_API_SECRET: ${{ inputs.target == 'production' && secrets.TICKET_ALERT_INTERNAL_API_SECRET || '' }}
+          R2_ACCOUNT_ID: ${{ (github.event.inputs.target || 'production') == 'development' && vars.DEV_R2_ACCOUNT_ID || (github.event.inputs.target || 'production') == 'production' && vars.R2_ACCOUNT_ID || '' }}
+          R2_BUCKET: ${{ (github.event.inputs.target || 'production') == 'development' && vars.DEV_R2_BUCKET || (github.event.inputs.target || 'production') == 'production' && vars.R2_BUCKET || '' }}
+          R2_IMAGE_ORIGIN: ${{ (github.event.inputs.target || 'production') == 'development' && vars.DEV_R2_IMAGE_ORIGIN || (github.event.inputs.target || 'production') == 'production' && vars.R2_IMAGE_ORIGIN || '' }}
+          R2_ACCESS_KEY_ID: ${{ (github.event.inputs.target || 'production') == 'development' && secrets.DEV_R2_ACCESS_KEY_ID || (github.event.inputs.target || 'production') == 'production' && secrets.R2_ACCESS_KEY_ID || '' }}
+          R2_SECRET_ACCESS_KEY: ${{ (github.event.inputs.target || 'production') == 'development' && secrets.DEV_R2_SECRET_ACCESS_KEY || (github.event.inputs.target || 'production') == 'production' && secrets.R2_SECRET_ACCESS_KEY || '' }}
+          RESEND_API_KEY: ${{ (github.event.inputs.target || 'production') == 'production' && secrets.RESEND_API_KEY || '' }}
+          TICKET_ALERT_RECIPIENT_API_URL: ${{ (github.event.inputs.target || 'production') == 'production' && vars.TICKET_ALERT_RECIPIENT_API_URL || '' }}
+          TICKET_ALERT_INTERNAL_API_SECRET: ${{ (github.event.inputs.target || 'production') == 'production' && secrets.TICKET_ALERT_INTERNAL_API_SECRET || '' }}
         run: |
           set -e
           if [ "${{ github.event.inputs.debug }}" = "true" ]; then set -x; fi
