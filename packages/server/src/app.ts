@@ -37,6 +37,7 @@ import {
 } from "./catalog/service.js";
 import { HttpError } from "./http-errors.js";
 import { createArtworkHandler } from "./artwork/route.js";
+import { createSocialPreviewImageHandler } from "./artwork/social-preview-route.js";
 import { createR2ImageStore, type R2ImageStore } from "./artwork/s3.js";
 import {
   searchTmdbTitles,
@@ -130,11 +131,15 @@ export function createApp({
   );
   if (authHandler) app.all("/api/auth/{*path}", authHandler);
   app.use(express.json({ limit: "100kb" }));
+  const imageStore =
+    artworkStore === undefined ? createR2ImageStore() : artworkStore;
+  app.get(
+    "/api/images/social/:version/:fingerprint/:filename",
+    createSocialPreviewImageHandler(imageStore),
+  );
   app.get(
     "/api/images/:version/:kind/:hash/:filename",
-    createArtworkHandler(
-      artworkStore === undefined ? createR2ImageStore() : artworkStore,
-    ),
+    createArtworkHandler(imageStore),
   );
   if (recipientRouter) app.use("/api/internal", recipientRouter);
 

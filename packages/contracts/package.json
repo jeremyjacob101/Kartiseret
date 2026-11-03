@@ -57,6 +57,11 @@
       "types": "./dist/private-data.d.ts",
       "import": "./dist/private-data.js",
       "default": "./dist/private-data.js"
+    },
+    "./social-preview": {
+      "types": "./dist/social-preview.d.ts",
+      "import": "./dist/social-preview.js",
+      "default": "./dist/social-preview.js"
     }
   },
   "scripts": {

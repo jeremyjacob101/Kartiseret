@@ -1,5 +1,22 @@
 export const SITE_ORIGIN = "https://seret.site";
 
+export function getRequestOrigin(
+  headers: Record<string, string | string[] | undefined>,
+): string {
+  const firstHeader = (value: string | string[] | undefined) =>
+    (Array.isArray(value) ? value[0] : value)?.split(",", 1)[0]?.trim() ?? "";
+  const host = (
+    firstHeader(headers["x-forwarded-host"]) || firstHeader(headers.host)
+  ).toLowerCase();
+  const isLocalHost = /^(?:localhost|127\.0\.0\.1)(?::\d{1,5})?$/.test(host);
+  const isKnownSiteHost = host === "seret.site" || host === "www.seret.site";
+  const isVercelHost = /^[a-z0-9-]+\.vercel\.app$/.test(host);
+  if (!isLocalHost && !isKnownSiteHost && !isVercelHost) return SITE_ORIGIN;
+  const protocol = firstHeader(headers["x-forwarded-proto"]).toLowerCase();
+  if (isLocalHost) return `http://${host}`;
+  return `${protocol === "http" && !isVercelHost ? "http" : "https"}://${host}`;
+}
+
 export function safeHttpUrl(value: string | undefined): string | undefined {
   if (!value?.trim()) return undefined;
   try {
@@ -48,7 +65,8 @@ export function injectSeoPage(html: string, page: SeoPage): string {
     SITE_ORIGIN,
   ).toString();
   const imageUrl =
-    safeHttpUrl(page.imageUrl) ?? `${SITE_ORIGIN}/logos/kartiseret1.svg`;
+    safeHttpUrl(page.imageUrl) ??
+    `${SITE_ORIGIN}${page.canonicalPath === "/" ? "/og/home.jpg" : "/logos/kartiseret1.svg"}`;
   const jsonLd =
     page.jsonLd === undefined
       ? ""

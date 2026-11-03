@@ -574,6 +574,7 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
         if getattr(cls, "MAIN_TABLE_NAME", None)
     )
     failed_categories: set[str] = set()
+    catalog_publication_committed = False
     try:
         if scrape_items:
             console.print(Panel.fit(Text("Scrape", style="bold"), border_style="grey37"))
@@ -634,6 +635,12 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
                 if publication is not None:
                     try:
                         publication.commit()
+                        if key in {
+                            "nowPlayingData",
+                            "comingSoonsData",
+                            "cinemathequeData",
+                        }:
+                            catalog_publication_committed = True
                         console.print(
                             Panel.fit(
                                 Text(f"{key} publication committed", style="green"),
@@ -654,6 +661,11 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
                         failed_categories.add(key)
                         overall_ok = False
             console.print()
+
+        if catalog_publication_committed:
+            from backend.dataflow.social_previews import refresh_configured_social_previews
+
+            refresh_configured_social_previews()
 
         # Notification dispatchers run after selected updates commit, but can
         # also run alone against the already-published catalog.

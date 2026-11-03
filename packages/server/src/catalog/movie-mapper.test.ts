@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { toComingSoonMovie, toNowPlayingMovie } from "./movie-mapper.js";
+import { createSocialPreviewFingerprint } from "../social-preview.js";
 
 const record = {
   tmdbId: 9100001,
@@ -73,6 +74,38 @@ describe("toNowPlayingMovie", () => {
     expect(movie.backdropSrcSet).toContain("/780.webp 780w");
     expect(movie.backdropSrcSet).toContain("/1280.webp 1280w");
     expect(toNowPlayingMovie(record).imageSrcSet).toBeUndefined();
+  });
+
+  it("exposes a stored social card only when it matches the current rendered data", () => {
+    const fingerprint = createSocialPreviewFingerprint({
+      tmdbId: "9100001",
+      title: "Feature Film",
+      posterUrl: "/backdrop.jpg",
+      backdropUrl: "/backdrop.jpg",
+      isComingSoon: false,
+      year: 2024,
+      releaseDate: null,
+      runtime: 122,
+      genres: ["Drama"],
+      imdbRating: 7.5,
+      rtCriticRating: null,
+      rtCriticVotes: null,
+      rtAudienceRating: 93,
+      rtAudienceVotes: 18,
+      lbRating: 4,
+    });
+    const current = toNowPlayingMovie({
+      ...record,
+      socialPreviewFingerprint: fingerprint,
+    });
+    const changed = toNowPlayingMovie({
+      ...record,
+      enPoster: "/new-poster.jpg",
+      socialPreviewFingerprint: fingerprint,
+    });
+
+    expect(current.socialPreviewFingerprint).toBe(fingerprint);
+    expect(changed.socialPreviewFingerprint).toBeUndefined();
   });
 
   it("rejects unsafe bigint years and a non-array alternatives value", () => {

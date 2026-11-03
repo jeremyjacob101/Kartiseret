@@ -1,3 +1,4 @@
+import { socialPreviewImageUrl } from "@kartiseret/contracts/social-preview";
 import { injectSeoPage, safeHttpUrl } from "../seo/renderHtml.js";
 import type { PreviewData } from "./previewData.js";
 
@@ -25,7 +26,12 @@ export function injectOpenGraphTags(
     ? `${data.title} — Coming soon`
     : `${data.title} showtimes in ${data.city}`;
   const description = buildPreviewDescription(data);
-  const imageUrl = `${siteOrigin}/api/og-image?routeCode=${encodeURIComponent(data.routeCode)}`;
+  const imageUrl =
+    (data.socialPreviewFingerprint
+      ? socialPreviewImageUrl(siteOrigin, data.socialPreviewFingerprint)
+      : null) ??
+    safeHttpUrl(data.posterUrl) ??
+    `${siteOrigin}/logos/kartiseret1.svg`;
   return injectSeoPage(html, {
     title: `${pageTitle} | Kartiseret`,
     description,

@@ -44,4 +44,34 @@ describe("movie share preview HTML", () => {
     expect(html).not.toContain("<li>Cinema &amp; More");
     expect(html).not.toContain("<main>");
   });
+
+  it("points both short and signed movie links at the immutable stored card", () => {
+    const fingerprint = "f".repeat(64);
+    const html = injectOpenGraphTags(
+      "<html><head><!-- SEO_META_START --><!-- SEO_META_END --></head><body><!-- SEO_CONTENT_START --><!-- SEO_CONTENT_END --></body></html>",
+      { ...preview, socialPreviewFingerprint: fingerprint },
+      "https://dev.example.test",
+    );
+
+    expect(html).toContain(
+      `property="og:image" content="https://dev.example.test/api/images/social/v1/${fingerprint}/card.jpg"`,
+    );
+    expect(html).toContain(
+      `name="twitter:image" content="https://dev.example.test/api/images/social/v1/${fingerprint}/card.jpg"`,
+    );
+    expect(html).not.toContain("/api/og-image?");
+  });
+
+  it("uses the poster during backfill when a card fingerprint is not published yet", () => {
+    const html = injectOpenGraphTags(
+      "<html><head><!-- SEO_META_START --><!-- SEO_META_END --></head><body><!-- SEO_CONTENT_START --><!-- SEO_CONTENT_END --></body></html>",
+      preview,
+      "https://seret.site",
+    );
+
+    expect(html).toContain(
+      'property="og:image" content="https://image.tmdb.org/t/p/w500/poster.jpg"',
+    );
+    expect(html).not.toContain("/api/og-image?");
+  });
 });

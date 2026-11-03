@@ -4,6 +4,7 @@ import {
   nonEmptyTrimmedStringSchema,
   tmdbIdSchema,
 } from "./runtime.js";
+import { socialPreviewFingerprintSchema } from "./social-preview.js";
 import { z } from "zod";
 
 /**
@@ -49,6 +50,7 @@ export const movieSchema = z.object({
   imageSrcSet: z.string().optional(),
   backdropSrc: z.string().optional(),
   backdropSrcSet: z.string().optional(),
+  socialPreviewFingerprint: socialPreviewFingerprintSchema.optional(),
   trailerKey: z.string().min(1).optional(),
   imdbRating: z.number().finite().nullable(),
   lbId: z.string().min(1).optional(),

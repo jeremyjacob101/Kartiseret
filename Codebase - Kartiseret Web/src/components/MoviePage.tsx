@@ -4,6 +4,7 @@ import { getShowtimeFiltersSnapshot, saveShowtimeFilters, type ShowtimeFilterSta
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
 import { applyMovieDisplayPreference } from "../data/movieDisplayPreferences";
+import { socialPreviewImageUrl } from "@kartiseret/contracts/social-preview";
 import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { usePublicRenderClock } from "../contexts/PublicRenderClock";
@@ -409,9 +410,13 @@ export function MoviePage({
             : `${routeMovie.title}${routeMovie.year ? ` (${routeMovie.year})` : ""}. ${routeCatalogMode === "comingSoon" ? "Coming soon information" : "Find movie showtimes at cinemas across Israel"} on Kartiseret.`,
         canonicalPath: `/${candidateMovieCode}`,
         openGraphPath: `/${routeCode}`,
-        imageUrl: isEncodedSelection
-          ? `https://seret.site/api/og-image?routeCode=${encodeURIComponent(routeCode)}`
-          : safeMovieImageUrl,
+        imageUrl:
+          (routeMovie.socialPreviewFingerprint
+            ? socialPreviewImageUrl(
+                window.location.origin,
+                routeMovie.socialPreviewFingerprint,
+              )
+            : null) ?? safeMovieImageUrl,
         jsonLd: {
           "@context": "https://schema.org",
           "@type": "Movie",

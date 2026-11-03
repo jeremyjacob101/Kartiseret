@@ -3,7 +3,9 @@ import {
   movieSchema,
   type Movie,
 } from "@kartiseret/contracts/movies";
+import { socialPreviewFingerprintSchema } from "@kartiseret/contracts/social-preview";
 import { tmdbIdSchema } from "@kartiseret/contracts/runtime";
+import { createSocialPreviewFingerprint } from "../social-preview.js";
 import { z } from "zod";
 import { CatalogDataIntegrityError } from "./errors.js";
 
@@ -14,6 +16,7 @@ const sourceMovieSchema = z.object({
   genres: z.union([z.array(z.string()), z.null()]),
   enPoster: z.string().nullable(),
   backdrop: z.string().nullable(),
+  socialPreviewFingerprint: z.string().nullable().optional(),
   enTrailer: z.string().nullable(),
   imdbId: z.string().nullable(),
   rtId: z.string().nullable(),
@@ -96,6 +99,25 @@ function parseGenres(value: string[] | null): string[] {
   ];
 }
 
+function positiveOrNull(value: number | null): number | null {
+  return value !== null && value > 0 ? value : null;
+}
+
+function currentPreviewFingerprint(
+  storedValue: string | null | undefined,
+  data: Record<string, unknown>,
+): string | undefined {
+  const stored = socialPreviewFingerprintSchema.safeParse(storedValue);
+  if (!stored.success) return undefined;
+  try {
+    return stored.data === createSocialPreviewFingerprint(data)
+      ? stored.data
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function parseAlternatives(value: unknown) {
   if (!Array.isArray(value)) {
     throw new CatalogDataIntegrityError(
@@ -169,6 +191,31 @@ function mapSourceMovie(row: SourceMovie, movieCode?: string): Movie {
   const imageSrcSet = artworkSrcSet(row.enPoster);
   const backdropSrcSet = artworkSrcSet(row.backdrop);
   const trailerKey = normalizeText(row.enTrailer ?? "");
+  const genres = parseGenres(row.genres);
+  const year = parseReleaseYear(row.releaseYear);
+  const runtime = parseInteger(row.runtime);
+  const socialPreviewFingerprint = currentPreviewFingerprint(
+    row.socialPreviewFingerprint,
+    {
+      tmdbId: String(row.tmdbId),
+      title,
+      posterUrl: imageSrc,
+      backdropUrl: backdropSrc,
+      isComingSoon: false,
+      year: year > 0 ? year : null,
+      releaseDate: null,
+      runtime: runtime > 0 ? runtime : null,
+      genres: genres.slice(0, 3),
+      imdbRating: positiveOrNull(parseOptionalNumber(row.imdbRating)),
+      rtCriticRating: positiveOrNull(parseOptionalNumber(row.rtCriticRating)),
+      rtCriticVotes: positiveOrNull(parseOptionalNumber(row.rtCriticVotes)),
+      rtAudienceRating: positiveOrNull(
+        parseOptionalNumber(row.rtAudienceRating),
+      ),
+      rtAudienceVotes: positiveOrNull(parseOptionalNumber(row.rtAudienceVotes)),
+      lbRating: positiveOrNull(parseOptionalNumber(row.lbRating)),
+    },
+  );
 
   return movieSchema.parse({
     tmdbId: String(row.tmdbId),
@@ -176,8 +223,8 @@ function mapSourceMovie(row: SourceMovie, movieCode?: string): Movie {
     imdbId: optionalId(row.imdbId),
     rtId: optionalId(row.rtId),
     title,
-    year: parseReleaseYear(row.releaseYear),
-    genres: parseGenres(row.genres),
+    year,
+    genres,
     imageSrc,
     ...(imageSrcSet ? { imageSrcSet } : {}),
     backdropSrc: backdropSrc || undefined,
@@ -193,7 +240,8 @@ function mapSourceMovie(row: SourceMovie, movieCode?: string): Movie {
     rtCriticVotes: parseOptionalNumber(row.rtCriticVotes),
     rtAudienceRating: parseOptionalNumber(row.rtAudienceRating),
     rtAudienceVotes: parseOptionalNumber(row.rtAudienceVotes),
-    runtime: parseInteger(row.runtime),
+    runtime,
+    ...(socialPreviewFingerprint ? { socialPreviewFingerprint } : {}),
     popularity: Number.isFinite(row.popularity) ? row.popularity : 0,
     altOptions: parseAlternatives(row.altOptions),
   });
@@ -207,6 +255,7 @@ const sourceComingSoonMovieSchema = z.object({
   genres: z.union([z.array(z.string()), z.null()]),
   enPoster: z.string().nullable(),
   backdrop: z.string().nullable(),
+  socialPreviewFingerprint: z.string().nullable().optional(),
   enTrailer: z.string().nullable(),
   runtime: z.number().nullable(),
   popularity: z.number().nullable(),
@@ -273,6 +322,29 @@ function mapSourceComingSoonMovie(
     row.releaseYear !== null && row.releaseYear > 0
       ? row.releaseYear
       : Number.parseInt(row.releaseDate.slice(0, 4), 10);
+  const genres = parseGenres(row.genres);
+  const runtime = parseInteger(row.runtime);
+  const socialPreviewFingerprint = currentPreviewFingerprint(
+    row.socialPreviewFingerprint,
+    {
+      tmdbId: String(row.tmdbId),
+      title,
+      posterUrl: imageSrc,
+      backdropUrl: backdropSrc,
+      isComingSoon: true,
+      year:
+        Number.isSafeInteger(parsedYear) && parsedYear > 0 ? parsedYear : null,
+      releaseDate: row.releaseDate,
+      runtime: runtime > 0 ? runtime : null,
+      genres: genres.slice(0, 3),
+      imdbRating: null,
+      rtCriticRating: null,
+      rtCriticVotes: null,
+      rtAudienceRating: null,
+      rtAudienceVotes: null,
+      lbRating: null,
+    },
+  );
 
   return movieSchema.parse({
     tmdbId: String(row.tmdbId),
@@ -280,7 +352,7 @@ function mapSourceComingSoonMovie(
     title,
     year: Number.isSafeInteger(parsedYear) && parsedYear > 0 ? parsedYear : 0,
     releaseDate: row.releaseDate,
-    genres: parseGenres(row.genres),
+    genres,
     imageSrc,
     ...(imageSrcSet ? { imageSrcSet } : {}),
     backdropSrc: backdropSrc || undefined,
@@ -295,7 +367,8 @@ function mapSourceComingSoonMovie(
     rtCriticVotes: null,
     rtAudienceRating: null,
     rtAudienceVotes: null,
-    runtime: parseInteger(row.runtime),
+    runtime,
+    ...(socialPreviewFingerprint ? { socialPreviewFingerprint } : {}),
     popularity: Number.isFinite(row.popularity) ? row.popularity : 0,
     altOptions: parseComingSoonAlternatives(row.altOptions),
   });

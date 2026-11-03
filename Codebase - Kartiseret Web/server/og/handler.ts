@@ -1,9 +1,9 @@
 import { NO_STORE_CACHE_CONTROL, PREVIEW_CACHE_CONTROL } from "./cacheControl.js";
 import { getPreviewData, resolvePreviewRouteSelection } from "./previewData.js";
 import type { VercelRequest, VercelResponse } from "./vercelTypes.js";
+import { getRequestOrigin } from "../seo/renderHtml.js";
 import { injectOpenGraphTags } from "./previewHtml.js";
 import { ogRequestQuerySchema } from "./schemas.js";
-import { SITE_ORIGIN } from "../seo/renderHtml.js";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -84,7 +84,11 @@ export default async function handler(
       return;
     }
 
-    const ogHtml = injectOpenGraphTags(html, previewData, SITE_ORIGIN);
+    const ogHtml = injectOpenGraphTags(
+      html,
+      previewData,
+      getRequestOrigin(request.headers),
+    );
 
     response
       .status(200)
