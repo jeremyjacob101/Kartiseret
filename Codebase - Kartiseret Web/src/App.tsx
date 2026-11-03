@@ -1,5 +1,4 @@
 import { adminMovieEditMutationOptions, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, movieCollectionQueryOptions, reloadComingSoonMovies, reloadNowPlayingMovies, showtimeCityQueryOptions, type Movie } from "./data/movieCatalog";
-import { hasInitialSeoContentForPath, getCurrentRobotsDirectives, removeInitialSeoContent, setSeoMetadata } from "./routing/seoMetadata";
 import { Suspense, StrictMode, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { initializeUserPreferencesStore, useUserPreferencesStore } from "./stores/userPreferencesStore";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
@@ -7,6 +6,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from
 import { MovieDisplayPreferencesProvider } from "./contexts/MovieDisplayPreferencesProvider";
 import { useMovieDisplayPreferences } from "./contexts/MovieDisplayPreferencesContext";
 import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
+import { getCurrentRobotsDirectives, setSeoMetadata } from "./routing/seoMetadata";
 import { QueryClientProvider, useMutation, useQuery } from "@tanstack/react-query";
 import type { ApplicationIdentity } from "@kartiseret/contracts/private-data";
 import { applyMovieDisplayPreferences } from "./data/movieDisplayPreferences";
@@ -45,12 +45,18 @@ const FIXED_APP_PATHS = new Set([
   "/attribution",
   PASSWORD_RESET_PATH,
 ]);
+const loadCinemaPage = () => import("./components/CinemaPage");
 const loadUserPreferencesPage = () =>
   import("./components/UserPreferencesPage");
 const loadPosterGridPage = () => import("./components/PosterGridPage");
 const loadAllShowtimesPage = () => import("./components/AllShowtimesPage");
 const loadCinemathequesPage = () => import("./components/CinemathequesPage");
 const loadMoviePage = () => import("./components/MoviePage");
+
+const CinemaPage = lazy(async () => {
+  const module = await loadCinemaPage();
+  return { default: module.CinemaPage };
+});
 
 const UserPreferencesPage = lazy(async () => {
   const module = await loadUserPreferencesPage();
@@ -153,7 +159,6 @@ function NotFoundRoute() {
       canonicalPath: window.location.pathname,
       robots: "noindex, nofollow",
     });
-    removeInitialSeoContent();
   }, []);
 
   return (
@@ -433,15 +438,6 @@ export function App() {
     : SCROLLER_SLOT_MIN_HEIGHT;
 
   useLayoutEffect(() => {
-    if (
-      document.getElementById("seo-content") &&
-      !hasInitialSeoContentForPath(pathname)
-    ) {
-      removeInitialSeoContent();
-    }
-  }, [pathname]);
-
-  useLayoutEffect(() => {
     if (pathname === "/") {
       setSeoMetadata({
         title: "Kartiseret — Movie showtimes across Israel",
@@ -449,12 +445,10 @@ export function App() {
           "Find movie showtimes across Israeli cinemas in one place.",
         canonicalPath: "/",
       });
-      if (catalogReady) removeInitialSeoContent();
       return;
     }
     if (pathname === "/movies" || pathname === "/soons") {
       const isSoon = pathname === "/soons";
-      const listingMovies = isSoon ? comingSoonMovies : nowPlayingMovies;
       const listingCodeStatus = isSoon
         ? comingSoonQuery.data?.movieCodesStatus
         : nowPlayingQuery.data?.movieCodesStatus;
@@ -471,21 +465,12 @@ export function App() {
           : "Browse movies showing at cinemas across Israel.",
         canonicalPath: pathname,
         robots:
-          listingCodeStatus === "ready" && hasPublicMovies
-            ? "index, follow"
-            : listingCodeStatus === "ready"
-              ? "noindex, nofollow"
-              : hasInitialSeoContentForPath(pathname)
-                ? getCurrentRobotsDirectives()
-                : "noindex, nofollow",
+          listingCodeStatus === "ready"
+            ? hasPublicMovies
+              ? "index, follow"
+              : "noindex, nofollow"
+            : getCurrentRobotsDirectives(),
       });
-      if (
-        catalogReady &&
-        listingCodeStatus === "ready" &&
-        listingMovies.length > 0
-      ) {
-        removeInitialSeoContent();
-      }
       return;
     }
     if (pathname === "/showtimes") {
@@ -501,15 +486,12 @@ export function App() {
         title: `Movie showtimes in ${selectedCity} | Kartiseret`,
         description: `Browse upcoming movie showtimes in ${selectedCity}.`,
         canonicalPath: "/showtimes",
-        robots: hasInitialSeoContentForPath(pathname)
-          ? getCurrentRobotsDirectives()
-          : showtimesReady
-            ? hasPublicShowtimes
-              ? "index, follow"
-              : "noindex, nofollow"
-            : "noindex, nofollow",
+        robots: showtimesReady
+          ? hasPublicShowtimes
+            ? "index, follow"
+            : "noindex, nofollow"
+          : getCurrentRobotsDirectives(),
       });
-      if (showtimesReady) removeInitialSeoContent();
       return;
     }
     if (
@@ -528,14 +510,10 @@ export function App() {
         canonicalPath: pathname,
         robots: "noindex, nofollow",
       });
-      removeInitialSeoContent();
     }
   }, [
-    catalogReady,
-    comingSoonMovies,
     comingSoonQuery.data?.movies,
     comingSoonQuery.data?.movieCodesStatus,
-    nowPlayingMovies,
     nowPlayingQuery.data?.movies,
     nowPlayingQuery.data?.movieCodesStatus,
     pathname,
@@ -1006,7 +984,13 @@ export function App() {
           />
           <Route
             path="/c/:cinemaId"
-            element={<section className="page-panel" />}
+            element={
+              <Suspense
+                fallback={<section className="page-panel" aria-busy="true" />}
+              >
+                <CinemaPage />
+              </Suspense>
+            }
           />
           <Route
             path="/:movieCode"

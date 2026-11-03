@@ -1,5 +1,4 @@
 import { getShowtimeDateLabel, getTrailerEmbedUrl, getMetricDisplays, getMovieInfoParts } from "./showtimes/showtimeUtils";
-import { hasInitialSeoContentForPath, removeInitialSeoContent, setSeoMetadata } from "../routing/seoMetadata";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
 import { MovieMetricsRow, MovieTrailerModal } from "./showtimes/ShowtimeShared";
@@ -11,6 +10,7 @@ import { findMovieByCode, type Movie } from "../data/movieCatalog";
 import { buildCinemathequeSchedule } from "../data/cinematheques";
 import { TheaterMapDialog } from "./maps/TheaterMapDialog";
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
+import { setSeoMetadata } from "../routing/seoMetadata";
 import { useShallow } from "zustand/react/shallow";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
@@ -96,17 +96,7 @@ export function CinemathequesPage() {
           ? "index, follow"
           : "noindex, nofollow",
     });
-    if (cinemathequeQuery.data.movieCodesStatus === "ready") {
-      removeInitialSeoContent();
-    }
   }, [cinemathequeQuery.data, isLoading, location]);
-
-  if (
-    hasInitialSeoContentForPath(window.location.pathname) &&
-    (isLoading || !cinemathequeQuery.data)
-  ) {
-    return null;
-  }
 
   return (
     <section
