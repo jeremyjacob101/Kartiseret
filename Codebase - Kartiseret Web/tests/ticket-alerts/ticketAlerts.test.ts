@@ -1,6 +1,6 @@
 import { invalidateUserTicketAlertQueries, mergeUserTicketAlert, selectTicketAlertAvailability, selectUserTicketAlert, ticketAlertAvailabilityQueryOptions, ticketAlertMutationOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions, type TicketAlertShowtimeRow, type UserTicketAlertSubscription } from "../../src/data/ticketAlerts";
+import { addCalendarDays, filterMaskFromUnchecked, getJerusalemCinemaDate, parseMovieRouteCode } from "@kartiseret/contracts/showtime-links";
 import { DEFAULT_TICKET_ALERT_CRITERIA, resolveTicketAlertCriteria, type TicketAlertCriteria } from "@kartiseret/contracts/private-data";
-import { addCalendarDays, getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getAuthClient } from "../../src/lib/authClient";
 import { QueryClient } from "@tanstack/react-query";
@@ -177,6 +177,43 @@ afterEach(() => {
 });
 
 describe("ticket alert queries", () => {
+  it("links availability to the exact movie, city, date, and effective filters", () => {
+    const criteria: TicketAlertCriteria = {
+      ...DEFAULT_TICKET_ALERT_CRITERIA,
+      cities: ["Tel Aviv"],
+      filters: {
+        showType: ["VIP"],
+        screenFormat: ["3D"],
+        screeningTech: ["IMAX"],
+        dubLanguage: ["French"],
+      },
+    };
+    const availability = selectTicketAlertAvailability(
+      [
+        {
+          screening_city: "Tel Aviv",
+          date_of_showing: "2027-01-15",
+          showtime: "20:00",
+          screening_type: "Regular",
+          screening_tech: "2D",
+          dub_language: "Original",
+          english_href: "https://tickets.example.test/101",
+        },
+      ],
+      criteria,
+      "A7z",
+      new Date("2026-10-21T10:00:00Z"),
+    );
+
+    expect(availability).not.toBeNull();
+    const url = new URL(availability!.path, "https://seret.site");
+    expect(url.searchParams.get("date")).toBe("2027-01-15");
+    expect(parseMovieRouteCode(url.pathname.slice(1))).toMatchObject({
+      cityCode: "l",
+      filterMask: filterMaskFromUnchecked(criteria.filters),
+    });
+  });
+
   it("normalizes movie keys, isolates identities, and separates cinema dates", () => {
     expect(ticketAlertQueryKeys.availability(" 00101 ", "2026-09-04")).toEqual(
       ticketAlertQueryKeys.availability("101", "2026-09-04"),

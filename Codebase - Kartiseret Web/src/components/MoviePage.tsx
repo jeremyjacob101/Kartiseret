@@ -1,5 +1,5 @@
-import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, isDateInShowtimeLinkWindow, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "@kartiseret/contracts/showtime-links";
-import { findMovieByCode, isMovieShowtimeDateCovered, isValidMovieCode, mergeMovieShowtimeRangeResult, prefetchMovieShowtimesAfterDate, showtimeCityQueryOptions, showtimeRangeQueryOptions, type ShowtimeRange } from "../data/movieCatalog";
+import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "@kartiseret/contracts/showtime-links";
+import { findMovieByCode, isMovieShowtimeDateCovered, isValidMovieCode, loadShowtimesAroundDate, mergeMovieShowtimeRangeResult, showtimeCityQueryOptions, showtimeRangeQueryOptions, type ShowtimeRange } from "../data/movieCatalog";
 import { getShowtimeFiltersSnapshot, saveShowtimeFilters, type ShowtimeFilterState } from "./showtimes/showtimeFilters";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
@@ -7,12 +7,13 @@ import { applyMovieDisplayPreference } from "../data/movieDisplayPreferences";
 import { socialPreviewImageUrl } from "@kartiseret/contracts/social-preview";
 import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { usePublicRenderClock } from "../contexts/PublicRenderClock";
 import { MovieDetailsContent } from "./scroller/MovieDetailsContent";
+import { isoDateStringSchema } from "@kartiseret/contracts/runtime";
 import { safeSeoUrl, setSeoMetadata } from "../routing/seoMetadata";
 import { DEFAULT_LOCATION } from "../prefs/definitions/locations";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router";
 import { useShallow } from "zustand/react/shallow";
 import { shareLink } from "../routing/shareLink";
 import "./scroller/MovieScroller.css";
@@ -121,10 +122,18 @@ function createInitialEncodedQueryState(
   routeCode: string,
   today: string,
   preferenceLocation: string,
+  search: string,
 ): MoviePageQueryState | null {
   const parsedRoute = parseMovieRouteCode(routeCode);
   if (!parsedRoute || parsedRoute.kind !== "encoded") return null;
-  const date = decodeDateCode(parsedRoute.dateCode, today);
+  const requestedDate = isoDateStringSchema.safeParse(
+    new URLSearchParams(search).get("date"),
+  );
+  const date = requestedDate.success
+    ? requestedDate.data < today
+      ? today
+      : requestedDate.data
+    : decodeDateCode(parsedRoute.dateCode, today);
   const location = resolveCityCode(
     parsedRoute.cityCode,
     preferenceLocation || DEFAULT_LOCATION,
@@ -151,6 +160,7 @@ export function MoviePage({
   const queryClient = useQueryClient();
   const displayPreferences = useMovieDisplayPreferences();
   const { movieCode: routeCode = "" } = useParams();
+  const routeLocation = useLocation();
   const navigate = useNavigate();
   const {
     loading: preferencesLoading,
@@ -192,9 +202,13 @@ export function MoviePage({
       routeCode,
       today,
       preferenceLocation || DEFAULT_LOCATION,
+      routeLocation.search,
     ));
+  const routeIsEncodedSelection =
+    parseMovieRouteCode(routeCode)?.kind === "encoded";
   const activeQueryState =
-    routeCatalogMode === "nowPlaying" &&
+    routeIsEncodedSelection &&
+    (routeCatalogMode === "nowPlaying" || routeCatalogMode === "comingSoon") &&
     queryState?.movieCode === candidateMovieCode
       ? queryState
       : null;
@@ -263,11 +277,17 @@ export function MoviePage({
         mode: state.mode,
       });
 
-      if (nextRouteCode && nextRouteCode !== routeCode) {
-        navigate(`/${nextRouteCode}`, { replace: true });
+      const nextLocation = nextRouteCode
+        ? `/${nextRouteCode}?date=${encodeURIComponent(state.date)}`
+        : null;
+      if (
+        nextLocation &&
+        nextLocation !== `${routeLocation.pathname}${routeLocation.search}`
+      ) {
+        navigate(nextLocation, { replace: true });
       }
     },
-    [navigate, routeCode],
+    [navigate, routeLocation.pathname, routeLocation.search],
   );
 
   const commitQueryState = useCallback(
@@ -306,13 +326,8 @@ export function MoviePage({
       return;
     }
 
-    if (routeCatalogMode === "comingSoon") {
+    if (routeCatalogMode === "comingSoon" && parsedRoute.kind === "plain") {
       queryStateRef.current = null;
-
-      if (parsedRoute.kind !== "plain") {
-        navigate(`/${candidateMovieCode}`, { replace: true });
-      }
-
       return;
     }
 
@@ -336,7 +351,14 @@ export function MoviePage({
       return;
     }
 
-    const decodedDate = decodeDateCode(parsedRoute.dateCode, currentToday);
+    const requestedDate = isoDateStringSchema.safeParse(
+      new URLSearchParams(routeLocation.search).get("date"),
+    );
+    const decodedDate = requestedDate.success
+      ? requestedDate.data < currentToday
+        ? currentToday
+        : requestedDate.data
+      : decodeDateCode(parsedRoute.dateCode, currentToday);
     const decodedLocation = resolveCityCode(
       parsedRoute.cityCode,
       preferenceLocation || DEFAULT_LOCATION,
@@ -372,6 +394,8 @@ export function MoviePage({
     preferenceLocation,
     preferencesLoading,
     routeCode,
+    routeLocation.search,
+    routeLocation.pathname,
     routeCatalogMode,
     routeMovie,
   ]);
@@ -409,7 +433,7 @@ export function MoviePage({
             ? `${routeMovie.title} showtimes in ${currentState.location} on ${currentState.date} on Kartiseret.`
             : `${routeMovie.title}${routeMovie.year ? ` (${routeMovie.year})` : ""}. ${routeCatalogMode === "comingSoon" ? "Coming soon information" : "Find movie showtimes at cinemas across Israel"} on Kartiseret.`,
         canonicalPath: `/${candidateMovieCode}`,
-        openGraphPath: `/${routeCode}`,
+        openGraphPath: `${routeLocation.pathname}${routeLocation.search}`,
         imageUrl:
           (routeMovie.socialPreviewFingerprint
             ? socialPreviewImageUrl(
@@ -444,6 +468,8 @@ export function MoviePage({
     movieCodesReady,
     queryState,
     routeCode,
+    routeLocation.pathname,
+    routeLocation.search,
     routeCatalogMode,
     routeMovie,
   ]);
@@ -454,13 +480,13 @@ export function MoviePage({
     }
 
     mergeMovieShowtimeRangeResult(activeShowtimeRange, exactShowtimeQuery.data);
-    void prefetchMovieShowtimesAfterDate(
+    void loadShowtimesAroundDate(
       activeShowtimeRange.city,
       activeShowtimeRange.tmdbId,
       activeShowtimeRange.startDate,
     ).catch((error: unknown) => {
       console.error(
-        "Failed to prefetch subsequent movie-page showtimes.",
+        "Failed to extend the movie-page showtime date range.",
         error,
       );
     });
@@ -491,10 +517,7 @@ export function MoviePage({
     (date: string) => {
       const currentState = queryStateRef.current;
 
-      if (
-        !currentState ||
-        !isDateInShowtimeLinkWindow(date, todayRef.current)
-      ) {
+      if (!currentState || date < todayRef.current) {
         return;
       }
 
@@ -561,19 +584,19 @@ export function MoviePage({
   const handleShowtimeDatePreviewChange = (date: string) => {
     const currentState = queryStateRef.current;
     const tmdbId =
-      routeCatalogMode === "nowPlaying" ? routeMovie?.tmdbId : null;
+      routeCatalogMode === "nowPlaying" || routeCatalogMode === "comingSoon"
+        ? routeMovie?.tmdbId
+        : null;
 
     if (!currentState || !tmdbId) {
       return;
     }
 
-    void prefetchMovieShowtimesAfterDate(
-      currentState.location,
-      tmdbId,
-      date,
-    ).catch((error: unknown) => {
+    void loadShowtimesAroundDate(currentState.location, tmdbId, date).catch((
+      error: unknown,
+    ) => {
       console.error(
-        "Failed to prefetch subsequent movie-page showtimes.",
+        "Failed to extend movie-page showtimes around the selected date.",
         error,
       );
     });
@@ -682,28 +705,20 @@ export function MoviePage({
             variant={mode}
             preferredShowtimeDate={activeQueryState?.date ?? null}
             onPreferredShowtimeDateChange={
-              mode === "nowPlaying"
-                ? handlePreferredShowtimeDateChange
-                : undefined
+              activeQueryState ? handlePreferredShowtimeDateChange : undefined
             }
             targetShowtimeQueries
-            exactDateShowtimeQueries={mode === "nowPlaying"}
+            exactDateShowtimeQueries={Boolean(activeQueryState)}
             onExactShowtimeDatePreviewChange={
-              mode === "nowPlaying"
-                ? handleShowtimeDatePreviewChange
-                : undefined
+              activeQueryState ? handleShowtimeDatePreviewChange : undefined
             }
             locationOverride={activeQueryState?.location}
             onLocationOverrideChange={
-              mode === "nowPlaying" && activeQueryState
-                ? handleLocationOverrideChange
-                : undefined
+              activeQueryState ? handleLocationOverrideChange : undefined
             }
             showtimeFilterStateOverride={activeQueryState?.filterState}
             onShowtimeFilterStateOverrideChange={
-              mode === "nowPlaying" && activeQueryState
-                ? handleShowtimeFilterStateChange
-                : undefined
+              activeQueryState ? handleShowtimeFilterStateChange : undefined
             }
             showtimeDateLoading={
               Boolean(activeShowtimeRange) &&
@@ -719,9 +734,7 @@ export function MoviePage({
             }
             showtimeDateWindowStart={today}
             onShareShowtimes={
-              mode === "nowPlaying" && activeQueryState
-                ? handleShareShowtimes
-                : undefined
+              activeQueryState ? handleShareShowtimes : undefined
             }
             shareFeedback={shareFeedback}
             posterClassName="details-poster is-visible"

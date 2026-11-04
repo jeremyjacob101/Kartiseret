@@ -1,5 +1,28 @@
-import { buildMovieShowtimeSharePath, buildMovieShowtimeShareUrl, encodeDateCode, encodeMovieRouteCode, migrateShowtimeFilterJson, migrateShowtimeFilterState, parseMovieRouteCode } from "@kartiseret/contracts/showtime-links";
+import { buildMovieShowtimeSharePath, buildMovieShowtimeShareUrl, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, migrateShowtimeFilterJson, migrateShowtimeFilterState, parseMovieRouteCode } from "@kartiseret/contracts/showtime-links";
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+
+const showtimeLinkVectors = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../packages/contracts/test-data/showtime-link-vectors.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+) as Array<{
+  movieCode: string;
+  city: string;
+  date: string;
+  filterExclusions: {
+    showType: string[];
+    screenFormat: string[];
+    screeningTech: string[];
+    dubLanguage: string[];
+  };
+  filterMask: number;
+  path: string;
+}>;
 
 describe("showtime filter persistence validation", () => {
   it("migrates legacy version-one screen formats and drops invalid entries", () => {
@@ -59,8 +82,10 @@ describe("movie route runtime validation", () => {
     const url = buildMovieShowtimeShareUrl(state, "https://seret.site");
 
     expect(path).not.toBeNull();
-    expect(new URL(url ?? "https://invalid.example.test").pathname).toBe(path);
-    expect(parseMovieRouteCode(path?.slice(1) ?? "")).toMatchObject({
+    const parsedUrl = new URL(url ?? "https://invalid.example.test");
+    expect(parsedUrl.pathname).toBe(path?.split("?")[0]);
+    expect(parsedUrl.searchParams.get("date")).toBe(state.date);
+    expect(parseMovieRouteCode(parsedUrl.pathname.slice(1))).toMatchObject({
       kind: "encoded",
       cityCode: "l",
       dateCode: encodeDateCode(state.date),
@@ -73,6 +98,26 @@ describe("movie route runtime validation", () => {
     expect(
       buildMovieShowtimeSharePath({ ...state, movieCode: "bad-code" }),
     ).toBeNull();
+  });
+
+  it("matches the shared Python movie-link vectors and carries explicit dates", () => {
+    for (const vector of showtimeLinkVectors) {
+      expect(filterMaskFromUnchecked(vector.filterExclusions)).toBe(
+        vector.filterMask,
+      );
+      const path = buildMovieShowtimeSharePath({
+        movieCode: vector.movieCode,
+        city: vector.city,
+        date: vector.date,
+        filterMask: vector.filterMask,
+      });
+      expect(path).toBe(vector.path);
+      const url = new URL(path ?? "/", "https://seret.site");
+      expect(url.searchParams.get("date")).toBe(vector.date);
+      expect(parseMovieRouteCode(url.pathname.slice(1))).toMatchObject({
+        filterMask: vector.filterMask,
+      });
+    }
   });
 
   it("round-trips validated encoded route state", () => {

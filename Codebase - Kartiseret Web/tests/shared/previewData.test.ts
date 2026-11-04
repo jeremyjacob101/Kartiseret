@@ -1,4 +1,4 @@
-import { encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked } from "@kartiseret/contracts/showtime-links";
+import { decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked } from "@kartiseret/contracts/showtime-links";
 import { getPreviewData, resolvePreviewRouteSelection, type PreviewData } from "../../server/og/previewData";
 import { buildPreviewDescription, injectOpenGraphTags } from "../../server/og/previewHtml";
 import type { PublicDataRepository } from "@kartiseret/server/public-data";
@@ -108,6 +108,37 @@ describe("social preview route and data handling", () => {
       filterMask: 0,
     });
     expect(resolvePreviewRouteSelection("broken", instant)).toBeNull();
+  });
+
+  it("prefers a valid explicit date beyond the compact link window", () => {
+    const instant = new Date("2026-11-03T16:00:00Z");
+    const dateCode = encodeDateCode("2027-01-06");
+    const routeCode = encodeMovieRouteCode({
+      movieCode: "Ab1",
+      cityCode: "l",
+      dateCode: dateCode!,
+      filterMask: 45120,
+      mode: "share",
+    })!;
+
+    expect(
+      resolvePreviewRouteSelection(routeCode, instant, "2027-01-06"),
+    ).toMatchObject({
+      city: "Tel Aviv",
+      date: "2027-01-06",
+      filterMask: 45120,
+    });
+    expect(
+      resolvePreviewRouteSelection(routeCode, instant, "2027-02-30"),
+    ).toEqual({
+      movieCode: "Ab1",
+      city: "Tel Aviv",
+      date: decodeDateCode(dateCode!, "2026-11-03"),
+      filterMask: 45120,
+    });
+    expect(
+      resolvePreviewRouteSelection(routeCode, instant, "2026-11-02"),
+    ).toMatchObject({ date: "2026-11-03" });
   });
 
   it("loads normalized Drizzle-backed preview data, filters expired rows, and groups showtimes", async () => {

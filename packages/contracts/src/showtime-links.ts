@@ -740,7 +740,9 @@ function buildValidatedMovieShowtimeSharePath(
     mode: "share",
   });
 
-  return routeCode ? `/${routeCode}` : null;
+  return routeCode
+    ? `/${routeCode}?date=${encodeURIComponent(parsedState.date)}`
+    : null;
 }
 
 export function buildMovieShowtimeSharePath(

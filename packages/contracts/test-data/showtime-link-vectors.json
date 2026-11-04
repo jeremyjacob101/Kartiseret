@@ -1,0 +1,28 @@
+[
+  {
+    "movieCode": "A7z",
+    "city": "Tel Aviv",
+    "date": "2027-01-15",
+    "filterExclusions": {
+      "showType": ["VIP"],
+      "screenFormat": ["3D"],
+      "screeningTech": ["IMAX"],
+      "dubLanguage": ["French"]
+    },
+    "filterMask": 45120,
+    "path": "/A7zlb1fHK?date=2027-01-15"
+  },
+  {
+    "movieCode": "Ab1",
+    "city": "Haifa",
+    "date": "2026-12-20",
+    "filterExclusions": {
+      "showType": [],
+      "screenFormat": [],
+      "screeningTech": [],
+      "dubLanguage": []
+    },
+    "filterMask": 0,
+    "path": "/Ab1vLj?date=2026-12-20"
+  }
+]
