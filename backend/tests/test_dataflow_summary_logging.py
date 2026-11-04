@@ -1,5 +1,3 @@
-from pathlib import Path
-from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import patch
@@ -30,7 +28,7 @@ class DataflowSummaryLoggingTests(TestCase):
             "Result: STAGED (PUBLICATION PENDING)", render_summary_text(summary)
         )
 
-    def test_prepared_summary_is_written_outside_the_successful_directory(self):
+    def test_prepared_summary_is_stored_as_a_d1_artifact(self):
         summary = {
             "name": "NowPlayingsUpdate",
             "run_id": 41,
@@ -41,13 +39,14 @@ class DataflowSummaryLoggingTests(TestCase):
             "finished_at": 2.0,
             "duration_seconds": 1.0,
         }
-        with TemporaryDirectory() as directory, patch(
-            "backend.utils.log.dataflow_summary_logging.ARTIFACT_ROOT",
-            Path(directory),
-        ):
+        with patch("backend.utils.log.run_storage.RunArtifactStore") as store_class:
             written = write_dataflow_summary(summary, successful=True)
-            self.assertIsNotNone(written)
-            self.assertIn("/prepared/", written)
-            self.assertIn(
-                "Result: STAGED (PUBLICATION PENDING)", Path(written).read_text()
-            )
+        self.assertEqual(
+            written,
+            "d1://run_logs/41/dataflow_summary/NowPlayingsUpdate/1/prepared",
+        )
+        self.assertEqual(store_class.return_value.save_text_artifact.call_args.kwargs["run_id"], 41)
+        self.assertIn(
+            "Result: STAGED (PUBLICATION PENDING)",
+            store_class.return_value.save_text_artifact.call_args.kwargs["text"],
+        )

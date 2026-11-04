@@ -5,69 +5,75 @@ export JJ_INTEL_MAC_WEEKLY_RUN="true"
 export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 export GIT_SSH_COMMAND="ssh -i /Users/jeremyjacob/.ssh/id_ed25519_kartiseret -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
 
-PROJECT_ROOT="/Users/jeremyjacob/Documents/Coding Projects/Kartiseret/NewScraping-August2025"
-PYTHON="$PROJECT_ROOT/.venv/bin/python"
-ARTIFACT_DIR="$PROJECT_ROOT/backend/utils/log/logger_artifacts"
-LOG_DIR="$PROJECT_ROOT/backend/config/cron/run_weekly_logs"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+PYTHON="${KARTISERET_PYTHON:-$PROJECT_ROOT/.venv/bin/python}"
+if [[ ! -x "$PYTHON" ]]; then
+  PYTHON="$(command -v python3)"
+fi
 
-cd "$PROJECT_ROOT"
+TARGET="${KARTISERET_TARGET:-production}"
+ARGS=("$@")
+for ((i = 0; i < ${#ARGS[@]}; i++)); do
+  if [[ "${ARGS[$i]}" == "--target" ]] && (( i + 1 < ${#ARGS[@]} )); then
+    TARGET="${ARGS[$((i + 1))]}"
+  fi
+done
+export KARTISERET_TARGET="$TARGET"
+
+RECOVERY_ROOT="${KARTISERET_RECOVERY_ROOT:-$HOME/Library/Application Support/Kartiseret/run-recovery}"
+LOG_DIR="$RECOVERY_ROOT/cron"
+mkdir -p "$LOG_DIR"
+chmod 700 "$RECOVERY_ROOT" "$LOG_DIR" 2>/dev/null || true
 
 TIMESTAMP=$(date '+%Y-%m-%d_%H-%M-%S')
 LOG_FILE="$LOG_DIR/cron_weekly_${TIMESTAMP}.log"
-mkdir -p "$LOG_DIR"
+RUN_ID_FILE="$LOG_DIR/run_weekly_${TIMESTAMP}.run-id"
+export KARTISERET_RECOVERY_ROOT="$RECOVERY_ROOT"
+export KARTISER_RUN_ID_FILE="$RUN_ID_FILE"
 
-# --------------------
-# Phase 1: run everything and write output to the log (and terminal)
-# --------------------
+cd "$PROJECT_ROOT"
+
 sync_phase() {
   echo "==== cron run start: $(date '+%Y-%m-%dT%H:%M:%S%z') ===="
-
-  # Sync code (robust even if main was force-pushed)
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "Refusing code sync because tracked local changes are present."
+    return 1
+  fi
   git fetch origin main
   git checkout main
-  git reset --hard origin/main
-  git clean -fd -e backend/config/cron/
+  git pull --ff-only origin main
 }
 
-# Keep code-sync failures fatal; never run or publish against an unsynced checkout.
 sync_phase 2>&1 | tee "$LOG_FILE"
 
-# Only the runner may fail without skipping artifact publication. Capture both
-# pipeline statuses immediately, before another command overwrites PIPESTATUS.
 set +e
-"$PYTHON" -u -m backend.config.runner "$@" 2>&1 | tee -a "$LOG_FILE"
+"$PYTHON" -u -m backend.config.runner "${ARGS[@]}" 2>&1 | tee -a "$LOG_FILE"
 RUN_STATUSES=("${PIPESTATUS[@]}")
 set -e
 RUN_STATUS=${RUN_STATUSES[0]}
 LOG_STATUS=${RUN_STATUSES[1]}
+
+echo "==== cron run end: $(date '+%Y-%m-%dT%H:%M:%S%z') (runner exit $RUN_STATUS, tee exit $LOG_STATUS) ====" | tee -a "$LOG_FILE" || true
+
+UPLOAD_STATUS=0
+if [[ -s "$RUN_ID_FILE" ]]; then
+  UPLOAD_ARGS=(--target "$TARGET" --run-id-file "$RUN_ID_FILE" --path "$LOG_FILE")
+  if (( LOG_STATUS != 0 )); then
+    UPLOAD_ARGS+=(--mark-failed)
+  fi
+  set +e
+  "$PYTHON" -m backend.config.upload_cron_log "${UPLOAD_ARGS[@]}"
+  UPLOAD_STATUS=$?
+  set -e
+else
+  echo "No run ID was allocated; cron transcript retained at $LOG_FILE." >&2
+  UPLOAD_STATUS=1
+fi
+
+if (( UPLOAD_STATUS != 0 )); then
+  exit 1
+fi
 if (( LOG_STATUS != 0 )); then
-  echo "Failed to write cron log (tee exit $LOG_STATUS)." >&2
   exit "$LOG_STATUS"
 fi
-
-echo "==== cron run end: $(date '+%Y-%m-%dT%H:%M:%S%z') (runner exit $RUN_STATUS) ====" | tee -a "$LOG_FILE"
-
-# --------------------
-# Phase 2: git add/commit/rebase/push (NO tee running now)
-# --------------------
-
-# Stage artifacts and the log
-if [[ -d "$ARTIFACT_DIR" ]]; then
-  git add "$ARTIFACT_DIR"
-fi
-git add "$LOG_FILE"
-
-# If nothing staged, we’re done
-if git diff --cached --quiet; then
-  exit "$RUN_STATUS"
-fi
-
-git commit -m "[W-RUN] weekly artifacts and log (runner exit $RUN_STATUS) $(date +%Y-%m-%d_%H-%M-%S)"
-
-# Update again in case main moved while the job ran, then push
-git fetch origin main
-git rebase origin/main
-git push origin main
-
-# Preserve the runner outcome after its artifacts and completed log are pushed.
 exit "$RUN_STATUS"

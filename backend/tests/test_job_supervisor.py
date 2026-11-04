@@ -173,7 +173,10 @@ event = {'event': 'run_id', 'run_id': 987654321}
 os.write(fd, (json.dumps(event) + '\\n').encode())
 time.sleep(60)
 """
-            with patch("backend.config.job_supervisor._finalize_run_lock", return_value=True) as finalizer:
+            recovery_root = Path(directory) / "recovery"
+            with patch.dict(os.environ, {"KARTISERET_RECOVERY_ROOT": str(recovery_root)}), patch(
+                "backend.config.job_supervisor._finalize_run_lock", return_value=True
+            ) as finalizer:
                 outcome = run_managed_process(
                     [sys.executable, "-c", code],
                     seconds=0.4,
@@ -185,11 +188,12 @@ time.sleep(60)
             self.assertEqual(outcome.run_id, 987654321)
             self.assertTrue(outcome.remote_finalized)
             finalizer.assert_called_once()
-            local_status = Path(directory) / "backend/utils/log/logger_artifacts/987654321/.job_ok"
-            self.assertEqual(local_status.read_text(), "false")
-            record = json.loads((local_status.parent / "supervisor-outcome.json").read_text())
+            outcome_files = list((recovery_root / "supervisor_outcomes").glob("987654321.json"))
+            self.assertEqual(len(outcome_files), 1)
+            record = json.loads(outcome_files[0].read_text())
             self.assertEqual(record["state"], "deadline_exceeded")
             self.assertIn("unknown", record["remote_write_outcome"])
+            self.assertFalse((Path(directory) / "backend/utils/log/logger_artifacts").exists())
             self._assert_pid_stopped(self, int(marker.read_text()))
 
     def test_normal_completion_and_startup_failure_are_reported(self):
@@ -260,15 +264,43 @@ os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps(event) + '\\n
         table = Mock()
         client = Mock()
         client.table.return_value = table
-        table.update.return_value.eq.return_value.execute.return_value.data = [{"run_id": 42}]
+        table.update.return_value.eq.return_value.select.return_value.execute.return_value.data = [{"run_id": 42}]
         args = ["supervisor_finalize", "--run-id", "42", "--elapsed-seconds", "123.5"]
         with patch.dict(os.environ, {"SUPABASE_URL": "https://example.test", "SUPABASE_SERVICE_ROLE_KEY": "test-key"}), patch(
             "backend.config.supervisor_finalize.create_client", return_value=client
-        ), patch.object(sys, "argv", args):
+        ), patch(
+            "backend.config.supervisor_finalize.RunArtifactStore"
+        ) as store_class, patch.object(sys, "argv", args):
             self.assertEqual(supervisor_finalize.main(), 0)
         table.update.assert_called_once_with({"successful": False, "total_time": 123.5, "running_now": False})
         table.update.return_value.eq.assert_called_once_with("run_id", 42)
-        table.update.return_value.eq.return_value.execute.assert_called_once_with()
+        table.update.return_value.eq.return_value.select.assert_called_once_with("run_id")
+        table.update.return_value.eq.return_value.select.return_value.execute.assert_called_once_with()
+        store_class.return_value.mark_run_failed.assert_called_once_with(42, reason="supervisor_interrupted")
+        store_class.return_value.mark_run_unconfirmed.assert_not_called()
+
+    def test_run_id_finalizer_keeps_d1_status_unconfirmed_when_supabase_is_not_confirmed(self):
+        from backend.config import supervisor_finalize
+
+        table = Mock()
+        client = Mock()
+        client.table.return_value = table
+        table.update.return_value.eq.return_value.select.return_value.execute.side_effect = RuntimeError("offline")
+        args = ["supervisor_finalize", "--run-id", "43", "--elapsed-seconds", "9"]
+        with patch.dict(os.environ, {"SUPABASE_URL": "https://example.test", "SUPABASE_SERVICE_ROLE_KEY": "test-key"}), patch(
+            "backend.config.supervisor_finalize.create_client", return_value=client
+        ), patch(
+            "backend.config.supervisor_finalize.RunArtifactStore"
+        ) as store_class, patch(
+            "backend.config.supervisor_finalize.write_recovery_envelope"
+        ) as recovery, patch.object(sys, "argv", args):
+            self.assertEqual(supervisor_finalize.main(), 1)
+        store_class.return_value.mark_run_failed.assert_not_called()
+        store_class.return_value.mark_run_unconfirmed.assert_called_once_with(
+            43, reason="supabase_finalization_unconfirmed"
+        )
+        recovery.assert_called_once()
+        self.assertFalse(recovery.call_args.args[2]["supabase_confirmed"])
 
     def test_allocated_run_id_is_reported_before_the_run_lock_insert(self):
         from backend.utils.log import run_logging
@@ -285,11 +317,15 @@ os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps(event) + '\\n
             client = Mock()
             client.table.side_effect = [no_running_run, latest_run, insert]
             callback = lambda run_id: timeline.append(("allocated", run_id))
+            storage = Mock()
             with patch.dict(os.environ, {"SUPABASE_URL": "https://example.test", "SUPABASE_SERVICE_ROLE_KEY": "test-key"}), patch(
                 "backend.utils.log.run_logging.create_client", return_value=client
-            ), patch.object(run_logging, "ARTIFACT_ROOT", Path(directory) / "artifacts"):
+            ), patch("backend.utils.log.run_logging.RunArtifactStore", return_value=storage):
                 self.assertEqual(run_logging.allocate_run_id(on_allocated=callback), 42)
             self.assertEqual(timeline, [("allocated", 42), "insert"])
+            storage.acquire_run_lease.assert_called_once_with()
+            storage.attach_run_id_to_lease.assert_called_once_with(storage.acquire_run_lease.return_value, 42)
+            storage.start_run.assert_called_once()
 
 
 if __name__ == "__main__":

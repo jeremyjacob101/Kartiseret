@@ -57,57 +57,22 @@ def _git_sync_before_update(logger: logging.Logger) -> bool:
     if not REALTIME_GIT_SYNC:
         return True
 
+    for args in (["git", "diff", "--quiet"], ["git", "diff", "--cached", "--quiet"]):
+        clean = _run_cmd(list(args), cwd=PROJECT_ROOT, logger=logger)
+        if clean.returncode != 0:
+            logger.error("Refusing realtime update because tracked local changes are present")
+            return False
+
     fetch = _run_cmd(["git", "fetch", "origin", "main"], cwd=PROJECT_ROOT, logger=logger)
     if fetch.returncode != 0:
         logger.error("Git fetch failed before solo update: %s", (fetch.stderr or fetch.stdout).strip())
         return False
 
-    pull = _run_cmd(["git", "pull", "--rebase", "origin", "main"], cwd=PROJECT_ROOT, logger=logger)
+    pull = _run_cmd(["git", "pull", "--ff-only", "origin", "main"], cwd=PROJECT_ROOT, logger=logger)
     if pull.returncode != 0:
-        logger.error("Git pull --rebase failed before solo update: %s", (pull.stderr or pull.stdout).strip())
+        logger.error("Git fast-forward update failed before solo update: %s", (pull.stderr or pull.stdout).strip())
         return False
 
-    return True
-
-
-def _git_sync_after_update(logger: logging.Logger, table_name: str) -> bool:
-    if not REALTIME_GIT_SYNC:
-        return True
-
-    artifact_dir = PROJECT_ROOT / "backend" / "utils" / "log" / "logger_artifacts"
-    if artifact_dir.exists():
-        add = _run_cmd(["git", "add", str(artifact_dir)], cwd=PROJECT_ROOT, logger=logger)
-        if add.returncode != 0:
-            logger.error("Git add failed after solo update: %s", (add.stderr or add.stdout).strip())
-            return False
-
-    has_staged = _run_cmd(["git", "diff", "--cached", "--quiet"], cwd=PROJECT_ROOT, logger=logger)
-    if has_staged.returncode == 0:
-        logger.info("No staged artifact changes after %s solo update; skipping commit/push", table_name)
-        return True
-
-    commit_msg = f"[RT-SOLO] {table_name} update {time.strftime('%Y-%m-%d_%H-%M-%S')}"
-    commit = _run_cmd(["git", "commit", "-m", commit_msg], cwd=PROJECT_ROOT, logger=logger)
-    if commit.returncode != 0:
-        logger.error("Git commit failed after solo update: %s", (commit.stderr or commit.stdout).strip())
-        return False
-
-    fetch = _run_cmd(["git", "fetch", "origin", "main"], cwd=PROJECT_ROOT, logger=logger)
-    if fetch.returncode != 0:
-        logger.error("Git fetch failed after solo update: %s", (fetch.stderr or fetch.stdout).strip())
-        return False
-
-    rebase = _run_cmd(["git", "rebase", "origin/main"], cwd=PROJECT_ROOT, logger=logger)
-    if rebase.returncode != 0:
-        logger.error("Git rebase failed after solo update: %s", (rebase.stderr or rebase.stdout).strip())
-        return False
-
-    push = _run_cmd(["git", "push", "origin", "main"], cwd=PROJECT_ROOT, logger=logger)
-    if push.returncode != 0:
-        logger.error("Git push failed after solo update: %s", (push.stderr or push.stdout).strip())
-        return False
-
-    logger.info("Git sync completed after %s solo update", table_name)
     return True
 
 
@@ -131,11 +96,10 @@ def _run_single_update_worker(table_name: str) -> bool:
     os.environ[SOLO_UPDATE_ENV_KEY] = "true"
     os.environ[RUN_FROM_OVERRIDE_ENV_KEY] = run_from_override
     if not _git_sync_before_update(logger):
-        logger.error("Continuing %s solo update even though pre-run git sync failed", table_name)
+        logger.error("Skipping %s solo update because safe code sync did not complete", table_name)
+        return False
     with RunLogSession(on_allocated=lambda run_id: report_event("run_id", run_id=int(run_id))) as run:
         ok = run.run_groups(plan, run_group_fn=runGroup)
-    if ok and not _git_sync_after_update(logger, table_name):
-        logger.error("Post-run git sync failed after successful %s solo update", table_name)
     report_event("run_complete", successful=bool(ok))
     return ok
 

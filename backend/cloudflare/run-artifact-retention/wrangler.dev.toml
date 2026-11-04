@@ -1,0 +1,16 @@
+name = "kartiseret-run-artifact-retention-dev"
+main = "worker.mjs"
+compatibility_date = "2026-11-03"
+workers_dev = true
+
+[triggers]
+crons = ["17 4 * * *"]
+
+[[d1_databases]]
+binding = "RUN_LOGS"
+database_name = "kartiseret-run-logs-dev"
+database_id = "dbace3cc-386d-42f4-8ab9-0863f17adcfc"
+
+[[r2_buckets]]
+binding = "RUN_ARTIFACTS"
+bucket_name = "kartiseret-run-artifacts-dev"

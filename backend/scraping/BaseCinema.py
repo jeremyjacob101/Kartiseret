@@ -4,6 +4,7 @@ from backend.scraping.utils.ScrapedFixes import ScrapedFixes
 from backend.scraping.utils.ScrapingHelpers import ScrapingHelpers
 from datetime import datetime, timezone
 import uuid
+from backend.utils.log.cloudflare_storage import CloudflareStorageError
 
 
 class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToInfo):
@@ -76,15 +77,33 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
         raise NotImplementedError("Each cinema must implement its own logic()")
 
     def scrape(self):
+        catalog_published = False
         try:
             self.startScrapeSnapshot()
             navigate(self)
             self.logic()
             formatAndUpload(self)
+            catalog_published = True
+            # Persist scrape output after publication so the D1 outcome reflects
+            # whether the source rows actually reached Supabase.
+            formatAndWriteCsv(self, successful=True)
             self.finishScrapeSnapshot(getattr(self, "_snapshot_row_count", 0))
             logSuccessfulRun(self)
-            formatAndWriteCsv(self, successful=True)
         except Exception as error:
             self.failScrapeSnapshot(error)
-            formatAndWriteCsv(self, successful=False)
+            if catalog_published and isinstance(error, CloudflareStorageError):
+                raise CloudflareStorageError(
+                    "Catalog data was published to Supabase, but storing its scrape rows in D1 failed; "
+                    "the run is marked failed and the local recovery copy is retained."
+                ) from error
+            if not isinstance(error, CloudflareStorageError):
+                try:
+                    formatAndWriteCsv(self, successful=False)
+                except CloudflareStorageError as storage_error:
+                    if catalog_published:
+                        raise CloudflareStorageError(
+                            "Catalog data was published to Supabase, but recording the failed scrape attempt in D1 failed; "
+                            "the run is marked failed and the local recovery copy is retained."
+                        ) from storage_error
+                    raise storage_error from error
             raise

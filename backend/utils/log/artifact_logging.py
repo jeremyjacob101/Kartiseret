@@ -1,6 +1,4 @@
-import logging, os, sys, traceback, pathlib, re, signal
-
-ARTIFACT_ROOT = pathlib.Path("backend/utils/log/logger_artifacts")
+import logging, os, sys, traceback, re, signal
 logger = logging.getLogger("sel")
 SUPPRESS_ERRORS = False
 
@@ -18,6 +16,15 @@ def setup_logging() -> None:
 
     logging.basicConfig(level=logging.ERROR, format="%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s", handlers=[logging.StreamHandler(sys.stdout)], force=True)
     logger.setLevel(logging.ERROR)
+
+
+def _redact_sensitive_text(value: str) -> str:
+    value = re.sub(
+        r"(?i)(api[_-]?key|access[_-]?token|secret[_-]?access[_-]?key|password|authorization)(\s*[=:]\s*)([^&\s,;]+)",
+        r"\1\2[REDACTED]",
+        value,
+    )
+    return re.sub(r"(?i)Bearer\s+[A-Za-z0-9._~+/-]+=*", "Bearer [REDACTED]", value)
 
 
 def artifactPrinting(obj, run_id, *, item_name: str | None = None, attempt: int | None = None):
@@ -53,31 +60,41 @@ def artifactPrinting(obj, run_id, *, item_name: str | None = None, attempt: int 
     raw_msg = str(exc_value) if exc_value else ""
     cleaned_msg = "\n".join(ln for ln in raw_msg.splitlines() if not any(b in ln.lower() for b in ("stacktrace", "documentation", "<unknown>", "chromedriver", "libsystem_pthread.dylib")))
     exception_msg = cleaned_msg if exc_type_name == "Exception" else f"{exc_type_name} - {cleaned_msg}"
+    exception_msg = _redact_sensitive_text(exception_msg)
 
     match = re.search(r'"selector":\s*"([^"]+)"', cleaned_msg)
     selector = match.group(1) if match else None
 
-    artifact_dir = ARTIFACT_ROOT / str(run_id) / "unsuccessful"
-    artifact_dir.mkdir(parents=True, exist_ok=True)
     cleaned_name = name.replace(" ", "_").strip()
-    base = artifact_dir / f"{cleaned_name}-{attempt_number}"
-    png_path, txt_path = f"{base}.png", f"{base}.txt"
-    screenshot_written = None
-
-    csv_written = getattr(obj, "_last_csv_artifact", None) if obj is not None else None
-    if csv_written and not os.path.exists(csv_written):
-        csv_written = None
-
+    screenshot_key = None
+    from backend.utils.log.run_storage import RunArtifactStore
+    store = RunArtifactStore()
     if drv:
         try:
-            drv.save_screenshot(png_path)
-            screenshot_written = png_path
-        except Exception:
-            pass
+            screenshot = drv.get_screenshot_as_png()
+        except Exception as error:
+            screenshot_key = f"unavailable ({type(error).__name__})"
+        else:
+            saved = store.save_file_artifact(
+                run_id=int(run_id),
+                artifact_type="screenshots",
+                name=f"{cleaned_name}-{attempt_number}",
+                content=screenshot,
+                content_type="image/png",
+                metadata={"source": "selenium", "item_name": name, "attempt": attempt_number},
+                compress_screenshot=True,
+            )
+            screenshot_key = saved["object_key"]
 
-    try:
-        lines = ["- - -", "ERROR", "- - -", f"Name: {name or ''}", f"URL: {url or ''}", f"Exception: {exception_msg or ''}", f"Call Chain: {call_chain or ''}", f"Selector: {selector or ''}", f"Screenshot: {screenshot_written or ''}", f"CSV: {csv_written or ''}"]
-        with open(txt_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines))
-    except Exception:
-        pass
+    safe_url = _redact_sensitive_text(str(url or "?"))
+    lines = [
+        "- - -", "ERROR", "- - -", f"Name: {name or ''}", f"URL: {safe_url}",
+        f"Exception: {exception_msg or ''}", f"Call Chain: {call_chain or ''}",
+        f"Selector: {_redact_sensitive_text(selector or '')}",
+        f"Screenshot R2 key: {screenshot_key or ''}",
+    ]
+    store.save_text_artifact(
+        run_id=int(run_id), artifact_type="scrape_error",
+        name=f"{cleaned_name}-{attempt_number}", text="\n".join(lines),
+        metadata={"item_name": name, "attempt": attempt_number, "exception_type": exc_type_name},
+    )
