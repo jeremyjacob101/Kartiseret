@@ -29,6 +29,29 @@ class ScrapedFixesTests(unittest.TestCase):
 
                 self.assertEqual(scraper.screening_city, city)
 
+    def test_yes_planet_infinity_vision_labels_normalize_type_and_tech(self):
+        formats = {
+            "INFINITY VISION2D": "2D Infinity Vision",
+            "INFINITY VISIONSCREENX2D": "2D ScreenX Infinity Vision",
+            "4DXINFINITY VISION2D": "2D 4DX Infinity Vision",
+        }
+
+        for raw_format, screening_tech in formats.items():
+            with self.subTest(raw_format=raw_format):
+                scraper = ScrapedFixes()
+                scraper.screening_type = raw_format
+                scraper.screening_tech = raw_format
+                scraper.english_title = "Avengers: Doomsday"
+                scraper.hebrew_title = "הנוקמים: עלייתו של ד״ר דום"
+
+                scraper.fixScreeningType()
+                scraper.fixScreeningTech()
+
+                self.assertEqual(scraper.screening_type, "Regular")
+                self.assertEqual(scraper.screening_tech, screening_tech)
+                self.assertEqual(scraper.english_title, "Avengers: Doomsday")
+                self.assertEqual(scraper.hebrew_title, "הנוקמים: עלייתו של ד״ר דום")
+
 
 if __name__ == "__main__":
     unittest.main()

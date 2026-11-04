@@ -114,6 +114,9 @@ class ScrapedFixes:
         replace = {
             "IMAX2D": "Regular",
             "IMAX3D": "Regular",
+            "INFINITY VISION2D": "Regular",
+            "INFINITY VISIONSCREENX2D": "Regular",
+            "4DXINFINITY VISION2D": "Regular",
             "רגיל": "Regular",
             "ONYX": "Regular",
             "VIP": "VIP",
@@ -177,6 +180,9 @@ class ScrapedFixes:
         replace = {
             "IMAX2D": "2D IMAX",
             "IMAX3D": "3D IMAX",
+            "INFINITY VISION2D": "2D Infinity Vision",
+            "INFINITY VISIONSCREENX2D": "2D ScreenX Infinity Vision",
+            "4DXINFINITY VISION2D": "2D 4DX Infinity Vision",
             "סינמה סיטי גלילות": "2D",
             "סינמה סיטי גלילות (ONYX)": "2D ONYX",
             'סינמה סיטי ראשל"צ': "2D",
