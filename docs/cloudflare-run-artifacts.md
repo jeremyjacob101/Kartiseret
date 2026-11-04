@@ -17,8 +17,8 @@ Artifact R2 credentials are separate from the movie-artwork R2 credentials.
 | Development | `kartiseret-run-logs-dev` | `dbace3cc-386d-42f4-8ab9-0863f17adcfc` | `kartiseret-run-artifacts-dev` | `kartiseret-run-artifact-retention-dev` |
 | Production | `kartiseret-run-logs-prod` | Set after production provisioning is approved | `kartiseret-run-artifacts-prod` | `kartiseret-run-artifact-retention-prod` |
 
-Development D1 and R2 resources have been created. The D1 migration is applied
-and the schema and a disposable write/read/delete smoke test were verified.
+Development D1 and R2 resources and the development Worker have been created.
+The D1 migration is applied and a disposable write/read/delete smoke test was verified.
 The run-artifact bucket remains private; it has no public or custom domain.
 Production resources have not been created or changed.
 
@@ -37,14 +37,11 @@ Required entries are shown in `.env.example`:
 - `DEV_RUN_ARTIFACTS_R2_BUCKET`, `_ACCESS_KEY_ID`, and `_SECRET_ACCESS_KEY`
 - `PROD_RUN_ARTIFACTS_R2_BUCKET`, `_ACCESS_KEY_ID`, and `_SECRET_ACCESS_KEY`
 
-The Workers account currently has no `workers.dev` subdomain. A read-only
-Cloudflare API check returned the provider's “no workers.dev subdomain” result.
-Open **Workers & Pages** in the Cloudflare dashboard once to initialize the
-account subdomain. The Worker URLs then follow this form:
+The account's `workers.dev` subdomain is `jeremyjacob101`. The Worker URLs are:
 
 ```text
-https://kartiseret-run-artifact-retention-dev.<account-subdomain>.workers.dev
-https://kartiseret-run-artifact-retention-prod.<account-subdomain>.workers.dev
+https://kartiseret-run-artifact-retention-dev.jeremyjacob101.workers.dev
+https://kartiseret-run-artifact-retention-prod.jeremyjacob101.workers.dev
 ```
 
 The scraper sends D1 queries only to the selected Worker URL. The target
@@ -54,18 +51,19 @@ or longer Worker secret and the matching D1 ID and R2 bucket.
 
 ## Configure the development Worker
 
-Install Node.js and Wrangler on the machine that will deploy Cloudflare Workers,
-then run from the repository root:
+The development Worker and hourly schedule are already deployed. For future
+updates, install Node.js and Wrangler and run from the repository root:
 
 ```sh
 npx wrangler deploy --config backend/cloudflare/run-artifact-retention/wrangler.dev.toml
-npx wrangler secret put RUN_LOGS_API_SECRET --config backend/cloudflare/run-artifact-retention/wrangler.dev.toml
 ```
 
 Generate a random secret with a password manager or `openssl rand -hex 32`.
-Use that same value for the Worker secret prompt and
-`DEV_RUN_LOGS_API_SECRET` in `.env`. Save the Worker URL Wrangler reports to
-`DEV_RUN_LOGS_API_URL`. Do not reuse the production secret. The Worker binding
+In Cloudflare Workers & Pages, open `kartiseret-run-artifact-retention-dev`,
+open Settings → Variables and Secrets, add a **Secret** named
+`RUN_LOGS_API_SECRET`, enter that value, and deploy the change. Put the same
+value in `DEV_RUN_LOGS_API_SECRET` in `.env`. Do not reuse the production
+secret. The Worker binding
 in `wrangler.dev.toml` selects only the development D1 database and artifact
 bucket. Its hourly scheduled handler checks database size and resumes cleanup
 within a conservative daily write budget.
@@ -85,8 +83,8 @@ python -m backend.utils.log.initialize_run_storage --target development
 This command validates the selected profile and runs the idempotent schema
 initializer. Do not start a scrape until it succeeds. To test storage without
 running a scrape, use the storage unit tests and a controlled development
-fixture. A real Worker/R2 end-to-end run requires the account subdomain, Worker
-secret, and bucket-scoped S3 credentials described above.
+fixture. A real Worker/R2 end-to-end run requires the Worker secret and
+bucket-scoped S3 credentials described above.
 
 ## Data and failure behavior
 
