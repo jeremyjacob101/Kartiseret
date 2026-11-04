@@ -1,5 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { Router } from "express";
+import { isIP } from "node:net";
+import { Router, type Request } from "express";
+import { ipKeyGenerator, rateLimit, type Store } from "express-rate-limit";
 import { inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Pool } from "pg";
@@ -12,9 +14,41 @@ const requestSchema = z
 const unsubscribeTokenRequestSchema = z
   .object({ userId: z.string().uuid(), deliveryId: z.string().uuid() })
   .strict();
-export function createRecipientRouter(pool: Pool, secret: string) {
+export function createRecipientRouter(
+  pool: Pool,
+  secret: string,
+  options: { store?: Store; limit?: number; windowMs?: number } = {},
+) {
   const router = Router();
   const database = drizzle(pool);
+  const windowMs = options.windowMs ?? 60_000;
+  const limiter = rateLimit({
+    windowMs,
+    limit: options.limit ?? 600,
+    ...(options.store ? { store: options.store } : {}),
+    standardHeaders: "draft-6",
+    legacyHeaders: false,
+    passOnStoreError: false,
+    validate: { xForwardedForHeader: false },
+    keyGenerator: (request: Request) => {
+      const address = process.env.VERCEL
+        ? request.get("x-real-ip")
+        : request.socket.remoteAddress;
+      return address && isIP(address)
+        ? `internal-recipient:${ipKeyGenerator(address, 64)}`
+        : "internal-recipient:unidentified";
+    },
+    handler: (_request, response) => {
+      response.setHeader("Retry-After", String(Math.ceil(windowMs / 1000)));
+      response.status(429).json({
+        data: null,
+        error: {
+          code: "rate_limited",
+          message: "Please wait briefly and try again.",
+        },
+      });
+    },
+  });
   const expected = createHash("sha256").update(`Bearer ${secret}`).digest();
   router.use((_request, response, next) => {
     response.setHeader("Cache-Control", "no-store");
@@ -27,40 +61,45 @@ export function createRecipientRouter(pool: Pool, secret: string) {
       .digest();
     return timingSafeEqual(expected, supplied);
   };
-  router.post("/ticket-alert-recipients", async (request, response) => {
-    if (!isAuthorized(request.headers.authorization)) {
-      response.status(401).json({
-        data: null,
-        error: {
-          code: "unauthorized",
-          message: "An internal credential is required.",
-        },
-      });
-      return;
-    }
-    const input = requestSchema.safeParse(request.body);
-    if (!input.success) {
-      response.status(400).json({
-        data: null,
-        error: {
-          code: "invalid_request",
-          message: "Provide between 1 and 100 valid user IDs.",
-        },
-      });
-      return;
-    }
-    const data = await database
-      .select({
-        id: user.id,
-        email: user.email,
-        emailVerified: user.emailVerified,
-      })
-      .from(user)
-      .where(inArray(user.id, [...new Set(input.data.userIds)]));
-    response.json({ data, error: null });
-  });
+  router.post(
+    "/ticket-alert-recipients",
+    limiter,
+    async (request, response) => {
+      if (!isAuthorized(request.headers.authorization)) {
+        response.status(401).json({
+          data: null,
+          error: {
+            code: "unauthorized",
+            message: "An internal credential is required.",
+          },
+        });
+        return;
+      }
+      const input = requestSchema.safeParse(request.body);
+      if (!input.success) {
+        response.status(400).json({
+          data: null,
+          error: {
+            code: "invalid_request",
+            message: "Provide between 1 and 100 valid user IDs.",
+          },
+        });
+        return;
+      }
+      const data = await database
+        .select({
+          id: user.id,
+          email: user.email,
+          emailVerified: user.emailVerified,
+        })
+        .from(user)
+        .where(inArray(user.id, [...new Set(input.data.userIds)]));
+      response.json({ data, error: null });
+    },
+  );
   router.post(
     "/movie-notification-unsubscribe-tokens",
+    limiter,
     async (request, response) => {
       if (!isAuthorized(request.headers.authorization)) {
         response.status(401).json({

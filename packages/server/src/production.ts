@@ -76,10 +76,25 @@ function createProductionRuntime(
     recipientRouter: createRecipientRouter(
       database.pool,
       authConfig.internalSecret,
+      {
+        store: new PostgresProtectedRateLimitStore(
+          database.pool,
+          authConfig.secret,
+          60_000,
+          reportRateLimitDiagnostic,
+        ),
+      },
     ),
     notificationUnsubscribeRouter: createMovieNotificationUnsubscribeRouter(
       createPostgresMovieNotificationUnsubscribeService(database.pool),
-      { store: protectedRateLimit.store },
+      {
+        store: new PostgresProtectedRateLimitStore(
+          database.pool,
+          authConfig.secret,
+          60_000,
+          reportRateLimitDiagnostic,
+        ),
+      },
     ),
     close: database.close,
   };

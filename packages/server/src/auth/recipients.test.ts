@@ -9,7 +9,7 @@ const secret = "internal-test-secret";
 const userId = "00000000-0000-4000-8000-000000000001";
 const deliveryId = "00000000-0000-4000-8000-000000000002";
 
-function setup(eligible = true) {
+function setup(eligible = true, limit?: number) {
   const insertedHashes: Buffer[] = [];
   const client = {
     query: vi.fn(async (query: string, values: unknown[] = []) => {
@@ -31,11 +31,45 @@ function setup(eligible = true) {
   } as unknown as Pool;
   const app = express();
   app.use(express.json());
-  app.use("/api/internal", createRecipientRouter(pool, secret));
+  app.use("/api/internal", createRecipientRouter(pool, secret, { limit }));
   return { app, client, pool, insertedHashes };
 }
 
 describe("internal movie notification unsubscribe token issuance", () => {
+  it("rate limits internal requests before processing them", async () => {
+    const { app, pool } = setup(true, 1);
+    const endpoint = "/api/internal/movie-notification-unsubscribe-tokens";
+    expect(
+      (await request(app).post(endpoint).send({ userId, deliveryId })).status,
+    ).toBe(401);
+    const blocked = await request(app)
+      .post(endpoint)
+      .set("Authorization", `Bearer ${secret}`)
+      .send({ userId, deliveryId });
+    expect(blocked.status).toBe(429);
+    expect(blocked.headers["retry-after"]).toBeDefined();
+    expect(pool.connect).not.toHaveBeenCalled();
+  });
+
+  it("also rate limits recipient lookups", async () => {
+    const { app } = setup(true, 1);
+    const endpoint = "/api/internal/ticket-alert-recipients";
+    expect(
+      (
+        await request(app)
+          .post(endpoint)
+          .send({ userIds: [userId] })
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await request(app)
+          .post(endpoint)
+          .send({ userIds: [userId] })
+      ).status,
+    ).toBe(429);
+  });
+
   it("issues distinct scoped bearer tokens and stores only their SHA-256 hashes", async () => {
     const { app, client, insertedHashes } = setup();
     const response = await request(app)
