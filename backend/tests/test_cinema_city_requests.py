@@ -1,9 +1,11 @@
 from datetime import datetime
 from unittest import TestCase
 from unittest.mock import Mock, patch
+from zoneinfo import ZoneInfo
 
 from backend.scraping.nowplayings.CinemaCity import CinemaCity
 from backend.scraping.utils.InitializeBaseCinema import InitializeBaseCinema
+from backend.scraping.utils.CinemaCityRequests import _event_datetime
 
 
 class CinemaCityRequestsTests(TestCase):
@@ -66,13 +68,19 @@ class CinemaCityRequestsTests(TestCase):
                 "id": "event-2",
                 "data": {"_id": "event-2", "externalId": "894857", "featureId": 6606.0,
                          "locationName": "סינמה סיטי גלילות", "venueTypeName": "ONYX",
-                         "dateTime": "2026-11-04 01:15", "businessDate": {"$date": "2026-11-04T00:00:00Z"}},
+                         "dateTime": "2026-11-05 01:15", "businessDate": {"$date": "2026-11-04T00:00:00Z"}},
             },
             {
                 "id": "event-3",
                 "data": {"_id": "event-3", "externalId": "894858", "featureId": 6500.0,
                          "locationName": "סינמה סיטי ירושלים", "venueTypeName": "VIP",
                          "dateTime": "2026-11-05 18:30", "businessDate": {"$date": "2026-11-05T00:00:00Z"}},
+            },
+            {
+                "id": "event-4",
+                "data": {"_id": "event-4", "externalId": "894859", "featureId": 6680.0,
+                         "locationName": "סינמה סיטי גלילות", "venueTypeName": "רגיל",
+                         "dateTime": "2026-11-04 11:59", "businessDate": {"$date": "2026-11-04T00:00:00Z"}},
             },
         ]
         self.pages = {
@@ -135,10 +143,35 @@ class CinemaCityRequestsTests(TestCase):
             "https://tickets.cinema-city.co.il/order/894756?lang=en",
             "https://tickets.cinema-city.co.il/order/894857?lang=en",
         ])
-        self.assertEqual(self.scraper._coverage["presentations_expected"], 3)
+        self.assertEqual(self.scraper._coverage["presentations_expected"], 4)
         self.assertEqual(self.scraper._coverage["presentations_collected"], 2)
         self.assertEqual(self.scraper._coverage["presentations_skipped_by_title"], 1)
+        self.assertEqual(self.scraper._coverage["presentations_skipped_expired"], 1)
         self.assertEqual(self.scraper._coverage["collection_pages"]["SyncPresentations"], 2)
+
+    def test_excludes_a_screening_at_the_frozen_local_scrape_instant(self):
+        event_at_scrape_time = {
+            **self.presentations[0],
+            "data": {
+                **self.presentations[0]["data"],
+                "dateTime": "2026-11-04 12:00",
+                "businessDate": {"$date": "2026-11-04T00:00:00Z"},
+            },
+        }
+        self.pages["SyncPresentations"] = [self.page([event_at_scrape_time], 0, False)]
+
+        self.run_collector()
+
+        self.assertEqual(self.scraper.gathering_info["showtime"], [])
+        self.assertEqual(self.scraper._coverage["presentations_skipped_expired"], 1)
+        self.assertIn("expired=1", self.scraper._empty_snapshot_evidence)
+
+    def test_converts_explicit_utc_event_times_to_jerusalem_local_time(self):
+        event_datetime = _event_datetime("2026-11-04T15:50:00Z")
+
+        self.assertEqual(event_datetime.hour, 17)
+        self.assertEqual(event_datetime.minute, 50)
+        self.assertEqual(event_datetime.tzinfo, ZoneInfo("Asia/Jerusalem"))
 
     def test_fails_closed_for_unknown_feature_location_or_room_type(self):
         for field, value, message in (
@@ -177,6 +210,7 @@ class CinemaCityRequestsTests(TestCase):
             self.scraper._coverage["presentations_expected"],
             self.scraper._coverage["presentations_collected"]
             + self.scraper._coverage["presentations_skipped_by_title"]
+            + self.scraper._coverage["presentations_skipped_expired"]
             + self.scraper._coverage["duplicate_event_ids_skipped"]
             + self.scraper._coverage["duplicate_showtime_options_skipped"],
         )

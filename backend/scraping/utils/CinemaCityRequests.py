@@ -2,6 +2,7 @@
 
 from datetime import date, datetime
 import re
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -14,6 +15,7 @@ ACCESS_TOKENS_URL = f"{BASE_URL}/_api/v1/access-tokens"
 COLLECTION_QUERY_URL = f"{BASE_URL}/_api/cloud-data/v2/items/query"
 WIX_APP_ID_PATTERN = re.compile(r'"x-wix-grid-app-id"\s*:\s*"([^"]+)"')
 PAGE_SIZE = 1000
+JERUSALEM_TZ = ZoneInfo("Asia/Jerusalem")
 
 EXCLUDED_TITLE_MARKERS = (
     "מדובב לרוסית",
@@ -67,18 +69,31 @@ def _local_date(value, description):
         raise ValueError(f"Cinema City {description} is invalid: {value!r}") from error
 
 
-def _event_time(value):
+def _event_datetime(value):
     if not isinstance(value, str):
         raise ValueError("Cinema City presentation is missing its date and time")
-    match = re.fullmatch(r"(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::\d{2})?", value.strip())
-    if not match:
+    normalized = value.strip()
+    if not re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?",
+        normalized,
+    ):
         raise ValueError(f"Cinema City presentation has an unexpected date/time: {value!r}")
     try:
-        date.fromisoformat(match.group(1))
-        datetime.strptime(match.group(2), "%H:%M")
+        event_datetime = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
     except ValueError as error:
         raise ValueError(f"Cinema City presentation has an invalid date/time: {value!r}") from error
-    return match.group(2)
+    if event_datetime.tzinfo is None:
+        return event_datetime.replace(tzinfo=JERUSALEM_TZ)
+    return event_datetime.astimezone(JERUSALEM_TZ)
+
+
+def _scrape_instant(scraper):
+    scrape_time = getattr(scraper, "today_date", None)
+    if not isinstance(scrape_time, datetime):
+        raise ValueError("Cinema City scraper is missing its frozen scrape time")
+    if scrape_time.tzinfo is None:
+        return scrape_time.replace(tzinfo=JERUSALEM_TZ)
+    return scrape_time.astimezone(JERUSALEM_TZ)
 
 
 def _bootstrap_public_token(session, scraper):
@@ -226,6 +241,7 @@ def collect_cinema_city(scraper):
         "presentations_expected": 0,
         "presentations_collected": 0,
         "presentations_skipped_by_title": 0,
+        "presentations_skipped_expired": 0,
         "duplicate_event_ids_skipped": 0,
         "duplicate_showtime_options_skipped": 0,
         "collection_pages": {},
@@ -269,6 +285,7 @@ def collect_cinema_city(scraper):
     referenced_features = set()
     seen_events = set()
     seen_showtime_options = set()
+    scrape_instant = _scrape_instant(scraper)
     for event in presentations:
         if event.get("externalId") is None:
             raise ValueError("Cinema City presentation has no ticket event id")
@@ -320,7 +337,8 @@ def collect_cinema_city(scraper):
         rating = feature.get("ratingName")
         if rating is not None and not isinstance(rating, str):
             raise ValueError(f"Cinema City feature {feature_id} has an invalid rating")
-        showtime = _event_time(event.get("dateTime"))
+        event_datetime = _event_datetime(event.get("dateTime"))
+        showtime = event_datetime.strftime("%H:%M")
         date_of_showing = _local_date(event.get("businessDate"), "presentation business date").isoformat()
 
         base_showtech = event.get("venueTypeName")
@@ -339,6 +357,12 @@ def collect_cinema_city(scraper):
         # ticket event ids for it. Since the collection is ordered by event id,
         # retaining the first option matches the event id the page exposes.
         option_key = (feature_id, location_name.strip(), base_showtech, date_of_showing, showtime)
+        # Wix can retain same-day presentations in its collection after the
+        # browser selectors stop offering them. Compare the actual local start
+        # instant, not businessDate, which can differ for after-midnight shows.
+        if event_datetime <= scrape_instant:
+            scraper._coverage["presentations_skipped_expired"] += 1
+            continue
         if option_key in seen_showtime_options:
             scraper._coverage["duplicate_showtime_options_skipped"] += 1
             continue
@@ -369,6 +393,7 @@ def collect_cinema_city(scraper):
         for key in (
             "presentations_collected",
             "presentations_skipped_by_title",
+            "presentations_skipped_expired",
             "duplicate_event_ids_skipped",
             "duplicate_showtime_options_skipped",
         )
@@ -383,5 +408,7 @@ def collect_cinema_city(scraper):
         scraper.confirmEmptySnapshot("Complete SyncPresentations collection returned no Cinema City events")
     elif not scraper._coverage["presentations_collected"]:
         scraper.confirmEmptySnapshot(
-            "Complete SyncPresentations collection contained only films excluded by the existing language rules"
+            "Complete SyncPresentations collection yielded no current Cinema City screenings; "
+            f"expired={scraper._coverage['presentations_skipped_expired']}, "
+            f"title_filtered={scraper._coverage['presentations_skipped_by_title']}"
         )
