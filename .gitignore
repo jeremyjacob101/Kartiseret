@@ -71,3 +71,7 @@ backend/config/cron/run_realtime_logs/
 !.env.example
 .vercel
 .env*
+
+# Xcode per-user workspace state
+**/xcuserdata/
+*.xcuserstate
