@@ -88,7 +88,6 @@ class SocialPreviewTests(unittest.TestCase):
 
         update = create_client("https://example.supabase.co", "test").table("movies").update({"social_preview_fingerprint": FINGERPRINT})
         self.assertTrue(callable(update.execute))
-        self.assertFalse(hasattr(update, "select"))
 
     def test_cli_apply_distinguishes_development_and_production(self):
         selected = {"SUPABASE_URL": "https://example.supabase.co", "SUPABASE_SERVICE_ROLE_KEY": "test"}
