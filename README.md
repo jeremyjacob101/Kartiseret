@@ -136,7 +136,7 @@ Ashdod, Ashkelon, Ayalon, Beer Sheva, Carmiel, Chadera, Even Yehuda, Givataim, G
 
 - Now playing scrapers: `Lev Cinema`, `Rav Hen`, `MovieLand`, `Hot Cinema`, `Yes Planet`, `Cinema City`
 - Coming-soon scrapers: `Lev Cinema`, `Yes Planet`, `Cinema City`, `Hot Cinema`, `MovieLand`
-- Cinematheque coverage: `Jaffa Cinema`, `Sam Spiegel Cinema`, `Holon Cinematheque`, `Herziliya Cinematheque`, `Haifa Cinematheque`, `Jerusalem Cinematheque`, `Tel Aviv Cinematheque`
+- Active cinematheque scrapers: `Jaffa Cinema`, `Sam Spiegel Cinema`, `Herziliya Cinematheque`, `Haifa Cinematheque`, `Jerusalem Cinematheque`, `Tel Aviv Cinematheque`. Holon is temporarily disabled while this network receives a LiteSpeed 403.
 
 ### Backend Flow
 

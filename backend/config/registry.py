@@ -53,7 +53,9 @@ REGISTRY = {
     "allTheques": [
         JAFCtheque,
         SSCtheque,
-        HOLONtheque,
+        # Temporarily disabled while this network receives a LiteSpeed 403.
+        # Re-enable when the site is reachable again.
+        # HOLONtheque,
         HERZtheque,
         HAIFtheque,
         JLEMtheque,

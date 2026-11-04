@@ -54,8 +54,7 @@ class SamSpiegelTests(unittest.TestCase):
             'ticket': 'https://tickets.example/123',
         })
 
-    def test_sam_and_holon_are_enabled_with_only_verified_requests_default(self):
+    def test_sam_is_enabled_and_holon_is_temporarily_disabled(self):
         self.assertIn(SSCtheque, REGISTRY['allTheques'])
-        self.assertIn(HOLONtheque, REGISTRY['allTheques'])
+        self.assertNotIn(HOLONtheque, REGISTRY['allTheques'])
         self.assertEqual(SSCtheque.DEFAULT_SCRAPE_MODE, 'auto')
-        self.assertEqual(HOLONtheque.DEFAULT_SCRAPE_MODE, 'selenium')
