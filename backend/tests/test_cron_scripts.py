@@ -27,7 +27,12 @@ class CronScriptTests(TestCase):
         runner = root / "runner_fixture"
         runner.write_text(
             "#!/bin/bash\n"
+            "if [[ \"$1\" == \"-m\" && \"$2\" == \"pip\" ]]; then\n"
+            "  printf 'pip\\n' >> \"$CRON_TEST_PYTHON_CALLS\"\n"
+            "  exit \"${CRON_TEST_PIP_STATUS:-0}\"\n"
+            "fi\n"
             "if [[ \"$1\" == \"-u\" ]]; then\n"
+            "  printf 'runner\\n' >> \"$CRON_TEST_PYTHON_CALLS\"\n"
             "  printf '42\\n' > \"$KARTISER_RUN_ID_FILE\"\n"
             "  echo runner-stdout\n"
             "  echo runner-stderr >&2\n"
@@ -44,6 +49,7 @@ class CronScriptTests(TestCase):
             "exit 99\n"
         )
         runner.chmod(0o755)
+        (root / "requirements.txt").write_text("# cron script fixture\n")
         self.git("add", ".", cwd=root)
         self.git("commit", "-m", "Initial fixture", cwd=root)
         self.git("remote", "add", "origin", str(remote), cwd=root)
@@ -81,6 +87,7 @@ class CronScriptTests(TestCase):
                 "HOME": str(directory),
                 "KARTISERET_RECOVERY_ROOT": str(recovery),
                 "CRON_TEST_STATUS": str(status),
+                "CRON_TEST_PYTHON_CALLS": str(directory / "python-calls.log"),
                 "CRON_TEST_UPLOADED_LOG": str(upload_copy),
                 "GIT_CONFIG_NOSYSTEM": "1",
                 "GIT_CONFIG_GLOBAL": os.devnull,
@@ -100,6 +107,10 @@ class CronScriptTests(TestCase):
                     self.assertEqual(self.git("rev-parse", "main", cwd=remote), initial)
                     self.assertEqual(self.git("rev-parse", "HEAD", cwd=root), initial)
                     self.assertEqual(self.git("status", "--porcelain", cwd=root), "")
+                    self.assertEqual(
+                        (Path(temp) / "python-calls.log").read_text().splitlines(),
+                        ["pip", "runner"],
+                    )
                     transcript = uploaded.read_text()
                     self.assertIn("runner-stdout", transcript)
                     self.assertIn("runner-stderr", transcript)
