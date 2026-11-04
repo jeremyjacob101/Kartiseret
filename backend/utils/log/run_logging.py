@@ -69,9 +69,11 @@ def allocate_run_id(on_allocated: Callable[[int], None] | None = None) -> int:
     except Exception as error:
         if inserted and new_id is not None:
             try:
-                sb.table("utilRunLogs").update({
+                response = sb.table("utilRunLogs").update({
                     "successful": False, "running_now": False, "total_time": 0.0,
                 }).eq("run_id", int(new_id)).execute()
+                if not (response.data or []):
+                    raise RuntimeError("Supabase did not confirm run allocation failure finalization")
             except Exception:
                 write_recovery_envelope(
                     "run_finalization",

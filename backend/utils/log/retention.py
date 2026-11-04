@@ -63,7 +63,10 @@ def cleanup_by_storage(store, *, now=None):
                     if not re.match(rf'^runs/\d{{4}}-\d{{2}}-\d{{2}}/{run_id}/', item['object_key']):
                         raise CloudflareStorageError('Invalid screenshot key in D1.')
                 client = store.r2 or _r2_client()
-                response = client.delete_objects(Bucket=store.bucket, Delete={'Objects': [{'Key': item['object_key']} for item in objects], 'Quiet': True})
+                try:
+                    response = client.delete_objects(Bucket=store.bucket, Delete={'Objects': [{'Key': item['object_key']} for item in objects], 'Quiet': True})
+                except Exception as error:
+                    raise CloudflareStorageError(f'R2 screenshot cleanup failed ({type(error).__name__}); metadata retained.') from error
                 if response.get('Errors'):
                     raise CloudflareStorageError('R2 did not confirm all screenshot deletions.')
                 renew_lease()

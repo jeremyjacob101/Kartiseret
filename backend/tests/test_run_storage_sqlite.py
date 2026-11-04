@@ -72,7 +72,7 @@ class SQLiteRunStorageTests(TestCase):
         r2 = Mock()
         r2.delete_objects.side_effect = RuntimeError('offline')
         store = RunArtifactStore(d1, r2_client=r2, bucket='dev')
-        with self.assertRaisesRegex(RuntimeError, 'offline'):
+        with self.assertRaisesRegex(CloudflareStorageError, 'R2 screenshot cleanup failed'):
             store.check_storage()
         self.assertEqual(d1.connection.execute('SELECT count(*) FROM artifacts').fetchone()[0], 1)
         r2.delete_objects.side_effect = None

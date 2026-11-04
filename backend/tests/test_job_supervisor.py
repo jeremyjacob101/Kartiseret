@@ -326,6 +326,29 @@ os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps(event) + '\\n
             storage.attach_run_id_to_lease.assert_called_once_with(storage.acquire_run_lease.return_value, 42)
             storage.start_run.assert_called_once()
 
+    def test_failed_d1_start_records_unconfirmed_when_supabase_update_is_empty(self):
+        from backend.utils.log import run_logging
+        empty = Mock()
+        empty.select.return_value.eq.return_value.limit.return_value.execute.return_value = SimpleNamespace(data=[])
+        latest = Mock()
+        latest.select.return_value.order.return_value.limit.return_value.execute.return_value = SimpleNamespace(data=[{'run_id': 41}])
+        insert = Mock()
+        finalize = Mock()
+        finalize.update.return_value.eq.return_value.execute.return_value = SimpleNamespace(data=[])
+        client = Mock()
+        client.table.side_effect = [empty, latest, insert, finalize]
+        storage = Mock()
+        storage.start_run.side_effect = RuntimeError('D1 unavailable')
+        with patch.dict(os.environ, {'SUPABASE_URL': 'https://dev.example', 'SUPABASE_SERVICE_ROLE_KEY': 'test'}), patch(
+            'backend.utils.log.run_logging.create_client', return_value=client
+        ), patch('backend.utils.log.run_logging.RunArtifactStore', return_value=storage), patch(
+            'backend.utils.log.run_logging.write_recovery_envelope'
+        ) as recovery:
+            with self.assertRaisesRegex(RuntimeError, 'D1 unavailable'):
+                run_logging.allocate_run_id()
+        self.assertEqual(recovery.call_args.args[2]['status'], 'unconfirmed')
+        storage.release_run_lease.assert_called_once()
+
 
 if __name__ == "__main__":
     import unittest

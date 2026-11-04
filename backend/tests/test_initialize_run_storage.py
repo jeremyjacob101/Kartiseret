@@ -33,7 +33,7 @@ class InitializeRunStorageTests(TestCase):
         with patch.object(initialize_run_storage, "load_dotenv"), patch.object(
             initialize_run_storage,
             "resolve_target_environment",
-            side_effect=ValueError("development D1 Worker secret is missing"),
+            side_effect=ValueError("development D1 API token is missing"),
         ), patch.object(initialize_run_storage, "RunArtifactStore") as store:
             self.assertEqual(initialize_run_storage.main(["--target", "development"]), 2)
         store.assert_not_called()

@@ -210,4 +210,3 @@ def remove_recovery_envelope(paths: tuple[Path, Path | None]) -> None:
                 path.unlink()
             except FileNotFoundError:
                 pass
-

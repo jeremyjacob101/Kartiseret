@@ -139,7 +139,7 @@ class RunArtifactStorageTests(TestCase):
         d1 = FakeD1()
         store = RunArtifactStore(d1, r2_client=failing_r2, bucket="private-test")
         with TemporaryDirectory() as directory, patch.dict(os.environ, {"KARTISERET_RECOVERY_ROOT": directory}):
-            with self.assertRaisesRegex(RuntimeError, "R2 unavailable"):
+            with self.assertRaisesRegex(CloudflareStorageError, "R2 screenshot upload failed"):
                 store.save_file_artifact(
                     run_id=6, artifact_type="screenshots", name="x.png",
                     content=b"png", content_type="image/png",

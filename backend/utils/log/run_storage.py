@@ -430,11 +430,14 @@ class RunArtifactStore:
         recovery = write_recovery_envelope("file_artifacts", artifact_id, payload, upload_bytes)
         try:
             client = self.r2 or _r2_client()
-            client.put_object(
-                Bucket=self.bucket, Key=object_key, Body=upload_bytes,
-                ContentType=content_type,
-                Metadata={"run-id": str(run_id or "unassigned"), "artifact-type": _safe_segment(artifact_type), "created-at": timestamp},
-            )
+            try:
+                client.put_object(
+                    Bucket=self.bucket, Key=object_key, Body=upload_bytes,
+                    ContentType=content_type,
+                    Metadata={"run-id": str(run_id or "unassigned"), "artifact-type": _safe_segment(artifact_type), "created-at": timestamp},
+                )
+            except Exception as error:
+                raise CloudflareStorageError(f"R2 screenshot upload failed ({type(error).__name__}); local recovery copy retained.") from error
             self._insert_artifact_row(
                 artifact_id=artifact_id, run_id=run_id, artifact_type=artifact_type,
                 name=name, object_key=object_key, content_type=content_type,
@@ -588,4 +591,3 @@ def optimize_screenshot(png_bytes: bytes, *, quality: int = 82, max_width: int =
         }
     finally:
         Image.MAX_IMAGE_PIXELS = original_pixel_limit
-
