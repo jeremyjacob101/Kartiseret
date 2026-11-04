@@ -1,0 +1,1037 @@
+{
+  "requests_started_at": "2026-11-04T16:30:17.782792+00:00",
+  "selenium_detail_started_at": "2026-11-04T16:31:19.594532+00:00",
+  "selenium_detail_duration_seconds": 15.217551208974328,
+  "requests_duration_seconds": 0.6704717079992406,
+  "rows_checked": 54,
+  "matched": 54,
+  "mismatches": [],
+  "checks": [
+    {
+      "feature_id": "6023",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "חתול תעלול",
+        "english_title": "The Cat In The Hat",
+        "runtime": 91,
+        "rating": null,
+        "release_date": "2026-12-03"
+      },
+      "requests": {
+        "hebrew_title": "חתול תעלול",
+        "english_title": "The Cat In The Hat",
+        "runtime": 91,
+        "rating": null,
+        "release_date": "2026-12-03"
+      }
+    },
+    {
+      "feature_id": "6076",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "וולפגנג",
+        "english_title": "Wolfgang",
+        "runtime": 110,
+        "rating": null,
+        "release_date": "2026-11-19"
+      },
+      "requests": {
+        "hebrew_title": "וולפגנג",
+        "english_title": "Wolfgang",
+        "runtime": 110,
+        "rating": null,
+        "release_date": "2026-11-19"
+      }
+    },
+    {
+      "feature_id": "6106",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "הבריחה מקאבול",
+        "english_title": "IN THE HELL OF KABUL: 13 DAYS, 13 NIGHTS",
+        "runtime": 112,
+        "rating": "All",
+        "release_date": "2026-12-31"
+      },
+      "requests": {
+        "hebrew_title": "הבריחה מקאבול",
+        "english_title": "IN THE HELL OF KABUL: 13 DAYS, 13 NIGHTS",
+        "runtime": 112,
+        "rating": "All",
+        "release_date": "2026-12-31"
+      }
+    },
+    {
+      "feature_id": "6120",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "מחר יהיה טוב",
+        "english_title": "Cetait vmieux Demain",
+        "runtime": 103,
+        "rating": "All",
+        "release_date": "2026-11-12"
+      },
+      "requests": {
+        "hebrew_title": "מחר יהיה טוב",
+        "english_title": "Cetait vmieux Demain",
+        "runtime": 103,
+        "rating": "All",
+        "release_date": "2026-11-12"
+      }
+    },
+    {
+      "feature_id": "6305",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "משחקי הרעב: זריחה על האסיף",
+        "english_title": "The Hunger Games: Sunrise on the Reaping",
+        "runtime": 158,
+        "rating": null,
+        "release_date": "2026-11-19"
+      },
+      "requests": {
+        "hebrew_title": "משחקי הרעב: זריחה על האסיף",
+        "english_title": "The Hunger Games: Sunrise on the Reaping",
+        "runtime": 158,
+        "rating": null,
+        "release_date": "2026-11-19"
+      }
+    },
+    {
+      "feature_id": "6425",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "הכריסטופרים",
+        "english_title": "The Christophers",
+        "runtime": 100,
+        "rating": null,
+        "release_date": "2026-11-19"
+      },
+      "requests": {
+        "hebrew_title": "הכריסטופרים",
+        "english_title": "The Christophers",
+        "runtime": 100,
+        "rating": null,
+        "release_date": "2026-11-19"
+      }
+    },
+    {
+      "feature_id": "6460",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "פגוש את הכלה",
+        "english_title": "Focker In-Law",
+        "runtime": 105,
+        "rating": null,
+        "release_date": "2026-11-26"
+      },
+      "requests": {
+        "hebrew_title": "פגוש את הכלה",
+        "english_title": "Focker In-Law",
+        "runtime": 105,
+        "rating": null,
+        "release_date": "2026-11-26"
+      }
+    },
+    {
+      "feature_id": "6532",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "איך לשדוד בנק",
+        "english_title": "How to Rob a Bank",
+        "runtime": 122,
+        "rating": null,
+        "release_date": "2026-11-12"
+      },
+      "requests": {
+        "hebrew_title": "איך לשדוד בנק",
+        "english_title": "How to Rob a Bank",
+        "runtime": 122,
+        "rating": null,
+        "release_date": "2026-11-12"
+      }
+    },
+    {
+      "feature_id": "6536",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "עידן הקרח: חם אש",
+        "english_title": "Ice Age: Boiling Point",
+        "runtime": 103,
+        "rating": null,
+        "release_date": "2027-02-04"
+      },
+      "requests": {
+        "hebrew_title": "עידן הקרח: חם אש",
+        "english_title": "Ice Age: Boiling Point",
+        "runtime": 103,
+        "rating": null,
+        "release_date": "2027-02-04"
+      }
+    },
+    {
+      "feature_id": "6538",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "גאטו",
+        "english_title": "Gatto",
+        "runtime": 130,
+        "rating": null,
+        "release_date": "2027-03-04"
+      },
+      "requests": {
+        "hebrew_title": "גאטו",
+        "english_title": "Gatto",
+        "runtime": 130,
+        "rating": null,
+        "release_date": "2027-03-04"
+      }
+    },
+    {
+      "feature_id": "6540",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "אנגרי בירדס 3",
+        "english_title": "Angry Birds 3",
+        "runtime": 130,
+        "rating": null,
+        "release_date": "2026-12-24"
+      },
+      "requests": {
+        "hebrew_title": "אנגרי בירדס 3",
+        "english_title": "Angry Birds 3",
+        "runtime": 130,
+        "rating": null,
+        "release_date": "2026-12-24"
+      }
+    },
+    {
+      "feature_id": "6544",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "הקס: עולם מכושף",
+        "english_title": "Hexed",
+        "runtime": 109,
+        "rating": null,
+        "release_date": "2026-12-03"
+      },
+      "requests": {
+        "hebrew_title": "הקס: עולם מכושף",
+        "english_title": "Hexed",
+        "runtime": 109,
+        "rating": null,
+        "release_date": "2026-12-03"
+      }
+    },
+    {
+      "feature_id": "6551",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "ג'ומנג'י: הבריחה הגדולה",
+        "english_title": "Jumanji: Open World",
+        "runtime": 130,
+        "rating": null,
+        "release_date": "2026-12-31"
+      },
+      "requests": {
+        "hebrew_title": "ג'ומנג'י: הבריחה הגדולה",
+        "english_title": "Jumanji: Open World",
+        "runtime": 130,
+        "rating": null,
+        "release_date": "2026-12-31"
+      }
+    },
+    {
+      "feature_id": "6554",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "השוד המושלם",
+        "english_title": "The Thomas Crown Affair",
+        "runtime": 130,
+        "rating": null,
+        "release_date": "2027-03-04"
+      },
+      "requests": {
+        "hebrew_title": "השוד המושלם",
+        "english_title": "The Thomas Crown Affair",
+        "runtime": 130,
+        "rating": null,
+        "release_date": "2027-03-04"
+      }
+    },
+    {
+      "feature_id": "6567",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "ספיידר איילנד",
+        "english_title": "Spider Island",
+        "runtime": 95,
+        "rating": null,
+        "release_date": "2027-02-25"
+      },
+      "requests": {
+        "hebrew_title": "ספיידר איילנד",
+        "english_title": "Spider Island",
+        "runtime": 95,
+        "rating": null,
+        "release_date": "2027-02-25"
+      }
+    },
+    {
+      "feature_id": "6568",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "הנמלט",
+        "english_title": "The Mongoose",
+        "runtime": 98,
+        "rating": null,
+        "release_date": "2026-11-12"
+      },
+      "requests": {
+        "hebrew_title": "הנמלט",
+        "english_title": "The Mongoose",
+        "runtime": 98,
+        "rating": null,
+        "release_date": "2026-11-12"
+      }
+    },
+    {
+      "feature_id": "6579",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "נערה ללא שם",
+        "english_title": "Louise",
+        "runtime": 108,
+        "rating": "All",
+        "release_date": "2026-12-24"
+      },
+      "requests": {
+        "hebrew_title": "נערה ללא שם",
+        "english_title": "Louise",
+        "runtime": 108,
+        "rating": "All",
+        "release_date": "2026-12-24"
+      }
+    },
+    {
+      "feature_id": "6580",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "הזייפן",
+        "english_title": "The Money Maker",
+        "runtime": 128,
+        "rating": "All",
+        "release_date": "2027-01-14"
+      },
+      "requests": {
+        "hebrew_title": "הזייפן",
+        "english_title": "The Money Maker",
+        "runtime": 128,
+        "rating": "All",
+        "release_date": "2027-01-14"
+      }
+    },
+    {
+      "feature_id": "6586",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "קללת איש הזאב",
+        "english_title": "Werewolf",
+        "runtime": 120,
+        "rating": null,
+        "release_date": "2027-01-07"
+      },
+      "requests": {
+        "hebrew_title": "קללת איש הזאב",
+        "english_title": "Werewolf",
+        "runtime": 120,
+        "rating": null,
+        "release_date": "2027-01-07"
+      }
+    },
+    {
+      "feature_id": "6587",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "הרשי",
+        "english_title": "Hershy",
+        "runtime": 110,
+        "rating": null,
+        "release_date": "2027-01-14"
+      },
+      "requests": {
+        "hebrew_title": "הרשי",
+        "english_title": "Hershy",
+        "runtime": 110,
+        "rating": null,
+        "release_date": "2027-01-14"
+      }
+    },
+    {
+      "feature_id": "6588",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "וושינגטון הצעיר",
+        "english_title": "Young Washington",
+        "runtime": 121,
+        "rating": null,
+        "release_date": "2026-11-19"
+      },
+      "requests": {
+        "hebrew_title": "וושינגטון הצעיר",
+        "english_title": "Young Washington",
+        "runtime": 121,
+        "rating": null,
+        "release_date": "2026-11-19"
+      }
+    },
+    {
+      "feature_id": "6590",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "מוס ופרויד",
+        "english_title": "Moss & Freud",
+        "runtime": 100,
+        "rating": "14+",
+        "release_date": "2027-12-30"
+      },
+      "requests": {
+        "hebrew_title": "מוס ופרויד",
+        "english_title": "Moss & Freud",
+        "runtime": 100,
+        "rating": "14+",
+        "release_date": "2027-12-30"
+      }
+    },
+    {
+      "feature_id": "6595",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "מלך הדבורים",
+        "english_title": "The Rivals of Amziah King",
+        "runtime": 130,
+        "rating": null,
+        "release_date": "2026-12-10"
+      },
+      "requests": {
+        "hebrew_title": "מלך הדבורים",
+        "english_title": "The Rivals of Amziah King",
+        "runtime": 130,
+        "rating": null,
+        "release_date": "2026-12-10"
+      }
+    },
+    {
+      "feature_id": "6597",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "נמר של נייר",
+        "english_title": "Paper Tiger",
+        "runtime": 115,
+        "rating": null,
+        "release_date": "2026-11-26"
+      },
+      "requests": {
+        "hebrew_title": "נמר של נייר",
+        "english_title": "Paper Tiger",
+        "runtime": 115,
+        "rating": null,
+        "release_date": "2026-11-26"
+      }
+    },
+    {
+      "feature_id": "6598",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "שבורות",
+        "english_title": "The Wrong Girls",
+        "runtime": 93,
+        "rating": "14+",
+        "release_date": "2026-12-03"
+      },
+      "requests": {
+        "hebrew_title": "שבורות",
+        "english_title": "The Wrong Girls",
+        "runtime": 93,
+        "rating": "14+",
+        "release_date": "2026-12-03"
+      }
+    },
+    {
+      "feature_id": "6602",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "מופע - געגע בקרקס המשוגע",
+        "english_title": "מופע - געגע בקרקס המשוגע",
+        "runtime": 60,
+        "rating": "All",
+        "release_date": "2026-11-15"
+      },
+      "requests": {
+        "hebrew_title": "מופע - געגע בקרקס המשוגע",
+        "english_title": "מופע - געגע בקרקס המשוגע",
+        "runtime": 60,
+        "rating": "All",
+        "release_date": "2026-11-15"
+      }
+    },
+    {
+      "feature_id": "6626",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "פנתר כפול",
+        "english_title": "פנתר כפול",
+        "runtime": 97,
+        "rating": null,
+        "release_date": "2026-12-10"
+      },
+      "requests": {
+        "hebrew_title": "פנתר כפול",
+        "english_title": "פנתר כפול",
+        "runtime": 97,
+        "rating": null,
+        "release_date": "2026-12-10"
+      }
+    },
+    {
+      "feature_id": "6628",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "שעתיד לבוא",
+        "english_title": "What is to Come",
+        "runtime": 82,
+        "rating": null,
+        "release_date": "2026-11-26"
+      },
+      "requests": {
+        "hebrew_title": "שעתיד לבוא",
+        "english_title": "What is to Come",
+        "runtime": 82,
+        "rating": null,
+        "release_date": "2026-11-26"
+      }
+    },
+    {
+      "feature_id": "6631",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "לאן لوين",
+        "english_title": "Where To",
+        "runtime": 95,
+        "rating": "All",
+        "release_date": "2026-11-19"
+      },
+      "requests": {
+        "hebrew_title": "לאן لوين",
+        "english_title": "Where To",
+        "runtime": 95,
+        "rating": "All",
+        "release_date": "2026-11-19"
+      }
+    },
+    {
+      "feature_id": "6632",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "סקרוג'",
+        "english_title": "Ebenezer",
+        "runtime": 116,
+        "rating": null,
+        "release_date": "2026-11-12"
+      },
+      "requests": {
+        "hebrew_title": "סקרוג'",
+        "english_title": "Ebenezer",
+        "runtime": 116,
+        "rating": null,
+        "release_date": "2026-11-12"
+      }
+    },
+    {
+      "feature_id": "6633",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "מי מפחד מסנטה? 2",
+        "english_title": "VIOLENT NIGHT 2",
+        "runtime": 130,
+        "rating": null,
+        "release_date": "2026-12-03"
+      },
+      "requests": {
+        "hebrew_title": "מי מפחד מסנטה? 2",
+        "english_title": "VIOLENT NIGHT 2",
+        "runtime": 130,
+        "rating": null,
+        "release_date": "2026-12-03"
+      }
+    },
+    {
+      "feature_id": "6648",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "מכתבים צהובים",
+        "english_title": "Yellow Letters",
+        "runtime": 128,
+        "rating": null,
+        "release_date": "2027-01-14"
+      },
+      "requests": {
+        "hebrew_title": "מכתבים צהובים",
+        "english_title": "Yellow Letters",
+        "runtime": 128,
+        "rating": null,
+        "release_date": "2027-01-14"
+      }
+    },
+    {
+      "feature_id": "6650",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "אני רוקי",
+        "english_title": "I Play Rocky",
+        "runtime": 128,
+        "rating": "All",
+        "release_date": "2026-12-03"
+      },
+      "requests": {
+        "hebrew_title": "אני רוקי",
+        "english_title": "I Play Rocky",
+        "runtime": 128,
+        "rating": "All",
+        "release_date": "2026-12-03"
+      }
+    },
+    {
+      "feature_id": "6656",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "סליי גראונד",
+        "english_title": "Slayground",
+        "runtime": 90,
+        "rating": null,
+        "release_date": "2027-01-28"
+      },
+      "requests": {
+        "hebrew_title": "סליי גראונד",
+        "english_title": "Slayground",
+        "runtime": 90,
+        "rating": null,
+        "release_date": "2027-01-28"
+      }
+    },
+    {
+      "feature_id": "6657",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "העולם ירעד",
+        "english_title": "The World Will Tremble",
+        "runtime": 109,
+        "rating": null,
+        "release_date": "2027-01-28"
+      },
+      "requests": {
+        "hebrew_title": "העולם ירעד",
+        "english_title": "The World Will Tremble",
+        "runtime": 109,
+        "rating": null,
+        "release_date": "2027-01-28"
+      }
+    },
+    {
+      "feature_id": "6658",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "פנטום האופרה",
+        "english_title": "Phantom of the Opera",
+        "runtime": 134,
+        "rating": null,
+        "release_date": "2026-12-03"
+      },
+      "requests": {
+        "hebrew_title": "פנטום האופרה",
+        "english_title": "Phantom of the Opera",
+        "runtime": 134,
+        "rating": null,
+        "release_date": "2026-12-03"
+      }
+    },
+    {
+      "feature_id": "6660",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "נעלמת ללא עקבות",
+        "english_title": "PROTECTOR",
+        "runtime": 92,
+        "rating": null,
+        "release_date": "2026-11-26"
+      },
+      "requests": {
+        "hebrew_title": "נעלמת ללא עקבות",
+        "english_title": "PROTECTOR",
+        "runtime": 92,
+        "rating": null,
+        "release_date": "2026-11-26"
+      }
+    },
+    {
+      "feature_id": "6661",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "סינדרלה - המחזמר",
+        "english_title": "סינדרלה - המחזמר",
+        "runtime": 120,
+        "rating": "All",
+        "release_date": "2026-12-30"
+      },
+      "requests": {
+        "hebrew_title": "סינדרלה - המחזמר",
+        "english_title": "סינדרלה - המחזמר",
+        "runtime": 120,
+        "rating": "All",
+        "release_date": "2026-12-30"
+      }
+    },
+    {
+      "feature_id": "6664",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "שעת האפס",
+        "english_title": "PRESSURE",
+        "runtime": 100,
+        "rating": null,
+        "release_date": "2027-02-04"
+      },
+      "requests": {
+        "hebrew_title": "שעת האפס",
+        "english_title": "PRESSURE",
+        "runtime": 100,
+        "rating": null,
+        "release_date": "2027-02-04"
+      }
+    },
+    {
+      "feature_id": "6669",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "שתי פנים",
+        "english_title": "Prima Facie",
+        "runtime": 106,
+        "rating": null,
+        "release_date": "2026-12-24"
+      },
+      "requests": {
+        "hebrew_title": "שתי פנים",
+        "english_title": "Prima Facie",
+        "runtime": 106,
+        "rating": null,
+        "release_date": "2026-12-24"
+      }
+    },
+    {
+      "feature_id": "6670",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "שיעור באהבה",
+        "english_title": "Love in separate beds",
+        "runtime": 107,
+        "rating": "12+",
+        "release_date": "2026-11-19"
+      },
+      "requests": {
+        "hebrew_title": "שיעור באהבה",
+        "english_title": "Love in separate beds",
+        "runtime": 107,
+        "rating": "12+",
+        "release_date": "2026-11-19"
+      }
+    },
+    {
+      "feature_id": "6672",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "יער פרא",
+        "english_title": "Wildwood",
+        "runtime": 139,
+        "rating": "12+",
+        "release_date": "2026-11-12"
+      },
+      "requests": {
+        "hebrew_title": "יער פרא",
+        "english_title": "Wildwood",
+        "runtime": 139,
+        "rating": "12+",
+        "release_date": "2026-11-12"
+      }
+    },
+    {
+      "feature_id": "6673",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "הכישרון של גברת הייסמית'",
+        "english_title": "A Talent For Murder",
+        "runtime": 106,
+        "rating": "14+",
+        "release_date": "2026-11-12"
+      },
+      "requests": {
+        "hebrew_title": "הכישרון של גברת הייסמית'",
+        "english_title": "A Talent For Murder",
+        "runtime": 106,
+        "rating": "14+",
+        "release_date": "2026-11-12"
+      }
+    },
+    {
+      "feature_id": "6676",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "ראמאיאנה: אגדה עולה",
+        "english_title": "Ramayana: Rise of a Legend",
+        "runtime": 195,
+        "rating": null,
+        "release_date": "2026-11-12"
+      },
+      "requests": {
+        "hebrew_title": "ראמאיאנה: אגדה עולה",
+        "english_title": "Ramayana: Rise of a Legend",
+        "runtime": 195,
+        "rating": null,
+        "release_date": "2026-11-12"
+      }
+    },
+    {
+      "feature_id": "6677",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "מטוטלת",
+        "english_title": "Pendulum",
+        "runtime": 109,
+        "rating": null,
+        "release_date": "2027-01-07"
+      },
+      "requests": {
+        "hebrew_title": "מטוטלת",
+        "english_title": "Pendulum",
+        "runtime": 109,
+        "rating": null,
+        "release_date": "2027-01-07"
+      }
+    },
+    {
+      "feature_id": "6678",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "נרניה: אחיינו של הקוסם",
+        "english_title": "Narnia: The Magician's Nephew",
+        "runtime": 130,
+        "rating": null,
+        "release_date": "2027-02-11"
+      },
+      "requests": {
+        "hebrew_title": "נרניה: אחיינו של הקוסם",
+        "english_title": "Narnia: The Magician's Nephew",
+        "runtime": 130,
+        "rating": null,
+        "release_date": "2027-02-11"
+      }
+    },
+    {
+      "feature_id": "6681",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "שרק 5",
+        "english_title": "SHREK 5",
+        "runtime": 120,
+        "rating": null,
+        "release_date": "2027-07-01"
+      },
+      "requests": {
+        "hebrew_title": "שרק 5",
+        "english_title": "SHREK 5",
+        "runtime": 120,
+        "rating": null,
+        "release_date": "2027-07-01"
+      }
+    },
+    {
+      "feature_id": "6687",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "קלאב קיד",
+        "english_title": "Club Kid",
+        "runtime": 122,
+        "rating": null,
+        "release_date": "2026-11-26"
+      },
+      "requests": {
+        "hebrew_title": "קלאב קיד",
+        "english_title": "Club Kid",
+        "runtime": 122,
+        "rating": null,
+        "release_date": "2026-11-26"
+      }
+    },
+    {
+      "feature_id": "6688",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "גירושים: סיפור אהבה",
+        "english_title": "What is Love",
+        "runtime": 100,
+        "rating": "9+",
+        "release_date": "2026-12-17"
+      },
+      "requests": {
+        "hebrew_title": "גירושים: סיפור אהבה",
+        "english_title": "What is Love",
+        "runtime": 100,
+        "rating": "9+",
+        "release_date": "2026-12-17"
+      }
+    },
+    {
+      "feature_id": "6690",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "You Can See Everything",
+        "english_title": "You Can See Everything",
+        "runtime": 174,
+        "rating": null,
+        "release_date": "2026-11-26"
+      },
+      "requests": {
+        "hebrew_title": "You Can See Everything",
+        "english_title": "You Can See Everything",
+        "runtime": 174,
+        "rating": null,
+        "release_date": "2026-11-26"
+      }
+    },
+    {
+      "feature_id": "6691",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "שטח אש",
+        "english_title": "Brothers Under Fire",
+        "runtime": 101,
+        "rating": null,
+        "release_date": "2026-12-03"
+      },
+      "requests": {
+        "hebrew_title": "שטח אש",
+        "english_title": "Brothers Under Fire",
+        "runtime": 101,
+        "rating": null,
+        "release_date": "2026-12-03"
+      }
+    },
+    {
+      "feature_id": "6692",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "לאקי סטרייק",
+        "english_title": "Lucky Strike",
+        "runtime": 103,
+        "rating": null,
+        "release_date": "2027-02-11"
+      },
+      "requests": {
+        "hebrew_title": "לאקי סטרייק",
+        "english_title": "Lucky Strike",
+        "runtime": 103,
+        "rating": null,
+        "release_date": "2027-02-11"
+      }
+    },
+    {
+      "feature_id": "6693",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "הכוורן 2",
+        "english_title": "2 The Beekeeper",
+        "runtime": 130,
+        "rating": null,
+        "release_date": "2027-01-14"
+      },
+      "requests": {
+        "hebrew_title": "הכוורן 2",
+        "english_title": "2 The Beekeeper",
+        "runtime": 130,
+        "rating": null,
+        "release_date": "2027-01-14"
+      }
+    },
+    {
+      "feature_id": "6694",
+      "status": "ok",
+      "match": true,
+      "actual": {
+        "hebrew_title": "מרתון חולית: חלק 1+2",
+        "english_title": "מרתון חולית",
+        "runtime": 332,
+        "rating": "12+",
+        "release_date": "2026-12-08"
+      },
+      "requests": {
+        "hebrew_title": "מרתון חולית: חלק 1+2",
+        "english_title": "מרתון חולית",
+        "runtime": 332,
+        "rating": "12+",
+        "release_date": "2026-12-08"
+      }
+    }
+  ]
+}

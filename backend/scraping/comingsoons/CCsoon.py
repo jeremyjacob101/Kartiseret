@@ -8,6 +8,11 @@ import re
 class CCsoon(BaseCinema):
     CINEMA_NAME = "Cinema City"
     URL = "https://www.cinema-city.co.il/movie-categories/coming-soon"
+    DEFAULT_SCRAPE_MODE = "auto"
+
+    def requests_logic(self):
+        from backend.scraping.utils.CinemaCityRequests import collect_cinema_city_coming_soon
+        return collect_cinema_city_coming_soon(self)
 
     def parseReleaseDate(self, value):
         release_date = re.sub(r"[\u200b-\u200f\u202a-\u202e\u2066-\u2069]", "", value or "").strip().replace(".", "/")

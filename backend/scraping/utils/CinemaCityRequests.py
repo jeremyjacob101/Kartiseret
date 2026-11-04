@@ -139,11 +139,12 @@ def _bootstrap_public_token(session, scraper):
     return app_id, public_token
 
 
-def _query_collection(session, app_id, public_token, collection_name):
+def _query_collection(session, app_id, public_token, collection_name, *, require_total=False):
     offset = 0
     page_number = 0
     records = []
     source_ids = set()
+    expected_total = None
 
     while True:
         page_number += 1
@@ -172,12 +173,24 @@ def _query_collection(session, app_id, public_token, collection_name):
             raise ValueError(f"Cinema City {collection_name} response is missing data or paging metadata")
         if not isinstance(paging.get("hasNext"), bool):
             raise ValueError(f"Cinema City {collection_name} response is missing hasNext paging evidence")
+        page_total = paging.get("total")
+        if page_total is None:
+            if require_total:
+                raise ValueError(f"Cinema City {collection_name} response is missing total-count paging evidence")
+        elif isinstance(page_total, bool) or not isinstance(page_total, int) or page_total < 0:
+            raise ValueError(f"Cinema City {collection_name} returned an invalid total count")
+        elif expected_total is None:
+            expected_total = page_total
+        elif page_total != expected_total:
+            raise ValueError(f"Cinema City {collection_name} total count changed during pagination")
         if paging.get("offset") is not None and paging["offset"] != offset:
             raise ValueError(f"Cinema City {collection_name} returned the wrong page offset")
         if paging["hasNext"] and not items:
             raise ValueError(f"Cinema City {collection_name} pagination stalled at offset {offset}")
         if len(items) > PAGE_SIZE:
             raise ValueError(f"Cinema City {collection_name} exceeded the requested page size")
+        if expected_total is not None and len(records) + len(items) > expected_total:
+            raise ValueError(f"Cinema City {collection_name} exceeded its reported total count")
 
         for item in items:
             if not isinstance(item, dict) or not isinstance(item.get("data"), dict):
@@ -191,6 +204,11 @@ def _query_collection(session, app_id, public_token, collection_name):
             records.append(item["data"])
 
         if not paging["hasNext"]:
+            if expected_total is not None and len(records) != expected_total:
+                raise ValueError(
+                    f"Cinema City {collection_name} pagination ended after {len(records)} rows; "
+                    f"source reported {expected_total}"
+                )
             break
         offset += len(items)
         if page_number > 100:
@@ -411,4 +429,147 @@ def collect_cinema_city(scraper):
             "Complete SyncPresentations collection yielded no current Cinema City screenings; "
             f"expired={scraper._coverage['presentations_skipped_expired']}, "
             f"title_filtered={scraper._coverage['presentations_skipped_by_title']}"
+        )
+
+
+COMING_SOON_EXCLUDED_TITLE_MARKERS = (
+    "מדובב לרוסית",
+    "בתרגום לרוסית",
+    "מדובב לצרפתית",
+    "בתרגום לצרפתית",
+    "מתורגם לצרפתית",
+    "מתורגם לרוסית",
+    "סינמה קידס",
+    "cook",
+    "מדובב",
+    "hfr",
+)
+
+
+def _coming_soon_title(value):
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("Cinema City feature has no Hebrew title")
+    title = value.strip()
+    if any(marker in title.lower() for marker in COMING_SOON_EXCLUDED_TITLE_MARKERS):
+        return None
+    if "תלת מימד" in title:
+        title = re.sub(r"\s*[-–—־]?\s*תלת מימד\s*[-–—־]?\s*", "", title).strip()
+    elif "אנגלית" in title:
+        title = re.sub(r"\s*[-–—־]?\s*אנגלית\s*[-–—־]?\s*", "", title).strip()
+    if not title:
+        raise ValueError("Cinema City coming-soon title became empty after removing its suffix")
+    return title
+
+
+def _coming_soon_runtime(value, feature_id):
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    if isinstance(value, bool):
+        raise ValueError(f"Cinema City feature {feature_id} has an invalid runtime")
+    try:
+        runtime_value = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"Cinema City feature {feature_id} has an invalid runtime") from error
+    if not runtime_value.is_integer():
+        raise ValueError(f"Cinema City feature {feature_id} runtime is not a whole number of minutes")
+    return int(runtime_value)
+
+
+def collect_cinema_city_coming_soon(scraper):
+    scraper._coverage = {
+        "features_expected": 0,
+        "features_upcoming_expected": 0,
+        "features_collected": 0,
+        "features_skipped_before_today": 0,
+        "features_skipped_with_presentations": 0,
+        "features_skipped_by_title": 0,
+        "collection_pages": 0,
+    }
+
+    with requests.Session() as session:
+        app_id, public_token = _bootstrap_public_token(session, scraper)
+        features, feature_pages = _query_collection(
+            session, app_id, public_token, "SyncFeatures", require_total=True
+        )
+
+    today = scraper.today_date.date()
+    scraper._coverage["features_expected"] = len(features)
+    scraper._coverage["collection_pages"] = feature_pages
+    seen_feature_ids = set()
+
+    for feature in features:
+        feature_id = _normalize_id(feature.get("externalId"), "coming-soon feature id")
+        if feature_id in seen_feature_ids:
+            raise ValueError(f"Cinema City feature catalog repeats feature id {feature_id}")
+        seen_feature_ids.add(feature_id)
+
+        # Validate release dates for the entire discovered catalog before using
+        # them to decide which films are still coming soon.
+        release_date = _local_date(feature.get("dateStarted"), f"feature {feature_id} release date")
+        if "closestPresentationDateTime" not in feature:
+            raise ValueError(f"Cinema City feature {feature_id} is missing presentation-status evidence")
+        closest_presentation = feature.get("closestPresentationDateTime")
+        if closest_presentation is not None:
+            _local_date(closest_presentation, f"feature {feature_id} closest presentation date")
+        if release_date < today:
+            scraper._coverage["features_skipped_before_today"] += 1
+            continue
+        scraper._coverage["features_upcoming_expected"] += 1
+        if closest_presentation is not None:
+            scraper._coverage["features_skipped_with_presentations"] += 1
+            continue
+
+        title = _coming_soon_title(feature.get("name"))
+        if title is None:
+            scraper._coverage["features_skipped_by_title"] += 1
+            continue
+
+        additional_name = feature.get("additionalName")
+        if additional_name is not None and not isinstance(additional_name, str):
+            raise ValueError(f"Cinema City feature {feature_id} has an invalid English title")
+        english_title = (additional_name or "").replace("\u200b", "").strip() or title
+
+        rating = feature.get("ratingName")
+        if rating is not None and not isinstance(rating, str):
+            raise ValueError(f"Cinema City feature {feature_id} has an invalid rating")
+
+        scraper.showtime = None
+        scraper.english_title = english_title
+        scraper.hebrew_title = title
+        scraper.english_href = None
+        scraper.hebrew_href = None
+        scraper.screening_type = None
+        scraper.screening_tech = None
+        scraper.original_language = None
+        scraper.dub_language = None
+        scraper.date_of_showing = None
+        scraper.release_year = None
+        scraper.release_date = release_date.isoformat()
+        scraper.directed_by = None
+        scraper.runtime = _coming_soon_runtime(feature.get("duration"), feature_id)
+        scraper.rating = rating
+        scraper.screening_city = None
+        scraper.appendToGatheringInfo()
+        scraper._coverage["features_collected"] += 1
+
+    accounted_features = sum(
+        scraper._coverage[key]
+        for key in (
+            "features_collected",
+            "features_skipped_before_today",
+            "features_skipped_with_presentations",
+            "features_skipped_by_title",
+        )
+    )
+    if accounted_features != scraper._coverage["features_expected"]:
+        raise ValueError(
+            "Cinema City feature accounting is incomplete: "
+            f"expected {scraper._coverage['features_expected']}, accounted for {accounted_features}"
+        )
+
+    if not features:
+        scraper.confirmEmptySnapshot("Complete SyncFeatures catalog returned no Cinema City films")
+    elif not scraper._coverage["features_collected"]:
+        scraper.confirmEmptySnapshot(
+            "Complete SyncFeatures catalog yielded no upcoming films after release-date and title filters"
         )
