@@ -323,6 +323,7 @@ export const ticketAlertSubscriptions = pgTable(
     deliveryDate: calendarDate("delivery_date"),
     deliveryHref: text("delivery_href"),
     deliveryMovieCode: text("delivery_movie_code"),
+    deliveryFilterMask: integer("delivery_filter_mask").notNull().default(0),
     deliveryAttempts: integer("delivery_attempts").notNull().default(0),
     lastDeliveryAttemptAt: instant("last_delivery_attempt_at"),
     lastDeliveryError: text("last_delivery_error"),

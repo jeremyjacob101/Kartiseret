@@ -33,6 +33,9 @@ from backend.notifications.ticket_alerts import (
     _jerusalem_now,
     _text,
     resolve_ticket_alert_criteria,
+    build_movie_showtime_path,
+    DEFAULT_SITE_URL,
+    safe_site_url,
     send_resend_email,
     valid_ticket_href,
     get_cinema_date,
@@ -93,6 +96,7 @@ def collect_first_availability(
     subscriptions: list,
     locations: dict[str, str],
     now: datetime,
+    movie_codes: dict[int, str] | None = None,
 ) -> list[dict[str, Any]]:
     defaults = {row["user_id"]: row for row in preferences}
     overrides = {
@@ -139,6 +143,7 @@ def collect_first_availability(
             subscriptions=[],
             now=now,
             match_criteria=True,
+            movie_codes=movie_codes,
         )
         first_by_city = {}
         for event in events:
@@ -178,7 +183,11 @@ def collect_first_availability(
     return candidates
 
 
-def render_movie_notification_email(events: list[dict]) -> RenderedEmail:
+def render_movie_notification_email(
+    events: list[dict],
+    site_url: str = DEFAULT_SITE_URL,
+    movie_codes: dict[int, str] | None = None,
+) -> RenderedEmail:
     if not events:
         raise ValueError("A notification email must contain at least one film.")
     sections = defaultdict(dict)
@@ -201,6 +210,7 @@ def render_movie_notification_email(events: list[dict]) -> RenderedEmail:
         n = counts["showtime"]
         subject_parts.append(f"Tickets for {n} film" + ("s" if n != 1 else ""))
     html_sections, text_sections = [], []
+    destination_origin = safe_site_url(site_url)
     for kind in ("coming_soon", "showtime"):
         films = sections.get(kind, {})
         if not films:
@@ -208,10 +218,15 @@ def render_movie_notification_email(events: list[dict]) -> RenderedEmail:
         count = len(films)
         heading = f"{titles[kind]} · {count} film" + ("s" if count != 1 else "")
         html_items, text_items = [], []
-        for payloads in sorted(
-            films.values(), key=lambda items: _text(items[0].get("title")).casefold()
+        for movie_id, payloads in sorted(
+            films.items(), key=lambda item: _text(item[1][0].get("title")).casefold()
         ):
             title = _text(payloads[0].get("title")) or "Untitled movie"
+            try:
+                tmdb_id = int(movie_id)
+            except (TypeError, ValueError):
+                tmdb_id = 0
+            fallback_movie_code = (movie_codes or {}).get(tmdb_id)
             details_html, details_text = [], []
             for payload in sorted(
                 payloads, key=lambda item: item.get("screening_city", "")
@@ -234,10 +249,18 @@ def render_movie_notification_email(events: list[dict]) -> RenderedEmail:
                         f"{payload['screening_city']} · {_friendly_date(payload['date_of_showing'])} "
                         f"at {payload['showtime']} · {payload['cinema']}"
                     )
-                    details_html.append(
-                        f'{escape(detail)} · <a href="{escape(href, quote=True)}">Tickets</a>'
+                    filter_mask = payload.get("filter_mask", 0)
+                    movie_path = build_movie_showtime_path(
+                        _text(payload.get("movie_code")) or fallback_movie_code,
+                        _text(payload.get("screening_city")),
+                        _text(payload.get("date_of_showing")),
+                        filter_mask if isinstance(filter_mask, int) and not isinstance(filter_mask, bool) else 0,
                     )
-                    details_text.append(f"{detail}\n  {href}")
+                    movie_url = f"{destination_origin}{movie_path}"
+                    details_html.append(
+                        f'{escape(detail)} · <a href="{escape(movie_url, quote=True)}">View showtimes</a>'
+                    )
+                    details_text.append(f"{detail}\n  View showtimes: {movie_url}")
             poster_url = _poster_url(payloads[0].get("poster_url"))
             poster_cell = (
                 '<td width="84" valign="top" style="padding:0 16px 0 0;">'
@@ -258,19 +281,22 @@ def render_movie_notification_email(events: list[dict]) -> RenderedEmail:
             )
             ticket_button = ""
             if kind == "showtime":
-                first_href = valid_ticket_href(
-                    {"english_href": payloads[0].get("ticket_href")}
+                first_payload = payloads[0]
+                first_mask = first_payload.get("filter_mask", 0)
+                first_path = build_movie_showtime_path(
+                    _text(first_payload.get("movie_code")) or fallback_movie_code,
+                    _text(first_payload.get("screening_city")),
+                    _text(first_payload.get("date_of_showing")),
+                    first_mask if isinstance(first_mask, int) and not isinstance(first_mask, bool) else 0,
                 )
-                # Every showtime link is validated above; this CTA follows the
-                # first matching screening for the film.
-                if first_href:
-                    ticket_button = (
-                        '<a href="'
-                        + escape(first_href, quote=True)
-                        + '" style="display:inline-block;margin-top:5px;padding:9px 14px;'
-                        'border-radius:6px;background:#5f3b91;color:#ffffff;font-size:13px;'
-                        'font-weight:700;line-height:1.2;text-decoration:none;">View tickets</a>'
-                    )
+                first_movie_url = f"{destination_origin}{first_path}"
+                ticket_button = (
+                    '<a href="'
+                    + escape(first_movie_url, quote=True)
+                    + '" style="display:inline-block;margin-top:5px;padding:9px 14px;'
+                    'border-radius:6px;background:#5f3b91;color:#ffffff;font-size:13px;'
+                    'font-weight:700;line-height:1.2;text-decoration:none;">View showtimes</a>'
+                )
             html_items.append(
                 '<tr><td style="padding:0 0 12px;">'
                 '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
@@ -518,6 +544,7 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
             if ids
             else ([], [], {})
         )
+        movie_codes = self.repository.load_movie_codes(ids) if ids else {}
         preferences, subscriptions = (
             self.repository.load_criteria(sorted(pairs), ids) if ids else ([], [])
         )
@@ -533,6 +560,7 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
             subscriptions=subscriptions,
             locations=locations,
             now=now,
+            movie_codes=movie_codes,
         )
         poster_loader = getattr(self.repository, "load_movie_posters", None)
         posters = poster_loader(ids) if callable(poster_loader) else {}
@@ -568,7 +596,19 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
             try:
                 snapshot = batch.get("email_snapshot")
                 if snapshot is None:
-                    email = render_movie_notification_email(batch["events"])
+                    batch_movie_ids = sorted(
+                        {
+                            int(event["tmdb_id"])
+                            for event in batch["events"]
+                            if str(event.get("tmdb_id", "")).isdigit()
+                        }
+                    )
+                    batch_movie_codes = self.repository.load_movie_codes(
+                        batch_movie_ids
+                    )
+                    email = render_movie_notification_email(
+                        batch["events"], self.config.site_url, batch_movie_codes
+                    )
                     snapshot = {
                         "subject": email.subject,
                         "html": email.html,

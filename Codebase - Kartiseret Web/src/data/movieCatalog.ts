@@ -1,7 +1,7 @@
 import { movieCatalogResponseSchema, publicShowtimeRangeResponseSchema, type MovieCodesStatus as ApiMovieCodesStatus, type MovieCatalogMode, type PublicShowtime } from "@kartiseret/contracts/public-data";
 import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime as shouldIncludeShowtimeAtInstant, SHOWTIME_TIME_ZONE } from "@kartiseret/contracts/showtime-day";
-import { addCalendarDays, getJerusalemCinemaDate, getTargetedShowtimePrefetchRange, SHOWTIME_LINK_DATE_COUNT } from "@kartiseret/contracts/showtime-links";
 import { assertPublication, currentPublicationRevision, publicationOf, refreshPublicationCollections, tagPublication } from "./publicationRevision.js";
+import { addCalendarDays, getJerusalemCinemaDate, getTargetedShowtimePrefetchRange } from "@kartiseret/contracts/showtime-links";
 import { ALL_LOCATIONS, DEFAULT_LOCATION, type AppLocation } from "../prefs/definitions/locations.js";
 import { mutationOptions, queryOptions, type QueryClient } from "@tanstack/react-query";
 import { movieAltOptionSchema, type Movie } from "@kartiseret/contracts/movies";
@@ -710,7 +710,9 @@ export function mergeShowtimeCityData(
     if (merge.targetedLoadedDayCount !== undefined) {
       targetedLoadedDayCountByTmdbId[tmdbId] = Math.max(
         targetedLoadedDayCountByTmdbId[tmdbId] ?? 0,
-        clampShowtimeWindowDayCount(merge.targetedLoadedDayCount),
+        merge.targetedLoadedDayCount > 0
+          ? clampShowtimeWindowDayCount(merge.targetedLoadedDayCount)
+          : 0,
       );
     }
   }
@@ -995,13 +997,7 @@ export function mergeMovieShowtimeRangeResult(
     return null;
   }
 
-  const linkWindowEndDate = addCalendarDays(
-    getJerusalemCinemaDate(),
-    SHOWTIME_LINK_DATE_COUNT - 1,
-  );
-  const visibleDayCount = linkWindowEndDate
-    ? getShowtimeWindowDayCountForDate(linkWindowEndDate)
-    : SHOWTIME_LINK_DATE_COUNT;
+  const visibleDayCount = SHOWTIME_WINDOW_DAY_COUNT;
 
   return mergeShowtimeCache({
     city: range.city,
@@ -1068,13 +1064,7 @@ async function loadTargetedMovieShowtimeDateRange(
     startDateString,
     endDateString,
   );
-  const linkWindowEndDate = addCalendarDays(
-    getJerusalemCinemaDate(),
-    SHOWTIME_LINK_DATE_COUNT - 1,
-  );
-  const visibleDayCount = linkWindowEndDate
-    ? getShowtimeWindowDayCountForDate(linkWindowEndDate)
-    : SHOWTIME_LINK_DATE_COUNT;
+  const visibleDayCount = SHOWTIME_WINDOW_DAY_COUNT;
 
   await Promise.all(
     missingRanges.map((range) =>
@@ -1261,7 +1251,7 @@ export async function prefetchMovieShowtimesAfterDate(
   const windowStartDate = getJerusalemCinemaDate();
   const windowEndDate = addCalendarDays(
     windowStartDate,
-    SHOWTIME_LINK_DATE_COUNT - 1,
+    SHOWTIME_WINDOW_DAY_COUNT - 1,
   );
 
   if (!windowEndDate) {

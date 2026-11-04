@@ -77,6 +77,36 @@ async function getFixtureShowtimeDate(
   return fixture.dateOfShowing;
 }
 
+async function getFarFixtureShowtimeRows(page: Page, tmdbId: string) {
+  const today = getJerusalemCinemaDate(new Date());
+  const startDate = addCalendarDays(today, 70);
+  const endDate = addCalendarDays(today, 80);
+  if (!startDate || !endDate) {
+    throw new Error("Could not calculate the far-ahead browser fixture range.");
+  }
+
+  const response = await page.request.get(
+    `${API_ROOT}showtimes?${new URLSearchParams({
+      city: "Tel Aviv",
+      startDate,
+      endDate,
+      tmdbId,
+    })}`,
+  );
+  expect(response.ok()).toBe(true);
+  const body = (await response.json()) as {
+    data: {
+      showtimes: Array<{
+        cinema: string;
+        dateOfShowing: string;
+        showtime: string;
+      }>;
+    };
+  };
+  return body.data.showtimes.filter((row) =>
+    row.cinema.startsWith("Development Cinema "));
+}
+
 function dateCalendarLabel(date: string): string {
   const [year, month, day] = date.split("-").map(Number);
   return new Intl.DateTimeFormat("en-US", {
@@ -272,6 +302,137 @@ test("an encoded Tel Aviv share link opens on mobile with targeted showtimes", a
         request.includes("tmdbId=9100001"),
     ),
   ).toBe(true);
+});
+
+test("a far-ahead movie link keeps repeated yesterday/tomorrow navigation working", async ({
+  page,
+}) => {
+  const requests = addApiRequestCapture(page);
+  const fixtureRows = await getFarFixtureShowtimeRows(page, "9100001");
+  const linkedShowing = fixtureRows.find((row) => row.showtime === "19:30");
+  expect(linkedShowing).toBeTruthy();
+  const linkedDate = linkedShowing!.dateOfShowing;
+  const yesterday = addCalendarDays(linkedDate, -1)!;
+  const tomorrow = addCalendarDays(linkedDate, 1)!;
+  const routeCode = encodeMovieRouteCode({
+    movieCode: "D01",
+    cityCode: "l",
+    dateCode: encodeDateCode(linkedDate)!,
+    filterMask: 45120,
+    mode: "share",
+  })!;
+
+  await page.goto(`/${routeCode}?date=${linkedDate}`);
+  await expect(
+    page.getByRole("heading", { name: "Dev Catalog Film" }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Dev Catalog Film showtimes in Tel Aviv"),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("radio", {
+      name: new RegExp(escapeRegularExpression(dateCalendarLabel(linkedDate))),
+    }),
+  ).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator(".details-day-panel")).toHaveAttribute(
+    "data-showtime-date",
+    linkedDate,
+  );
+  await expect(page.getByText("19:30", { exact: true })).toBeVisible();
+
+  await page.reload();
+  await expect(
+    page.getByRole("radio", {
+      name: new RegExp(escapeRegularExpression(dateCalendarLabel(linkedDate))),
+    }),
+  ).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator(".details-day-panel")).toHaveAttribute(
+    "data-showtime-date",
+    linkedDate,
+  );
+  await expect(page.getByText("19:30", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Filter showtimes" }).click();
+  const filters = page.getByRole("dialog", { name: "Showtime filters" });
+  await expect(
+    filters.getByRole("button", { name: "VIP", exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
+  await expect(
+    filters.getByRole("button", { name: "3D", exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
+  await expect(
+    filters.getByRole("button", { name: "IMAX", exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
+  await page.keyboard.press("Escape");
+
+  for (const date of [yesterday, linkedDate, tomorrow, linkedDate, yesterday]) {
+    const dateButton = page.getByRole("radio", {
+      name: new RegExp(escapeRegularExpression(dateCalendarLabel(date))),
+    });
+    await expect(dateButton).toBeVisible();
+    await dateButton.click();
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get("date"))
+      .toBe(date);
+    await expect(page.locator(".details-day-panel")).toHaveAttribute(
+      "data-showtime-date",
+      date,
+    );
+    await expect(dateButton).toHaveAttribute("aria-checked", "true");
+    const expectedTime =
+      date === yesterday ? "18:30" : date === tomorrow ? "20:30" : "19:30";
+    await expect(page.getByText(expectedTime, { exact: true })).toBeVisible();
+  }
+
+  const showtimeRequests = requests
+    .filter((request) => request.includes("/showtimes?"))
+    .map((request) => new URLSearchParams(request.split("?", 2)[1]));
+  for (const date of [yesterday, linkedDate, tomorrow]) {
+    expect(
+      showtimeRequests.some(
+        (query) =>
+          query.get("city") === "Tel Aviv" &&
+          query.get("tmdbId") === "9100001" &&
+          (query.get("startDate") ?? "") <= date &&
+          (query.get("endDate") ?? "") >= date,
+      ),
+      `expected a targeted showtime fetch covering ${date}`,
+    ).toBe(true);
+  }
+});
+
+test("a coming-soon movie with future screenings accepts the selected date route", async ({
+  page,
+}) => {
+  const fixtureRows = await getFarFixtureShowtimeRows(page, "9100011");
+  const linkedShowing = fixtureRows[0];
+  expect(linkedShowing).toBeTruthy();
+  const linkedDate = linkedShowing!.dateOfShowing;
+  const routeCode = encodeMovieRouteCode({
+    movieCode: "D11",
+    cityCode: "l",
+    dateCode: encodeDateCode(linkedDate)!,
+    filterMask: 45120,
+    mode: "share",
+  })!;
+
+  await page.goto(`/${routeCode}?date=${linkedDate}`);
+  await expect(
+    page.getByRole("heading", { name: "Dev Coming Soon" }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Dev Coming Soon showtimes in Tel Aviv"),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("radio", {
+      name: new RegExp(escapeRegularExpression(dateCalendarLabel(linkedDate))),
+    }),
+  ).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator(".details-day-panel")).toHaveAttribute(
+    "data-showtime-date",
+    linkedDate,
+  );
+  await expect(page.getByText("19:30", { exact: true })).toBeVisible();
 });
 
 test("unknown API routes remain JSON 404s instead of returning the SPA", async ({
