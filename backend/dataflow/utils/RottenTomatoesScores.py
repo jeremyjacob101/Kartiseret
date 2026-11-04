@@ -4,7 +4,7 @@ import re
 import unicodedata
 from urllib.parse import urljoin, urlsplit
 
-from bs4 import BeautifulSoup
+from html.parser import HTMLParser
 
 
 def _first_truthy_or_numeric_zero(*values):
@@ -39,6 +39,35 @@ def _normalized_title(value):
     return " ".join(re.findall(r"[^\W_]+", normalized, flags=re.UNICODE))
 
 
+class _RottenTomatoesSearchParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.rows = []
+        self.row = None
+        self.title = None
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "search-page-media-row":
+            self.row = {"year": attrs.get("release-year") or attrs.get("releaseyear")}
+        elif self.row is not None and tag == "a" and attrs.get("slot") == "title":
+            self.title = []
+            self.row["href"] = attrs.get("href", "")
+
+    def handle_data(self, data):
+        if self.title is not None:
+            self.title.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "a" and self.title is not None:
+            self.row["title"] = " ".join(self.title)
+            self.title = None
+        elif tag == "search-page-media-row" and self.row is not None:
+            self.rows.append(self.row)
+            self.row = None
+            self.title = None
+
+
 def select_rotten_tomatoes_search_match(html, title, release_year):
     """Accept only title-matched movies within two years, preferring closer years."""
     normalized = _normalized_title(title)
@@ -48,16 +77,17 @@ def select_rotten_tomatoes_search_match(html, title, release_year):
         return None
     if not normalized or not year:
         return None
+    parser = _RottenTomatoesSearchParser()
+    parser.feed(html or "")
     matches = []
-    for index, row in enumerate(BeautifulSoup(html or "", "html.parser").select("search-page-media-row")[:10]):
-        anchor = row.select_one('a[slot="title"]')
-        if not anchor or _normalized_title(anchor.get_text(" ", strip=True)) != normalized:
+    for index, row in enumerate(parser.rows[:10]):
+        if _normalized_title(row.get("title")) != normalized:
             continue
         try:
-            distance = abs(int(row.get("release-year") or row.get("releaseyear")) - year)
+            distance = abs(int(row.get("year")) - year)
         except (TypeError, ValueError):
             continue
-        url = urljoin("https://www.rottentomatoes.com", anchor.get("href", ""))
+        url = urljoin("https://www.rottentomatoes.com", row.get("href", ""))
         parsed = urlsplit(url)
         if distance <= 2 and parsed.scheme == "https" and parsed.netloc == "www.rottentomatoes.com" and parsed.path.startswith("/m/"):
             matches.append((distance, index, url))
