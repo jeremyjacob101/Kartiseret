@@ -32,7 +32,7 @@ class CountingAdapter(HTTPAdapter):
         return response
 
 
-def configure_scrape_session(session, *, stats=None, retry_methods=("GET",)):
+def configure_scrape_session(session, *, stats=None, retry_methods=("GET",), capture=True):
     retry = BoundedRetry(
         total=2,
         connect=2,
@@ -47,7 +47,7 @@ def configure_scrape_session(session, *, stats=None, retry_methods=("GET",)):
     adapter = CountingAdapter(max_retries=retry, stats=stats)
     session.mount('http://', adapter)
     session.mount('https://', adapter)
-    capture_dir = os.environ.get("SCRAPER_SOURCE_CAPTURE_DIR")
+    capture_dir = os.environ.get("SCRAPER_SOURCE_CAPTURE_DIR") if capture else None
     if capture_dir:
         capture_path = Path(capture_dir) / "source-responses.jsonl.gz"
         capture_path.parent.mkdir(parents=True, exist_ok=True)

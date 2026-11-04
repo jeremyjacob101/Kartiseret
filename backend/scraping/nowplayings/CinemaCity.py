@@ -10,6 +10,11 @@ import json, re
 class CinemaCity(BaseCinema):
     CINEMA_NAME = "Cinema City"
     URL = "https://www.cinema-city.co.il/"
+    DEFAULT_SCRAPE_MODE = "auto"
+
+    def requests_logic(self):
+        from backend.scraping.utils.CinemaCityRequests import collect_cinema_city
+        return collect_cinema_city(self)
 
     def logic(self):
         self.driver.set_page_load_timeout(45)
