@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from html import escape
 from typing import Any, Callable
@@ -449,6 +449,7 @@ class RenderedEmail:
     subject: str
     html: str
     text: str
+    headers: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -653,6 +654,7 @@ def send_resend_email(
             "subject": email.subject,
             "html": email.html,
             "text": email.text,
+            **({"headers": email.headers} if email.headers else {}),
         },
         timeout=20,
     )

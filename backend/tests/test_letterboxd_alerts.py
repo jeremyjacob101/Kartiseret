@@ -32,6 +32,7 @@ class FakeLetterboxdAndResend:
         self.responses = list(responses or [])
         self.get_calls = []
         self.post_calls = []
+        self.unsubscribe_calls = []
 
     def get(self, url, **kwargs):
         self.get_calls.append((url, kwargs))
@@ -47,11 +48,31 @@ class FakeLetterboxdAndResend:
             </ul>"""
         )
 
-    def post(self, endpoint, *, headers, json, timeout):
+    def post(self, endpoint, *, headers, json, timeout, **kwargs):
+        if endpoint.endswith("/api/internal/movie-notification-unsubscribe-tokens"):
+            self.unsubscribe_calls.append(
+                {"endpoint": endpoint, "headers": headers, "json": json, "timeout": timeout, **kwargs}
+            )
+            return FakeUnsubscribeTokenResponse()
         self.post_calls.append(
             {"endpoint": endpoint, "headers": headers, "json": json, "timeout": timeout}
         )
         return self.responses.pop(0) if self.responses else FakeResponse()
+
+
+class FakeUnsubscribeTokenResponse:
+    status_code = 200
+
+    @staticmethod
+    def json():
+        return {
+            "data": {
+                "eligible": True,
+                "manageLetterboxd": "M" * 43,
+                "oneClickAll": "O" * 43,
+            },
+            "error": None,
+        }
 
 
 def _source(source_id, url, source_type):

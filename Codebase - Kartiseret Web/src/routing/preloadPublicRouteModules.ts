@@ -9,6 +9,7 @@ const FIXED_APP_PATHS = new Set([
   "/soons",
   "/user",
   "/attribution",
+  "/unsubscribe/letterboxd",
   PASSWORD_RESET_PATH,
 ]);
 

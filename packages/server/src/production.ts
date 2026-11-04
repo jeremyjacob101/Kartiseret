@@ -18,6 +18,10 @@ import {
 import { PostgresProtectedRateLimitStore } from "./protected/rate-limit-store.js";
 import { createR2ImageStore } from "./artwork/s3.js";
 import { resolveRuntimeTargetEnvironment } from "./target-environment.js";
+import {
+  createMovieNotificationUnsubscribeRouter,
+  createPostgresMovieNotificationUnsubscribeService,
+} from "./notifications/unsubscribe.js";
 
 type ProductionRuntime = ReturnType<typeof createProductionRuntime>;
 
@@ -73,6 +77,10 @@ function createProductionRuntime(
       database.pool,
       authConfig.internalSecret,
     ),
+    notificationUnsubscribeRouter: createMovieNotificationUnsubscribeRouter(
+      createPostgresMovieNotificationUnsubscribeService(database.pool),
+      { store: protectedRateLimit.store },
+    ),
     close: database.close,
   };
 }
@@ -106,6 +114,7 @@ export function createProductionApp(
     trustedOrigins: runtime.trustedOrigins,
     protectedRateLimit: runtime.protectedRateLimit,
     recipientRouter: runtime.recipientRouter,
+    notificationUnsubscribeRouter: runtime.notificationUnsubscribeRouter,
     artworkStore: runtime.artworkStore,
     logger: {
       error: (message, error) => console.error(message, error),

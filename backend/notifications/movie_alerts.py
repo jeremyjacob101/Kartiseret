@@ -84,6 +84,26 @@ def _poster_url(value: Any) -> str | None:
     return None
 
 
+def _unsubscribe_url(value: str, *, allow_fragment: bool) -> str:
+    if any(character.isspace() or ord(character) < 32 or ord(character) == 127 for character in value):
+        raise ValueError("Movie notification unsubscribe URLs must be safe HTTPS URLs.")
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("Movie notification unsubscribe URLs must be safe HTTPS URLs.") from exc
+    if (
+        parsed.scheme.lower() != "https"
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or (parsed.fragment and not allow_fragment)
+        or (port is not None and not 1 <= port <= 65535)
+    ):
+        raise ValueError("Movie notification unsubscribe URLs must be safe HTTPS URLs.")
+    return value
+
+
 def collect_first_availability(
     *,
     pairs: dict[str, set[int]],
@@ -187,6 +207,9 @@ def render_movie_notification_email(
     events: list[dict],
     site_url: str = DEFAULT_SITE_URL,
     movie_codes: dict[int, str] | None = None,
+    *,
+    letterboxd_manage_url: str | None = None,
+    one_click_unsubscribe_url: str | None = None,
 ) -> RenderedEmail:
     if not events:
         raise ValueError("A notification email must contain at least one film.")
@@ -329,6 +352,41 @@ def render_movie_notification_email(
         + ("s" if total_films != 1 else "")
         + "."
     )
+    headers: dict[str, str] = {}
+    if letterboxd_manage_url is not None or one_click_unsubscribe_url is not None:
+        if not letterboxd_manage_url or not one_click_unsubscribe_url:
+            raise ValueError("Both movie notification unsubscribe links are required.")
+        letterboxd_manage_url = _unsubscribe_url(
+            letterboxd_manage_url, allow_fragment=True
+        )
+        one_click_unsubscribe_url = _unsubscribe_url(
+            one_click_unsubscribe_url, allow_fragment=False
+        )
+        safe_manage_url = escape(letterboxd_manage_url, quote=True)
+        unsubscribe_footer = (
+            '<p style="margin:0 0 9px;color:#5f3b91;font-size:12px;line-height:1.6;">'
+            f'<a href="{safe_manage_url}" style="color:#5f3b91;font-weight:700;">'
+            "Manage Letterboxd list alerts</a></p>"
+            '<p style="margin:0;color:#6f685e;font-size:11px;line-height:1.6;">'
+            "Use your email app’s unsubscribe control to stop all current movie alerts, "
+            "including connected Letterboxd lists and individual movie watches.</p>"
+        )
+        footer_text = (
+            "Manage Letterboxd list alerts:\n"
+            f"{letterboxd_manage_url}\n\n"
+            "Use your email app's unsubscribe control to stop all current movie alerts, "
+            "including connected Letterboxd lists and individual movie watches."
+        )
+        headers = {
+            "List-Unsubscribe": f"<{one_click_unsubscribe_url}>",
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        }
+    else:
+        unsubscribe_footer = (
+            '<p style="margin:16px 0 0;color:#827b71;font-size:12px;line-height:1.6;">'
+            "A one-time note from Kartiseret. You will not receive another email for these films.</p>"
+        )
+        footer_text = ""
     return RenderedEmail(
         subject=" · ".join(subject_parts),
         html="".join(
@@ -360,16 +418,123 @@ def render_movie_notification_email(
                 "".join(html_sections),
                 '</td></tr>',
                 '<tr><td align="center" style="padding:8px 30px 26px;border-top:1px solid #eee9e1;">',
-                '<p style="margin:16px 0 0;color:#827b71;font-size:12px;line-height:1.6;">'
-                'A one-time note from Kartiseret. You will not receive another email for these films.</p>',
+                unsubscribe_footer,
                 '</td></tr></table></td></tr></table></body></html>',
             ]
         ),
-        text="Kartiseret cinema updates\n\n" + "\n\n".join(text_sections),
+        text=(
+            "Kartiseret cinema updates\n\n"
+            + "\n\n".join(text_sections)
+            + ("\n\n" + footer_text if footer_text else "")
+        ),
+        headers=headers,
+    )
+
+
+def create_movie_notification_unsubscribe_urls(
+    http_client: Any,
+    *,
+    base_url: str,
+    internal_secret: str,
+    site_url: str,
+    user_id: str,
+    delivery_id: str,
+) -> tuple[str, str] | None:
+    api = urlsplit(base_url)
+    try:
+        api_port = api.port
+    except ValueError as exc:
+        raise RuntimeError("A valid recipient API origin is required.") from exc
+    if (
+        not base_url
+        or not internal_secret
+        or api.username
+        or api.password
+        or api.query
+        or api.fragment
+        or api.path not in ("", "/")
+        or not api.hostname
+        or (api.scheme != "https" and not (
+            api.scheme == "http" and api.hostname in ("localhost", "127.0.0.1", "::1")
+        ))
+        or (api_port is not None and not 1 <= api_port <= 65535)
+    ):
+        raise RuntimeError(
+            "A valid recipient API origin and internal credential are required."
+        )
+    site = urlsplit(site_url)
+    try:
+        site_port = site.port
+    except ValueError as exc:
+        raise ValueError("SITE_URL must be a secure site origin.") from exc
+    if (
+        not site.hostname
+        or site.username
+        or site.password
+        or site.query
+        or site.fragment
+        or site.path not in ("", "/")
+        or site.scheme != "https"
+        or (site_port is not None and not 1 <= site_port <= 65535)
+    ):
+        raise ValueError("SITE_URL must be a secure site origin.")
+    response = http_client.post(
+        base_url.rstrip("/")
+        + "/api/internal/movie-notification-unsubscribe-tokens",
+        headers={"Authorization": f"Bearer {internal_secret}"},
+        json={"userId": user_id, "deliveryId": delivery_id},
+        timeout=(5, 15),
+        allow_redirects=False,
+    )
+    if int(getattr(response, "status_code", 0) or 0) != 200:
+        raise RuntimeError(
+            "Movie notification unsubscribe links could not be created."
+        )
+    try:
+        body = response.json()
+        data = body.get("data") if isinstance(body, dict) else None
+        if isinstance(data, dict) and data.get("eligible") is False:
+            return None
+        manage_token = data.get("manageLetterboxd") if isinstance(data, dict) else None
+        one_click_token = data.get("oneClickAll") if isinstance(data, dict) else None
+    except Exception as exc:
+        raise RuntimeError("Movie notification unsubscribe links were invalid.") from exc
+    token_values = (manage_token, one_click_token)
+    if not all(
+        isinstance(token, str)
+        and len(token) == 43
+        and all(character.isalnum() or character in "-_" for character in token)
+        for token in token_values
+    ):
+        raise RuntimeError("Movie notification unsubscribe links were invalid.")
+    origin = f"{site.scheme}://{site.netloc}"
+    return (
+        f"{origin}/unsubscribe/letterboxd#token={manage_token}",
+        f"{origin}/api/v1/unsubscribe/one-click/{one_click_token}",
     )
 
 
 class SupabaseMovieNotificationRepository(SupabaseLetterboxdRepository):
+    def letterboxd_supported_movies(self, user_id: str, tmdb_ids: list[int]) -> set[int]:
+        if not tmdb_ids:
+            return set()
+        rows = self._collect_pages(
+            lambda start, end: self.supabase.table("letterboxd_source_films")
+            .select("tmdb_id")
+            .eq("user_id", user_id)
+            .in_("tmdb_id", tmdb_ids)
+            .is_("removed_at", "null")
+            .order("tmdb_id")
+            .range(start, end)
+        )
+        supported: set[int] = set()
+        for row in rows:
+            try:
+                supported.add(int(row["tmdb_id"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+        return supported
+
     def load_movie_posters(self, tmdb_ids: list[int]) -> dict[int, str]:
         posters: dict[int, str] = {}
         for table_name in (NOW_PLAYING_TABLE, COMING_SOON_TABLE):
@@ -606,13 +771,42 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
                     batch_movie_codes = self.repository.load_movie_codes(
                         batch_movie_ids
                     )
+                    support_reader = getattr(
+                        self.repository, "letterboxd_supported_movies", None
+                    )
+                    supported_ids = (
+                        support_reader(user, batch_movie_ids)
+                        if callable(support_reader)
+                        else set()
+                    )
+                    unsubscribe_urls = None
+                    if supported_ids:
+                        unsubscribe_urls = create_movie_notification_unsubscribe_urls(
+                            self.http_client,
+                            base_url=self.config.recipient_api_url,
+                            internal_secret=self.config.internal_api_secret,
+                            site_url=self.config.site_url,
+                            user_id=user,
+                            delivery_id=batch["id"],
+                        )
                     email = render_movie_notification_email(
-                        batch["events"], self.config.site_url, batch_movie_codes
+                        batch["events"],
+                        self.config.site_url,
+                        batch_movie_codes,
+                        **(
+                            {
+                                "letterboxd_manage_url": unsubscribe_urls[0],
+                                "one_click_unsubscribe_url": unsubscribe_urls[1],
+                            }
+                            if unsubscribe_urls is not None
+                            else {}
+                        ),
                     )
                     snapshot = {
                         "subject": email.subject,
                         "html": email.html,
                         "text": email.text,
+                        "headers": email.headers,
                         "recipient": self.repository.canonical_email(user),
                         "from": self.config.from_email,
                     }
@@ -620,7 +814,10 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
                 if snapshot is None:
                     continue
                 email = RenderedEmail(
-                    snapshot["subject"], snapshot["html"], snapshot["text"]
+                    snapshot["subject"],
+                    snapshot["html"],
+                    snapshot["text"],
+                    snapshot.get("headers") or {},
                 )
                 resend_id = send_resend_email(
                     self.http_client,

@@ -71,5 +71,41 @@ class RecipientLookupTests(unittest.TestCase):
         keys = [call.kwargs["headers"]["Idempotency-Key"] for call in self.http.post.call_args_list]
         self.assertEqual(keys, ["ticket-alert-existing-delivery"] * 2)
 
+    def test_resend_receives_custom_unsubscribe_headers_only_when_rendered(self):
+        self.http.post.return_value.json.return_value = {"id": "provider-message"}
+        email = RenderedEmail(
+            subject="Test",
+            html="<p>Test</p>",
+            text="Test",
+            headers={
+                "List-Unsubscribe": "<https://seret.site/unsubscribe/one-click/token>",
+                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+            },
+        )
+        send_resend_email(
+            self.http,
+            api_key="test",
+            from_email="test@example.test",
+            to_email="canonical@example.test",
+            delivery_id="letterboxd-delivery",
+            email=email,
+            idempotency_prefix="movie-notification",
+        )
+        payload = self.http.post.call_args.kwargs["json"]
+        self.assertEqual(payload["headers"], email.headers)
+
+        self.http.reset_mock()
+        auth_email = RenderedEmail(subject="Security code", html="<p>Code</p>", text="Code")
+        send_resend_email(
+            self.http,
+            api_key="test",
+            from_email="test@example.test",
+            to_email="canonical@example.test",
+            delivery_id="security-message",
+            email=auth_email,
+            idempotency_prefix="auth",
+        )
+        self.assertNotIn("headers", self.http.post.call_args.kwargs["json"])
+
 
 if __name__ == "__main__": unittest.main()
