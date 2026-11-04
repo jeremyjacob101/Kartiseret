@@ -2,6 +2,8 @@ selenium
 webdriver-manager
 supabase
 requests
+boto3
+Pillow>=9.1
 pytz
 rich
 readchar

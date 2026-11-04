@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: NowPlayingsTmdb
+URL: ?
+Exception: ModuleNotFoundError - No module named 'boto3'
+Call Chain: BaseDataflow.py:60 > NowPlayingsTmdb.py:297 > ArtworkStorage.py:206 > ArtworkStorage.py:92 > ArtworkStorage.py:76
+Selector: 
+Screenshot: 
+CSV: 

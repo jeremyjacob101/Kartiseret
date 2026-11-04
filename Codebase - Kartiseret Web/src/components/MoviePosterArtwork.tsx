@@ -5,6 +5,8 @@ type MoviePosterArtworkProps = {
   title: string;
   tmdbId?: string;
   imageSrc?: string;
+  imageSrcSet?: string;
+  imageSizes?: string;
   alt?: string;
   className?: string;
   fallbackClassName?: string;
@@ -27,6 +29,8 @@ type PosterFallbackProps = {
 type LoadingFallbackPosterImageProps = PosterFallbackProps & {
   resolvedAlt: string;
   resolvedImageSrc: string;
+  resolvedImageSrcSet?: string;
+  resolvedImageSizes: string;
   deferRequest: boolean;
   className?: string;
   loading?: "eager" | "lazy";
@@ -59,6 +63,17 @@ function PosterFallback({
   );
 }
 
+function responsivePosterSrcSet(src: string): string | undefined {
+  const match =
+    /^(https?:\/\/[^/]+)?\/api\/images\/v1\/poster\/([a-f0-9]{64})\/\d+\.webp$/.exec(
+      src,
+    );
+  if (!match) return undefined;
+  return [185, 342, 780]
+    .map((width) => `/api/images/v1/poster/${match[2]}/${width}.webp ${width}w`)
+    .join(", ");
+}
+
 const LoadingFallbackPosterImage = forwardRef<
   HTMLImageElement,
   LoadingFallbackPosterImageProps
@@ -66,6 +81,8 @@ const LoadingFallbackPosterImage = forwardRef<
   {
     title,
     resolvedImageSrc,
+    resolvedImageSrcSet,
+    resolvedImageSizes,
     deferRequest,
     resolvedAlt,
     className,
@@ -113,7 +130,10 @@ const LoadingFallbackPosterImage = forwardRef<
       ) : null}
       <img
         ref={setImageNode}
+        data-image-status={imageStatus}
         src={deferRequest ? undefined : resolvedImageSrc}
+        srcSet={deferRequest ? undefined : resolvedImageSrcSet}
+        sizes={resolvedImageSrcSet ? resolvedImageSizes : undefined}
         alt={resolvedAlt}
         aria-hidden={isDecorative ? "true" : undefined}
         loading={loading}
@@ -127,7 +147,6 @@ const LoadingFallbackPosterImage = forwardRef<
         onError={() => {
           setImageStatus("error");
         }}
-        style={showFallback ? { opacity: 0 } : undefined}
       />
     </div>
   );
@@ -141,6 +160,8 @@ export const MoviePosterArtwork = forwardRef<
     title,
     tmdbId,
     imageSrc,
+    imageSrcSet,
+    imageSizes,
     alt,
     className,
     fallbackClassName,
@@ -159,13 +180,15 @@ export const MoviePosterArtwork = forwardRef<
     ? displayPreferences.preferencesById.get(tmdbId)
     : undefined;
   if (preference?.treatment === "remove") return null;
-  const shouldUseStandardPoster =
-    preference?.treatment === "standard" ||
-    (Boolean(tmdbId) && !displayPreferences.ready);
+  const shouldUseStandardPoster = preference?.treatment === "standard";
   const resolvedImageSrc = shouldUseStandardPoster
     ? undefined
     : imageSrc?.trim();
   const resolvedAlt = alt ?? title;
+  const resolvedImageSrcSet = resolvedImageSrc
+    ? imageSrcSet?.trim() || responsivePosterSrcSet(resolvedImageSrc)
+    : undefined;
+  const resolvedImageSizes = imageSizes ?? "300px";
   const isDecorative = resolvedAlt.length === 0;
   const shouldShowLoadingFallback =
     Boolean(resolvedImageSrc) && showFallbackWhileLoading;
@@ -178,6 +201,8 @@ export const MoviePosterArtwork = forwardRef<
           ref={ref}
           title={title}
           resolvedImageSrc={resolvedImageSrc}
+          resolvedImageSrcSet={resolvedImageSrcSet}
+          resolvedImageSizes={resolvedImageSizes}
           deferRequest={deferRequest}
           resolvedAlt={resolvedAlt}
           className={className}
@@ -196,6 +221,8 @@ export const MoviePosterArtwork = forwardRef<
       <img
         ref={ref}
         src={deferRequest ? undefined : resolvedImageSrc}
+        srcSet={deferRequest ? undefined : resolvedImageSrcSet}
+        sizes={resolvedImageSrcSet ? resolvedImageSizes : undefined}
         alt={resolvedAlt}
         aria-hidden={isDecorative ? "true" : undefined}
         loading={loading}

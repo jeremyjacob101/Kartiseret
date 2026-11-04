@@ -35,7 +35,7 @@ function createMovie(): Movie {
 }
 
 describe("PosterGridPage", () => {
-  it("opens selected movies from the grid and keeps the tile accessible", async () => {
+  it("keeps movie shortlinks crawlable and opens selected movies in the scroller", async () => {
     const user = userEvent.setup();
     const onPosterSelect = vi.fn();
     const movie = createMovie();
@@ -47,12 +47,44 @@ describe("PosterGridPage", () => {
       />,
     );
 
-    const tile = screen.getByRole("button", {
-      name: "Open Original Movie in scroller view",
+    const tile = screen.getByRole("link", {
+      name: "Open Original Movie movie page",
     });
+    expect(tile).toHaveAttribute("href", "/Ab1");
     expect(tile).toHaveAttribute("title", "Original Movie");
     await user.click(tile);
     expect(onPosterSelect).toHaveBeenCalledWith(movie);
+  });
+
+  it("preserves modified clicks so the shortlink can open separately", () => {
+    const onPosterSelect = vi.fn();
+    render(
+      <PosterGridPage
+        title="Now Playing"
+        movies={[createMovie()]}
+        onPosterSelect={onPosterSelect}
+      />,
+    );
+
+    const link = screen.getByRole("link", {
+      name: "Open Original Movie movie page",
+    });
+    let wasPreventedBeforeTestCleanup: boolean | undefined;
+    const cleanupNativeNavigation = (event: Event) => {
+      wasPreventedBeforeTestCleanup = event.defaultPrevented;
+      event.preventDefault();
+    };
+    document.addEventListener("click", cleanupNativeNavigation, { once: true });
+    link.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        ctrlKey: true,
+      }),
+    );
+    expect(wasPreventedBeforeTestCleanup).toBe(false);
+    expect(onPosterSelect).not.toHaveBeenCalled();
   });
 
   it("saves a selected admin mapping and exposes the post-save refresh action", async () => {

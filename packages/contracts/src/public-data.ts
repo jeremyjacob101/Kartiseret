@@ -111,6 +111,23 @@ export const publicTheaterResponseSchema = apiSuccessResponseSchema(
   publicTheaterDataSchema,
 );
 
+export const publicCinemaPageDataSchema = z.object({
+  id: nonEmptyTrimmedStringSchema,
+  displayName: nonEmptyTrimmedStringSchema,
+  city: nonEmptyTrimmedStringSchema,
+  address: z.string(),
+  mapUrl: httpUrlSchema,
+  latitude: z.number().finite().min(-90).max(90),
+  longitude: z.number().finite().min(-180).max(180),
+  screenings: z.array(
+    z.object({ movie: movieSchema, screening: publicShowtimeSchema }),
+  ),
+});
+export const publicCinemaPageResponseSchema = apiSuccessResponseSchema(
+  publicCinemaPageDataSchema,
+);
+export type PublicCinemaPageData = z.infer<typeof publicCinemaPageDataSchema>;
+
 const maximumShowtimeRangeDays = 180;
 const postgresIntegerMaximum = 2_147_483_647;
 

@@ -19,6 +19,7 @@ import {
   getMovieCatalog,
   getCinemathequeData,
   getPublicTheaterData,
+  getCinemaPageData,
   getShowtimeRange,
   getTicketAvailabilityShowtimes,
 } from "./public-data/service.js";
@@ -35,6 +36,9 @@ import {
   type CatalogRepository,
 } from "./catalog/service.js";
 import { HttpError } from "./http-errors.js";
+import { createArtworkHandler } from "./artwork/route.js";
+import { createSocialPreviewImageHandler } from "./artwork/social-preview-route.js";
+import { createR2ImageStore, type R2ImageStore } from "./artwork/s3.js";
 import {
   searchTmdbTitles,
   type TmdbSearchProvider,
@@ -57,6 +61,7 @@ export interface AppDependencies {
   trustedOrigins?: readonly string[];
   tmdbSearch?: TmdbSearchProvider;
   protectedRateLimit?: ProtectedRateLimitOptions;
+  artworkStore?: R2ImageStore | null;
 }
 
 const silentLogger: AppLogger = {
@@ -101,6 +106,7 @@ export function createApp({
   trustedOrigins = [],
   tmdbSearch,
   protectedRateLimit,
+  artworkStore,
 }: AppDependencies) {
   const app = express();
   app.disable("x-powered-by");
@@ -125,6 +131,16 @@ export function createApp({
   );
   if (authHandler) app.all("/api/auth/{*path}", authHandler);
   app.use(express.json({ limit: "100kb" }));
+  const imageStore =
+    artworkStore === undefined ? createR2ImageStore() : artworkStore;
+  app.get(
+    "/api/images/social/:version/:fingerprint/:filename",
+    createSocialPreviewImageHandler(imageStore),
+  );
+  app.get(
+    "/api/images/:version/:kind/:hash/:filename",
+    createArtworkHandler(imageStore),
+  );
   if (recipientRouter) app.use("/api/internal", recipientRouter);
 
   app.get("/api/v1/health", (_request, response) => {
@@ -346,6 +362,48 @@ export function createApp({
         );
         response.json({ data, error: null });
       } catch (error) {
+        next(error);
+      }
+    }),
+  );
+
+  app.get(
+    "/api/v1/cinemas/:cinemaId",
+    publicationRead(async (request, response, next) => {
+      if (!publicDataRepository) {
+        next(
+          new CatalogDatabaseError(new Error("Public data is unavailable.")),
+        );
+        return;
+      }
+      const cinemaId = z
+        .string()
+        .regex(/^[A-Za-z0-9_-]{8,24}$/)
+        .safeParse(request.params.cinemaId);
+      if (!cinemaId.success) {
+        response.setHeader("Cache-Control", "no-store");
+        next(new HttpError(404, "cinema_not_found", "Cinema not found."));
+        return;
+      }
+      try {
+        const data = await getCinemaPageData(
+          publicDataRepository,
+          cinemaId.data,
+        );
+        if (!data) {
+          response.setHeader("Cache-Control", "no-store");
+          next(new HttpError(404, "cinema_not_found", "Cinema not found."));
+          return;
+        }
+        response.setHeader(
+          "Cache-Control",
+          request.get(PUBLICATION_REVISION_HEADER)
+            ? "private, no-store"
+            : "public, max-age=30, stale-while-revalidate=60",
+        );
+        response.json({ data, error: null });
+      } catch (error) {
+        response.setHeader("Cache-Control", "no-store");
         next(error);
       }
     }),

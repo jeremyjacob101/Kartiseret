@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
+import { usePublicRenderClock } from "../../contexts/PublicRenderClock";
 import { getShowtimeDateLabel } from "./showtimeUtils";
 import "./ShowtimeDayPicker.css";
 
@@ -98,8 +99,8 @@ function getDayMonth(dateString: string): string {
   return monthFormatter.format(parseCalendarDate(dateString));
 }
 
-function getDayAriaLabel(dateString: string): string {
-  const relativeLabel = getShowtimeDateLabel(dateString);
+function getDayAriaLabel(dateString: string, todayDate: string): string {
+  const relativeLabel = getShowtimeDateLabel(dateString, todayDate);
   const calendarLabel = accessibleDateFormatter.format(
     parseCalendarDate(dateString),
   );
@@ -157,6 +158,7 @@ export function ShowtimeDayPicker({
   disabledBeforeDate = null,
   trailingPlaceholderCount = 0,
 }: ShowtimeDayPickerProps) {
+  const { cinemaDate } = usePublicRenderClock();
   const entries = useMemo<DayPickerEntry[]>(
     () => buildDayPickerEntries(dates, disabledBeforeDate),
     [dates, disabledBeforeDate],
@@ -939,7 +941,7 @@ export function ShowtimeDayPicker({
                   .join(" ")}
                 aria-checked={isSelected}
                 aria-current={isSelected ? "date" : undefined}
-                aria-label={getDayAriaLabel(entry.date)}
+                aria-label={getDayAriaLabel(entry.date, cinemaDate)}
                 disabled={entry.isDisabled}
                 tabIndex={isSelected ? 0 : -1}
                 onClick={(event) => {

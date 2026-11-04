@@ -4,9 +4,12 @@ export {
   getMovieCatalog,
   getCinemathequeData,
   getPublicTheaterData,
+  getMovieShowtimes,
+  getCinemaPageData,
   getShowtimeRange,
   getTicketAvailabilityShowtimes,
 } from "./service.js";
+export type { PublicCinemaPageContext } from "./service.js";
 export type {
   PublicDataRepository,
   PublicShowtimeRange,

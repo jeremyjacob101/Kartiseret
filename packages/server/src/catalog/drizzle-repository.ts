@@ -34,6 +34,7 @@ const nowPlayingProjection = {
   genres: finalMovies.genres,
   enPoster: finalMovies.enPoster,
   backdrop: finalMovies.backdrop,
+  socialPreviewFingerprint: finalMovies.socialPreviewFingerprint,
   enTrailer: finalMovies.enTrailer,
   imdbId: finalMovies.imdbId,
   rtId: finalMovies.rtId,
@@ -62,6 +63,7 @@ const comingSoonProjection = {
   genres: finalSoons.genres,
   enPoster: finalSoons.enPoster,
   backdrop: finalSoons.backdrop,
+  socialPreviewFingerprint: finalSoons.socialPreviewFingerprint,
   enTrailer: finalSoons.enTrailer,
   runtime: finalSoons.runtime,
   popularity: finalSoons.popularity,
@@ -89,6 +91,7 @@ const cinemathequeMovieProjection = {
   genres: finalThequeMovies.genres,
   enPoster: finalThequeMovies.enPoster,
   backdrop: finalThequeMovies.backdrop,
+  socialPreviewFingerprint: finalThequeMovies.socialPreviewFingerprint,
   enTrailer: finalThequeMovies.enTrailer,
   imdbId: finalThequeMovies.imdbId,
   rtId: finalThequeMovies.rtId,
@@ -357,7 +360,7 @@ export class DrizzleCatalogRepository
     }
   }
 
-  async findTicketAvailabilityRows(
+  async findMovieShowtimeRows(
     tmdbId: string,
     fromDate: string,
   ): Promise<readonly unknown[]> {

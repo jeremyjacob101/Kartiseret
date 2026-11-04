@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
+import { getCinemaIdentityById } from "@kartiseret/contracts/cinema-identities";
 import { CatalogDataIntegrityError } from "../catalog/errors.js";
 import type { PublicDataRepository } from "./repository.js";
 import {
+  getCinemaPageData,
   getMovieByPermanentCode,
   getMovieCatalog,
   getCinemathequeData,
+  getMovieShowtimes,
   getPublicTheaterData,
   getShowtimeRange,
   getTicketAvailabilityShowtimes,
@@ -80,7 +83,7 @@ function createRepository(
       },
     ]),
     findShowtimeRows: vi.fn(async () => [databaseShowtime]),
-    findTicketAvailabilityRows: vi.fn(async () => [databaseShowtime]),
+    findMovieShowtimeRows: vi.fn(async () => [databaseShowtime]),
     findTheaterCityRows: vi.fn(async () => []),
     findMovieCodeByCode: vi.fn(async () => "9100001"),
     findNowPlayingMovieById: vi.fn(async () => nowPlaying),
@@ -341,7 +344,7 @@ describe("public showtime service", () => {
 
   it("preserves local wall time and filters invalid availability rows without limiting cities", async () => {
     const repository = createRepository({
-      findTicketAvailabilityRows: vi.fn(async () => [
+      findMovieShowtimeRows: vi.fn(async () => [
         databaseShowtime,
         { ...databaseShowtime, screeningCity: "Haifa" },
         { ...databaseShowtime, screeningCity: null },
@@ -389,6 +392,41 @@ describe("public showtime service", () => {
         dubLanguage: null,
         englishHref: null,
         hebrewHref: "https://tickets.example/he",
+      },
+    ]);
+  });
+
+  it("keeps published movie screenings when neither booking link is available", async () => {
+    const repository = createRepository({
+      findMovieShowtimeRows: vi.fn(async () => [
+        {
+          ...databaseShowtime,
+          englishHref: null,
+          hebrewHref: null,
+        },
+        { ...databaseShowtime, tmdbId: 9100002, screeningCity: "Haifa" },
+        { ...databaseShowtime, cinema: "  " },
+      ]),
+    });
+
+    const result = await getMovieShowtimes(repository, "9100001", "2026-10-20");
+
+    expect(repository.findMovieShowtimeRows).toHaveBeenCalledWith(
+      "9100001",
+      "2026-10-20",
+    );
+    expect(result).toEqual([
+      {
+        tmdbId: "9100001",
+        screeningCity: "Jerusalem",
+        dateOfShowing: "2026-10-20",
+        cinema: "Cinema City",
+        showtime: "09:05",
+        englishHref: null,
+        hebrewHref: null,
+        screeningTech: "",
+        screeningType: "",
+        dubLanguage: null,
       },
     ]);
   });
@@ -474,5 +512,183 @@ describe("public theater service", () => {
     ).rejects.toMatchObject({
       kind: "orphaned_theater",
     } satisfies Partial<PublicDataIntegrityError>);
+  });
+
+  it("combines verified ordinary and cinematheque screenings without linking unresolvable movies", async () => {
+    const cinemaId = "smBcm2HtRvQA";
+    const cinemaOnlyMovie = {
+      ...nowPlaying,
+      tmdbId: 9100004,
+      englishTitle: "Cinematheque-only film",
+      popularity: 4,
+    };
+    const duplicateScreening = {
+      ...databaseShowtime,
+      cinema: "Jerusalem Cinematheque",
+      screeningCity: "Jerusalem",
+      dateOfShowing: "2026-10-20",
+      showtime: "20:15:00",
+      englishHref: null,
+      hebrewHref: null,
+    };
+    const repository = createRepository({
+      findNowPlayingRows: vi.fn(async () => [nowPlaying]),
+      findComingSoonRows: vi.fn(async () => []),
+      findTheaterCityRows: vi.fn(async () => [
+        {
+          chain: "Jerusalem Cinematheque",
+          address: "11 Hebron Road",
+          location: "https://maps.app.goo.gl/jDuGeP2hZhQiWYbG7",
+          theaterName: "Jerusalem Cinematheque",
+          theaterLatitude: 31.765,
+          theaterLongitude: 35.23,
+          cityName: "Jerusalem",
+          altSpellings: [],
+          cityLatitude: 31.7683,
+          cityLongitude: 35.2137,
+          zoomLayer: 10,
+          neighboringCities: [],
+        },
+      ]),
+      findShowtimeRows: vi.fn(async () => [
+        duplicateScreening,
+        {
+          ...databaseShowtime,
+          screeningCity: "Ashdod",
+          cinema: "Cinema City",
+          dateOfShowing: "2026-10-20",
+          showtime: "21:00:00",
+        },
+        {
+          ...databaseShowtime,
+          screeningCity: "Jerusalem",
+          cinema: "Jerusalem Cinematheque",
+          dateOfShowing: "2026-10-19",
+          showtime: "10:00:00",
+        },
+      ]),
+      findCinemathequeRows: vi.fn(async () => [
+        {
+          movie: nowPlaying,
+          showtime: {
+            ...duplicateScreening,
+            englishHref: "https://tickets.example/cinema-city",
+          },
+        },
+        {
+          movie: cinemaOnlyMovie,
+          showtime: {
+            ...duplicateScreening,
+            tmdbId: 9100004,
+            dateOfShowing: "2026-10-21",
+            showtime: "18:00:00",
+            englishHref: "javascript:alert(1)",
+          },
+        },
+      ]),
+      findMovieCodes: vi.fn(
+        async (ids) =>
+          new Map(ids.includes("9100001") ? [["9100001", "Ab1"]] : []),
+      ),
+    });
+
+    const result = await getCinemaPageData(
+      repository,
+      cinemaId,
+      new Date("2026-10-19T12:00:00.000Z"),
+    );
+
+    expect(result).toMatchObject({
+      id: cinemaId,
+      displayName: "Jerusalem Cinematheque",
+      city: "Jerusalem",
+      address: "11 Hebron Road",
+      screenings: [
+        {
+          movie: { tmdbId: "9100001", movieCode: "Ab1" },
+          screening: {
+            dateOfShowing: "2026-10-20",
+            showtime: "20:15",
+            englishHref: "https://tickets.example/cinema-city",
+          },
+        },
+        {
+          movie: { tmdbId: "9100004", title: "Cinematheque-only film" },
+          screening: {
+            dateOfShowing: "2026-10-21",
+            showtime: "18:00",
+            englishHref: null,
+          },
+        },
+      ],
+    });
+    expect(result?.screenings).toHaveLength(2);
+    expect(result?.screenings[1]?.movie.movieCode).toBeUndefined();
+    expect(repository.findShowtimeRows).toHaveBeenCalledWith({
+      city: "Jerusalem",
+      startDate: "2026-10-19",
+      endDate: "2026-11-17",
+    });
+    expect(repository.findCinemathequeRows).toHaveBeenCalledWith({
+      city: "Jerusalem",
+      startDate: "2026-10-19",
+      endDate: "2026-11-17",
+    });
+  });
+
+  it("uses preloaded cinema catalogs and returns a truthful empty schedule", async () => {
+    const identity = getCinemaIdentityById("aK90TvH244M7");
+    expect(identity).not.toBeNull();
+    const repository = createRepository({
+      findNowPlayingRows: vi.fn(async () => []),
+      findComingSoonRows: vi.fn(async () => []),
+      findTheaterCityRows: vi.fn(async () => []),
+      findShowtimeRows: vi.fn(async () => []),
+      findCinemathequeRows: vi.fn(async () => []),
+    });
+
+    const result = await getCinemaPageData(
+      repository,
+      identity!.id,
+      new Date("2026-10-19T12:00:00.000Z"),
+      {
+        theaterCatalog: {
+          cities: [],
+          theaters: [
+            {
+              city: {
+                name: "Jerusalem",
+                altSpellings: [],
+                latitude: 31.7683,
+                longitude: 35.2137,
+                zoomLayer: 10,
+                neighboringCities: [],
+              },
+              chain: "Cinema City",
+              address: "1 Road",
+              theaterName: "Cinema City Jerusalem",
+              location: identity!.locationKeys[0]!,
+              lat: 31.77,
+              lng: 35.21,
+            },
+          ],
+        },
+        nowPlaying: {
+          mode: "nowPlaying",
+          movies: [],
+          movieCodesStatus: "ready",
+        },
+        comingSoon: {
+          mode: "comingSoon",
+          movies: [],
+          movieCodesStatus: "ready",
+        },
+      },
+    );
+
+    expect(result?.screenings).toEqual([]);
+    expect(repository.findNowPlayingRows).not.toHaveBeenCalled();
+    expect(repository.findComingSoonRows).not.toHaveBeenCalled();
+    expect(repository.findTheaterCityRows).not.toHaveBeenCalled();
   });
 });

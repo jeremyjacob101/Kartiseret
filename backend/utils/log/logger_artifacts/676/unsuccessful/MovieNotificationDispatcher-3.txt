@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: MovieNotificationDispatcher
+URL: ?
+Exception: RuntimeError - Movie notification delivery failed: 32d46708-4fde-436e-b79e-9979c5eadb16: RuntimeError: Canonical recipient lookup failed.
+Call Chain: runners.py:33 > runners.py:24 > movie_alerts.py:467 > movie_alerts.py:461
+Selector: 
+Screenshot: 
+CSV: 

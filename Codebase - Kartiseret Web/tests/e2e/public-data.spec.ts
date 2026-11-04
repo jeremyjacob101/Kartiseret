@@ -102,8 +102,8 @@ test("catalog API supports search and permanent short-code movie details", async
   await page.goto("/movies");
 
   await expect(
-    page.getByRole("button", {
-      name: "Open Dev Catalog Film in scroller view",
+    page.getByRole("link", {
+      name: "Open Dev Catalog Film movie page",
     }),
   ).toBeVisible();
 
@@ -119,6 +119,11 @@ test("catalog API supports search and permanent short-code movie details", async
     page.getByRole("heading", { name: "Dev Catalog Film" }),
   ).toBeVisible();
   await expect(page).toHaveURL(/\/D01/);
+  await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    "href",
+    "https://seret.site/D01",
+  );
 
   expect(
     requests.some((request) => request.endsWith("/catalog/now-playing")),
@@ -131,8 +136,8 @@ test("catalog API supports search and permanent short-code movie details", async
   await page.goBack();
   await expect(page).toHaveURL(/\/movies$/);
   await expect(
-    page.getByRole("button", {
-      name: "Open Dev Catalog Film in scroller view",
+    page.getByRole("link", {
+      name: "Open Dev Catalog Film movie page",
     }),
   ).toBeVisible();
   await page.goForward();
@@ -246,6 +251,14 @@ test("an encoded Tel Aviv share link opens on mobile with targeted showtimes", a
   await expect(
     page.getByRole("heading", { name: "Dev Catalog Film" }),
   ).toBeVisible();
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    "href",
+    "https://seret.site/D01",
+  );
+  await expect(page.locator('meta[property="og:url"]')).toHaveAttribute(
+    "content",
+    `https://seret.site/${routeCode}`,
+  );
   await expect(
     page.getByLabel("Dev Catalog Film showtimes in Tel Aviv"),
   ).toBeVisible();
@@ -301,7 +314,7 @@ test("an open catalog refreshes coherently when publication changes before loadi
     );
     await page.goto("/movies");
     await expect(
-      page.getByRole("button", { name: "Open PR4 old film in scroller view" }),
+      page.getByRole("link", { name: "Open PR4 old film movie page" }),
     ).toBeVisible();
     await database.query("begin");
     await database.query(

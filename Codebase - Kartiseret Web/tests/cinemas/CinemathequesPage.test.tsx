@@ -138,7 +138,7 @@ describe("CinemathequesPage", () => {
       </QueryClientProvider>,
     );
     fireEvent.click(
-      screen.getByRole("button", {
+      screen.getByRole("link", {
         name: `View details for ${sampleMovie.title}`,
       }),
     );

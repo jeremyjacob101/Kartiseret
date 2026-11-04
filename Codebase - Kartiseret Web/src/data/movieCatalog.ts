@@ -34,11 +34,35 @@ const THEATER_SORT_INDEX = new Map(
 );
 
 export const defaultCity: AppLocation = DEFAULT_LOCATION;
-const fixedAppInstant = new Date();
-export const fixedAppDateString = getCinemaDayDate(
+declare global {
+  interface Window {
+    __KARTISERET_BOOTSTRAP__?: {
+      renderedAt?: unknown;
+    };
+  }
+}
+
+function getInitialAppInstant(): Date {
+  if (typeof window !== "undefined") {
+    const renderedAt = window.__KARTISERET_BOOTSTRAP__?.renderedAt;
+    if (typeof renderedAt === "string") {
+      const date = new Date(renderedAt);
+      if (Number.isFinite(date.getTime())) return date;
+    }
+  }
+  return new Date();
+}
+
+let fixedAppInstant = getInitialAppInstant();
+export let fixedAppDateString = getCinemaDayDate(
   fixedAppInstant,
   APP_TIME_ZONE,
 );
+
+export function setAppRenderInstant(instant: Date): void {
+  fixedAppInstant = instant;
+  fixedAppDateString = getCinemaDayDate(instant, APP_TIME_ZONE);
+}
 
 export type ShowtimeRow = PublicShowtime;
 export type MovieAltOption = z.infer<typeof movieAltOptionSchema>;
@@ -105,6 +129,8 @@ export type ShowtimeCityData = {
 export type ShowtimeCacheMerge = {
   publicationRevision?: string;
   city: AppLocation;
+  todayDate?: string;
+  renderInstant?: Date;
   dates: readonly string[];
   movies: readonly Movie[];
   rows: readonly ShowtimeRow[];
@@ -126,8 +152,10 @@ export const movieCatalogQueryKeys = {
     ["movieCatalog", "collections", mode] as const,
   showtimes: () => ["movieCatalog", "showtimes"] as const,
   showtimeCities: () => ["movieCatalog", "showtimes", "cities"] as const,
-  showtimeCity: (city: AppLocation) => {
-    const revision = currentPublicationRevision();
+  showtimeCity: (
+    city: AppLocation,
+    revision = currentPublicationRevision(),
+  ) => {
     return revision === undefined
       ? (["movieCatalog", "showtimes", "cities", city] as const)
       : (["movieCatalog", "showtimes", "cities", city, revision] as const);
@@ -196,11 +224,15 @@ function compareShowtimeEntries(
   );
 }
 
-function shouldIncludeShowtime(dateString: string, showtime: string): boolean {
+function shouldIncludeShowtime(
+  dateString: string,
+  showtime: string,
+  instant = fixedAppInstant,
+): boolean {
   return shouldIncludeShowtimeAtInstant(
     dateString,
     showtime,
-    fixedAppInstant,
+    instant,
     APP_TIME_ZONE,
   );
 }
@@ -247,11 +279,10 @@ function buildMovieShowtimesForCity(
   selectedMovies: readonly Movie[],
   selectedCity: AppLocation,
   windowEndDateString: string,
+  todayDate = fixedAppDateString,
+  renderInstant = fixedAppInstant,
 ): Record<string, MovieShowtimeDay[]> {
-  const showtimeWindowDates = buildDateRange(
-    fixedAppDateString,
-    windowEndDateString,
-  );
+  const showtimeWindowDates = buildDateRange(todayDate, windowEndDateString);
   const selectedMovieIds = new Set(selectedMovies.map((movie) => movie.tmdbId));
   const groupedShowtimes = new Map<
     string,
@@ -273,7 +304,7 @@ function buildMovieShowtimesForCity(
 
     const date = normalizeText(row.dateOfShowing);
 
-    if (date < fixedAppDateString || date > windowEndDateString) {
+    if (date < todayDate || date > windowEndDateString) {
       continue;
     }
 
@@ -284,7 +315,7 @@ function buildMovieShowtimesForCity(
     const screeningType = normalizeText(row.screeningType);
     const dubLanguage = normalizeText(row.dubLanguage ?? "") || null;
 
-    if (!shouldIncludeShowtime(date, showtime)) {
+    if (!shouldIncludeShowtime(date, showtime, renderInstant)) {
       continue;
     }
 
@@ -350,24 +381,31 @@ function buildMovieShowtimesForCity(
   );
 }
 
-function getShowtimeWindowEndDateString(dayCount: number): string {
-  return addDaysToIsoDate(fixedAppDateString, dayCount - 1);
+function getShowtimeWindowEndDateString(
+  dayCount: number,
+  todayDate = fixedAppDateString,
+): string {
+  return addDaysToIsoDate(todayDate, dayCount - 1);
 }
 
-function getShowtimeWindowDayCountForDate(dateString: string): number {
-  if (dateString <= fixedAppDateString) {
+function getShowtimeWindowDayCountForDate(
+  dateString: string,
+  todayDate = fixedAppDateString,
+): number {
+  if (dateString <= todayDate) {
     return INITIAL_SHOWTIME_WINDOW_DAY_COUNT;
   }
 
   const windowEndDateString = getShowtimeWindowEndDateString(
     SHOWTIME_WINDOW_DAY_COUNT,
+    todayDate,
   );
 
   if (dateString >= windowEndDateString) {
     return SHOWTIME_WINDOW_DAY_COUNT;
   }
 
-  return buildDateRange(fixedAppDateString, dateString).length;
+  return buildDateRange(todayDate, dateString).length;
 }
 
 function clampShowtimeWindowDayCount(dayCount: number): number {
@@ -485,12 +523,15 @@ export function isValidMovieCode(movieCode: string): boolean {
   return movieCodeSchema.safeParse(movieCode).success;
 }
 
-export function findMovieByCode(movieCode: string): MovieRouteMatch | null {
+export function findMovieByCode(
+  movieCode: string,
+  client: QueryClient = queryClient,
+): MovieRouteMatch | null {
   if (!isValidMovieCode(movieCode)) {
     return null;
   }
 
-  const nowPlayingMovie = queryClient.getQueryData<MovieCollectionData>(
+  const nowPlayingMovie = client.getQueryData<MovieCollectionData>(
     movieCatalogQueryKeys.collection("nowPlaying"),
   )?.moviesByCode[movieCode];
 
@@ -498,7 +539,7 @@ export function findMovieByCode(movieCode: string): MovieRouteMatch | null {
     return { movie: nowPlayingMovie, mode: "nowPlaying" };
   }
 
-  const comingSoonMovie = queryClient.getQueryData<MovieCollectionData>(
+  const comingSoonMovie = client.getQueryData<MovieCollectionData>(
     movieCatalogQueryKeys.collection("comingSoon"),
   )?.moviesByCode[movieCode];
 
@@ -596,12 +637,15 @@ function sortedUnique(values: Iterable<string>): string[] {
   return [...new Set(values)].sort();
 }
 
-function getContiguousBroadDayCount(fetchedDates: readonly string[]): number {
+function getContiguousBroadDayCount(
+  fetchedDates: readonly string[],
+  todayDate = fixedAppDateString,
+): number {
   const fetchedDateSet = new Set(fetchedDates);
   let dayCount = 0;
 
   while (dayCount < SHOWTIME_WINDOW_DAY_COUNT) {
-    const date = addDaysToIsoDate(fixedAppDateString, dayCount);
+    const date = addDaysToIsoDate(todayDate, dayCount);
 
     if (!fetchedDateSet.has(date)) {
       break;
@@ -671,7 +715,10 @@ export function mergeShowtimeCityData(
     }
   }
 
-  const broadLoadedDayCount = getContiguousBroadDayCount(broadFetchedDates);
+  const broadLoadedDayCount = getContiguousBroadDayCount(
+    broadFetchedDates,
+    merge.todayDate,
+  );
   const broadVisibleDayCount =
     merge.scope === "broad"
       ? clampShowtimeWindowDayCount(
@@ -693,7 +740,9 @@ export function mergeShowtimeCityData(
     Object.values(rowsByKey),
     merge.movies,
     merge.city,
-    getShowtimeWindowEndDateString(visibleDayCount),
+    getShowtimeWindowEndDateString(visibleDayCount, merge.todayDate),
+    merge.todayDate,
+    merge.renderInstant,
   );
 
   return {
@@ -814,9 +863,12 @@ async function fetchAndMergeShowtimeRange(
   });
 }
 
-export function showtimeCityQueryOptions(city: AppLocation) {
+export function showtimeCityQueryOptions(
+  city: AppLocation,
+  publicationRevision = currentPublicationRevision(),
+) {
   return queryOptions({
-    queryKey: movieCatalogQueryKeys.showtimeCity(city),
+    queryKey: movieCatalogQueryKeys.showtimeCity(city, publicationRevision),
     queryFn: async () => {
       const collection = await queryClient.ensureQueryData(
         movieCollectionQueryOptions("nowPlaying"),
@@ -895,6 +947,7 @@ export function isMovieShowtimeDateCovered(
   cityData: ShowtimeCityData | undefined,
   tmdbId: string,
   dateString: string,
+  todayDate = fixedAppDateString,
 ): boolean {
   if (!cityData) {
     return false;
@@ -915,8 +968,8 @@ export function isMovieShowtimeDateCovered(
 
   return (
     coveredDayCount > 0 &&
-    dateString >= fixedAppDateString &&
-    dateString <= getShowtimeWindowEndDateString(coveredDayCount)
+    dateString >= todayDate &&
+    dateString <= getShowtimeWindowEndDateString(coveredDayCount, todayDate)
   );
 }
 
@@ -1393,18 +1446,24 @@ export function adminMovieEditMutationOptions() {
 export function getMovieShowtimeDays(
   tmdbId: string,
   city: AppLocation = defaultCity,
+  client: QueryClient = queryClient,
+  publicationRevision = currentPublicationRevision(client),
 ): readonly MovieShowtimeDay[] {
-  const cityData = queryClient.getQueryData<ShowtimeCityData>(
-    movieCatalogQueryKeys.showtimeCity(city),
+  const cityData = client.getQueryData<ShowtimeCityData>(
+    movieCatalogQueryKeys.showtimeCity(city, publicationRevision),
   );
 
   return selectMovieShowtimeDays(cityData, tmdbId);
 }
 
-export function getMovieShowtimeCities(tmdbId: string): readonly AppLocation[] {
+export function getMovieShowtimeCities(
+  tmdbId: string,
+  client: QueryClient = queryClient,
+  publicationRevision = currentPublicationRevision(client),
+): readonly AppLocation[] {
   const cities = ALL_LOCATIONS.filter((city) => {
-    const cityData = queryClient.getQueryData<ShowtimeCityData>(
-      movieCatalogQueryKeys.showtimeCity(city),
+    const cityData = client.getQueryData<ShowtimeCityData>(
+      movieCatalogQueryKeys.showtimeCity(city, publicationRevision),
     );
 
     return selectMovieShowtimeDays(cityData, tmdbId).some(

@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install Chromium for SSR browser smoke tests
+        run: npx playwright install --with-deps chromium
+
       - name: Verify web application
         run: npm run verify:code
 

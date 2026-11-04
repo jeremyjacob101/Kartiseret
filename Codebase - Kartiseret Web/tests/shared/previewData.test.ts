@@ -31,7 +31,7 @@ function createPreviewRepository(options: {
     findComingSoonRows: async () => [],
     findCinemathequeRows: async () => [],
     findShowtimeRows: async () => showtimeRows,
-    findTicketAvailabilityRows: async () => [],
+    findMovieShowtimeRows: async () => [],
     findTheaterCityRows: async () => [],
     findMovieCodeByCode: async () =>
       options.codeRows?.length === 0 ? null : tmdbId,
@@ -251,6 +251,21 @@ describe("social preview route and data handling", () => {
     });
   });
 
+  it("uses app-served poster and backdrop variants for social preview generation", async () => {
+    const mirroredMovie = {
+      ...movie,
+      enPoster: `https://seret.site/api/images/v1/poster/${"a".repeat(64)}/342.webp`,
+      backdrop: `https://seret.site/api/images/v1/backdrop/${"b".repeat(64)}/1280.webp`,
+    };
+    const data = await getPreviewData(
+      "Ab1",
+      new Date("2026-09-16T16:00:00Z"),
+      createPreviewRepository({ movie: mirroredMovie }),
+    );
+    expect(data?.posterUrl).toBe(mirroredMovie.enPoster);
+    expect(data?.backdropUrl).toBe(mirroredMovie.backdrop);
+  });
+
   it("builds escaped Open Graph metadata and stable descriptions", () => {
     const data: PreviewData = {
       routeCode: "Ab1",
@@ -280,7 +295,7 @@ describe("social preview route and data handling", () => {
       "Cinema City: 20:00, 22:00",
     );
     const html = injectOpenGraphTags(
-      "<html><head><!-- OG_START -->old<!-- OG_END --></head></html>",
+      "<html><head><!-- SEO_META_START -->old<!-- SEO_META_END --></head><body><!-- SEO_CONTENT_START -->old body<!-- SEO_CONTENT_END --></body></html>",
       data,
       "https://example.test",
     );

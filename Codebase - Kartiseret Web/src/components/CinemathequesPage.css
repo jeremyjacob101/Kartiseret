@@ -54,6 +54,7 @@ html[data-device-type="mobile"] .cinematheques-page-title {
   border-radius: 10px;
   background: #181124;
   cursor: pointer;
+  text-decoration: none;
 }
 .cinematheques-poster-button:focus-visible {
   outline: 3px solid #d7a6ff;

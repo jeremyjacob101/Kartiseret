@@ -38,4 +38,70 @@ describe("deployment performance boundaries", () => {
     ])
       expect(cacheHeader(path)).toBeUndefined();
   });
+
+  it("routes SEO endpoints ahead of short movie codes and the not-found fallback", () => {
+    const rewrites = config.rewrites as {
+      source: string;
+      destination: string;
+    }[];
+    const indexOf = (source: string) =>
+      rewrites.findIndex((rewrite) => rewrite.source === source);
+    for (const source of [
+      "/robots.txt",
+      "/sitemap.xml",
+      "/c/:cinemaId",
+      "/movies",
+      "/showtimes",
+      "/soons",
+      "/cinematheques",
+      "/reset-password",
+    ]) {
+      expect(indexOf(source), `${source} rewrite`).toBeGreaterThanOrEqual(0);
+    }
+    expect(indexOf("/c/:cinemaId")).toBeLessThan(
+      indexOf("/:routeCode([0-9A-Za-z]{3,10})"),
+    );
+    expect(indexOf("/reset-password")).toBeLessThan(
+      indexOf("/:routeCode([0-9A-Za-z]{3,10})"),
+    );
+    expect(indexOf("/(.*)")).toBe(rewrites.length - 1);
+    expect(
+      rewrites.find((rewrite) => rewrite.source === "/api")?.destination,
+    ).toBe("/api/dispatch");
+    expect(
+      rewrites.find((rewrite) => rewrite.source === "/reset-password")
+        ?.destination,
+    ).toBe("/index.html");
+    expect(
+      rewrites.find((rewrite) => rewrite.source === "/sitemap.xml")
+        ?.destination,
+    ).toContain("__vercel_route=sitemap");
+    expect(
+      rewrites.find((rewrite) => rewrite.source === "/robots.txt")?.destination,
+    ).toContain("__vercel_route=robots");
+  });
+
+  it("routes the root through SSR before Vercel can serve the static index file", () => {
+    const rootRoute = (
+      config.routes as {
+        src: string;
+        dest: string;
+      }[]
+    ).find((route) => route.src === "^/$");
+
+    expect(rootRoute?.dest).toBe("/api/dispatch?__vercel_route=page&path=/");
+  });
+
+  it("marks account and reset pages as non-indexable in initial HTTP responses", () => {
+    const headerRules = config.headers as {
+      source: string;
+      headers: { key: string; value: string }[];
+    }[];
+    for (const path of ["/user", "/reset-password", "/attribution"]) {
+      const robots = headerRules
+        .find((rule) => rule.source === path)
+        ?.headers.find((header) => header.key.toLowerCase() === "x-robots-tag");
+      expect(robots?.value).toBe("noindex, nofollow");
+    }
+  });
 });

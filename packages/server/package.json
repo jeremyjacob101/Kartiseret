@@ -12,7 +12,8 @@
     "./production": "./dist/production.js",
     "./catalog": "./dist/catalog/index.js",
     "./public-data": "./dist/public-data/index.js",
-    "./vercel-dispatch": "./dist/vercel-dispatch.js"
+    "./vercel-dispatch": "./dist/vercel-dispatch.js",
+    "./social-preview": "./dist/social-preview.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

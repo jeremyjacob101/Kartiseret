@@ -1,4 +1,5 @@
-import { isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema, tmdbIdSchema } from "@kartiseret/contracts/runtime";
+import { socialPreviewCardDataSchema, socialPreviewFingerprintSchema } from "@kartiseret/contracts/social-preview";
+import { isoDateStringSchema, movieCodeSchema, nonEmptyTrimmedStringSchema } from "@kartiseret/contracts/runtime";
 import { z } from "zod";
 
 const nullableNumberishSchema = z.union([
@@ -40,29 +41,17 @@ export const previewTheaterSchema = z.object({
   showtimes: z.array(nonEmptyTrimmedStringSchema).max(4),
 });
 
-export const previewDataSchema = z.object({
-  routeCode: z.string().min(3).max(10),
-  movieCode: movieCodeSchema,
-  tmdbId: tmdbIdSchema,
-  title: nonEmptyTrimmedStringSchema,
-  city: nonEmptyTrimmedStringSchema,
-  date: isoDateStringSchema,
-  dateLabel: nonEmptyTrimmedStringSchema,
-  posterUrl: z.string(),
-  backdropUrl: z.string(),
-  isComingSoon: z.boolean(),
-  theaters: z.array(previewTheaterSchema).max(3),
-  year: z.number().finite().positive().nullable(),
-  releaseDate: isoDateStringSchema.nullable(),
-  runtime: z.number().finite().positive().nullable(),
-  genres: z.array(nonEmptyTrimmedStringSchema).max(3),
-  imdbRating: z.number().finite().positive().nullable(),
-  rtCriticRating: z.number().finite().positive().nullable(),
-  rtCriticVotes: z.number().finite().positive().nullable(),
-  rtAudienceRating: z.number().finite().positive().nullable(),
-  rtAudienceVotes: z.number().finite().positive().nullable(),
-  lbRating: z.number().finite().positive().nullable(),
-});
+export const previewDataSchema = z
+  .object({
+    routeCode: z.string().min(3).max(10),
+    movieCode: movieCodeSchema,
+    city: nonEmptyTrimmedStringSchema,
+    date: isoDateStringSchema,
+    dateLabel: nonEmptyTrimmedStringSchema,
+    socialPreviewFingerprint: socialPreviewFingerprintSchema.optional(),
+    theaters: z.array(previewTheaterSchema).max(3),
+  })
+  .extend(socialPreviewCardDataSchema.shape);
 
 export const previewRouteSelectionSchema = z.object({
   movieCode: movieCodeSchema,

@@ -1,8 +1,11 @@
 import { createPreviewImage, downloadImage, MAX_IMAGE_BYTES } from "../server/og/previewImage.ts";
 import { existsSync, readFileSync } from "node:fs";
+import { createInterface } from "node:readline";
 import { dirname, resolve } from "node:path";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
+import { once } from "node:events";
 import sharp from "sharp";
 
 const webRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -114,8 +117,116 @@ try {
     },
     { format: "jpeg", width: 1200, height: 630 },
   );
+  const posterPixel = await sharp(previewImage)
+    .extract({ left: 200, top: 300, width: 1, height: 1 })
+    .removeAlpha()
+    .raw()
+    .toBuffer();
+  const backdropPixel = await sharp(previewImage)
+    .extract({ left: 1150, top: 590, width: 1, height: 1 })
+    .removeAlpha()
+    .raw()
+    .toBuffer();
+  const posterLuma =
+    posterPixel[0] * 0.2126 + posterPixel[1] * 0.7152 + posterPixel[2] * 0.0722;
+  const backdropLuma =
+    backdropPixel[0] * 0.2126 +
+    backdropPixel[1] * 0.7152 +
+    backdropPixel[2] * 0.0722;
+  assert.ok(
+    posterLuma > backdropLuma + 20,
+    "poster artwork must remain brighter than the dimmed backdrop",
+  );
+  const minimalImage = await createPreviewImage(
+    {
+      ...previewData,
+      posterUrl: "",
+      backdropUrl: "",
+      year: null,
+      runtime: null,
+      genres: [],
+    },
+    { posterSource: null, backdropSource: null },
+  );
+  assert.equal((await sharp(minimalImage).metadata()).format, "jpeg");
 } finally {
   globalThis.fetch = originalFetch;
+}
+
+const worker = spawn(
+  "node",
+  [
+    "--import",
+    "tsx",
+    "Codebase - Kartiseret Web/scripts/social-preview-worker.mjs",
+  ],
+  { cwd: repositoryRoot, stdio: ["pipe", "pipe", "inherit"] },
+);
+const workerLines = createInterface({ input: worker.stdout });
+const workerResponses = workerLines[Symbol.asyncIterator]();
+async function workerRequest(message) {
+  worker.stdin.write(`${JSON.stringify(message)}\n`);
+  const response = await workerResponses.next();
+  assert.ok(
+    !response.done,
+    "social preview worker must respond to each request",
+  );
+  const result = JSON.parse(response.value);
+  assert.equal(result.ok, true, result.error);
+  return result;
+}
+try {
+  const fingerprint = await workerRequest({
+    op: "fingerprint",
+    table: "finalMovies",
+    record: {
+      tmdb_id: 101,
+      english_title: "Worker Preview Film",
+      release_year: 2026,
+      genres: ["Drama"],
+      en_poster: "https://image.tmdb.org/t/p/w342/poster.png",
+      backdrop: null,
+      social_preview_fingerprint: null,
+      en_trailer: null,
+      solo_update: false,
+      alt_options: [],
+      imdb_id: null,
+      rt_id: null,
+      imdbRating: 8,
+      imdbVotes: "100",
+      rtAudienceRating: "92%",
+      rtAudienceVotes: "500",
+      rtCriticRating: 80,
+      rtCriticVotes: "100",
+      lb_id: null,
+      lbRating: null,
+      lbVotes: null,
+      tmdbRating: 75,
+      tmdbVotes: "300",
+      runtime: 120,
+      popularity: 20,
+    },
+  });
+  assert.match(fingerprint.fingerprint, /^[a-f0-9]{64}$/);
+  const rendered = await workerRequest({
+    op: "render",
+    data: fingerprint.data,
+    posterSource: fixturePng.toString("base64"),
+    backdropSource: fixturePng.toString("base64"),
+  });
+  const generated = Buffer.from(rendered.jpeg, "base64");
+  assert.equal((await sharp(generated).metadata()).format, "jpeg");
+  assert.deepEqual(
+    {
+      width: (await sharp(generated).metadata()).width,
+      height: (await sharp(generated).metadata()).height,
+    },
+    { width: 1200, height: 630 },
+  );
+} finally {
+  worker.stdin.end();
+  workerLines.close();
+  await once(worker, "exit");
 }
 
 assert.equal(
@@ -163,24 +274,48 @@ const htmlResponse = createResponse();
 await htmlHandler(
   {
     method: "GET",
-    query: { routeCode: "broken" },
+    query: { routeCode: "??" },
     headers: { host: "localhost" },
   },
   htmlResponse,
 );
-assert.equal(htmlResponse.statusCode, 200);
+assert.equal(htmlResponse.statusCode, 404);
 assert.match(htmlResponse.headers.get("content-type"), /^text\/html/);
-assert.match(htmlResponse.body, /<div id="root"><\/div>/);
+assert.match(htmlResponse.body, /<h1>Page not found<\/h1>/);
+
+const { default: dispatch } = await import("../../api/dispatch.ts");
+const dispatchedResponse = createResponse();
+await dispatch(
+  {
+    url: "/api/dispatch?__vercel_route=movie&routeCode=%3F%3F",
+    query: { __vercel_route: "movie", routeCode: "??" },
+    headers: { host: "localhost" },
+  },
+  dispatchedResponse,
+);
+assert.equal(dispatchedResponse.statusCode, 404);
+assert.match(dispatchedResponse.headers.get("content-type"), /^text\/html/);
+assert.match(dispatchedResponse.body, /<h1>Page not found<\/h1>/);
 
 const imageResponse = createResponse();
 await imageHandler(
   { method: "GET", query: { home: "1" }, headers: { host: "localhost" } },
   imageResponse,
 );
-assert.equal(imageResponse.statusCode, 200);
-assert.equal(imageResponse.headers.get("content-type"), "image/jpeg");
-assert.ok(Buffer.isBuffer(imageResponse.body));
-assert.equal((await sharp(imageResponse.body).metadata()).format, "jpeg");
+assert.equal(imageResponse.statusCode, 302);
+assert.equal(
+  imageResponse.headers.get("location"),
+  "http://localhost/og/home.jpg",
+);
+const homeImagePath = resolve(webRoot, "public/og/home.jpg");
+assert.ok(
+  existsSync(homeImagePath),
+  "the static homepage social image must exist",
+);
+assert.equal(
+  (await sharp(readFileSync(homeImagePath)).metadata()).format,
+  "jpeg",
+);
 
 console.log(
   "Built Open Graph handlers, SPA fallback, assets, and JPEG smoke passed.",

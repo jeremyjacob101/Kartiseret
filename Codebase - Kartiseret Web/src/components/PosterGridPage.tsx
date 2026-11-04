@@ -150,29 +150,18 @@ export function PosterGridPage({
 
   return (
     <section className="poster-grid-page" aria-label={title}>
+      <h1 className="poster-grid-page-heading section-title">{title}</h1>
       <div ref={gridRef} className="poster-grid-page-grid" aria-label={title}>
         {posterEntries.map(({ movie, rowIndex }) => (
           <div
             key={movie.tmdbId}
             className="poster-grid-page-tile"
-            role="button"
-            tabIndex={0}
-            aria-label={`Open ${movie.title} in scroller view`}
             title={movie.title}
             style={
               {
                 "--poster-grid-row-index": rowIndex,
               } as CSSProperties
             }
-            onClick={() => {
-              onPosterSelect(movie);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onPosterSelect(movie);
-              }
-            }}
           >
             {isAdmin ? (
               <button
@@ -193,15 +182,58 @@ export function PosterGridPage({
                 <Pencil size={14} />
               </button>
             ) : null}
-            <MoviePosterArtwork
-              title={movie.title}
-              tmdbId={movie.tmdbId}
-              imageSrc={movie.imageSrc}
-              alt={movie.title}
-              loading="lazy"
-              decoding="async"
-              className="poster-grid-page-image"
-            />
+            {movie.movieCode ? (
+              <a
+                className="poster-grid-page-tile-link"
+                href={`/${movie.movieCode}`}
+                aria-label={`Open ${movie.title} movie page`}
+                title={movie.title}
+                onClick={(event) => {
+                  if (
+                    event.button !== 0 ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                  ) {
+                    return;
+                  }
+                  event.preventDefault();
+                  onPosterSelect(movie);
+                }}
+              >
+                <MoviePosterArtwork
+                  title={movie.title}
+                  tmdbId={movie.tmdbId}
+                  imageSrc={movie.imageSrc}
+                  imageSrcSet={movie.imageSrcSet}
+                  imageSizes="(max-width: 640px) 42vw, 210px"
+                  alt={movie.title}
+                  loading="lazy"
+                  decoding="async"
+                  className="poster-grid-page-image"
+                />
+              </a>
+            ) : (
+              <button
+                className="poster-grid-page-tile-link poster-grid-page-tile-button"
+                type="button"
+                aria-label={`Open ${movie.title} in scroller view`}
+                onClick={() => onPosterSelect(movie)}
+              >
+                <MoviePosterArtwork
+                  title={movie.title}
+                  tmdbId={movie.tmdbId}
+                  imageSrc={movie.imageSrc}
+                  imageSrcSet={movie.imageSrcSet}
+                  imageSizes="(max-width: 640px) 42vw, 210px"
+                  alt={movie.title}
+                  loading="lazy"
+                  decoding="async"
+                  className="poster-grid-page-image"
+                />
+              </button>
+            )}
           </div>
         ))}
       </div>

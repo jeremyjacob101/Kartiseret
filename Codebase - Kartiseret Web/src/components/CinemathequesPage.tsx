@@ -1,24 +1,27 @@
 import { getShowtimeDateLabel, getTrailerEmbedUrl, getMetricDisplays, getMovieInfoParts } from "./showtimes/showtimeUtils";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
 import { MovieMetricsRow, MovieTrailerModal } from "./showtimes/ShowtimeShared";
 import { applyMovieDisplayPreferences } from "../data/movieDisplayPreferences";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { cinemathequeQueryOptions } from "../data/cinemathequeCatalog";
+import { usePublicRenderClock } from "../contexts/PublicRenderClock";
 import { findMovieByCode, type Movie } from "../data/movieCatalog";
 import { buildCinemathequeSchedule } from "../data/cinematheques";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TheaterMapDialog } from "./maps/TheaterMapDialog";
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
+import { setSeoMetadata } from "../routing/seoMetadata";
 import { useShallow } from "zustand/react/shallow";
-import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router";
+import { Link } from "react-router";
 import "./AllShowtimesPage.css";
 import "./CinemathequesPage.css";
 
 export function CinemathequesPage() {
-  const navigate = useNavigate();
+  const { cinemaDate } = usePublicRenderClock();
   const publicationRevision = usePublicationRevision();
+  const queryClient = useQueryClient();
   const displayPreferences = useMovieDisplayPreferences();
   const { preferenceLocation, sources } = useUserPreferencesStore(
     useShallow((state) => ({
@@ -34,18 +37,15 @@ export function CinemathequesPage() {
   );
   const cinemathequeQuery = useQuery({
     ...cinemathequeQueryOptions(location, publicationRevision),
-    enabled: displayPreferences.ready,
   });
   const rawMovies = cinemathequeQuery.data?.movies;
   const nowPlayingMovies = useMemo(
     () =>
-      displayPreferences.ready
-        ? applyMovieDisplayPreferences(
-            rawMovies ?? [],
-            displayPreferences.preferencesById,
-          )
-        : [],
-    [displayPreferences.preferencesById, displayPreferences.ready, rawMovies],
+      applyMovieDisplayPreferences(
+        rawMovies ?? [],
+        displayPreferences.preferencesById,
+      ),
+    [displayPreferences.preferencesById, rawMovies],
   );
   const dayPanels = useMemo(
     () =>
@@ -78,6 +78,26 @@ export function CinemathequesPage() {
   }, []);
 
   const isLoading = cinemathequeQuery.isPending;
+
+  useLayoutEffect(() => {
+    if (isLoading || !cinemathequeQuery.data) return;
+    const hasPublicMovieLinks = cinemathequeQuery.data.movies.some(
+      (movie) =>
+        movie.movieCode &&
+        findMovieByCode(movie.movieCode, queryClient)?.movie.tmdbId ===
+          movie.tmdbId,
+    );
+    setSeoMetadata({
+      title: `Cinematheque showtimes in ${location} | Kartiseret`,
+      description: `Browse upcoming cinematheque movie screenings in ${location}.`,
+      canonicalPath: "/cinematheques",
+      robots:
+        cinemathequeQuery.data.movieCodesStatus === "ready" &&
+        hasPublicMovieLinks
+          ? "index, follow"
+          : "noindex, nofollow",
+    });
+  }, [cinemathequeQuery.data, isLoading, location, queryClient]);
 
   return (
     <section
@@ -118,7 +138,7 @@ export function CinemathequesPage() {
               key={day.date}
             >
               <h2 className="cinematheques-date">
-                {getShowtimeDateLabel(day.date)}
+                {getShowtimeDateLabel(day.date, cinemaDate)}
               </h2>
               {day.cinemas.map(({ cinema, movies }) => (
                 <section
@@ -133,32 +153,49 @@ export function CinemathequesPage() {
                         className="cinematheques-poster-tile"
                         key={movie.tmdbId}
                       >
-                        <button
-                          className="cinematheques-poster-button"
-                          type="button"
-                          aria-label={`View details for ${movie.title}`}
-                          onClick={(event) => {
-                            const match = movie.movieCode
-                              ? findMovieByCode(movie.movieCode)
-                              : null;
-                            if (match?.movie.tmdbId === movie.tmdbId) {
-                              navigate(`/${movie.movieCode}`);
-                            } else {
+                        {movie.movieCode &&
+                        findMovieByCode(movie.movieCode, queryClient)?.movie
+                          .tmdbId === movie.tmdbId ? (
+                          <Link
+                            className="cinematheques-poster-button"
+                            to={`/${movie.movieCode}`}
+                            aria-label={`View details for ${movie.title}`}
+                          >
+                            <MoviePosterArtwork
+                              title={movie.title}
+                              tmdbId={movie.tmdbId}
+                              imageSrc={movie.imageSrc}
+                              imageSrcSet={movie.imageSrcSet}
+                              imageSizes="(max-width: 600px) calc((100vw - 48px) / 3), 160px"
+                              alt=""
+                              className="cinematheques-poster"
+                              fallbackClassName="cinematheques-poster"
+                              loading="lazy"
+                            />
+                          </Link>
+                        ) : (
+                          <button
+                            className="cinematheques-poster-button"
+                            type="button"
+                            aria-label={`View details for ${movie.title}`}
+                            onClick={(event) => {
                               detailTriggerRef.current = event.currentTarget;
                               setDetailMovie(movie);
-                            }
-                          }}
-                        >
-                          <MoviePosterArtwork
-                            title={movie.title}
-                            tmdbId={movie.tmdbId}
-                            imageSrc={movie.imageSrc}
-                            alt=""
-                            className="cinematheques-poster"
-                            fallbackClassName="cinematheques-poster"
-                            loading="lazy"
-                          />
-                        </button>
+                            }}
+                          >
+                            <MoviePosterArtwork
+                              title={movie.title}
+                              tmdbId={movie.tmdbId}
+                              imageSrc={movie.imageSrc}
+                              imageSrcSet={movie.imageSrcSet}
+                              imageSizes="(max-width: 600px) calc((100vw - 48px) / 3), 160px"
+                              alt=""
+                              className="cinematheques-poster"
+                              fallbackClassName="cinematheques-poster"
+                              loading="lazy"
+                            />
+                          </button>
+                        )}
                         <div
                           className="cinematheques-times"
                           aria-label={`Showtimes for ${movie.title}`}
