@@ -61,11 +61,11 @@
 		83F40144875624B0B760E3DA /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
 		8C0DDC4B4730724FE50911D7 /* FixtureAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureAPIClient.swift; sourceTree = "<group>"; };
 		8CFCB6CE55944C4EDBC82A9A /* SelectionControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionControls.swift; sourceTree = "<group>"; };
-		9A12C4B938EE67D0C05B748A /* KartiseretTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KartiseretTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9A12C4B938EE67D0C05B748A /* KartiseretTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KartiseretTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A3ED3793B6B30AA59A2E8EC9 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		BEC664883FECE9EC750651D1 /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedViews.swift; sourceTree = "<group>"; };
 		BF750FA9EBB7DFA4BEC7FD43 /* CinemaDay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CinemaDay.swift; sourceTree = "<group>"; };
-		E19714449C3D30C0EA30E31E /* KartiseretUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KartiseretUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E19714449C3D30C0EA30E31E /* KartiseretUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KartiseretUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2F7978CA6D77B00CBA8294C /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		E7EB2FCC41A47E7B7B688012 /* KartiseretUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KartiseretUITests.swift; sourceTree = "<group>"; };
 		EEA1F8EDD894C4196CCEC84B /* ShowtimeViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowtimeViews.swift; sourceTree = "<group>"; };
@@ -230,7 +230,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 2720;
 				TargetAttributes = {
 					2747609B17ABA76B8488BC01 = {
 						TestTargetID = 98989D6384B8DCB1D09EBE58;
@@ -493,6 +493,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -577,6 +578,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_STRICT_CONCURRENCY = complete;
