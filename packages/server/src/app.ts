@@ -58,6 +58,7 @@ export interface AppDependencies {
   protectedWorkflows?: ProtectedWorkflowService;
   authHandler?: RequestHandler;
   recipientRouter?: Router;
+  notificationUnsubscribeRouter?: Router;
   trustedOrigins?: readonly string[];
   tmdbSearch?: TmdbSearchProvider;
   protectedRateLimit?: ProtectedRateLimitOptions;
@@ -103,6 +104,7 @@ export function createApp({
   protectedWorkflows,
   authHandler,
   recipientRouter,
+  notificationUnsubscribeRouter,
   trustedOrigins = [],
   tmdbSearch,
   protectedRateLimit,
@@ -114,6 +116,7 @@ export function createApp({
     [
       "/api/auth",
       "/api/internal",
+      "/api/v1/unsubscribe",
       "/api/v1/account",
       "/api/v1/preferences",
       "/api/v1/ticket-alerts",
@@ -142,6 +145,8 @@ export function createApp({
     createArtworkHandler(imageStore),
   );
   if (recipientRouter) app.use("/api/internal", recipientRouter);
+  if (notificationUnsubscribeRouter)
+    app.use("/api/v1/unsubscribe", notificationUnsubscribeRouter);
 
   app.get("/api/v1/health", (_request, response) => {
     response.json({ data: { status: "ok" }, error: null });

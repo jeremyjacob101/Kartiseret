@@ -5,6 +5,7 @@ from unittest import TestCase
 from backend.notifications.movie_alerts import (
     MovieNotificationDispatcher,
     collect_first_availability,
+    create_movie_notification_unsubscribe_urls,
     render_movie_notification_email,
 )
 from backend.notifications.ticket_alerts import (
@@ -40,6 +41,16 @@ class Repository(FakeRepository):
         self.events, self.deliveries = {}, {}
         self.locations = {}
         self.posters = {}
+
+    def letterboxd_supported_movies(self, user_id, tmdb_ids):
+        return {
+            int(row["tmdb_id"])
+            for row in self.source_films.values()
+            if row.get("user_id") == user_id
+            and row.get("removed_at") is None
+            and row.get("tmdb_id") is not None
+            and int(row["tmdb_id"]) in tmdb_ids
+        }
 
     def load_watches(self):
         return self.tickets, self.dates
@@ -143,6 +154,8 @@ class MovieNotificationTests(TestCase):
                 resend_api_key="fake",
                 from_email="alerts@example.test",
                 site_url="https://seret.site",
+                recipient_api_url="https://api.example.test",
+                internal_api_secret="internal-test-secret",
             ),
             now_factory=lambda: NOW,
             delivery_id_factory=lambda: f"batch-{len(repo.deliveries)}",
@@ -378,6 +391,123 @@ class MovieNotificationTests(TestCase):
             http.post_calls[0]["headers"]["Idempotency-Key"],
             http.post_calls[1]["headers"]["Idempotency-Key"],
         )
+
+    def test_letterboxd_digest_includes_distinct_manage_and_one_click_controls(self):
+        repo = Repository(
+            sources=[
+                _source("watch", "https://letterboxd.com/fixture/watchlist/", "watchlist")
+            ],
+            showtimes=[ticket()],
+        )
+        self.watch(repo)
+        http = FakeLetterboxdAndResend()
+        self.dispatcher(repo, http).dispatch()
+
+        email = http.post_calls[0]["json"]
+        self.assertIn("Manage Letterboxd list alerts", email["html"])
+        self.assertIn("Manage Letterboxd list alerts", email["text"])
+        self.assertEqual(
+            http.unsubscribe_calls[0]["json"],
+            {"userId": "alice", "deliveryId": "batch-0"},
+        )
+        self.assertEqual(
+            email["headers"]["List-Unsubscribe-Post"], "List-Unsubscribe=One-Click"
+        )
+        self.assertTrue(email["headers"]["List-Unsubscribe"].startswith("<https://"))
+        self.assertIn(
+            "including connected Letterboxd lists and individual movie watches",
+            email["text"],
+        )
+
+    def test_manual_only_digest_has_no_list_unsubscribe_headers_or_footer(self):
+        repo = Repository(showtimes=[ticket()])
+        self.watch(repo)
+        http = FakeLetterboxdAndResend()
+        self.dispatcher(repo, http).dispatch()
+
+        email = http.post_calls[0]["json"]
+        self.assertNotIn("headers", email)
+        self.assertNotIn("Manage Letterboxd list alerts", email["text"])
+
+    def test_templates_escape_manage_url_and_add_headers_only_as_a_pair(self):
+        event = {
+            "tmdb_id": 101,
+            "event_type": "coming_soon",
+            "event_payload": {"title": "A Film", "release_date": "2027-01-01"},
+        }
+        email = render_movie_notification_email(
+            [event],
+            letterboxd_manage_url="https://seret.site/unsubscribe/letterboxd#token=abc&x=1",
+            one_click_unsubscribe_url="https://seret.site/api/v1/unsubscribe/one-click/token",
+        )
+
+        self.assertIn("token=abc&amp;x=1", email.html)
+        self.assertIn("token=abc&x=1", email.text)
+        self.assertEqual(
+            email.headers,
+            {
+                "List-Unsubscribe": "<https://seret.site/api/v1/unsubscribe/one-click/token>",
+                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "Both movie notification"):
+            render_movie_notification_email([event], letterboxd_manage_url="https://seret.site/manage")
+
+    def test_unsubscribe_urls_use_configured_https_origins_and_block_redirects(self):
+        http = FakeLetterboxdAndResend()
+        urls = create_movie_notification_unsubscribe_urls(
+            http,
+            base_url="https://api.example.test",
+            internal_secret="internal-test-secret",
+            site_url="https://watch.example.test",
+            user_id="alice",
+            delivery_id="batch-17",
+        )
+        self.assertEqual(
+            urls,
+            (
+                "https://watch.example.test/unsubscribe/letterboxd#token=" + "M" * 43,
+                "https://watch.example.test/api/v1/unsubscribe/one-click/" + "O" * 43,
+            ),
+        )
+        self.assertEqual(
+            http.unsubscribe_calls[0]["endpoint"],
+            "https://api.example.test/api/internal/movie-notification-unsubscribe-tokens",
+        )
+        self.assertEqual(http.unsubscribe_calls[0]["timeout"], (5, 15))
+        self.assertFalse(http.unsubscribe_calls[0]["allow_redirects"])
+        self.assertEqual(
+            http.unsubscribe_calls[0]["headers"],
+            {"Authorization": "Bearer internal-test-secret"},
+        )
+        for base_url in (
+            "",
+            "http://api.example.test",
+            "https://api.example.test/path",
+            "https://user:secret@api.example.test",
+        ):
+            with self.subTest(base_url=base_url), self.assertRaises(RuntimeError):
+                create_movie_notification_unsubscribe_urls(
+                    http,
+                    base_url=base_url,
+                    internal_secret="internal-test-secret",
+                    site_url="https://watch.example.test",
+                    user_id="alice",
+                    delivery_id="batch-17",
+                )
+
+    def test_template_rejects_header_injection_in_unsubscribe_urls(self):
+        event = {
+            "tmdb_id": 101,
+            "event_type": "coming_soon",
+            "event_payload": {"title": "A Film", "release_date": "2027-01-01"},
+        }
+        with self.assertRaisesRegex(ValueError, "safe HTTPS URLs"):
+            render_movie_notification_email(
+                [event],
+                letterboxd_manage_url="https://seret.site/manage#token=abc",
+                one_click_unsubscribe_url="https://seret.site/unsub\r\nBcc:evil@example.test",
+            )
 
     def test_title_overrides_mode_city_and_filters(self):
         repo = Repository(

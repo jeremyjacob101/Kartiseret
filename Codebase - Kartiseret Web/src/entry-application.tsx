@@ -4,9 +4,20 @@ import { MovieDisplayPreferencesProvider } from "./contexts/MovieDisplayPreferen
 import { PublicRenderClockProvider } from "./contexts/PublicRenderClock";
 import { StrictMode, useEffect, useLayoutEffect } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, useLocation } from "react-router";
 import { queryClient } from "./lib/queryClient";
-import { BrowserRouter } from "react-router";
 import { App } from "./App";
+
+function ApplicationRoutes() {
+  const location = useLocation();
+  if (location.pathname === "/unsubscribe/letterboxd") return <App />;
+  return (
+    <MovieDisplayPreferencesProvider>
+      <App />
+      <ClientStartup />
+    </MovieDisplayPreferencesProvider>
+  );
+}
 
 function ClientStartup() {
   useLayoutEffect(() => {
@@ -43,10 +54,7 @@ export function EntryApplication({
       <StrictMode>
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>
-            <MovieDisplayPreferencesProvider>
-              <App />
-              <ClientStartup />
-            </MovieDisplayPreferencesProvider>
+            <ApplicationRoutes />
           </BrowserRouter>
         </QueryClientProvider>
       </StrictMode>
