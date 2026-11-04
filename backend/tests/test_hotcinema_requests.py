@@ -16,14 +16,28 @@ FILM = '''<div class="movie-page"><div class="d-none d-md-block"><div class="mov
 
 class HotCinemaRequestsTests(TestCase):
     def test_verified_requests_collector_is_preferred_with_browser_fallback(self):
-        self.assertEqual(HotCinema.DEFAULT_SCRAPE_MODE, 'auto')
+        self.assertEqual(HotCinema.DEFAULT_SCRAPE_MODE, 'selenium')
 
     def setUp(self):
         self.scraper = HotCinema.__new__(HotCinema)
         InitializeBaseCinema.__init__(self.scraper)
         self.scraper.today_date = datetime(2026, 12, 31, 12)
         self.scraper.run_id = 1
-        self.event = {'EventId': '7', 'Hour': '18:30', 'IsVIP': True, 'IsAtmos': True}
+        self.event = {
+            'EventId': '7',
+            'Hour': '18:30',
+            'Date': '2027-01-01T18:30:00',
+            'IsVIP': True,
+            'IsAtmos': True,
+        }
+        self.events_by_date = {
+            '01/01/2027': [
+                {
+                    'MovieName': 'סרט ',
+                    'Dates': [self.event, self.event.copy()],
+                }
+            ]
+        }
 
     def response(self, url, **kwargs):
         response = Mock()
@@ -36,7 +50,10 @@ class HotCinemaRequestsTests(TestCase):
         elif url.endswith('/MovieEventsDaysFilter'):
             response.json.return_value = ['01/01/2027']
         elif url.endswith('/tickets/TheaterEvents2'):
-            response.json.return_value = {'TheaterEvents': [{'MovieName': 'סרט ', 'Dates': [self.event, self.event.copy()]}]}
+            date = kwargs['params']['date']
+            response.json.return_value = {
+                'TheaterEvents': self.events_by_date.get(date, [])
+            }
         else:
             raise AssertionError(url)
         return response
@@ -57,6 +74,44 @@ class HotCinemaRequestsTests(TestCase):
         self.assertEqual(data['screening_tech'], ['2D Atmos'] * 2)
         self.assertEqual(data['rating'], ['All'] * 2)
         self.assertIn('1197-7', data['english_href'][0])
+        self.assertEqual(self.scraper._coverage['calendar_dates_expected'], 32)
+        self.assertEqual(self.scraper._coverage['dates_completed'], 32)
+        self.assertEqual(self.scraper._coverage['explicit_empty_dates'], 31)
+
+    def test_finds_scheduled_day_omitted_by_the_date_filter(self):
+        self.events_by_date['02/01/2027'] = [
+            {
+                'MovieName': 'סרט ',
+                'Dates': [
+                    {
+                        'EventId': '8',
+                        'Hour': '19:00',
+                        'Date': '2027-01-02T19:00:00',
+                    }
+                ],
+            }
+        ]
+
+        self.run_collector()
+
+        self.assertEqual(
+            self.scraper.gathering_info['date_of_showing'],
+            ['2027-01-01', '2027-01-01', '2027-01-02'],
+        )
+        self.assertEqual(self.scraper._coverage['date_filter_dates_discovered'], 1)
+        self.assertEqual(
+            self.scraper._coverage['dates_with_events_missing_from_filter'], 1
+        )
+
+    def test_preserves_selected_business_date_for_after_midnight_event(self):
+        self.event['Date'] = '2027-01-02T00:15:00'
+
+        self.run_collector()
+
+        self.assertEqual(
+            self.scraper.gathering_info['date_of_showing'],
+            ['2027-01-01', '2027-01-01'],
+        )
 
     def test_missing_event_id_fails_closed(self):
         self.event['EventId'] = None
@@ -74,5 +129,5 @@ class HotCinemaRequestsTests(TestCase):
 
         self.response = respond
         self.run_collector()
-        self.assertEqual(self.scraper._coverage['dates_completed'], 1)
-        self.assertEqual(self.scraper._coverage['explicit_empty_dates'], 1)
+        self.assertEqual(self.scraper._coverage['dates_completed'], 32)
+        self.assertEqual(self.scraper._coverage['explicit_empty_dates'], 32)

@@ -1,6 +1,7 @@
 """Hot Cinema theater/date API collector, retaining browser output conventions."""
 
-from datetime import datetime
+from calendar import monthrange
+from datetime import date, datetime, timedelta
 import re
 from urllib.parse import urljoin
 
@@ -16,7 +17,15 @@ def _text(element):
 
 
 def collect_hot_cinema(scraper):
-    scraper._coverage = {'films_completed': 0, 'cinemas_completed': 0, 'dates_completed': 0, 'explicit_empty_dates': 0, 'unlisted_films_skipped': 0}
+    scraper._coverage = {
+        'films_completed': 0,
+        'cinemas_completed': 0,
+        'dates_completed': 0,
+        'date_filter_dates_discovered': 0,
+        'dates_with_events_missing_from_filter': 0,
+        'explicit_empty_dates': 0,
+        'unlisted_films_skipped': 0,
+    }
     ticket_sites = {'16': 1197, '14': 1194, '1': 1183, '17': 1191, '9': 1195, '2': 1184, '15': 1192, '6': 1181, '8': 1193, '5': 1182, '3': 1196, '22': 1198}
     with requests.Session() as session:
         configure_scrape_session(session, stats=getattr(scraper, '_http_stats', None))
@@ -66,7 +75,18 @@ def collect_hot_cinema(scraper):
             raise ValueError('Hot Cinema theater list is missing')
         scraper._coverage['cinemas_expected'] = len(cinemas)
         current = scraper.today_date.date()
-        months = {(current.year, current.month), (current.year + (current.month == 12), current.month % 12 + 1)}
+        next_month_year = current.year + (current.month == 12)
+        next_month = current.month % 12 + 1
+        window_end = date(
+            next_month_year,
+            next_month,
+            monthrange(next_month_year, next_month)[1],
+        )
+        calendar_dates = [
+            current + timedelta(days=offset)
+            for offset in range((window_end - current).days + 1)
+        ]
+        scraper._coverage['calendar_dates_expected'] = len(calendar_dates) * len(cinemas)
         for cinema, city in cinemas.items():
             if cinema not in ticket_sites or not city:
                 raise ValueError(f'Hot Cinema theater has no known booking site: {cinema}')
@@ -79,16 +99,26 @@ def collect_hot_cinema(scraper):
             dates = get('https://hotcinema.co.il/MovieEventsDaysFilter', query).json()
             if not isinstance(dates, list):
                 raise ValueError('Hot Cinema date filter returned an invalid response')
+            discovered_dates = set()
             for day in dates:
                 parsed = datetime.strptime(day, '%d/%m/%Y').date()
-                if parsed < current or (parsed.year, parsed.month) not in months:
-                    continue
+                if current <= parsed <= window_end:
+                    discovered_dates.add(parsed)
+            scraper._coverage['date_filter_dates_discovered'] += len(discovered_dates)
+
+            # The site's date filter has intermittently omitted whole scheduled
+            # dates while returning HTTP 200. Query each calendar date directly
+            # so omissions in that discovery response cannot silently drop rows.
+            for parsed in calendar_dates:
+                day = parsed.strftime('%d/%m/%Y')
                 params = {'movieid': '', 'date': day, 'theatreid': cinema, 'site': '', 'time': '', 'type': '', 'lang': '', 'kinorai': '', 'genreId': 0, 'screentype': '', 'subdub': '', 'isnew': 'false'}
                 result = get('https://hotcinema.co.il/tickets/TheaterEvents2', params).json()
                 if not isinstance(result, dict) or not isinstance(result.get('TheaterEvents'), list):
                     raise ValueError('Hot Cinema theater/date response is invalid')
                 if not result['TheaterEvents']:
                     scraper._coverage['explicit_empty_dates'] += 1
+                elif parsed not in discovered_dates:
+                    scraper._coverage['dates_with_events_missing_from_filter'] += 1
                 for movie in result['TheaterEvents']:
                     raw_name = movie.get('MovieName')
                     if not isinstance(raw_name, str):
