@@ -15,6 +15,12 @@ class ArtworkBackfillTests(unittest.TestCase):
             "DEV_SUPABASE_SERVICE_ROLE_KEY": "dev-secret",
             "PROD_SUPABASE_URL": "https://gsdrcyrduxbrxgsvhxvr.supabase.co",
             "PROD_SUPABASE_SERVICE_ROLE_KEY": "prod-secret",
+            "R2_ACCOUNT_ID": "a" * 32,
+            "DEV_D1_DATABASE_ID": "dbace3cc-386d-42f4-8ab9-0863f17adcfc",
+            "DEV_D1_API_TOKEN": "development-d1-worker-secret-for-test-only",
+            "DEV_RUN_ARTIFACTS_R2_BUCKET": "kartiseret-run-artifacts-dev",
+            "DEV_RUN_ARTIFACTS_R2_ACCESS_KEY_ID": "dev-artifact-access",
+            "DEV_RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY": "dev-artifact-secret",
         }
         with patch.dict(os.environ, env, clear=True), patch.object(backfill, "load_dotenv"), patch(
             "sys.argv", ["backfill", "--target", "development", "--backfill"]

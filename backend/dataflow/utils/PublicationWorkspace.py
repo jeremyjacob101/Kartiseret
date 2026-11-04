@@ -13,7 +13,6 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
-from pathlib import Path
 from threading import RLock
 from types import SimpleNamespace
 import uuid
@@ -224,9 +223,18 @@ class PublicationWorkspace:
         digests = [hashlib.sha256(part.encode()).hexdigest() for part in parts]
         fingerprint = hashlib.sha256("\n".join(f"{i}:{digest}" for i, digest in enumerate(digests)).encode()).hexdigest()
         identity = {"publication_id": self.publication_id, "category": self.category, "run_id": self.run_id, "fingerprint": fingerprint, "part_count": len(parts)}
-        directory = Path("backend/utils/log/logger_artifacts") / str(self.run_id)
-        directory.mkdir(parents=True, exist_ok=True)
-        (directory / f"publication_{self.category}.json").write_text(canonical(identity))
+        # The receipt is durable before any catalog publication request begins.
+        # It includes the publication ID and fingerprint needed to investigate a
+        # lost acknowledgement without leaving new run output in Git.
+        from backend.utils.log.run_storage import RunArtifactStore
+
+        RunArtifactStore().save_text_artifact(
+            run_id=self.run_id,
+            artifact_type="publication_receipt",
+            name=f"publication_{self.category}_{self.publication_id}",
+            text=canonical(identity),
+            metadata=identity,
+        )
 
         publisher = PostgresPublicationPublisher.from_environment()
         if publisher is not None:

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime, timezone
-import os
 import pathlib
 
 ARTIFACT_ROOT = pathlib.Path("backend/utils/log/logger_artifacts")
@@ -193,19 +192,18 @@ def _atomic_write(path: pathlib.Path, content: str) -> None:
 
 
 def write_dataflow_summary(summary: dict, *, successful: bool) -> str | None:
-    try:
-        run_id = int(summary.get("run_id"))
-        name = str(summary.get("name") or "Unknown")
-        attempt = int(summary.get("attempt") or 1)
-        path = build_summary_path(
-            run_id,
-            name,
-            attempt,
-            successful,
-            publication_pending=bool(summary.get("publication_pending")),
-        )
-        body = render_summary_text(summary)
-        _atomic_write(path, body)
-        return str(path)
-    except Exception:
-        return None
+    run_id = int(summary.get("run_id"))
+    name = str(summary.get("name") or "Unknown")
+    attempt = int(summary.get("attempt") or 1)
+    status = "prepared" if summary.get("publication_pending") else "successful" if successful else "unsuccessful"
+    body = render_summary_text(summary)
+    from backend.utils.log.run_storage import RunArtifactStore
+
+    RunArtifactStore().save_text_artifact(
+        run_id=run_id,
+        artifact_type="dataflow_summary",
+        name=f"{name}-{attempt}-{status}",
+        text=body,
+        metadata=summary,
+    )
+    return f"d1://run_logs/{run_id}/dataflow_summary/{name}/{attempt}/{status}"

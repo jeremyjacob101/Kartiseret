@@ -1,7 +1,5 @@
-import csv, json, pathlib
+import json
 from datetime import date
-
-ARTIFACT_ROOT = pathlib.Path("backend/utils/log/logger_artifacts")
 
 
 def _format_rows_from_gathering_info(self):
@@ -47,35 +45,24 @@ def _format_rows_from_gathering_info(self):
 
 
 def formatAndWriteCsv(self, successful: bool):
-    try:
-        rows, columns = _format_rows_from_gathering_info(self)
-        if not rows:
-            return None
+    """Persist the attempt's row output in D1; the legacy name avoids churn.
 
-        artifact_dir = ARTIFACT_ROOT / str(self.run_id) / ("successful" if successful else "unsuccessful")
-        artifact_dir.mkdir(parents=True, exist_ok=True)
+    This intentionally does not emit a CSV into the checkout. Failed D1 writes
+    propagate and leave a local recovery envelope for explicit manual recovery.
+    """
+    rows, _columns = _format_rows_from_gathering_info(self)
+    if not rows:
+        return None
+    from backend.utils.log.run_storage import RunArtifactStore
 
-        item_name = getattr(self, "_artifact_item_name", None) or self.__class__.__name__
-        attempt = getattr(self, "_artifact_attempt", None) or 1
-        cleaned_name = item_name.replace(" ", "_").strip()
-        csv_path = artifact_dir / f"{cleaned_name}-{attempt}.csv"
-
-        header = list(columns)
-        if not header:
-            keys = set()
-            for r in rows:
-                keys.update(r.keys())
-            header = sorted(keys)
-
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=header, extrasaction="ignore")
-            writer.writeheader()
-            writer.writerows(rows)
-
-        self._last_csv_artifact = str(csv_path)
-        return str(csv_path)
-    except:
-        pass
+    RunArtifactStore().save_scraped_rows(
+        run_id=int(self.run_id),
+        scraper=getattr(self, "_artifact_item_name", None) or self.__class__.__name__,
+        attempt=int(getattr(self, "_artifact_attempt", None) or 1),
+        successful=bool(successful),
+        rows=rows,
+    )
+    return len(rows)
 
 
 def formatAndUpload(self):

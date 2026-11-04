@@ -16,6 +16,16 @@ BUCKETS = {
     "development": "kartiseret-artwork-dev",
     "production": "kartiseret-artwork-prod",
 }
+RUN_ARTIFACT_BUCKETS = {
+    "development": "kartiseret-run-artifacts-dev",
+    "production": "kartiseret-run-artifacts-prod",
+}
+D1_DATABASE_IDS = {
+    "development": "dbace3cc-386d-42f4-8ab9-0863f17adcfc",
+    # Production is provisioned separately; validate its UUID shape and the
+    # dedicated database name through setup instructions after approval.
+    "production": None,
+}
 
 PROFILE_KEYS = (
     "SUPABASE_URL",
@@ -29,13 +39,17 @@ PROFILE_KEYS = (
     "RESEND_API_KEY",
     "TICKET_ALERT_RECIPIENT_API_URL",
     "TICKET_ALERT_INTERNAL_API_SECRET",
-    "R2_ACCOUNT_ID",
     "R2_BUCKET",
     "R2_IMAGE_ORIGIN",
     "R2_ACCESS_KEY_ID",
     "R2_SECRET_ACCESS_KEY",
     "R2_READ_ACCESS_KEY_ID",
     "R2_READ_SECRET_ACCESS_KEY",
+    "D1_DATABASE_ID",
+    "D1_API_TOKEN",
+    "RUN_ARTIFACTS_R2_BUCKET",
+    "RUN_ARTIFACTS_R2_ACCESS_KEY_ID",
+    "RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY",
 )
 
 WRITE_R2_KEYS = (
@@ -177,7 +191,12 @@ def resolve_target_environment(
         )
     has_writer = all(writer_values)
     has_reader = all(reader_values)
-    has_r2_settings = any(resolved.get(key, "").strip() for key in ALL_R2_KEYS)
+    # The account ID is shared by artwork R2 and the run-artifact R2 bucket.
+    # It is not, by itself, a request to configure artwork delivery.
+    has_r2_settings = any(
+        resolved.get(key, "").strip()
+        for key in ("R2_BUCKET", *WRITE_R2_KEYS, *READ_R2_KEYS)
+    )
     if has_r2_settings and not (has_writer or has_reader):
         raise TargetConfigurationError(
             "R2 account and bucket settings require a complete writer or read-only credential pair."
@@ -213,6 +232,43 @@ def resolve_target_environment(
             or parsed_origin.password
         ):
             raise TargetConfigurationError("R2_IMAGE_ORIGIN must be a safe HTTP(S) origin.")
+
+    d1_id = resolved.get("D1_DATABASE_ID", "").strip()
+    d1_api_token = resolved.get("D1_API_TOKEN", "").strip()
+    cloudflare_account_id = resolved.get("R2_ACCOUNT_ID", "").strip()
+    run_bucket = resolved.get("RUN_ARTIFACTS_R2_BUCKET", "").strip()
+    run_access = resolved.get("RUN_ARTIFACTS_R2_ACCESS_KEY_ID", "").strip()
+    run_secret = resolved.get("RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY", "").strip()
+    run_r2_values = (run_bucket, run_access, run_secret)
+    if any(run_r2_values) and not all(run_r2_values):
+        raise TargetConfigurationError(
+            "Run-artifact R2 requires its dedicated bucket and both writer credentials."
+        )
+    if not d1_id:
+        env_name = f"{prefix}D1_DATABASE_ID" if has_profiles else "D1_DATABASE_ID"
+        raise TargetConfigurationError(f"The selected target requires {env_name}.")
+    if not re.fullmatch(r"[a-fA-F0-9-]{36}", d1_id):
+        raise TargetConfigurationError("D1_DATABASE_ID must be a Cloudflare D1 database UUID.")
+    expected_d1_id = D1_DATABASE_IDS[target]
+    if expected_d1_id and d1_id.lower() != expected_d1_id:
+        raise TargetConfigurationError(
+            f"D1_DATABASE_ID does not point to the configured {target} D1 database."
+        )
+    if target == "production" and d1_id.lower() == D1_DATABASE_IDS["development"]:
+        raise TargetConfigurationError("Production D1_DATABASE_ID cannot be the development database.")
+    if len(d1_api_token) < 20:
+        token_name = f"{prefix}D1_API_TOKEN" if has_profiles else "D1_API_TOKEN"
+        raise TargetConfigurationError(f"{token_name} must be a Cloudflare API token with D1 access.")
+    if not re.fullmatch(r"[a-fA-F0-9]{32}", cloudflare_account_id):
+        raise TargetConfigurationError("R2_ACCOUNT_ID must also identify the Cloudflare account that owns D1.")
+    if run_bucket != RUN_ARTIFACT_BUCKETS[target]:
+        raise TargetConfigurationError(
+            f"RUN_ARTIFACTS_R2_BUCKET must be {RUN_ARTIFACT_BUCKETS[target]} for {target}."
+        )
+    if not run_access or not run_secret:
+        raise TargetConfigurationError(
+            "The selected target requires dedicated run-artifact R2 write credentials."
+        )
 
     if target == "development":
         # Development runs must never inherit production alert credentials.

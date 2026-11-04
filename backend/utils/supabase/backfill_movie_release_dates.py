@@ -8,15 +8,18 @@ from __future__ import annotations
 
 import argparse
 import csv
+from copy import deepcopy
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 from zoneinfo import ZoneInfo
 import unicodedata
 import sys
+from tempfile import TemporaryDirectory
 
 if not __package__:
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
@@ -113,7 +116,9 @@ def _parse_summary_event(line: str) -> dict | None:
     }
 
 
-def _summary_aliases(run_directory: Path) -> tuple[list[dict], list[str]]:
+def _summary_aliases(
+    run_directory: Path, artifact_labels: dict[Path, str] | None = None
+) -> tuple[list[dict], list[str]]:
     aliases: list[dict] = []
     started_at: list[str] = []
     for path in sorted(run_directory.glob("*/*-summary.txt")):
@@ -158,7 +163,7 @@ def _summary_aliases(run_directory: Path) -> tuple[list[dict], list[str]]:
                         "title": title,
                         "normalized_title": english_key,
                         "source": "successful_tmdb_summary",
-                        "artifact": path.as_posix(),
+                        "artifact": (artifact_labels or {}).get(path, path.as_posix()),
                         "artifact_sha256": summary_hash,
                         "line": None,
                         "identity_key": key,
@@ -295,12 +300,115 @@ def _run_times(snapshot: dict, run_directory: Path, summary_times: list[str]) ->
     return timestamps
 
 
+def _materialize_d1_inputs(
+    snapshot: dict, rows: list[dict], text_artifacts: list[dict]
+) -> tuple[TemporaryDirectory | None, dict, dict[Path, str]]:
+    """Adapt selected D1 records to the historical parser without touching Git files."""
+    if not rows and not text_artifacts:
+        return None, snapshot, {}
+    temporary = TemporaryDirectory(prefix="kartiseret-release-backfill-d1-")
+    root = Path(temporary.name)
+    merged_snapshot = deepcopy(snapshot)
+    run_logs = list(merged_snapshot.get("run_logs", []))
+    known_runs = {str(row.get("run_id")) for row in run_logs if isinstance(row, dict)}
+    row_groups: dict[tuple[str, str, int], list[dict]] = defaultdict(list)
+    path_labels: dict[Path, str] = {}
+
+    for row in rows:
+        run_id = _positive_id(row.get("run_id"))
+        scraper = str(row.get("scraper") or "")
+        if run_id is None or scraper not in SOON_SOURCES:
+            continue
+        try:
+            attempt = max(1, int(row.get("attempt") or 1))
+        except (TypeError, ValueError):
+            attempt = 1
+        if row.get("outcome") != "successful":
+            continue
+        row_groups[(str(run_id), scraper, attempt)].append(row)
+        if str(run_id) not in known_runs and row.get("run_started_at"):
+            run_logs.append({
+                "run_id": run_id,
+                "date_created": row["run_started_at"],
+                # Supabase utilRunLogs is authoritative for status. Without a
+                # corresponding snapshot row, preserve status as unknown.
+                "successful": None,
+            })
+            known_runs.add(str(run_id))
+
+    for (run_id, scraper, attempt), group in row_groups.items():
+        directory = root / run_id / "successful"
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"{scraper}-{attempt}.csv"
+        columns = [
+            "run_id", "showtime", "english_title", "hebrew_title", "english_href",
+            "hebrew_href", "screening_type", "screening_tech", "original_language",
+            "dub_language", "date_of_showing", "release_year", "release_date",
+            "directed_by", "runtime", "rating", "screening_city", "cinema",
+        ]
+        with path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=columns, extrasaction="ignore")
+            writer.writeheader()
+            for row in sorted(group, key=lambda item: int(item.get("row_order") or 0)):
+                values = {key: row.get(key) for key in columns}
+                values["run_id"] = row.get("source_run_id") or row_id_from_row(row)
+                try:
+                    extras = json.loads(row.get("extra_json") or "{}")
+                except (TypeError, ValueError):
+                    extras = {}
+                if isinstance(extras, dict):
+                    for key in columns:
+                        if values.get(key) in (None, "") and key in extras:
+                            values[key] = extras[key]
+                writer.writerow(values)
+        path_labels[path] = f"d1://scraped_rows/{run_id}/{scraper}/{attempt}"
+
+    for artifact in text_artifacts:
+        if artifact.get("artifact_type") != "dataflow_summary" or artifact.get("run_id") is None:
+            continue
+        run_id = _positive_id(artifact.get("run_id"))
+        if run_id is None:
+            continue
+        try:
+            metadata = json.loads(artifact.get("metadata_json") or "{}")
+        except (TypeError, ValueError):
+            metadata = {}
+        if not isinstance(metadata, dict):
+            metadata = {}
+        name = str(metadata.get("name") or artifact.get("artifact_name") or "")
+        if name not in {"ComingSoonsTmdb", "NowPlayingsTmdb", "CinemathequesTmdb"}:
+            continue
+        try:
+            attempt = max(1, int(metadata.get("attempt") or 1))
+        except (TypeError, ValueError):
+            attempt = 1
+        successful = bool(metadata.get("successful")) and not bool(metadata.get("publication_pending"))
+        directory = root / str(run_id) / ("successful" if successful else "unsuccessful")
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"{name}-{attempt}-summary.txt"
+        path.write_text(str(artifact.get("text_content") or ""), encoding="utf-8")
+        path_labels[path] = f"d1://artifacts/{artifact.get('artifact_id') or run_id}"
+        if str(run_id) not in known_runs and artifact.get("created_at"):
+            run_logs.append({"run_id": run_id, "date_created": artifact["created_at"], "successful": None})
+            known_runs.add(str(run_id))
+
+    merged_snapshot["run_logs"] = run_logs
+    return temporary, merged_snapshot, path_labels
+
+
+def row_id_from_row(row: dict) -> int:
+    """Return the numeric run folder for rows that lack the historical source field."""
+    return int(row.get("run_id") or 0)
+
+
 def build_report(
     snapshot: dict,
     artifacts_root: Path,
     *,
     as_of: datetime,
     lookback_days: int = 60,
+    d1_rows: list[dict] | None = None,
+    d1_text_artifacts: list[dict] | None = None,
 ) -> dict:
     if as_of.tzinfo is None:
         raise BackfillInputError("as_of must include a timezone")
@@ -308,6 +416,9 @@ def build_report(
         raise BackfillInputError("lookback_days must be greater than zero")
     as_of = as_of.astimezone(timezone.utc)
     cutoff = as_of - timedelta(days=lookback_days)
+    d1_temp, snapshot, d1_path_labels = _materialize_d1_inputs(
+        snapshot, d1_rows or [], d1_text_artifacts or []
+    )
     visible, title_index, fixes, _canonical_ids, title_evidence, fix_evidence = _snapshot_maps(snapshot)
     fix_helper = DataflowHelpers()
     _, fix_maps, _ = fix_helper.buildTmdbFixMaps([
@@ -325,29 +436,42 @@ def build_report(
     malformed_files: list[dict] = []
     invalid_date_rows = 0
     files_used: dict[str, str] = {}
-    for run_directory in sorted((path for path in artifacts_root.iterdir() if path.is_dir() and path.name.isdigit()), key=lambda path: int(path.name)):
-        per_run_aliases, summary_times = _summary_aliases(run_directory)
-        summary_aliases.extend(per_run_aliases)
-        timestamps = _run_times(snapshot, run_directory, summary_times)
-        if not timestamps:
-            source_files = [path for path in (run_directory / "successful").glob("*.csv") if CSV_NAME.fullmatch(path.name)]
-            if source_files:
-                excluded_runs.append({"run_id": int(run_directory.name), "reason": "missing_run_timestamp"})
+    roots = [artifacts_root]
+    if d1_temp is not None:
+        roots.append(Path(d1_temp.name))
+    for artifact_root in roots:
+        if not artifact_root.exists():
             continue
-        observed_at = min(timestamps)
-        if observed_at < cutoff or observed_at > as_of:
-            continue
-
-        selected_files: dict[str, tuple[int, Path]] = {}
-        for path in (run_directory / "successful").glob("*.csv"):
-            match = CSV_NAME.fullmatch(path.name)
-            if not match:
+        for run_directory in sorted((path for path in artifact_root.iterdir() if path.is_dir() and path.name.isdigit()), key=lambda path: int(path.name)):
+            per_run_aliases, summary_times = _summary_aliases(run_directory, d1_path_labels)
+            summary_aliases.extend(per_run_aliases)
+            timestamps = _run_times(snapshot, run_directory, summary_times)
+            if not timestamps:
+                source_files = [path for path in (run_directory / "successful").glob("*.csv") if CSV_NAME.fullmatch(path.name)]
+                if source_files:
+                    excluded_runs.append({"run_id": int(run_directory.name), "reason": "missing_run_timestamp"})
                 continue
-            source = match.group("source")
-            attempt = int(match.group("attempt"))
-            if source not in selected_files or attempt > selected_files[source][0]:
-                selected_files[source] = (attempt, path)
-        source_runs[run_directory.name] = (observed_at, {source: path for source, (_, path) in selected_files.items()})
+            observed_at = min(timestamps)
+            if observed_at < cutoff or observed_at > as_of:
+                continue
+
+            selected_files: dict[str, tuple[int, Path]] = {}
+            for path in (run_directory / "successful").glob("*.csv"):
+                match = CSV_NAME.fullmatch(path.name)
+                if not match:
+                    continue
+                source = match.group("source")
+                attempt = int(match.group("attempt"))
+                if source not in selected_files or attempt > selected_files[source][0]:
+                    selected_files[source] = (attempt, path)
+            previous = source_runs.get(run_directory.name)
+            merged_files = dict(previous[1]) if previous else {}
+            # D1 is the newer source when it contains the same run/source.
+            merged_files.update({source: path for source, (_, path) in selected_files.items()})
+            source_runs[run_directory.name] = (
+                min(observed_at, previous[0]) if previous else observed_at,
+                merged_files,
+            )
 
     historical_index: dict[str, set[int]] = defaultdict(set)
     historical_evidence: dict[tuple[str, int], list[dict]] = defaultdict(list)
@@ -362,7 +486,7 @@ def build_report(
     for run_id_text, (observed_at, files) in source_runs.items():
         run_id = int(run_id_text)
         for source, path in sorted(files.items()):
-            relative_path = path.as_posix()
+            relative_path = d1_path_labels.get(path, path.as_posix())
             file_hash = hashlib.sha256(path.read_bytes()).hexdigest()
             files_used[relative_path] = file_hash
             attempt = int(CSV_NAME.fullmatch(path.name).group("attempt"))  # type: ignore[union-attr]
@@ -518,7 +642,7 @@ def build_report(
     eligible_parent_statuses = [run_success_by_id.get(run_id) for run_id in source_runs]
     snapshot_payload = json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     artifact_root_relative = artifacts_root.as_posix()
-    return {
+    report = {
         "format_version": 1,
         "project_ref": snapshot["project_ref"],
         "catalog_revision": snapshot["catalog_revision"],
@@ -543,12 +667,17 @@ def build_report(
             "excluded_runs": excluded_runs,
             "malformed_files_or_rows": malformed_files,
             "file_sha256": files_used,
+            "d1_scraped_rows_considered": len(d1_rows or []),
+            "d1_text_artifacts_considered": len(d1_text_artifacts or []),
         },
         "counts": dict(sorted(counts.items())),
         "movies": movies,
         "ambiguous_observations": ambiguous_observations,
         "unmatched_observation_samples": unmatched_observations[:500],
     }
+    if d1_temp is not None:
+        d1_temp.cleanup()
+    return report
 
 
 def generate_apply_sql(report: dict) -> str:
@@ -638,6 +767,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--as-of", help="Timezone-aware ISO timestamp; defaults to the current UTC time")
     parser.add_argument("--lookback-days", type=int, default=60)
+    parser.add_argument("--d1-target", choices=("development", "production"), help="Also read the selected environment's Cloudflare D1 scrape rows and summary text")
     return parser.parse_args()
 
 
@@ -647,7 +777,22 @@ def main() -> int:
     as_of = _as_utc(args.as_of) if args.as_of else datetime.now(timezone.utc)
     if as_of is None:
         raise BackfillInputError("--as-of must be a timezone-aware ISO timestamp")
-    report = build_report(snapshot, args.artifacts_root, as_of=as_of, lookback_days=args.lookback_days)
+    d1_rows, d1_text_artifacts = [], []
+    if args.d1_target:
+        from dotenv import load_dotenv
+        load_dotenv()
+        from backend.config.target_environment import resolve_target_environment
+        selected = resolve_target_environment(args.d1_target, os.environ)
+        os.environ.update(selected)
+        from backend.utils.log.run_storage import RunArtifactStore
+        store = RunArtifactStore()
+        since = (as_of - timedelta(days=args.lookback_days)).isoformat()
+        d1_rows = store.read_scraped_rows_since(since_iso=since)
+        d1_text_artifacts = store.read_text_artifacts_since(since_iso=since)
+    report = build_report(
+        snapshot, args.artifacts_root, as_of=as_of, lookback_days=args.lookback_days,
+        d1_rows=d1_rows, d1_text_artifacts=d1_text_artifacts,
+    )
     write_report(report, args.output_dir)
     summary_fields = (
         "visible_movies",
