@@ -61,6 +61,18 @@ final class KartiseretUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["booking.opened"].waitForExistence(timeout: 5))
     }
 
+    func testHelpTabShowsPrivacyAndSupportLinks() {
+        let app = launchFixture()
+        app.tabBars.buttons["Help"].tap()
+
+        let supportLink = app.descendants(matching: .any)["help.support"].firstMatch
+        let privacyLink = app.descendants(matching: .any)["help.privacyPolicy"].firstMatch
+        XCTAssertTrue(supportLink.waitForExistence(timeout: 5))
+        XCTAssertTrue(privacyLink.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Support"].exists)
+        XCTAssertTrue(app.staticTexts["Privacy Policy"].exists)
+    }
+
     private func launchFixture() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["-FixtureMode", "-ResetPreferences"]

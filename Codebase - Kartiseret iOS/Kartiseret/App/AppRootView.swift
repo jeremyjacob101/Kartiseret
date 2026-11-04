@@ -4,6 +4,7 @@ private enum AppTab: Hashable {
     case nowPlaying
     case comingSoon
     case showtimes
+    case help
 }
 
 struct AppRootView: View {
@@ -39,6 +40,13 @@ struct AppRootView: View {
                 .tabItem { Label("Showtimes", systemImage: "ticket") }
                 .tag(AppTab.showtimes)
                 .accessibilityIdentifier("tab.showtimes")
+
+                NavigationStack {
+                    HelpView()
+                }
+                .tabItem { Label("Help", systemImage: "questionmark.circle") }
+                .tag(AppTab.help)
+                .accessibilityIdentifier("tab.help")
             }
             .tint(BrandStyle.accent)
         }
