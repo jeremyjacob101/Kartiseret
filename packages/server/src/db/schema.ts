@@ -545,6 +545,25 @@ export const utilAvgTime = pgTable("utilAvgTime", {
   avgTimeM5Mac: doublePrecision("avg_time_m5_mac").default(0),
 });
 
+// Operational timing history is read and written only by trusted Python
+// workers, so it is intentionally excluded from applicationTables below.
+export const utilAvgTimeHistory = pgTable(
+  "utilAvgTimeHistory",
+  {
+    name: text("name").notNull(),
+    runnerMachine: text("runner_machine").notNull(),
+    weekday: text("weekday").notNull(),
+    recentTimes: doublePrecision("recent_times").array().notNull().default([]),
+    updatedAt: instant("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.name, table.runnerMachine, table.weekday],
+      name: "util_avg_time_history_pkey",
+    }),
+  ],
+);
+
 export const utilRunLogs = pgTable("utilRunLogs", {
   runId: integer("run_id").primaryKey(),
   selectedRunners: jsonb("selected_runners")
