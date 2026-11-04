@@ -2,6 +2,7 @@ from supabase import create_client
 from selenium import webdriver
 from datetime import datetime
 import time, pytz, os
+from backend.utils.util_avg_time_history import append_recent_duration, current_weekday
 
 runningGithubActions = os.environ.get("GITHUB_ACTIONS") == "true"
 RUNNER_MACHINE = os.environ.get("RUNNER_MACHINE")
@@ -35,17 +36,18 @@ def build_chrome(headless: bool = True):
 
 def logSuccessfulRun(self) -> None:
     if not runningGithubActions:
+        runner_machine = os.environ.get("RUNNER_MACHINE")
+        if not runner_machine:
+            return
+
         duration_seconds = time.perf_counter() - self.startTime
-        avg_time_col, num_runs_col = "avg_time_" + str(RUNNER_MACHINE), "num_runs_" + str(RUNNER_MACHINE)
-
-        resp = self.supabase.table("utilAvgTime").select(f"{avg_time_col},{num_runs_col},type").eq("name", self.__class__.__name__).limit(1).execute()
-        row = resp.data[0]
-        old_avg = float(row.get(avg_time_col) or 0.0)
-        n = int(row.get(num_runs_col) or 0)
-        new_avg = (old_avg * n + float(duration_seconds)) / (n + 1)
-        update_payload = {avg_time_col: float(new_avg), num_runs_col: n + 1, "type": row.get("type")}
-
-        self.supabase.table("utilAvgTime").update(update_payload).eq("name", self.__class__.__name__).eq(num_runs_col, n).execute()
+        append_recent_duration(
+            self.supabase,
+            self.__class__.__name__,
+            runner_machine,
+            getattr(self, "_timing_weekday", current_weekday()),
+            duration_seconds,
+        )
 
 
 class InitializeBaseCinema:
@@ -53,6 +55,7 @@ class InitializeBaseCinema:
         super().__init__(*args, **kwargs)
         self.sleep = lambda s=None: time.sleep(999999999 if s is None else s)
 
+        self._timing_weekday = current_weekday()
         self.startTime = time.perf_counter()
         local_now = datetime.now(pytz.timezone("Asia/Jerusalem"))
         # Keep the existing naive-datetime interface while freezing all three

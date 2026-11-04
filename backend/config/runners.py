@@ -16,6 +16,7 @@ from backend.config.scrape_scheduler import optimal_assignment, duration_to_mill
 from backend.dataflow.utils.DataflowRequests import DataflowRequestContext
 from backend.dataflow.utils.PublicationWorkspace import CATEGORY_KEYS, publication_scope
 from backend.dataflow.utils.InitializeBaseDataflow import logSuccessfulRun
+from backend.utils.util_avg_time_history import current_weekday, load_recent_averages
 
 DEFAULT_PLAN: list[tuple[str, str]] = [("cinema", "allSoons"), ("cinema", "allShowtimes"), ("cinema", "allTheques"), ("dataflow", "comingSoonsData"), ("dataflow", "nowPlayingData"), ("dataflow", "cinemathequeData")]
 RUNNING_NON_INTERACTIVE = os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("JJ_INTEL_MAC_DAILY_RUN") == "true" or os.environ.get("JJ_INTEL_MAC_WEEKLY_RUN") == "true"
@@ -57,18 +58,12 @@ def _average_times(classes: list[type]) -> dict[str, float]:
     if not url or not service_key or not machine or not classes:
         return averages
     try:
-        response = create_client(url, service_key).table("utilAvgTime").select(
-            f"name,avg_time_{machine}"
-        ).in_("name", [cls.__name__ for cls in classes]).execute()
-        for row in response.data or []:
-            name, value = row.get("name"), row.get(f"avg_time_{machine}")
-            if name:
-                try:
-                    parsed = float(value)
-                    if parsed > 0 and parsed < float("inf"):
-                        averages[name] = parsed
-                except (TypeError, ValueError, OverflowError):
-                    pass
+        averages = load_recent_averages(
+            create_client(url, service_key),
+            [cls.__name__ for cls in classes],
+            machine,
+            current_weekday(),
+        )
     except Exception:
         # Missing timing history must not prevent a run.
         return {}
@@ -450,19 +445,18 @@ def runGroup(kind: str, key: str, run_id: int, *, classes_override: list[type] |
         avg_by_name: dict[str, float] = {}
 
         url, svc_key = os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-        avg_time_col = "avg_time_" + str(os.environ.get("RUNNER_MACHINE"))
-        if url and svc_key:
-            table, name_col, time_col = "utilAvgTime", "name", f"{avg_time_col}"
-            class_names = [cls.__name__ for cls in classes]
-            sb = create_client(url, svc_key)
-            resp = sb.table(table).select(f"{name_col},{time_col}").in_(name_col, class_names).execute()
-
-            rows = resp.data or []
-            for row in rows:
-                k = row.get(name_col)
-                value = float(row.get(time_col) or 0.0)
-                if value > 0:
-                    avg_by_name[k] = value
+        runner_machine = os.environ.get("RUNNER_MACHINE")
+        if url and svc_key and runner_machine:
+            try:
+                avg_by_name = load_recent_averages(
+                    create_client(url, svc_key),
+                    [cls.__name__ for cls in classes],
+                    runner_machine,
+                    current_weekday(),
+                )
+            except Exception:
+                # Timing history is advisory; missing history uses the default.
+                avg_by_name = {}
 
         results: list[RunResult] = []
 

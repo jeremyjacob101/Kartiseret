@@ -1,7 +1,5 @@
-import csv, json, pathlib
+import json
 from datetime import date
-
-ARTIFACT_ROOT = pathlib.Path("backend/utils/log/logger_artifacts")
 
 
 def _format_rows_from_gathering_info(self):
@@ -47,43 +45,40 @@ def _format_rows_from_gathering_info(self):
 
 
 def formatAndWriteCsv(self, successful: bool):
-    try:
-        rows, columns = _format_rows_from_gathering_info(self)
-        if not rows:
-            return None
+    """Persist the attempt's row output in D1; the legacy name avoids churn.
 
-        artifact_dir = ARTIFACT_ROOT / str(self.run_id) / ("successful" if successful else "unsuccessful")
-        artifact_dir.mkdir(parents=True, exist_ok=True)
+    This intentionally does not emit a CSV into the checkout. Failed D1 writes
+    propagate and leave a local recovery envelope for explicit manual recovery.
+    """
+    # Reuse the exact payload sent to Supabase so D1 retains its snapshot_id
+    # and cannot drift if gathering_info changes between the two writes.
+    rows = getattr(self, "_uploaded_scrape_rows", None)
+    if rows is None:
+        rows, _columns = _format_rows_from_gathering_info(self)
+    else:
+        rows = [dict(row) for row in rows]
+    if not rows:
+        return None
+    from backend.utils.log.run_storage import RunArtifactStore
 
-        item_name = getattr(self, "_artifact_item_name", None) or self.__class__.__name__
-        attempt = getattr(self, "_artifact_attempt", None) or 1
-        cleaned_name = item_name.replace(" ", "_").strip()
-        csv_path = artifact_dir / f"{cleaned_name}-{attempt}.csv"
-
-        header = list(columns)
-        if not header:
-            keys = set()
-            for r in rows:
-                keys.update(r.keys())
-            header = sorted(keys)
-
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=header, extrasaction="ignore")
-            writer.writeheader()
-            writer.writerows(rows)
-
-        self._last_csv_artifact = str(csv_path)
-        return str(csv_path)
-    except:
-        pass
+    RunArtifactStore().save_scraped_rows(
+        run_id=int(self.run_id),
+        scraper=getattr(self, "_artifact_item_name", None) or self.__class__.__name__,
+        attempt=int(getattr(self, "_artifact_attempt", None) or 1),
+        successful=bool(successful),
+        rows=rows,
+    )
+    return len(rows)
 
 
 def formatAndUpload(self):
+    self._uploaded_scrape_rows = None
     rows, _columns = _format_rows_from_gathering_info(self)
     if not rows:
         if not getattr(self, "_empty_snapshot_evidence", None):
             raise Exception("Empty gathering_info table without confirmed empty-source evidence")
         self._snapshot_row_count = 0
+        self._uploaded_scrape_rows = []
         return None
     snapshot_id = getattr(self, "snapshot_id", None)
     if snapshot_id:
@@ -92,6 +87,9 @@ def formatAndUpload(self):
     if self.supabase_table_name == "allSoons":
         for row in rows:
             date.fromisoformat(row.get("release_date") or "")
+    # Save a copy before the request so failed upload attempts retain the
+    # same snapshot identity in D1 recovery/logging too.
+    self._uploaded_scrape_rows = [dict(row) for row in rows]
     result = self.supabase.table(self.supabase_table_name).insert(rows).execute()
     self._snapshot_row_count = len(rows)
     return result

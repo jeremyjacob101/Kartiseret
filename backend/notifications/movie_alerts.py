@@ -12,12 +12,14 @@ from datetime import datetime
 from html import escape
 import os
 from typing import Any
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 import requests
 from supabase import create_client
 
 from backend.notifications.letterboxd_alerts import (
+    COMING_SOON_TABLE,
     LetterboxdSourceDispatcher,
     SupabaseLetterboxdRepository,
     collect_current_events,
@@ -31,6 +33,9 @@ from backend.notifications.ticket_alerts import (
     _jerusalem_now,
     _text,
     resolve_ticket_alert_criteria,
+    build_movie_showtime_path,
+    DEFAULT_SITE_URL,
+    safe_site_url,
     send_resend_email,
     valid_ticket_href,
     get_cinema_date,
@@ -51,6 +56,34 @@ def _screening_order(payload: dict[str, Any]) -> tuple:
     )
 
 
+def _poster_url(value: Any) -> str | None:
+    candidate = _text(value)
+    if not candidate:
+        return None
+    try:
+        parsed = urlsplit(candidate)
+        port = parsed.port
+    except ValueError:
+        return None
+    if (
+        parsed.scheme.lower() != "https"
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or port not in (None, 443)
+        or parsed.query
+        or parsed.fragment
+    ):
+        return None
+    if parsed.hostname == "image.tmdb.org" and parsed.path.startswith("/t/p/"):
+        return candidate
+    if parsed.hostname == "seret.site" and parsed.path.startswith(
+        "/api/images/v1/poster/"
+    ):
+        return candidate
+    return None
+
+
 def collect_first_availability(
     *,
     pairs: dict[str, set[int]],
@@ -63,6 +96,7 @@ def collect_first_availability(
     subscriptions: list,
     locations: dict[str, str],
     now: datetime,
+    movie_codes: dict[int, str] | None = None,
 ) -> list[dict[str, Any]]:
     defaults = {row["user_id"]: row for row in preferences}
     overrides = {
@@ -109,6 +143,7 @@ def collect_first_availability(
             subscriptions=[],
             now=now,
             match_criteria=True,
+            movie_codes=movie_codes,
         )
         first_by_city = {}
         for event in events:
@@ -148,7 +183,11 @@ def collect_first_availability(
     return candidates
 
 
-def render_movie_notification_email(events: list[dict]) -> RenderedEmail:
+def render_movie_notification_email(
+    events: list[dict],
+    site_url: str = DEFAULT_SITE_URL,
+    movie_codes: dict[int, str] | None = None,
+) -> RenderedEmail:
     if not events:
         raise ValueError("A notification email must contain at least one film.")
     sections = defaultdict(dict)
@@ -171,6 +210,7 @@ def render_movie_notification_email(events: list[dict]) -> RenderedEmail:
         n = counts["showtime"]
         subject_parts.append(f"Tickets for {n} film" + ("s" if n != 1 else ""))
     html_sections, text_sections = [], []
+    destination_origin = safe_site_url(site_url)
     for kind in ("coming_soon", "showtime"):
         films = sections.get(kind, {})
         if not films:
@@ -178,10 +218,15 @@ def render_movie_notification_email(events: list[dict]) -> RenderedEmail:
         count = len(films)
         heading = f"{titles[kind]} · {count} film" + ("s" if count != 1 else "")
         html_items, text_items = [], []
-        for payloads in sorted(
-            films.values(), key=lambda items: _text(items[0].get("title")).casefold()
+        for movie_id, payloads in sorted(
+            films.items(), key=lambda item: _text(item[1][0].get("title")).casefold()
         ):
             title = _text(payloads[0].get("title")) or "Untitled movie"
+            try:
+                tmdb_id = int(movie_id)
+            except (TypeError, ValueError):
+                tmdb_id = 0
+            fallback_movie_code = (movie_codes or {}).get(tmdb_id)
             details_html, details_text = [], []
             for payload in sorted(
                 payloads, key=lambda item: item.get("screening_city", "")
@@ -204,31 +249,148 @@ def render_movie_notification_email(events: list[dict]) -> RenderedEmail:
                         f"{payload['screening_city']} · {_friendly_date(payload['date_of_showing'])} "
                         f"at {payload['showtime']} · {payload['cinema']}"
                     )
-                    details_html.append(
-                        f'{escape(detail)} · <a href="{escape(href, quote=True)}">Tickets</a>'
+                    filter_mask = payload.get("filter_mask", 0)
+                    movie_path = build_movie_showtime_path(
+                        _text(payload.get("movie_code")) or fallback_movie_code,
+                        _text(payload.get("screening_city")),
+                        _text(payload.get("date_of_showing")),
+                        filter_mask if isinstance(filter_mask, int) and not isinstance(filter_mask, bool) else 0,
                     )
-                    details_text.append(f"{detail}\n  {href}")
+                    movie_url = f"{destination_origin}{movie_path}"
+                    details_html.append(
+                        f'{escape(detail)} · <a href="{escape(movie_url, quote=True)}">View showtimes</a>'
+                    )
+                    details_text.append(f"{detail}\n  View showtimes: {movie_url}")
+            poster_url = _poster_url(payloads[0].get("poster_url"))
+            poster_cell = (
+                '<td width="84" valign="top" style="padding:0 16px 0 0;">'
+                f'<img src="{escape(poster_url, quote=True)}" width="84" height="126" '
+                f'alt="{escape(title, quote=True)} poster" style="display:block;width:84px;'
+                'height:126px;object-fit:cover;border:1px solid #e7e1d7;border-radius:7px;">'
+                "</td>"
+                if poster_url
+                else '<td width="84" valign="top" style="padding:0 16px 0 0;">'
+                '<div role="img" aria-label="Film poster unavailable" style="width:84px;'
+                'height:126px;border:1px solid #e7e1d7;border-radius:7px;background:#f2eee7;'
+                'color:#756d61;text-align:center;font-size:10px;line-height:126px;'
+                'letter-spacing:1.4px;">KARTISERET</div></td>'
+            )
+            details_markup = "".join(
+                f'<div style="margin:0 0 8px;color:#5e5a54;font-size:14px;line-height:1.5;">{detail}</div>'
+                for detail in details_html
+            )
+            ticket_button = ""
+            if kind == "showtime":
+                first_payload = payloads[0]
+                first_mask = first_payload.get("filter_mask", 0)
+                first_path = build_movie_showtime_path(
+                    _text(first_payload.get("movie_code")) or fallback_movie_code,
+                    _text(first_payload.get("screening_city")),
+                    _text(first_payload.get("date_of_showing")),
+                    first_mask if isinstance(first_mask, int) and not isinstance(first_mask, bool) else 0,
+                )
+                first_movie_url = f"{destination_origin}{first_path}"
+                ticket_button = (
+                    '<a href="'
+                    + escape(first_movie_url, quote=True)
+                    + '" style="display:inline-block;margin-top:5px;padding:9px 14px;'
+                    'border-radius:6px;background:#5f3b91;color:#ffffff;font-size:13px;'
+                    'font-weight:700;line-height:1.2;text-decoration:none;">View showtimes</a>'
+                )
             html_items.append(
-                f"<li><strong>{escape(title)}</strong><br>"
-                + "<br>".join(details_html)
-                + "</li>"
+                '<tr><td style="padding:0 0 12px;">'
+                '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+                'style="width:100%;border:1px solid #e8e1d7;border-radius:10px;'
+                'background:#fffefa;"><tr>'
+                + '<td style="padding:16px;">'
+                + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>'
+                + poster_cell
+                + '<td valign="middle" style="font-family:Arial,sans-serif;">'
+                + f'<div style="margin:0 0 8px;color:#24211e;font-size:17px;font-weight:700;line-height:1.3;">{escape(title)}</div>'
+                + details_markup
+                + ticket_button
+                + "</td></tr></table>"
+                + "</td></tr></table></td></tr>"
             )
             text_items.append(f"- {title}\n  " + "\n  ".join(details_text))
         html_sections.append(
-            f"<h2>{escape(heading)}</h2><ul>" + "".join(html_items) + "</ul>"
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            'style="width:100%;margin:0 0 22px;">'
+            '<tr><td style="padding:0 0 10px;border-bottom:1px solid #ebe5dc;">'
+            f'<h2 style="margin:0;color:#302a22;font-size:17px;line-height:1.35;">{escape(heading)}</h2>'
+            "</td></tr>"
+            + "".join(html_items)
+            + "</table>"
         )
         text_sections.append(heading + "\n\n" + "\n\n".join(text_items))
+    total_films = sum(counts.values())
+    preheader = (
+        f"A new cinema update is here for {total_films} film"
+        + ("s" if total_films != 1 else "")
+        + "."
+    )
     return RenderedEmail(
         subject=" · ".join(subject_parts),
-        html='<!doctype html><html><body style="font-family:Arial,sans-serif;max-width:600px;margin:32px auto;padding:20px">'
-        "<h1>Kartiseret cinema updates</h1>"
-        + "".join(html_sections)
-        + "<p>Based on your watched films, selected cities, and notification settings.</p></body></html>",
+        html="".join(
+            [
+                '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+                '<meta name="viewport" content="width=device-width,initial-scale=1">'
+                "<title>Kartiseret cinema updates</title></head>",
+                '<body style="margin:0;padding:0;background:#f3f0ea;color:#26221e;'
+                'font-family:Arial,Helvetica,sans-serif;">',
+                f'<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">{escape(preheader)}</div>',
+                '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+                'style="width:100%;background:#f3f0ea;"><tr><td align="center" style="padding:32px 16px;">',
+                '<table role="presentation" width="600" cellpadding="0" cellspacing="0" '
+                'style="width:100%;max-width:600px;background:#ffffff;border:1px solid #e5dfd5;'
+                'border-radius:14px;overflow:hidden;">',
+                '<tr><td style="height:5px;background:#c7a35c;font-size:0;line-height:0;">&nbsp;</td></tr>',
+                '<tr><td align="center" style="padding:28px 30px 22px;">',
+                '<div style="margin:0;color:#5f3b91;font-size:13px;font-weight:700;'
+                'letter-spacing:2px;line-height:1.4;">KARTISERET</div>',
+                '<h1 style="margin:12px 0 8px;color:#24211e;font-size:25px;line-height:1.25;">Cinema, closer to home</h1>',
+                '<p style="margin:0;color:#716b62;font-size:14px;line-height:1.5;">Your latest film updates</p>',
+                '</td></tr>',
+                '<tr><td style="padding:0 30px 6px;">',
+                '<div style="padding:15px 17px;border:1px solid #ede6d9;border-radius:9px;'
+                'background:#faf8f4;color:#514b43;font-size:14px;line-height:1.55;text-align:center;">',
+                'Based on your watched films, selected cities, and notification settings.',
+                '</div></td></tr>',
+                '<tr><td style="padding:22px 30px 8px;">',
+                "".join(html_sections),
+                '</td></tr>',
+                '<tr><td align="center" style="padding:8px 30px 26px;border-top:1px solid #eee9e1;">',
+                '<p style="margin:16px 0 0;color:#827b71;font-size:12px;line-height:1.6;">'
+                'A one-time note from Kartiseret. You will not receive another email for these films.</p>',
+                '</td></tr></table></td></tr></table></body></html>',
+            ]
+        ),
         text="Kartiseret cinema updates\n\n" + "\n\n".join(text_sections),
     )
 
 
 class SupabaseMovieNotificationRepository(SupabaseLetterboxdRepository):
+    def load_movie_posters(self, tmdb_ids: list[int]) -> dict[int, str]:
+        posters: dict[int, str] = {}
+        for table_name in (NOW_PLAYING_TABLE, COMING_SOON_TABLE):
+            for start in range(0, len(tmdb_ids), 150):
+                chunk = tmdb_ids[start : start + 150]
+                rows = self._collect_pages(
+                    lambda page_start, page_end: self.supabase.table(table_name)
+                    .select("tmdb_id,en_poster")
+                    .in_("tmdb_id", chunk)
+                    .range(page_start, page_end)
+                )
+                for row in rows:
+                    try:
+                        tmdb_id = int(row["tmdb_id"])
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                    poster_url = _poster_url(row.get("en_poster"))
+                    if poster_url:
+                        posters.setdefault(tmdb_id, poster_url)
+        return posters
+
     def load_watches(self):
         tickets = self._collect_pages(
             lambda start, end: self.supabase.table("ticket_alert_subscriptions")
@@ -382,6 +544,7 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
             if ids
             else ([], [], {})
         )
+        movie_codes = self.repository.load_movie_codes(ids) if ids else {}
         preferences, subscriptions = (
             self.repository.load_criteria(sorted(pairs), ids) if ids else ([], [])
         )
@@ -397,7 +560,14 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
             subscriptions=subscriptions,
             locations=locations,
             now=now,
+            movie_codes=movie_codes,
         )
+        poster_loader = getattr(self.repository, "load_movie_posters", None)
+        posters = poster_loader(ids) if callable(poster_loader) else {}
+        for event in candidates:
+            poster_url = _poster_url(posters.get(int(event["tmdb_id"])))
+            if poster_url:
+                event["event_payload"]["poster_url"] = poster_url
         manual_baselines = {
             (row["user_id"], int(row["tmdb_id"])): set(row.get("baseline_cities") or [])
             for row in tickets
@@ -426,7 +596,19 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
             try:
                 snapshot = batch.get("email_snapshot")
                 if snapshot is None:
-                    email = render_movie_notification_email(batch["events"])
+                    batch_movie_ids = sorted(
+                        {
+                            int(event["tmdb_id"])
+                            for event in batch["events"]
+                            if str(event.get("tmdb_id", "")).isdigit()
+                        }
+                    )
+                    batch_movie_codes = self.repository.load_movie_codes(
+                        batch_movie_ids
+                    )
+                    email = render_movie_notification_email(
+                        batch["events"], self.config.site_url, batch_movie_codes
+                    )
                     snapshot = {
                         "subject": email.subject,
                         "html": email.html,

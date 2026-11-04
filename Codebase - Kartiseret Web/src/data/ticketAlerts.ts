@@ -1,6 +1,6 @@
 import { matchesTicketAlertCriteria, subscriptionsResponseSchema, subscriptionChangeResponseSchema, ticketAlertPreferencesResponseSchema, type TicketAlertCriteria, type TicketAlertCriteriaOverride } from "@kartiseret/contracts/private-data";
 import { ticketAlertChangeSchema, ticketAlertShowtimePageSchema, ticketAlertShowtimeRowSchema, type TicketAlertChange, type TicketAlertShowtime, type UserTicketAlertSubscription } from "./ticketAlertSchemas";
-import { buildMovieShowtimeSharePath, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "@kartiseret/contracts/showtime-links";
+import { buildMovieShowtimeSharePath, filterMaskFromUnchecked, getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
 import { isoDateStringSchema, movieCodeSchema, parseBoundary } from "@kartiseret/contracts/runtime";
 import { mutationOptions, queryOptions, skipToken, type QueryClient } from "@tanstack/react-query";
 import { getShowtimeSortValue, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
@@ -165,7 +165,14 @@ export function selectTicketAlertShowtime(
 export function buildTicketAlertShowtimePath(
   movieCode: string | undefined,
   showtime: Pick<SelectedTicketShowtime, "city" | "date">,
-  instant: Date = new Date(),
+  criteria: Pick<TicketAlertCriteria, "filters"> = {
+    filters: {
+      showType: [],
+      screeningTech: [],
+      screenFormat: [],
+      dubLanguage: [],
+    },
+  },
 ): string {
   const movieCodeResult = movieCodeSchema.safeParse(movieCode);
   if (!movieCodeResult.success) {
@@ -173,18 +180,13 @@ export function buildTicketAlertShowtimePath(
   }
 
   const plainMoviePath = `/${movieCodeResult.data}`;
-  const cinemaToday = getJerusalemCinemaDate(instant);
-
-  if (!isDateInShowtimeLinkWindow(showtime.date, cinemaToday)) {
-    return plainMoviePath;
-  }
 
   return (
     buildMovieShowtimeSharePath({
       movieCode: movieCodeResult.data,
       city: showtime.city,
       date: showtime.date,
-      filterMask: 0,
+      filterMask: filterMaskFromUnchecked(criteria.filters),
     }) ?? plainMoviePath
   );
 }
@@ -199,7 +201,7 @@ export function selectTicketAlertAvailability(
   return showtime
     ? {
         ...showtime,
-        path: buildTicketAlertShowtimePath(movieCode, showtime, instant),
+        path: buildTicketAlertShowtimePath(movieCode, showtime, criteria),
       }
     : null;
 }

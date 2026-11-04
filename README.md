@@ -187,6 +187,7 @@ Within that plan, the backend currently does the following:
 - `tableSkips`
 - `utilRunLogs`
 - `utilAvgTime`
+- `utilAvgTimeHistory` stores the five most recent successful runner durations by machine and Jerusalem weekday; estimates use that day's rolling average.
 
 This repo includes generic Supabase table utilities in `backend/utils/supabase/supabase_tables.py`.
 
@@ -300,9 +301,8 @@ The coordinated Production auth transition is complete; its migration, account c
 - `.github/workflows/full_checks.yml` runs the frontend lint, formatting, test, build, and bundle-budget suite, Python compile/tests, real PostgreSQL 17 migration/API integration, and Chromium browser acceptance on every push and pull request. Database-backed checks use the same disposable embedded PostgreSQL lifecycle as local commands and do not require a PostgreSQL service or hosted database credentials.
 - `.github/workflows/run_main.yml` runs the main backend pipeline manually in GitHub Actions and uploads run artifacts.
 - `.github/workflows/daily_sweep.yml` clears old showtimes and soon entries on a daily schedule.
-- `backend/config/cron/run_weekly.sh` is a local weekly shell runner that syncs the repo, runs the full job, commits artifacts/logs, and pushes them back to `main`.
-- `backend/config/cron/run_daily.sh` is a local daily shell runner that performs the same default headless run, writes separate daily logs, and pushes artifacts/logs back to `main`.
-- Both local cron runners commit and push artifacts and the completed log even when the Python runner fails, record its exit code in the log and commit message, and then exit with that code. Code-sync, log-writing, and Git publication errors remain fatal.
+- `backend/config/cron/run_weekly.sh` and `backend/config/cron/run_daily.sh` are local shell runners that fetch and fast-forward `main`, install dependencies from the root `requirements.txt` into the project Python environment, then run the backend pipeline.
+- Both local cron runners upload the completed transcript to the selected Cloudflare environment instead of committing run output to Git. They upload it even when the Python runner fails, record its exit code in the log, and then exit with that code. Code-sync, dependency-install, log-writing, and transcript-upload errors remain fatal.
 - `backend/config/realtime/start_realtime_watcher_background.sh` starts/restarts a local realtime listener for `finalMovies`, `finalThequeMovies`, and `finalSoons`, loads Supabase credentials from the project-root `.env`, and writes logs to `backend/config/cron/run_realtime_logs/realtime_watcher.log`.
   - watcher-triggered update runs use `solo_update` mode (`SOLO_UPDATE_ONLY=true`) and process only rows where `solo_update = true`, then reset `solo_update` back to `false` on processed rows.
   - watcher-triggered runs write `utilRunLogs.run_from` as `np_solo_update` (for `finalMovies`), `theque_solo_update` (for `finalThequeMovies`), or `cs_solo_update` (for `finalSoons`).

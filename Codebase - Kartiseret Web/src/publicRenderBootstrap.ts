@@ -1,4 +1,4 @@
-import { createEmptyShowtimeCityData, mergeShowtimeCityData, movieCatalogQueryKeys, showtimeRangeQueryOptions, type MovieCollectionData } from "./data/movieCatalog.js";
+import { createEmptyShowtimeCityData, mergeShowtimeCityData, movieCatalogQueryKeys, SHOWTIME_WINDOW_DAY_COUNT, showtimeRangeQueryOptions, type MovieCollectionData } from "./data/movieCatalog.js";
 import { publicPageBootstrapSchema, type PublicPageBootstrap } from "@kartiseret/contracts/public-render";
 import { cinemathequeQueryOptions, type CinemathequeData } from "./data/cinemathequeCatalog.js";
 import { getCinemaDayDate, SHOWTIME_TIME_ZONE } from "@kartiseret/contracts/showtime-day";
@@ -69,7 +69,7 @@ export function seedPublicPageQueries(
       todayDate: renderedDate,
       renderInstant,
       dates,
-      movies: nowPlaying.movies,
+      movies: [...nowPlaying.movies, ...comingSoon.movies],
       rows: showtimes,
       scope: "broad",
       publicationRevision: bootstrap.publicationRevision,
@@ -92,26 +92,19 @@ export function seedPublicPageQueries(
       queryClient.getQueryData<ReturnType<typeof createEmptyShowtimeCityData>>(
         key,
       ) ?? createEmptyShowtimeCityData(city);
-    const start = new Date(`${renderedDate}T00:00:00Z`);
-    const from = new Date(`${date}T00:00:00Z`);
-    const count = Math.min(
-      180,
-      Math.max(
-        1,
-        Math.floor((from.getTime() - start.getTime()) / 86_400_000) + 1,
-      ),
-    );
     const data = mergeShowtimeCityData(current, {
       city,
       todayDate: renderedDate,
       renderInstant,
       dates: [date],
-      movies: nowPlaying.movies,
+      movies: [...nowPlaying.movies, ...comingSoon.movies],
       rows: showtimes,
       scope: { tmdbId },
       publicationRevision: bootstrap.publicationRevision,
-      targetedLoadedDayCount: count,
-      visibleDayCount: count,
+      // The server bootstrap contains only the requested day. It is not a
+      // contiguous window from today, so do not count it as one loaded day.
+      targetedLoadedDayCount: 0,
+      visibleDayCount: SHOWTIME_WINDOW_DAY_COUNT,
     });
     queryClient.setQueryData(key, data, { updatedAt });
     queryClient.setQueryData(

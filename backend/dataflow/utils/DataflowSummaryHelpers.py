@@ -131,7 +131,5 @@ class DataflowSummaryHelpers:
             elif publication_pending:
                 summary["notes"].append("Changes are staged; they are not live until category publication commits.")
             write_dataflow_summary(summary, successful=bool(successful))
-        except Exception:
-            pass
         finally:
             self.summaryFlushed = True

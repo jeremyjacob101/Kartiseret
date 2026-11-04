@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 
 from backend.config.job_control import CONTROL_FD_ENV
+from backend.utils.log.cloudflare_storage import write_recovery_envelope
 
 
 DEFAULT_JOB_SECONDS = 16_200  # 4h 30m, leaving setup and cleanup room in 5-hour Actions jobs.
@@ -24,7 +25,6 @@ FINALIZER_SECONDS = 5
 JOB_SECONDS_ENV = "PIPELINE_JOB_DEADLINE_SECONDS"
 SOLO_JOB_SECONDS_ENV = "PIPELINE_SOLO_UPDATE_DEADLINE_SECONDS"
 GRACE_SECONDS_ENV = "PIPELINE_TERMINATION_GRACE_SECONDS"
-ARTIFACT_ROOT = Path("backend/utils/log/logger_artifacts")
 
 
 @dataclass(frozen=True)
@@ -169,14 +169,10 @@ def _record_interrupted_run(run_id: int | None, *, reason: str, started_at: floa
         "remote_write_outcome": "unknown for database requests that were in flight at termination",
     }
     try:
-        directory = Path(root) / ARTIFACT_ROOT / str(run_id)
-        directory.mkdir(parents=True, exist_ok=True)
-        temporary = directory / "supervisor-outcome.json.tmp"
-        temporary.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
-        os.replace(temporary, directory / "supervisor-outcome.json")
-        (directory / ".job_ok").write_text("false", encoding="utf-8")
-    except OSError:
-        pass
+        recovery = write_recovery_envelope("supervisor_outcomes", str(run_id), record)
+        record["recovery_file"] = str(recovery[0])
+    except OSError as error:
+        print(f"Could not persist local recovery outcome: {type(error).__name__}", file=sys.stderr, flush=True)
 
 
 def _finalize_run_lock(run_id: int, *, started_at: float, seconds: float, cwd: str, env: dict[str, str]) -> bool:
@@ -341,6 +337,12 @@ def run_managed_process(
                 cwd=root,
                 env=child_env,
             )
+            if not remote_finalized:
+                print(
+                    f"Supabase/D1 finalization for run {run_id} is unconfirmed; inspect Cloudflare and local recovery before starting another run.",
+                    file=sys.stderr,
+                    flush=True,
+                )
 
         if reason == "deadline_exceeded":
             exit_code = 124

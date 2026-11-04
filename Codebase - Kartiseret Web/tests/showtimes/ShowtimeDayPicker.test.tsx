@@ -53,4 +53,56 @@ describe("ShowtimeDayPicker", () => {
     expect(onSelect).toHaveBeenCalledWith("2026-09-17");
     expect(document.activeElement).toBe(next);
   });
+
+  it("keeps adjacent date clicks responsive after selecting a far-ahead day", () => {
+    const onSelect = vi.fn();
+    const today = "2026-11-03";
+    const dates = Array.from({ length: 180 }, (_, index) => {
+      const date = new Date(`${today}T12:00:00Z`);
+      date.setUTCDate(date.getUTCDate() + index);
+      return date.toISOString().slice(0, 10);
+    });
+    const linkedDate = dates[75]!;
+    const previousDate = dates[74]!;
+    const nextDate = dates[76]!;
+    const dateLabel = (date: string) =>
+      new Intl.DateTimeFormat(undefined, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      }).format(new Date(`${date}T12:00:00`));
+
+    render(
+      <ShowtimeDayPicker
+        dates={dates}
+        selectedDate={linkedDate}
+        disabledBeforeDate={today}
+        onSelect={onSelect}
+        ariaLabel="Choose date"
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("radio", {
+        name: dateLabel(previousDate),
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("radio", {
+        name: dateLabel(nextDate),
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("radio", {
+        name: dateLabel(previousDate),
+      }),
+    );
+
+    expect(onSelect.mock.calls).toEqual([
+      [previousDate],
+      [nextDate],
+      [previousDate],
+    ]);
+  });
 });

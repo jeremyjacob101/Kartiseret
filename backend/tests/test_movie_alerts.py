@@ -7,7 +7,12 @@ from backend.notifications.movie_alerts import (
     collect_first_availability,
     render_movie_notification_email,
 )
-from backend.notifications.ticket_alerts import TicketAlertConfig, ALERT_FILTER_OPTIONS
+from backend.notifications.ticket_alerts import (
+    TicketAlertConfig,
+    ALERT_FILTER_OPTIONS,
+    build_movie_showtime_path,
+    filter_mask_from_exclusions,
+)
 from backend.tests.test_letterboxd_alerts import (
     FakeRepository,
     FakeLetterboxdAndResend,
@@ -34,12 +39,16 @@ class Repository(FakeRepository):
         self.tickets, self.dates = [], []
         self.events, self.deliveries = {}, {}
         self.locations = {}
+        self.posters = {}
 
     def load_watches(self):
         return self.tickets, self.dates
 
     def load_locations(self, users):
         return self.locations
+
+    def load_movie_posters(self, tmdb_ids):
+        return self.posters
 
     def queue(self, candidates):
         keys = {
@@ -169,6 +178,19 @@ class MovieNotificationTests(TestCase):
         self.assertEqual(self.dispatcher(repo, http).dispatch().emails_sent, 0)
         self.assertEqual(len(http.post_calls), 1)
 
+    def test_dispatch_includes_the_catalog_poster_in_the_email(self):
+        repo = Repository(showtimes=[ticket()])
+        repo.posters[101] = "https://image.tmdb.org/t/p/w342/wild-horse.jpg"
+        self.watch(repo)
+        http = FakeLetterboxdAndResend()
+
+        self.dispatcher(repo, http).dispatch()
+
+        self.assertIn(
+            'src="https://image.tmdb.org/t/p/w342/wild-horse.jpg"',
+            http.post_calls[0]["json"]["html"],
+        )
+
     def test_preferred_city_is_used_before_jerusalem_fallback(self):
         repo = Repository(showtimes=[ticket(), ticket("Haifa")])
         repo.locations["alice"] = "Haifa"
@@ -177,6 +199,33 @@ class MovieNotificationTests(TestCase):
         self.dispatcher(repo, http).dispatch()
         self.assertIn("Haifa", http.post_calls[0]["json"]["text"])
         self.assertNotIn("Jerusalem", http.post_calls[0]["json"]["text"])
+
+    def test_delivery_link_preserves_selected_city_date_and_effective_filter_mask(self):
+        repo = Repository(
+            showtimes=[ticket("Tel Aviv", day="2027-01-15")],
+        )
+        repo.movie_codes[101] = "A7z"
+        repo.preferences = [
+            {
+                "user_id": "alice",
+                "cities": ["Tel Aviv"],
+                "filter_exclusions": {
+                    "showType": ["VIP"],
+                    "screenFormat": ["3D"],
+                    "screeningTech": ["IMAX"],
+                    "dubLanguage": ["French"],
+                },
+            }
+        ]
+        self.watch(repo)
+        http = FakeLetterboxdAndResend()
+
+        self.dispatcher(repo, http).dispatch()
+
+        body = http.post_calls[0]["json"]
+        self.assertIn("Tel Aviv", body["text"])
+        self.assertIn("/A7zlb1fHK?date=2027-01-15", body["text"])
+        self.assertNotIn("tickets.example.test", body["html"])
 
     def test_any_city_picks_earliest_and_per_city_groups_one_film_with_two_cities(self):
         for mode, count in [("first_any_city", 1), ("first_per_city", 2)]:
@@ -305,11 +354,23 @@ class MovieNotificationTests(TestCase):
 
     def test_retry_keeps_body_recipient_and_provider_key_when_catalog_changes(self):
         repo = Repository(showtimes=[ticket()])
+        repo.movie_codes[101] = "A7z"
+        repo.preferences = [
+            {
+                "user_id": "alice",
+                "cities": ["Jerusalem"],
+                "filter_exclusions": {"screeningTech": ["IMAX"]},
+            }
+        ]
         self.watch(repo)
         http = FakeLetterboxdAndResend(responses=[FakeResponse(500), FakeResponse(200)])
         with self.assertRaisesRegex(RuntimeError, "delivery failed"):
             self.dispatcher(repo, http).dispatch()
         repo.showtimes = [ticket(day="2026-10-28")]
+        repo.preferences[0]["filter_exclusions"] = {
+            "screeningTech": ["Standard"]
+        }
+        repo.preferences[0]["cities"] = ["Tel Aviv"]
         repo.canonical_email = lambda user: "changed@example.test"
         self.assertEqual(self.dispatcher(repo, http).dispatch().emails_sent, 1)
         self.assertEqual(http.post_calls[0]["json"], http.post_calls[1]["json"])
@@ -327,6 +388,7 @@ class MovieNotificationTests(TestCase):
             ]
         )
         self.watch(repo)
+        repo.movie_codes[101] = "A7z"
         repo.subscriptions = [
             {
                 "user_id": "alice",
@@ -342,6 +404,22 @@ class MovieNotificationTests(TestCase):
         self.assertEqual(self.dispatcher(repo, http).dispatch().events_notified, 1)
         self.assertIn("Haifa", http.post_calls[0]["json"]["text"])
         self.assertNotIn("Jerusalem", http.post_calls[0]["json"]["text"])
+        override_filters = {
+            "showType": [],
+            "screenFormat": [],
+            "screeningTech": ["Standard"],
+            "dubLanguage": [],
+        }
+        self.assertIn(
+            "https://seret.site"
+            + build_movie_showtime_path(
+                "A7z",
+                "Haifa",
+                "2026-10-22",
+                filter_mask_from_exclusions(override_filters),
+            ),
+            http.post_calls[0]["json"]["text"],
+        )
 
     def test_templates_omit_empty_sections_and_escape_movie_names(self):
         event = {
@@ -353,3 +431,47 @@ class MovieNotificationTests(TestCase):
         self.assertIn("&lt;Film&gt;", email.html)
         self.assertNotIn("Tickets now available", email.html)
         self.assertEqual(email.subject, "1 Coming Soon date")
+
+    def test_digest_uses_movie_page_showtime_action_and_keeps_booking_url_private(self):
+        email = render_movie_notification_email(
+            [
+                {
+                    "tmdb_id": 101,
+                    "event_type": "showtime",
+                    "event_payload": {
+                        "title": "Wild Horse Nine",
+                        "movie_code": "Ab1",
+                        "poster_url": "https://image.tmdb.org/t/p/w342/wild-horse.jpg",
+                        "screening_city": "Jerusalem",
+                        "date_of_showing": "2026-11-05",
+                        "showtime": "17:00",
+                        "cinema": "Yes Planet",
+                        "ticket_href": "https://tickets.example.test/showtime/101",
+                    },
+                }
+            ]
+        )
+        self.assertIn(
+            'src="https://image.tmdb.org/t/p/w342/wild-horse.jpg"', email.html
+        )
+        self.assertIn('alt="Wild Horse Nine poster"', email.html)
+        self.assertIn("View showtimes", email.html)
+        self.assertIn("?date=2026-11-05", email.html)
+        self.assertNotIn("tickets.example.test", email.html)
+        self.assertIn("View showtimes:", email.text)
+        self.assertNotIn("tickets.example.test", email.text)
+        self.assertIn("Jerusalem · November 5, 2026 at 17:00 · Yes Planet", email.text)
+
+    def test_digest_omits_unsafe_poster_urls_and_keeps_a_fallback_tile(self):
+        event = {
+            "tmdb_id": 101,
+            "event_type": "coming_soon",
+            "event_payload": {
+                "title": "Future Film",
+                "release_date": "2027-01-01",
+                "poster_url": "javascript:alert(1)",
+            },
+        }
+        email = render_movie_notification_email([event])
+        self.assertNotIn("javascript:", email.html)
+        self.assertIn("Film poster unavailable", email.html)

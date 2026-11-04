@@ -1,5 +1,5 @@
 from backend.scraping.utils.InitializeBaseCinema import InitializeBaseCinema, build_chrome, setUpSupabase, navigate, logSuccessfulRun
-from backend.scraping.utils.FormatAndAppend import ARTIFACT_ROOT, AppendToInfo, formatAndUpload, formatAndWriteCsv, _format_rows_from_gathering_info
+from backend.scraping.utils.FormatAndAppend import AppendToInfo, formatAndUpload, formatAndWriteCsv, _format_rows_from_gathering_info
 from backend.scraping.utils.ScrapedFixes import ScrapedFixes
 from backend.scraping.utils.ScrapingHelpers import ScrapingHelpers
 from datetime import date, datetime, timezone
@@ -7,6 +7,7 @@ import uuid
 import logging
 import json
 import time
+from backend.utils.log.cloudflare_storage import CloudflareStorageError
 
 
 class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToInfo):
@@ -125,12 +126,9 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
         if not getattr(self, '_snapshot_manifest_started', False):
             return
         try:
-            folder = ARTIFACT_ROOT / str(self.run_id) / 'transport'
-            folder.mkdir(parents=True, exist_ok=True)
             name = getattr(self, '_artifact_item_name', None) or self.__class__.__name__
             attempt = getattr(self, '_artifact_attempt', None) or 1
             snapshot = getattr(self, 'snapshot_id', None) or 'no-snapshot'
-            path = folder / f'{name}-{attempt}-{snapshot}-{transport}.json'
             payload = {
                 'scraper': self.__class__.__name__, 'transport': transport, 'status': status,
                 'seconds': time.perf_counter() - started,
@@ -141,11 +139,18 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
                 'failure_type': type(error).__name__ if error else None,
                 'failure_reason': str(error)[:500] if error else None,
             }
-            path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+            from backend.utils.log.run_storage import RunArtifactStore
+            RunArtifactStore().save_text_artifact(
+                run_id=int(self.run_id), artifact_type='scraper_transport',
+                name=f'{name}-{attempt}-{snapshot}-{transport}',
+                text=json.dumps(payload, ensure_ascii=False, indent=2),
+                metadata={'scraper': name, 'attempt': attempt, 'outcome': status},
+            )
         except Exception:
             logging.getLogger(__name__).exception('Could not write scraper transport diagnostics')
 
     def scrape(self):
+        catalog_published = False
         try:
             self.startScrapeSnapshot()
             mode = getattr(self, "scrape_mode", "selenium" if self.USES_BROWSER else "requests")
@@ -189,10 +194,27 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
                 else:
                     self._record_collection('requests', collection_started, 'complete')
             formatAndUpload(self)
+            catalog_published = True
+            # Persist scrape output after publication so the D1 outcome reflects
+            # whether the source rows actually reached Supabase.
+            formatAndWriteCsv(self, successful=True)
             self.finishScrapeSnapshot(getattr(self, "_snapshot_row_count", 0))
             logSuccessfulRun(self)
-            formatAndWriteCsv(self, successful=True)
         except Exception as error:
             self.failScrapeSnapshot(error)
-            formatAndWriteCsv(self, successful=False)
+            if catalog_published and isinstance(error, CloudflareStorageError):
+                raise CloudflareStorageError(
+                    "Catalog data was published to Supabase, but storing its scrape rows in D1 failed; "
+                    "the run is marked failed and the local recovery copy is retained."
+                ) from error
+            if not isinstance(error, CloudflareStorageError):
+                try:
+                    formatAndWriteCsv(self, successful=False)
+                except CloudflareStorageError as storage_error:
+                    if catalog_published:
+                        raise CloudflareStorageError(
+                            "Catalog data was published to Supabase, but recording the failed scrape attempt in D1 failed; "
+                            "the run is marked failed and the local recovery copy is retained."
+                        ) from storage_error
+                    raise storage_error from error
             raise
