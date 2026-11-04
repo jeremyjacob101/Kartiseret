@@ -1,4 +1,4 @@
-"""Manually import the newest three days of legacy Git-tracked run artifacts.
+"""Manually import legacy Git-tracked run artifacts, newest completed runs first.
 
 This tool is deliberately opt-in and never schedules its own continuation.
 The default is a read-only plan; pass --apply to write to the selected D1/R2
@@ -27,8 +27,9 @@ from backend.utils.log.run_storage import RunArtifactStore, optimize_screenshot
 
 DEFAULT_ARTIFACTS_ROOT = Path("backend/utils/log/logger_artifacts")
 DEFAULT_CRON_ROOT = Path("backend/config/cron")
-MAX_IMPORT_LOOKBACK_DAYS = 3
+MAX_IMPORT_LOOKBACK_DAYS = 36500
 DEFAULT_D1_WRITE_BUDGET = 20_000
+MAX_D1_WRITE_BUDGET = 60_000
 # The current schema writes one table row and two secondary-index rows per
 # scraped row. Reserve an extra write per row/artifact/run so modest schema
 # additions cannot consume the free-plan daily budget unexpectedly.
@@ -36,7 +37,6 @@ CONSERVATIVE_ROW_WRITE_ESTIMATE = 4
 CONSERVATIVE_ARTIFACT_WRITE_ESTIMATE = 4
 CONSERVATIVE_RUN_WRITE_ESTIMATE = 3
 MAX_FILE_BYTES = 50 * 1024 * 1024
-MAX_D1_TEXT_BYTES = 1024 * 1024
 RUN_DIRECTORY_RE = re.compile(r"^\d+$")
 ATTEMPT_RE = re.compile(r"-(?P<attempt>\d+)(?:-gathering_info)?\.csv\Z")
 CRON_DATE_RE = re.compile(
@@ -124,14 +124,47 @@ def _csv_rows(path: Path, run_id: int) -> list[dict]:
         reader = csv.DictReader(handle)
         if not reader.fieldnames:
             raise ValueError("CSV has no header row")
+        if len(reader.fieldnames) != len(set(reader.fieldnames)):
+            raise ValueError("CSV has duplicate header names")
         for line_number, raw in enumerate(reader, start=2):
             row = {str(key): value for key, value in raw.items() if key is not None and key}
+            if raw.get(None):
+                row["_extra_csv_values"] = raw[None]
             source_run_id = str(row.get("run_id") or "").strip()
             if source_run_id and source_run_id != str(run_id):
                 raise ValueError(f"row {line_number} has run_id {source_run_id}, expected {run_id}")
             row["run_id"] = str(run_id)
             output.append(row)
     return output
+
+
+def _historical_text_metadata(path: Path, text: str, outcome: str) -> dict:
+    metadata = {"legacy_path": path.as_posix(), "outcome": outcome}
+    fields = {"Name": "item_name", "URL": "url", "Exception": "error_message",
+              "Call Chain": "call_chain", "Selector": "selector"}
+    for line in text.splitlines():
+        key, sep, value = line.partition(": ")
+        if sep and key in fields and fields[key] not in metadata:
+            metadata[fields[key]] = value
+    if metadata.get("error_message"):
+        error_type, separator, _message = metadata["error_message"].partition(" - ")
+        if separator:
+            metadata["exception_type"] = error_type
+    if path.suffix.lower() == ".json":
+        try:
+            document = json.loads(text)
+            if isinstance(document, dict) and document.get("publication_id"):
+                metadata.update({key: document[key] for key in ("publication_id", "category", "fingerprint", "part_count") if key in document})
+        except ValueError:
+            pass
+    match = re.search(r"-(\d+)(?:-summary)?\.(?:txt|log)$", path.name)
+    if match:
+        metadata["attempt"] = int(match.group(1))
+    summary_match = re.match(r"(.+)-(\d+)-summary\.txt\Z", path.name)
+    if summary_match:
+        metadata.update(name=summary_match.group(1), attempt=int(summary_match.group(2)),
+                        successful=outcome == "successful", publication_pending=outcome == "prepared")
+    return metadata
 
 
 def scan_import_candidates(
@@ -143,7 +176,7 @@ def scan_import_candidates(
     lookback_days: int = MAX_IMPORT_LOOKBACK_DAYS,
 ) -> tuple[list[dict], list[dict]]:
     if lookback_days < 1 or lookback_days > MAX_IMPORT_LOOKBACK_DAYS:
-        raise ValueError("Historical import is capped at the most recent three days.")
+        raise ValueError("Historical import lookback must be between 1 and 36500 days.")
     as_of = as_of or datetime.now(timezone.utc)
     if as_of.tzinfo is None:
         raise ValueError("as_of must be timezone-aware")
@@ -169,8 +202,8 @@ def scan_import_candidates(
                 continue
             if timestamp < cutoff or timestamp > as_of:
                 continue
-            if run.get("running_now") is True:
-                unresolved.append({"path": run_directory.as_posix(), "reason": "run_is_still_running"})
+            if run.get("running_now") is not False:
+                unresolved.append({"path": run_directory.as_posix(), "reason": "run_is_running_or_not_confirmed_complete"})
                 continue
             status = _status(run)
             files = sorted(
@@ -185,7 +218,7 @@ def scan_import_candidates(
                 outcome = "successful" if group == "successful" else "unsuccessful" if group == "unsuccessful" else "unconfirmed"
                 if path.suffix.lower() == ".csv" and path.name.endswith("-gathering_info.csv"):
                     candidates.append({
-                        "kind": "csv_artifact", "path": path, "run_id": run_id,
+                        "kind": "gathering_csv", "path": path, "run_id": run_id,
                         "run": run, "run_time": timestamp, "run_status": status,
                         "outcome": outcome,
                     })
@@ -210,6 +243,8 @@ def scan_import_candidates(
                         "run": run, "run_time": timestamp, "run_status": status,
                         "outcome": outcome,
                     })
+                else:
+                    unresolved.append({"path": path.as_posix(), "reason": "unsupported_file_type"})
 
     if cron_root.exists():
         for path in cron_root.rglob("*.log"):
@@ -232,7 +267,13 @@ def scan_import_candidates(
                     "artifact_type": "cron_output",
                 })
 
-    candidates.sort(key=lambda item: (item["run_time"], item["path"].as_posix()), reverse=True)
+    for item in candidates:
+        path = item["path"]
+        if path.is_relative_to(artifacts_root):
+            item["source_key"] = "logger_artifacts/" + path.relative_to(artifacts_root).as_posix()
+        else:
+            item["source_key"] = "cron/" + path.relative_to(cron_root).as_posix()
+    candidates.sort(key=lambda item: (item["run_time"], item["source_key"]), reverse=True)
     return candidates, unresolved
 
 
@@ -246,21 +287,22 @@ def _run_record(candidate: dict, target: str) -> dict:
         "finished_at": started if run.get("running_now") is False else None,
         "total_time": run.get("total_time"),
         "selected_runners": run.get("selected_runners") or [],
-        "created_at": started,
+        # Protect a freshly imported old run from cleanup while its files are published.
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
 def import_candidates(
     *, store: RunArtifactStore, candidates: list[dict], target: str,
-    write_budget: int = DEFAULT_D1_WRITE_BUDGET, dry_run: bool = False,
+    write_budget: int = DEFAULT_D1_WRITE_BUDGET, dry_run: bool = False, size_check=None,
 ) -> dict:
-    if write_budget < 1 or write_budget > DEFAULT_D1_WRITE_BUDGET:
-        raise ValueError(f"write_budget must be between 1 and {DEFAULT_D1_WRITE_BUDGET} writes")
+    if write_budget < 1 or write_budget > MAX_D1_WRITE_BUDGET:
+        raise ValueError(f"write_budget must be between 1 and {MAX_D1_WRITE_BUDGET} writes")
     result = {
         "candidate_count": len(candidates), "imported_runs": 0, "imported_csv_files": 0,
         "imported_rows": 0, "imported_artifacts": 0, "d1_rows_written": 0,
         "skipped_due_to_budget": [], "unresolved_files": [], "dry_run": dry_run,
-        "write_budget": write_budget,
+        "write_budget": write_budget, "imported_files": [], "write_outcome_unknown": False,
     }
     if dry_run:
         return result
@@ -269,11 +311,12 @@ def import_candidates(
     for index, candidate in enumerate(candidates):
         run_id = candidate["run_id"]
         path = candidate["path"]
+        source_key = candidate.get("source_key") or path.as_posix()
         try:
-            prepared_rows = _csv_rows(path, int(run_id)) if candidate["kind"] == "csv" else None
+            prepared_rows = _csv_rows(path, int(run_id)) if candidate["kind"] in {"csv", "gathering_csv"} else None
             prepared_bytes = None
             prepared_text = None
-            if candidate["kind"] == "image" or candidate["kind"] == "csv_artifact":
+            if candidate["kind"] == "image":
                 if path.stat().st_size > MAX_FILE_BYTES:
                     raise ValueError("file exceeds the 50 MiB import safety limit")
                 prepared_bytes = path.read_bytes()
@@ -289,6 +332,8 @@ def import_candidates(
             len(prepared_rows or []) * CONSERVATIVE_ROW_WRITE_ESTIMATE
             if prepared_rows is not None else CONSERVATIVE_ARTIFACT_WRITE_ESTIMATE
         )
+        if prepared_text is not None:
+            expected *= max(1, (len(json.dumps(prepared_text).encode("utf-8")) + 599_999) // 600_000)
         run_number = int(run_id) if run_id is not None else None
         run_writes_estimate = (
             CONSERVATIVE_RUN_WRITE_ESTIMATE
@@ -308,11 +353,11 @@ def import_candidates(
             if candidate["kind"] == "csv":
                 scraper, attempt = _csv_identity(path)
                 for start in range(0, len(prepared_rows or []), 25):
-                    batch = prepared_rows[start:start + 25]
+                    batch = [{**row, "_legacy_path": source_key} for row in prepared_rows[start:start + 25]]
                     result["d1_rows_written"] += store.save_scraped_rows(
                         run_id=run_number, scraper=scraper, attempt=attempt,
                         successful=candidate["outcome"] == "successful", rows=batch,
-                        insert_only=True, batch_size=25, row_order_start=start,
+                        insert_only=True, batch_size=25, row_order_start=start, identity_namespace=source_key,
                     )
                     result["imported_rows"] += getattr(store, "_last_scraped_rows_changed", len(batch))
                 result["imported_csv_files"] += 1
@@ -324,7 +369,7 @@ def import_candidates(
                     image_type = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}.get(path.suffix.lower(), "application/octet-stream")
                     upload, compression = content, {}
                 artifact = store.save_file_artifact(
-                    run_id=run_number, artifact_type="historical_screenshot", name=path.name,
+                    run_id=run_number, artifact_type="historical_screenshot", name=source_key,
                     content=upload, content_type=image_type,
                     metadata={"legacy_path": path.as_posix(), "outcome": candidate["outcome"], **compression},
                     created_at=original_date, compress_screenshot=False,
@@ -332,39 +377,42 @@ def import_candidates(
                 result["d1_rows_written"] += artifact.get("d1_rows_written", 0)
                 if getattr(store, "_last_artifact_rows_changed", 1):
                     result["imported_artifacts"] += 1
-            elif candidate["kind"] == "csv_artifact":
-                data = store.save_file_artifact(
-                    run_id=run_number, artifact_type="legacy_gathering_info", name=path.name,
-                    content=prepared_bytes or b"", content_type="text/csv; charset=utf-8",
-                    metadata={"legacy_path": path.as_posix(), "outcome": candidate["outcome"]},
-                    created_at=original_date,
+            elif candidate["kind"] == "gathering_csv":
+                scraper, _attempt = _csv_identity(path)
+                result["d1_rows_written"] += store.save_gathering_rows(
+                    run_id=run_number, scraper=scraper, source_file=source_key, rows=prepared_rows or [],
                 )
-                result["d1_rows_written"] += data.get("d1_rows_written", 0)
-                if getattr(store, "_last_artifact_rows_changed", 1):
-                    result["imported_artifacts"] += 1
+                result["imported_rows"] += getattr(store, "_last_gathering_rows_changed", len(prepared_rows or []))
+                result["imported_csv_files"] += 1
             else:
                 artifact_type = candidate.get("artifact_type") or (
-                    "dataflow_summary" if path.name.endswith("-summary.txt") else "historical_log"
+                    "dataflow_summary" if path.name.endswith("-summary.txt") else
+                    "publication_receipt" if path.name.startswith("publication_") and path.suffix.lower() == ".json" else
+                    "historical_log"
                 )
-                if len((prepared_text or "").encode("utf-8")) <= MAX_D1_TEXT_BYTES:
-                    writes = store.save_text_artifact(
-                        run_id=run_number, artifact_type=artifact_type, name=path.name,
-                        text=prepared_text or "", metadata={"legacy_path": path.as_posix(), "outcome": candidate["outcome"]},
-                        created_at=original_date,
-                    )
-                else:
-                    data = store.save_file_artifact(
-                        run_id=run_number, artifact_type=artifact_type, name=path.name,
-                        content=(prepared_text or "").encode("utf-8"), content_type="text/plain; charset=utf-8",
-                        metadata={"legacy_path": path.as_posix(), "outcome": candidate["outcome"]},
-                        created_at=original_date,
-                    )
-                    writes = data.get("d1_rows_written", 0)
+                writes = store.save_text_artifact(
+                    run_id=run_number, artifact_type=artifact_type, name=path.name,
+                    text=prepared_text or "", metadata=_historical_text_metadata(path, prepared_text or "", candidate["outcome"]),
+                    created_at=original_date, identity_namespace=source_key,
+                )
                 result["d1_rows_written"] += writes
                 if getattr(store, "_last_artifact_rows_changed", 1):
                     result["imported_artifacts"] += 1
+            result["imported_files"].append(path.as_posix())
         except Exception as error:
             result["unresolved_files"].append({"path": path.as_posix(), "reason": type(error).__name__})
+            result["write_outcome_unknown"] = True
+            result["skipped_due_to_budget"] = [item["path"].as_posix() for item in candidates[index + 1:]]
+            break
+        if size_check is not None:
+            try:
+                size = size_check()
+                if size >= 350_000_000:
+                    raise RuntimeError("D1 storage reached the cleanup threshold")
+            except Exception as error:
+                result["stop_reason"] = f"storage_check:{type(error).__name__}"
+                result["skipped_due_to_budget"] = [item["path"].as_posix() for item in candidates[index + 1:]]
+                break
     return result
 
 
@@ -396,8 +444,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--target", choices=("development", "production"), required=True)
     parser.add_argument("--artifacts-root", type=Path, default=DEFAULT_ARTIFACTS_ROOT)
     parser.add_argument("--cron-root", type=Path, default=DEFAULT_CRON_ROOT)
-    parser.add_argument("--lookback-days", type=int, choices=(1, 2, 3), default=3)
-    parser.add_argument("--write-budget", type=int, choices=range(1, DEFAULT_D1_WRITE_BUDGET + 1), default=DEFAULT_D1_WRITE_BUDGET)
+    parser.add_argument("--lookback-days", type=int, choices=range(1, MAX_IMPORT_LOOKBACK_DAYS + 1), default=3650, metavar="DAYS")
+    parser.add_argument("--write-budget", type=int, choices=range(1, MAX_D1_WRITE_BUDGET + 1), default=DEFAULT_D1_WRITE_BUDGET, metavar="WRITES")
+    parser.add_argument("--account-writes-used", type=int, help="Current account-wide UTC-day D1 row writes from Cloudflare metrics; required with --apply")
     parser.add_argument("--apply", action="store_true", help="Write to the selected D1 database and private artifact bucket; default is a plan only")
     parser.add_argument("--as-of", help="Timezone-aware ISO timestamp for reproducible dry-runs")
     return parser.parse_args(argv)
@@ -415,14 +464,27 @@ def main(argv: list[str] | None = None) -> int:
         as_of=as_of, lookback_days=args.lookback_days,
     )
     if args.apply:
+        if args.account_writes_used is None or args.account_writes_used < 0:
+            raise ValueError("--apply requires the current account-wide --account-writes-used from Cloudflare metrics")
+        safe_budget = max(0, min(MAX_D1_WRITE_BUDGET, 100_000 - 40_000 - args.account_writes_used))
+        if not safe_budget:
+            raise ValueError("No D1 write capacity remains after reserving 40,000 writes for normal work")
         from dotenv import load_dotenv
         from backend.config.target_environment import resolve_target_environment
         load_dotenv()
         os.environ.update(resolve_target_environment(args.target, os.environ))
-        summary = import_candidates(
-            store=RunArtifactStore(), candidates=candidates, target=args.target,
-            write_budget=args.write_budget, dry_run=False,
-        )
+        store = RunArtifactStore()
+        store.ensure_schema()
+        store.d1.check_storage()
+        lease = store.acquire_run_lease()
+        try:
+            summary = import_candidates(
+                store=store, candidates=candidates, target=args.target,
+                write_budget=min(args.write_budget, safe_budget), dry_run=False,
+                size_check=store.d1.measure_database_size,
+            )
+        finally:
+            store.release_run_lease(token=lease)
     else:
         summary = {
             "candidate_count": len(candidates), "imported_runs": 0,
@@ -440,7 +502,7 @@ def main(argv: list[str] | None = None) -> int:
         "mode": "apply" if args.apply else "dry_run",
     })
     print(json.dumps(summary, ensure_ascii=False, indent=2))
-    return 0 if not summary.get("unresolved_files") else 2
+    return 0 if not summary.get("unresolved_files") and not summary.get("stop_reason") else 2
 
 
 if __name__ == "__main__":

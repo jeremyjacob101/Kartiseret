@@ -264,7 +264,7 @@ os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps(event) + '\\n
         table = Mock()
         client = Mock()
         client.table.return_value = table
-        table.update.return_value.eq.return_value.select.return_value.execute.return_value.data = [{"run_id": 42}]
+        table.update.return_value.eq.return_value.execute.return_value.data = [{"run_id": 42}]
         args = ["supervisor_finalize", "--run-id", "42", "--elapsed-seconds", "123.5"]
         with patch.dict(os.environ, {"SUPABASE_URL": "https://example.test", "SUPABASE_SERVICE_ROLE_KEY": "test-key"}), patch(
             "backend.config.supervisor_finalize.create_client", return_value=client
@@ -274,8 +274,7 @@ os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps(event) + '\\n
             self.assertEqual(supervisor_finalize.main(), 0)
         table.update.assert_called_once_with({"successful": False, "total_time": 123.5, "running_now": False})
         table.update.return_value.eq.assert_called_once_with("run_id", 42)
-        table.update.return_value.eq.return_value.select.assert_called_once_with("run_id")
-        table.update.return_value.eq.return_value.select.return_value.execute.assert_called_once_with()
+        table.update.return_value.eq.return_value.execute.assert_called_once_with()
         store_class.return_value.mark_run_failed.assert_called_once_with(42, reason="supervisor_interrupted")
         store_class.return_value.mark_run_unconfirmed.assert_not_called()
 
@@ -285,7 +284,7 @@ os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps(event) + '\\n
         table = Mock()
         client = Mock()
         client.table.return_value = table
-        table.update.return_value.eq.return_value.select.return_value.execute.side_effect = RuntimeError("offline")
+        table.update.return_value.eq.return_value.execute.side_effect = RuntimeError("offline")
         args = ["supervisor_finalize", "--run-id", "43", "--elapsed-seconds", "9"]
         with patch.dict(os.environ, {"SUPABASE_URL": "https://example.test", "SUPABASE_SERVICE_ROLE_KEY": "test-key"}), patch(
             "backend.config.supervisor_finalize.create_client", return_value=client

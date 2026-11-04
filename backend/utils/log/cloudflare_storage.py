@@ -137,6 +137,32 @@ class D1Client:
             raw=first,
         )
 
+    def check_storage(self) -> dict:
+        try:
+            response = requests.post(
+                f"{self.api_url}/v1/d1/cleanup",
+                headers={"Authorization": f"Bearer {self._api_secret}"},
+                timeout=self.timeout,
+            )
+            body = response.json()
+        except (requests.RequestException, ValueError) as error:
+            raise CloudflareStorageError("Could not confirm D1 storage usage and cleanup.") from error
+        if not response.ok or not isinstance(body, dict) or body.get("success") is not True:
+            raise CloudflareStorageError("D1 storage check or cleanup failed; inspect Worker logs.")
+        result = body.get("result")
+        if not isinstance(result, dict) or isinstance(result.get("size"), bool) or not isinstance(result.get("size"), int) or result["size"] < 0:
+            raise CloudflareStorageError("D1 storage check did not return a reliable size.")
+        if result["size"] >= 350_000_000:
+            raise CloudflareStorageError("D1 storage is above the safe threshold; cleanup must make more room.")
+        return result
+
+    def measure_database_size(self) -> int:
+        result = self.execute("SELECT 1 AS ok")
+        size = result.raw.get("meta", {}).get("size_after")
+        if isinstance(size, bool) or not isinstance(size, int) or size < 0:
+            raise CloudflareStorageError("D1 did not return a reliable database size.")
+        return size
+
     def batch(self, statements: list[tuple[str, tuple | list]]) -> list[D1Result]:
         if not statements:
             return []

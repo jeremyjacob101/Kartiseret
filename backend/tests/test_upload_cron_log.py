@@ -19,10 +19,10 @@ class UploadCronLogTests(TestCase):
         run_id_path.write_text("42\n", encoding="utf-8")
 
         client = Mock()
-        client.table.return_value.update.return_value.eq.return_value.select.return_value.execute.return_value.data = data
+        client.table.return_value.update.return_value.eq.return_value.execute.return_value.data = data
         store_class = Mock()
         if storage_error:
-            store_class.return_value.save_file_artifact.side_effect = storage_error
+            store_class.return_value.save_text_artifact.side_effect = storage_error
         args = ["--target", "development", "--run-id-file", str(run_id_path), "--path", str(log_path)]
         if mark_failed:
             args.append("--mark-failed")

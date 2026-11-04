@@ -2,8 +2,8 @@
 
 This change keeps new scraper output outside Git commits. Supabase `utilRunLogs`
 continues to own run IDs and final status. D1 stores scraped rows, run summaries,
-diagnostics, and artifact metadata. Private R2 stores screenshots and other
-binary files. Existing Git history and historical artifact files are retained.
+diagnostics, cron transcripts, and screenshot metadata. Private R2 stores only
+screenshots. Existing Git history and historical artifact files are retained.
 
 Each environment has its own D1 database, R2 bucket, and D1-bound Worker. The
 Worker accepts authenticated D1 requests and has a binding to only its matching
@@ -67,8 +67,8 @@ Use that same value for the Worker secret prompt and
 `DEV_RUN_LOGS_API_SECRET` in `.env`. Save the Worker URL Wrangler reports to
 `DEV_RUN_LOGS_API_URL`. Do not reuse the production secret. The Worker binding
 in `wrangler.dev.toml` selects only the development D1 database and artifact
-bucket. Its daily scheduled handler enforces the two-calendar-month retention
-window.
+bucket. Its hourly scheduled handler checks database size and resumes cleanup
+within a conservative daily write budget.
 
 For artifact uploads, create an R2 S3 API token named
 `kartiseret-run-artifacts-dev-dataflow`, choose **Object Read & Write**, and
@@ -93,6 +93,11 @@ secret, and bucket-scoped S3 credentials described above.
 - Scraped items are rows keyed by run, scraper, attempt, and row order. Known
   catalog columns remain queryable; unknown future CSV fields are serialized
   into `extra_json`.
+- Diagnostics keep scraper, attempt, error, URL, selector, publication ID,
+  and outcome in separate columns when available. Ordinary text fits in one
+  row. Oversized text and metadata use ordered chunks under one diagnostic ID.
+  Historical gathering-info CSV rows use `gathering_rows` because their final
+  attempt outcome is not known; ordinary CSV rows use `scraped_rows`.
 - Supabase `utilRunLogs` remains the source of truth for run allocation and
   final status. Finalization uses the run's specific ID. A D1 lease prevents
   overlapping scraper runs from claiming the same logging window.
@@ -105,10 +110,13 @@ secret, and bucket-scoped S3 credentials described above.
 - A run with published catalog data but a storage failure is reported as
   published with a logging failure. Failed Supabase finalization is reported
   as unconfirmed.
-- The scheduled Worker removes expired R2 objects before D1 rows. If R2 has
-  another old-object page or the D1 write budget is reached, it leaves cleanup
-  pending for a later scheduled run. Two calendar months are measured from the
-  original run or artifact date.
+- The Worker checks D1 size before and after scraper runs and hourly. At 350 MB
+  it starts removing the oldest completed runs, aiming for 300 MB, with up to
+  5,000 reserved D1 writes per UTC day. It deletes each run's screenshot objects
+  before their D1 metadata. Active, unconfirmed, and recently created runs are
+  protected. Cleanup resumes from its saved run after interruptions. If size is
+  unavailable or does not decrease after a run is removed, cleanup stops for
+  operator investigation; do not blindly reset `retention_state.halted`.
 - New daily, weekly, manual, and watcher-triggered scraper runs do not stage,
   commit, rebase, or push artifact files. Safe fast-forward code synchronization
   remains in cron. The separate license-year maintenance workflow is unrelated.
@@ -117,24 +125,25 @@ secret, and bucket-scoped S3 credentials described above.
 
 The Git history and old files under the cron logs and logger artifact folders
 stay as they are. The release-date backfill can read D1 and historical Git
-files. The importer defaults to a dry run and accepts at most the latest three
-days; it imports newest complete artifacts first, uses idempotent IDs, and
-stops at a conservative 20,000 estimated D1 row writes. It does not schedule a
-continuation.
+files. The importer defaults to a dry run, looks back up to ten years by default,
+imports newest completed runs first, uses idempotent IDs, and defaults to a
+20,000-write budget. It does not schedule a continuation.
 
 Only after the matching production resources and access are approved, inspect
 the report first and run an explicit import:
 
 ```sh
 python -m backend.utils.log.import_historical_artifacts --target production
-python -m backend.utils.log.import_historical_artifacts --target production --apply
+python -m backend.utils.log.import_historical_artifacts --target production --apply --account-writes-used CURRENT_UTC_DAY_WRITES
 ```
 
-The first command is a dry run. The second writes to production and is not part
-of this implementation's dev verification. Review the exact report and daily
-D1 metrics before deciding whether to start another explicitly requested import
-later. The plan's approximately 44,000-row three-day sample cannot safely be
-assumed to fit in one free-plan day after indexes and normal scraper writes.
+The first command is a dry run. Before the second, replace
+`CURRENT_UTC_DAY_WRITES` with the current account-wide total from Cloudflare D1
+metrics. The importer reserves 40,000 of the free plan's 100,000 daily writes
+for normal work and cleanup and caps itself at 60,000 writes. It stops on the
+first storage error and reports remaining files. This budget may allow far
+fewer than 60,000 scraped rows because indexes also count as writes. Take the
+measurement immediately before starting, and avoid other imports concurrently.
 
 ## Production rollout boundary
 
@@ -155,8 +164,8 @@ scrape/import as the first configuration test.
 
 To roll back the application code, revert the application PR; old Git history
 and D1/R2 data remain available. Before reverting, disable the Worker cron if
-you need to retain expired D1/R2 records for investigation; otherwise its
-two-month cleanup continues independently. Do not delete either database or
+you need to retain D1/R2 records for investigation; otherwise its
+storage-based cleanup continues independently. Do not delete either database or
 bucket as part of rollback. Recovery files remain local and require manual
 review/reconciliation.
 

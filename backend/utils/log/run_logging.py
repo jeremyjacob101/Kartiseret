@@ -23,6 +23,8 @@ def israel_local_timestamp() -> str:
 def allocate_run_id(on_allocated: Callable[[int], None] | None = None) -> int:
     sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
     storage = RunArtifactStore()
+    storage.ensure_schema()
+    storage.d1.check_storage()
     lease_token = storage.acquire_run_lease()
     new_id: int | None = None
     inserted = False
@@ -188,7 +190,7 @@ class RunLogSession:
                     "successful": bool(self._successful),
                     "total_time": float(total_time),
                     "running_now": False,
-                }).eq("run_id", int(self.run_id)).select("run_id").execute()
+                }).eq("run_id", int(self.run_id)).execute()
                 if not (response.data or []):
                     raise RuntimeError(f"Supabase did not confirm finalization for run {self.run_id}.")
             except Exception as error:
@@ -197,7 +199,7 @@ class RunLogSession:
                     {"run_id": self.run_id, "status": "unconfirmed", "error_type": type(error).__name__},
                 )
                 try:
-                    storage.mark_run_unconfirmed(int(self.run_id), type(error).__name__)
+                    storage.mark_run_unconfirmed(int(self.run_id), type(error).__name__, release_lease=False)
                 except Exception:
                     pass
                 raise RuntimeError(
@@ -223,5 +225,28 @@ class RunLogSession:
                 raise RuntimeError(
                     f"Run {self.run_id} was marked unsuccessful because D1 finalization failed."
                 ) from storage_error
+            try:
+                storage.d1.check_storage()
+            except Exception as error:
+                confirmed = False
+                try:
+                    response = sb.table("utilRunLogs").update({"successful": False}).eq("run_id", int(self.run_id)).execute()
+                    confirmed = bool(response.data or [])
+                except Exception:
+                    pass
+                write_recovery_envelope(
+                    "run_finalization", str(self.run_id),
+                    {"run_id": self.run_id, "status": "failed" if confirmed else "unconfirmed",
+                     "reason": "storage_check_failed", "error_type": type(error).__name__},
+                )
+                try:
+                    if confirmed:
+                        storage.mark_run_failed(int(self.run_id), reason="storage_check_failed")
+                    else:
+                        storage.mark_run_unconfirmed(int(self.run_id), reason="supabase_finalization_unconfirmed")
+                except Exception:
+                    pass
+                status = "failed" if confirmed else "unconfirmed"
+                raise RuntimeError(f"Run {self.run_id} completed, but its D1 storage check failed; status is {status}.") from error
 
         return False

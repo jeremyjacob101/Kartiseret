@@ -96,11 +96,19 @@ class RunArtifactStore:
             if self.schema_id in _schema_ready:
                 return
             rows = self.d1.execute(
-                "SELECT name FROM sqlite_master WHERE type = 'table'"
+                "SELECT name FROM sqlite_master WHERE type IN ('table', 'index')"
             ).rows
             existing = {row.get("name") for row in rows}
-            required = {"run_locks", "run_logs", "scraped_rows", "artifacts"}
-            if not required.issubset(existing):
+            required = {"run_locks", "run_logs", "scraped_rows", "gathering_rows", "artifacts", "diagnostics", "retention_state"}
+            indexes = {"idx_scraped_rows_run_source", "idx_gathering_rows_run", "idx_artifacts_run_type", "idx_run_logs_started_at", "idx_diagnostics_run"}
+            complete = required.union(indexes).issubset(existing)
+            if complete:
+                rows = self.d1.execute(
+                    "SELECT (SELECT COUNT(*) FROM run_locks WHERE id = 1) AS lock_count, "
+                    "(SELECT COUNT(*) FROM retention_state WHERE id = 1) AS retention_count"
+                ).rows
+                complete = bool(rows and rows[0].get("lock_count") == 1 and rows[0].get("retention_count") == 1)
+            if not complete:
                 migration = (
                     Path(__file__).resolve().parents[3]
                     / "backend" / "cloudflare" / "d1" / "migrations" / "0001_run_artifacts.sql"
@@ -185,19 +193,20 @@ class RunArtifactStore:
         if result.changes != 1:
             raise CloudflareStorageError(f"D1 did not finalize run {run_id}.")
 
-    def mark_run_unconfirmed(self, run_id: int, reason: str) -> None:
+    def mark_run_unconfirmed(self, run_id: int, reason: str, *, release_lease: bool = True) -> None:
         result = self.d1.execute(
             "UPDATE run_logs SET status = 'unconfirmed', finished_at = ?, error_type = ? WHERE run_id = ?",
             (utc_now(), reason[:100], run_id),
         )
         if result.changes != 1:
             raise CloudflareStorageError(f"D1 could not mark run {run_id} unconfirmed.")
-        self.release_run_lease(run_id=run_id)
+        if release_lease:
+            self.release_run_lease(run_id=run_id)
 
     def save_scraped_rows(
         self, *, run_id: int, scraper: str, attempt: int, successful: bool,
         rows: list[dict], insert_only: bool = False, batch_size: int = 50,
-        row_order_start: int = 0,
+        row_order_start: int = 0, identity_namespace: str = "",
     ) -> int:
         if not rows:
             return 0
@@ -207,6 +216,8 @@ class RunArtifactStore:
             known = {column: _sql_value(row.get(column)) for column in SCRAPED_COLUMNS}
             extras = {str(key): value for key, value in row.items() if key not in SCRAPED_COLUMNS and key != "run_id"}
             identity = f"{run_id}:{scraper}:{attempt}:{row_order}"
+            if identity_namespace:
+                identity += f":{identity_namespace}"
             normalized.append({
                 "row_key": _hash(identity),
                 "run_id": int(run_id),
@@ -260,6 +271,34 @@ class RunArtifactStore:
         self._last_scraped_rows_changed = changes
         return writes
 
+    def save_gathering_rows(self, *, run_id: int, scraper: str, source_file: str, rows: list[dict]) -> int:
+        """Import intermediate historical rows without inventing an attempt outcome."""
+        fields = ("row_key", "run_id", "scraper", "source_file", "row_order", *SCRAPED_COLUMNS,
+                  "source_run_id", "extra_json", "created_at")
+        sql = (f"INSERT OR IGNORE INTO gathering_rows ({', '.join(fields)}) "
+               f"VALUES ({', '.join('?' for _ in fields)})")
+        payload = {"run_id": run_id, "scraper": scraper, "source_file": source_file, "rows": rows}
+        recovery = write_recovery_envelope("gathering_rows", _hash(f"{run_id}:{source_file}"), payload)
+        writes = changes = 0
+        try:
+            for start in range(0, len(rows), 25):
+                batch = []
+                for index, row in enumerate(rows[start:start + 25], start=start):
+                    known = [_sql_value(row.get(column)) for column in SCRAPED_COLUMNS]
+                    extras = {str(key): value for key, value in row.items() if key not in SCRAPED_COLUMNS and key != "run_id"}
+                    params = (_hash(f"{run_id}:{source_file}:{index}"), run_id, scraper, source_file, index,
+                              *known, _sql_value(row.get("run_id")), _canonical(extras), utc_now())
+                    batch.append((sql, params))
+                for result in self.d1.batch(batch):
+                    writes += result.rows_written
+                    changes += result.changes
+        except Exception:
+            raise
+        else:
+            remove_recovery_envelope(recovery)
+        self._last_gathering_rows_changed = changes
+        return writes
+
     def save_text_artifact(
         self,
         *,
@@ -269,23 +308,77 @@ class RunArtifactStore:
         text: str,
         metadata: dict | None = None,
         created_at: str | None = None,
+        identity_namespace: str = "",
     ) -> int:
         timestamp = created_at or utc_now()
         body = redact_secrets(str(text))
-        artifact_id = _hash(f"{run_id}:{artifact_type}:{name}:{_hash(body)}")
+        artifact_id = _hash(f"{run_id}:{artifact_type}:{name}:{identity_namespace}:{_hash(body)}")
+        safe_metadata = json.loads(redact_secrets(_canonical(metadata or {})))
         payload = {
             "environment": os.environ.get("KARTISERET_TARGET", ""), "run_id": run_id,
             "artifact_type": artifact_type, "artifact_name": name,
             "content_type": "text/plain; charset=utf-8", "text_content": body,
-            "metadata": metadata or {}, "created_at": timestamp,
+            "metadata": safe_metadata, "created_at": timestamp,
         }
         recovery = write_recovery_envelope("text_artifacts", artifact_id, payload)
         try:
-            self._insert_artifact_row(
-                artifact_id=artifact_id, run_id=run_id, artifact_type=artifact_type,
-                name=name, object_key="", content_type="text/plain; charset=utf-8",
-                text_content=body, metadata=metadata or {}, created_at=timestamp,
-            )
+            metadata_json = _canonical(safe_metadata)
+            # Full values remain in metadata; bounded projections keep columns
+            # searchable without allowing one exceptional field to block storage.
+            def projection(value) -> str:
+                return str(value or "")[:4096]
+            # JSON escaping can make a request substantially larger than its UTF-8 text.
+            # Budget the serialized parameters as well as the D1 row itself.
+            fields = (artifact_id, run_id, artifact_type, name,
+                      projection(safe_metadata.get("scraper") or safe_metadata.get("item_name")),
+                      safe_metadata.get("attempt"), projection(safe_metadata.get("exception_type")),
+                      projection(safe_metadata.get("url")), projection(safe_metadata.get("selector")),
+                      projection(safe_metadata.get("publication_id")),
+                      projection(safe_metadata.get("error_message")),
+                      projection(safe_metadata.get("call_chain")),
+                      projection(safe_metadata.get("outcome")), timestamp)
+            overhead = len(json.dumps(fields).encode("utf-8")) + 4096
+            capacity = 700_000 - overhead
+            if capacity < 1024:
+                raise CloudflareStorageError("Diagnostic metadata is too large for a safe D1 request; recovery copy retained.")
+            def split_text(value: str, maximum: int) -> list[str]:
+                pieces = []
+                while value:
+                    low, high = 1, min(len(value), maximum)
+                    while low <= high:
+                        middle = (low + high) // 2
+                        if len(json.dumps(value[:middle]).encode("utf-8")) <= maximum:
+                            low = middle + 1
+                        else:
+                            high = middle - 1
+                    if high == 0:
+                        raise CloudflareStorageError("Diagnostic text could not be safely chunked.")
+                    pieces.append(value[:high])
+                    value = value[high:]
+                return pieces or [""]
+
+            if len(json.dumps(body).encode("utf-8")) + len(json.dumps(metadata_json).encode("utf-8")) <= capacity:
+                chunks, metadata_chunks = [body], [metadata_json]
+            else:
+                chunks = split_text(body, capacity // 2)
+                metadata_chunks = split_text(metadata_json, capacity // 2)
+            total_chunks = max(len(chunks), len(metadata_chunks))
+            writes = changes = 0
+            for index in range(total_chunks):
+                result = self.d1.execute(
+                    "INSERT OR IGNORE INTO diagnostics "
+                    "(diagnostic_id, chunk_index, chunk_count, run_id, diagnostic_type, diagnostic_name, "
+                    "scraper, attempt, error_type, source_url, selector, publication_id, error_message, call_chain, outcome, text_content, metadata_json, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (artifact_id, index, total_chunks, run_id, artifact_type, name,
+                     fields[4], fields[5], fields[6], fields[7], fields[8], fields[9], fields[10], fields[11], fields[12],
+                     chunks[index] if index < len(chunks) else "",
+                     metadata_chunks[index] if index < len(metadata_chunks) else "", timestamp),
+                )
+                writes += result.rows_written
+                changes += result.changes
+            self._last_artifact_rows_written = writes
+            self._last_artifact_rows_changed = changes
         except Exception:
             raise
         else:
@@ -304,10 +397,10 @@ class RunArtifactStore:
         created_at: str | None = None,
         compress_screenshot: bool = False,
     ) -> dict:
+        if artifact_type not in {"screenshots", "historical_screenshot"} or content_type not in {"image/png", "image/webp", "image/jpeg"}:
+            raise CloudflareStorageError("Only screenshot images may be stored in the run-artifact bucket.")
         timestamp = created_at or utc_now()
         upload_bytes = content
-        if content_type.startswith("text/"):
-            upload_bytes = redact_secrets(content.decode("utf-8", errors="replace")).encode("utf-8")
         if compress_screenshot:
             upload_bytes, content_type, compression = optimize_screenshot(content)
         else:
@@ -316,7 +409,7 @@ class RunArtifactStore:
         day = timestamp[:10]
         suffix = {
             "image/webp": ".webp", "image/png": ".png",
-            "text/plain; charset=utf-8": ".txt", "text/csv; charset=utf-8": ".csv",
+            "image/jpeg": ".jpg",
         }.get(content_type, ".bin")
         run_segment = str(int(run_id)) if run_id is not None else "unassigned"
         object_key = f"runs/{day}/{run_segment}/{_safe_segment(artifact_type)}/{_safe_segment(name)}-{content_hash[:24]}{suffix}"
@@ -409,17 +502,34 @@ class RunArtifactStore:
         while len(rows) < maximum:
             page_limit = min(TEXT_ARTIFACT_READ_PAGE_SIZE, maximum - len(rows))
             result = self.d1.execute(
-                "SELECT artifact_id, run_id, artifact_type, artifact_name, content_type, text_content, metadata_json, created_at "
-                "FROM artifacts WHERE created_at >= ? AND text_content <> '' "
-                "ORDER BY created_at, run_id, artifact_type, artifact_name, artifact_id "
+                "SELECT artifact_id, run_id, artifact_type, artifact_name, content_type, text_content, metadata_json, created_at, 0 AS chunk_index, 1 AS chunk_count "
+                "FROM artifacts WHERE created_at >= ? AND text_content <> '' UNION ALL "
+                "SELECT diagnostic_id AS artifact_id, run_id, diagnostic_type AS artifact_type, diagnostic_name AS artifact_name, "
+                "'text/plain; charset=utf-8' AS content_type, text_content, metadata_json, created_at, chunk_index, chunk_count "
+                "FROM diagnostics WHERE created_at >= ? "
+                "ORDER BY created_at, run_id, artifact_type, artifact_name, artifact_id, chunk_index "
                 "LIMIT ? OFFSET ?",
-                (since_iso, page_limit, offset),
+                (since_iso, since_iso, page_limit, offset),
             )
             rows.extend(result.rows)
             if len(result.rows) < page_limit:
                 break
             offset += len(result.rows)
-        return rows
+        combined: dict[str, dict] = {}
+        for row in rows:
+            identity = row.get("artifact_id")
+            item = combined.setdefault(identity, {**row, "_chunks": []})
+            item["_chunks"].append((int(row.get("chunk_index", 0)), str(row.get("text_content") or ""), str(row.get("metadata_json") or "")))
+        output = []
+        for item in combined.values():
+            chunks = sorted(item.pop("_chunks"))
+            expected = int(item.get("chunk_count", 1))
+            if [index for index, _, _ in chunks] != list(range(expected)):
+                raise CloudflareStorageError("A diagnostic is incomplete; refusing to return partial text.")
+            item["text_content"] = "".join(text for _, text, _ in chunks)
+            item["metadata_json"] = "".join(metadata for _, _, metadata in chunks)
+            output.append(item)
+        return output
 
     def mark_run_failed(self, run_id: int, *, reason: str) -> None:
         result = self.d1.execute(

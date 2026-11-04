@@ -100,143 +100,122 @@ async function queryD1(db, request) {
   }
 }
 
-export function subtractCalendarMonths(date, months = 2) {
-  const year = date.getUTCFullYear();
-  const month = date.getUTCMonth() - months;
-  const day = date.getUTCDate();
-  const hour = date.getUTCHours();
-  const minute = date.getUTCMinutes();
-  const second = date.getUTCSeconds();
-  const targetMonthStart = new Date(Date.UTC(year, month, 1, hour, minute, second));
-  const daysInTargetMonth = new Date(Date.UTC(targetMonthStart.getUTCFullYear(), targetMonthStart.getUTCMonth() + 1, 0)).getUTCDate();
-  targetMonthStart.setUTCDate(Math.min(day, daysInTargetMonth));
-  return targetMonthStart;
+const HIGH_WATER_BYTES = 350_000_000;
+const LOW_WATER_BYTES = 300_000_000;
+const CLEANUP_LEASE_MS = 10 * 60 * 1000;
+
+async function statement(db, sql, params = []) {
+  return db.prepare(sql).bind(...params).all();
 }
 
-function keyDate(key) {
-  const match = /^runs\/(\d{4}-\d{2}-\d{2})\//.exec(key);
-  if (!match) return null;
-  const date = new Date(`${match[1]}T00:00:00.000Z`);
-  return Number.isNaN(date.getTime()) ? null : match[1];
+async function databaseSize(db) {
+  const result = await statement(db, "SELECT 1 AS ok");
+  const size = result?.meta?.size_after;
+  if (!Number.isSafeInteger(size) || size < 0) throw new Error("D1 storage measurement unavailable");
+  return size;
 }
 
-async function cleanupOldObjects(bucket, cutoffDate) {
-  const page = await bucket.list({ prefix: "runs/", limit: OBJECT_PAGE_SIZE });
-  const oldKeys = [];
-  let reachedRetentionWindow = false;
-  for (const object of page.objects ?? []) {
-    const date = keyDate(object.key);
-    if (date && date < cutoffDate) oldKeys.push(object.key);
-    else if (date) {
-      // R2 lists keys lexicographically, and the date is the first path part.
-      // Once the first in-window date appears, later keys cannot be expired.
-      reachedRetentionWindow = true;
-      break;
-    }
-  }
-  if (oldKeys.length) await bucket.delete(oldKeys);
-  // Deleting the first page makes the next daily tick advance to the next
-  // oldest objects. Do not clean D1 metadata while older object pages remain.
-  return { deleted: oldKeys.length, pending: Boolean(page.truncated && !reachedRetentionWindow) };
-}
-
-function resultWrites(result) {
-  return Number(result?.meta?.rows_written ?? 0);
-}
-
-function resultChanges(result) {
-  return Number(result?.meta?.changes ?? 0);
-}
-
-async function deleteBatch(db, sql, parameters) {
-  return db.prepare(sql).bind(...parameters).run();
-}
-
-async function cleanupD1(db, cutoffIso) {
-  let rowsWritten = 0;
-  let rowsDeleted = 0;
-  let artifactsDeleted = 0;
-  let runsDeleted = 0;
-
-  while (rowsWritten < D1_WRITE_BUDGET_PER_TICK) {
-    const result = await deleteBatch(
-      db,
-      `DELETE FROM scraped_rows WHERE row_key IN (
-        SELECT s.row_key FROM scraped_rows AS s
-        JOIN run_logs AS r ON r.run_id = s.run_id
-        WHERE r.started_at < ? ORDER BY r.started_at, s.row_key LIMIT ?
-      )`,
-      [cutoffIso, Math.min(D1_BATCH_SIZE, Math.max(1, Math.floor((D1_WRITE_BUDGET_PER_TICK - rowsWritten) / 3)))],
-    );
-    const changes = resultChanges(result);
-    rowsWritten += resultWrites(result);
-    rowsDeleted += changes;
-    if (changes === 0) break;
-  }
-
-  if (rowsWritten < D1_WRITE_BUDGET_PER_TICK) {
-    while (rowsWritten < D1_WRITE_BUDGET_PER_TICK) {
-      const result = await deleteBatch(
-        db,
-        `DELETE FROM artifacts WHERE artifact_id IN (
-          SELECT a.artifact_id FROM artifacts AS a
-          LEFT JOIN run_logs AS r ON r.run_id = a.run_id
-          WHERE (a.run_id IS NOT NULL AND r.started_at < ?)
-             OR (a.run_id IS NULL AND a.created_at < ?)
-          ORDER BY COALESCE(r.started_at, a.created_at), a.artifact_id LIMIT ?
-        )`,
-        // The statement uses the same cutoff for each branch; repeated binding
-        // is preferable to string interpolation for an operator controlled date.
-        [cutoffIso, cutoffIso, Math.min(D1_BATCH_SIZE, Math.max(1, Math.floor((D1_WRITE_BUDGET_PER_TICK - rowsWritten) / 2)))],
-      );
-      const changes = resultChanges(result);
-      rowsWritten += resultWrites(result);
-      artifactsDeleted += changes;
-      if (changes === 0) break;
-    }
-  }
-
-  if (rowsWritten < D1_WRITE_BUDGET_PER_TICK) {
-    const result = await db.prepare(
-      `DELETE FROM run_logs WHERE run_id IN (
-        SELECT r.run_id FROM run_logs AS r
-        WHERE r.started_at < ?
-          AND NOT EXISTS (SELECT 1 FROM scraped_rows AS s WHERE s.run_id = r.run_id)
-          AND NOT EXISTS (SELECT 1 FROM artifacts AS a WHERE a.run_id = r.run_id)
-        ORDER BY r.started_at, r.run_id LIMIT ?
-      )`,
-    ).bind(cutoffIso, Math.min(500, Math.max(1, D1_WRITE_BUDGET_PER_TICK - rowsWritten))).run();
-    runsDeleted += resultChanges(result);
-    rowsWritten += resultWrites(result);
-  }
-
-  return { rowsWritten, rowsDeleted, artifactsDeleted, runsDeleted, budgetExhausted: rowsWritten >= D1_WRITE_BUDGET_PER_TICK };
-}
-
-export async function cleanupExpiredArtifacts(env, now = new Date()) {
+/** Delete a bounded amount of one old completed run, coordinating with the scraper lease. */
+export async function cleanupByStorage(env, now = new Date()) {
   if (!env?.RUN_ARTIFACTS || !env?.RUN_LOGS) throw new Error("RUN_ARTIFACTS and RUN_LOGS bindings are required");
-  const cutoff = subtractCalendarMonths(now, 2);
-  const cutoffIso = cutoff.toISOString();
-  const cutoffDate = cutoffIso.slice(0, 10);
-  const objects = await cleanupOldObjects(env.RUN_ARTIFACTS, cutoffDate);
-  if (objects.pending) {
-    return { cutoff: cutoffIso, objectsDeleted: objects.deleted, d1: null, pending: true };
+  const db = env.RUN_LOGS;
+  let size = await databaseSize(db);
+  const stateQuery = await statement(db, "SELECT * FROM retention_state WHERE id = 1");
+  let state = stateQuery.results?.[0];
+  if (!state) throw new Error("Retention state missing");
+  if (state.halted) throw new Error("Cleanup halted because storage did not shrink; operator review required");
+  if (!state.active && size < HIGH_WATER_BYTES) return { size, pending: false, deleted: 0 };
+
+  const token = crypto.randomUUID();
+  const nowIso = now.toISOString();
+  const startedWall = Date.now();
+  const expires = new Date(now.getTime() + CLEANUP_LEASE_MS).toISOString();
+  const lock = await statement(db, "UPDATE run_locks SET lease_token = ?, run_id = NULL, lease_until = ? WHERE id = 1 AND lease_until <= ?", [token, expires, nowIso]);
+  if (Number(lock.meta?.changes) !== 1) throw new Error("A scraper or cleanup holds the run lease");
+  try {
+    const renewLease = async () => {
+      const current = new Date(now.getTime() + Math.max(0, Date.now() - startedWall));
+      const deadline = new Date(current.getTime() + CLEANUP_LEASE_MS).toISOString();
+      const result = await statement(db, "UPDATE run_locks SET lease_until = ? WHERE id = 1 AND lease_token = ? AND lease_until > ?", [deadline, token, current.toISOString()]);
+      if (Number(result.meta?.changes) !== 1) throw new Error("Cleanup lease expired or was lost");
+    };
+    size = await databaseSize(db);
+    const day = nowIso.slice(0, 10);
+    await statement(db, "UPDATE retention_state SET active = 1, budget_day = ?, writes_reserved = CASE WHEN budget_day = ? THEN writes_reserved ELSE 0 END WHERE id = 1", [day, day]);
+    state = (await statement(db, "SELECT * FROM retention_state WHERE id = 1")).results?.[0];
+    if (!state) throw new Error("Retention state missing");
+    if (size <= LOW_WATER_BYTES && !state.run_id) {
+      await statement(db, "UPDATE retention_state SET active = 0 WHERE id = 1");
+      return { size, pending: false, deleted: 0 };
+    }
+    let runId = state.run_id;
+    if (!runId) {
+      const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+      const candidate = await statement(db, "SELECT run_id FROM run_logs WHERE status IN ('successful', 'failed') AND started_at < ? AND created_at < ? ORDER BY started_at, run_id LIMIT 1", [cutoff, cutoff]);
+      runId = candidate.results?.[0]?.run_id;
+      if (!runId) throw new Error("No safely removable completed run is available");
+      await statement(db, "UPDATE retention_state SET run_id = ?, start_size = ? WHERE id = 1", [runId, size]);
+      state.run_id = runId;
+      state.start_size = size;
+    }
+    const remaining = D1_WRITE_BUDGET_PER_TICK - Number(state.writes_reserved || 0);
+    if (remaining < 40) return { size, runId, pending: true, budgetExhausted: true };
+    // Reserve an upper bound before deleting so an interruption cannot evade the daily budget.
+    const count = Math.min(80, Math.floor((remaining - 20) / 4));
+    const reservation = count * 4 + 20;
+    await statement(db, "UPDATE retention_state SET writes_reserved = writes_reserved + ? WHERE id = 1", [reservation]);
+    const objects = await statement(db, "SELECT artifact_id, object_key FROM artifacts WHERE run_id = ? AND object_key <> '' ORDER BY artifact_id LIMIT ?", [runId, count]);
+    const objectRows = objects.results || [];
+    if (objectRows.length) {
+      for (const row of objectRows) {
+        if (!new RegExp(`^runs/\\d{4}-\\d{2}-\\d{2}/${runId}/`).test(row.object_key)) throw new Error("Invalid screenshot key in D1");
+      }
+      await renewLease();
+      await env.RUN_ARTIFACTS.delete(objectRows.map(row => row.object_key));
+      await renewLease();
+      const placeholders = objectRows.map(() => "?").join(",");
+      await statement(db, `DELETE FROM artifacts WHERE run_id = ? AND artifact_id IN (${placeholders})`, [runId, ...objectRows.map(row => row.artifact_id)]);
+      return { size: await databaseSize(db), runId, pending: true, deletedObjects: objectRows.length };
+    }
+    for (const table of ["scraped_rows", "gathering_rows", "diagnostics", "artifacts"]) {
+      const key = ["scraped_rows", "gathering_rows"].includes(table) ? "row_key" : table === "diagnostics" ? "rowid" : "artifact_id";
+      await renewLease();
+      const result = await statement(db, `DELETE FROM ${table} WHERE ${key} IN (SELECT ${key} FROM ${table} WHERE run_id = ? LIMIT ?)`, [runId, count]);
+      if (Number(result.meta?.changes || 0) > 0) return { size: await databaseSize(db), runId, pending: true, deleted: Number(result.meta.changes) };
+    }
+    await renewLease();
+    const deleted = await statement(db, "DELETE FROM run_logs WHERE run_id = ? AND status IN ('successful', 'failed')", [runId]);
+    if (Number(deleted.meta?.changes) !== 1) throw new Error("Run changed during cleanup");
+    const after = await databaseSize(db);
+    if (after >= Number(state.start_size) && after > LOW_WATER_BYTES) {
+      await statement(db, "UPDATE retention_state SET run_id = NULL, halted = 1 WHERE id = 1");
+      throw new Error("Cleanup stopped: reported D1 size did not decrease");
+    }
+    await statement(db, "UPDATE retention_state SET run_id = NULL, start_size = NULL, active = ? WHERE id = 1", [after > LOW_WATER_BYTES ? 1 : 0]);
+    return { size: after, runId, pending: after > LOW_WATER_BYTES, deletedRuns: 1 };
+  } finally {
+    await statement(db, "UPDATE run_locks SET lease_token = '', run_id = NULL, lease_until = '1970-01-01T00:00:00+00:00' WHERE id = 1 AND lease_token = ?", [token]);
   }
-  const d1 = await cleanupD1(env.RUN_LOGS, cutoffIso);
-  return { cutoff: cutoffIso, objectsDeleted: objects.deleted, d1, pending: d1.budgetExhausted };
 }
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname !== "/v1/d1/query") return jsonResponse({ success: false, errors: [{ message: "Not found" }] }, 404);
+    if (!["/v1/d1/query", "/v1/d1/cleanup"].includes(url.pathname)) return jsonResponse({ success: false, errors: [{ message: "Not found" }] }, 404);
     if (request.method !== "POST") return jsonResponse({ success: false, errors: [{ message: "Method not allowed" }] }, 405);
     if (!authorized(request, env.RUN_LOGS_API_SECRET)) return jsonResponse({ success: false, errors: [{ message: "Unauthorized" }] }, 401);
     if (!env.RUN_LOGS) return jsonResponse({ success: false, errors: [{ message: "D1 binding unavailable" }] }, 503);
+    if (url.pathname === "/v1/d1/cleanup") {
+      try { return jsonResponse({ success: true, result: await cleanupByStorage(env) }); }
+      catch (error) {
+        console.error("Storage cleanup unavailable", error?.message ?? "unknown error");
+        return jsonResponse({ success: false, errors: [{ message: "Storage cleanup unavailable; inspect Worker logs" }] }, 503);
+      }
+    }
     return queryD1(env.RUN_LOGS, request);
   },
   async scheduled(_controller, env, ctx) {
-    ctx.waitUntil(cleanupExpiredArtifacts(env).then((result) => {
+    ctx.waitUntil(cleanupByStorage(env).then((result) => {
       console.log("Run-artifact retention completed", JSON.stringify(result));
     }).catch((error) => {
       console.error("Run-artifact retention failed", JSON.stringify({ error: error?.name ?? "Error" }));

@@ -96,5 +96,7 @@ def artifactPrinting(obj, run_id, *, item_name: str | None = None, attempt: int 
     store.save_text_artifact(
         run_id=int(run_id), artifact_type="scrape_error",
         name=f"{cleaned_name}-{attempt_number}", text="\n".join(lines),
-        metadata={"item_name": name, "attempt": attempt_number, "exception_type": exc_type_name},
+        metadata={"item_name": name, "attempt": attempt_number, "exception_type": exc_type_name,
+                  "error_message": exception_msg, "call_chain": call_chain,
+                  "url": safe_url, "selector": _redact_sensitive_text(selector or "")},
     )

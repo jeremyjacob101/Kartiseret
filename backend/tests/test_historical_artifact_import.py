@@ -104,7 +104,7 @@ class HistoricalArtifactImportTests(TestCase):
 
     def test_import_budget_is_hard_capped_and_stops_before_writes(self):
         with self.assertRaisesRegex(ValueError, "between 1 and"):
-            import_candidates(store=Mock(), candidates=[], target="production", write_budget=20_001)
+            import_candidates(store=Mock(), candidates=[], target="production", write_budget=60_001)
 
         self._csv(rows=[{"run_id": 42, "english_title": f"Movie {index}", "release_date": "2030-01-02", "future": ""} for index in range(30)])
         candidates, _ = scan_import_candidates(
@@ -117,9 +117,20 @@ class HistoricalArtifactImportTests(TestCase):
         self.assertTrue(result["skipped_due_to_budget"])
         store.insert_imported_run.assert_not_called()
 
-    def test_scan_rejects_lookback_longer_than_three_days(self):
-        with self.assertRaisesRegex(ValueError, "three days"):
-            scan_import_candidates(run_logs=[], artifacts_root=self.artifacts, cron_root=self.cron, as_of=self.as_of, lookback_days=4)
+    def test_scan_supports_older_lookback_and_converts_gathering_csv(self):
+        path = self.artifacts / "42" / "CCsoon-ThreadPoolExecutor-0_2-20260116-150422-gathering_info.csv"
+        path.parent.mkdir(parents=True)
+        path.write_text("english_title,future\nAlpha,kept\n", encoding="utf-8")
+        candidates, _ = scan_import_candidates(run_logs=[self.run], artifacts_root=self.artifacts, cron_root=self.cron, as_of=self.as_of, lookback_days=30)
+        self.assertEqual(candidates[0]["kind"], "gathering_csv")
+        store = Mock()
+        store.insert_imported_run.return_value = 1
+        store.save_gathering_rows.return_value = 1
+        store._last_imported_run_changed = store._last_gathering_rows_changed = 1
+        result = import_candidates(store=store, candidates=candidates, target="production")
+        self.assertEqual(result["imported_rows"], 1)
+        self.assertEqual(store.save_gathering_rows.call_args.kwargs["rows"][0]["future"], "kept")
+        store.save_file_artifact.assert_not_called()
 
 
 if __name__ == "__main__":

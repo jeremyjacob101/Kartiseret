@@ -1,4 +1,4 @@
-"""Upload one completed cron transcript to private R2 and record it in D1."""
+"""Store one completed cron transcript in D1."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def _mark_supabase_run_failed(run_id: int) -> None:
     client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
     response = client.table("utilRunLogs").update({
         "successful": False, "running_now": False,
-    }).eq("run_id", run_id).select("run_id").execute()
+    }).eq("run_id", run_id).execute()
     if not (response.data or []):
         raise RuntimeError(f"Supabase did not confirm failure finalization for run {run_id}.")
 
@@ -96,14 +96,14 @@ def main(argv: list[str] | None = None) -> int:
     _select_profile(args.target)
     store = RunArtifactStore()
     try:
-        store.save_file_artifact(
+        store.save_text_artifact(
             run_id=run_id,
             artifact_type="cron_output",
             name=log_path.name,
-            content=content,
-            content_type="text/plain; charset=utf-8",
+            text=content.decode("utf-8", errors="replace"),
             metadata={"target": args.target, "source": "scheduled-shell-runner"},
         )
+        store.d1.check_storage()
     except Exception as error:
         supabase_confirmed = _record_storage_failure(
             store, run_id, f"cron_upload_{type(error).__name__}", error

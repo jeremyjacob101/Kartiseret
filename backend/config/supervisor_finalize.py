@@ -26,7 +26,7 @@ def main() -> int:
             "successful": False,
             "total_time": max(0.0, args.elapsed_seconds),
             "running_now": False,
-        }).eq("run_id", args.run_id).select("run_id").execute()
+        }).eq("run_id", args.run_id).execute()
         if not (response.data or []):
             raise RuntimeError("Supabase did not confirm the interrupted run update")
         supabase_confirmed = True
@@ -39,6 +39,7 @@ def main() -> int:
             store.mark_run_failed(args.run_id, reason="supervisor_interrupted")
         else:
             store.mark_run_unconfirmed(args.run_id, reason="supabase_finalization_unconfirmed")
+        store.d1.check_storage()
     except Exception as error:
         errors.append(f"Cloudflare:{type(error).__name__}")
 

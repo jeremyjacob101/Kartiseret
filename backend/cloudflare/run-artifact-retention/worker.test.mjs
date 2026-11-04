@@ -1,111 +1,84 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import worker, { cleanupExpiredArtifacts, jsonResponse, subtractCalendarMonths } from "./worker.mjs";
+import worker, { cleanupByStorage, jsonResponse } from "./worker.mjs";
 
 test("oversized D1 responses return the bounded error body", async () => {
   const response = jsonResponse({ success: true, result: "too long" }, 200, 16);
   assert.equal(response.status, 413);
-  assert.deepEqual(await response.json(), {
-    success: false,
-    errors: [{ message: "D1 result too large; request smaller pages" }],
-  });
+  assert.match((await response.json()).errors[0].message, /smaller pages/);
 });
 
-function fakeD1({ failFirst = false } = {}) {
-  const queries = [];
-  let shouldFail = failFirst;
+function retentionD1({ size = 351_000_000, locked = false, runId = 12, objects = [], reserved = 0 } = {}) {
+  const calls = [];
+  const state = { active: 0, run_id: null, halted: 0, start_size: null, writes_reserved: reserved };
   return {
-    queries,
+    calls, state,
     prepare(sql) {
-      return {
-        bind(...params) {
-          return {
-            async run() {
-              queries.push({ sql, params });
-              if (shouldFail) {
-                shouldFail = false;
-                throw new Error("simulated D1 interruption");
-              }
-              return { meta: { changes: 0, rows_written: 0 } };
-            },
-          };
-        },
-      };
+      return { bind(...params) { return { async all() {
+        calls.push({ sql, params });
+        const meta = { size_after: size, changes: 0, rows_written: 0 };
+        let results = [];
+        if (sql.startsWith("SELECT * FROM retention_state")) results = [{ ...state }];
+        else if (sql.startsWith("UPDATE run_locks SET lease_token = ?")) meta.changes = locked ? 0 : 1;
+        else if (sql.startsWith("UPDATE run_locks SET lease_until = ?")) meta.changes = 1;
+        else if (sql.startsWith("UPDATE retention_state SET active = 1")) state.active = 1;
+        else if (sql.startsWith("SELECT run_id FROM run_logs")) results = runId ? [{ run_id: runId }] : [];
+        else if (sql.startsWith("UPDATE retention_state SET run_id = ?, start_size")) { state.run_id = params[0]; state.start_size = params[1]; }
+        else if (sql.startsWith("UPDATE retention_state SET writes_reserved")) state.writes_reserved += params[0];
+        else if (sql.startsWith("SELECT artifact_id, object_key")) results = objects;
+        else if (sql.startsWith("DELETE FROM artifacts WHERE run_id")) meta.changes = objects.length;
+        else if (sql.startsWith("DELETE FROM run_logs")) { meta.changes = 1; size -= 1_000_000; }
+        else if (sql.startsWith("UPDATE retention_state SET run_id = NULL")) { state.run_id = null; state.active = params[0] || 0; }
+        return { results, meta };
+      } }; } };
     },
   };
 }
 
-function fakeR2(objects) {
-  const remaining = new Map(objects.map((key) => [key, { key }]));
-  const deleted = [];
-  return {
-    deleted,
-    async list({ prefix, limit }) {
-      const matching = [...remaining.values()].filter((item) => item.key.startsWith(prefix)).sort((a, b) => a.key.localeCompare(b.key));
-      return {
-        objects: matching.slice(0, limit),
-        truncated: matching.length > limit,
-      };
-    },
-    async delete(keys) {
-      const values = Array.isArray(keys) ? keys : [keys];
-      for (const key of values) {
-        deleted.push(key);
-        remaining.delete(key);
-      }
-    },
-  };
-}
-
-test("subtracts two calendar months and clamps month-end safely", () => {
-  assert.equal(subtractCalendarMonths(new Date("2026-11-30T04:17:25Z")).toISOString(), "2026-09-30T04:17:25.000Z");
-  assert.equal(subtractCalendarMonths(new Date("2026-05-31T00:00:00Z")).toISOString(), "2026-03-31T00:00:00.000Z");
-  assert.equal(subtractCalendarMonths(new Date("2026-04-30T00:00:00Z")).toISOString(), "2026-02-28T00:00:00.000Z");
-});
-
-test("deletes expired private objects before D1 metadata and uses run start for row retention", async () => {
-  const r2 = fakeR2([
-    "runs/2026-08-01/12/screenshots/old.webp",
-    "runs/2026-09-20/13/screenshots/new.webp",
-  ]);
-  const d1 = fakeD1();
-  const result = await cleanupExpiredArtifacts({ RUN_ARTIFACTS: r2, RUN_LOGS: d1 }, new Date("2026-11-03T04:00:00Z"));
-  assert.deepEqual(r2.deleted, ["runs/2026-08-01/12/screenshots/old.webp"]);
-  assert.equal(result.cutoff, "2026-09-03T04:00:00.000Z");
+test("below the high-water mark retains all runs", async () => {
+  const db = retentionD1({ size: 200_000_000 });
+  const result = await cleanupByStorage({ RUN_LOGS: db, RUN_ARTIFACTS: {} });
   assert.equal(result.pending, false);
-  assert.match(d1.queries[0].sql, /JOIN run_logs AS r/);
-  assert.equal(d1.queries[0].params[0], result.cutoff);
+  assert.equal(db.calls.some(c => c.sql.startsWith("DELETE")), false);
 });
 
-test("an interrupted D1 cleanup safely resumes after already-deleted R2 keys", async () => {
-  const r2 = fakeR2(["runs/2026-07-01/3/screenshots/old.webp"]);
-  const d1 = fakeD1({ failFirst: true });
-  const env = { RUN_ARTIFACTS: r2, RUN_LOGS: d1 };
-  await assert.rejects(cleanupExpiredArtifacts(env, new Date("2026-11-03T04:00:00Z")), /simulated D1 interruption/);
-  assert.equal(r2.deleted.length, 1);
-  const resumed = await cleanupExpiredArtifacts(env, new Date("2026-11-03T04:00:00Z"));
-  assert.equal(r2.deleted.length, 1);
-  assert.equal(resumed.pending, false);
-  assert.equal(d1.queries.length, 4);
+test("missing database size stops before any deletion", async () => {
+  const db = retentionD1({ size: undefined });
+  const original = db.prepare.bind(db);
+  db.prepare = sql => sql === "SELECT 1 AS ok" ? { bind: () => ({ all: async () => ({ results: [{}], meta: {} }) }) } : original(sql);
+  await assert.rejects(cleanupByStorage({ RUN_LOGS: db, RUN_ARTIFACTS: {} }), /measurement unavailable/);
+  assert.equal(db.calls.some(c => c.sql.startsWith("DELETE")), false);
 });
 
-test("large expired R2 inventories advance one page before touching D1", async () => {
-  const oldKeys = Array.from({ length: 1001 }, (_, index) => `runs/2026-07-01/3/screenshots/${index}.webp`);
-  const r2 = fakeR2(oldKeys);
-  const d1 = fakeD1();
-  const env = { RUN_ARTIFACTS: r2, RUN_LOGS: d1 };
-  const first = await cleanupExpiredArtifacts(env, new Date("2026-11-03T04:00:00Z"));
-  assert.equal(first.pending, true);
-  assert.equal(first.objectsDeleted, 1000);
-  assert.equal(d1.queries.length, 0);
-  const second = await cleanupExpiredArtifacts(env, new Date("2026-11-03T04:00:00Z"));
-  assert.equal(second.pending, false);
-  assert.equal(r2.deleted.length, 1001);
-  assert.equal(d1.queries.length, 3);
+test("cleanup deletes linked screenshots before metadata and selects only completed old runs", async () => {
+  const db = retentionD1({ objects: [{ artifact_id: "a", object_key: "runs/2026-06-01/12/screenshots/a.webp" }] });
+  const deleted = [];
+  const result = await cleanupByStorage({ RUN_LOGS: db, RUN_ARTIFACTS: { async delete(keys) { deleted.push(...keys); } } }, new Date("2026-11-03T04:00:00Z"));
+  assert.equal(result.pending, true);
+  assert.equal(deleted.length, 1);
+  assert.match(db.calls.find(c => c.sql.startsWith("SELECT run_id FROM run_logs")).sql, /status IN \('successful', 'failed'\)/);
+  assert.ok(db.calls.some(c => c.sql.startsWith("DELETE FROM artifacts WHERE run_id")));
+  assert.ok(!db.calls.some(c => c.sql.startsWith("DELETE FROM run_logs")));
 });
 
-test("requires both environment-specific Cloudflare bindings", async () => {
-  await assert.rejects(cleanupExpiredArtifacts({}, new Date()), /RUN_ARTIFACTS and RUN_LOGS/);
+test("an R2 outage leaves screenshot metadata intact for safe resumption", async () => {
+  const db = retentionD1({ objects: [{ artifact_id: "a", object_key: "runs/2026-06-01/12/screenshots/a.webp" }] });
+  await assert.rejects(cleanupByStorage({ RUN_LOGS: db, RUN_ARTIFACTS: { async delete() { throw new Error("offline"); } } }), /offline/);
+  assert.ok(!db.calls.some(c => c.sql.startsWith("DELETE FROM artifacts")));
+  assert.ok(db.calls.some(c => c.sql.startsWith("UPDATE run_locks SET lease_token = ''")));
+});
+
+test("cleanup skips deletion when the daily write budget is exhausted", async () => {
+  const db = retentionD1({ reserved: 5000 });
+  const result = await cleanupByStorage({ RUN_LOGS: db, RUN_ARTIFACTS: {} });
+  assert.equal(result.budgetExhausted, true);
+  assert.ok(!db.calls.some(c => c.sql.startsWith("DELETE")));
+});
+
+test("cleanup refuses to run while another scraper holds the lease", async () => {
+  const db = retentionD1({ locked: true });
+  await assert.rejects(cleanupByStorage({ RUN_LOGS: db, RUN_ARTIFACTS: {} }), /holds the run lease/);
+  assert.ok(!db.calls.some(c => c.sql.startsWith("DELETE")));
 });
 
 function queryDatabase() {
@@ -183,4 +156,41 @@ test("D1 endpoint validates batches and never returns database error details", a
   }), { RUN_LOGS: brokenDb, RUN_LOGS_API_SECRET: secret });
   assert.equal(failed.status, 502);
   assert.doesNotMatch(await failed.text(), /private SQL and secret detail/);
+});
+
+test("storage cleanup resumes across calls and keeps running and recently imported runs", async () => {
+  const { DatabaseSync } = await import("node:sqlite");
+  const { readFileSync } = await import("node:fs");
+  const db = new DatabaseSync(":memory:");
+  db.exec(readFileSync(new URL("../d1/migrations/0001_run_artifacts.sql", import.meta.url), "utf8"));
+  db.exec(`INSERT INTO run_logs (run_id,target,run_from,status,started_at,created_at) VALUES
+    (1,'dev','test','successful','2026-01-01','2026-01-01'),
+    (2,'dev','test','running','2026-01-01','2026-01-01'),
+    (3,'dev','test','successful','2026-01-01','2026-11-03T03:00:00.000Z');
+    INSERT INTO scraped_rows (row_key,run_id,scraper,attempt,outcome,row_order,created_at) VALUES ('row',1,'test',1,'successful',0,'2026-01-01');
+    INSERT INTO gathering_rows (row_key,run_id,scraper,source_file,row_order,created_at) VALUES ('gather',1,'test','old.csv',0,'2026-01-01');
+    INSERT INTO diagnostics (diagnostic_id,chunk_index,chunk_count,run_id,diagnostic_type,diagnostic_name,text_content,created_at) VALUES ('diag',0,1,1,'test','test','hello','2026-01-01');
+    INSERT INTO artifacts (artifact_id,run_id,artifact_type,artifact_name,object_key,content_type,created_at) VALUES ('image',1,'screenshots','test','runs/2026-01-01/1/screenshots/a.webp','image/webp','2026-01-01');`);
+  let reportedSize = 351_000_000;
+  const d1 = { prepare(sql) { return { bind(...params) { return { async all() {
+    const statement = db.prepare(sql);
+    let results = [], changes = 0;
+    if (statement.columns().length) results = statement.all(...params);
+    else changes = Number(statement.run(...params).changes);
+    if (sql.startsWith("DELETE FROM run_logs") && changes) reportedSize = 299_000_000;
+    return { results, meta: { changes, rows_written: changes * 3, size_after: reportedSize } };
+  } }; } }; } };
+  const deleted = [];
+  const env = { RUN_LOGS: d1, RUN_ARTIFACTS: { async delete(keys) { deleted.push(...keys); } } };
+  let result;
+  for (let i = 0; i < 10; i++) {
+    result = await cleanupByStorage(env, new Date("2026-11-03T04:00:00Z"));
+    if (!result.pending) break;
+  }
+  assert.equal(result.pending, false);
+  assert.deepEqual(deleted, ["runs/2026-01-01/1/screenshots/a.webp"]);
+  assert.deepEqual(db.prepare("SELECT run_id FROM run_logs ORDER BY run_id").all().map(r => r.run_id), [2, 3]);
+  assert.equal(db.prepare("SELECT count(*) AS n FROM diagnostics").get().n, 0);
+  assert.equal(db.prepare("SELECT count(*) AS n FROM gathering_rows").get().n, 0);
+  db.close();
 });

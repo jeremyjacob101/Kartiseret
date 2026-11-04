@@ -130,8 +130,8 @@ class RunArtifactStorageTests(TestCase):
 
         self.assertEqual(len(rows), 26)
         self.assertIn("artifact_id", d1.execute.call_args_list[0].args[0])
-        self.assertEqual(d1.execute.call_args_list[0].args[1], ("2026-01-01T00:00:00Z", 25, 0))
-        self.assertEqual(d1.execute.call_args_list[1].args[1], ("2026-01-01T00:00:00Z", 25, 25))
+        self.assertEqual(d1.execute.call_args_list[0].args[1], ("2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z", 25, 0))
+        self.assertEqual(d1.execute.call_args_list[1].args[1], ("2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z", 25, 25))
 
     def test_r2_failure_keeps_local_artifact_and_d1_failure_leaves_reconciliation_copy(self):
         failing_r2 = Mock()
@@ -168,8 +168,26 @@ class RunArtifactStorageTests(TestCase):
                 run_id=7, artifact_type="scrape_error", name="failure",
                 text="request failed with a-service-secret-value",
             )
-            self.assertNotIn("a-service-secret-value", d1.calls[0][1][6])
-            self.assertIn("[REDACTED]", d1.calls[0][1][6])
+            self.assertNotIn("a-service-secret-value", d1.calls[0][1][15])
+            self.assertIn("[REDACTED]", d1.calls[0][1][15])
+
+    def test_long_unicode_diagnostic_keeps_columns_and_reconstructs_text(self):
+        d1 = FakeD1()
+        store = RunArtifactStore(d1, bucket="private-test")
+        text = "שלום 🎬\n" * 100_000
+        with TemporaryDirectory() as directory, patch.dict(os.environ, {"KARTISERET_RECOVERY_ROOT": directory}):
+            store.save_text_artifact(run_id=7, artifact_type="scrape_error", name="Cinema-2", text=text,
+                                     metadata={"item_name": "Cinema", "attempt": 2, "url": "https://example.com", "selector": ".film"})
+        self.assertGreater(len(d1.calls), 1)
+        self.assertEqual("".join(call[1][15] for call in d1.calls), text)
+        self.assertEqual(d1.calls[0][1][6:8], ("Cinema", 2))
+        self.assertEqual(d1.calls[0][1][9:11], ("https://example.com", ".film"))
+        self.assertTrue(all(len(json.dumps(call[1]).encode()) < 700_000 for call in d1.calls))
+
+    def test_non_image_file_cannot_be_uploaded_to_artifact_bucket(self):
+        store = RunArtifactStore(FakeD1(), r2_client=Mock(), bucket="private-test")
+        with self.assertRaises(CloudflareStorageError):
+            store.save_file_artifact(run_id=7, artifact_type="cron_output", name="log", content=b"text", content_type="text/plain")
 
     def test_screenshot_webp_is_smaller_and_width_is_bounded_without_upscaling(self):
         from PIL import Image
