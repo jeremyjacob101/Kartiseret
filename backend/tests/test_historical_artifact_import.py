@@ -5,15 +5,29 @@ from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import TestCase
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from backend.utils.log.import_historical_artifacts import (
     import_candidates,
     scan_import_candidates,
+    _read_recent_util_run_logs,
 )
 
 
 class HistoricalArtifactImportTests(TestCase):
+    def test_reading_runs_does_not_mutate_profile_environment(self):
+        client = Mock()
+        client.table.return_value.select.return_value.gte.return_value.order.return_value.range.return_value.execute.return_value.data = []
+        selected = {"SUPABASE_URL": "https://example.invalid", "SUPABASE_SERVICE_ROLE_KEY": "secret", "PROD_SUPABASE_URL": ""}
+        with patch.dict("os.environ", {"PROD_SUPABASE_URL": "original"}, clear=True), \
+             patch("dotenv.load_dotenv"), \
+             patch("backend.config.target_environment.resolve_target_environment", return_value=selected), \
+             patch("supabase.create_client", return_value=client) as create:
+            import os
+            self.assertEqual(_read_recent_util_run_logs("production", datetime.now(timezone.utc)), [])
+            self.assertEqual(os.environ["PROD_SUPABASE_URL"], "original")
+            create.assert_called_once_with("https://example.invalid", "secret")
+
     def setUp(self):
         self.temp = TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

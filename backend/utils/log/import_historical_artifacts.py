@@ -423,8 +423,7 @@ def _read_recent_util_run_logs(target: str, since: datetime) -> list[dict]:
 
     load_dotenv()
     selected = resolve_target_environment(target, os.environ)
-    os.environ.update(selected)
-    client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
+    client = create_client(selected["SUPABASE_URL"], selected["SUPABASE_SERVICE_ROLE_KEY"])
     utc_since = since.astimezone(timezone.utc).isoformat()
     output: list[dict] = []
     start = 0
