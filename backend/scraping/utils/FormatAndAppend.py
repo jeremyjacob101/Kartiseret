@@ -50,7 +50,13 @@ def formatAndWriteCsv(self, successful: bool):
     This intentionally does not emit a CSV into the checkout. Failed D1 writes
     propagate and leave a local recovery envelope for explicit manual recovery.
     """
-    rows, _columns = _format_rows_from_gathering_info(self)
+    # Reuse the exact payload sent to Supabase so D1 retains its snapshot_id
+    # and cannot drift if gathering_info changes between the two writes.
+    rows = getattr(self, "_uploaded_scrape_rows", None)
+    if rows is None:
+        rows, _columns = _format_rows_from_gathering_info(self)
+    else:
+        rows = [dict(row) for row in rows]
     if not rows:
         return None
     from backend.utils.log.run_storage import RunArtifactStore
@@ -66,11 +72,13 @@ def formatAndWriteCsv(self, successful: bool):
 
 
 def formatAndUpload(self):
+    self._uploaded_scrape_rows = None
     rows, _columns = _format_rows_from_gathering_info(self)
     if not rows:
         if not getattr(self, "_empty_snapshot_evidence", None):
             raise Exception("Empty gathering_info table without confirmed empty-source evidence")
         self._snapshot_row_count = 0
+        self._uploaded_scrape_rows = []
         return None
     snapshot_id = getattr(self, "snapshot_id", None)
     if snapshot_id:
@@ -79,6 +87,9 @@ def formatAndUpload(self):
     if self.supabase_table_name == "allSoons":
         for row in rows:
             date.fromisoformat(row.get("release_date") or "")
+    # Save a copy before the request so failed upload attempts retain the
+    # same snapshot identity in D1 recovery/logging too.
+    self._uploaded_scrape_rows = [dict(row) for row in rows]
     result = self.supabase.table(self.supabase_table_name).insert(rows).execute()
     self._snapshot_row_count = len(rows)
     return result
