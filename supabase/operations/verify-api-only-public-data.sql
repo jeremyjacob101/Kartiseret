@@ -18,6 +18,7 @@ WITH expected_access(table_name, api_reads) AS (
     ('tableSkips', false),
     ('theaters', true),
     ('utilAvgTime', false),
+    ('utilAvgTimeHistory', false),
     ('utilRunLogs', false)
 )
 SELECT expected_access.table_name,

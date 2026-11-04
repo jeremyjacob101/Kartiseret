@@ -124,6 +124,10 @@ class PublicationWorkspace:
         return WorkspaceQuery(self, name)
 
     def rpc(self, name, params):
+        if name == "append_util_avg_time_history":
+            # Timing data is operational and must commit independently of the
+            # staged catalog publication transaction.
+            return self.client.rpc(name, params)
         return SimpleNamespace(execute=lambda: SimpleNamespace(data=self._checkpoint(name, params)))
 
     def _checkpoint(self, name, p):

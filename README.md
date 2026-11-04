@@ -187,6 +187,7 @@ Within that plan, the backend currently does the following:
 - `tableSkips`
 - `utilRunLogs`
 - `utilAvgTime`
+- `utilAvgTimeHistory` stores the five most recent successful runner durations by machine and Jerusalem weekday; estimates use that day's rolling average.
 
 This repo includes generic Supabase table utilities in `backend/utils/supabase/supabase_tables.py`.
 

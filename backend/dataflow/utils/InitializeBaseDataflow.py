@@ -2,6 +2,7 @@ from collections import defaultdict
 from backend.dataflow.utils.PublicationWorkspace import workspace_for
 from selenium import webdriver
 import time, os
+from backend.utils.util_avg_time_history import append_recent_duration, current_weekday
 
 runningGithubActions = os.environ.get("GITHUB_ACTIONS") == "true"
 
@@ -40,16 +41,13 @@ def logSuccessfulRun(self) -> None:
         return
 
     duration_seconds = time.perf_counter() - self.startTime
-    avg_time_col, num_runs_col = "avg_time_" + str(runner_machine), "num_runs_" + str(runner_machine)
-
-    resp = self.supabase.table("utilAvgTime").select(f"{avg_time_col},{num_runs_col}").eq("name", self.__class__.__name__).limit(1).execute()
-    row = resp.data[0]
-    old_avg = float(row.get(avg_time_col) or 0.0)
-    n = int(row.get(num_runs_col) or 0)
-    new_avg = (old_avg * n + float(duration_seconds)) / (n + 1)
-    update_payload = {avg_time_col: float(new_avg), num_runs_col: n + 1}
-
-    self.supabase.table("utilAvgTime").update(update_payload).eq("name", self.__class__.__name__).eq(num_runs_col, n).execute()
+    append_recent_duration(
+        self.supabase,
+        self.__class__.__name__,
+        runner_machine,
+        getattr(self, "_timing_weekday", current_weekday()),
+        duration_seconds,
+    )
 
 
 class InitializeBaseDataflow:
@@ -59,6 +57,7 @@ class InitializeBaseDataflow:
         self.reset_np_main_row_state()
         self.reset_np_groupkey_row_state()
 
+        self._timing_weekday = current_weekday()
         self.startTime = time.perf_counter()
         self.init_dataflow_summary_state()
         self.initDataflowRequests(getattr(self, "_shared_request_context", None))
