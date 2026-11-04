@@ -1,6 +1,10 @@
 """Parse Rotten Tomatoes scorecard fields while preserving explicit zero values."""
 
 import re
+import unicodedata
+from urllib.parse import urljoin, urlsplit
+
+from bs4 import BeautifulSoup
 
 
 def _first_truthy_or_numeric_zero(*values):
@@ -28,3 +32,33 @@ def parse_rotten_tomatoes_scorecard(scorecard):
         "rtAudienceRating": _digits_as_int_or_none(_first_truthy_or_numeric_zero(audience.get("score"), audience.get("scorePercent"))),
         "rtAudienceVotes": _digits_as_int_or_none(_first_truthy_or_numeric_zero(audience.get("bandedRatingCount"), audience.get("ratingCount"), audience.get("reviewCount"))),
     }
+
+
+def _normalized_title(value):
+    normalized = unicodedata.normalize("NFKC", value or "").casefold()
+    return " ".join(re.findall(r"[^\W_]+", normalized, flags=re.UNICODE))
+
+
+def select_rotten_tomatoes_search_match(html, title, release_year):
+    """Accept only title-matched movies within two years, preferring closer years."""
+    normalized = _normalized_title(title)
+    try:
+        year = int(release_year)
+    except (TypeError, ValueError):
+        return None
+    if not normalized or not year:
+        return None
+    matches = []
+    for index, row in enumerate(BeautifulSoup(html or "", "html.parser").select("search-page-media-row")[:10]):
+        anchor = row.select_one('a[slot="title"]')
+        if not anchor or _normalized_title(anchor.get_text(" ", strip=True)) != normalized:
+            continue
+        try:
+            distance = abs(int(row.get("release-year") or row.get("releaseyear")) - year)
+        except (TypeError, ValueError):
+            continue
+        url = urljoin("https://www.rottentomatoes.com", anchor.get("href", ""))
+        parsed = urlsplit(url)
+        if distance <= 2 and parsed.scheme == "https" and parsed.netloc == "www.rottentomatoes.com" and parsed.path.startswith("/m/"):
+            matches.append((distance, index, url))
+    return min(matches)[2] if matches else None
