@@ -10,7 +10,7 @@ not commit or push artifacts.
 | Target | D1 database | Private screenshot bucket |
 | --- | --- | --- |
 | Development | `kartiseret-run-logs-dev` (`dbace3cc-386d-42f4-8ab9-0863f17adcfc`) | `kartiseret-run-artifacts-dev` |
-| Production | `kartiseret-run-logs-prod` (initialize before rollout) | `kartiseret-run-artifacts-prod` |
+| Production | `kartiseret-run-logs-prod` | `kartiseret-run-artifacts-prod` |
 
 Create a Cloudflare **Account API Token** with **D1 Edit** for the account and
 place the token value in the selected profile's `DEV_D1_API_TOKEN` or
@@ -73,7 +73,7 @@ historical Git files.
 
 Validate the complete flow with the development database and bucket first. Set
 up the production database and distinct profile, then measure usage before a
-controlled production test and capped import. Production D1 exists but its
-schema has not yet been initialized. To roll back, revert the application PR; existing Git history,
+controlled production test and capped import. Production D1 has been initialized.
+To roll back, revert the application PR; existing Git history,
 D1/R2 data, and local recovery material remain available. Do not delete the
 buckets or databases as part of rollback.
