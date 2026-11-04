@@ -34,12 +34,16 @@ class Repository(FakeRepository):
         self.tickets, self.dates = [], []
         self.events, self.deliveries = {}, {}
         self.locations = {}
+        self.posters = {}
 
     def load_watches(self):
         return self.tickets, self.dates
 
     def load_locations(self, users):
         return self.locations
+
+    def load_movie_posters(self, tmdb_ids):
+        return self.posters
 
     def queue(self, candidates):
         keys = {
@@ -168,6 +172,19 @@ class MovieNotificationTests(TestCase):
         ]
         self.assertEqual(self.dispatcher(repo, http).dispatch().emails_sent, 0)
         self.assertEqual(len(http.post_calls), 1)
+
+    def test_dispatch_includes_the_catalog_poster_in_the_email(self):
+        repo = Repository(showtimes=[ticket()])
+        repo.posters[101] = "https://image.tmdb.org/t/p/w342/wild-horse.jpg"
+        self.watch(repo)
+        http = FakeLetterboxdAndResend()
+
+        self.dispatcher(repo, http).dispatch()
+
+        self.assertIn(
+            'src="https://image.tmdb.org/t/p/w342/wild-horse.jpg"',
+            http.post_calls[0]["json"]["html"],
+        )
 
     def test_preferred_city_is_used_before_jerusalem_fallback(self):
         repo = Repository(showtimes=[ticket(), ticket("Haifa")])
@@ -353,3 +370,45 @@ class MovieNotificationTests(TestCase):
         self.assertIn("&lt;Film&gt;", email.html)
         self.assertNotIn("Tickets now available", email.html)
         self.assertEqual(email.subject, "1 Coming Soon date")
+
+    def test_digest_uses_movie_poster_and_ticket_action_when_available(self):
+        email = render_movie_notification_email(
+            [
+                {
+                    "tmdb_id": 101,
+                    "event_type": "showtime",
+                    "event_payload": {
+                        "title": "Wild Horse Nine",
+                        "poster_url": "https://image.tmdb.org/t/p/w342/wild-horse.jpg",
+                        "screening_city": "Jerusalem",
+                        "date_of_showing": "2026-11-05",
+                        "showtime": "17:00",
+                        "cinema": "Yes Planet",
+                        "ticket_href": "https://tickets.example.test/showtime/101",
+                    },
+                }
+            ]
+        )
+        self.assertIn(
+            'src="https://image.tmdb.org/t/p/w342/wild-horse.jpg"', email.html
+        )
+        self.assertIn('alt="Wild Horse Nine poster"', email.html)
+        self.assertIn(
+            'href="https://tickets.example.test/showtime/101"', email.html
+        )
+        self.assertIn("View tickets", email.html)
+        self.assertIn("Jerusalem · November 5, 2026 at 17:00 · Yes Planet", email.text)
+
+    def test_digest_omits_unsafe_poster_urls_and_keeps_a_fallback_tile(self):
+        event = {
+            "tmdb_id": 101,
+            "event_type": "coming_soon",
+            "event_payload": {
+                "title": "Future Film",
+                "release_date": "2027-01-01",
+                "poster_url": "javascript:alert(1)",
+            },
+        }
+        email = render_movie_notification_email([event])
+        self.assertNotIn("javascript:", email.html)
+        self.assertIn("Film poster unavailable", email.html)

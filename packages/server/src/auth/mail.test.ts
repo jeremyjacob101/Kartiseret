@@ -24,7 +24,29 @@ describe("account mail transport", () => {
     expect(JSON.parse(String(transport.mock.calls[0][1]?.body))).toMatchObject({
       to: ["recipient@example.test"],
       text: expect.stringContaining("https://dev.test/verify"),
+      html: expect.stringContaining("Verify your email"),
     });
+    const request = JSON.parse(String(transport.mock.calls[0][1]?.body));
+    expect(request.html).toContain("KARTISERET");
+    expect(request.html).toContain("background:#f3f0ea");
+    expect(request.html).toContain("https://dev.test/verify");
+  });
+
+  it("escapes the account action URL in HTML while preserving its plain text form", async () => {
+    const transport = vi.fn<typeof fetch>(async () => new Response("{}"));
+    const mailer = createResendAuthMailer({
+      apiKey: "test",
+      from: "Kartiseret <test@example.test>",
+      transport,
+    });
+    const url = "https://dev.test/reset?token=abc&next=/reset-password";
+    await mailer({ to: "recipient@example.test", url, kind: "reset" });
+    const request = JSON.parse(String(transport.mock.calls[0][1]?.body));
+    expect(request.text).toContain(url);
+    expect(request.html).toContain(
+      "https://dev.test/reset?token=abc&amp;next=/reset-password",
+    );
+    expect(request.html).toContain("Reset password");
   });
   it("does not expose provider response details", async () => {
     const mailer = createResendAuthMailer({
