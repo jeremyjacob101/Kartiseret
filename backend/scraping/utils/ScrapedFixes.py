@@ -237,3 +237,9 @@ class ScrapedFixes:
             "VIP LIGHT3D": "3D",
         }
         self.screening_tech = replace.get(self.screening_tech, self.screening_tech)
+
+        title = f"{self.english_title or ''} {self.hebrew_title or ''}".casefold()
+        if "infinity vision" in title:
+            tech = (self.screening_tech or "").strip()
+            if "infinity vision" not in tech.casefold():
+                self.screening_tech = f"{tech or '2D'} Infinity Vision"

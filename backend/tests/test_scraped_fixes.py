@@ -52,6 +52,30 @@ class ScrapedFixesTests(unittest.TestCase):
                 self.assertEqual(scraper.english_title, "Avengers: Doomsday")
                 self.assertEqual(scraper.hebrew_title, "הנוקמים: עלייתו של ד״ר דום")
 
+    def test_infinity_vision_in_title_appends_to_existing_or_default_tech(self):
+        cases = [
+            ("Avengers: Doomsday - Infinity Vision", "", None, "2D Infinity Vision"),
+            ("", "הנוקמים - Infinity Vision", "2D", "2D Infinity Vision"),
+            ("Avengers: Doomsday Infinity Vision", "", "2D Atmos", "2D Atmos Infinity Vision"),
+            ("Avengers: Doomsday Infinity Vision", "", "2D ScreenX Infinity Vision", "2D ScreenX Infinity Vision"),
+            ("Avengers: Doomsday", "", "2D", "2D"),
+        ]
+
+        for english_title, hebrew_title, screening_tech, expected_tech in cases:
+            with self.subTest(english_title=english_title, hebrew_title=hebrew_title, screening_tech=screening_tech):
+                scraper = ScrapedFixes()
+                scraper.english_title = english_title
+                scraper.hebrew_title = hebrew_title
+                scraper.screening_tech = screening_tech
+                scraper.screening_type = "Regular"
+
+                scraper.fixScreeningTech()
+
+                self.assertEqual(scraper.screening_tech, expected_tech)
+                self.assertEqual(scraper.screening_type, "Regular")
+                self.assertEqual(scraper.english_title, english_title)
+                self.assertEqual(scraper.hebrew_title, hebrew_title)
+
 
 if __name__ == "__main__":
     unittest.main()
