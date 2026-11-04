@@ -63,7 +63,7 @@ struct MovieShowtimeCard: View {
         VStack(alignment: .leading, spacing: 12) {
             NavigationLink(value: MovieRoute(mode: .nowPlaying, movieID: group.movie.tmdbId)) {
                 HStack(spacing: 12) {
-                    MovieArtwork(urlString: group.movie.imageSrc, width: 54, height: 78)
+                    MovieArtwork(width: 54, height: 78)
                     VStack(alignment: .leading, spacing: 5) {
                         Text(group.movie.title)
                             .font(.headline)

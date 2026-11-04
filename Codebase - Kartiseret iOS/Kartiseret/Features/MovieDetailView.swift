@@ -53,21 +53,8 @@ struct MovieDetailView: View {
 
     private func header(_ movie: Movie) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            if let backdrop = movie.backdropSrc, !backdrop.isEmpty, let url = URL(string: backdrop) {
-                AsyncImage(url: url) { phase in
-                    if let image = phase.image { image.resizable().scaledToFill() }
-                    else { BrandStyle.raised }
-                }
-                .frame(height: 180)
-                .clipped()
-                .overlay(alignment: .bottom) {
-                    LinearGradient(colors: [.clear, BrandStyle.background.opacity(0.85)], startPoint: .center, endPoint: .bottom)
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-            }
-
             HStack(alignment: .top, spacing: 16) {
-                MovieArtwork(urlString: movie.imageSrc, width: 108, height: 158)
+                MovieArtwork(width: 108, height: 158)
                 VStack(alignment: .leading, spacing: 9) {
                     Text(route.mode == .nowPlaying ? "NOW PLAYING" : "COMING SOON")
                         .font(.caption.weight(.bold))

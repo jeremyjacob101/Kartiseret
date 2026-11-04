@@ -12,8 +12,6 @@ actor FixtureAPIClient: KartiseretAPI {
                 year: 2026,
                 releaseDate: "2026-10-30",
                 genres: ["Drama", "Mystery"],
-                imageSrc: "",
-                backdropSrc: nil,
                 runtime: 112
             ),
             Movie(
@@ -22,8 +20,6 @@ actor FixtureAPIClient: KartiseretAPI {
                 year: 2025,
                 releaseDate: nil,
                 genres: ["Comedy"],
-                imageSrc: "",
-                backdropSrc: nil,
                 runtime: 94
             ),
         ],
@@ -39,8 +35,6 @@ actor FixtureAPIClient: KartiseretAPI {
                 year: 2027,
                 releaseDate: "2027-02-12",
                 genres: ["Adventure"],
-                imageSrc: "",
-                backdropSrc: nil,
                 runtime: 105
             ),
         ],

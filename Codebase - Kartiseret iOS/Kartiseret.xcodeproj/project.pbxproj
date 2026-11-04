@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0552A6F7BA887A217BF6B328 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2F7978CA6D77B00CBA8294C /* Models.swift */; };
+		067C599694DF45BCE2F0FB03 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A3ED3793B6B30AA59A2E8EC9 /* PrivacyInfo.xcprivacy */; };
 		0E9B1D6CF76A2217F5FFA173 /* AppStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8375776D0C0EBEE746624E01 /* AppStoreTests.swift */; };
 		11FA0AF5F74C844B3B3800BF /* FixtureAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0DDC4B4730724FE50911D7 /* FixtureAPIClient.swift */; };
 		2F683A1FC081B977C6C7D83A /* CoreAndAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F547CD5CBC9E944AB9A4126 /* CoreAndAPITests.swift */; };
@@ -17,6 +18,7 @@
 		96F6504DC71DC01C94166550 /* AppConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83F40144875624B0B760E3DA /* AppConfiguration.swift */; };
 		AACA71C72E2275A0CCB3E9E3 /* SelectionControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CFCB6CE55944C4EDBC82A9A /* SelectionControls.swift */; };
 		BA54C14D01A8D3C040E3CF36 /* ShowtimeViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEA1F8EDD894C4196CCEC84B /* ShowtimeViews.swift */; };
+		C12100E02AC6AC7ED104B8C9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6BA90945760B3A2A832556F3 /* Assets.xcassets */; };
 		C179EF664358AFEA30630E2B /* KartiseretApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62058E6AF7CDE34704A0F575 /* KartiseretApp.swift */; };
 		C79A3887D6875A489FE0FF4E /* CatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 758B37A8485010ADE5C897E0 /* CatalogView.swift */; };
 		D629799D53F7FB04D56739EB /* MovieDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15A2D8FA6E8DA7A84D14074A /* MovieDetailView.swift */; };
@@ -51,12 +53,14 @@
 		4AE6F58E5534A52514C8BD04 /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
 		5DF7946D67FFA8715F8F0BC2 /* ShowtimeLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowtimeLogic.swift; sourceTree = "<group>"; };
 		62058E6AF7CDE34704A0F575 /* KartiseretApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KartiseretApp.swift; sourceTree = "<group>"; };
+		6BA90945760B3A2A832556F3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		758B37A8485010ADE5C897E0 /* CatalogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogView.swift; sourceTree = "<group>"; };
 		8375776D0C0EBEE746624E01 /* AppStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreTests.swift; sourceTree = "<group>"; };
 		83F40144875624B0B760E3DA /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
 		8C0DDC4B4730724FE50911D7 /* FixtureAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureAPIClient.swift; sourceTree = "<group>"; };
 		8CFCB6CE55944C4EDBC82A9A /* SelectionControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionControls.swift; sourceTree = "<group>"; };
 		9A12C4B938EE67D0C05B748A /* KartiseretTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KartiseretTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A3ED3793B6B30AA59A2E8EC9 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		BEC664883FECE9EC750651D1 /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedViews.swift; sourceTree = "<group>"; };
 		BF750FA9EBB7DFA4BEC7FD43 /* CinemaDay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CinemaDay.swift; sourceTree = "<group>"; };
 		E19714449C3D30C0EA30E31E /* KartiseretUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KartiseretUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -74,6 +78,8 @@
 				EF724E4B06F6DCFD01568C01 /* Core */,
 				F152F8BCDECDDE89BCDEF8D9 /* Data */,
 				59731FA93C8037FCDAAE557E /* Features */,
+				6BA90945760B3A2A832556F3 /* Assets.xcassets */,
+				A3ED3793B6B30AA59A2E8EC9 /* PrivacyInfo.xcprivacy */,
 			);
 			path = Kartiseret;
 			sourceTree = "<group>";
@@ -201,6 +207,7 @@
 			buildConfigurationList = AE03FB1661B2352ABD84D634 /* Build configuration list for PBXNativeTarget "Kartiseret" */;
 			buildPhases = (
 				4EA1DAAC344D94D27042C5D4 /* Sources */,
+				F4A7BC501F81A1758279B5B1 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -251,6 +258,18 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F4A7BC501F81A1758279B5B1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C12100E02AC6AC7ED104B8C9 /* Assets.xcassets in Resources */,
+				067C599694DF45BCE2F0FB03 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		4EA1DAAC344D94D27042C5D4 /* Sources */ = {
@@ -349,6 +368,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -361,6 +381,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jj.kartiseret;
 				PRODUCT_NAME = Kartiseret;
 				SDKROOT = iphoneos;
@@ -376,6 +397,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -388,6 +410,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jj.kartiseret;
 				PRODUCT_NAME = Kartiseret;
 				SDKROOT = iphoneos;

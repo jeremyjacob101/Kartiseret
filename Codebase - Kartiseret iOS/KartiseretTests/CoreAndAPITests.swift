@@ -150,7 +150,7 @@ private func httpResponse(_ string: String, statusCode: Int = 200, headers: [Str
 }
 
 private func makeMovie(id: String = "1", title: String = "Sample") -> Movie {
-    Movie(tmdbId: id, title: title, year: 2026, releaseDate: nil, genres: [], imageSrc: "", backdropSrc: nil, runtime: 90)
+    Movie(tmdbId: id, title: title, year: 2026, releaseDate: nil, genres: [], runtime: 90)
 }
 
 private func makeShowtime(

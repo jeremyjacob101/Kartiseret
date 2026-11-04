@@ -1,37 +1,29 @@
 import SwiftUI
 
 struct MovieArtwork: View {
-    let urlString: String
     var width: CGFloat = 94
     var height: CGFloat = 138
 
     var body: some View {
-        Group {
-            if let url = URL(string: urlString), !urlString.isEmpty {
-                AsyncImage(url: url) { phase in
-                    if let image = phase.image {
-                        image.resizable().scaledToFill()
-                    } else {
-                        placeholder
-                    }
-                }
-            } else {
-                placeholder
+        ZStack {
+            BrandStyle.accent
+            VStack(spacing: max(5, height * 0.08)) {
+                Image(systemName: "film")
+                    .font(.system(size: min(width, height) * 0.22, weight: .semibold))
+                Text("KARTISERET")
+                    .font(.system(size: min(width * 0.14, 12), weight: .bold, design: .rounded))
+                    .tracking(0.45)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
             }
+            .foregroundStyle(.white)
+            .padding(.horizontal, max(4, width * 0.06))
         }
         .frame(width: width, height: height)
-        .background(BrandStyle.raised)
+        .background(BrandStyle.accent)
         .clipShape(RoundedRectangle(cornerRadius: 11))
-        .accessibilityHidden(true)
-    }
-
-    private var placeholder: some View {
-        ZStack {
-            LinearGradient(colors: [BrandStyle.raised, BrandStyle.surface], startPoint: .topLeading, endPoint: .bottomTrailing)
-            Image(systemName: "film")
-                .font(.title2)
-                .foregroundStyle(BrandStyle.secondary)
-        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Kartiseret movie card")
     }
 }
 

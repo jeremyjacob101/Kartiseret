@@ -27,8 +27,6 @@ struct Movie: Decodable, Hashable, Identifiable, Sendable {
     let year: Int
     let releaseDate: String?
     let genres: [String]
-    let imageSrc: String
-    let backdropSrc: String?
     let runtime: Int
 
     var id: String { tmdbId }

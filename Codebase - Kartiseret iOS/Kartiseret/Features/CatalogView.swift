@@ -59,7 +59,7 @@ struct MovieRow: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            MovieArtwork(urlString: movie.imageSrc, width: 76, height: 110)
+            MovieArtwork(width: 76, height: 110)
             VStack(alignment: .leading, spacing: 7) {
                 Text(movie.title)
                     .font(.headline)
