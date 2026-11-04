@@ -1,0 +1,599 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0552A6F7BA887A217BF6B328 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2F7978CA6D77B00CBA8294C /* Models.swift */; };
+		0E9B1D6CF76A2217F5FFA173 /* AppStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8375776D0C0EBEE746624E01 /* AppStoreTests.swift */; };
+		11FA0AF5F74C844B3B3800BF /* FixtureAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0DDC4B4730724FE50911D7 /* FixtureAPIClient.swift */; };
+		2F683A1FC081B977C6C7D83A /* CoreAndAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F547CD5CBC9E944AB9A4126 /* CoreAndAPITests.swift */; };
+		3D91503D8FD420AF51521A3D /* KartiseretUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7EB2FCC41A47E7B7B688012 /* KartiseretUITests.swift */; };
+		54FF2CDF72F10D6BC445929C /* CinemaDay.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF750FA9EBB7DFA4BEC7FD43 /* CinemaDay.swift */; };
+		8D5E1A85F791B4DB5F0E794A /* ShowtimeLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DF7946D67FFA8715F8F0BC2 /* ShowtimeLogic.swift */; };
+		96F6504DC71DC01C94166550 /* AppConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83F40144875624B0B760E3DA /* AppConfiguration.swift */; };
+		AACA71C72E2275A0CCB3E9E3 /* SelectionControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CFCB6CE55944C4EDBC82A9A /* SelectionControls.swift */; };
+		BA54C14D01A8D3C040E3CF36 /* ShowtimeViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEA1F8EDD894C4196CCEC84B /* ShowtimeViews.swift */; };
+		C179EF664358AFEA30630E2B /* KartiseretApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62058E6AF7CDE34704A0F575 /* KartiseretApp.swift */; };
+		C79A3887D6875A489FE0FF4E /* CatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 758B37A8485010ADE5C897E0 /* CatalogView.swift */; };
+		D629799D53F7FB04D56739EB /* MovieDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15A2D8FA6E8DA7A84D14074A /* MovieDetailView.swift */; };
+		D9D64A1A9F92FB6946B629A5 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2F539EF226AE1DCEA021B73 /* AppRootView.swift */; };
+		DBD9257136432347C1844825 /* SharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEC664883FECE9EC750651D1 /* SharedViews.swift */; };
+		DF9505945DD5D79182D13306 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4745D53745F6ED2393B7331E /* APIClient.swift */; };
+		FB387444FFFE086E05E4CB6D /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE6F58E5534A52514C8BD04 /* AppStore.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		265F4074485D3CF403677FF7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5B60796D7ACA59F40398ABF4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 98989D6384B8DCB1D09EBE58;
+			remoteInfo = Kartiseret;
+		};
+		755513377F2EB05D1904AD10 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5B60796D7ACA59F40398ABF4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 98989D6384B8DCB1D09EBE58;
+			remoteInfo = Kartiseret;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		15A2D8FA6E8DA7A84D14074A /* MovieDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovieDetailView.swift; sourceTree = "<group>"; };
+		27E204723A7007119BDF02D3 /* Kartiseret.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Kartiseret.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2F547CD5CBC9E944AB9A4126 /* CoreAndAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreAndAPITests.swift; sourceTree = "<group>"; };
+		4745D53745F6ED2393B7331E /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		4AE6F58E5534A52514C8BD04 /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
+		5DF7946D67FFA8715F8F0BC2 /* ShowtimeLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowtimeLogic.swift; sourceTree = "<group>"; };
+		62058E6AF7CDE34704A0F575 /* KartiseretApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KartiseretApp.swift; sourceTree = "<group>"; };
+		758B37A8485010ADE5C897E0 /* CatalogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogView.swift; sourceTree = "<group>"; };
+		8375776D0C0EBEE746624E01 /* AppStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreTests.swift; sourceTree = "<group>"; };
+		83F40144875624B0B760E3DA /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
+		8C0DDC4B4730724FE50911D7 /* FixtureAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureAPIClient.swift; sourceTree = "<group>"; };
+		8CFCB6CE55944C4EDBC82A9A /* SelectionControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionControls.swift; sourceTree = "<group>"; };
+		9A12C4B938EE67D0C05B748A /* KartiseretTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KartiseretTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BEC664883FECE9EC750651D1 /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedViews.swift; sourceTree = "<group>"; };
+		BF750FA9EBB7DFA4BEC7FD43 /* CinemaDay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CinemaDay.swift; sourceTree = "<group>"; };
+		E19714449C3D30C0EA30E31E /* KartiseretUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KartiseretUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E2F7978CA6D77B00CBA8294C /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		E7EB2FCC41A47E7B7B688012 /* KartiseretUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KartiseretUITests.swift; sourceTree = "<group>"; };
+		EEA1F8EDD894C4196CCEC84B /* ShowtimeViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowtimeViews.swift; sourceTree = "<group>"; };
+		F2F539EF226AE1DCEA021B73 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		40157537B8723DF9BDD31341 /* Kartiseret */ = {
+			isa = PBXGroup;
+			children = (
+				FFC3063B6D2A6A72EBF4C3BC /* App */,
+				EF724E4B06F6DCFD01568C01 /* Core */,
+				F152F8BCDECDDE89BCDEF8D9 /* Data */,
+				59731FA93C8037FCDAAE557E /* Features */,
+			);
+			path = Kartiseret;
+			sourceTree = "<group>";
+		};
+		59731FA93C8037FCDAAE557E /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				758B37A8485010ADE5C897E0 /* CatalogView.swift */,
+				15A2D8FA6E8DA7A84D14074A /* MovieDetailView.swift */,
+				8CFCB6CE55944C4EDBC82A9A /* SelectionControls.swift */,
+				BEC664883FECE9EC750651D1 /* SharedViews.swift */,
+				EEA1F8EDD894C4196CCEC84B /* ShowtimeViews.swift */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		63502B965959C21C1755AECD /* KartiseretTests */ = {
+			isa = PBXGroup;
+			children = (
+				8375776D0C0EBEE746624E01 /* AppStoreTests.swift */,
+				2F547CD5CBC9E944AB9A4126 /* CoreAndAPITests.swift */,
+			);
+			path = KartiseretTests;
+			sourceTree = "<group>";
+		};
+		838895DB7E366747E1232D01 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				27E204723A7007119BDF02D3 /* Kartiseret.app */,
+				9A12C4B938EE67D0C05B748A /* KartiseretTests.xctest */,
+				E19714449C3D30C0EA30E31E /* KartiseretUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A1CB182C1D03A3BA1CFFC2BE /* KartiseretUITests */ = {
+			isa = PBXGroup;
+			children = (
+				E7EB2FCC41A47E7B7B688012 /* KartiseretUITests.swift */,
+			);
+			path = KartiseretUITests;
+			sourceTree = "<group>";
+		};
+		E2CD42A2AFE29D85BA04132D = {
+			isa = PBXGroup;
+			children = (
+				40157537B8723DF9BDD31341 /* Kartiseret */,
+				63502B965959C21C1755AECD /* KartiseretTests */,
+				A1CB182C1D03A3BA1CFFC2BE /* KartiseretUITests */,
+				838895DB7E366747E1232D01 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		EF724E4B06F6DCFD01568C01 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				BF750FA9EBB7DFA4BEC7FD43 /* CinemaDay.swift */,
+				E2F7978CA6D77B00CBA8294C /* Models.swift */,
+				5DF7946D67FFA8715F8F0BC2 /* ShowtimeLogic.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		F152F8BCDECDDE89BCDEF8D9 /* Data */ = {
+			isa = PBXGroup;
+			children = (
+				4745D53745F6ED2393B7331E /* APIClient.swift */,
+				8C0DDC4B4730724FE50911D7 /* FixtureAPIClient.swift */,
+			);
+			path = Data;
+			sourceTree = "<group>";
+		};
+		FFC3063B6D2A6A72EBF4C3BC /* App */ = {
+			isa = PBXGroup;
+			children = (
+				83F40144875624B0B760E3DA /* AppConfiguration.swift */,
+				F2F539EF226AE1DCEA021B73 /* AppRootView.swift */,
+				4AE6F58E5534A52514C8BD04 /* AppStore.swift */,
+				62058E6AF7CDE34704A0F575 /* KartiseretApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		03F60A8F5097900BE2AB7582 /* KartiseretTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 39B88DE68D91E5460EEA3EE5 /* Build configuration list for PBXNativeTarget "KartiseretTests" */;
+			buildPhases = (
+				DD6D9813B52A4C4B31775D57 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1D7EFCE89D0854EF48182306 /* PBXTargetDependency */,
+			);
+			name = KartiseretTests;
+			packageProductDependencies = (
+			);
+			productName = KartiseretTests;
+			productReference = 9A12C4B938EE67D0C05B748A /* KartiseretTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		2747609B17ABA76B8488BC01 /* KartiseretUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 97B0B92318E5BBC893065D91 /* Build configuration list for PBXNativeTarget "KartiseretUITests" */;
+			buildPhases = (
+				709FEAA00B2E84949934C613 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6A91915ECFE25186FB4BA930 /* PBXTargetDependency */,
+			);
+			name = KartiseretUITests;
+			packageProductDependencies = (
+			);
+			productName = KartiseretUITests;
+			productReference = E19714449C3D30C0EA30E31E /* KartiseretUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		98989D6384B8DCB1D09EBE58 /* Kartiseret */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AE03FB1661B2352ABD84D634 /* Build configuration list for PBXNativeTarget "Kartiseret" */;
+			buildPhases = (
+				4EA1DAAC344D94D27042C5D4 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Kartiseret;
+			packageProductDependencies = (
+			);
+			productName = Kartiseret;
+			productReference = 27E204723A7007119BDF02D3 /* Kartiseret.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5B60796D7ACA59F40398ABF4 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					2747609B17ABA76B8488BC01 = {
+						TestTargetID = 98989D6384B8DCB1D09EBE58;
+					};
+					98989D6384B8DCB1D09EBE58 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = EA8A4AB5F1559D724AC991CD /* Build configuration list for PBXProject "Kartiseret" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = E2CD42A2AFE29D85BA04132D;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 838895DB7E366747E1232D01 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				98989D6384B8DCB1D09EBE58 /* Kartiseret */,
+				03F60A8F5097900BE2AB7582 /* KartiseretTests */,
+				2747609B17ABA76B8488BC01 /* KartiseretUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4EA1DAAC344D94D27042C5D4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DF9505945DD5D79182D13306 /* APIClient.swift in Sources */,
+				96F6504DC71DC01C94166550 /* AppConfiguration.swift in Sources */,
+				D9D64A1A9F92FB6946B629A5 /* AppRootView.swift in Sources */,
+				FB387444FFFE086E05E4CB6D /* AppStore.swift in Sources */,
+				C79A3887D6875A489FE0FF4E /* CatalogView.swift in Sources */,
+				54FF2CDF72F10D6BC445929C /* CinemaDay.swift in Sources */,
+				11FA0AF5F74C844B3B3800BF /* FixtureAPIClient.swift in Sources */,
+				C179EF664358AFEA30630E2B /* KartiseretApp.swift in Sources */,
+				0552A6F7BA887A217BF6B328 /* Models.swift in Sources */,
+				D629799D53F7FB04D56739EB /* MovieDetailView.swift in Sources */,
+				AACA71C72E2275A0CCB3E9E3 /* SelectionControls.swift in Sources */,
+				DBD9257136432347C1844825 /* SharedViews.swift in Sources */,
+				8D5E1A85F791B4DB5F0E794A /* ShowtimeLogic.swift in Sources */,
+				BA54C14D01A8D3C040E3CF36 /* ShowtimeViews.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		709FEAA00B2E84949934C613 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3D91503D8FD420AF51521A3D /* KartiseretUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DD6D9813B52A4C4B31775D57 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0E9B1D6CF76A2217F5FFA173 /* AppStoreTests.swift in Sources */,
+				2F683A1FC081B977C6C7D83A /* CoreAndAPITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		1D7EFCE89D0854EF48182306 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 98989D6384B8DCB1D09EBE58 /* Kartiseret */;
+			targetProxy = 755513377F2EB05D1904AD10 /* PBXContainerItemProxy */;
+		};
+		6A91915ECFE25186FB4BA930 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 98989D6384B8DCB1D09EBE58 /* Kartiseret */;
+			targetProxy = 265F4074485D3CF403677FF7 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		497D37CAECDE51403F28F1DF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jj.kartiseret.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Kartiseret.app/Kartiseret";
+			};
+			name = Release;
+		};
+		4E090E47D55713708F573AE4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jj.kartiseret.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Kartiseret.app/Kartiseret";
+			};
+			name = Debug;
+		};
+		6204393E3B1EF3EE54992170 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Kartiseret;
+				INFOPLIST_KEY_KARTISERET_API_BASE_URL = "https://seret.site";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jj.kartiseret;
+				PRODUCT_NAME = Kartiseret;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		718FC79DEF86B64D375FA1A0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Kartiseret;
+				INFOPLIST_KEY_KARTISERET_API_BASE_URL = "https://seret.site";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jj.kartiseret;
+				PRODUCT_NAME = Kartiseret;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		91E15F538670AE425D57E45F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jj.kartiseret.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Kartiseret;
+			};
+			name = Release;
+		};
+		9DD27E1148AA5E738A9CDA5F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		E91B703E88F62C323A121C4C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jj.kartiseret.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Kartiseret;
+			};
+			name = Debug;
+		};
+		E9EF5E22200C751F43BF5957 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		39B88DE68D91E5460EEA3EE5 /* Build configuration list for PBXNativeTarget "KartiseretTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4E090E47D55713708F573AE4 /* Debug */,
+				497D37CAECDE51403F28F1DF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		97B0B92318E5BBC893065D91 /* Build configuration list for PBXNativeTarget "KartiseretUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E91B703E88F62C323A121C4C /* Debug */,
+				91E15F538670AE425D57E45F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AE03FB1661B2352ABD84D634 /* Build configuration list for PBXNativeTarget "Kartiseret" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6204393E3B1EF3EE54992170 /* Debug */,
+				718FC79DEF86B64D375FA1A0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		EA8A4AB5F1559D724AC991CD /* Build configuration list for PBXProject "Kartiseret" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E9EF5E22200C751F43BF5957 /* Debug */,
+				9DD27E1148AA5E738A9CDA5F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 5B60796D7ACA59F40398ABF4 /* Project object */;
+}
