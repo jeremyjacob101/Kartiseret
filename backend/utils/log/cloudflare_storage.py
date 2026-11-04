@@ -12,7 +12,6 @@ import json
 import os
 from pathlib import Path
 import re
-from urllib.parse import urlsplit
 import requests
 
 
@@ -47,40 +46,24 @@ class D1Result:
 
 
 class D1Client:
-    def __init__(self, database_id: str, api_url: str, api_secret: str, *, timeout: float = 30.0):
+    def __init__(self, database_id: str, account_id: str, api_token: str, *, timeout: float = 30.0):
         if not re.fullmatch(r"[a-fA-F0-9-]{36}", database_id or ""):
             raise CloudflareStorageError("D1_DATABASE_ID must be a Cloudflare D1 database UUID.")
-        try:
-            parsed = urlsplit(api_url or "")
-            port = parsed.port
-        except ValueError as error:
-            raise CloudflareStorageError("RUN_LOGS_API_URL must be an HTTPS Cloudflare Worker origin.") from error
-        if (
-            parsed.scheme != "https"
-            or not parsed.hostname
-            or not parsed.hostname.endswith(".workers.dev")
-            or port is not None
-            or parsed.path not in {"", "/"}
-            or parsed.query
-            or parsed.fragment
-            or parsed.username
-            or parsed.password
-        ):
-            raise CloudflareStorageError("RUN_LOGS_API_URL must be an HTTPS Cloudflare Worker origin.")
-        if len(api_secret or "") < 32:
-            raise CloudflareStorageError("RUN_LOGS_API_SECRET must contain at least 32 characters.")
+        if not re.fullmatch(r"[a-fA-F0-9]{32}", account_id or ""):
+            raise CloudflareStorageError("R2_ACCOUNT_ID must be a Cloudflare account ID.")
+        if not api_token or len(api_token) < 20:
+            raise CloudflareStorageError("D1_API_TOKEN must be a Cloudflare API token with D1 access.")
         self.database_id = database_id
-        self.api_url = api_url.rstrip("/")
-        self._api_secret = api_secret
+        self._api_secret = api_token
         self.timeout = timeout
-        self.endpoint = f"{self.api_url}/v1/d1/query"
+        self.endpoint = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/d1/database/{database_id}/query"
 
     @classmethod
     def from_environment(cls) -> "D1Client":
         return cls(
             os.environ.get("D1_DATABASE_ID", "").strip(),
-            os.environ.get("RUN_LOGS_API_URL", "").strip(),
-            os.environ.get("RUN_LOGS_API_SECRET", "").strip(),
+            os.environ.get("R2_ACCOUNT_ID", "").strip(),
+            os.environ.get("D1_API_TOKEN", "").strip(),
         )
 
     @staticmethod
@@ -101,13 +84,13 @@ class D1Client:
             )
         except requests.RequestException as error:
             raise CloudflareStorageError(
-                f"D1 Worker request failed before a response was confirmed ({type(error).__name__})."
+                f"D1 request failed before a response was confirmed ({type(error).__name__})."
             ) from error
         try:
             body = response.json()
         except ValueError as error:
             raise CloudflareStorageError(
-                f"D1 Worker returned a non-JSON response (HTTP {response.status_code})."
+                f"D1 returned a non-JSON response (HTTP {response.status_code})."
             ) from error
         if not response.ok or not isinstance(body, dict) or body.get("success") is False:
             errors = body.get("errors", []) if isinstance(body, dict) else []
@@ -116,7 +99,7 @@ class D1Client:
                 for item in errors
                 if isinstance(item, dict)
             ) or f"HTTP {response.status_code}"
-            raise CloudflareStorageError(f"D1 Worker request failed: {redact_secrets(message[:400])}")
+            raise CloudflareStorageError(f"D1 request failed: {redact_secrets(message[:400])}")
         results = body.get("result")
         if not isinstance(results, list):
             raise CloudflareStorageError("D1 returned an unexpected result shape.")
@@ -137,25 +120,6 @@ class D1Client:
             raw=first,
         )
 
-    def check_storage(self) -> dict:
-        try:
-            response = requests.post(
-                f"{self.api_url}/v1/d1/cleanup",
-                headers={"Authorization": f"Bearer {self._api_secret}"},
-                timeout=self.timeout,
-            )
-            body = response.json()
-        except (requests.RequestException, ValueError) as error:
-            raise CloudflareStorageError("Could not confirm D1 storage usage and cleanup.") from error
-        if not response.ok or not isinstance(body, dict) or body.get("success") is not True:
-            raise CloudflareStorageError("D1 storage check or cleanup failed; inspect Worker logs.")
-        result = body.get("result")
-        if not isinstance(result, dict) or isinstance(result.get("size"), bool) or not isinstance(result.get("size"), int) or result["size"] < 0:
-            raise CloudflareStorageError("D1 storage check did not return a reliable size.")
-        if result["size"] >= 350_000_000:
-            raise CloudflareStorageError("D1 storage is above the safe threshold; cleanup must make more room.")
-        return result
-
     def measure_database_size(self) -> int:
         result = self.execute("SELECT 1 AS ok")
         size = result.raw.get("meta", {}).get("size_after")
@@ -167,7 +131,7 @@ class D1Client:
         if not statements:
             return []
         if len(statements) > 100:
-            raise CloudflareStorageError("D1 Worker batches are limited to 100 statements.")
+            raise CloudflareStorageError("D1 batches are limited to 100 statements.")
         results = self._post({
             "batch": [
                 {"sql": sql, "params": self._as_text_params(params)}

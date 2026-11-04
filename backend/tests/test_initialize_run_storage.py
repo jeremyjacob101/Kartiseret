@@ -12,8 +12,7 @@ class InitializeRunStorageTests(TestCase):
         selected = {
             "KARTISERET_TARGET": "development",
             "D1_DATABASE_ID": "dev-d1-id",
-            "RUN_LOGS_API_URL": "https://kartiseret-run-artifact-retention-dev.example.workers.dev",
-            "RUN_LOGS_API_SECRET": "dev-d1-api-secret-with-at-least-32-characters",
+            "D1_API_TOKEN": "dev-d1-api-token-with-at-least-32-characters",
             "RUN_ARTIFACTS_R2_BUCKET": "kartiseret-run-artifacts-dev",
         }
         with patch.dict(

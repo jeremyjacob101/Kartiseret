@@ -44,8 +44,7 @@ def _profile(prefix: str, target: str) -> dict[str, str]:
         f"{prefix}TICKET_ALERT_RECIPIENT_API_URL": f"https://{target}.example.test/api",
         f"{prefix}TICKET_ALERT_INTERNAL_API_SECRET": f"ticket-{target}",
         f"{prefix}D1_DATABASE_ID": D1_DATABASE_IDS[target] or "12345678-1234-4234-8234-123456789abc",
-        f"{prefix}RUN_LOGS_API_URL": f"https://kartiseret-run-artifact-retention-{'dev' if target == 'development' else 'prod'}.example.workers.dev",
-        f"{prefix}RUN_LOGS_API_SECRET": f"d1-api-secret-{target}-with-at-least-32-characters",
+        f"{prefix}D1_API_TOKEN": f"d1-api-token-{target}-with-at-least-32-characters",
         f"{prefix}RUN_ARTIFACTS_R2_BUCKET": RUN_ARTIFACT_BUCKETS[target],
         f"{prefix}RUN_ARTIFACTS_R2_ACCESS_KEY_ID": f"run-write-id-{target}",
         f"{prefix}RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY": f"run-write-secret-{target}",
@@ -74,7 +73,7 @@ class TargetEnvironmentTests(TestCase):
         self.assertEqual(resolved["D1_DATABASE_ID"], D1_DATABASE_IDS["development"])
         self.assertEqual(resolved["RUN_ARTIFACTS_R2_BUCKET"], RUN_ARTIFACT_BUCKETS["development"])
         self.assertEqual(resolved["RUN_ARTIFACTS_R2_ACCESS_KEY_ID"], "run-write-id-development")
-        self.assertEqual(resolved["RUN_LOGS_API_SECRET"], "d1-api-secret-development-with-at-least-32-characters")
+        self.assertEqual(resolved["D1_API_TOKEN"], "d1-api-token-development-with-at-least-32-characters")
         self.assertEqual(resolved["KARTISERET_TARGET"], "development")
         self.assertEqual(resolved["PROD_SUPABASE_SERVICE_ROLE_KEY"], "")
         self.assertEqual(resolved["DEV_SUPABASE_SERVICE_ROLE_KEY"], "")
@@ -91,7 +90,7 @@ class TargetEnvironmentTests(TestCase):
         self.assertEqual(resolved["R2_ACCESS_KEY_ID"], "write-id-production")
         self.assertEqual(resolved["D1_DATABASE_ID"], "12345678-1234-4234-8234-123456789abc")
         self.assertEqual(resolved["RUN_ARTIFACTS_R2_BUCKET"], RUN_ARTIFACT_BUCKETS["production"])
-        self.assertEqual(resolved["RUN_LOGS_API_SECRET"], "d1-api-secret-production-with-at-least-32-characters")
+        self.assertEqual(resolved["D1_API_TOKEN"], "d1-api-token-production-with-at-least-32-characters")
         self.assertEqual(resolved["RESEND_API_KEY"], "resend-production")
         self.assertEqual(resolved["DEV_R2_SECRET_ACCESS_KEY"], "")
 
@@ -104,8 +103,7 @@ class TargetEnvironmentTests(TestCase):
             "DEV_R2_READ_ACCESS_KEY_ID": "dev-read-id",
             "DEV_R2_READ_SECRET_ACCESS_KEY": "dev-read-secret",
             "DEV_D1_DATABASE_ID": D1_DATABASE_IDS["development"],
-            "DEV_RUN_LOGS_API_URL": "https://kartiseret-run-artifact-retention-dev.example.workers.dev",
-            "DEV_RUN_LOGS_API_SECRET": "d1-api-secret-development-with-at-least-32-characters",
+            "DEV_D1_API_TOKEN": "d1-api-token-development-with-at-least-32-characters",
             "DEV_RUN_ARTIFACTS_R2_BUCKET": RUN_ARTIFACT_BUCKETS["development"],
             "DEV_RUN_ARTIFACTS_R2_ACCESS_KEY_ID": "run-read-profile-write-id",
             "DEV_RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY": "run-read-profile-write-secret",
@@ -171,9 +169,9 @@ class TargetEnvironmentTests(TestCase):
             resolve_target_environment("development", environment)
 
         environment = dict(self.profiles)
-        environment.pop("DEV_RUN_LOGS_API_SECRET")
-        environment["RUN_LOGS_API_SECRET"] = "shared-secret-must-not-fallback"
-        with self.assertRaisesRegex(TargetConfigurationError, "DEV_RUN_LOGS_API_SECRET"):
+        environment.pop("DEV_D1_API_TOKEN")
+        environment["D1_API_TOKEN"] = "shared-secret-must-not-fallback"
+        with self.assertRaisesRegex(TargetConfigurationError, "DEV_D1_API_TOKEN"):
             resolve_target_environment("development", environment)
 
         environment = dict(self.profiles)
@@ -187,13 +185,8 @@ class TargetEnvironmentTests(TestCase):
             resolve_target_environment("development", environment)
 
         environment = dict(self.profiles)
-        environment["DEV_RUN_LOGS_API_URL"] = "https://kartiseret-run-artifact-retention-prod.example.workers.dev"
-        with self.assertRaisesRegex(TargetConfigurationError, "selected development artifact-retention Worker"):
-            resolve_target_environment("development", environment)
-
-        environment = dict(self.profiles)
-        environment["DEV_RUN_LOGS_API_SECRET"] = "too-short"
-        with self.assertRaisesRegex(TargetConfigurationError, "at least 32 characters"):
+        environment["DEV_D1_API_TOKEN"] = "too-short"
+        with self.assertRaisesRegex(TargetConfigurationError, "D1_API_TOKEN"):
             resolve_target_environment("development", environment)
 
     def test_publication_certificate_requires_its_database_connection(self):
@@ -212,8 +205,7 @@ class TargetEnvironmentTests(TestCase):
             "RUN_ARTIFACTS_R2_BUCKET": RUN_ARTIFACT_BUCKETS["development"],
             "RUN_ARTIFACTS_R2_ACCESS_KEY_ID": "run-write-id",
             "RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY": "run-write-secret",
-            "RUN_LOGS_API_URL": "https://kartiseret-run-artifact-retention-dev.example.workers.dev",
-            "RUN_LOGS_API_SECRET": "d1-api-secret-development-with-at-least-32-characters",
+            "D1_API_TOKEN": "d1-api-token-development-with-at-least-32-characters",
         }
         resolved = resolve_target_environment("development", environment)
 
@@ -230,8 +222,7 @@ class TargetEnvironmentTests(TestCase):
             "RUN_ARTIFACTS_R2_BUCKET": RUN_ARTIFACT_BUCKETS["development"],
             "RUN_ARTIFACTS_R2_ACCESS_KEY_ID": "run-write-id",
             "RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY": "run-write-secret",
-            "RUN_LOGS_API_URL": "https://kartiseret-run-artifact-retention-dev.example.workers.dev",
-            "RUN_LOGS_API_SECRET": "d1-api-secret-development-with-at-least-32-characters",
+            "D1_API_TOKEN": "d1-api-token-development-with-at-least-32-characters",
         }
         with self.assertRaisesRegex(TargetConfigurationError, "selected Supabase project"):
             resolve_target_environment("development", environment)

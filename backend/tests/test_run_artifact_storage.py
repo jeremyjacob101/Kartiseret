@@ -42,19 +42,19 @@ class RunArtifactStorageTests(TestCase):
             "success": True,
             "result": [{"results": [{"ok": 1}], "meta": {"rows_written": 0, "changes": 0}}],
         }
-        client = D1Client("12345678-1234-4234-8234-123456789abc", "https://kartiseret-run-artifact-retention-dev.example.workers.dev", "x" * 40)
+        client = D1Client("12345678-1234-4234-8234-123456789abc", "a" * 32, "x" * 40)
         with patch("backend.utils.log.cloudflare_storage.requests.post", return_value=response) as post:
             result = client.execute("SELECT ?", (None,))
         post.assert_called_once()
         self.assertEqual(post.call_args.kwargs["json"]["params"], [None])
-        self.assertEqual(post.call_args.args[0], "https://kartiseret-run-artifact-retention-dev.example.workers.dev/v1/d1/query")
+        self.assertEqual(post.call_args.args[0], f"https://api.cloudflare.com/client/v4/accounts/{'a' * 32}/d1/database/12345678-1234-4234-8234-123456789abc/query")
         self.assertEqual(post.call_args.kwargs["headers"]["Authorization"], f"Bearer {'x' * 40}")
         self.assertEqual(result.rows, [{"ok": 1}])
 
     def test_d1_errors_redact_configured_secret_values(self):
         response = Mock(ok=False, status_code=403)
         response.json.return_value = {"success": False, "errors": [{"message": "denied token=super-secret-value"}]}
-        client = D1Client("12345678-1234-4234-8234-123456789abc", "https://kartiseret-run-artifact-retention-dev.example.workers.dev", "x" * 40)
+        client = D1Client("12345678-1234-4234-8234-123456789abc", "a" * 32, "x" * 40)
         with patch.dict(os.environ, {"TEST_SECRET_KEY": "super-secret-value"}), patch(
             "backend.utils.log.cloudflare_storage.requests.post", return_value=response
         ):

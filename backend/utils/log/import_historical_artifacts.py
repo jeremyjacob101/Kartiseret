@@ -475,7 +475,7 @@ def main(argv: list[str] | None = None) -> int:
         os.environ.update(resolve_target_environment(args.target, os.environ))
         store = RunArtifactStore()
         store.ensure_schema()
-        store.d1.check_storage()
+        store.check_storage()
         lease = store.acquire_run_lease()
         try:
             summary = import_candidates(

@@ -27,9 +27,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Test scraper storage and retention Worker
-        run: node --test backend/cloudflare/run-artifact-retention/worker.test.mjs
-
       - name: Install Chromium for SSR browser smoke tests
         run: npx playwright install --with-deps chromium
 

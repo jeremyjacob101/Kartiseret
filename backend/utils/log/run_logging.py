@@ -24,7 +24,7 @@ def allocate_run_id(on_allocated: Callable[[int], None] | None = None) -> int:
     sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
     storage = RunArtifactStore()
     storage.ensure_schema()
-    storage.d1.check_storage()
+    storage.check_storage()
     lease_token = storage.acquire_run_lease()
     new_id: int | None = None
     inserted = False
@@ -226,7 +226,7 @@ class RunLogSession:
                     f"Run {self.run_id} was marked unsuccessful because D1 finalization failed."
                 ) from storage_error
             try:
-                storage.d1.check_storage()
+                storage.check_storage()
             except Exception as error:
                 confirmed = False
                 try:

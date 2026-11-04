@@ -89,6 +89,13 @@ class RunArtifactStore:
     def schema_id(self) -> str:
         return self.d1.database_id
 
+    def check_storage(self) -> dict:
+        from backend.utils.log.retention import cleanup_by_storage, HIGH_WATER_BYTES
+        result = cleanup_by_storage(self)
+        if result["size"] >= HIGH_WATER_BYTES:
+            raise CloudflareStorageError("D1 storage is above the safe threshold; cleanup must make more room.")
+        return result
+
     def ensure_schema(self) -> None:
         if self.schema_id in _schema_ready:
             return

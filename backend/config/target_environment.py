@@ -46,8 +46,7 @@ PROFILE_KEYS = (
     "R2_READ_ACCESS_KEY_ID",
     "R2_READ_SECRET_ACCESS_KEY",
     "D1_DATABASE_ID",
-    "RUN_LOGS_API_URL",
-    "RUN_LOGS_API_SECRET",
+    "D1_API_TOKEN",
     "RUN_ARTIFACTS_R2_BUCKET",
     "RUN_ARTIFACTS_R2_ACCESS_KEY_ID",
     "RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY",
@@ -235,8 +234,7 @@ def resolve_target_environment(
             raise TargetConfigurationError("R2_IMAGE_ORIGIN must be a safe HTTP(S) origin.")
 
     d1_id = resolved.get("D1_DATABASE_ID", "").strip()
-    d1_api_url = resolved.get("RUN_LOGS_API_URL", "").strip()
-    d1_api_secret = resolved.get("RUN_LOGS_API_SECRET", "").strip()
+    d1_api_token = resolved.get("D1_API_TOKEN", "").strip()
     cloudflare_account_id = resolved.get("R2_ACCOUNT_ID", "").strip()
     run_bucket = resolved.get("RUN_ARTIFACTS_R2_BUCKET", "").strip()
     run_access = resolved.get("RUN_ARTIFACTS_R2_ACCESS_KEY_ID", "").strip()
@@ -256,35 +254,11 @@ def resolve_target_environment(
         raise TargetConfigurationError(
             f"D1_DATABASE_ID does not point to the configured {target} D1 database."
         )
-    if not d1_api_url:
-        url_name = f"{prefix}RUN_LOGS_API_URL" if has_profiles else "RUN_LOGS_API_URL"
-        raise TargetConfigurationError(f"{url_name} is required for D1 access.")
-    if not d1_api_secret:
-        secret_name = f"{prefix}RUN_LOGS_API_SECRET" if has_profiles else "RUN_LOGS_API_SECRET"
-        raise TargetConfigurationError(f"{secret_name} is required for D1 access.")
-    try:
-        parsed_d1_url = urlsplit(d1_api_url)
-        d1_port = parsed_d1_url.port
-    except ValueError as error:
-        raise TargetConfigurationError("RUN_LOGS_API_URL must be an HTTPS Cloudflare Worker URL.") from error
-    worker_prefix = f"kartiseret-run-artifact-retention-{'dev' if target == 'development' else 'prod'}"
-    if (
-        parsed_d1_url.scheme != "https"
-        or not parsed_d1_url.hostname
-        or not parsed_d1_url.hostname.startswith(worker_prefix + ".")
-        or not parsed_d1_url.hostname.endswith(".workers.dev")
-        or d1_port is not None
-        or parsed_d1_url.path not in {"", "/"}
-        or parsed_d1_url.query
-        or parsed_d1_url.fragment
-        or parsed_d1_url.username
-        or parsed_d1_url.password
-    ):
-        raise TargetConfigurationError(
-            f"RUN_LOGS_API_URL must identify the selected {target} artifact-retention Worker."
-        )
-    if len(d1_api_secret) < 32:
-        raise TargetConfigurationError("RUN_LOGS_API_SECRET must be at least 32 characters.")
+    if target == "production" and d1_id.lower() == D1_DATABASE_IDS["development"]:
+        raise TargetConfigurationError("Production D1_DATABASE_ID cannot be the development database.")
+    if len(d1_api_token) < 20:
+        token_name = f"{prefix}D1_API_TOKEN" if has_profiles else "D1_API_TOKEN"
+        raise TargetConfigurationError(f"{token_name} must be a Cloudflare API token with D1 access.")
     if not re.fullmatch(r"[a-fA-F0-9]{32}", cloudflare_account_id):
         raise TargetConfigurationError("R2_ACCOUNT_ID must also identify the Cloudflare account that owns D1.")
     if run_bucket != RUN_ARTIFACT_BUCKETS[target]:

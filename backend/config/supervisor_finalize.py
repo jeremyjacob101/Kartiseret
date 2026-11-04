@@ -39,7 +39,7 @@ def main() -> int:
             store.mark_run_failed(args.run_id, reason="supervisor_interrupted")
         else:
             store.mark_run_unconfirmed(args.run_id, reason="supabase_finalization_unconfirmed")
-        store.d1.check_storage()
+        store.check_storage()
     except Exception as error:
         errors.append(f"Cloudflare:{type(error).__name__}")
 

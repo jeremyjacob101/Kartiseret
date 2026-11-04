@@ -103,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
             text=content.decode("utf-8", errors="replace"),
             metadata={"target": args.target, "source": "scheduled-shell-runner"},
         )
-        store.d1.check_storage()
+        store.check_storage()
     except Exception as error:
         supabase_confirmed = _record_storage_failure(
             store, run_id, f"cron_upload_{type(error).__name__}", error
