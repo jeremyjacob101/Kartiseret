@@ -49,31 +49,17 @@ and reconcile it manually; no automatic retry or deletion is performed. A
 catalog publication that already succeeded must be reported as published with a
 logging failure.
 
-## Historical import
+## Historical data
 
-The importer reads historical CSVs, converts them into D1 rows, and writes text
-diagnostics to D1 and screenshots to R2. It defaults to a dry run, preserves
-unknown fields, uses stable IDs, and never schedules a continuation. Run only
-against the desired target and confirm current UTC-day account-wide D1 row
-writes in Cloudflare metrics before applying:
-
-```sh
-python -m backend.utils.log.import_historical_artifacts --target production
-python -m backend.utils.log.import_historical_artifacts --target production --apply --account-writes-used CURRENT_UTC_DAY_WRITES
-```
-
-Replace `CURRENT_UTC_DAY_WRITES` with the measured value. The importer reserves
-40,000 writes for normal work and cleanup and caps itself at 60,000 writes.
-Index writes count, so 60,000 rows may not fit in one day. Review the report for
-unresolved files, uncertain writes, and data remaining in Git before manually
-starting any later import. The release-date backfill still reads both D1 and
-historical Git files.
+Historical files remain in Git, and previously imported records remain in
+Cloudflare until normal cleanup removes them. New runs write directly to D1
+and R2. The release-date backfill can still read historical Git files and D1.
 
 ## Rollout and rollback
 
 Validate the complete flow with the development database and bucket first. Set
 up the production database and distinct profile, then measure usage before a
-controlled production test and capped import. Production D1 has been initialized.
+controlled production test. Production D1 has been initialized.
 To roll back, revert the application PR; existing Git history,
 D1/R2 data, and local recovery material remain available. Do not delete the
 buckets or databases as part of rollback.
