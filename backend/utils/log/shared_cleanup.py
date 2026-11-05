@@ -39,7 +39,18 @@ def lease_renewal_callback(store: RunArtifactStore, token: str, *, interval_seco
             store.renew_run_lease(token)
             last_renewal = current
 
+    def verify() -> None:
+        nonlocal last_renewal
+        store.renew_run_lease(token)
+        last_renewal = time.monotonic()
+
+    renew.verify = verify
     return renew
+
+
+def verify_lease(guard) -> None:
+    if guard:
+        getattr(guard, "verify", guard)()
 
 
 def current_run_lease_guard():
@@ -278,8 +289,7 @@ def cleanup_orphan_run_artifacts(
                 candidates.append(key)
     deleted = 0
     if apply and candidates:
-        if lease_guard:
-            lease_guard()
+        verify_lease(lease_guard)
         response = client.delete_objects(
             Bucket=store.bucket,
             Delete={"Objects": [{"Key": key} for key in candidates], "Quiet": True},

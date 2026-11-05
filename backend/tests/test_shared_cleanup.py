@@ -72,6 +72,15 @@ class SharedCleanupTests(unittest.TestCase):
             guard()
         self.assertEqual(renew.call_count, 2)
 
+    def test_destructive_check_revalidates_even_inside_throttle_window(self):
+        with patch.object(self.store, "renew_run_lease") as renew:
+            guard = shared_cleanup.lease_renewal_callback(self.store, "held")
+            guard()
+            renew.side_effect = CloudflareStorageError("lease lost")
+            with self.assertRaisesRegex(CloudflareStorageError, "lease lost"):
+                shared_cleanup.verify_lease(guard)
+            self.assertEqual(renew.call_count, 2)
+
     def test_orphan_artifact_cleanup_aborts_on_incomplete_d1_scan(self):
         broken_d1 = Mock()
         broken_d1.execute.return_value = D1Result([], 0, 0, {"results": [{"run_id": 1}, None]})

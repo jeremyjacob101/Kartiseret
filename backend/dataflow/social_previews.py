@@ -455,8 +455,8 @@ def cleanup_social_previews(
 
     deleted = 0
     if apply and candidates:
-        if lease_guard:
-            lease_guard()
+        from backend.utils.log.shared_cleanup import verify_lease
+        verify_lease(lease_guard)
         response = storage.client.delete_objects(
             Bucket=storage.bucket,
             Delete={"Objects": [{"Key": key} for key in candidates], "Quiet": True},

@@ -23,8 +23,8 @@ def clear_orphan_final_theque_movies(*, apply=True, lease_guard=None):
     for start in range(0, len(orphan_tmdb_ids), DELETE_CHUNK_SIZE):
         chunk = orphan_tmdb_ids[start : start + DELETE_CHUNK_SIZE]
         if apply:
-            if lease_guard:
-                lease_guard()
+            from backend.utils.log.shared_cleanup import verify_lease
+            verify_lease(lease_guard)
             sb.table("finalThequeMovies").delete().in_("tmdb_id", chunk).execute()
         deleted_count += len(chunk)
 

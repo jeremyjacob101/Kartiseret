@@ -39,8 +39,8 @@ def delete_entries_on_or_before(sb, table_name, date_column, cutoff, *, apply=Tr
 
         affected_snapshots.update(row.get("snapshot_id") for row in rows if row.get("snapshot_id"))
         if apply:
-            if lease_guard:
-                lease_guard()
+            from backend.utils.log.shared_cleanup import verify_lease
+            verify_lease(lease_guard)
             sb.table(table_name).delete().in_("id", row_ids).execute()
         deleted_count += len(row_ids)
         if not apply:
