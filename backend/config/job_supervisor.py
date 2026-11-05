@@ -21,6 +21,8 @@ from backend.utils.log.cloudflare_storage import write_recovery_envelope
 DEFAULT_JOB_SECONDS = 16_200  # 4h 30m, leaving setup and cleanup room in 5-hour Actions jobs.
 DEFAULT_SOLO_JOB_SECONDS = 1_800
 DEFAULT_TERMINATION_GRACE_SECONDS = 20
+MAX_JOB_SECONDS = DEFAULT_JOB_SECONDS
+MAX_TERMINATION_GRACE_SECONDS = 300
 FINALIZER_SECONDS = 5
 JOB_SECONDS_ENV = "PIPELINE_JOB_DEADLINE_SECONDS"
 SOLO_JOB_SECONDS_ENV = "PIPELINE_SOLO_UPDATE_DEADLINE_SECONDS"
@@ -49,11 +51,17 @@ def configured_seconds(name: str, default: float, *, minimum: float = 0.1) -> fl
 
 def job_seconds(*, solo: bool = False) -> float:
     name, default = (SOLO_JOB_SECONDS_ENV, DEFAULT_SOLO_JOB_SECONDS) if solo else (JOB_SECONDS_ENV, DEFAULT_JOB_SECONDS)
-    return configured_seconds(name, default)
+    value = configured_seconds(name, default)
+    if value > MAX_JOB_SECONDS:
+        raise ValueError(f"{name} cannot exceed {MAX_JOB_SECONDS} seconds")
+    return value
 
 
 def termination_grace_seconds() -> float:
-    return configured_seconds(GRACE_SECONDS_ENV, DEFAULT_TERMINATION_GRACE_SECONDS)
+    value = configured_seconds(GRACE_SECONDS_ENV, DEFAULT_TERMINATION_GRACE_SECONDS)
+    if value > MAX_TERMINATION_GRACE_SECONDS:
+        raise ValueError(f"{GRACE_SECONDS_ENV} cannot exceed {MAX_TERMINATION_GRACE_SECONDS} seconds")
+    return value
 
 
 def _group_exists(process_group: int) -> bool:
@@ -222,7 +230,8 @@ def run_managed_process(
     except (TypeError, ValueError) as error:
         print(f"Invalid supervised job budget: {error}", file=sys.stderr, flush=True)
         return JobOutcome(125, "invalid_budget", None, None, 0.0)
-    if not math.isfinite(limit) or limit <= 0 or not math.isfinite(grace) or grace < 0:
+    if (not math.isfinite(limit) or limit <= 0 or limit > MAX_JOB_SECONDS
+            or not math.isfinite(grace) or grace < 0 or grace > MAX_TERMINATION_GRACE_SECONDS):
         return JobOutcome(125, "invalid_budget", None, None, 0.0)
 
     cancel = cancel_event or threading.Event()

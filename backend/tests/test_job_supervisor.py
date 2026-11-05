@@ -19,6 +19,18 @@ from backend.config import runner_worker
 
 
 class JobSupervisorTests(TestCase):
+    def test_job_and_shutdown_limits_cannot_outlive_the_lease(self):
+        from backend.config.job_supervisor import job_seconds, termination_grace_seconds, run_managed_process
+
+        with patch.dict(os.environ, {"PIPELINE_JOB_DEADLINE_SECONDS": "16201"}):
+            with self.assertRaises(ValueError):
+                job_seconds()
+        with patch.dict(os.environ, {"PIPELINE_TERMINATION_GRACE_SECONDS": "301"}):
+            with self.assertRaises(ValueError):
+                termination_grace_seconds()
+        self.assertEqual(run_managed_process([sys.executable], seconds=16201).reason, "invalid_budget")
+        self.assertEqual(run_managed_process([sys.executable], seconds=1, grace_seconds=301).reason, "invalid_budget")
+
     @staticmethod
     def _assert_pid_stopped(test: TestCase, pid: int) -> None:
         deadline = time.monotonic() + 2
