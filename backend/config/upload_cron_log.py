@@ -96,14 +96,18 @@ def main(argv: list[str] | None = None) -> int:
     _select_profile(args.target)
     store = RunArtifactStore()
     try:
-        store.save_text_artifact(
-            run_id=run_id,
-            artifact_type="cron_output",
-            name=log_path.name,
-            text=content.decode("utf-8", errors="replace"),
-            metadata={"target": args.target, "source": "scheduled-shell-runner"},
-        )
-        store.check_storage()
+        from backend.utils.log.shared_cleanup import maintenance_lease
+
+        with maintenance_lease(skip_if_busy=False) as (locked_store, lease_token):
+            store = locked_store
+            store.save_text_artifact(
+                run_id=run_id,
+                artifact_type="cron_output",
+                name=log_path.name,
+                text=content.decode("utf-8", errors="replace"),
+                metadata={"target": args.target, "source": "scheduled-shell-runner"},
+            )
+            store.check_storage(lease_token=lease_token)
     except Exception as error:
         supabase_confirmed = _record_storage_failure(
             store, run_id, f"cron_upload_{type(error).__name__}", error

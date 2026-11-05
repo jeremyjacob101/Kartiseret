@@ -413,9 +413,11 @@ os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps(event) + '\\n
             client.table.side_effect = [no_running_run, latest_run, insert]
             callback = lambda run_id: timeline.append(("allocated", run_id))
             storage = Mock()
-            with patch.dict(os.environ, {"SUPABASE_URL": "https://example.test", "SUPABASE_SERVICE_ROLE_KEY": "test-key"}), patch(
+            with patch.dict(os.environ, {"SUPABASE_URL": "https://example.test", "SUPABASE_SERVICE_ROLE_KEY": "test-key", "KARTISERET_TARGET": "development"}), patch(
                 "backend.utils.log.run_logging.create_client", return_value=client
-            ), patch("backend.utils.log.run_logging.RunArtifactStore", return_value=storage):
+            ), patch("backend.utils.log.run_logging.RunArtifactStore", return_value=storage), patch(
+                "backend.utils.log.shared_cleanup.run_pipeline_preflight", return_value={}
+            ), patch("backend.config.target_environment.resolve_target_environment", return_value={}):
                 self.assertEqual(run_logging.allocate_run_id(on_allocated=callback), 42)
             self.assertEqual(timeline, [("allocated", 42), "insert"])
             storage.acquire_run_lease.assert_called_once_with()
@@ -435,11 +437,13 @@ os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps(event) + '\\n
         client.table.side_effect = [empty, latest, insert, finalize]
         storage = Mock()
         storage.start_run.side_effect = RuntimeError('D1 unavailable')
-        with patch.dict(os.environ, {'SUPABASE_URL': 'https://dev.example', 'SUPABASE_SERVICE_ROLE_KEY': 'test'}), patch(
+        with patch.dict(os.environ, {'SUPABASE_URL': 'https://dev.example', 'SUPABASE_SERVICE_ROLE_KEY': 'test', 'KARTISERET_TARGET': 'development'}), patch(
             'backend.utils.log.run_logging.create_client', return_value=client
         ), patch('backend.utils.log.run_logging.RunArtifactStore', return_value=storage), patch(
             'backend.utils.log.run_logging.write_recovery_envelope'
-        ) as recovery:
+        ) as recovery, patch(
+            'backend.utils.log.shared_cleanup.run_pipeline_preflight', return_value={}
+        ), patch('backend.config.target_environment.resolve_target_environment', return_value={}):
             with self.assertRaisesRegex(RuntimeError, 'D1 unavailable'):
                 run_logging.allocate_run_id()
         self.assertEqual(recovery.call_args.args[2]['status'], 'unconfirmed')

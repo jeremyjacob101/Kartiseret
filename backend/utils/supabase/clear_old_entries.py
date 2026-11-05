@@ -3,8 +3,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from datetime import date, timedelta
+import argparse
+import json
 from backend.dataflow.utils.PublicationWorkspace import create_client, maintenance_publication
 import os
+from backend.config.target_environment import PROFILE_KEYS, resolve_target_environment
 from backend.utils.supabase.snapshot_manifests import reconcile_snapshot_row_counts
 
 ALL_SHOWTIMES_CUTOFF_DAYS_AGO = 5
@@ -17,63 +20,97 @@ DELETE_CHUNK_SIZE = 200
 SNAPSHOT_TABLES = {"allShowtimes", "allSoons", "allTheques"}
 
 
-def delete_entries_on_or_before(sb, table_name, date_column, cutoff):
+def delete_entries_on_or_before(sb, table_name, date_column, cutoff, *, apply=True, lease_guard=None):
     deleted_count = 0
     affected_snapshots = set()
     select_columns = "id,snapshot_id" if table_name in SNAPSHOT_TABLES else "id"
+    offset = 0
 
     while True:
-        rows = sb.table(table_name).select(select_columns).lte(date_column, cutoff).order("id").range(0, DELETE_CHUNK_SIZE - 1).execute().data or []
+        if lease_guard:
+            lease_guard()
+        start = 0 if apply else offset
+        rows = sb.table(table_name).select(select_columns).lte(date_column, cutoff).order("id").range(start, start + DELETE_CHUNK_SIZE - 1).execute().data or []
         row_ids = [row.get("id") for row in rows if row.get("id")]
         if not row_ids:
-            reconcile_snapshot_row_counts(sb, table_name, affected_snapshots)
+            if apply:
+                reconcile_snapshot_row_counts(sb, table_name, affected_snapshots)
             return deleted_count
 
         affected_snapshots.update(row.get("snapshot_id") for row in rows if row.get("snapshot_id"))
-        sb.table(table_name).delete().in_("id", row_ids).execute()
+        if apply:
+            if lease_guard:
+                lease_guard()
+            sb.table(table_name).delete().in_("id", row_ids).execute()
         deleted_count += len(row_ids)
+        if not apply:
+            offset += len(rows)
+            if len(rows) < DELETE_CHUNK_SIZE:
+                return deleted_count
 
 
-def _clear_old_entries(category=None, showtimes_days_ago=ALL_SHOWTIMES_CUTOFF_DAYS_AGO, soons_days_ago=ALL_SOONS_CUTOFF_DAYS_AGO, theques_days_ago=ALL_THEQUES_CUTOFF_DAYS_AGO, final_showtimes_days_ago=FINAL_SHOWTIMES_CUTOFF_DAYS_AGO, final_soons_days_ago=FINAL_SOONS_CUTOFF_DAYS_AGO, final_theques_days_ago=FINAL_THEQUES_CUTOFF_DAYS_AGO):
+def _clear_old_entries(category=None, showtimes_days_ago=ALL_SHOWTIMES_CUTOFF_DAYS_AGO, soons_days_ago=ALL_SOONS_CUTOFF_DAYS_AGO, theques_days_ago=ALL_THEQUES_CUTOFF_DAYS_AGO, final_showtimes_days_ago=FINAL_SHOWTIMES_CUTOFF_DAYS_AGO, final_soons_days_ago=FINAL_SOONS_CUTOFF_DAYS_AGO, final_theques_days_ago=FINAL_THEQUES_CUTOFF_DAYS_AGO, apply=True, lease_guard=None):
     sb = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY"))
+    counts = {}
 
     if category in (None, "nowplayings"):
         all_showtimes_cutoff = (date.today() - timedelta(days=showtimes_days_ago)).isoformat()
         final_showtimes_cutoff = (date.today() - timedelta(days=final_showtimes_days_ago)).isoformat()
-        all_showtimes_deleted = delete_entries_on_or_before(sb, "allShowtimes", "date_of_showing", all_showtimes_cutoff)
-        final_showtimes_deleted = delete_entries_on_or_before(sb, "finalShowtimes", "date_of_showing", final_showtimes_cutoff)
+        all_showtimes_deleted = delete_entries_on_or_before(sb, "allShowtimes", "date_of_showing", all_showtimes_cutoff, apply=apply, lease_guard=lease_guard)
+        final_showtimes_deleted = delete_entries_on_or_before(sb, "finalShowtimes", "date_of_showing", final_showtimes_cutoff, apply=apply, lease_guard=lease_guard)
+        counts.update(allShowtimes=all_showtimes_deleted, finalShowtimes=final_showtimes_deleted)
         # print(f"Deleted {all_showtimes_deleted} old allShowtimes rows on or before {all_showtimes_cutoff}.")
         # print(f"Deleted {final_showtimes_deleted} old finalShowtimes rows on or before {final_showtimes_cutoff}.")
 
     if category in (None, "soons"):
         all_soons_cutoff = (date.today() - timedelta(days=soons_days_ago)).isoformat()
         final_soons_cutoff = (date.today() - timedelta(days=final_soons_days_ago)).isoformat()
-        all_soons_deleted = delete_entries_on_or_before(sb, "allSoons", "release_date", all_soons_cutoff)
-        final_soons_deleted = delete_entries_on_or_before(sb, "finalSoons", "release_date", final_soons_cutoff)
+        all_soons_deleted = delete_entries_on_or_before(sb, "allSoons", "release_date", all_soons_cutoff, apply=apply, lease_guard=lease_guard)
+        final_soons_deleted = delete_entries_on_or_before(sb, "finalSoons", "release_date", final_soons_cutoff, apply=apply, lease_guard=lease_guard)
+        counts.update(allSoons=all_soons_deleted, finalSoons=final_soons_deleted)
         # print(f"Deleted {all_soons_deleted} old allSoons rows on or before {all_soons_cutoff}.")
         # print(f"Deleted {final_soons_deleted} old finalSoons rows on or before {final_soons_cutoff}.")
 
     if category in (None, "cinematheques"):
         all_theques_cutoff = (date.today() - timedelta(days=theques_days_ago)).isoformat()
         final_theques_cutoff = (date.today() - timedelta(days=final_theques_days_ago)).isoformat()
-        all_theques_deleted = delete_entries_on_or_before(sb, "allTheques", "date_of_showing", all_theques_cutoff)
-        final_theques_deleted = delete_entries_on_or_before(sb, "finalTheques", "date_of_showing", final_theques_cutoff)
+        all_theques_deleted = delete_entries_on_or_before(sb, "allTheques", "date_of_showing", all_theques_cutoff, apply=apply, lease_guard=lease_guard)
+        final_theques_deleted = delete_entries_on_or_before(sb, "finalTheques", "date_of_showing", final_theques_cutoff, apply=apply, lease_guard=lease_guard)
+        counts.update(allTheques=all_theques_deleted, finalTheques=final_theques_deleted)
         # print(f"Deleted {all_theques_deleted} old allTheques rows on or before {all_theques_cutoff}.")
         # print(f"Deleted {final_theques_deleted} old finalTheques rows on or before {final_theques_cutoff}.")
 
 
-def clear_old_entries(*args, **kwargs):
+    return counts
+
+
+def clear_old_entries(*args, apply=True, lease_guard=None, **kwargs):
     from inspect import signature
     arguments = signature(_clear_old_entries).bind(*args, **kwargs).arguments
     selected = arguments.pop("category", None)
+    arguments.pop("apply", None)
+    arguments.pop("lease_guard", None)
     categories = {"nowplayings": "nowplayings", "soons": "comingsoons", "cinematheques": "cinematheques"}
     if selected is not None and selected not in categories:
         raise ValueError("Unsupported cleanup category")
+    counts = {}
     for name, category in categories.items():
         if selected is None or selected == name:
             with maintenance_publication(category):
-                _clear_old_entries(category=name, **arguments)
+                counts.update(_clear_old_entries(category=name, apply=apply, lease_guard=lease_guard, **arguments))
+    return counts
 
 
 if __name__ == "__main__":
-    clear_old_entries()
+    parser = argparse.ArgumentParser(description="Run the legacy old-entry sweep under the shared target lease.")
+    parser.add_argument("--target", choices=("development", "production"), default=os.environ.get("KARTISERET_TARGET"), required=not bool(os.environ.get("KARTISERET_TARGET")))
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+    selected = resolve_target_environment(args.target, os.environ)
+    for key in PROFILE_KEYS:
+        os.environ.pop(key, None)
+    os.environ.update(selected)
+    from backend.utils.log.shared_cleanup import lease_renewal_callback, maintenance_lease
+    with maintenance_lease(skip_if_busy=False) as (store, token):
+        guard = lease_renewal_callback(store, token)
+        print(json.dumps(clear_old_entries(apply=not args.dry_run, lease_guard=guard), sort_keys=True))

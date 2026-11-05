@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 import os, time
 
 from backend.utils.log.cloudflare_storage import write_recovery_envelope
+from backend.utils.log.cloudflare_storage import CloudflareStorageError
 from backend.utils.log.run_storage import RunArtifactStore
 
 CURRENT_RUN_ID: int | None = None
@@ -20,14 +21,28 @@ def israel_local_timestamp() -> str:
     return datetime.now(ISRAEL_TIMEZONE).isoformat()
 
 
+def _clear_current_run_context(run_id: int) -> None:
+    global CURRENT_RUN_ID, CURRENT_RUN_LEASE_TOKEN, CURRENT_RUN_STORE
+    if CURRENT_RUN_ID == run_id:
+        CURRENT_RUN_ID = None
+        CURRENT_RUN_LEASE_TOKEN = None
+        CURRENT_RUN_STORE = None
+
+
 def allocate_run_id(on_allocated: Callable[[int], None] | None = None) -> int:
+    target = os.environ.get("KARTISERET_TARGET", "").strip()
+    from backend.config.target_environment import resolve_target_environment
+
+    if target not in {"development", "production"}:
+        raise RuntimeError("KARTISERET_TARGET must select development or production before a run starts")
+    resolve_target_environment(target, os.environ)
     sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
     storage = RunArtifactStore()
     storage.ensure_schema()
-    storage.check_storage()
-    lease_token = storage.acquire_run_lease()
+    lease_token: str | None = None
     new_id: int | None = None
     inserted = False
+    d1_started = False
 
     run_from_override = (os.environ.get("RUN_FROM_OVERRIDE") or "").strip()
     if run_from_override:
@@ -41,16 +56,37 @@ def allocate_run_id(on_allocated: Callable[[int], None] | None = None) -> int:
     else:
         run_from = os.environ.get("RUNNER_MACHINE") or "unknown"
 
-    attempts = max(1, RUN_LOCK_MAX_WAIT_SECONDS // RUN_LOCK_SLEEP_SECONDS)
+    sleep_seconds = max(1, RUN_LOCK_SLEEP_SECONDS)
+    max_wait_seconds = max(0, RUN_LOCK_MAX_WAIT_SECONDS)
+    deadline = time.monotonic() + max_wait_seconds
+    attempts = max(1, max_wait_seconds // sleep_seconds)
+
+    def wait_for_lease(reason: str) -> None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError(f"run cannot start; bounded wait expired while {reason}")
+        print(f"WAITING WHILE {reason.upper()}")
+        time.sleep(min(float(sleep_seconds), remaining))
+
     try:
-        for _ in range(attempts):
+        # The target-specific D1 lease serializes local pipelines with scheduled
+        # maintenance across hosts. Wait using the same bounded policy already
+        # used for a running Supabase run ID.
+        for lock_attempt in range(attempts):
+            try:
+                lease_token = storage.acquire_run_lease()
+                break
+            except CloudflareStorageError as error:
+                if "Another scraper run holds the D1 run lease" not in str(error) or lock_attempt + 1 >= attempts:
+                    raise
+                wait_for_lease("waiting for the selected target's D1 lease")
+        else:
+            raise RuntimeError("run cannot start because the selected target's D1 lease remained held")
+        while True:
             rows = sb.table("utilRunLogs").select("run_id").eq("running_now", True).limit(1).execute().data
             if not rows:
                 break
-            print("WAITING ON UTILRUNLOGS TO NOT HAVE TRUE RUNNING ENTRY")
-            time.sleep(RUN_LOCK_SLEEP_SECONDS)
-        else:
-            raise RuntimeError("run_id cannot be allocated - already in use in different runner")
+            wait_for_lease("waiting for utilRunLogs to finish its active run")
 
         rows = sb.table("utilRunLogs").select("run_id").order("run_id", desc=True).limit(1).execute().data
         new_id = int(rows[0]["run_id"]) + 1
@@ -66,8 +102,26 @@ def allocate_run_id(on_allocated: Callable[[int], None] | None = None) -> int:
         }).execute()
         inserted = True
         storage.start_run(run_id=new_id, target=os.environ.get("KARTISERET_TARGET", ""), run_from=run_from)
+        d1_started = True
+        from backend.utils.log.shared_cleanup import run_pipeline_preflight
+
+        run_pipeline_preflight(storage, lease_token=lease_token)
     except Exception as error:
         if inserted and new_id is not None:
+            if d1_started:
+                try:
+                    storage.finalize_run(
+                        run_id=new_id,
+                        successful=False,
+                        total_time=0.0,
+                        selected_runners=[],
+                        error_type=type(error).__name__,
+                    )
+                except Exception:
+                    write_recovery_envelope(
+                        "run_finalization", str(new_id),
+                        {"run_id": new_id, "status": "unconfirmed", "error_type": type(error).__name__},
+                    )
             try:
                 response = sb.table("utilRunLogs").update({
                     "successful": False, "running_now": False, "total_time": 0.0,
@@ -80,8 +134,15 @@ def allocate_run_id(on_allocated: Callable[[int], None] | None = None) -> int:
                     str(new_id),
                     {"run_id": new_id, "status": "unconfirmed", "error_type": type(error).__name__},
                 )
+        if lease_token:
+            try:
+                storage.release_run_lease(token=lease_token)
+            except Exception:
+                pass
         try:
-            storage.release_run_lease(token=lease_token)
+            from backend.utils.log.shared_cleanup import _print_r2_budget_summary
+
+            _print_r2_budget_summary()
         except Exception:
             pass
         raise
@@ -190,6 +251,9 @@ class RunLogSession:
             storage = self._storage or RunArtifactStore()
             sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
             storage_error: Exception | None = None
+            post_storage_error: Exception | None = None
+            post_storage_confirmed = False
+            supabase_finalized = False
             try:
                 storage.finalize_run(
                     run_id=int(self.run_id), successful=bool(self._successful),
@@ -213,6 +277,7 @@ class RunLogSession:
                 }).eq("run_id", int(self.run_id)).execute()
                 if not (response.data or []):
                     raise RuntimeError(f"Supabase did not confirm finalization for run {self.run_id}.")
+                supabase_finalized = True
             except Exception as error:
                 write_recovery_envelope(
                     "run_finalization", str(self.run_id),
@@ -226,6 +291,50 @@ class RunLogSession:
                     f"Run {self.run_id} finalization is unconfirmed in Supabase; inspect local recovery files."
                 ) from error
             finally:
+                if supabase_finalized and storage_error is None:
+                    from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+
+                    budget_failure = bool(
+                        exc_type and issubclass(exc_type, (R2BudgetError, R2BudgetExceeded))
+                    )
+                    if budget_failure:
+                        try:
+                            # Keep the post-run D1 size check without issuing
+                            # another R2 request after the job budget tripped.
+                            storage.d1.measure_database_size()
+                        except Exception as error:
+                            print(f"Post-run D1 size check unavailable ({type(error).__name__}).")
+                    else:
+                        try:
+                            storage.check_storage(lease_token=self._lease_token)
+                        except Exception as error:
+                            post_storage_error = error
+                            confirmed = False
+                            try:
+                                response = sb.table("utilRunLogs").update({"successful": False}).eq("run_id", int(self.run_id)).execute()
+                                confirmed = bool(response.data or [])
+                            except Exception:
+                                pass
+                            post_storage_confirmed = confirmed
+                            write_recovery_envelope(
+                                "run_finalization", str(self.run_id),
+                                {"run_id": self.run_id, "status": "failed" if confirmed else "unconfirmed",
+                                 "reason": "storage_check_failed", "error_type": type(error).__name__},
+                            )
+                            try:
+                                if confirmed:
+                                    storage.finalize_run(
+                                        run_id=int(self.run_id), successful=False,
+                                        total_time=total_time, selected_runners=self._selected_runners,
+                                        error_type="storage_check_failed",
+                                    )
+                                else:
+                                    storage.mark_run_unconfirmed(
+                                        int(self.run_id), reason="supabase_finalization_unconfirmed",
+                                        release_lease=False,
+                                    )
+                            except Exception:
+                                pass
                 try:
                     storage.release_run_lease(token=self._lease_token)
                     self._lease_released = True
@@ -241,46 +350,18 @@ class RunLogSession:
                     raise RuntimeError(
                         f"Run {self.run_id} status was marked unsuccessful because its D1 lease could not be released."
                     ) from error
+                finally:
+                    _clear_current_run_context(int(self.run_id))
             if storage_error is not None:
                 raise RuntimeError(
                     f"Run {self.run_id} was marked unsuccessful because D1 finalization failed."
                 ) from storage_error
-            from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
-            budget_failure = bool(
-                exc_type and issubclass(exc_type, (R2BudgetError, R2BudgetExceeded))
-            )
-            if budget_failure:
-                try:
-                    # Preserve the post-run D1 size measurement while avoiding
-                    # another R2 cleanup request after the guard has tripped.
-                    storage.d1.measure_database_size()
-                except Exception as error:
-                    print(f"Post-run D1 size check unavailable ({type(error).__name__}).")
-            else:
-                try:
-                    storage.check_storage()
-                except Exception as error:
-                    confirmed = False
-                    try:
-                        response = sb.table("utilRunLogs").update({"successful": False}).eq("run_id", int(self.run_id)).execute()
-                        confirmed = bool(response.data or [])
-                    except Exception:
-                        pass
-                    write_recovery_envelope(
-                        "run_finalization", str(self.run_id),
-                        {"run_id": self.run_id, "status": "failed" if confirmed else "unconfirmed",
-                         "reason": "storage_check_failed", "error_type": type(error).__name__},
-                    )
-                    try:
-                        if confirmed:
-                            storage.mark_run_failed(int(self.run_id), reason="storage_check_failed")
-                        else:
-                            storage.mark_run_unconfirmed(int(self.run_id), reason="supabase_finalization_unconfirmed")
-                    except Exception:
-                        pass
-                    if isinstance(error, (R2BudgetError, R2BudgetExceeded)):
-                        raise
-                    status = "failed" if confirmed else "unconfirmed"
-                    raise RuntimeError(f"Run {self.run_id} completed, but its D1 storage check failed; status is {status}.") from error
+            if post_storage_error is not None:
+                from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+
+                if isinstance(post_storage_error, (R2BudgetError, R2BudgetExceeded)):
+                    raise post_storage_error
+                status = "failed" if post_storage_confirmed else "unconfirmed"
+                raise RuntimeError(f"Run {self.run_id} completed, but its D1 storage check failed; status is {status}.") from post_storage_error
 
         return False

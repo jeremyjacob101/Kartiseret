@@ -364,5 +364,6 @@ class ComingSoonsTmdb(BaseDataflow):
             unresolved = bool(self.unresolved_identity_keys_by_snapshot.get(snapshot_id))
             self.advanceSnapshotPublication(snapshot_id, "published", has_unresolved=unresolved)
 
-        clear_old_entries("soons")
+        from backend.utils.log.shared_cleanup import current_run_lease_guard
+        clear_old_entries("soons", lease_guard=current_run_lease_guard())
         dedupe_all_soons(dry_run=False)

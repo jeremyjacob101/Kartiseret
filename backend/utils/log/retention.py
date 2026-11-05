@@ -11,7 +11,7 @@ LOW_WATER_BYTES = 300_000_000
 DAILY_WRITE_BUDGET = 5_000
 
 
-def cleanup_by_storage(store, *, now=None):
+def cleanup_by_storage(store, *, now=None, lease_token: str | None = None):
     from backend.utils.log.run_storage import _r2_client
 
     now = now or datetime.now(timezone.utc)
@@ -26,7 +26,8 @@ def cleanup_by_storage(store, *, now=None):
     if not state.get('active') and size < HIGH_WATER_BYTES:
         return {'size': size, 'pending': False}
 
-    token = store.acquire_run_lease(lease_hours=1)
+    owns_lease = lease_token is None
+    token = lease_token or store.acquire_run_lease(lease_hours=1)
     try:
         def renew_lease():
             current = datetime.now(timezone.utc)
@@ -99,4 +100,5 @@ def cleanup_by_storage(store, *, now=None):
             d1.execute('UPDATE retention_state SET run_id = NULL, start_size = NULL, active = ? WHERE id = 1', (int(size > LOW_WATER_BYTES),))
         return {'size': size, 'pending': True}
     finally:
-        store.release_run_lease(token=token)
+        if owns_lease:
+            store.release_run_lease(token=token)

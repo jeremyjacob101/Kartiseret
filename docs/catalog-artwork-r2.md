@@ -87,14 +87,16 @@ python -m backend.dataflow.backfill_catalog_artwork --target development --backf
 python -m backend.dataflow.backfill_catalog_artwork --target development --backfill --apply
 ```
 
-Cleanup has a 30-day grace period for recently uploaded objects. It reads every catalog poster/backdrop in all three tables, accounts for shared keys, and skips deletion if its reference scan fails or a dataflow run is active. The operator must pause all scheduled or manually started dataflow runs throughout cleanup; the environment flag is an additional assertion, not a distributed lock. First inspect the dry-run candidates, then apply only when the entire dataflow is paused:
+The shared cleanup applies a 30-day grace period to unreferenced artwork and social preview cards. It scans all catalog tables, retains shared variants and completion markers, and refuses deletion if reference data or object listings are incomplete or malformed. Cleanup and pipeline writers coordinate through one target-specific D1 lease; the lease is the cross-host lock. Daily automation starts in dry-run mode until the environment is explicitly enabled after candidate review:
 
 ```sh
-ARTWORK_CLEANUP_PIPELINE_PAUSED=true python -m backend.dataflow.backfill_catalog_artwork --target development --cleanup
-ARTWORK_CLEANUP_PIPELINE_PAUSED=true python -m backend.dataflow.backfill_catalog_artwork --target development --cleanup --apply
+python -m backend.utils.log.shared_cleanup --target development --dry-run --force
+python -m backend.utils.log.shared_cleanup --target development --apply --force
 ```
 
-The cleanup script will not infer that an object is unused from age alone. An object remains while any catalog category references it. Never run cleanup during a backfill or while catalog updates can publish references concurrently.
+Shared cleanup acquires the D1 target lease, scans every catalog reference, and batches at most 500 old orphan deletions per category per run. See [shared cleanup](shared-cleanup.md) for the once-daily schedule, dry-run rollout, and target credentials.
+
+The cleanup script will not infer that an object is unused from age alone. An object remains while any catalog category references it. Apply-mode artwork backfills and social-preview jobs use the same lease.
 
 ## Monitoring and retry behavior
 

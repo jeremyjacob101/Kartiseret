@@ -1,5 +1,7 @@
 import base64
 from io import BytesIO
+from contextlib import nullcontext
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 import unittest
 import sys
@@ -7,6 +9,7 @@ from unittest.mock import Mock, patch
 
 from backend.dataflow.BaseDataflow import BaseDataflow
 from backend.dataflow import social_previews
+from backend.utils.log.r2_budget import R2BudgetExceeded
 
 
 FINGERPRINT = "a" * 64
@@ -92,7 +95,7 @@ class SocialPreviewTests(unittest.TestCase):
     def test_cli_apply_distinguishes_development_and_production(self):
         selected = {"SUPABASE_URL": "https://example.supabase.co", "SUPABASE_SERVICE_ROLE_KEY": "test"}
         for target in ("development", "production"):
-            with self.subTest(target=target), patch.object(sys, "argv", ["social_previews", "--target", target, "--apply"]), patch("dotenv.load_dotenv"), patch.object(social_previews, "resolve_target_environment", return_value=selected), patch.object(social_previews.ArtworkStorage, "from_environment", return_value=object()), patch("supabase.create_client", return_value=object()), patch.object(social_previews, "refresh_social_previews", return_value={}):
+            with self.subTest(target=target), patch.object(sys, "argv", ["social_previews", "--target", target, "--apply"]), patch("dotenv.load_dotenv"), patch.object(social_previews, "resolve_target_environment", return_value=selected), patch.object(social_previews.ArtworkStorage, "from_environment", return_value=object()), patch("supabase.create_client", return_value=object()), patch.object(social_previews, "refresh_social_previews", return_value={}), patch("backend.utils.log.shared_cleanup.maintenance_lease", return_value=nullcontext((Mock(), "token"))):
                 if target == "development":
                     social_previews.main()
                 else:
@@ -252,6 +255,22 @@ class SocialPreviewTests(unittest.TestCase):
         )
         self.assertIn(f"social/v1/{FINGERPRINT}/card.jpg", retry_r2.objects)
 
+    def test_r2_budget_exhaustion_is_not_swallowed_by_best_effort_refresh(self):
+        client = self.make_client()
+        r2 = FakeR2()
+        r2.put_object = Mock(side_effect=R2BudgetExceeded("Class A budget reached"))
+        with self.assertRaises(R2BudgetExceeded):
+            self.refresh(client, r2, FakeWorker())
+
+    def test_configured_social_hook_propagates_budget_exhaustion(self):
+        with patch.object(social_previews.ArtworkStorage, "from_environment", return_value=object()), patch(
+            "supabase.create_client", return_value=object()
+        ), patch.object(
+            social_previews, "refresh_social_previews", side_effect=R2BudgetExceeded("Class B budget reached")
+        ):
+            with self.assertRaises(R2BudgetExceeded):
+                social_previews.refresh_configured_social_previews()
+
     def test_categories_with_the_same_card_fingerprint_share_one_r2_object(self):
         client = self.make_client()
         r2 = FakeR2()
@@ -287,6 +306,49 @@ class SocialPreviewTests(unittest.TestCase):
         self.assertEqual(result["stale"], 1)
         client.table.return_value.update.assert_not_called()
         self.assertIn(f"social/v1/{FINGERPRINT}/card.jpg", r2.objects)
+
+    def test_cleanup_keeps_live_and_recent_cards_and_deletes_only_old_orphans(self):
+        old = datetime.now(timezone.utc) - timedelta(days=31)
+        recent = datetime.now(timezone.utc) - timedelta(days=1)
+        live, orphan, fresh = "a" * 64, "b" * 64, "c" * 64
+        r2 = Mock()
+        r2.delete_objects.return_value = {}
+        r2.get_paginator.return_value.paginate.return_value = [{"Contents": [
+            {"Key": f"social/v1/{live}/card.jpg", "LastModified": old},
+            {"Key": f"social/v1/{orphan}/card.jpg", "LastModified": old},
+            {"Key": f"social/v1/{fresh}/card.jpg", "LastModified": recent},
+        ]}]
+        rows = {
+            "finalMovies": [{"social_preview_fingerprint": live}],
+            "finalSoons": [],
+            "finalThequeMovies": [],
+        }
+        with patch.object(social_previews, "each_row", side_effect=lambda _client, table, _columns: iter(rows[table])):
+            result = social_previews.cleanup_social_previews(
+                Mock(), SimpleNamespace(client=r2, bucket="dev"), apply=False,
+            )
+            applied = social_previews.cleanup_social_previews(
+                Mock(), SimpleNamespace(client=r2, bucket="dev"), apply=True,
+            )
+        self.assertEqual(result["live_fingerprints"], 1)
+        self.assertEqual(result["eligible_objects"], 1)
+        self.assertEqual(applied["deleted"], 1)
+        self.assertEqual(
+            r2.delete_objects.call_args.kwargs["Delete"]["Objects"],
+            [{"Key": f"social/v1/{orphan}/card.jpg"}],
+        )
+
+    def test_cleanup_aborts_on_malformed_fingerprint_before_deletion(self):
+        r2 = Mock()
+        with patch.object(
+            social_previews, "each_row",
+            side_effect=lambda _client, table, _columns: iter([{"social_preview_fingerprint": "bad"}] if table == "finalMovies" else []),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "malformed data"):
+                social_previews.cleanup_social_previews(
+                    Mock(), SimpleNamespace(client=r2, bucket="dev"), apply=True,
+                )
+        r2.delete_objects.assert_not_called()
 
     def test_bad_fingerprint_is_rejected_before_a_write(self):
         class InvalidWorker(FakeWorker):

@@ -462,6 +462,7 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
             unresolved = bool(self.unresolved_identity_keys_by_snapshot.get(snapshot_id))
             self.advanceSnapshotPublication(snapshot_id, "published", has_unresolved=unresolved)
 
-        clear_old_entries("cinematheques")
+        from backend.utils.log.shared_cleanup import current_run_lease_guard
+        clear_old_entries("cinematheques", lease_guard=current_run_lease_guard())
         clear_orphan_final_theque_movies()
         dedupe_all_theques(dry_run=False)
