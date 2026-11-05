@@ -23,12 +23,16 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
-      - name: Record runner and toolchain
+      - name: Record runner, source and toolchain
         shell: bash
         run: |
           mkdir -p "$RUNNER_TEMP/swift-codeql-diagnostics"
           {
             date -u
+            echo "Runner label: ${{ matrix.runner }}"
+            echo "Workflow run: $GITHUB_RUN_ID attempt: $GITHUB_RUN_ATTEMPT"
+            echo "Git revision: $(git rev-parse HEAD)"
+            echo "Git tree: $(git rev-parse HEAD^{tree})"
             uname -a
             sw_vers
             sysctl -n hw.ncpu hw.memsize || true
@@ -36,55 +40,69 @@ jobs:
             xcode-select -p
             swift --version
             df -h "$RUNNER_TEMP"
+            echo 'Tracked Swift source checksums:'
+            git ls-files -z '*.swift' | xargs -0 shasum -a 256
           } | tee "$RUNNER_TEMP/swift-codeql-diagnostics/environment.txt"
-      # Start before init so the sampler does not inherit CodeQL tracing.
-      # The marker prevents the runner's per-step process cleanup from killing it.
-      - name: Start independent sampler
-        shell: bash
-        run: |
-          RUNNER_TRACKING_ID=swift-codeql-diagnostic nohup bash .github/scripts/swift-codeql-diagnostics.sh monitor > "$RUNNER_TEMP/swift-codeql-diagnostics/monitor.log" 2>&1 < /dev/null &
-          echo "$!" > "$RUNNER_TEMP/swift-codeql-diagnostics/monitor.pid"
       - name: Baseline clean app build
         shell: bash
         run: bash .github/scripts/swift-codeql-diagnostics.sh baseline
       - name: Initialize CodeQL for Swift
+        id: init
         uses: github/codeql-action/init@v4
         with:
           languages: swift
           build-mode: manual
+          tools: https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.27.4/codeql-bundle-swift-osx64.tar.zst
       - name: Traced clean app build
         shell: bash
         run: bash .github/scripts/swift-codeql-diagnostics.sh traced
       - name: Finalize and analyze without uploading results
+        id: analyze
         uses: github/codeql-action/analyze@v4
         with:
           category: /language:swift-diagnostic
+          output: ${{ runner.temp }}/swift-codeql-diagnostics/sarif
+          post-processed-sarif-path: ${{ runner.temp }}/swift-codeql-diagnostics/sarif-postprocessed
           upload: never
-      - name: Stop sampler and collect CodeQL diagnostics
+          upload-database: false
+      - name: Collect analysis and coverage evidence
         if: always()
         shell: bash
+        env:
+          CODEQL_PATH: ${{ steps.init.outputs.codeql-path }}
+          CODEQL_VERSION: ${{ steps.init.outputs.codeql-version }}
+          ANALYZE_OUTCOME: ${{ steps.analyze.outcome }}
         run: |
+          set -uo pipefail
           dest="$RUNNER_TEMP/swift-codeql-diagnostics"
           db="$RUNNER_TEMP/codeql_databases/swift"
-          mkdir -p "$dest/codeql"
-          touch "$dest/monitor.stop"
-          for i in {1..20}; do [ -f "$dest/monitor.done" ] && break; sleep 1; done
-          if [ ! -f "$dest/monitor.done" ] && [ -f "$dest/monitor.pid" ]; then
-            kill "$(cat "$dest/monitor.pid")" 2>/dev/null || true
-            echo 'Sampler did not stop gracefully' >> "$dest/monitor.log"
-          fi
+          mkdir -p "$dest/codeql" "$dest/coverage"
+          printf 'CodeQL version: %s\nAnalyze outcome: %s\n' "$CODEQL_VERSION" "$ANALYZE_OUTCOME" | tee "$dest/analysis-status.txt"
           for dir in log diagnostic; do
-            if [ -d "$db/$dir" ]; then
-              cp -R "$db/$dir" "$dest/codeql/" || true
-            fi
+            if [ -d "$db/$dir" ]; then cp -R "$db/$dir" "$dest/codeql/" || true; fi
           done
-          echo 'CodeQL diagnostic files:'
-          find "$dest/codeql" -type f -print || true
+          if [ -d "$db/results/codeql/swift-queries/diagnostics" ]; then
+            cp -R "$db/results/codeql/swift-queries/diagnostics" "$dest/coverage/bqrs"
+            if [ -n "$CODEQL_PATH" ] && [ -x "$CODEQL_PATH" ]; then
+              find "$dest/coverage/bqrs" -name '*.bqrs' -type f -print | while IFS= read -r file; do
+                echo "Decoding coverage query: $file"
+                "$CODEQL_PATH" bqrs info --format=json "$file" > "$file.info.json" 2> "$file.info.err" || true
+                "$CODEQL_PATH" bqrs decode --format=json --entities=url,string "$file" > "$file.json" 2> "$file.decode.err" || true
+              done
+            fi
+          fi
+          echo 'Evidence inventory:'
+          find "$dest" -type f -print | sort
+          if [ "$ANALYZE_OUTCOME" = success ]; then
+            test -s "$dest/sarif/swift.sarif" || { echo 'ERROR: successful analysis produced no SARIF' >&2; exit 1; }
+            test -f "$dest/coverage/bqrs/ExtractedFiles.bqrs" || { echo 'ERROR: extracted-files query results missing' >&2; exit 1; }
+            echo 'SARIF and extracted-files results are present.'
+          fi
       - name: Upload diagnostic evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: swift-codeql-diagnostics-${{ matrix.runner }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: swift-codeql-final-${{ matrix.runner }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/swift-codeql-diagnostics
           retention-days: 7
-          if-no-files-found: warn
+          if-no-files-found: error
