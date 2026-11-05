@@ -150,7 +150,8 @@ class RunArtifactStore:
             ((now + timedelta(hours=lease_hours)).isoformat(timespec="seconds"), token, now.isoformat(timespec="seconds")),
         )
         if result.changes != 1:
-            raise CloudflareStorageError("The shared D1 maintenance lease expired or was lost.")
+            from backend.utils.log.cloudflare_storage import LeaseLostError
+            raise LeaseLostError("The shared D1 maintenance lease expired or was lost.")
 
     def cleanup_state(self) -> dict:
         self.ensure_schema()

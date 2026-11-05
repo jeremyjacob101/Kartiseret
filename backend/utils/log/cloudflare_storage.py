@@ -19,6 +19,10 @@ class CloudflareStorageError(RuntimeError):
     """A D1 or R2 request failed; credentials are never included in the error."""
 
 
+class LeaseLostError(CloudflareStorageError):
+    """The job no longer owns its target's maintenance lease."""
+
+
 def redact_secrets(value: str) -> str:
     """Redact recognizable credentials and every configured secret value."""
     text = str(value or "")

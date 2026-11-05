@@ -86,6 +86,15 @@ class FakeR2:
 
 
 class SocialPreviewTests(unittest.TestCase):
+    def test_lease_loss_stops_preview_refresh(self):
+        from backend.utils.log.cloudflare_storage import LeaseLostError
+
+        client = self.make_client()
+        r2 = FakeR2()
+        r2.put_object = Mock(side_effect=LeaseLostError("lease lost"))
+        with self.assertRaises(LeaseLostError):
+            self.refresh(client, r2, FakeWorker())
+
     def test_installed_supabase_update_builder_supports_direct_execute(self):
         from supabase import create_client
 

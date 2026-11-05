@@ -13,6 +13,7 @@ from backend.utils.console.progressBars import RunResult, RichRunUI
 from backend.config.registry import DATAFLOW_REGISTRY, POST_STAGE_DATAFLOW_CLASS_NAMES, REGISTRY
 from backend.utils.log.artifact_logging import artifactPrinting
 from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+from backend.utils.log.cloudflare_storage import LeaseLostError
 from backend.config.scrape_scheduler import optimal_assignment, duration_to_milliseconds, WORKER_COUNT
 from backend.dataflow.utils.DataflowRequests import DataflowRequestContext
 from backend.dataflow.utils.PublicationWorkspace import CATEGORY_KEYS, publication_scope
@@ -24,7 +25,7 @@ RUNNING_NON_INTERACTIVE = os.environ.get("GITHUB_ACTIONS") == "true" or os.envir
 
 
 def _is_r2_budget_error(error: BaseException) -> bool:
-    return isinstance(error, (R2BudgetError, R2BudgetExceeded))
+    return isinstance(error, (R2BudgetError, R2BudgetExceeded, LeaseLostError))
 
 cinemaDictionary = {"registry": REGISTRY, "make_instance": lambda cls, key, run_id, _context=None: cls(cinema_type=key, supabase_table_name=key, run_id=run_id), "run_instance": lambda inst: inst.scrape(), "cleanup": lambda instance: (instance.driver.quit() if instance and getattr(instance, "driver", None) else None), "count_label": "Scrapers", "mode": "parallel", "total_strategy": "max", "overall_task_name": "Scrape", "get_item_name": lambda cls: getattr(cls, "CINEMA_NAME", cls.__name__)}
 dataflowDictionary = {"registry": DATAFLOW_REGISTRY, "make_instance": lambda cls, _key, run_id, context=None: cls(run_id=run_id, **({"request_context": context} if context is not None and cls.__name__ != "TicketAlertDispatcher" else {})), "run_instance": lambda inst: inst.dataRun(), "cleanup": lambda instance: (instance.driver.quit() if instance and getattr(instance, "driver", None) else None), "count_label": "Dataflows", "mode": "sequential", "total_strategy": "sum", "overall_task_name": "Dataflow", "get_item_name": lambda cls: cls.__name__}

@@ -32,16 +32,23 @@ def lease_renewal_callback(store: RunArtifactStore, token: str, *, interval_seco
         raise ValueError("Lease renewal interval must be positive")
     last_renewal = time.monotonic() - interval_seconds
 
+    def renew_or_fail() -> None:
+        from backend.utils.log.cloudflare_storage import LeaseLostError
+        try:
+            store.renew_run_lease(token)
+        except Exception as error:
+            raise LeaseLostError("Target lease lost or ownership could not be confirmed; job stopped") from error
+
     def renew() -> None:
         nonlocal last_renewal
         current = time.monotonic()
         if current - last_renewal >= interval_seconds:
-            store.renew_run_lease(token)
+            renew_or_fail()
             last_renewal = current
 
     def verify() -> None:
         nonlocal last_renewal
-        store.renew_run_lease(token)
+        renew_or_fail()
         last_renewal = time.monotonic()
 
     renew.verify = verify

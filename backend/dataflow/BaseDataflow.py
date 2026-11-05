@@ -77,8 +77,9 @@ class BaseDataflow(ProviderFreshness, PipelineCheckpoints, InitializeBaseDataflo
         except Exception as error:
             self.discardPublicationStage()
             from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+            from backend.utils.log.cloudflare_storage import LeaseLostError
 
-            if not isinstance(error, (R2BudgetError, R2BudgetExceeded)):
+            if not isinstance(error, (R2BudgetError, R2BudgetExceeded, LeaseLostError)):
                 self.flush_summary(successful=False)
             raise
         finally:
