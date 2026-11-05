@@ -73,14 +73,8 @@ class ArtworkStorage:
             raise ValueError("R2_ACCOUNT_ID must be a 32-character hexadecimal ID")
         if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])", bucket):
             raise ValueError("R2_BUCKET must be a 3-63 character bucket name")
-        import boto3
-        client = boto3.client(
-            "s3",
-            endpoint_url=f"https://{account_id.lower()}.r2.cloudflarestorage.com",
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-            region_name="auto",
-        )
+        from backend.utils.log.r2_client import create_r2_s3_client
+        client = create_r2_s3_client(access_key=access_key, secret_key=secret_key)
         return cls(client, bucket, image_origin)
 
     @classmethod

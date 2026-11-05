@@ -31,6 +31,24 @@ python -m backend.utils.log.initialize_run_storage --target development
 No Worker, Wrangler configuration, Worker secret, or scheduled Cloudflare
 cleanup is required. The scraper checks D1 storage before and after runs.
 
+## R2 runaway request guard
+
+Every Python R2 client is created through the shared guarded client factory.
+At the Botocore HTTP-send boundary, each outgoing attempt is atomically
+reserved in a per-job SQLite ledger. The default limits are 100,000 Class A
+operations and 100,000 Class B operations per logical job. Override them with
+positive integer `KARTISERET_R2_CLASS_A_LIMIT` and
+`KARTISERET_R2_CLASS_B_LIMIT` values. Class A includes writes, copies, and
+listing; Class B includes object reads and HEAD checks. Unknown operations
+count as Class A. Deletes and multipart aborts do not use either allowance.
+
+SDK automatic retries are disabled so a retry cannot bypass the budget; each
+request attempt that reaches the send hook is counted. When a limit is reached
+or the local ledger cannot be read or updated, the next R2 request is blocked
+and the job fails. The summary reports both counters and whether a limit
+tripped. This is a per-job safeguard, not a monthly or account-wide Cloudflare
+cap; repeated jobs and other clients have separate budgets.
+
 ## Cleanup and recovery
 
 The scraper begins removing the oldest completed runs when D1 reaches 350 MB,

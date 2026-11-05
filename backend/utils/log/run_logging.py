@@ -106,6 +106,8 @@ class RunLogSession:
         self._lease_token: str | None = None
 
     def __enter__(self) -> "RunLogSession":
+        from backend.utils.log.r2_budget import R2Budget
+        R2Budget.create_job_budget()
         try:
             self._start_time = float(os.environ.get("KARTISERET_JOB_STARTED_MONOTONIC", time.monotonic()))
         except (TypeError, ValueError):
@@ -164,6 +166,22 @@ class RunLogSession:
     def __exit__(self, exc_type, exc, tb) -> bool:
         if exc_type is not None:
             self._successful = False
+
+        # Report before finalization so even a finalization failure caused by
+        # an exhausted budget leaves a useful, non-sensitive usage summary.
+        try:
+            from backend.utils.log.r2_budget import R2Budget
+            budget = R2Budget.from_environment()
+            if budget is not None:
+                counts = budget.snapshot()
+                print(
+                    "R2 job budget: "
+                    f"Class A {counts['class_a']}/{budget.class_a_limit}, "
+                    f"Class B {counts['class_b']}/{budget.class_b_limit}, "
+                    f"tripped={counts['tripped'] or 'no'}"
+                )
+        except Exception as error:
+            print(f"R2 job budget summary unavailable ({type(error).__name__}).")
 
         if self.run_id is not None:
             total_time = max(0.0, time.monotonic() - self._start_time)
