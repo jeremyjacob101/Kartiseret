@@ -62,6 +62,66 @@ class SharedCleanupTests(unittest.TestCase):
             "",
         )
 
+    def test_elapsed_timestamp_never_allows_a_second_owner(self):
+        token = self.store.acquire_run_lease()
+        self.d1.execute("UPDATE run_locks SET lease_until = '1970-01-01T00:00:00+00:00' WHERE id=1")
+        with self.assertRaises(CloudflareStorageError):
+            self.store.acquire_run_lease()
+        self.store.renew_run_lease(token)
+        with self.assertRaises(CloudflareStorageError):
+            self.store.release_run_lease(token="another-owner")
+        self.store.release_run_lease(token=token)
+        self.assertNotEqual(self.store.acquire_run_lease(), token)
+
+    def test_recovery_requires_confirmation_and_exact_owner(self):
+        from backend.utils.log.recover_run_lock import recover_lock
+        token = self.store.acquire_run_lease()
+        with self.assertRaises(ValueError):
+            recover_lock(self.store, Mock(), expected_token=token, owner_stopped=False)
+        with self.assertRaises(CloudflareStorageError):
+            recover_lock(self.store, Mock(), expected_token="wrong", owner_stopped=True)
+        recover_lock(self.store, Mock(), expected_token=token, owner_stopped=True)
+        self.store.acquire_run_lease()
+
+    def test_missing_artwork_configuration_prevents_retention_mutation(self):
+        with patch("backend.dataflow.utils.ArtworkStorage.ArtworkStorage.from_environment", return_value=None), patch.object(
+            self.store, "check_storage"
+        ) as retention:
+            with self.assertRaises(RuntimeError):
+                shared_cleanup.run_shared_cleanup(self.store, lease_token="held", target="development", apply=True)
+        retention.assert_not_called()
+
+    def test_publication_reference_source_rejects_missing_pages(self):
+        from backend.dataflow.utils.PublicationWorkspace import PublicationWorkspace
+        client = Mock()
+        client.table.return_value.select.return_value.order.return_value.range.return_value.execute.return_value.data = None
+        workspace = PublicationWorkspace("nowplayings", client=client)
+        with self.assertRaisesRegex(RuntimeError, "Incomplete or malformed"):
+            workspace._load("finalMovies")
+        self.assertEqual(workspace.tables, {})
+
+    def test_pipeline_recovery_marks_unconfirmed_before_release(self):
+        from backend.utils.log.recover_run_lock import recover_lock
+        token = self.store.acquire_run_lease()
+        self.store.attach_run_id_to_lease(token, 42)
+        self.store.start_run(run_id=42, target="development", run_from="test")
+        client = Mock()
+        client.table.return_value.update.return_value.eq.return_value.execute.return_value.data = [{"run_id": 42}]
+        recover_lock(self.store, client, expected_token=token, owner_stopped=True)
+        self.assertEqual(self.d1.execute("SELECT status FROM run_logs WHERE run_id=42").rows[0]["status"], "unconfirmed")
+        self.store.acquire_run_lease()
+
+    def test_unconfirmed_run_recovery_retains_lock_when_supabase_fails(self):
+        from backend.utils.log.recover_run_lock import recover_lock
+        token = self.store.acquire_run_lease()
+        self.store.attach_run_id_to_lease(token, 42)
+        client = Mock()
+        client.table.return_value.update.return_value.eq.return_value.execute.return_value.data = []
+        with self.assertRaises(CloudflareStorageError):
+            recover_lock(self.store, client, expected_token=token, owner_stopped=True)
+        with self.assertRaises(CloudflareStorageError):
+            self.store.acquire_run_lease()
+
     def test_lease_renewal_callback_throttles_d1_writes(self):
         with patch("backend.utils.log.shared_cleanup.time.monotonic", side_effect=[0.0, 100.0, 110.0, 161.0]), patch.object(
             self.store, "renew_run_lease"
@@ -121,7 +181,7 @@ class SharedCleanupTests(unittest.TestCase):
             self.store, "renew_run_lease"
         ), patch(
             "backend.utils.supabase.clear_old_entries.clear_old_entries"
-        ) as old_entries:
+        ) as old_entries, patch("backend.dataflow.utils.ArtworkStorage.ArtworkStorage.from_environment", return_value=object()):
             result = shared_cleanup.run_shared_cleanup(
                 self.store, lease_token="held", target="development", apply=True, now=now,
             )

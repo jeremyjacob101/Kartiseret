@@ -464,5 +464,5 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
 
         from backend.utils.log.shared_cleanup import current_run_lease_guard
         clear_old_entries("cinematheques", lease_guard=current_run_lease_guard())
-        clear_orphan_final_theque_movies()
+        clear_orphan_final_theque_movies(lease_guard=current_run_lease_guard())
         dedupe_all_theques(dry_run=False)

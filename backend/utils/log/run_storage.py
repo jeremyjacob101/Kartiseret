@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from hashlib import sha256
 from io import BytesIO
 import json
@@ -32,6 +32,7 @@ SCRAPED_READ_PAGE_SIZE = 500
 TEXT_ARTIFACT_READ_PAGE_SIZE = 25
 _schema_lock = threading.Lock()
 _schema_ready: set[str] = set()
+LOCK_HELD_UNTIL = "9999-12-31T23:59:59+00:00"
 
 
 def _canonical(value) -> str:
@@ -127,15 +128,17 @@ class RunArtifactStore:
             _schema_ready.add(self.schema_id)
 
     def acquire_run_lease(self, *, lease_hours: int = 5) -> str:
+        """Acquire exclusive target ownership; timestamps never authorize takeover.
+
+        A crashed owner must be confirmed stopped before its token is cleared.
+        This also protects writers paused longer than the diagnostic lease time.
+        """
         self.ensure_schema()
         token = uuid.uuid4().hex
-        now = datetime.now(timezone.utc)
-        now_text = now.isoformat(timespec="seconds")
-        expiry = (now + timedelta(hours=lease_hours)).isoformat(timespec="seconds")
         result = self.d1.execute(
             "UPDATE run_locks SET lease_token = ?, run_id = NULL, lease_until = ? "
-            "WHERE id = 1 AND lease_until <= ?",
-            (token, expiry, now_text),
+            "WHERE id = 1 AND lease_token = '' AND run_id IS NULL",
+            (token, LOCK_HELD_UNTIL),
         )
         if result.changes != 1:
             raise CloudflareStorageError(
@@ -144,14 +147,13 @@ class RunArtifactStore:
         return token
 
     def renew_run_lease(self, token: str, *, lease_hours: int = 5) -> None:
-        now = datetime.now(timezone.utc)
         result = self.d1.execute(
-            "UPDATE run_locks SET lease_until = ? WHERE id = 1 AND lease_token = ? AND lease_until > ?",
-            ((now + timedelta(hours=lease_hours)).isoformat(timespec="seconds"), token, now.isoformat(timespec="seconds")),
+            "UPDATE run_locks SET lease_until = ? WHERE id = 1 AND lease_token = ? AND lease_token <> ''",
+            (LOCK_HELD_UNTIL, token),
         )
         if result.changes != 1:
             from backend.utils.log.cloudflare_storage import LeaseLostError
-            raise LeaseLostError("The shared D1 maintenance lease expired or was lost.")
+            raise LeaseLostError("The shared D1 maintenance lock no longer belongs to this job.")
 
     def cleanup_state(self) -> dict:
         self.ensure_schema()

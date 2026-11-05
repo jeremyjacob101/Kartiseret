@@ -338,7 +338,7 @@ def run_managed_process(
         run_id = state["run_id"]
         _record_interrupted_run(run_id, reason=reason, started_at=started_at, root=root)
         remote_finalized = None
-        if run_id is not None:
+        if run_id is not None and reaped:
             remote_finalized = _finalize_run_lock(
                 run_id,
                 started_at=started_at,

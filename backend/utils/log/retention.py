@@ -30,10 +30,7 @@ def cleanup_by_storage(store, *, now=None, lease_token: str | None = None):
     token = lease_token or store.acquire_run_lease(lease_hours=1)
     try:
         def renew_lease():
-            current = datetime.now(timezone.utc)
-            renewal = d1.execute('UPDATE run_locks SET lease_until = ? WHERE id = 1 AND lease_token = ? AND lease_until > ?', ((current + timedelta(hours=1)).isoformat(), token, current.isoformat()))
-            if renewal.changes != 1:
-                raise CloudflareStorageError('Cleanup lease expired or was lost.')
+            store.renew_run_lease(token)
 
         size = d1.measure_database_size()
         day = now.date().isoformat()

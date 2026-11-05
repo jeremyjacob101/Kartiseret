@@ -19,6 +19,22 @@ from backend.config import runner_worker
 
 
 class JobSupervisorTests(TestCase):
+    def test_unconfirmed_process_shutdown_never_releases_remote_lock(self):
+        from backend.config import job_supervisor
+        original_stop = job_supervisor._stop_process_group
+
+        def stop_but_report_unconfirmed(*args, **kwargs):
+            original_stop(*args, **kwargs)
+            return False
+
+        code = "import os,json,time; os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps({'event':'run_id','run_id':42})+'\\n').encode()); time.sleep(60)"
+        with patch.object(job_supervisor, "_stop_process_group", side_effect=stop_but_report_unconfirmed), patch.object(
+            job_supervisor, "_finalize_run_lock"
+        ) as finalize, patch.object(job_supervisor, "_record_interrupted_run"):
+            outcome = run_managed_process([sys.executable, "-c", code], seconds=0.3, grace_seconds=0.5)
+        self.assertEqual(outcome.reason, "child_reap_timeout")
+        finalize.assert_not_called()
+
     def test_job_and_shutdown_limits_cannot_outlive_the_lease(self):
         from backend.config.job_supervisor import job_seconds, termination_grace_seconds, run_managed_process
 

@@ -4,7 +4,8 @@
 
 ## Safety and coordination
 
-- Each target uses its own D1 `run_locks` lease. Pipeline runs acquire the lease before startup cleanup and keep it through run finalization and the post-run D1 size check. The scheduled workflow and standalone mutating artwork/social commands use the same lease.
+- Each target uses its own exclusive D1 `run_locks` owner token. Pipeline runs acquire it before startup cleanup and keep it through run finalization and the post-run D1 size check. Scheduled and standalone mutating commands use the same lock. A timestamp never permits takeover of a held token, protecting long jobs and suspended machines without a background renewal thread.
+- Existing lease method/column names remain for compatibility. Held tokens write a far-future timestamp so older clients also cannot take over. Checks before deletion fail closed on D1 errors or a changed token. Supervisor timeouts bound resource use; lock safety does not depend on those timeouts.
 - Cleanup scans the selected target only. `--target` is required unless `KARTISERET_TARGET` is already selected; the target resolver checks Supabase project, artwork bucket, D1 UUID shape, and private artifact bucket names before work starts.
 - The R2 artwork, social-card, and orphan-artifact stages delete at most 500 objects each per invocation. Artwork and social references must scan completely and pass validation before deletion. Run artifacts are eligible only when older than 30 days, absent from D1 references, and owned by a confirmed successful run; active, failed, unconfirmed, unknown, or recoverable runs are retained.
 - A successful applied cleanup is recorded in the target's D1 database and suppresses expensive catalog scans until the next UTC day. Dry-runs have a separate daily marker and never count as a successful cleanup. D1 storage checks still run before and after jobs.
@@ -23,6 +24,18 @@ python -m backend.utils.log.shared_cleanup --target production --dry-run --force
 ```
 
 `--force` bypasses the once-per-day marker. Omit it for ordinary scheduled or pipeline use. A cleanup that cannot acquire the target lease exits successfully with a clear `skipped` report; a pipeline fails startup if safe preflight cannot complete. The report contains counts and object totals, never credentials or payloads.
+
+## Recovering an interrupted owner
+
+Normal completion and handled failure release the owner token. The supervisor only finalizes and releases an interrupted pipeline after confirming its process group stopped. A crash, killed supervisor, or failed release can leave the lock held. Scheduled cleanup then skips; another pipeline waits for its bounded interval and fails startup. This is intentional: an expired timestamp cannot prove a remote process is dead.
+
+Stop the old owner and all descendants on the scheduler host before recovering. Inspect `SELECT lease_token, run_id FROM run_locks WHERE id = 1` in the selected target's D1 console. Then run:
+
+```bash
+python -m backend.utils.log.recover_run_lock --target development --expected-token THE_OBSERVED_TOKEN --confirm-owner-stopped
+```
+
+Use `--target production` only for the production lock. Recovery checks the exact token and refuses to clear a different owner. For a pipeline run, it requires Supabase failure confirmation and marks D1 unconfirmed before releasing; standalone locks have no run ID. Do not recover a lock merely because its owner is slow or temporarily offline. Update every scheduler host to the merged code before enabling automatic cleanup; stale code must not keep launching writers outside the shared lock.
 
 ## GitHub Actions configuration
 

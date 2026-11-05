@@ -325,6 +325,12 @@ def run_shared_cleanup(
     """Run all target-scoped cleanup in a stable order under one D1 lease."""
     if target not in {"development", "production"}:
         raise ValueError("Shared cleanup requires an explicit development or production target")
+    from backend.dataflow.utils.ArtworkStorage import ArtworkStorage
+
+    # Validate every required client before any Supabase or retention mutation.
+    artwork = ArtworkStorage.from_environment()
+    if artwork is None:
+        raise RuntimeError("Selected target artwork R2 credentials are required for shared cleanup")
     now = now or datetime.now(timezone.utc)
     day = now.date().isoformat()
     state = store.cleanup_state()
@@ -360,11 +366,6 @@ def run_shared_cleanup(
 
     from backend.dataflow.backfill_catalog_artwork import run_cleanup as cleanup_artwork
     from backend.dataflow.social_previews import cleanup_social_previews
-    from backend.dataflow.utils.ArtworkStorage import ArtworkStorage
-
-    artwork = ArtworkStorage.from_environment()
-    if artwork is None:
-        raise RuntimeError("Selected target artwork R2 credentials are required for shared cleanup")
     guard = renew
     report["artwork"] = cleanup_artwork(
         _supabase_client(), artwork, apply=apply, lease_guard=guard,
