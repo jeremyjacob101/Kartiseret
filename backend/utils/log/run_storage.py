@@ -64,6 +64,10 @@ def _r2_client():
         from backend.utils.log.r2_client import create_r2_s3_client
         return create_r2_s3_client(access_key=access_key, secret_key=secret_key)
     except Exception as error:
+        from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+
+        if isinstance(error, (R2BudgetError, R2BudgetExceeded)):
+            raise
         raise CloudflareStorageError(f"Could not initialize guarded R2 client ({type(error).__name__}).") from error
 
 
@@ -427,6 +431,10 @@ class RunArtifactStore:
                     Metadata={"run-id": str(run_id or "unassigned"), "artifact-type": _safe_segment(artifact_type), "created-at": timestamp},
                 )
             except Exception as error:
+                from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+
+                if isinstance(error, (R2BudgetError, R2BudgetExceeded)):
+                    raise
                 raise CloudflareStorageError(f"R2 screenshot upload failed ({type(error).__name__}); local recovery copy retained.") from error
             self._insert_artifact_row(
                 artifact_id=artifact_id, run_id=run_id, artifact_type=artifact_type,

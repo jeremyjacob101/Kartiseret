@@ -16,6 +16,17 @@ DEFAULT_R2_CLASS_B_LIMIT = 100_000
 R2_BUDGET_PATH_ENV = "KARTISERET_R2_BUDGET_PATH"
 R2_CLASS_A_LIMIT_ENV = "KARTISERET_R2_CLASS_A_LIMIT"
 R2_CLASS_B_LIMIT_ENV = "KARTISERET_R2_CLASS_B_LIMIT"
+CLASS_B_OPERATIONS = {
+    "getobject",
+    "headobject",
+    "headbucket",
+    "usagesummary",
+    "getbucketencryption",
+    "getbucketlocation",
+    "getbucketcors",
+    "getbucketlifecycleconfiguration",
+}
+FREE_OPERATIONS = {"deleteobject", "deleteobjects", "deletebucket", "abortmultipartupload"}
 _init_lock = threading.Lock()
 
 
@@ -90,15 +101,32 @@ class R2Budget:
 
     def reserve(self, operation: str) -> None:
         """Atomically reserve an HTTP attempt; unknown operations count as Class A."""
-        lowered = operation.lower()
-        if lowered.startswith(("delete", "abortmultipart")):
-            return
-        if lowered in {"getobject", "headobject", "selectobjectcontent"}:
+        lowered = str(operation).lower()
+        non_billable = lowered in FREE_OPERATIONS
+        if lowered in CLASS_B_OPERATIONS:
             kind, limit = "class_b", self.class_b_limit
         else:
             kind, limit = "class_a", self.class_a_limit
         try:
             with self._connect() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                rows = dict(connection.execute("SELECT kind, count FROM counters").fetchall())
+                if set(rows) != {"class_a", "class_b"}:
+                    raise R2BudgetError("R2 budget counters are missing or malformed")
+                if any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in rows.values()):
+                    raise R2BudgetError("R2 budget counters are malformed")
+                state = connection.execute("SELECT tripped FROM state WHERE id = 1").fetchone()
+                if state is None:
+                    raise R2BudgetError("R2 budget state is missing")
+                tripped = state[0]
+                if tripped not in (None, "class_a", "class_b"):
+                    raise R2BudgetError("R2 budget state is malformed")
+                if tripped is not None:
+                    raise R2BudgetExceeded(
+                        f"R2 {tripped.replace('_', ' ')} operation budget was already reached; this job stopped before the next R2 request."
+                    )
+                if non_billable:
+                    return
                 result = connection.execute(
                     "UPDATE counters SET count = count + 1 WHERE kind = ? AND count < ?",
                     (kind, limit),

@@ -160,6 +160,24 @@ class ArtworkBackfillTests(unittest.TestCase):
         self.assertIn("en_poster", published)
         self.assertNotIn("backdrop", published)
 
+    def test_r2_budget_failure_is_not_swallowed_as_a_failed_variant(self):
+        from backend.utils.log.r2_budget import R2BudgetExceeded
+
+        row = {
+            "tmdb_id": 42,
+            "en_poster": "https://image.tmdb.org/t/p/w500/poster.jpg",
+            "backdrop": None,
+        }
+        storage = Mock()
+        storage.store.side_effect = R2BudgetExceeded("Class A budget reached")
+        with patch.object(
+            backfill,
+            "each_row",
+            side_effect=lambda _client, table, _columns: iter([row] if table == "finalMovies" else []),
+        ):
+            with self.assertRaisesRegex(R2BudgetExceeded, "Class A budget reached"):
+                backfill.run_backfill(Mock(), storage, apply=True)
+
     def test_rollback_uses_the_persisted_source_identity(self):
         row = {
             "tmdb_id": 42,

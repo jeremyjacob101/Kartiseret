@@ -188,6 +188,10 @@ class ArtworkStorage:
                 row[target_field] = result.url
                 self.record_metadata(row, kind, result)
             except Exception as error:
+                from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+
+                if isinstance(error, (R2BudgetError, R2BudgetExceeded)):
+                    raise
                 if getattr(flow, "summaryEnabled", False):
                     flow.trace_event("artwork", "failed", type(error).__name__, key=row.get("tmdb_id"), payload={"kind": kind})
         return row

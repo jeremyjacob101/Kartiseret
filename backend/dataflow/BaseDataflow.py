@@ -74,9 +74,12 @@ class BaseDataflow(ProviderFreshness, PipelineCheckpoints, InitializeBaseDataflo
                 from backend.dataflow.social_previews import refresh_configured_social_previews
 
                 refresh_configured_social_previews()
-        except Exception:
+        except Exception as error:
             self.discardPublicationStage()
-            self.flush_summary(successful=False)
+            from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+
+            if not isinstance(error, (R2BudgetError, R2BudgetExceeded)):
+                self.flush_summary(successful=False)
             raise
         finally:
             self.closeDataflowRequests()

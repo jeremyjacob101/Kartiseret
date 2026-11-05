@@ -117,6 +117,10 @@ def run_backfill(client, storage, *, apply: bool, limit: int | None = None):
                         ArtworkStorage.record_metadata(updated_row, kind, result)
                         new[field] = result.url
                     except Exception as error:
+                        from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+
+                        if isinstance(error, (R2BudgetError, R2BudgetExceeded)):
+                            raise
                         logging.warning("Artwork backfill failed for %s %s (%s)", table, kind, type(error).__name__)
                         failed = True
                 if failed:
