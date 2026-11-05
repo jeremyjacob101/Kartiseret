@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import sqlite3
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -152,6 +153,21 @@ class R2BudgetTests(unittest.TestCase):
             process.join(10)
             self.assertEqual(process.exitcode, 0)
         self.assertEqual(self.budget.snapshot()["class_a"], 100)
+
+    def test_threaded_reservations_share_one_atomic_ledger(self):
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            list(executor.map(lambda _index: self.budget.reserve("PutObject"), range(400)))
+        self.assertEqual(self.budget.snapshot()["class_a"], 400)
+
+    def test_class_b_limit_blocks_the_next_request_without_overcounting(self):
+        budget = R2Budget(self.path, class_a_limit=10, class_b_limit=1)
+        budget.reserve("GetObject")
+        with self.assertRaisesRegex(R2BudgetExceeded, "class b operation budget reached"):
+            budget.reserve("HeadObject")
+        self.assertEqual(
+            budget.snapshot(),
+            {"class_a": 0, "class_b": 1, "tripped": "class_b"},
+        )
 
     def test_install_guard_fails_closed_without_initialized_budget(self):
         os.environ.pop(R2_BUDGET_PATH_ENV, None)
