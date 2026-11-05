@@ -216,6 +216,19 @@ class SocialPreviewTests(unittest.TestCase):
         with self.assertRaisesRegex(R2BudgetExceeded, "Class B budget reached"):
             self.refresh(client, r2, FakeWorker())
 
+    def test_configured_social_hook_propagates_budget_exhaustion(self):
+        from backend.utils.log.r2_budget import R2BudgetExceeded
+
+        with patch.object(social_previews.ArtworkStorage, "from_environment", return_value=object()), patch(
+            "supabase.create_client", return_value=object()
+        ), patch.object(
+            social_previews,
+            "refresh_social_previews",
+            side_effect=R2BudgetExceeded("Class B budget reached"),
+        ):
+            with self.assertRaisesRegex(R2BudgetExceeded, "Class B budget reached"):
+                social_previews.refresh_configured_social_previews()
+
     def test_failed_replacement_upload_keeps_the_existing_pointer_and_retries(self):
         previous_fingerprint = "c" * 64
         row = {**ROW, "social_preview_fingerprint": previous_fingerprint}

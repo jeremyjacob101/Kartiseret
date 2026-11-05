@@ -137,6 +137,17 @@ class ArtworkStorageTests(unittest.TestCase):
         self.assertEqual(result["en_poster"], "new-poster")
         self.assertEqual(result["backdrop"], "old-backdrop")
 
+    def test_r2_budget_exhaustion_propagates_to_fail_the_pipeline_job(self):
+        from backend.utils.log.r2_budget import R2BudgetExceeded
+
+        with patch.object(self.storage, "store", side_effect=R2BudgetExceeded("Class A budget reached")):
+            with self.assertRaises(R2BudgetExceeded):
+                self.storage.resolve_row(
+                    Mock(),
+                    {"tmdb_id": 123},
+                    {"poster_path": "/new.jpg"},
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
