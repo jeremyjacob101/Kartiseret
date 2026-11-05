@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextlib import closing
 import atexit
 import os
 from pathlib import Path
@@ -79,7 +80,7 @@ class R2Budget:
             path = root / "r2-budget.sqlite3"
             budget = cls(path, class_a, class_b)
             with _init_lock:
-                with budget._connect() as connection:
+                with closing(budget._connect()) as connection, connection:
                     connection.execute("CREATE TABLE IF NOT EXISTS counters (kind TEXT PRIMARY KEY, count INTEGER NOT NULL)")
                     connection.executemany(
                         "INSERT OR IGNORE INTO counters(kind, count) VALUES (?, 0)",
@@ -108,7 +109,7 @@ class R2Budget:
         else:
             kind, limit = "class_a", self.class_a_limit
         try:
-            with self._connect() as connection:
+            with closing(self._connect()) as connection, connection:
                 connection.execute("BEGIN IMMEDIATE")
                 rows = dict(connection.execute("SELECT kind, count FROM counters").fetchall())
                 if set(rows) != {"class_a", "class_b"}:
@@ -152,7 +153,7 @@ class R2Budget:
 
     def snapshot(self) -> dict[str, int | str | None]:
         try:
-            with self._connect() as connection:
+            with closing(self._connect()) as connection, connection:
                 rows = dict(connection.execute("SELECT kind, count FROM counters").fetchall())
                 tripped = connection.execute("SELECT tripped FROM state WHERE id = 1").fetchone()
             return {"class_a": int(rows["class_a"]), "class_b": int(rows["class_b"]), "tripped": tripped[0] if tripped else None}
