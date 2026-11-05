@@ -1,0 +1,71 @@
+name: Swift CodeQL diagnostics
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+    paths:
+      - '.github/workflows/swift-codeql-diagnostics.yml'
+      - '.github/scripts/swift-codeql-diagnostics.sh'
+permissions:
+  contents: read
+  actions: read
+  security-events: read
+jobs:
+  diagnostics:
+    if: github.head_ref == 'codex/swift-codeql-diagnostics'
+    runs-on: macos-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record runner and toolchain
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/swift-codeql-diagnostics"
+          {
+            date -u
+            uname -a
+            sw_vers
+            sysctl -n hw.ncpu hw.memsize || true
+            xcodebuild -version
+            xcode-select -p
+            swift --version
+            df -h "$RUNNER_TEMP"
+          } | tee "$RUNNER_TEMP/swift-codeql-diagnostics/environment.txt"
+      - name: Baseline clean app build
+        shell: bash
+        run: bash .github/scripts/swift-codeql-diagnostics.sh baseline
+      - name: Initialize CodeQL for Swift
+        uses: github/codeql-action/init@v4
+        with:
+          languages: swift
+          build-mode: manual
+      - name: Traced clean app build
+        shell: bash
+        run: bash .github/scripts/swift-codeql-diagnostics.sh traced
+      - name: Finalize and analyze without uploading results
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:swift-diagnostic
+          upload: never
+      - name: Collect CodeQL diagnostics
+        if: always()
+        shell: bash
+        run: |
+          dest="$RUNNER_TEMP/swift-codeql-diagnostics"
+          db="$RUNNER_TEMP/codeql_databases/swift"
+          mkdir -p "$dest/codeql"
+          for dir in log diagnostic; do
+            if [ -d "$db/$dir" ]; then
+              cp -R "$db/$dir" "$dest/codeql/" || true
+            fi
+          done
+          echo 'CodeQL diagnostic files:'
+          find "$dest/codeql" -type f -print || true
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swift-codeql-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/swift-codeql-diagnostics
+          retention-days: 7
+          if-no-files-found: warn
