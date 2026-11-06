@@ -56,25 +56,19 @@ def _safe_segment(value: str) -> str:
 
 
 def _r2_client():
-    try:
-        import boto3
-        from botocore.config import Config
-    except ImportError as error:
-        raise CloudflareStorageError("boto3 is required to write run artifacts to R2.") from error
-
-    account_id = os.environ.get("R2_ACCOUNT_ID", "").strip()
     access_key = os.environ.get("RUN_ARTIFACTS_R2_ACCESS_KEY_ID", "").strip()
     secret_key = os.environ.get("RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY", "").strip()
-    if not account_id or not access_key or not secret_key:
+    if not access_key or not secret_key:
         raise CloudflareStorageError("Run-artifact R2 writer credentials are incomplete.")
-    return boto3.client(
-        "s3",
-        endpoint_url=f"https://{account_id}.r2.cloudflarestorage.com",
-        region_name="auto",
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key,
-        config=Config(signature_version="s3v4", retries={"total_max_attempts": 1, "mode": "standard"}),
-    )
+    try:
+        from backend.utils.log.r2_client import create_r2_s3_client
+        return create_r2_s3_client(access_key=access_key, secret_key=secret_key)
+    except Exception as error:
+        from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+
+        if isinstance(error, (R2BudgetError, R2BudgetExceeded)):
+            raise
+        raise CloudflareStorageError(f"Could not initialize guarded R2 client ({type(error).__name__}).") from error
 
 
 class RunArtifactStore:
@@ -437,6 +431,10 @@ class RunArtifactStore:
                     Metadata={"run-id": str(run_id or "unassigned"), "artifact-type": _safe_segment(artifact_type), "created-at": timestamp},
                 )
             except Exception as error:
+                from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+
+                if isinstance(error, (R2BudgetError, R2BudgetExceeded)):
+                    raise
                 raise CloudflareStorageError(f"R2 screenshot upload failed ({type(error).__name__}); local recovery copy retained.") from error
             self._insert_artifact_row(
                 artifact_id=artifact_id, run_id=run_id, artifact_type=artifact_type,

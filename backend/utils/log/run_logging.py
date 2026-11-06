@@ -106,6 +106,8 @@ class RunLogSession:
         self._lease_token: str | None = None
 
     def __enter__(self) -> "RunLogSession":
+        from backend.utils.log.r2_budget import R2Budget
+        R2Budget.create_job_budget()
         try:
             self._start_time = float(os.environ.get("KARTISERET_JOB_STARTED_MONOTONIC", time.monotonic()))
         except (TypeError, ValueError):
@@ -164,6 +166,22 @@ class RunLogSession:
     def __exit__(self, exc_type, exc, tb) -> bool:
         if exc_type is not None:
             self._successful = False
+
+        # Report before finalization so even a finalization failure caused by
+        # an exhausted budget leaves a useful, non-sensitive usage summary.
+        try:
+            from backend.utils.log.r2_budget import R2Budget
+            budget = R2Budget.from_environment()
+            if budget is not None:
+                counts = budget.snapshot()
+                print(
+                    "R2 job budget: "
+                    f"Class A {counts['class_a']}/{budget.class_a_limit}, "
+                    f"Class B {counts['class_b']}/{budget.class_b_limit}, "
+                    f"tripped={counts['tripped'] or 'no'}"
+                )
+        except Exception as error:
+            print(f"R2 job budget summary unavailable ({type(error).__name__}).")
 
         if self.run_id is not None:
             total_time = max(0.0, time.monotonic() - self._start_time)
@@ -227,28 +245,42 @@ class RunLogSession:
                 raise RuntimeError(
                     f"Run {self.run_id} was marked unsuccessful because D1 finalization failed."
                 ) from storage_error
-            try:
-                storage.check_storage()
-            except Exception as error:
-                confirmed = False
+            from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+            budget_failure = bool(
+                exc_type and issubclass(exc_type, (R2BudgetError, R2BudgetExceeded))
+            )
+            if budget_failure:
                 try:
-                    response = sb.table("utilRunLogs").update({"successful": False}).eq("run_id", int(self.run_id)).execute()
-                    confirmed = bool(response.data or [])
-                except Exception:
-                    pass
-                write_recovery_envelope(
-                    "run_finalization", str(self.run_id),
-                    {"run_id": self.run_id, "status": "failed" if confirmed else "unconfirmed",
-                     "reason": "storage_check_failed", "error_type": type(error).__name__},
-                )
+                    # Preserve the post-run D1 size measurement while avoiding
+                    # another R2 cleanup request after the guard has tripped.
+                    storage.d1.measure_database_size()
+                except Exception as error:
+                    print(f"Post-run D1 size check unavailable ({type(error).__name__}).")
+            else:
                 try:
-                    if confirmed:
-                        storage.mark_run_failed(int(self.run_id), reason="storage_check_failed")
-                    else:
-                        storage.mark_run_unconfirmed(int(self.run_id), reason="supabase_finalization_unconfirmed")
-                except Exception:
-                    pass
-                status = "failed" if confirmed else "unconfirmed"
-                raise RuntimeError(f"Run {self.run_id} completed, but its D1 storage check failed; status is {status}.") from error
+                    storage.check_storage()
+                except Exception as error:
+                    confirmed = False
+                    try:
+                        response = sb.table("utilRunLogs").update({"successful": False}).eq("run_id", int(self.run_id)).execute()
+                        confirmed = bool(response.data or [])
+                    except Exception:
+                        pass
+                    write_recovery_envelope(
+                        "run_finalization", str(self.run_id),
+                        {"run_id": self.run_id, "status": "failed" if confirmed else "unconfirmed",
+                         "reason": "storage_check_failed", "error_type": type(error).__name__},
+                    )
+                    try:
+                        if confirmed:
+                            storage.mark_run_failed(int(self.run_id), reason="storage_check_failed")
+                        else:
+                            storage.mark_run_unconfirmed(int(self.run_id), reason="supabase_finalization_unconfirmed")
+                    except Exception:
+                        pass
+                    if isinstance(error, (R2BudgetError, R2BudgetExceeded)):
+                        raise
+                    status = "failed" if confirmed else "unconfirmed"
+                    raise RuntimeError(f"Run {self.run_id} completed, but its D1 storage check failed; status is {status}.") from error
 
         return False

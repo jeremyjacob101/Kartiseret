@@ -66,6 +66,10 @@ def cleanup_by_storage(store, *, now=None):
                 try:
                     response = client.delete_objects(Bucket=store.bucket, Delete={'Objects': [{'Key': item['object_key']} for item in objects], 'Quiet': True})
                 except Exception as error:
+                    from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+
+                    if isinstance(error, (R2BudgetError, R2BudgetExceeded)):
+                        raise
                     raise CloudflareStorageError(f'R2 screenshot cleanup failed ({type(error).__name__}); metadata retained.') from error
                 if response.get('Errors'):
                     raise CloudflareStorageError('R2 did not confirm all screenshot deletions.')

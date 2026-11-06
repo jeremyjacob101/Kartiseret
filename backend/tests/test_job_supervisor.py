@@ -258,6 +258,102 @@ os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps(event) + '\\n
             call("run_complete", successful=False),
         ])
 
+    def test_r2_budget_failure_bypasses_best_effort_artifact_reporting(self):
+        from backend.config.runners import _run_attempt
+        from backend.utils.log.r2_budget import R2BudgetExceeded
+
+        spec = SimpleNamespace(
+            make_instance=lambda *_args: SimpleNamespace(),
+            run_instance=Mock(side_effect=R2BudgetExceeded("Class A budget reached")),
+            cleanup=Mock(side_effect=RuntimeError("cleanup failed")),
+        )
+        with patch("backend.config.runners.artifactPrinting") as report:
+            with self.assertRaisesRegex(R2BudgetExceeded, "Class A budget reached"):
+                _run_attempt(spec, object, "test", 7, 1)
+        report.assert_not_called()
+        spec.cleanup.assert_called_once()
+
+    def test_base_dataflow_does_not_flush_summary_after_budget_failure(self):
+        from backend.dataflow.BaseDataflow import BaseDataflow
+        from backend.utils.log.r2_budget import R2BudgetExceeded
+
+        error = R2BudgetExceeded("Class B operation budget reached")
+        flow = SimpleNamespace(
+            logic=Mock(side_effect=error),
+            _publication=None,
+            _owns_publication=False,
+            MAIN_TABLE_NAME="",
+            discardPublicationStage=Mock(),
+            flush_summary=Mock(),
+            closeDataflowRequests=Mock(),
+        )
+        with self.assertRaises(R2BudgetExceeded):
+            BaseDataflow.dataRun(flow)
+        flow.discardPublicationStage.assert_called_once_with()
+        flow.flush_summary.assert_not_called()
+        flow.closeDataflowRequests.assert_called_once_with()
+
+    def test_shared_dataflow_propagates_budget_failure_after_closing_flows(self):
+        from backend.config import runners
+        from backend.utils.log.r2_budget import R2BudgetExceeded
+
+        events = []
+
+        class Flow:
+            def beginSharedUpdate(self):
+                return [{"tmdb_id": 42}]
+
+            def prepareUpdateTmdb(self, _rows):
+                self._update_tmdb = {}
+
+            def process_row(self, _row):
+                raise R2BudgetExceeded("Class B budget reached")
+
+            def trace_note(self, _message):
+                pass
+
+            def discardPublicationStage(self):
+                events.append("discard")
+
+            def closeDataflowRequests(self):
+                events.append("close")
+
+        flow = Flow()
+        fake_class = type("TestUpdate", (), {})
+        with patch.dict(runners.dataflowDictionary, {
+            "make_instance": lambda *_args: flow,
+            "cleanup": lambda _flow: events.append("cleanup"),
+        }), self.assertRaisesRegex(R2BudgetExceeded, "Class B budget reached"):
+            runners._run_shared_update_round(
+                [("test", fake_class)], 42, 1, SimpleNamespace(),
+            )
+        self.assertEqual(events, ["discard", "cleanup", "close"])
+
+    def test_run_finalization_measures_d1_without_more_r2_after_budget_failure(self):
+        from backend.utils.log import run_logging
+        from backend.utils.log.r2_budget import R2BudgetExceeded
+
+        storage = Mock()
+        client = Mock()
+        client.table.return_value.update.return_value.eq.return_value.execute.return_value.data = [{"run_id": 42}]
+        session = run_logging.RunLogSession()
+        session.run_id = 42
+        session._start_time = time.monotonic() - 1
+        session._selected_runners = []
+        session._successful = False
+        session._storage = storage
+        session._lease_token = "lease"
+        with patch.dict(os.environ, {
+            "SUPABASE_URL": "https://example.test",
+            "SUPABASE_SERVICE_ROLE_KEY": "test-key",
+        }), patch("backend.utils.log.run_logging.create_client", return_value=client):
+            session.__exit__(R2BudgetExceeded, R2BudgetExceeded("Class A budget reached"), None)
+
+        storage.d1.measure_database_size.assert_called_once_with()
+        storage.check_storage.assert_not_called()
+        storage.finalize_run.assert_called_once()
+        storage.release_run_lease.assert_called_once_with(token="lease")
+
     def test_run_id_finalizer_marks_failure_and_releases_running_lock(self):
         from backend.config import supervisor_finalize
 

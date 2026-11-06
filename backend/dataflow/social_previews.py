@@ -373,6 +373,10 @@ def refresh_social_previews(
                         stats["updated"] += 1
                     completed_work += 1
                 except Exception as error:
+                    from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+
+                    if isinstance(error, (R2BudgetError, R2BudgetExceeded)):
+                        raise
                     stats["failed"] += 1
                     completed_work += 1
                     LOGGER.warning(
@@ -408,6 +412,10 @@ def refresh_configured_social_previews() -> dict[str, int] | None:
         LOGGER.info("Social preview refresh completed: %s", stats)
         return stats
     except Exception as error:
+        from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+
+        if isinstance(error, (R2BudgetError, R2BudgetExceeded)):
+            raise
         LOGGER.warning("Social preview refresh was skipped after an error (%s)", type(error).__name__)
         return None
 

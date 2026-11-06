@@ -73,14 +73,8 @@ class ArtworkStorage:
             raise ValueError("R2_ACCOUNT_ID must be a 32-character hexadecimal ID")
         if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])", bucket):
             raise ValueError("R2_BUCKET must be a 3-63 character bucket name")
-        import boto3
-        client = boto3.client(
-            "s3",
-            endpoint_url=f"https://{account_id.lower()}.r2.cloudflarestorage.com",
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-            region_name="auto",
-        )
+        from backend.utils.log.r2_client import create_r2_s3_client
+        client = create_r2_s3_client(access_key=access_key, secret_key=secret_key)
         return cls(client, bucket, image_origin)
 
     @classmethod
@@ -194,6 +188,10 @@ class ArtworkStorage:
                 row[target_field] = result.url
                 self.record_metadata(row, kind, result)
             except Exception as error:
+                from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+
+                if isinstance(error, (R2BudgetError, R2BudgetExceeded)):
+                    raise
                 if getattr(flow, "summaryEnabled", False):
                     flow.trace_event("artwork", "failed", type(error).__name__, key=row.get("tmdb_id"), payload={"kind": kind})
         return row
