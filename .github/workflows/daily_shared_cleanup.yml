@@ -60,6 +60,8 @@ jobs:
           TARGET: ${{ matrix.target }}
           SUPABASE_URL: ${{ secrets[format('{0}_SUPABASE_URL', matrix.prefix)] }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets[format('{0}_SUPABASE_SERVICE_ROLE_KEY', matrix.prefix)] }}
+          PUBLICATION_DATABASE_URL: ${{ secrets[format('{0}_PUBLICATION_DATABASE_URL', matrix.prefix)] }}
+          PUBLICATION_DATABASE_SSL_CA_CERT: ${{ secrets[format('{0}_PUBLICATION_DATABASE_SSL_CA_CERT', matrix.prefix)] }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets[format('{0}_R2_BUCKET', matrix.prefix)] }}
           R2_IMAGE_ORIGIN: ${{ secrets[format('{0}_R2_IMAGE_ORIGIN', matrix.prefix)] }}
@@ -97,6 +99,8 @@ jobs:
       FORCE_CLEANUP: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
       SUPABASE_URL: ${{ secrets[format('{0}_SUPABASE_URL', matrix.prefix)] }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets[format('{0}_SUPABASE_SERVICE_ROLE_KEY', matrix.prefix)] }}
+      PUBLICATION_DATABASE_URL: ${{ secrets[format('{0}_PUBLICATION_DATABASE_URL', matrix.prefix)] }}
+      PUBLICATION_DATABASE_SSL_CA_CERT: ${{ secrets[format('{0}_PUBLICATION_DATABASE_SSL_CA_CERT', matrix.prefix)] }}
       R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
       R2_BUCKET: ${{ secrets[format('{0}_R2_BUCKET', matrix.prefix)] }}
       R2_IMAGE_ORIGIN: ${{ secrets[format('{0}_R2_IMAGE_ORIGIN', matrix.prefix)] }}

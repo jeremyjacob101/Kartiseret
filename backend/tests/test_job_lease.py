@@ -6,6 +6,20 @@ from backend.utils.log.job_lease import LeaseSession, before_mutation
 
 
 class JobLeaseTests(TestCase):
+    def test_direct_postgres_publication_checks_ownership_before_sql(self):
+        from unittest.mock import MagicMock
+        from backend.dataflow.utils.PostgresPublicationPublisher import PostgresPublicationPublisher
+        publisher = object.__new__(PostgresPublicationPublisher)
+        publisher.test_mode = True
+        publisher.database_url = 'postgresql://localhost/test'
+        with patch('psycopg.connect', return_value=MagicMock()) as connect, patch(
+            'backend.utils.log.job_lease.before_mutation', side_effect=LeaseLostError('lost')
+        ):
+            with publisher._connect():
+                cursor_class = connect.call_args.kwargs['cursor_factory']
+                with self.assertRaises(LeaseLostError):
+                    cursor_class.execute(object(), 'SELECT publication_commit()')
+
     def session(self):
         session = LeaseSession(Mock(), 'owner', terminate=Mock())
         session.store = Mock()

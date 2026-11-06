@@ -53,3 +53,5 @@ The validation job performs read-only access checks against Supabase, D1, and bo
 ## Existing publication cleanup
 
 Category-specific post-publication cleanup remains in place because a publication can make rows obsolete after preflight. The preflight sweep is idempotent and runs at most once per target per UTC day after a successful applied run. The two former commented-out daily workflows have been consolidated into `daily_shared_cleanup.yml`.
+
+If a target uses the direct PostgreSQL publisher, configure its `DEV_` or `PROD_PUBLICATION_DATABASE_URL` and matching `PUBLICATION_DATABASE_SSL_CA_CERT` Actions secrets (with the same target prefix on both). The workflow passes those target-specific values into validation and cleanup. Targets without them retain the existing PostgREST publication path. Direct publisher SQL also verifies job ownership before execution.
