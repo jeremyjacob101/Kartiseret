@@ -76,6 +76,8 @@ class D1Client:
         return list(params)
 
     def _post(self, payload: dict) -> list[dict]:
+        from backend.utils.log.job_lease import before_mutation
+        before_mutation()
         try:
             response = requests.post(
                 self.endpoint,

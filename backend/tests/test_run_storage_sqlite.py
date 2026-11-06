@@ -20,6 +20,7 @@ class SQLiteD1:
         self.connection.row_factory = sqlite3.Row
         schema = Path('backend/cloudflare/d1/migrations/0001_run_artifacts.sql').read_text()
         self.connection.executescript(schema)
+        self.connection.executescript(Path("backend/cloudflare/d1/migrations/0003_lease_predecessor.sql").read_text())
         self.size = 1_000
 
     def execute(self, sql, params=()):
@@ -38,6 +39,9 @@ class SQLiteD1:
 
 
 class SQLiteRunStorageTests(TestCase):
+    def setUp(self):
+        self.enterContext(patch('backend.utils.log.job_lease.activate'))
+
     def test_scrape_cleanup_removes_old_run_and_linked_screenshot_only(self):
         d1 = SQLiteD1()
         self.addCleanup(d1.connection.close)

@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 
 from dotenv import load_dotenv
-from supabase import create_client
+from backend.utils.log.job_lease import create_client
 
 from backend.config.target_environment import resolve_target_environment
 from backend.utils.log.cloudflare_storage import write_recovery_envelope
@@ -163,4 +163,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from backend.utils.log.job_lease import run_cli
+    raise SystemExit(run_cli(main, "backend.config.upload_cron_log"))

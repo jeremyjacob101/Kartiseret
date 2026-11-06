@@ -486,7 +486,7 @@ def refresh_configured_social_previews() -> dict[str, int] | None:
         if not supabase_url or not service_key:
             LOGGER.warning("Skipping social previews: selected Supabase credentials are unavailable")
             return None
-        from supabase import create_client
+        from backend.utils.log.job_lease import create_client
         from backend.utils.log.shared_cleanup import current_run_lease_guard
 
         stats = refresh_social_previews(
@@ -548,7 +548,7 @@ def main() -> None:
     if args.apply and is_production and not args.allow_production:
         parser.error("Production writes require the explicit --allow-production flag")
 
-    from supabase import create_client
+    from backend.utils.log.job_lease import create_client
 
     storage = ArtworkStorage.from_environment()
     if storage is None:
@@ -570,4 +570,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    from backend.utils.log.job_lease import run_cli
+    raise SystemExit(run_cli(main, "backend.dataflow.social_previews"))

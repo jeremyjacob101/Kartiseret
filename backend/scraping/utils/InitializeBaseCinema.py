@@ -1,4 +1,4 @@
-from supabase import create_client
+from backend.utils.log.job_lease import create_client
 from selenium import webdriver
 from datetime import datetime
 import time, pytz, os

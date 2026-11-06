@@ -1,4 +1,4 @@
-from supabase import create_client
+from backend.utils.log.job_lease import create_client
 from typing import Any, Callable
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -82,6 +82,8 @@ def allocate_run_id(on_allocated: Callable[[int], None] | None = None) -> int:
                 wait_for_lease("waiting for the selected target's D1 lease")
         else:
             raise RuntimeError("run cannot start because the selected target's D1 lease remained held")
+        from backend.utils.log.job_lease import reconcile_predecessor
+        reconcile_predecessor(storage)
         while True:
             rows = sb.table("utilRunLogs").select("run_id").eq("running_now", True).limit(1).execute().data
             if not rows:

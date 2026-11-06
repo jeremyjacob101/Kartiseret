@@ -1,5 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED, as_completed
-from supabase import create_client
+from backend.utils.log.job_lease import create_client
 from types import SimpleNamespace
 import logging, time, os, queue
 

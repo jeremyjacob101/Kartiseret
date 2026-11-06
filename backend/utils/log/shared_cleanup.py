@@ -115,6 +115,8 @@ def maintenance_lease(*, skip_if_busy: bool = False):
                 return
             raise
         try:
+            from backend.utils.log.job_lease import reconcile_predecessor
+            reconcile_predecessor(store)
             yield store, token
         finally:
             store.release_run_lease(token=token)
@@ -127,7 +129,7 @@ def _supabase_client():
     key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
     if not url or not key:
         raise RuntimeError("Selected target Supabase credentials are incomplete")
-    from supabase import create_client
+    from backend.utils.log.job_lease import create_client
 
     return create_client(url, key)
 
@@ -459,4 +461,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from backend.utils.log.job_lease import run_cli
+    raise SystemExit(run_cli(main, "backend.utils.log.shared_cleanup"))

@@ -29,5 +29,7 @@ def create_r2_s3_client(*, access_key: str, secret_key: str, signature_version: 
             retries={"total_max_attempts": 1, "mode": "standard"},
         ),
     )
+    from backend.utils.log.job_lease import before_mutation
+    client.meta.events.register_first("before-send.s3.*", lambda **_kwargs: before_mutation())
     install_budget(client)
     return client

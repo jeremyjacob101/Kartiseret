@@ -11,7 +11,7 @@ import os
 import unicodedata
 
 import requests
-from supabase import create_client
+from backend.utils.log.job_lease import create_client
 
 from backend.notifications.letterboxd_public import (
     LetterboxdFilm,

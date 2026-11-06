@@ -27,7 +27,7 @@ def recover_lock(store, client, *, expected_token: str, owner_stopped: bool) -> 
 
 def main() -> None:
     from dotenv import load_dotenv
-    from supabase import create_client
+    from backend.utils.log.job_lease import create_client
     from backend.utils.log.shared_cleanup import _load_target
     from backend.utils.log.run_storage import RunArtifactStore
 

@@ -66,7 +66,7 @@ def image_references(value, kind):
 
 
 def build_clients(*, require_storage=True):
-    from supabase import create_client
+    from backend.utils.log.job_lease import create_client
 
     supabase_url = os.environ.get("SUPABASE_URL", "").strip()
     service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
@@ -336,4 +336,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    from backend.utils.log.job_lease import run_cli
+    raise SystemExit(run_cli(main, "backend.dataflow.backfill_catalog_artwork"))

@@ -38,13 +38,13 @@ class JobSupervisorTests(TestCase):
     def test_job_and_shutdown_limits_cannot_outlive_the_lease(self):
         from backend.config.job_supervisor import job_seconds, termination_grace_seconds, run_managed_process
 
-        with patch.dict(os.environ, {"PIPELINE_JOB_DEADLINE_SECONDS": "16201"}):
+        with patch.dict(os.environ, {"PIPELINE_JOB_DEADLINE_SECONDS": "17971"}):
             with self.assertRaises(ValueError):
                 job_seconds()
         with patch.dict(os.environ, {"PIPELINE_TERMINATION_GRACE_SECONDS": "301"}):
             with self.assertRaises(ValueError):
                 termination_grace_seconds()
-        self.assertEqual(run_managed_process([sys.executable], seconds=16201).reason, "invalid_budget")
+        self.assertEqual(run_managed_process([sys.executable], seconds=17971).reason, "invalid_budget")
         self.assertEqual(run_managed_process([sys.executable], seconds=1, grace_seconds=301).reason, "invalid_budget")
 
     @staticmethod
@@ -197,6 +197,7 @@ import json, os, time
 from pathlib import Path
 Path(os.environ['SUPERVISOR_TEST_PID_FILE']).write_text(str(os.getpid()))
 fd = int(os.environ['KARTISERET_JOB_CONTROL_FD'])
+os.write(fd, (json.dumps({'event': 'lease_token', 'token': 'a' * 32}) + '\\n').encode())
 event = {'event': 'run_id', 'run_id': 987654321}
 os.write(fd, (json.dumps(event) + '\\n').encode())
 time.sleep(60)
@@ -384,6 +385,8 @@ os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps(event) + '\\n
 
     def test_run_id_finalizer_marks_failure_and_releases_running_lock(self):
         from backend.config import supervisor_finalize
+        self.enterContext(patch.dict(os.environ, {"KARTISERET_ACTIVE_LEASE_TOKEN": "a" * 32}))
+        self.enterContext(patch("backend.utils.log.job_lease.before_mutation"))
 
         table = Mock()
         client = Mock()
@@ -404,6 +407,8 @@ os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps(event) + '\\n
 
     def test_run_id_finalizer_keeps_d1_status_unconfirmed_when_supabase_is_not_confirmed(self):
         from backend.config import supervisor_finalize
+        self.enterContext(patch.dict(os.environ, {"KARTISERET_ACTIVE_LEASE_TOKEN": "a" * 32}))
+        self.enterContext(patch("backend.utils.log.job_lease.before_mutation"))
 
         table = Mock()
         client = Mock()

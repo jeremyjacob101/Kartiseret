@@ -9,7 +9,7 @@ import os
 import re
 
 import requests
-from supabase import create_client
+from backend.utils.log.job_lease import create_client
 
 from backend.notifications.ticket_alerts import (
     JERUSALEM_TIME_ZONE,

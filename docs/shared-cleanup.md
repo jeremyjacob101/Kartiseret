@@ -4,8 +4,9 @@
 
 ## Safety and coordination
 
-- Each target uses its own exclusive D1 `run_locks` owner token. Pipeline runs acquire it before startup cleanup and keep it through run finalization and the post-run D1 size check. Scheduled and standalone mutating commands use the same lock. A timestamp never permits takeover of a held token, protecting long jobs and suspended machines without a background renewal thread.
-- Existing lease method/column names remain for compatibility. Held tokens write a far-future timestamp so older clients also cannot take over. Checks before deletion fail closed on D1 errors or a changed token. Supervisor timeouts bound resource use; lock safety does not depend on those timeouts.
+- Each target uses its own D1 lease. A confirmed heartbeat every 10 seconds gives it another 120 seconds. D1 server time decides expiry; an expired token cannot renew or release its replacement. This covers pipeline preflight, publication, finalization, daily cleanup, and standalone commands.
+- On an uncertain renewal, the worker latches failure, blocks new R2/PostgREST/D1 requests, and terminates. Its supervisor stops the process group. Requests already sent may finish; recovery records preserve that uncertainty. Ownership is checked before storage requests, including after sleep or supervisor loss.
+- Commands have a five-hour maximum total lifetime including shutdown. Defaults remain 4.5 hours for normal jobs and 30 minutes for realtime updates. Shorter workflow timeouts still apply.
 - Cleanup scans the selected target only. `--target` is required unless `KARTISERET_TARGET` is already selected; the target resolver checks Supabase project, artwork bucket, D1 UUID shape, and private artifact bucket names before work starts.
 - The R2 artwork, social-card, and orphan-artifact stages delete at most 500 objects each per invocation. Artwork and social references must scan completely and pass validation before deletion. Run artifacts are eligible only when older than 30 days, absent from D1 references, and owned by a confirmed successful run; active, failed, unconfirmed, unknown, or recoverable runs are retained.
 - A successful applied cleanup is recorded in the target's D1 database and suppresses expensive catalog scans until the next UTC day. Dry-runs have a separate daily marker and never count as a successful cleanup. D1 storage checks still run before and after jobs.
@@ -27,7 +28,9 @@ python -m backend.utils.log.shared_cleanup --target production --dry-run --force
 
 ## Recovering an interrupted owner
 
-Normal completion and handled failure release the owner token. The supervisor only finalizes and releases an interrupted pipeline after confirming its process group stopped. A crash, killed supervisor, or failed release can leave the lock held. Scheduled cleanup then skips; another pipeline waits for its bounded interval and fails startup. This is intentional: an expired timestamp cannot prove a remote process is dead.
+Normal completion releases promptly. Crashed owners expire automatically after 120 seconds without a confirmed heartbeat. A successful replacement claim durably retains the predecessor run ID, marks that run unconfirmed in D1 and unsuccessful/not-running in Supabase, then starts new work. Failed reconciliation blocks new work and retains recovery information. A stale finalizer cannot unlock a replacement owner.
+
+The explicit recovery command below is only for operator recovery, including old year-9999 tokens left by the previous non-expiring implementation. Ordinary crash failover requires no manual unlock.
 
 Stop the old owner and all descendants on the scheduler host before recovering. Inspect `SELECT lease_token, run_id FROM run_locks WHERE id = 1` in the selected target's D1 console. Then run:
 

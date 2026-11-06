@@ -104,7 +104,7 @@ class SocialPreviewTests(unittest.TestCase):
     def test_cli_apply_distinguishes_development_and_production(self):
         selected = {"SUPABASE_URL": "https://example.supabase.co", "SUPABASE_SERVICE_ROLE_KEY": "test"}
         for target in ("development", "production"):
-            with self.subTest(target=target), patch.object(sys, "argv", ["social_previews", "--target", target, "--apply"]), patch("dotenv.load_dotenv"), patch.object(social_previews, "resolve_target_environment", return_value=selected), patch.object(social_previews.ArtworkStorage, "from_environment", return_value=object()), patch("supabase.create_client", return_value=object()), patch.object(social_previews, "refresh_social_previews", return_value={}), patch("backend.utils.log.shared_cleanup.maintenance_lease", return_value=nullcontext((Mock(), "token"))):
+            with self.subTest(target=target), patch.object(sys, "argv", ["social_previews", "--target", target, "--apply"]), patch("dotenv.load_dotenv"), patch.object(social_previews, "resolve_target_environment", return_value=selected), patch.object(social_previews.ArtworkStorage, "from_environment", return_value=object()), patch("backend.utils.log.job_lease.create_client", return_value=object()), patch.object(social_previews, "refresh_social_previews", return_value={}), patch("backend.utils.log.shared_cleanup.maintenance_lease", return_value=nullcontext((Mock(), "token"))):
                 if target == "development":
                     social_previews.main()
                 else:
@@ -232,7 +232,7 @@ class SocialPreviewTests(unittest.TestCase):
         from backend.utils.log.r2_budget import R2BudgetExceeded
 
         with patch.object(social_previews.ArtworkStorage, "from_environment", return_value=object()), patch(
-            "supabase.create_client", return_value=object()
+            "backend.utils.log.job_lease.create_client", return_value=object()
         ), patch.object(
             social_previews,
             "refresh_social_previews",
@@ -273,7 +273,7 @@ class SocialPreviewTests(unittest.TestCase):
 
     def test_configured_social_hook_propagates_budget_exhaustion(self):
         with patch.object(social_previews.ArtworkStorage, "from_environment", return_value=object()), patch(
-            "supabase.create_client", return_value=object()
+            "backend.utils.log.job_lease.create_client", return_value=object()
         ), patch.object(
             social_previews, "refresh_social_previews", side_effect=R2BudgetExceeded("Class B budget reached")
         ):

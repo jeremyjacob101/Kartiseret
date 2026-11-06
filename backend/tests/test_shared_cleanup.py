@@ -36,6 +36,7 @@ class SQLiteD1:
 
 class SharedCleanupTests(unittest.TestCase):
     def setUp(self):
+        self.enterContext(patch("backend.utils.log.job_lease.activate"))
         self.d1 = SQLiteD1(f"cleanup-test-{id(self)}")
         self.addCleanup(self.d1.connection.close)
         _schema_ready.discard(self.d1.database_id)
@@ -66,8 +67,7 @@ class SharedCleanupTests(unittest.TestCase):
         token = self.store.acquire_run_lease()
         self.d1.execute("UPDATE run_locks SET lease_until = '1970-01-01T00:00:00+00:00' WHERE id=1")
         with self.assertRaises(CloudflareStorageError):
-            self.store.acquire_run_lease()
-        self.store.renew_run_lease(token)
+            self.store.renew_run_lease(token)
         with self.assertRaises(CloudflareStorageError):
             self.store.release_run_lease(token="another-owner")
         self.store.release_run_lease(token=token)

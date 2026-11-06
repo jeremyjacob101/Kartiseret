@@ -19,7 +19,7 @@ import uuid
 
 from backend.dataflow.utils.PostgresPublicationPublisher import PostgresPublicationPublisher
 
-from supabase import create_client as live_client
+from backend.utils.log.job_lease import create_client as live_client
 
 CATEGORY_TABLES = {
     "nowplayings": ("allShowtimes", "finalMovies", "finalShowtimes"),

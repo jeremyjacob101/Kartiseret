@@ -32,7 +32,6 @@ SCRAPED_READ_PAGE_SIZE = 500
 TEXT_ARTIFACT_READ_PAGE_SIZE = 25
 _schema_lock = threading.Lock()
 _schema_ready: set[str] = set()
-LOCK_HELD_UNTIL = "9999-12-31T23:59:59+00:00"
 
 
 def _canonical(value) -> str:
@@ -105,6 +104,9 @@ class RunArtifactStore:
             indexes = {"idx_scraped_rows_run_source", "idx_gathering_rows_run", "idx_artifacts_run_type", "idx_run_logs_started_at", "idx_diagnostics_run"}
             complete = required.union(indexes).issubset(existing)
             if complete:
+                columns = self.d1.execute("PRAGMA table_info(run_locks)").rows
+                complete = any(row.get("name") == "predecessor_run_id" for row in columns)
+            if complete:
                 rows = self.d1.execute(
                     "SELECT (SELECT COUNT(*) FROM run_locks WHERE id = 1) AS lock_count, "
                     "(SELECT COUNT(*) FROM retention_state WHERE id = 1) AS retention_count, "
@@ -124,36 +126,28 @@ class RunArtifactStore:
                     for statement in sql.split(";"):
                         statement = statement.strip()
                         if statement:
+                            if statement.startswith("ALTER TABLE run_locks ADD COLUMN predecessor_run_id"):
+                                columns = self.d1.execute("PRAGMA table_info(run_locks)").rows
+                                if any(row.get("name") == "predecessor_run_id" for row in columns):
+                                    continue
                             self.d1.execute(statement)
             _schema_ready.add(self.schema_id)
 
     def acquire_run_lease(self, *, lease_hours: int = 5) -> str:
-        """Acquire exclusive target ownership; timestamps never authorize takeover.
-
-        A crashed owner must be confirmed stopped before its token is cleared.
-        This also protects writers paused longer than the diagnostic lease time.
-        """
-        self.ensure_schema()
-        token = uuid.uuid4().hex
-        result = self.d1.execute(
-            "UPDATE run_locks SET lease_token = ?, run_id = NULL, lease_until = ? "
-            "WHERE id = 1 AND lease_token = '' AND run_id IS NULL",
-            (token, LOCK_HELD_UNTIL),
-        )
-        if result.changes != 1:
-            raise CloudflareStorageError(
-                "Another scraper run holds the D1 run lease; no run was started."
-            )
-        return token
+        from backend.utils.log.expiring_lease import ExpiringLeaseStore
+        from backend.utils.log.job_lease import activate, control_request
+        with control_request():
+            self.ensure_schema()
+            claim = ExpiringLeaseStore(self.d1).acquire()
+        activate(self.d1, claim.token)
+        self.predecessor_run_id = claim.predecessor_run_id
+        return claim.token
 
     def renew_run_lease(self, token: str, *, lease_hours: int = 5) -> None:
-        result = self.d1.execute(
-            "UPDATE run_locks SET lease_until = ? WHERE id = 1 AND lease_token = ? AND lease_token <> ''",
-            (LOCK_HELD_UNTIL, token),
-        )
-        if result.changes != 1:
-            from backend.utils.log.cloudflare_storage import LeaseLostError
-            raise LeaseLostError("The shared D1 maintenance lock no longer belongs to this job.")
+        from backend.utils.log.expiring_lease import ExpiringLeaseStore
+        from backend.utils.log.job_lease import control_request
+        with control_request():
+            ExpiringLeaseStore(self.d1).verify(token)
 
     def cleanup_state(self) -> dict:
         self.ensure_schema()
@@ -177,23 +171,15 @@ class RunArtifactStore:
             raise CloudflareStorageError("Could not associate the D1 run lease with its Supabase run ID.")
 
     def release_run_lease(self, *, token: str | None = None, run_id: int | None = None) -> None:
-        if token:
-            result = self.d1.execute(
-                "UPDATE run_locks SET lease_token = '', run_id = NULL, lease_until = '1970-01-01T00:00:00+00:00' "
-                "WHERE id = 1 AND lease_token = ?",
-                (token,),
-            )
-        elif run_id is not None:
-            result = self.d1.execute(
-                "UPDATE run_locks SET lease_token = '', run_id = NULL, lease_until = '1970-01-01T00:00:00+00:00' "
-                "WHERE id = 1 AND run_id = ?",
-                (run_id,),
-            )
-        else:
+        if not token:
+            # A run ID alone cannot authorize releasing another machine's lease.
             return
-        if result.changes != 1:
-            if token:
-                raise CloudflareStorageError("The D1 run lease could not be released or no longer belongs to this run.")
+        from backend.utils.log.expiring_lease import ExpiringLeaseStore
+        from backend.utils.log.job_lease import control_request, deactivate
+        healthy = deactivate(token)
+        if healthy:
+            with control_request():
+                ExpiringLeaseStore(self.d1).release(token)
 
     def start_run(self, *, run_id: int, target: str, run_from: str, selected_runners=None) -> None:
         self.ensure_schema()

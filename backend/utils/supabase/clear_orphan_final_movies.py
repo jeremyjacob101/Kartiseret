@@ -64,7 +64,7 @@ def clear_orphan_final_movies(*, apply=True, lease_guard=None):
     return deleted_count
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Run legacy orphan-movie cleanup under the shared target lease.")
     parser.add_argument("--target", choices=("development", "production"), default=os.environ.get("KARTISERET_TARGET"), required=not bool(os.environ.get("KARTISERET_TARGET")))
     parser.add_argument("--dry-run", action="store_true")
@@ -77,3 +77,8 @@ if __name__ == "__main__":
     with maintenance_lease(skip_if_busy=False) as (store, token):
         guard = lease_renewal_callback(store, token)
         print(json.dumps({"orphan_movies": clear_orphan_final_movies(apply=not args.dry_run, lease_guard=guard)}))
+
+
+if __name__ == "__main__":
+    from backend.utils.log.job_lease import run_cli
+    raise SystemExit(run_cli(main, "backend.utils.supabase.clear_orphan_final_movies"))

@@ -101,7 +101,7 @@ def clear_old_entries(*args, apply=True, lease_guard=None, **kwargs):
     return counts
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Run the legacy old-entry sweep under the shared target lease.")
     parser.add_argument("--target", choices=("development", "production"), default=os.environ.get("KARTISERET_TARGET"), required=not bool(os.environ.get("KARTISERET_TARGET")))
     parser.add_argument("--dry-run", action="store_true")
@@ -114,3 +114,8 @@ if __name__ == "__main__":
     with maintenance_lease(skip_if_busy=False) as (store, token):
         guard = lease_renewal_callback(store, token)
         print(json.dumps(clear_old_entries(apply=not args.dry_run, lease_guard=guard), sort_keys=True))
+
+
+if __name__ == "__main__":
+    from backend.utils.log.job_lease import run_cli
+    raise SystemExit(run_cli(main, "backend.utils.supabase.clear_old_entries"))
