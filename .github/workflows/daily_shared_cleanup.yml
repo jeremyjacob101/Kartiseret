@@ -38,9 +38,7 @@ jobs:
       matrix:
         include:
           - target: development
-            prefix: DEV
           - target: production
-            prefix: PROD
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && vars.KARTISERET_SHARED_CLEANUP_ENABLED == 'true')
     steps:
       - uses: actions/checkout@v5
@@ -54,24 +52,45 @@ jobs:
       - name: Install backend dependencies
         if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
         run: python -m pip install --prefer-binary -r requirements.txt
-      - name: Validate target credentials and access
-        if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
+      - name: Validate development credentials and access
+        if: matrix.target == 'development' && (github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target)
         env:
           TARGET: ${{ matrix.target }}
-          SUPABASE_URL: ${{ secrets[format('{0}_SUPABASE_URL', matrix.prefix)] }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets[format('{0}_SUPABASE_SERVICE_ROLE_KEY', matrix.prefix)] }}
-          PUBLICATION_DATABASE_URL: ${{ secrets[format('{0}_PUBLICATION_DATABASE_URL', matrix.prefix)] }}
-          PUBLICATION_DATABASE_SSL_CA_CERT: ${{ secrets[format('{0}_PUBLICATION_DATABASE_SSL_CA_CERT', matrix.prefix)] }}
+          SUPABASE_URL: ${{ secrets.DEV_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DEV_SUPABASE_SERVICE_ROLE_KEY }}
+          PUBLICATION_DATABASE_URL: ${{ secrets.DEV_PUBLICATION_DATABASE_URL }}
+          PUBLICATION_DATABASE_SSL_CA_CERT: ${{ secrets.DEV_PUBLICATION_DATABASE_SSL_CA_CERT }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_BUCKET: ${{ secrets[format('{0}_R2_BUCKET', matrix.prefix)] }}
-          R2_IMAGE_ORIGIN: ${{ secrets[format('{0}_R2_IMAGE_ORIGIN', matrix.prefix)] }}
-          R2_ACCESS_KEY_ID: ${{ secrets[format('{0}_R2_ACCESS_KEY_ID', matrix.prefix)] }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets[format('{0}_R2_SECRET_ACCESS_KEY', matrix.prefix)] }}
-          D1_DATABASE_ID: ${{ secrets[format('{0}_D1_DATABASE_ID', matrix.prefix)] }}
-          D1_API_TOKEN: ${{ secrets[format('{0}_D1_API_TOKEN', matrix.prefix)] }}
-          RUN_ARTIFACTS_R2_BUCKET: ${{ secrets[format('{0}_RUN_ARTIFACTS_R2_BUCKET', matrix.prefix)] }}
-          RUN_ARTIFACTS_R2_ACCESS_KEY_ID: ${{ secrets[format('{0}_RUN_ARTIFACTS_R2_ACCESS_KEY_ID', matrix.prefix)] }}
-          RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY: ${{ secrets[format('{0}_RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY', matrix.prefix)] }}
+          R2_BUCKET: ${{ secrets.DEV_R2_BUCKET }}
+          R2_IMAGE_ORIGIN: ${{ secrets.DEV_R2_IMAGE_ORIGIN }}
+          R2_ACCESS_KEY_ID: ${{ secrets.DEV_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.DEV_R2_SECRET_ACCESS_KEY }}
+          D1_DATABASE_ID: ${{ secrets.DEV_D1_DATABASE_ID }}
+          D1_API_TOKEN: ${{ secrets.DEV_D1_API_TOKEN }}
+          RUN_ARTIFACTS_R2_BUCKET: ${{ secrets.DEV_RUN_ARTIFACTS_R2_BUCKET }}
+          RUN_ARTIFACTS_R2_ACCESS_KEY_ID: ${{ secrets.DEV_RUN_ARTIFACTS_R2_ACCESS_KEY_ID }}
+          RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY: ${{ secrets.DEV_RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY }}
+          KARTISERET_TARGET: ${{ matrix.target }}
+        run: python -m backend.utils.log.shared_cleanup --target "$TARGET" --validate-only
+
+      - name: Validate production credentials and access
+        if: matrix.target == 'production' && (github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target)
+        env:
+          TARGET: ${{ matrix.target }}
+          SUPABASE_URL: ${{ secrets.PROD_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PROD_SUPABASE_SERVICE_ROLE_KEY }}
+          PUBLICATION_DATABASE_URL: ${{ secrets.PROD_PUBLICATION_DATABASE_URL }}
+          PUBLICATION_DATABASE_SSL_CA_CERT: ${{ secrets.PROD_PUBLICATION_DATABASE_SSL_CA_CERT }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.PROD_R2_BUCKET }}
+          R2_IMAGE_ORIGIN: ${{ secrets.PROD_R2_IMAGE_ORIGIN }}
+          R2_ACCESS_KEY_ID: ${{ secrets.PROD_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.PROD_R2_SECRET_ACCESS_KEY }}
+          D1_DATABASE_ID: ${{ secrets.PROD_D1_DATABASE_ID }}
+          D1_API_TOKEN: ${{ secrets.PROD_D1_API_TOKEN }}
+          RUN_ARTIFACTS_R2_BUCKET: ${{ secrets.PROD_RUN_ARTIFACTS_R2_BUCKET }}
+          RUN_ARTIFACTS_R2_ACCESS_KEY_ID: ${{ secrets.PROD_RUN_ARTIFACTS_R2_ACCESS_KEY_ID }}
+          RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY: ${{ secrets.PROD_RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY }}
           KARTISERET_TARGET: ${{ matrix.target }}
         run: python -m backend.utils.log.shared_cleanup --target "$TARGET" --validate-only
 
@@ -85,9 +104,7 @@ jobs:
       matrix:
         include:
           - target: development
-            prefix: DEV
           - target: production
-            prefix: PROD
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && vars.KARTISERET_SHARED_CLEANUP_ENABLED == 'true')
     concurrency:
       group: kartiseret-shared-cleanup-${{ matrix.target }}
@@ -97,20 +114,6 @@ jobs:
       KARTISERET_TARGET: ${{ matrix.target }}
       KARTISERET_SHARED_CLEANUP_APPLY: ${{ (github.event_name == 'schedule' && vars.KARTISERET_SHARED_CLEANUP_APPLY == 'true') || (github.event_name == 'workflow_dispatch' && inputs.apply) }}
       FORCE_CLEANUP: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
-      SUPABASE_URL: ${{ secrets[format('{0}_SUPABASE_URL', matrix.prefix)] }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets[format('{0}_SUPABASE_SERVICE_ROLE_KEY', matrix.prefix)] }}
-      PUBLICATION_DATABASE_URL: ${{ secrets[format('{0}_PUBLICATION_DATABASE_URL', matrix.prefix)] }}
-      PUBLICATION_DATABASE_SSL_CA_CERT: ${{ secrets[format('{0}_PUBLICATION_DATABASE_SSL_CA_CERT', matrix.prefix)] }}
-      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-      R2_BUCKET: ${{ secrets[format('{0}_R2_BUCKET', matrix.prefix)] }}
-      R2_IMAGE_ORIGIN: ${{ secrets[format('{0}_R2_IMAGE_ORIGIN', matrix.prefix)] }}
-      R2_ACCESS_KEY_ID: ${{ secrets[format('{0}_R2_ACCESS_KEY_ID', matrix.prefix)] }}
-      R2_SECRET_ACCESS_KEY: ${{ secrets[format('{0}_R2_SECRET_ACCESS_KEY', matrix.prefix)] }}
-      D1_DATABASE_ID: ${{ secrets[format('{0}_D1_DATABASE_ID', matrix.prefix)] }}
-      D1_API_TOKEN: ${{ secrets[format('{0}_D1_API_TOKEN', matrix.prefix)] }}
-      RUN_ARTIFACTS_R2_BUCKET: ${{ secrets[format('{0}_RUN_ARTIFACTS_R2_BUCKET', matrix.prefix)] }}
-      RUN_ARTIFACTS_R2_ACCESS_KEY_ID: ${{ secrets[format('{0}_RUN_ARTIFACTS_R2_ACCESS_KEY_ID', matrix.prefix)] }}
-      RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY: ${{ secrets[format('{0}_RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY', matrix.prefix)] }}
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
     steps:
       - uses: actions/checkout@v5
@@ -124,8 +127,47 @@ jobs:
       - name: Install backend dependencies
         if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
         run: python -m pip install --prefer-binary -r requirements.txt
-      - name: Run shared cleanup
-        if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
+      - name: Run development shared cleanup
+        if: matrix.target == 'development' && (github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target)
+        env:
+          SUPABASE_URL: ${{ secrets.DEV_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DEV_SUPABASE_SERVICE_ROLE_KEY }}
+          PUBLICATION_DATABASE_URL: ${{ secrets.DEV_PUBLICATION_DATABASE_URL }}
+          PUBLICATION_DATABASE_SSL_CA_CERT: ${{ secrets.DEV_PUBLICATION_DATABASE_SSL_CA_CERT }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.DEV_R2_BUCKET }}
+          R2_IMAGE_ORIGIN: ${{ secrets.DEV_R2_IMAGE_ORIGIN }}
+          R2_ACCESS_KEY_ID: ${{ secrets.DEV_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.DEV_R2_SECRET_ACCESS_KEY }}
+          D1_DATABASE_ID: ${{ secrets.DEV_D1_DATABASE_ID }}
+          D1_API_TOKEN: ${{ secrets.DEV_D1_API_TOKEN }}
+          RUN_ARTIFACTS_R2_BUCKET: ${{ secrets.DEV_RUN_ARTIFACTS_R2_BUCKET }}
+          RUN_ARTIFACTS_R2_ACCESS_KEY_ID: ${{ secrets.DEV_RUN_ARTIFACTS_R2_ACCESS_KEY_ID }}
+          RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY: ${{ secrets.DEV_RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY }}
+        run: |
+          if [[ "$FORCE_CLEANUP" == "true" ]]; then
+            python -m backend.utils.log.shared_cleanup --target "$TARGET" --force
+          else
+            python -m backend.utils.log.shared_cleanup --target "$TARGET"
+          fi
+
+      - name: Run production shared cleanup
+        if: matrix.target == 'production' && (github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target)
+        env:
+          SUPABASE_URL: ${{ secrets.PROD_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PROD_SUPABASE_SERVICE_ROLE_KEY }}
+          PUBLICATION_DATABASE_URL: ${{ secrets.PROD_PUBLICATION_DATABASE_URL }}
+          PUBLICATION_DATABASE_SSL_CA_CERT: ${{ secrets.PROD_PUBLICATION_DATABASE_SSL_CA_CERT }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.PROD_R2_BUCKET }}
+          R2_IMAGE_ORIGIN: ${{ secrets.PROD_R2_IMAGE_ORIGIN }}
+          R2_ACCESS_KEY_ID: ${{ secrets.PROD_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.PROD_R2_SECRET_ACCESS_KEY }}
+          D1_DATABASE_ID: ${{ secrets.PROD_D1_DATABASE_ID }}
+          D1_API_TOKEN: ${{ secrets.PROD_D1_API_TOKEN }}
+          RUN_ARTIFACTS_R2_BUCKET: ${{ secrets.PROD_RUN_ARTIFACTS_R2_BUCKET }}
+          RUN_ARTIFACTS_R2_ACCESS_KEY_ID: ${{ secrets.PROD_RUN_ARTIFACTS_R2_ACCESS_KEY_ID }}
+          RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY: ${{ secrets.PROD_RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY }}
         run: |
           if [[ "$FORCE_CLEANUP" == "true" ]]; then
             python -m backend.utils.log.shared_cleanup --target "$TARGET" --force
