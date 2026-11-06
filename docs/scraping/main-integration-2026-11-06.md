@@ -22,3 +22,11 @@ Validation on the merged branch:
 - `git diff --check origin/main` passed for the PR changes.
 
 This integration does not provide new live-site parity or speed measurements. Existing transport defaults and the outstanding MovieLand/Hot Cinema showtime parity limitations remain as recorded in the November 4 report.
+
+## Latest-main follow-up
+
+Merged main again at `bde12fffe1027834633289e3bab633d56e4fb7b3` to include the Hot Cinema coming-soon upload projection and movie-notification poster lookup fix. Both fixes and their tests are retained exactly as they are on main. Removed the obsolete local transport-diagnostics ignore rule because this branch now uses main's D1 storage path.
+
+The remaining diff against main is the Requests collectors, lazy browser/fallback lifecycle, related fixtures/tests and dependencies, the prior scraper correctness/coverage fixes, and scraping documentation/evidence. Main's runner, publication, notification, lease, budget, and cleanup implementations have no additional diff.
+
+Backend validation after this follow-up: **633 tests passed**. The preceding Node 24 verification remains applicable; the new main commit changes Python code and tests only. No new live-site benchmarks were performed.
