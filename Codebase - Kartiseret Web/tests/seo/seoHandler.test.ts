@@ -235,6 +235,51 @@ describe("SEO request handler", () => {
     });
   });
 
+  it("bootstraps an explicit far-ahead Tel Aviv movie date for direct entry", async () => {
+    const today = getJerusalemCinemaDate();
+    const date = addCalendarDays(today, 75)!;
+    const routeCode = new URL(
+      buildMovieShowtimeShareUrl({
+        movieCode: "Ab1",
+        city: "Tel Aviv",
+        date: today,
+        filterMask: 45120,
+      })!,
+    ).pathname.slice(1);
+    mocks.getMovieShowtimes.mockResolvedValue([
+      {
+        tmdbId: sampleMovie.tmdbId,
+        screeningCity: "Tel Aviv",
+        dateOfShowing: date,
+        cinema: "Cinema City",
+        showtime: "19:30",
+        englishHref: null,
+        hebrewHref: null,
+        screeningTech: "2D",
+        screeningType: "Regular",
+        dubLanguage: null,
+      },
+    ]);
+    const response = createResponse();
+
+    await seoHandler(
+      createRequest(`/api/movie?routeCode=${routeCode}&date=${date}`, {
+        routeCode,
+        date,
+      }),
+      response as never,
+    );
+
+    expect(response.statusCode).toBe(200);
+    const bootstrap = mocks.renderBuiltPublicApplication.mock.calls[0]?.[0];
+    expect(bootstrap?.pathname).toBe(`/${routeCode}?date=${date}`);
+    expect(bootstrap?.targetedMovieShowtimes).toMatchObject({
+      city: "Tel Aviv",
+      date,
+      tmdbId: sampleMovie.tmdbId,
+    });
+  });
+
   it("serves verified cinema pages with cinematheque screenings and movie shortlinks", async () => {
     const cinemaTheater = CINEMA_IDENTITIES.find(
       (identity) => identity.displayName === "Jerusalem Cinematheque",

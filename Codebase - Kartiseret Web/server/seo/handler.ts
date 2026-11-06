@@ -132,8 +132,13 @@ async function getMoviePage(
   routeCode: string,
   instant = new Date(),
   imageOrigin = SITE_ORIGIN,
+  requestedDate?: string,
 ) {
-  const selection = resolvePreviewRouteSelection(routeCode, instant);
+  const selection = resolvePreviewRouteSelection(
+    routeCode,
+    instant,
+    requestedDate,
+  );
   if (!selection) return null;
   const repository = getProductionPublicDataRepository();
 
@@ -147,7 +152,7 @@ async function getMoviePage(
     const parsedRoute = parseMovieRouteCode(routeCode);
     let rows: PublicShowtime[] = [];
     let allMovieShowtimes: PublicShowtime[] = [];
-    if (!isComingSoon) {
+    if (!isComingSoon || parsedRoute?.kind === "encoded") {
       const fromDate = getCinemaDayDate(instant);
       allMovieShowtimes = await getMovieShowtimes(
         repository,
@@ -197,13 +202,15 @@ async function getMoviePage(
     const selectedDate =
       parsedRoute?.kind === "encoded" ? selection.date : currentDate;
     const bootstrap = createPageBootstrap(
-      `/${routeCode}`,
+      parsedRoute?.kind === "encoded"
+        ? `/${routeCode}?date=${encodeURIComponent(selection.date)}`
+        : `/${routeCode}`,
       publicationRevision,
       instant,
       { nowPlaying: nowPlayingCatalog, comingSoon: comingSoonCatalog },
       {
         theaters,
-        ...(!isComingSoon
+        ...(!isComingSoon || parsedRoute?.kind === "encoded"
           ? {
               targetedMovieShowtimes: {
                 city: selectedCity,
@@ -227,7 +234,10 @@ async function getMoviePage(
         title: `${movie.title}${isComingSoon ? " — Coming soon" : " showtimes in Israel"} | Kartiseret`,
         description,
         canonicalPath: `/${selection.movieCode}`,
-        openGraphPath: `/${routeCode}`,
+        openGraphPath:
+          parsedRoute?.kind === "encoded"
+            ? `/${routeCode}?date=${encodeURIComponent(selection.date)}`
+            : `/${routeCode}`,
         imageUrl: openGraphImageUrl,
         imageAlt: `${movie.title} movie preview`,
         jsonLd: movieJsonLd(movie),
@@ -599,10 +609,14 @@ export default async function handler(
         const routeCode = Array.isArray(request.query.routeCode)
           ? (request.query.routeCode.at(-1) ?? "")
           : (request.query.routeCode ?? "");
+        const requestedDate = Array.isArray(request.query.date)
+          ? (request.query.date.at(-1) ?? "")
+          : (request.query.date ?? "");
         const movie = await getMoviePage(
           routeCode,
           new Date(),
           getRequestOrigin(request.headers),
+          requestedDate,
         );
         result = movie
           ? { page: movie.page, bootstrap: movie.bootstrap }

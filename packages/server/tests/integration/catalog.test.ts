@@ -73,9 +73,16 @@ const expectedTableNames = [
   "utilRunLogs",
 ];
 
-// These Python-only pipeline tables deliberately stay out of Drizzle's
-// applicationTables, which is the schema granted to the public API runtime.
+// These private pipeline and operational tables deliberately stay out of
+// Drizzle's applicationTables, which is granted to the public API runtime.
 const expectedPipelineTableColumns = {
+  utilAvgTimeHistory: [
+    "name",
+    "runner_machine",
+    "weekday",
+    "recent_times",
+    "updated_at",
+  ],
   letterboxd_event_alerts: [
     "id",
     "user_id",
@@ -377,7 +384,7 @@ describe("PostgreSQL 17 integration", () => {
     ]);
   });
 
-  it("keeps pipeline tables and checkpoint RPCs service-role only", async () => {
+  it("keeps private pipeline and timing tables and RPCs service-role only", async () => {
     const { rows: tablePrivileges } = await adminDatabase.pool.query<{
       table_name: string;
       row_security: boolean;
@@ -440,6 +447,7 @@ describe("PostgreSQL 17 integration", () => {
         [
           "claim_pipeline_publication_checkpoint",
           "advance_pipeline_publication_checkpoint",
+          "append_util_avg_time_history",
         ],
       ],
     );
@@ -453,11 +461,58 @@ describe("PostgreSQL 17 integration", () => {
         authenticated_execute: false,
       },
       {
+        function_name: "append_util_avg_time_history",
+        service_execute: true,
+        api_execute: false,
+        anon_execute: false,
+        authenticated_execute: false,
+      },
+      {
         function_name: "claim_pipeline_publication_checkpoint",
         service_execute: true,
         api_execute: false,
         anon_execute: false,
         authenticated_execute: false,
+      },
+    ]);
+  });
+
+  it("limits rolling timing history writes to the trusted service role", async () => {
+    const { rows } = await adminDatabase.pool.query<{
+      row_security: boolean;
+      service_select: boolean;
+      service_insert: boolean;
+      service_update: boolean;
+      service_delete: boolean;
+      runtime_select: boolean;
+      anon_select: boolean;
+      authenticated_select: boolean;
+    }>(`
+      SELECT
+        relation.relrowsecurity AS row_security,
+        has_table_privilege('service_role', relation.oid, 'SELECT') AS service_select,
+        has_table_privilege('service_role', relation.oid, 'INSERT') AS service_insert,
+        has_table_privilege('service_role', relation.oid, 'UPDATE') AS service_update,
+        has_table_privilege('service_role', relation.oid, 'DELETE') AS service_delete,
+        has_table_privilege('kartiseret_runtime', relation.oid, 'SELECT') AS runtime_select,
+        has_table_privilege('anon', relation.oid, 'SELECT') AS anon_select,
+        has_table_privilege('authenticated', relation.oid, 'SELECT') AS authenticated_select
+      FROM pg_catalog.pg_class AS relation
+      JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+      WHERE namespace.nspname = 'public'
+        AND relation.relname = 'utilAvgTimeHistory'
+    `);
+
+    expect(rows).toEqual([
+      {
+        row_security: true,
+        service_select: true,
+        service_insert: true,
+        service_update: true,
+        service_delete: false,
+        runtime_select: false,
+        anon_select: false,
+        authenticated_select: false,
       },
     ]);
   });

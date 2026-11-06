@@ -1,7 +1,7 @@
+import { sampleMovie, sampleShowtimeDays, sampleShowtimes } from "../fixtures";
 import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { sampleMovie, sampleShowtimeDays } from "../fixtures";
 import { QueryClientProvider } from "@tanstack/react-query";
 import type { Theater } from "@kartiseret/contracts/movies";
 import { theaterQueryKeys } from "../../src/data/theaters";
@@ -191,6 +191,35 @@ describe("MovieDetailsContent", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the selected empty date for a coming-soon availability link", () => {
+    queryClient.setQueryData(movieCatalogQueryKeys.showtimeCity("Jerusalem"), {
+      city: "Jerusalem",
+      broadFetchedDates: [],
+      broadLoadedDayCount: 0,
+      broadReady: false,
+      broadVisibleDayCount: 0,
+      movieShowtimesByTmdbId: {
+        [sampleMovie.tmdbId]: [{ date: "2026-12-01", theaters: [] }],
+      },
+      rowsByKey: {},
+      targetedFetchedDatesByTmdbId: { [sampleMovie.tmdbId]: ["2026-12-01"] },
+      targetedLoadedDayCountByTmdbId: { [sampleMovie.tmdbId]: 0 },
+      visibleDayCount: 180,
+    });
+
+    renderDetails({
+      variant: "comingSoon",
+      exactDateShowtimeQueries: true,
+      preferredShowtimeDate: "2026-12-01",
+      showtimeDateWindowStart: "2026-09-16",
+    });
+
+    expect(
+      screen.getByRole("radio", { name: /Tuesday, December 1, 2026/ }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByLabelText(/No showtimes on/)).toBeInTheDocument();
+  });
+
   it("shows the loading state when an exact-date showtime request has no selected day yet", () => {
     queryClient.setQueryData(movieCatalogQueryKeys.showtimeCity("Jerusalem"), {
       city: "Jerusalem",
@@ -205,5 +234,45 @@ describe("MovieDetailsContent", () => {
     });
 
     expect(screen.getByLabelText("Loading showtimes…")).toBeInTheDocument();
+  });
+
+  it("keeps adjacent dates selectable for an exact far-ahead movie link", () => {
+    const farDate = "2026-12-01";
+    queryClient.setQueryData(movieCatalogQueryKeys.showtimeCity("Jerusalem"), {
+      city: "Jerusalem",
+      broadFetchedDates: sampleShowtimeDays.map((day) => day.date),
+      broadLoadedDayCount: 2,
+      broadReady: true,
+      broadVisibleDayCount: 2,
+      movieShowtimesByTmdbId: {
+        [sampleMovie.tmdbId]: [
+          ...sampleShowtimeDays,
+          { date: farDate, theaters: sampleShowtimes },
+        ],
+      },
+      rowsByKey: {},
+      targetedFetchedDatesByTmdbId: { [sampleMovie.tmdbId]: [farDate] },
+      targetedLoadedDayCountByTmdbId: { [sampleMovie.tmdbId]: 0 },
+      visibleDayCount: 180,
+    });
+    const onPreferredShowtimeDateChange = vi.fn();
+
+    renderDetails({
+      exactDateShowtimeQueries: true,
+      preferredShowtimeDate: farDate,
+      onPreferredShowtimeDateChange,
+      showtimeDateWindowStart: "2026-09-16",
+    });
+
+    const previousDate = screen.getByRole("radio", {
+      name: /Monday, November 30, 2026/,
+    });
+    expect(previousDate).toHaveAttribute("aria-checked", "false");
+    expect(
+      screen.getByRole("radio", { name: /Tuesday, December 1, 2026/ }),
+    ).toHaveAttribute("aria-checked", "true");
+
+    fireEvent.click(previousDate);
+    expect(onPreferredShowtimeDateChange).toHaveBeenCalledWith("2026-11-30");
   });
 });

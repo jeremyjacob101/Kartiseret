@@ -532,13 +532,23 @@ export function ShowtimeDayPicker({
       setPreviewDateIfChanged(entry.date);
       isInteractingRef.current = true;
 
+      const viewport = viewportRef.current;
+      if (viewport) {
+        const currentScrollLeft = viewport.scrollLeft;
+        const previousScrollBehavior = viewport.style.scrollBehavior;
+        const previousScrollSnapType = viewport.style.scrollSnapType;
+        viewport.style.scrollBehavior = "auto";
+        viewport.style.scrollSnapType = "none";
+        viewport.scrollTo({ left: currentScrollLeft, behavior: "auto" });
+        viewport.style.scrollBehavior = previousScrollBehavior;
+        viewport.style.scrollSnapType = previousScrollSnapType;
+      }
+
+      onSelect(entry.date);
+
       if (!centerDate(entry.date, getPreferredScrollBehavior())) {
         requestedDateRef.current = null;
         isInteractingRef.current = false;
-
-        if (entry.date !== selectedEntryDate) {
-          onSelect(entry.date);
-        }
       }
     },
     [
@@ -546,7 +556,6 @@ export function ShowtimeDayPicker({
       clearScheduledSettle,
       entries,
       onSelect,
-      selectedEntryDate,
       setPreviewDateIfChanged,
     ],
   );

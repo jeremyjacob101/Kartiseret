@@ -55,6 +55,7 @@ describe("deployment performance boundaries", () => {
       "/soons",
       "/cinematheques",
       "/reset-password",
+      "/unsubscribe/letterboxd",
     ]) {
       expect(indexOf(source), `${source} rewrite`).toBeGreaterThanOrEqual(0);
     }
@@ -64,12 +65,19 @@ describe("deployment performance boundaries", () => {
     expect(indexOf("/reset-password")).toBeLessThan(
       indexOf("/:routeCode([0-9A-Za-z]{3,10})"),
     );
+    expect(indexOf("/unsubscribe/letterboxd")).toBeLessThan(
+      indexOf("/:routeCode([0-9A-Za-z]{3,10})"),
+    );
     expect(indexOf("/(.*)")).toBe(rewrites.length - 1);
     expect(
       rewrites.find((rewrite) => rewrite.source === "/api")?.destination,
     ).toBe("/api/dispatch");
     expect(
       rewrites.find((rewrite) => rewrite.source === "/reset-password")
+        ?.destination,
+    ).toBe("/index.html");
+    expect(
+      rewrites.find((rewrite) => rewrite.source === "/unsubscribe/letterboxd")
         ?.destination,
     ).toBe("/index.html");
     expect(
@@ -97,11 +105,27 @@ describe("deployment performance boundaries", () => {
       source: string;
       headers: { key: string; value: string }[];
     }[];
-    for (const path of ["/user", "/reset-password", "/attribution"]) {
+    for (const path of [
+      "/user",
+      "/reset-password",
+      "/attribution",
+      "/unsubscribe/letterboxd",
+    ]) {
       const robots = headerRules
         .find((rule) => rule.source === path)
         ?.headers.find((header) => header.key.toLowerCase() === "x-robots-tag");
       expect(robots?.value).toBe("noindex, nofollow");
     }
+    const unsubscribeHeaders = headerRules.find(
+      (rule) => rule.source === "/unsubscribe/letterboxd",
+    )?.headers;
+    expect(unsubscribeHeaders).toContainEqual({
+      key: "Referrer-Policy",
+      value: "no-referrer",
+    });
+    expect(unsubscribeHeaders).toContainEqual({
+      key: "Cache-Control",
+      value: "no-store",
+    });
   });
 });

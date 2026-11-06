@@ -323,6 +323,7 @@ export const ticketAlertSubscriptions = pgTable(
     deliveryDate: calendarDate("delivery_date"),
     deliveryHref: text("delivery_href"),
     deliveryMovieCode: text("delivery_movie_code"),
+    deliveryFilterMask: integer("delivery_filter_mask").notNull().default(0),
     deliveryAttempts: integer("delivery_attempts").notNull().default(0),
     lastDeliveryAttemptAt: instant("last_delivery_attempt_at"),
     lastDeliveryError: text("last_delivery_error"),
@@ -544,6 +545,25 @@ export const utilAvgTime = pgTable("utilAvgTime", {
   numRunsM5Mac: integer("num_runs_m5_mac").default(0),
   avgTimeM5Mac: doublePrecision("avg_time_m5_mac").default(0),
 });
+
+// Operational timing history is read and written only by trusted Python
+// workers, so it is intentionally excluded from applicationTables below.
+export const utilAvgTimeHistory = pgTable(
+  "utilAvgTimeHistory",
+  {
+    name: text("name").notNull(),
+    runnerMachine: text("runner_machine").notNull(),
+    weekday: text("weekday").notNull(),
+    recentTimes: doublePrecision("recent_times").array().notNull().default([]),
+    updatedAt: instant("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.name, table.runnerMachine, table.weekday],
+      name: "util_avg_time_history_pkey",
+    }),
+  ],
+);
 
 export const utilRunLogs = pgTable("utilRunLogs", {
   runId: integer("run_id").primaryKey(),

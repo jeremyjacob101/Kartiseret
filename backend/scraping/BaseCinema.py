@@ -1,5 +1,5 @@
 from backend.scraping.utils.InitializeBaseCinema import InitializeBaseCinema, build_chrome, setUpSupabase, navigate, logSuccessfulRun
-from backend.scraping.utils.FormatAndAppend import ARTIFACT_ROOT, AppendToInfo, formatAndUpload, formatAndWriteCsv, _format_rows_from_gathering_info
+from backend.scraping.utils.FormatAndAppend import AppendToInfo, formatAndUpload, formatAndWriteCsv, _format_rows_from_gathering_info
 from backend.scraping.utils.ScrapedFixes import ScrapedFixes
 from backend.scraping.utils.ScrapingHelpers import ScrapingHelpers
 from datetime import date, datetime, timezone
@@ -7,6 +7,8 @@ import uuid
 import logging
 import json
 import time
+from backend.utils.log.cloudflare_storage import CloudflareStorageError, LeaseLostError
+from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
 
 
 class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToInfo):
@@ -104,8 +106,11 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
         for attribute in set(self.__dict__) - initial_attributes:
             delattr(self, attribute)
         start, today, year, month = self.startTime, self.today_date, self.current_year, self.current_month
+        timing_weekday = self._timing_weekday
         InitializeBaseCinema.__init__(self)
         self.startTime, self.today_date, self.current_year, self.current_month = start, today, year, month
+        self._timing_weekday = timing_weekday
+        self._uploaded_scrape_rows = None
         self._empty_snapshot_evidence = None
 
     def _validate_requests_collection(self):
@@ -124,28 +129,34 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
     def _record_collection(self, transport, started, status, error=None):
         if not getattr(self, '_snapshot_manifest_started', False):
             return
-        try:
-            folder = ARTIFACT_ROOT / str(self.run_id) / 'transport'
-            folder.mkdir(parents=True, exist_ok=True)
-            name = getattr(self, '_artifact_item_name', None) or self.__class__.__name__
-            attempt = getattr(self, '_artifact_attempt', None) or 1
-            snapshot = getattr(self, 'snapshot_id', None) or 'no-snapshot'
-            path = folder / f'{name}-{attempt}-{snapshot}-{transport}.json'
-            payload = {
-                'scraper': self.__class__.__name__, 'transport': transport, 'status': status,
-                'seconds': time.perf_counter() - started,
-                'rows': len(self.gathering_info.get('hebrew_title', [])),
-                'requests': getattr(self, '_http_stats', {}).get('requests', 0) if transport == 'requests' else 0,
-                'observed_retries': getattr(self, '_http_stats', {}).get('observed_retries', 0) if transport == 'requests' else 0,
-                'coverage': getattr(self, '_coverage', {}),
-                'failure_type': type(error).__name__ if error else None,
-                'failure_reason': str(error)[:500] if error else None,
-            }
-            path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-        except Exception:
-            logging.getLogger(__name__).exception('Could not write scraper transport diagnostics')
+        from backend.utils.log.run_storage import RunArtifactStore
+
+        name = getattr(self, '_artifact_item_name', None) or self.__class__.__name__
+        attempt = getattr(self, '_artifact_attempt', None) or 1
+        snapshot = getattr(self, 'snapshot_id', None) or 'no-snapshot'
+        payload = {
+            'scraper': self.__class__.__name__, 'transport': transport, 'status': status,
+            'snapshot_id': snapshot, 'attempt': attempt,
+            'seconds': time.perf_counter() - started,
+            'rows': len(self.gathering_info.get('hebrew_title', [])),
+            'requests': getattr(self, '_http_stats', {}).get('requests', 0) if transport == 'requests' else 0,
+            'observed_retries': getattr(self, '_http_stats', {}).get('observed_retries', 0) if transport == 'requests' else 0,
+            'coverage': getattr(self, '_coverage', {}),
+            'failure_type': type(error).__name__ if error else None,
+            'failure_reason': str(error)[:500] if error else None,
+        }
+        # Use main's guarded D1 writer and recovery envelopes. Storage or lease
+        # failures must propagate, never start another transport or publication.
+        RunArtifactStore().save_text_artifact(
+            run_id=int(self.run_id), artifact_type='scrape_transport',
+            name=f'{name}-{attempt}-{snapshot}-{transport}.json',
+            text=json.dumps(payload, ensure_ascii=False), metadata=payload,
+            identity_namespace=snapshot,
+        )
 
     def scrape(self):
+        catalog_published = False
+        self._uploaded_scrape_rows = None
         try:
             self.startScrapeSnapshot()
             mode = getattr(self, "scrape_mode", "selenium" if self.USES_BROWSER else "requests")
@@ -156,6 +167,8 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
             if mode == "selenium":
                 try:
                     self._collect_selenium()
+                except (LeaseLostError, R2BudgetError, R2BudgetExceeded):
+                    raise
                 except Exception as error:
                     self._record_collection('selenium', collection_started, 'failed', error)
                     raise
@@ -164,6 +177,8 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
                 try:
                     self.requests_logic()
                     self._validate_requests_collection()
+                except (CloudflareStorageError, R2BudgetError, R2BudgetExceeded):
+                    raise
                 except Exception as error:
                     self._record_collection('requests', collection_started, 'failed', error)
                     if mode != "auto":
@@ -182,6 +197,8 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
                     fallback_started = time.perf_counter()
                     try:
                         self._collect_selenium()
+                    except (LeaseLostError, R2BudgetError, R2BudgetExceeded):
+                        raise
                     except Exception as fallback_error:
                         self._record_collection('selenium', fallback_started, 'failed', fallback_error)
                         raise
@@ -189,10 +206,27 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
                 else:
                     self._record_collection('requests', collection_started, 'complete')
             formatAndUpload(self)
+            catalog_published = True
+            # Persist scrape output after publication so the D1 outcome reflects
+            # whether the source rows actually reached Supabase.
+            formatAndWriteCsv(self, successful=True)
             self.finishScrapeSnapshot(getattr(self, "_snapshot_row_count", 0))
             logSuccessfulRun(self)
-            formatAndWriteCsv(self, successful=True)
         except Exception as error:
             self.failScrapeSnapshot(error)
-            formatAndWriteCsv(self, successful=False)
+            if catalog_published and isinstance(error, CloudflareStorageError):
+                raise CloudflareStorageError(
+                    "Catalog data was published to Supabase, but storing its scrape rows in D1 failed; "
+                    "the run is marked failed and the local recovery copy is retained."
+                ) from error
+            if not isinstance(error, CloudflareStorageError):
+                try:
+                    formatAndWriteCsv(self, successful=False)
+                except CloudflareStorageError as storage_error:
+                    if catalog_published:
+                        raise CloudflareStorageError(
+                            "Catalog data was published to Supabase, but recording the failed scrape attempt in D1 failed; "
+                            "the run is marked failed and the local recovery copy is retained."
+                        ) from storage_error
+                    raise storage_error from error
             raise

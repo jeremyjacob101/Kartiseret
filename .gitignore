@@ -73,3 +73,7 @@ backend/utils/log/logger_artifacts/*/transport/
 !.env.example
 .vercel
 .env*
+
+# Xcode per-user workspace state
+**/xcuserdata/
+*.xcuserstate

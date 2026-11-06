@@ -68,17 +68,17 @@ class YesPlanetRequestsTests(TestCase):
         with self.assertRaisesRegex(ValueError, 'format is missing'):
             self.run_collector()
 
-    def test_infinity_vision_combinations_preserve_browser_display_labels(self):
+    def test_infinity_vision_combinations_use_current_browser_normalization(self):
         cases = (
-            (['2d', 'infinity-vision'], 'INFINITY VISION2D'),
-            (['2d', 'infinity-vision', 'screenx'], 'INFINITY VISIONSCREENX2D'),
-            (['2d', 'infinity-vision', '4dx'], '4DXINFINITY VISION2D'),
+            (['2d', 'infinity-vision'], '2D Infinity Vision'),
+            (['2d', 'infinity-vision', 'screenx'], '2D ScreenX Infinity Vision'),
+            (['2d', 'infinity-vision', '4dx'], '2D 4DX Infinity Vision'),
         )
         for attributes, label in cases:
             with self.subTest(attributes=attributes):
                 self.event['attributeIds'] = attributes
                 self.run_collector()
-                self.assertEqual(self.scraper.gathering_info['screening_type'], [label])
+                self.assertEqual(self.scraper.gathering_info['screening_type'], ['Regular'])
                 self.assertEqual(self.scraper.gathering_info['screening_tech'], [label])
                 InitializeBaseCinema.__init__(self.scraper)
 

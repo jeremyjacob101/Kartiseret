@@ -4,6 +4,7 @@ import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scrol
 import { useMovieDisplayPreferences } from "./contexts/MovieDisplayPreferencesContext";
 import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
 import { getCurrentRobotsDirectives, setSeoMetadata } from "./routing/seoMetadata";
+import { LetterboxdUnsubscribePage } from "./components/LetterboxdUnsubscribePage";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import type { ApplicationIdentity } from "@kartiseret/contracts/private-data";
 import { applyMovieDisplayPreferences } from "./data/movieDisplayPreferences";
@@ -41,6 +42,7 @@ const FIXED_APP_PATHS = new Set([
   "/user",
   "/attribution",
   PASSWORD_RESET_PATH,
+  "/unsubscribe/letterboxd",
 ]);
 const loadCinemaPage = () => import("./components/CinemaPage");
 const loadUserPreferencesPage = () =>
@@ -373,6 +375,14 @@ function UserRoute({
 }
 
 export function App() {
+  const location = useLocation();
+  if (location.pathname === "/unsubscribe/letterboxd") {
+    return <LetterboxdUnsubscribePage />;
+  }
+  return <MainApplication />;
+}
+
+function MainApplication() {
   const publicationRevision = usePublicationRevision();
   const displayPreferences = useMovieDisplayPreferences();
   const routeLocation = useLocation();

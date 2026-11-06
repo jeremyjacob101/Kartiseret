@@ -1,5 +1,5 @@
 from backend.dataflow.BaseDataflow import BaseDataflow
-from backend.dataflow.utils.RottenTomatoesScores import parse_rotten_tomatoes_scorecard
+from backend.dataflow.utils.RottenTomatoesScores import parse_rotten_tomatoes_scorecard, select_rotten_tomatoes_search_match
 
 from urllib.parse import quote_plus, urlsplit
 from backend.dataflow.utils.ProviderFreshness import utc_now, observation, failure
@@ -102,18 +102,9 @@ class NowPlayingsUpdate(BaseDataflow):
                 search_failure = ("no_listing", "http_404")
         except Exception as error:
             search_html, search_failure = "", failure(error)
-        rt_rows = re.findall(r"<search-page-media-row\b.*?>.*?</search-page-media-row>", search_html, flags=re.S | re.I)[:10]
-        target_year = int(new_row.get("release_year") or 0)
-        if target_year:
-            for tolerance in (1, 2):
-                for rt_row in rt_rows:
-                    year = re.search(r'release-year="(\d{4})"', rt_row, flags=re.I)
-                    href = re.search(r'href="(https?://www\.rottentomatoes\.com/m/[^"]+)"', rt_row, flags=re.I)
-                    if year and href and abs(int(year.group(1)) - target_year) <= tolerance:
-                        picked_url = href.group(1)
-                        break
-                if picked_url:
-                    break
+        picked_url = select_rotten_tomatoes_search_match(
+            search_html, new_row.get("english_title"), new_row.get("release_year")
+        )
         fallback_rt_id = new_row.get("rt_id") or existing["rt_id"]
         if not picked_url and fallback_rt_id:
             picked_url = fallback_rt_id if fallback_rt_id.startswith("http") else f"https://www.rottentomatoes.com{fallback_rt_id}"
@@ -123,7 +114,6 @@ class NowPlayingsUpdate(BaseDataflow):
             self.recordProviderFreshness(new_row, "rotten_tomatoes", observation(outcome, reason, source, started))
             return
         path = re.search(r"rottentomatoes\.com(/m/[^/?#]+)", picked_url)
-        new_row["rt_id"] = path.group(1) if path else existing["rt_id"]
         source["film_path"] = urlsplit(picked_url).path[:256]
         try:
             film_response = self.requestGet(picked_url, headers={**self.requests_headers, "Referer": search_url}, timeout=20)
@@ -140,8 +130,13 @@ class NowPlayingsUpdate(BaseDataflow):
             except Exception:
                 pass
         if html:
+            if valid_scorecard and path:
+                new_row["rt_id"] = path.group(1)
+            old_path = urlsplit(existing.get("rt_id") or "").path.rstrip("/")
+            new_path = urlsplit(picked_url).path.rstrip("/")
+            changed_listing = bool(old_path and old_path != new_path and valid_scorecard)
             for field, value in parse_rotten_tomatoes_scorecard(scorecard).items():
-                new_row[field] = value if value is not None else existing[field]
+                new_row[field] = value if value is not None else (None if changed_listing else existing[field])
                 if value is not None:
                     refreshed.append(field)
         outcome, reason = (("success", "usable_fields" if len(refreshed) == 4 else "partial_fields") if refreshed else (("no_score", "listing_without_score") if valid_scorecard else ("parse_error", "score_markup_unrecognized")))
@@ -176,6 +171,11 @@ class NowPlayingsUpdate(BaseDataflow):
                     if result:
                         self.updates.append(result)
                 except Exception as error:
+                    from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+                    from backend.utils.log.cloudflare_storage import LeaseLostError
+
+                    if isinstance(error, (R2BudgetError, R2BudgetExceeded, LeaseLostError)):
+                        raise
                     self.trace_note(f"row_update_failed | error={type(error).__name__}")
 
         self.finishSharedUpdate(len(target_rows), self.updates)

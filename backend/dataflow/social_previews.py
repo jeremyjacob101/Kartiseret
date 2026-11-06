@@ -12,6 +12,7 @@ import argparse
 import json
 import logging
 import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import re
 import shutil
@@ -32,6 +33,7 @@ FINGERPRINT_RE = re.compile(r"^[a-f0-9]{64}$")
 R2_IMAGE_PATH_RE = re.compile(
     r"^/api/images/v1/(poster|backdrop)/([a-f0-9]{64})/(185|342|780|1280)\.webp$"
 )
+SOCIAL_OBJECT_KEY_RE = re.compile(r"^social/v1/([a-f0-9]{64})/card\.jpg$")
 TABLES = (
     (
         "finalMovies",
@@ -278,6 +280,7 @@ def refresh_social_previews(
     dry_run: bool = False,
     limit: int | None = None,
     worker: SocialPreviewWorker | None = None,
+    lease_guard=None,
 ) -> dict[str, int]:
     """Refresh stale/missing cards; resumable because each completed row points to its card."""
     if limit is not None and limit < 1:
@@ -288,7 +291,8 @@ def refresh_social_previews(
     completed_work = 0
     try:
         for table, primary_key, _coming_soon, columns in TABLES:
-            for row in each_row(client, table, columns):
+            rows = each_row(client, table, columns, lease_guard=lease_guard) if lease_guard else each_row(client, table, columns)
+            for row in rows:
                 stats["scanned"] += 1
                 if row.get("solo_update") is True:
                     stats["unchanged"] += 1
@@ -315,6 +319,8 @@ def refresh_social_previews(
                         continue
 
                     if not exists:
+                        if lease_guard:
+                            lease_guard()
                         poster, backdrop = _card_sources(storage, data)
                         rendered = worker.request(
                             {
@@ -335,6 +341,8 @@ def refresh_social_previews(
                             raise RuntimeError("Renderer returned malformed image data") from error
                         if not jpeg.startswith(b"\xff\xd8\xff") or len(jpeg) > MAX_CARD_BYTES:
                             raise RuntimeError("Renderer returned an invalid JPEG")
+                        if lease_guard:
+                            lease_guard()
                         storage.client.put_object(
                             Bucket=storage.bucket,
                             Key=key,
@@ -358,6 +366,8 @@ def refresh_social_previews(
                         completed_work += 1
                         continue
 
+                    if lease_guard:
+                        lease_guard()
                     update = client.table(table).update(
                         {"social_preview_fingerprint": fingerprint}
                     ).eq(primary_key, row[primary_key])
@@ -373,6 +383,11 @@ def refresh_social_previews(
                         stats["updated"] += 1
                     completed_work += 1
                 except Exception as error:
+                    from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+                    from backend.utils.log.cloudflare_storage import LeaseLostError
+
+                    if isinstance(error, (R2BudgetError, R2BudgetExceeded, LeaseLostError)):
+                        raise
                     stats["failed"] += 1
                     completed_work += 1
                     LOGGER.warning(
@@ -387,6 +402,79 @@ def refresh_social_previews(
             worker.close()
 
 
+def cleanup_social_previews(
+    client,
+    storage: ArtworkStorage,
+    *,
+    apply: bool,
+    grace_days: int = 30,
+    max_deletes: int = 500,
+    lease_guard=None,
+    retain_object=None,
+) -> dict[str, object]:
+    """Delete only old cards whose fingerprint is absent from every catalog table."""
+    if grace_days < 0 or max_deletes < 1:
+        raise ValueError("Cleanup grace period and deletion bound must be non-negative/positive")
+    live: set[str] = set()
+    for table, _primary_key, _coming_soon, columns in TABLES:
+        rows = each_row(client, table, columns, lease_guard=lease_guard) if lease_guard else each_row(client, table, columns)
+        for row in rows:
+            fingerprint = row.get("social_preview_fingerprint")
+            if fingerprint is None:
+                continue
+            if not isinstance(fingerprint, str) or not FINGERPRINT_RE.fullmatch(fingerprint):
+                raise RuntimeError(f"Social preview reference scan found malformed data in {table}; no deletion was attempted")
+            live.add(fingerprint)
+
+    if lease_guard:
+        lease_guard()
+    cutoff = datetime.now(timezone.utc) - timedelta(days=grace_days)
+    eligible = 0
+    candidates: list[str] = []
+    paginator = storage.client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=storage.bucket, Prefix="social/v1/"):
+        if lease_guard:
+            lease_guard()
+        contents = page.get("Contents", [])
+        if not isinstance(contents, list):
+            raise RuntimeError("Social preview R2 listing was malformed; no deletion was attempted")
+        for obj in contents:
+            if not isinstance(obj, dict):
+                raise RuntimeError("Social preview R2 listing was malformed; no deletion was attempted")
+            key, modified = obj.get("Key"), obj.get("LastModified")
+            if not isinstance(key, str) or not key.startswith("social/v1/") or not isinstance(modified, datetime):
+                raise RuntimeError("Social preview R2 listing was incomplete; no deletion was attempted")
+            match = SOCIAL_OBJECT_KEY_RE.fullmatch(key)
+            if not match:
+                raise RuntimeError("Social preview R2 listing contains an unknown object key; no deletion was attempted")
+            if modified.tzinfo is None:
+                modified = modified.replace(tzinfo=timezone.utc)
+            if match.group(1) in live or modified > cutoff or (retain_object and retain_object(key)):
+                continue
+            eligible += 1
+            if len(candidates) < max_deletes:
+                candidates.append(key)
+
+    deleted = 0
+    if apply and candidates:
+        from backend.utils.log.shared_cleanup import verify_lease
+        verify_lease(lease_guard)
+        response = storage.client.delete_objects(
+            Bucket=storage.bucket,
+            Delete={"Objects": [{"Key": key} for key in candidates], "Quiet": True},
+        )
+        if response.get("Errors"):
+            raise RuntimeError("Social preview cleanup did not confirm every deletion")
+        deleted = len(candidates)
+    return {
+        "live_fingerprints": len(live),
+        "eligible_objects": eligible,
+        "deletion_batch": len(candidates),
+        "sample_keys": candidates[:20],
+        "deleted": deleted,
+    }
+
+
 def refresh_configured_social_previews() -> dict[str, int] | None:
     """Best-effort after-publication hook; artwork failures never undo a scrape."""
     try:
@@ -399,15 +487,22 @@ def refresh_configured_social_previews() -> dict[str, int] | None:
         if not supabase_url or not service_key:
             LOGGER.warning("Skipping social previews: selected Supabase credentials are unavailable")
             return None
-        from supabase import create_client
+        from backend.utils.log.job_lease import create_client
+        from backend.utils.log.shared_cleanup import current_run_lease_guard
 
         stats = refresh_social_previews(
             create_client(supabase_url, service_key),
             storage,
+            lease_guard=current_run_lease_guard(),
         )
         LOGGER.info("Social preview refresh completed: %s", stats)
         return stats
     except Exception as error:
+        from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+        from backend.utils.log.cloudflare_storage import LeaseLostError
+
+        if isinstance(error, (R2BudgetError, R2BudgetExceeded, LeaseLostError)):
+            raise
         LOGGER.warning("Social preview refresh was skipped after an error (%s)", type(error).__name__)
         return None
 
@@ -454,7 +549,7 @@ def main() -> None:
     if args.apply and is_production and not args.allow_production:
         parser.error("Production writes require the explicit --allow-production flag")
 
-    from supabase import create_client
+    from backend.utils.log.job_lease import create_client
 
     storage = ArtworkStorage.from_environment()
     if storage is None:
@@ -463,13 +558,18 @@ def main() -> None:
         os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"]
     )
     result = refresh_social_previews(
-        client,
-        storage,
-        dry_run=not args.apply,
-        limit=args.limit,
-    )
+        client, storage, dry_run=not args.apply, limit=args.limit,
+    ) if not args.apply else None
+    if args.apply:
+        from backend.utils.log.shared_cleanup import lease_renewal_callback, maintenance_lease
+        with maintenance_lease(skip_if_busy=False) as (store, token):
+            result = refresh_social_previews(
+                client, storage, dry_run=False, limit=args.limit,
+                lease_guard=lease_renewal_callback(store, token),
+            )
     print(json.dumps(result, sort_keys=True))
 
 
 if __name__ == "__main__":
-    main()
+    from backend.utils.log.job_lease import run_cli
+    raise SystemExit(run_cli(main, "backend.dataflow.social_previews"))

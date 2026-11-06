@@ -114,6 +114,9 @@ class ScrapedFixes:
         replace = {
             "IMAX2D": "Regular",
             "IMAX3D": "Regular",
+            "INFINITY VISION2D": "Regular",
+            "INFINITY VISIONSCREENX2D": "Regular",
+            "4DXINFINITY VISION2D": "Regular",
             "רגיל": "Regular",
             "ONYX": "Regular",
             "VIP": "VIP",
@@ -177,6 +180,9 @@ class ScrapedFixes:
         replace = {
             "IMAX2D": "2D IMAX",
             "IMAX3D": "3D IMAX",
+            "INFINITY VISION2D": "2D Infinity Vision",
+            "INFINITY VISIONSCREENX2D": "2D ScreenX Infinity Vision",
+            "4DXINFINITY VISION2D": "2D 4DX Infinity Vision",
             "סינמה סיטי גלילות": "2D",
             "סינמה סיטי גלילות (ONYX)": "2D ONYX",
             'סינמה סיטי ראשל"צ': "2D",
@@ -231,3 +237,9 @@ class ScrapedFixes:
             "VIP LIGHT3D": "3D",
         }
         self.screening_tech = replace.get(self.screening_tech, self.screening_tech)
+
+        title = f"{self.english_title or ''} {self.hebrew_title or ''}".casefold()
+        if "infinity vision" in title:
+            tech = (self.screening_tech or "").strip()
+            if "infinity vision" not in tech.casefold():
+                self.screening_tech = f"{tech or '2D'} Infinity Vision"

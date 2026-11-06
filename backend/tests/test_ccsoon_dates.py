@@ -9,6 +9,11 @@ from backend.scraping.utils.InitializeBaseCinema import InitializeBaseCinema
 
 
 class ComingSoonDateTests(TestCase):
+    def setUp(self):
+        storage = patch("backend.utils.log.run_storage.RunArtifactStore")
+        storage.start()
+        self.addCleanup(storage.stop)
+
     def build_scraper(self, dates):
         scraper = CCsoon.__new__(CCsoon)
         InitializeBaseCinema.__init__(scraper)

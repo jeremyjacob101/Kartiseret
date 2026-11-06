@@ -98,12 +98,20 @@ class PostgresPublicationPublisher:
                     "sslrootcert": str(certificate_path),
                 }
 
+            from backend.utils.log.job_lease import before_mutation
+
+            class OwnedCursor(psycopg.Cursor):
+                def execute(self, *args, **kwargs):
+                    before_mutation()
+                    return super().execute(*args, **kwargs)
+
             connection = psycopg.connect(
                 self.database_url,
                 connect_timeout=10,
                 application_name="kartiseret-publication",
                 autocommit=True,
                 row_factory=dict_row,
+                cursor_factory=OwnedCursor,
                 **connect_options,
             )
             try:

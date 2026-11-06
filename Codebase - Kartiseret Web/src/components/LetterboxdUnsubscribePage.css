@@ -1,0 +1,201 @@
+.letterboxd-unsubscribe-page {
+  display: grid;
+  width: min(100%, 700px);
+  margin-inline: auto;
+  align-content: start;
+  padding: clamp(24px, 6vw, 72px) 12px 48px;
+}
+
+.letterboxd-unsubscribe-card {
+  width: 100%;
+  padding: clamp(24px, 5vw, 42px);
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 40%, #353139);
+  border-radius: 18px;
+  background: linear-gradient(145deg, #29262d 0%, #211f24 100%);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.28);
+  color: #f2ebfc;
+}
+
+.letterboxd-unsubscribe-kicker {
+  margin: 0 0 15px;
+  color: color-mix(in srgb, var(--main-app-color) 68%, white);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.letterboxd-unsubscribe-card h1 {
+  margin: 0;
+  color: #faf7ff;
+  font-size: clamp(1.65rem, 5vw, 2.2rem);
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+}
+
+.letterboxd-unsubscribe-intro {
+  margin: 18px 0 8px;
+  color: #e6dcf2;
+  font-size: 1.02rem;
+  line-height: 1.55;
+}
+
+.letterboxd-unsubscribe-detail,
+.letterboxd-unsubscribe-confirm p {
+  margin: 0;
+  color: #bdb4c7;
+  font-size: 0.91rem;
+  line-height: 1.6;
+}
+
+.letterboxd-unsubscribe-list {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 28px 0 20px;
+  padding: 0;
+  border: 0;
+}
+
+.letterboxd-unsubscribe-list legend {
+  margin-bottom: 10px;
+  color: #f5effb;
+  font-weight: 700;
+}
+
+.letterboxd-unsubscribe-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 14px 15px;
+  border: 1px solid #48434d;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+}
+
+.letterboxd-unsubscribe-row:has(input:checked) {
+  border-color: color-mix(in srgb, var(--main-app-color) 70%, #fff);
+  background: color-mix(in srgb, var(--main-app-color) 13%, #28242d);
+}
+
+.letterboxd-unsubscribe-row input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--main-app-color);
+}
+
+.letterboxd-unsubscribe-row span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.letterboxd-unsubscribe-row strong {
+  overflow-wrap: anywhere;
+  color: #f7f2fb;
+  font-size: 0.95rem;
+}
+
+.letterboxd-unsubscribe-row small {
+  color: #b7adbf;
+  font-size: 0.78rem;
+}
+
+.letterboxd-unsubscribe-primary,
+.letterboxd-unsubscribe-secondary {
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.letterboxd-unsubscribe-primary {
+  background: var(--main-app-color);
+  color: #17121d;
+}
+
+.letterboxd-unsubscribe-secondary {
+  border-color: #625b68;
+  background: transparent;
+  color: #f2ebfc;
+}
+
+.letterboxd-unsubscribe-primary:disabled,
+.letterboxd-unsubscribe-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.letterboxd-unsubscribe-card button:focus-visible,
+.letterboxd-unsubscribe-row input:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+
+.letterboxd-unsubscribe-confirm {
+  margin-top: 28px;
+  padding: 19px;
+  border: 1px solid #504956;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.letterboxd-unsubscribe-confirm h2 {
+  margin: 0 0 8px;
+  color: #faf7ff;
+  font-size: 1.12rem;
+}
+
+.letterboxd-unsubscribe-confirm ul {
+  display: grid;
+  gap: 5px;
+  padding-left: 20px;
+  color: #e3d9ee;
+  overflow-wrap: anywhere;
+}
+
+.letterboxd-unsubscribe-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.letterboxd-unsubscribe-status,
+.letterboxd-unsubscribe-empty,
+.letterboxd-unsubscribe-success,
+.letterboxd-unsubscribe-error {
+  margin: 22px 0 0;
+  padding: 13px 15px;
+  border: 1px solid #504956;
+  border-radius: 9px;
+  color: #eee7f5;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.letterboxd-unsubscribe-success {
+  border-color: #527f69;
+  background: rgba(48, 116, 78, 0.16);
+}
+
+.letterboxd-unsubscribe-error {
+  border-color: #a35e69;
+  background: rgba(140, 46, 63, 0.16);
+}
+
+.letterboxd-unsubscribe-error p {
+  margin: 0 0 12px;
+}
+
+@media (max-width: 480px) {
+  .letterboxd-unsubscribe-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}

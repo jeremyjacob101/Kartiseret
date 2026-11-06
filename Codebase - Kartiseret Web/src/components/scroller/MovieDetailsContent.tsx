@@ -1,7 +1,6 @@
 import { APP_TIME_ZONE, getMovieShowtimeCities, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, selectMovieShowtimeDays, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
 import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, saveShowtimeFilters, updateShowtimeFilterState, useShowtimeFiltersStore, type ShowtimeFilterOptions, type ShowtimeFilterSelections, type ShowtimeFilterState } from "../showtimes/showtimeFilters";
 import { cinemaIdForLocation, findCinemaIdentityForScreening } from "@kartiseret/contracts/cinema-identities";
-import { addCalendarDays, SHOWTIME_LINK_DATE_COUNT } from "@kartiseret/contracts/showtime-links";
 import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from "react";
 import { Clock8, ExternalLink, MapPin, MoveRight, Star, X } from "lucide-react";
 import { usePublicationRevision } from "../../hooks/usePublicationRevision";
@@ -9,6 +8,7 @@ import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
 import { theaterDataQueryOptions, type City } from "../../data/theaters";
 import { usePublicRenderClock } from "../../contexts/PublicRenderClock";
+import { addCalendarDays } from "@kartiseret/contracts/showtime-links";
 import { type AppLocation } from "../../prefs/definitions/locations";
 import { ShowtimeFilterMenu } from "../showtimes/ShowtimeFilterMenu";
 import { ShowtimeDayPicker } from "../showtimes/ShowtimeDayPicker";
@@ -710,7 +710,9 @@ export function MovieDetailsContent({
     );
   }, [movie.tmdbId, showtimeCityData, variant]);
   const shouldRenderShowtimes =
-    variant === "nowPlaying" || hasComingSoonShowtimes;
+    variant === "nowPlaying" ||
+    hasComingSoonShowtimes ||
+    (exactDateShowtimeQueries && Boolean(preferredShowtimeDate));
   const showtimeDays = useMemo(() => {
     if (!shouldRenderShowtimes) {
       return EMPTY_SHOWTIME_DAYS;
@@ -726,16 +728,37 @@ export function MovieDetailsContent({
 
     const windowEnd = addCalendarDays(
       showtimeDateWindowStart,
-      SHOWTIME_LINK_DATE_COUNT - 1,
+      SHOWTIME_WINDOW_DAY_COUNT - 1,
     );
 
     if (!windowEnd) {
       return loadedShowtimeDays;
     }
 
-    return loadedShowtimeDays.filter(
-      (day) => day.date >= showtimeDateWindowStart && day.date <= windowEnd,
+    const loadedDaysByDate = new Map(
+      loadedShowtimeDays
+        .filter(
+          (day) => day.date >= showtimeDateWindowStart && day.date <= windowEnd,
+        )
+        .map((day) => [day.date, day] as const),
     );
+    const visibleDays: MovieShowtimeDay[] = [];
+
+    for (
+      let dayOffset = 0;
+      dayOffset < SHOWTIME_WINDOW_DAY_COUNT;
+      dayOffset += 1
+    ) {
+      const date = addCalendarDays(showtimeDateWindowStart, dayOffset);
+
+      if (!date) {
+        break;
+      }
+
+      visibleDays.push(loadedDaysByDate.get(date) ?? { date, theaters: [] });
+    }
+
+    return visibleDays;
   }, [
     exactDateShowtimeQueries,
     movie.tmdbId,
@@ -760,7 +783,9 @@ export function MovieDetailsContent({
     (variant === "comingSoon" || exactDateShowtimeQueries || showtimesReady) &&
     showtimeDays.length > 0;
   const hasLoadedCompleteShowtimeWindow =
-    hasLoadedShowtimeWindow && showtimeDays.length >= SHOWTIME_WINDOW_DAY_COUNT;
+    !exactDateShowtimeQueries &&
+    hasLoadedShowtimeWindow &&
+    showtimeDays.length >= SHOWTIME_WINDOW_DAY_COUNT;
   const firstCityShowtimeDate = hasLoadedShowtimeWindow
     ? getFirstShowtimeDate(showtimeDays)
     : null;
@@ -1135,7 +1160,7 @@ export function MovieDetailsContent({
 
   const handleShowtimePreviewDateChange = useCallback(
     (date: string) => {
-      if (variant !== "nowPlaying") {
+      if (variant !== "nowPlaying" && !exactDateShowtimeQueries) {
         return;
       }
 

@@ -4,7 +4,7 @@ load_dotenv()
 
 import os
 
-from supabase import create_client
+from backend.utils.log.job_lease import create_client
 
 TABLES_BY_CATEGORY = {
     "nowplayings": ["allShowtimes"],

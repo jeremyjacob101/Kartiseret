@@ -3,11 +3,11 @@ import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime, SHOWTIME
 import { previewDataSchema, type PreviewData, type PreviewRouteSelection, type PreviewTheater } from "./schemas.js";
 import { getMovieByPermanentCode, getShowtimeRange, withPublicationSnapshot } from "@kartiseret/server/public-data";
 import { buildShowtimeFilterSelections, getCanonicalShowtimeMeta } from "@kartiseret/contracts/showtime-filters";
+import { isoDateStringSchema, parseBoundary } from "@kartiseret/contracts/runtime";
 import { getProductionPublicDataRepository } from "@kartiseret/server/production";
 import type { PublicDataRepository } from "@kartiseret/server/public-data";
 import type { PublicShowtime } from "@kartiseret/contracts/public-data";
 import { DEFAULT_LOCATION } from "@kartiseret/contracts/preferences";
-import { parseBoundary } from "@kartiseret/contracts/runtime";
 
 export type {
   PreviewData,
@@ -47,6 +47,7 @@ function normalizeShowtime(value: string): string {
 export function resolvePreviewRouteSelection(
   routeCode: string,
   instant: Date = new Date(),
+  requestedDate?: string,
 ): PreviewRouteSelection | null {
   if (Number.isNaN(instant.getTime())) {
     return null;
@@ -64,7 +65,12 @@ export function resolvePreviewRouteSelection(
 
   if (parsedRoute.kind === "encoded") {
     const decodedCity = resolveCityCode(parsedRoute.cityCode, DEFAULT_LOCATION);
-    const decodedDate = decodeDateCode(parsedRoute.dateCode, today);
+    const explicitDate = isoDateStringSchema.safeParse(requestedDate);
+    const decodedDate = explicitDate.success
+      ? explicitDate.data < today
+        ? today
+        : explicitDate.data
+      : decodeDateCode(parsedRoute.dateCode, today);
     if (!decodedCity || !decodedDate) {
       return null;
     }

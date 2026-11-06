@@ -63,6 +63,43 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public."finalShowtimes" (
   id, english_title, original_language, screening_city, date_of_showing, showtime,
+  cinema, english_href, screening_tech, screening_type, dub_language, tmdb_id
+)
+VALUES
+  (
+    '00000000-0000-4000-8000-000000009008',
+    'Dev Catalog Film', 'en', 'Tel Aviv', (CURRENT_DATE + 74)::date,
+    '18:30'::time, 'Development Cinema Tel Aviv',
+    'https://example.invalid/dev-screening', '2D', 'Regular', NULL, 9100001
+  ),
+  (
+    '00000000-0000-4000-8000-000000009009',
+    'Dev Catalog Film', 'en', 'Tel Aviv', (CURRENT_DATE + 75)::date,
+    '19:30'::time, 'Development Cinema Tel Aviv',
+    'https://example.invalid/dev-screening', '2D', 'Regular', NULL, 9100001
+  ),
+  (
+    '00000000-0000-4000-8000-000000009010',
+    'Dev Catalog Film', 'en', 'Tel Aviv', (CURRENT_DATE + 75)::date,
+    '22:00'::time, 'Development Cinema Tel Aviv',
+    'https://example.invalid/dev-screening', '3D IMAX', 'VIP', 'French', 9100001
+  ),
+  (
+    '00000000-0000-4000-8000-000000009011',
+    'Dev Catalog Film', 'en', 'Tel Aviv', (CURRENT_DATE + 76)::date,
+    '20:30'::time, 'Development Cinema Tel Aviv',
+    'https://example.invalid/dev-screening', '2D', 'Regular', NULL, 9100001
+  ),
+  (
+    '00000000-0000-4000-8000-000000009012',
+    'Dev Coming Soon', 'en', 'Tel Aviv', (CURRENT_DATE + 75)::date,
+    '19:30'::time, 'Development Cinema Tel Aviv',
+    'https://example.invalid/dev-screening', '2D', 'Regular', NULL, 9100011
+  )
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public."finalShowtimes" (
+  id, english_title, original_language, screening_city, date_of_showing, showtime,
   cinema, english_href, hebrew_href, screening_tech, screening_type, dub_language, tmdb_id
 )
 VALUES (
@@ -92,7 +129,7 @@ INSERT INTO public."finalSoons" (
 )
 VALUES (
   '00000000-0000-4000-8000-000000009003',
-  NULL, 'Dev Coming Soon', 'סרט לדוגמה', (CURRENT_DATE + 90)::date,
+  NULL, 'Dev Coming Soon', 'סרט לדוגמה', (CURRENT_DATE + 74)::date,
   NULL, NULL, 9100011, 2027, NULL, ARRAY['Comedy'], 101,
   '[]'::jsonb, false, 1.1
 )

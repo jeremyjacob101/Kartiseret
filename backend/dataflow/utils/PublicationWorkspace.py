@@ -13,14 +13,13 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
-from pathlib import Path
 from threading import RLock
 from types import SimpleNamespace
 import uuid
 
 from backend.dataflow.utils.PostgresPublicationPublisher import PostgresPublicationPublisher
 
-from supabase import create_client as live_client
+from backend.utils.log.job_lease import create_client as live_client
 
 CATEGORY_TABLES = {
     "nowplayings": ("allShowtimes", "finalMovies", "finalShowtimes"),
@@ -108,7 +107,11 @@ class PublicationWorkspace:
                     query = self.client.table(table).select("*")
                     for column in KEYS.get(table, ("id",)):
                         query = query.order(column)
-                    page = query.range(start, start + 499).execute().data or []
+                    page = query.range(start, start + 499).execute().data
+                    if not isinstance(page, list) or any(not isinstance(row, dict) for row in page):
+                        raise RuntimeError(f"Incomplete or malformed publication scan for {table}; publication refused")
+                    from backend.utils.log.r2_storage_guard import pin_catalog_rows
+                    pin_catalog_rows(page)
                     rows.extend(page)
                     if len(page) < 500:
                         break
@@ -125,6 +128,10 @@ class PublicationWorkspace:
         return WorkspaceQuery(self, name)
 
     def rpc(self, name, params):
+        if name == "append_util_avg_time_history":
+            # Timing data is operational and must commit independently of the
+            # staged catalog publication transaction.
+            return self.client.rpc(name, params)
         return SimpleNamespace(execute=lambda: SimpleNamespace(data=self._checkpoint(name, params)))
 
     def _checkpoint(self, name, p):
@@ -224,9 +231,18 @@ class PublicationWorkspace:
         digests = [hashlib.sha256(part.encode()).hexdigest() for part in parts]
         fingerprint = hashlib.sha256("\n".join(f"{i}:{digest}" for i, digest in enumerate(digests)).encode()).hexdigest()
         identity = {"publication_id": self.publication_id, "category": self.category, "run_id": self.run_id, "fingerprint": fingerprint, "part_count": len(parts)}
-        directory = Path("backend/utils/log/logger_artifacts") / str(self.run_id)
-        directory.mkdir(parents=True, exist_ok=True)
-        (directory / f"publication_{self.category}.json").write_text(canonical(identity))
+        # The receipt is durable before any catalog publication request begins.
+        # It includes the publication ID and fingerprint needed to investigate a
+        # lost acknowledgement without leaving new run output in Git.
+        from backend.utils.log.run_storage import RunArtifactStore
+
+        RunArtifactStore().save_text_artifact(
+            run_id=self.run_id,
+            artifact_type="publication_receipt",
+            name=f"publication_{self.category}_{self.publication_id}",
+            text=canonical(identity),
+            metadata=identity,
+        )
 
         publisher = PostgresPublicationPublisher.from_environment()
         if publisher is not None:

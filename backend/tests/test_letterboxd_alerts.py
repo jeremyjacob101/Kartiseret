@@ -32,6 +32,7 @@ class FakeLetterboxdAndResend:
         self.responses = list(responses or [])
         self.get_calls = []
         self.post_calls = []
+        self.unsubscribe_calls = []
 
     def get(self, url, **kwargs):
         self.get_calls.append((url, kwargs))
@@ -47,11 +48,31 @@ class FakeLetterboxdAndResend:
             </ul>"""
         )
 
-    def post(self, endpoint, *, headers, json, timeout):
+    def post(self, endpoint, *, headers, json, timeout, **kwargs):
+        if endpoint.endswith("/api/internal/movie-notification-unsubscribe-tokens"):
+            self.unsubscribe_calls.append(
+                {"endpoint": endpoint, "headers": headers, "json": json, "timeout": timeout, **kwargs}
+            )
+            return FakeUnsubscribeTokenResponse()
         self.post_calls.append(
             {"endpoint": endpoint, "headers": headers, "json": json, "timeout": timeout}
         )
         return self.responses.pop(0) if self.responses else FakeResponse()
+
+
+class FakeUnsubscribeTokenResponse:
+    status_code = 200
+
+    @staticmethod
+    def json():
+        return {
+            "data": {
+                "eligible": True,
+                "manageLetterboxd": "M" * 43,
+                "oneClickAll": "O" * 43,
+            },
+            "error": None,
+        }
 
 
 def _source(source_id, url, source_type):
@@ -70,6 +91,7 @@ class FakeRepository:
         self.candidates = list(candidates)
         self.local_dates = list(local_dates or [])
         self.showtimes = list(showtimes or [])
+        self.movie_codes = {}
         self.preferences = [
             {
                 "user_id": "alice",
@@ -188,6 +210,13 @@ class FakeRepository:
             if int(row["tmdb_id"]) in ids
         }
         return dates, showtimes, titles
+
+    def load_movie_codes(self, tmdb_ids):
+        return {
+            tmdb_id: self.movie_codes[tmdb_id]
+            for tmdb_id in tmdb_ids
+            if tmdb_id in self.movie_codes
+        }
 
     def load_criteria(self, user_ids, tmdb_ids):
         return self.preferences, [
@@ -414,6 +443,57 @@ class LetterboxdSourceAlertTests(TestCase):
             render_letterboxd_event_email(
                 ({"event_type": "showtime", "event_payload": {"title": "No Link"}},)
             )
+
+    def test_availability_email_uses_movie_city_date_and_effective_filters(self):
+        event = {
+            "tmdb_id": 101,
+            "event_type": "showtime",
+            "event_payload": {
+                "title": "Future Film",
+                "movie_code": "A7z",
+                "screening_city": "Tel Aviv",
+                "date_of_showing": "2027-01-15",
+                "showtime": "19:30",
+                "cinema": "Cinema City",
+                "ticket_href": "https://tickets.example.test/booking",
+                "filter_mask": 45120,
+            },
+        }
+
+        email = render_letterboxd_event_email((event,), "https://seret.site")
+
+        self.assertIn(
+            'href="https://seret.site/A7zlb1fHK?date=2027-01-15"',
+            email.html,
+        )
+        self.assertIn(
+            "View showtimes: https://seret.site/A7zlb1fHK?date=2027-01-15",
+            email.text,
+        )
+        self.assertNotIn("tickets.example.test", email.html)
+        self.assertNotIn("tickets.example.test", email.text)
+
+    def test_legacy_or_invalid_movie_code_uses_a_safe_movie_page_fallback(self):
+        event = {
+            "tmdb_id": 101,
+            "event_type": "showtime",
+            "event_payload": {
+                "title": "Future Film",
+                "movie_code": "invalid",
+                "screening_city": "Tel Aviv",
+                "date_of_showing": "2027-01-15",
+                "showtime": "19:30",
+                "cinema": "Cinema City",
+                "ticket_href": "https://tickets.example.test/booking",
+            },
+        }
+
+        email = render_letterboxd_event_email((event,))
+
+        self.assertIn("https://seret.site/showtimes", email.html)
+        self.assertIn("View showtimes: https://seret.site/showtimes", email.text)
+        self.assertNotIn("tickets.example.test", email.html)
+        self.assertNotIn("tickets.example.test", email.text)
 
 
 if __name__ == "__main__":

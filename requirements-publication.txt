@@ -1,0 +1,3 @@
+# Direct PostgreSQL publication and its fail-closed D1 lease guard.
+psycopg[binary]==3.3.6
+requests

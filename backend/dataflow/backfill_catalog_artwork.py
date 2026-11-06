@@ -1,7 +1,7 @@
-"""Resumable catalog artwork backfill and conservative development cleanup.
+"""Resumable catalog artwork backfill and conservative reference-based cleanup.
 
 Dry-run is the default. Mutating operations refuse the production Supabase
-project. Cleanup also requires the operator to pause dataflow workflows.
+project unless explicitly allowed. Cleanup callers hold the shared D1 lease.
 """
 from __future__ import annotations
 
@@ -27,6 +27,7 @@ TABLES = (
 TMDB_IMAGE_HOSTS = {"image.tmdb.org"}
 TMDB_FILE = re.compile(r"^/[A-Za-z0-9_-]+\.(?:jpg|jpeg|png|webp)$", re.IGNORECASE)
 APP_IMAGE_URL = re.compile(r"^/api/images/v1/(poster|backdrop)/([a-f0-9]{64})/(\d+)\.webp$")
+ART_OBJECT_KEY = re.compile(r"^artwork/v1/(poster|backdrop)/[a-f0-9]{64}/(complete|([0-9]+)\.webp)$")
 
 
 def is_production(url: str) -> bool:
@@ -65,7 +66,7 @@ def image_references(value, kind):
 
 
 def build_clients(*, require_storage=True):
-    from supabase import create_client
+    from backend.utils.log.job_lease import create_client
 
     supabase_url = os.environ.get("SUPABASE_URL", "").strip()
     service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
@@ -77,21 +78,40 @@ def build_clients(*, require_storage=True):
     return create_client(supabase_url, service_key), storage
 
 
-def each_row(client, table, columns, page_size=200):
+def each_row(client, table, columns, page_size=200, *, lease_guard=None):
     offset = 0
     while True:
+        if lease_guard:
+            lease_guard()
         response = client.table(table).select(columns).order(columns.split(",")[0]).range(offset, offset + page_size - 1).execute()
-        rows = response.data or []
+        rows = getattr(response, "data", None)
+        expected_columns = tuple(column.strip() for column in columns.split(","))
+        if not isinstance(rows, list):
+            raise RuntimeError(f"Supabase scan for {table} returned incomplete row data")
+        if any(
+            not isinstance(row, dict) or any(column not in row for column in expected_columns)
+            for row in rows
+        ):
+            raise RuntimeError(f"Supabase scan for {table} returned malformed or incomplete rows")
         yield from rows
         if len(rows) < page_size:
             break
         offset += len(rows)
 
 
-def run_backfill(client, storage, *, apply: bool, limit: int | None = None):
+def _catalog_rows(client, table, columns, lease_guard=None):
+    if lease_guard:
+        yield from each_row(client, table, columns, lease_guard=lease_guard)
+    else:
+        yield from each_row(client, table, columns)
+
+
+def run_backfill(client, storage, *, apply: bool, limit: int | None = None, lease_guard=None):
     counts = {"scanned": 0, "updated": 0, "unchanged": 0, "failed": 0}
     for table, primary_key, columns in TABLES:
-        for row in each_row(client, table, columns):
+        for row in _catalog_rows(client, table, columns, lease_guard):
+            if lease_guard:
+                lease_guard()
             if limit is not None and counts["scanned"] >= limit:
                 return counts
             counts["scanned"] += 1
@@ -113,10 +133,17 @@ def run_backfill(client, storage, *, apply: bool, limit: int | None = None):
                     if not source:
                         continue
                     try:
+                        if lease_guard:
+                            lease_guard()
                         result = storage.store(kind, source)
                         ArtworkStorage.record_metadata(updated_row, kind, result)
                         new[field] = result.url
                     except Exception as error:
+                        from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+                        from backend.utils.log.cloudflare_storage import LeaseLostError
+
+                        if isinstance(error, (R2BudgetError, R2BudgetExceeded, LeaseLostError)):
+                            raise
                         logging.warning("Artwork backfill failed for %s %s (%s)", table, kind, type(error).__name__)
                         failed = True
                 if failed:
@@ -124,6 +151,8 @@ def run_backfill(client, storage, *, apply: bool, limit: int | None = None):
                 if not new:
                     continue
                 new["provider_freshness"] = updated_row["provider_freshness"]
+                if lease_guard:
+                    lease_guard()
                 saved = client.table(table).update(new).eq(primary_key, row[primary_key]).select(primary_key).execute().data or []
                 if len(saved) != 1:
                     raise RuntimeError(f"Expected one updated row in {table}")
@@ -131,11 +160,13 @@ def run_backfill(client, storage, *, apply: bool, limit: int | None = None):
     return counts
 
 
-def run_rollback(client, *, apply: bool, limit: int | None = None):
+def run_rollback(client, *, apply: bool, limit: int | None = None, lease_guard=None):
     """Restore only images with saved TMDB source paths; retain metadata for retries."""
     counts = {"scanned": 0, "restored": 0, "unchanged": 0}
     for table, primary_key, columns in TABLES:
-        for row in each_row(client, table, columns):
+        for row in _catalog_rows(client, table, columns, lease_guard):
+            if lease_guard:
+                lease_guard()
             if limit is not None and counts["scanned"] >= limit:
                 return counts
             counts["scanned"] += 1
@@ -159,6 +190,8 @@ def run_rollback(client, *, apply: bool, limit: int | None = None):
                 counts["unchanged"] += 1
                 continue
             if apply:
+                if lease_guard:
+                    lease_guard()
                 saved = client.table(table).update(new).eq(primary_key, row[primary_key]).select(primary_key).execute().data or []
                 if len(saved) != 1:
                     raise RuntimeError(f"Expected one rolled-back row in {table}")
@@ -166,12 +199,26 @@ def run_rollback(client, *, apply: bool, limit: int | None = None):
     return counts
 
 
-def referenced_keys(client):
+def referenced_keys(client, *, lease_guard=None):
     keys = set()
     for table, _primary, columns in TABLES:
-        for row in each_row(client, table, columns):
-            keys.update(image_references(row.get("en_poster"), "poster"))
-            keys.update(image_references(row.get("backdrop"), "backdrop"))
+        for row in _catalog_rows(client, table, columns, lease_guard):
+            for field, kind in (("en_poster", "poster"), ("backdrop", "backdrop")):
+                value = row.get(field)
+                if value in (None, ""):
+                    continue
+                if not isinstance(value, str):
+                    raise RuntimeError(f"Artwork reference scan found malformed {table}.{field} data")
+                path = urlsplit(value).path
+                match = APP_IMAGE_URL.fullmatch(path)
+                if match:
+                    if match.group(1) != kind:
+                        raise RuntimeError(f"Artwork reference scan found a mismatched {table}.{field} kind")
+                    if int(match.group(3)) not in VARIANTS[kind]:
+                        raise RuntimeError(f"Artwork reference scan found an unknown {table}.{field} variant")
+                    keys.update(image_references(value, kind))
+                elif "/api/images/" in path:
+                    raise RuntimeError(f"Artwork reference scan found a malformed R2 URL in {table}.{field}")
     return keys
 
 
@@ -181,29 +228,65 @@ def ensure_no_active_pipeline(client):
         raise RuntimeError("Cleanup refused while a dataflow run is active")
 
 
-def run_cleanup(client, storage, *, apply: bool, grace_days=30):
-    if os.environ.get("ARTWORK_CLEANUP_PIPELINE_PAUSED") != "true":
-        raise RuntimeError("Pause the dataflow workflow and set ARTWORK_CLEANUP_PIPELINE_PAUSED=true")
-    ensure_no_active_pipeline(client)
-    live = referenced_keys(client)
+def run_cleanup(client, storage, *, apply: bool, grace_days=30, lease_guard=None, max_deletes=500, retain_object=None) -> dict[str, object]:
+    """Plan or delete old unreferenced variants; caller must hold the D1 lease."""
+    if grace_days < 0 or max_deletes < 1:
+        raise ValueError("Cleanup grace period and deletion bound must be non-negative/positive")
+    if lease_guard:
+        lease_guard()
+    live = referenced_keys(client, lease_guard=lease_guard)
     cutoff = datetime.now(timezone.utc) - timedelta(days=grace_days)
-    removed = 0
+    eligible = 0
+    candidates = []
     paginator = storage.client.get_paginator("list_objects_v2")
     for page in paginator.paginate(Bucket=storage.bucket, Prefix="artwork/v1/"):
-        for obj in page.get("Contents", []):
+        if lease_guard:
+            lease_guard()
+        contents = page.get("Contents", [])
+        if not isinstance(contents, list):
+            raise RuntimeError("Artwork R2 listing returned malformed object data; no deletion was attempted")
+        for obj in contents:
+            if not isinstance(obj, dict):
+                raise RuntimeError("Artwork R2 listing returned malformed object data; no deletion was attempted")
             key, modified = obj.get("Key"), obj.get("LastModified")
-            if not key or not modified or key in live or modified > cutoff:
+            if not isinstance(key, str) or not key.startswith("artwork/v1/") or not isinstance(modified, datetime):
+                raise RuntimeError("Artwork R2 listing was incomplete or malformed; no deletion was attempted")
+            object_match = ART_OBJECT_KEY.fullmatch(key)
+            if not object_match or (
+                object_match.group(2) != "complete"
+                and int(object_match.group(3)) not in VARIANTS[object_match.group(1)]
+            ):
+                raise RuntimeError("Artwork R2 listing contains an unknown object key; no deletion was attempted")
+            if modified.tzinfo is None:
+                modified = modified.replace(tzinfo=timezone.utc)
+            if key in live or modified > cutoff or (retain_object and retain_object(key)):
                 continue
             # A completion marker belongs to a set; retain it while any output
             # from that set is still referenced.
             prefix = key.rsplit("/", 1)[0] + "/"
             if any(ref.startswith(prefix) for ref in live):
                 continue
-            if apply:
-                ensure_no_active_pipeline(client)
-                storage.client.delete_object(Bucket=storage.bucket, Key=key)
-            removed += 1
-    return {"live_variants": len(live), "eligible_objects": removed, "deleted": removed if apply else 0}
+            eligible += 1
+            if len(candidates) < max_deletes:
+                candidates.append(key)
+    deleted = 0
+    if apply and candidates:
+        from backend.utils.log.shared_cleanup import verify_lease
+        verify_lease(lease_guard)
+        response = storage.client.delete_objects(
+            Bucket=storage.bucket,
+            Delete={"Objects": [{"Key": key} for key in candidates], "Quiet": True},
+        )
+        if response.get("Errors"):
+            raise RuntimeError("Artwork R2 cleanup did not confirm every deletion")
+        deleted = len(candidates)
+    return {
+        "live_variants": len(live),
+        "eligible_objects": eligible,
+        "deletion_batch": len(candidates),
+        "sample_keys": candidates[:20],
+        "deleted": deleted,
+    }
 
 
 def main():
@@ -213,7 +296,7 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--backfill", action="store_true", help="Copy artwork; dry-run unless --apply is also set")
     mode.add_argument("--rollback", action="store_true", help="Restore published R2 URLs to their saved TMDB source paths")
-    mode.add_argument("--cleanup", action="store_true", help="Find or remove unreferenced objects; requires paused dataflow")
+    mode.add_argument("--cleanup", action="store_true", help="Find or remove old unreferenced artwork; shared cleanup coordinates the lease")
     parser.add_argument("--apply", action="store_true", help="Apply database updates or object deletions")
     parser.add_argument("--allow-production", action="store_true", help="Explicitly permit an apply operation against production")
     parser.add_argument("--limit", type=int, help="Limit number of catalog rows for a test pass")
@@ -230,14 +313,28 @@ def main():
         raise RuntimeError("--allow-production requires --apply")
     if args.apply and is_production(project_url) and not args.allow_production:
         raise RuntimeError("Production mutation requires the explicit --allow-production flag")
-    if args.cleanup:
-        result = run_cleanup(client, storage, apply=args.apply)
-    elif args.rollback:
-        result = run_rollback(client, apply=args.apply, limit=args.limit)
+    def execute(store=None, token=None):
+        if store is not None:
+            from backend.utils.log.shared_cleanup import lease_renewal_callback
+
+            guard = lease_renewal_callback(store, token)
+        else:
+            guard = None
+        if args.cleanup:
+            return run_cleanup(client, storage, apply=args.apply, lease_guard=guard)
+        if args.rollback:
+            return run_rollback(client, apply=args.apply, limit=args.limit, lease_guard=guard)
+        return run_backfill(client, storage, apply=args.apply, limit=args.limit, lease_guard=guard)
+
+    if args.apply or args.cleanup:
+        from backend.utils.log.shared_cleanup import maintenance_lease
+        with maintenance_lease(skip_if_busy=False) as (store, token):
+            result = execute(store, token)
     else:
-        result = run_backfill(client, storage, apply=args.apply, limit=args.limit)
+        result = execute()
     print(result)
 
 
 if __name__ == "__main__":
-    main()
+    from backend.utils.log.job_lease import run_cli
+    raise SystemExit(run_cli(main, "backend.dataflow.backfill_catalog_artwork"))

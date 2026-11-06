@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from html import escape
 from typing import Any, Callable
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 import os
 import re
 
 import requests
-from supabase import create_client
+from backend.utils.log.job_lease import create_client
 
 
 TICKET_ALERTS_TABLE = "ticket_alert_subscriptions"
@@ -23,9 +23,32 @@ DEFAULT_SITE_URL = "https://seret.site"
 JERUSALEM_TIME_ZONE = ZoneInfo("Asia/Jerusalem")
 SHOWTIME_DAY_CUTOFF_MINUTES = 65
 SHOWTIME_GRACE_PERIOD_MINUTES = 15
-SHOWTIME_LINK_DATE_COUNT = 62
 DATE_CODE_ALPHABET = (
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+)
+URL_ALPHABET = "1iljIt23457fkrsvxyzFJLT0689abcdeghnopquABCDEGHKNOPQRSUVXYZmwMW"
+ALL_FILTERS_SHORTCUT = "j"
+FILTER_BIT_ASSIGNMENTS = (
+    (0, "showType", "Not Just Cinema"),
+    (1, "showType", "Premium"),
+    (2, "showType", "Lounge"),
+    (3, "showType", "Prime"),
+    (4, "showType", "Upgrade"),
+    (5, "showType", "VIP Light"),
+    (6, "showType", "VIP"),
+    (7, "screeningTech", "4DX"),
+    (8, "screeningTech", "ScreenX"),
+    (9, "screeningTech", "ONYX"),
+    (10, "screeningTech", "Atmos"),
+    (11, "screeningTech", "HFR"),
+    (12, "screenFormat", "3D"),
+    (13, "dubLanguage", "French"),
+    (14, "dubLanguage", "Hebrew"),
+    (15, "screeningTech", "IMAX"),
+    (16, "dubLanguage", "Original"),
+    (17, "screenFormat", "2D"),
+    (18, "screeningTech", "Standard"),
+    (19, "showType", "Regular"),
 )
 MOVIE_CODE_PATTERN = re.compile(r"^[0-9A-Za-z]{3}$")
 EMAIL_PATTERN = re.compile(r"^[^\s@<>()\"'\\]+@[^\s@<>()\"'\\]+\.[^\s@<>()\"'\\]+$")
@@ -157,6 +180,24 @@ def valid_ticket_href(row: dict[str, Any]) -> str | None:
         except ValueError:
             continue
     return None
+
+
+def safe_site_url(value: Any) -> str:
+    candidate = _text(value) or DEFAULT_SITE_URL
+    try:
+        parsed = urlsplit(candidate)
+        if (
+            parsed.scheme.lower() in {"http", "https"}
+            and parsed.hostname
+            and not parsed.username
+            and not parsed.password
+        ):
+            return urlunsplit(
+                (parsed.scheme.lower(), parsed.netloc, parsed.path.rstrip("/"), "", "")
+            )
+    except ValueError:
+        pass
+    return DEFAULT_SITE_URL
 
 
 def _show_type_tokens(value: Any) -> list[str]:
@@ -313,29 +354,61 @@ def encode_date_code(value: date) -> str:
     return DATE_CODE_ALPHABET[epoch_day % len(DATE_CODE_ALPHABET)]
 
 
+def filter_mask_from_exclusions(exclusions: Any) -> int:
+    values = exclusions if isinstance(exclusions, dict) else {}
+    unchecked = {
+        group: { _text(value) for value in values.get(group, []) if _text(value) }
+        if isinstance(values.get(group, []), (list, tuple, set))
+        else set()
+        for group in ALERT_FILTER_OPTIONS
+    }
+    return sum(
+        2**bit for bit, group, value in FILTER_BIT_ASSIGNMENTS
+        if value in unchecked[group]
+    )
+
+
+def _encode_filter_mask(mask: int) -> str | None:
+    if not isinstance(mask, int) or isinstance(mask, bool) or not 0 <= mask < 2**20:
+        return None
+    remaining = mask
+    digits = [URL_ALPHABET[0]] * 4
+    for index in range(3, -1, -1):
+        digits[index] = URL_ALPHABET[remaining % len(URL_ALPHABET)]
+        remaining //= len(URL_ALPHABET)
+    return "".join(digits)
+
+
+def build_movie_showtime_path(
+    movie_code: str | None,
+    city: str,
+    showing_date: str,
+    filter_mask: int = 0,
+) -> str:
+    code = _text(movie_code)
+    if not MOVIE_CODE_PATTERN.fullmatch(code):
+        return "/showtimes"
+    plain_path = f"/{code}"
+    parsed_date = _parse_date(showing_date)
+    city_code = CITY_CODE_BY_NAME.get(city)
+    if parsed_date is None or parsed_date.isoformat() != _text(showing_date) or city_code is None:
+        return plain_path
+    filter_code = ALL_FILTERS_SHORTCUT if filter_mask == 0 else _encode_filter_mask(filter_mask)
+    if filter_code is None:
+        filter_code = ALL_FILTERS_SHORTCUT
+    return f"/{code}{city_code}{encode_date_code(parsed_date)}{filter_code}?date={parsed_date.isoformat()}"
+
+
 def build_ticket_alert_path(
     movie_code: str | None,
     city: str,
     showing_date: str,
     cinema_today: date,
+    filter_exclusions: dict[str, Any] | None = None,
+    filter_mask: int | None = None,
 ) -> str:
-    code = _text(movie_code)
-    if not MOVIE_CODE_PATTERN.fullmatch(code):
-        return "/showtimes"
-
-    plain_path = f"/{code}"
-    parsed_date = _parse_date(showing_date)
-    city_code = CITY_CODE_BY_NAME.get(city)
-    last_linked_date = cinema_today + timedelta(days=SHOWTIME_LINK_DATE_COUNT - 1)
-    if (
-        parsed_date is None
-        or city_code is None
-        or parsed_date < cinema_today
-        or parsed_date > last_linked_date
-    ):
-        return plain_path
-
-    return f"/{code}{city_code}{encode_date_code(parsed_date)}j"
+    resolved_mask = filter_mask if filter_mask is not None else filter_mask_from_exclusions(filter_exclusions)
+    return build_movie_showtime_path(movie_code, city, showing_date, resolved_mask)
 
 
 def build_ticket_alert_url(
@@ -348,8 +421,9 @@ def build_ticket_alert_url(
         item.city,
         item.date,
         cinema_today,
+        filter_mask=item.filter_mask,
     )
-    return f"{site_url.rstrip('/')}{path}"
+    return f"{safe_site_url(site_url)}{path}"
 
 
 @dataclass(frozen=True)
@@ -360,6 +434,7 @@ class DeliveryItem:
     date: str
     ticket_href: str
     movie_code: str | None
+    filter_mask: int = 0
 
 
 @dataclass(frozen=True)
@@ -374,6 +449,7 @@ class RenderedEmail:
     subject: str
     html: str
     text: str
+    headers: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -411,6 +487,13 @@ def delivery_item_from_snapshot(row: dict[str, Any]) -> DeliveryItem | None:
     showing_date = _text(row.get("delivery_date"))
     ticket_href = _text(row.get("delivery_href"))
     movie_code = _text(row.get("delivery_movie_code")) or None
+    filter_mask_value = row.get("delivery_filter_mask", 0)
+    try:
+        filter_mask = int(filter_mask_value)
+    except (TypeError, ValueError):
+        filter_mask = 0
+    if not 0 <= filter_mask < 2**20:
+        filter_mask = 0
     if not (
         tmdb_id
         and title
@@ -428,6 +511,7 @@ def delivery_item_from_snapshot(row: dict[str, Any]) -> DeliveryItem | None:
         date=showing_date,
         ticket_href=ticket_href,
         movie_code=movie_code,
+        filter_mask=filter_mask,
     )
 
 
@@ -476,7 +560,7 @@ def render_ticket_alert_email(
             )
         )
         text_items.append(
-            f"- {item.title} — {item.city}, {_friendly_date(item.date)}\n  {movie_url}"
+            f"- {item.title} — {item.city}, {_friendly_date(item.date)}\n  View showtimes: {movie_url}"
         )
 
     count_intro = (
@@ -570,6 +654,7 @@ def send_resend_email(
             "subject": email.subject,
             "html": email.html,
             "text": email.text,
+            **({"headers": email.headers} if email.headers else {}),
         },
         timeout=20,
     )
@@ -637,6 +722,7 @@ class SupabaseTicketAlertRepository:
                 "delivery_date",
                 "delivery_href",
                 "delivery_movie_code",
+                "delivery_filter_mask",
                 "delivery_attempts",
                 "last_delivery_attempt_at",
             ]
@@ -756,6 +842,7 @@ class SupabaseTicketAlertRepository:
                         "delivery_date": item.date,
                         "delivery_href": item.ticket_href,
                         "delivery_movie_code": item.movie_code,
+                        "delivery_filter_mask": item.filter_mask,
                         "last_delivery_error": None,
                     },
                     returning="representation",
@@ -935,6 +1022,42 @@ class TicketAlertDispatcher:
             )
         return batches
 
+    def _enrich_retry_movie_codes(
+        self, batches: list[DeliveryBatch]
+    ) -> list[DeliveryBatch]:
+        missing_tmdb_ids = sorted(
+            {
+                item.tmdb_id
+                for batch in batches
+                for item in batch.items
+                if not item.movie_code
+            }
+        )
+        loader = getattr(self.repository, "load_movie_codes", None)
+        if not missing_tmdb_ids or not callable(loader):
+            return batches
+
+        try:
+            movie_codes = loader(missing_tmdb_ids)
+        except Exception:
+            # Old claimed rows must remain deliverable even if enrichment fails.
+            return batches
+
+        return [
+            replace(
+                batch,
+                items=tuple(
+                    replace(
+                        item,
+                        movie_code=item.movie_code
+                        or movie_codes.get(item.tmdb_id),
+                    )
+                    for item in batch.items
+                ),
+            )
+            for batch in batches
+        ]
+
     def _new_batches(
         self,
         pending_rows: list[dict[str, Any]],
@@ -1002,6 +1125,7 @@ class TicketAlertDispatcher:
                     date=linked_showtime.date,
                     ticket_href=linked_showtime.ticket_href,
                     movie_code=movie_codes.get(tmdb_id),
+                    filter_mask=filter_mask_from_exclusions(criteria["filters"]),
                 )
             )
 
@@ -1040,7 +1164,9 @@ class TicketAlertDispatcher:
     def dispatch(self) -> DispatchSummary:
         now = _jerusalem_now(self.now_factory())
         pending_rows = self.repository.load_pending_subscriptions()
-        retry_batches = self._retry_batches(pending_rows)
+        retry_batches = self._enrich_retry_movie_codes(
+            self._retry_batches(pending_rows)
+        )
         retry_user_ids = {
             batch.user_id for batch in retry_batches if batch.user_id is not None
         }

@@ -8,7 +8,9 @@ from unittest.mock import patch
 from backend.config import runner
 from backend.config.target_environment import (
     BUCKETS,
+    D1_DATABASE_IDS,
     PROJECT_REFS,
+    RUN_ARTIFACT_BUCKETS,
     TargetConfigurationError,
     is_scheduled,
     resolve_target_environment,
@@ -32,7 +34,6 @@ def _profile(prefix: str, target: str) -> dict[str, str]:
             "aws-0-eu-central-2.pooler.supabase.com:5432/postgres"
         ),
         f"{prefix}PUBLICATION_DATABASE_SSL_CA_CERT": f"{target}-publisher-ca",
-        f"{prefix}R2_ACCOUNT_ID": "a" * 32,
         f"{prefix}R2_BUCKET": bucket,
         f"{prefix}R2_IMAGE_ORIGIN": f"https://{target}.example.test",
         f"{prefix}R2_ACCESS_KEY_ID": f"write-id-{target}",
@@ -42,14 +43,59 @@ def _profile(prefix: str, target: str) -> dict[str, str]:
         f"{prefix}RESEND_API_KEY": f"resend-{target}",
         f"{prefix}TICKET_ALERT_RECIPIENT_API_URL": f"https://{target}.example.test/api",
         f"{prefix}TICKET_ALERT_INTERNAL_API_SECRET": f"ticket-{target}",
+        f"{prefix}D1_DATABASE_ID": D1_DATABASE_IDS[target] or "12345678-1234-4234-8234-123456789abc",
+        f"{prefix}D1_API_TOKEN": f"d1-api-token-{target}-with-at-least-32-characters",
+        f"{prefix}RUN_ARTIFACTS_R2_BUCKET": RUN_ARTIFACT_BUCKETS[target],
+        f"{prefix}RUN_ARTIFACTS_R2_ACCESS_KEY_ID": f"run-write-id-{target}",
+        f"{prefix}RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY": f"run-write-secret-{target}",
     }
 
 
 class TargetEnvironmentTests(TestCase):
+    def test_resolved_profiles_survive_worker_revalidation_and_late_dotenv(self):
+        from io import StringIO
+        from dotenv import load_dotenv
+
+        for target in ('development', 'production'):
+            with self.subTest(target=target):
+                selected = resolve_target_environment(target, self.profiles)
+                # The supervisor overlays the selection on the original parent
+                # environment; the worker loads dotenv before validating again.
+                worker = {**self.profiles, **selected}
+                with patch.dict(os.environ, worker, clear=True):
+                    load_dotenv(stream=StringIO('\n'.join(
+                        f'{key}={value}' for key, value in self.profiles.items()
+                    )))
+                    checked = resolve_target_environment(target, os.environ)
+                self.assertEqual(checked, selected)
+                self.assertEqual(checked['SUPABASE_URL'], f'https://{PROJECT_REFS[target]}.supabase.co')
+                for prefix in ('DEV_', 'PROD_'):
+                    self.assertEqual(checked[f'{prefix}SUPABASE_SERVICE_ROLE_KEY'], '')
+
+    def test_revalidated_worker_cannot_switch_to_the_other_target(self):
+        selected = resolve_target_environment('production', self.profiles)
+        with self.assertRaises(TargetConfigurationError):
+            resolve_target_environment('development', selected)
+
+    def test_missing_profile_settings_cannot_be_restored_by_dotenv(self):
+        from io import StringIO
+        from dotenv import load_dotenv
+
+        environment = dict(self.profiles)
+        environment.pop('DEV_PUBLICATION_DATABASE_URL')
+        environment.pop('DEV_PUBLICATION_DATABASE_SSL_CA_CERT')
+        environment['PUBLICATION_DATABASE_URL'] = self.profiles['PROD_PUBLICATION_DATABASE_URL']
+        resolved = resolve_target_environment('development', environment)
+        self.assertEqual(resolved['PUBLICATION_DATABASE_URL'], '')
+        with patch.dict(os.environ, resolved, clear=True):
+            load_dotenv(stream=StringIO('PUBLICATION_DATABASE_URL=wrong-target\n'))
+            self.assertEqual(os.environ['PUBLICATION_DATABASE_URL'], '')
+
     def setUp(self) -> None:
         self.profiles = {
             **_profile("DEV_", "development"),
             **_profile("PROD_", "production"),
+            "R2_ACCOUNT_ID": "a" * 32,
             "TMDB_API_KEY": "shared-tmdb-key",
         }
 
@@ -63,6 +109,10 @@ class TargetEnvironmentTests(TestCase):
         self.assertEqual(resolved["R2_BUCKET"], BUCKETS["development"])
         self.assertEqual(resolved["R2_ACCESS_KEY_ID"], "write-id-development")
         self.assertEqual(resolved["R2_READ_ACCESS_KEY_ID"], "read-id-development")
+        self.assertEqual(resolved["D1_DATABASE_ID"], D1_DATABASE_IDS["development"])
+        self.assertEqual(resolved["RUN_ARTIFACTS_R2_BUCKET"], RUN_ARTIFACT_BUCKETS["development"])
+        self.assertEqual(resolved["RUN_ARTIFACTS_R2_ACCESS_KEY_ID"], "run-write-id-development")
+        self.assertEqual(resolved["D1_API_TOKEN"], "d1-api-token-development-with-at-least-32-characters")
         self.assertEqual(resolved["KARTISERET_TARGET"], "development")
         self.assertEqual(resolved["PROD_SUPABASE_SERVICE_ROLE_KEY"], "")
         self.assertEqual(resolved["DEV_SUPABASE_SERVICE_ROLE_KEY"], "")
@@ -77,6 +127,9 @@ class TargetEnvironmentTests(TestCase):
         self.assertEqual(resolved["SUPABASE_SERVICE_ROLE_KEY"], "service-role-production")
         self.assertEqual(resolved["R2_BUCKET"], BUCKETS["production"])
         self.assertEqual(resolved["R2_ACCESS_KEY_ID"], "write-id-production")
+        self.assertEqual(resolved["D1_DATABASE_ID"], "12345678-1234-4234-8234-123456789abc")
+        self.assertEqual(resolved["RUN_ARTIFACTS_R2_BUCKET"], RUN_ARTIFACT_BUCKETS["production"])
+        self.assertEqual(resolved["D1_API_TOKEN"], "d1-api-token-production-with-at-least-32-characters")
         self.assertEqual(resolved["RESEND_API_KEY"], "resend-production")
         self.assertEqual(resolved["DEV_R2_SECRET_ACCESS_KEY"], "")
 
@@ -84,17 +137,22 @@ class TargetEnvironmentTests(TestCase):
         environment = {
             "DEV_SUPABASE_URL": f"https://{PROJECT_REFS['development']}.supabase.co",
             "DEV_SUPABASE_SERVICE_ROLE_KEY": "dev-service-role",
-            "DEV_R2_ACCOUNT_ID": "a" * 32,
+            "R2_ACCOUNT_ID": "a" * 32,
             "DEV_R2_BUCKET": BUCKETS["development"],
             "DEV_R2_READ_ACCESS_KEY_ID": "dev-read-id",
             "DEV_R2_READ_SECRET_ACCESS_KEY": "dev-read-secret",
+            "DEV_D1_DATABASE_ID": D1_DATABASE_IDS["development"],
+            "DEV_D1_API_TOKEN": "d1-api-token-development-with-at-least-32-characters",
+            "DEV_RUN_ARTIFACTS_R2_BUCKET": RUN_ARTIFACT_BUCKETS["development"],
+            "DEV_RUN_ARTIFACTS_R2_ACCESS_KEY_ID": "run-read-profile-write-id",
+            "DEV_RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY": "run-read-profile-write-secret",
         }
 
         resolved = resolve_target_environment("development", environment)
 
         self.assertEqual(resolved["R2_BUCKET"], BUCKETS["development"])
         self.assertEqual(resolved["R2_READ_ACCESS_KEY_ID"], "dev-read-id")
-        self.assertNotIn("R2_ACCESS_KEY_ID", resolved)
+        self.assertEqual(resolved["R2_ACCESS_KEY_ID"], "")
 
     def test_selected_profile_cannot_fall_back_to_generic_or_other_target(self):
         environment = {
@@ -138,9 +196,36 @@ class TargetEnvironmentTests(TestCase):
         with self.assertRaisesRegex(TargetConfigurationError, "both read-only"):
             resolve_target_environment("development", environment)
 
+    def test_run_storage_requires_matching_d1_and_dedicated_artifact_bucket(self):
         environment = dict(self.profiles)
-        environment.pop("DEV_R2_ACCOUNT_ID")
+        environment.pop("DEV_D1_DATABASE_ID")
+        with self.assertRaisesRegex(TargetConfigurationError, "DEV_D1_DATABASE_ID"):
+            resolve_target_environment("development", environment)
+
+        environment = dict(self.profiles)
+        environment["DEV_RUN_ARTIFACTS_R2_BUCKET"] = RUN_ARTIFACT_BUCKETS["production"]
+        with self.assertRaisesRegex(TargetConfigurationError, "RUN_ARTIFACTS_R2_BUCKET must be"):
+            resolve_target_environment("development", environment)
+
+        environment = dict(self.profiles)
+        environment.pop("DEV_D1_API_TOKEN")
+        environment["D1_API_TOKEN"] = "shared-secret-must-not-fallback"
+        with self.assertRaisesRegex(TargetConfigurationError, "DEV_D1_API_TOKEN"):
+            resolve_target_environment("development", environment)
+
+        environment = dict(self.profiles)
+        environment.pop("R2_ACCOUNT_ID")
         with self.assertRaisesRegex(TargetConfigurationError, "R2_ACCOUNT_ID is required"):
+            resolve_target_environment("development", environment)
+
+        environment = dict(self.profiles)
+        environment.pop("DEV_RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY")
+        with self.assertRaisesRegex(TargetConfigurationError, "both writer credentials"):
+            resolve_target_environment("development", environment)
+
+        environment = dict(self.profiles)
+        environment["DEV_D1_API_TOKEN"] = "too-short"
+        with self.assertRaisesRegex(TargetConfigurationError, "D1_API_TOKEN"):
             resolve_target_environment("development", environment)
 
     def test_publication_certificate_requires_its_database_connection(self):
@@ -154,6 +239,12 @@ class TargetEnvironmentTests(TestCase):
             "KARTISERET_TARGET": "development",
             "SUPABASE_URL": f"https://{PROJECT_REFS['development']}.supabase.co",
             "SUPABASE_SERVICE_ROLE_KEY": "dev-service-role",
+            "R2_ACCOUNT_ID": "a" * 32,
+            "D1_DATABASE_ID": D1_DATABASE_IDS["development"],
+            "RUN_ARTIFACTS_R2_BUCKET": RUN_ARTIFACT_BUCKETS["development"],
+            "RUN_ARTIFACTS_R2_ACCESS_KEY_ID": "run-write-id",
+            "RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY": "run-write-secret",
+            "D1_API_TOKEN": "d1-api-token-development-with-at-least-32-characters",
         }
         resolved = resolve_target_environment("development", environment)
 
@@ -165,6 +256,12 @@ class TargetEnvironmentTests(TestCase):
             "KARTISERET_TARGET": "development",
             "SUPABASE_URL": f"https://{PROJECT_REFS['production']}.supabase.co",
             "SUPABASE_SERVICE_ROLE_KEY": "wrong-project-key",
+            "R2_ACCOUNT_ID": "a" * 32,
+            "D1_DATABASE_ID": D1_DATABASE_IDS["development"],
+            "RUN_ARTIFACTS_R2_BUCKET": RUN_ARTIFACT_BUCKETS["development"],
+            "RUN_ARTIFACTS_R2_ACCESS_KEY_ID": "run-write-id",
+            "RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY": "run-write-secret",
+            "D1_API_TOKEN": "d1-api-token-development-with-at-least-32-characters",
         }
         with self.assertRaisesRegex(TargetConfigurationError, "selected Supabase project"):
             resolve_target_environment("development", environment)
@@ -181,6 +278,7 @@ class RunnerTargetSelectionTests(TestCase):
         self.profiles = {
             **_profile("DEV_", "development"),
             **_profile("PROD_", "production"),
+            "R2_ACCOUNT_ID": "a" * 32,
         }
 
     def test_interactive_target_is_selected_before_run_plan(self):

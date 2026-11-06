@@ -86,6 +86,17 @@ def main(argv: list[str] | None = None) -> int:
             env=environment,
             cwd=str(PROJECT_ROOT),
         )
+        run_id_file = os.environ.get("KARTISER_RUN_ID_FILE", "").strip()
+        if run_id_file and outcome.run_id is not None:
+            destination = Path(run_id_file).expanduser()
+            destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            temporary = destination.with_suffix(destination.suffix + ".tmp")
+            temporary.write_text(f"{outcome.run_id}\n", encoding="utf-8")
+            try:
+                temporary.chmod(0o600)
+            except OSError:
+                pass
+            os.replace(temporary, destination)
         return outcome.exit_code
     except KeyboardInterrupt:
         print("Pipeline plan selection interrupted.", file=sys.stderr, flush=True)

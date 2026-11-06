@@ -15,6 +15,12 @@ class ArtworkBackfillTests(unittest.TestCase):
             "DEV_SUPABASE_SERVICE_ROLE_KEY": "dev-secret",
             "PROD_SUPABASE_URL": "https://gsdrcyrduxbrxgsvhxvr.supabase.co",
             "PROD_SUPABASE_SERVICE_ROLE_KEY": "prod-secret",
+            "R2_ACCOUNT_ID": "a" * 32,
+            "DEV_D1_DATABASE_ID": "dbace3cc-386d-42f4-8ab9-0863f17adcfc",
+            "DEV_D1_API_TOKEN": "development-d1-worker-secret-for-test-only",
+            "DEV_RUN_ARTIFACTS_R2_BUCKET": "kartiseret-run-artifacts-dev",
+            "DEV_RUN_ARTIFACTS_R2_ACCESS_KEY_ID": "dev-artifact-access",
+            "DEV_RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY": "dev-artifact-secret",
         }
         with patch.dict(os.environ, env, clear=True), patch.object(backfill, "load_dotenv"), patch(
             "sys.argv", ["backfill", "--target", "development", "--backfill"]
@@ -75,6 +81,21 @@ class ArtworkBackfillTests(unittest.TestCase):
                 *(f"artwork/v1/backdrop/{'b' * 64}/{width}.webp" for width in backfill.VARIANTS["backdrop"]),
             },
         )
+
+    def test_reference_scan_rejects_null_or_incomplete_supabase_pages(self):
+        query = Mock()
+        query.select.return_value = query
+        query.order.return_value = query
+        query.range.return_value = query
+        query.execute.return_value = SimpleNamespace(data=None)
+        client = Mock()
+        client.table.return_value = query
+        with self.assertRaisesRegex(RuntimeError, "incomplete row data"):
+            list(backfill.each_row(client, "finalMovies", "tmdb_id,en_poster,backdrop"))
+
+        query.execute.return_value = SimpleNamespace(data=[{"tmdb_id": 42, "en_poster": None}])
+        with self.assertRaisesRegex(RuntimeError, "malformed or incomplete rows"):
+            list(backfill.each_row(client, "finalMovies", "tmdb_id,en_poster,backdrop"))
 
     def test_dry_run_does_not_upload_or_update_and_apply_is_resumable(self):
         row = {
@@ -154,6 +175,24 @@ class ArtworkBackfillTests(unittest.TestCase):
         self.assertIn("en_poster", published)
         self.assertNotIn("backdrop", published)
 
+    def test_r2_budget_failure_is_not_swallowed_as_a_failed_variant(self):
+        from backend.utils.log.r2_budget import R2BudgetExceeded
+
+        row = {
+            "tmdb_id": 42,
+            "en_poster": "https://image.tmdb.org/t/p/w500/poster.jpg",
+            "backdrop": None,
+        }
+        storage = Mock()
+        storage.store.side_effect = R2BudgetExceeded("Class A budget reached")
+        with patch.object(
+            backfill,
+            "each_row",
+            side_effect=lambda _client, table, _columns: iter([row] if table == "finalMovies" else []),
+        ):
+            with self.assertRaisesRegex(R2BudgetExceeded, "Class A budget reached"):
+                backfill.run_backfill(Mock(), storage, apply=True)
+
     def test_rollback_uses_the_persisted_source_identity(self):
         row = {
             "tmdb_id": 42,
@@ -192,19 +231,22 @@ class ArtworkBackfillTests(unittest.TestCase):
         self.assertEqual(restored["en_poster"], "https://image.tmdb.org/t/p/w342/poster.jpg")
         self.assertEqual(restored["backdrop"], "https://image.tmdb.org/t/p/w1280/backdrop.jpg")
 
-    def test_cleanup_requires_pause_and_respects_shared_refs_and_grace(self):
+    def test_cleanup_respects_shared_refs_and_grace_with_bounded_batches(self):
         live_hash = "a" * 64
         old = datetime.now(timezone.utc) - timedelta(days=31)
         recent = datetime.now(timezone.utc) - timedelta(days=2)
+        dead_hash = "d" * 64
+        fresh_hash = "f" * 64
         storage = Mock()
         storage.bucket = "dev"
+        storage.client.delete_objects.return_value = {}
         storage.client.get_paginator.return_value.paginate.return_value = [
             {"Contents": [
                 {"Key": f"artwork/v1/poster/{live_hash}/185.webp", "LastModified": old},
                 {"Key": f"artwork/v1/poster/{live_hash}/complete", "LastModified": old},
-                {"Key": "artwork/v1/backdrop/dead/complete", "LastModified": old},
-                {"Key": "artwork/v1/backdrop/dead/780.webp", "LastModified": old},
-                {"Key": "artwork/v1/backdrop/fresh/complete", "LastModified": recent},
+                {"Key": f"artwork/v1/backdrop/{dead_hash}/complete", "LastModified": old},
+                {"Key": f"artwork/v1/backdrop/{dead_hash}/780.webp", "LastModified": old},
+                {"Key": f"artwork/v1/backdrop/{fresh_hash}/complete", "LastModified": recent},
             ]},
         ]
         client = Mock()
@@ -212,37 +254,41 @@ class ArtworkBackfillTests(unittest.TestCase):
             f"artwork/v1/poster/{live_hash}/{width}.webp"
             for width in backfill.VARIANTS["poster"]
         }
-        with patch.dict(os.environ, {"ARTWORK_CLEANUP_PIPELINE_PAUSED": "true"}), patch.object(
-            backfill, "referenced_keys", return_value=live_keys
-        ), patch.object(backfill, "ensure_no_active_pipeline"):
+        with patch.object(backfill, "referenced_keys", return_value=live_keys):
             result = backfill.run_cleanup(client, storage, apply=False)
             applied = backfill.run_cleanup(client, storage, apply=True)
 
         self.assertEqual(result["eligible_objects"], 2)
         self.assertEqual(applied["deleted"], 2)
-        deleted = [call.kwargs["Key"] for call in storage.client.delete_object.call_args_list]
+        deleted = [row["Key"] for row in storage.client.delete_objects.call_args.kwargs["Delete"]["Objects"]]
         self.assertEqual(set(deleted), {
-            "artwork/v1/backdrop/dead/complete",
-            "artwork/v1/backdrop/dead/780.webp",
+            f"artwork/v1/backdrop/{dead_hash}/complete",
+            f"artwork/v1/backdrop/{dead_hash}/780.webp",
         })
-        with patch.dict(os.environ, {}, clear=True), self.assertRaisesRegex(RuntimeError, "Pause the dataflow"):
-            backfill.run_cleanup(client, storage, apply=True)
 
-    def test_cleanup_aborts_when_a_workflow_is_active(self):
+    def test_cleanup_aborts_before_deletion_when_shared_lease_is_lost(self):
         storage = Mock()
         storage.bucket = "dev"
         storage.client.get_paginator.return_value.paginate.return_value = [{
             "Contents": [{
-                "Key": "artwork/v1/poster/dead/185.webp",
+                "Key": f"artwork/v1/poster/{'d' * 64}/185.webp",
                 "LastModified": datetime.now(timezone.utc) - timedelta(days=31),
             }],
         }]
-        with patch.dict(os.environ, {"ARTWORK_CLEANUP_PIPELINE_PAUSED": "true"}), patch.object(
-            backfill, "ensure_no_active_pipeline", side_effect=RuntimeError("active")
-        ):
+        with patch.object(backfill, "referenced_keys", return_value=set()):
             with self.assertRaisesRegex(RuntimeError, "active"):
-                backfill.run_cleanup(Mock(), storage, apply=True)
-        storage.client.delete_object.assert_not_called()
+                backfill.run_cleanup(Mock(), storage, apply=True, lease_guard=lambda: (_ for _ in ()).throw(RuntimeError("active")))
+        storage.client.delete_objects.assert_not_called()
+
+    def test_malformed_r2_catalog_reference_aborts_before_listing_or_deletion(self):
+        client = Mock()
+
+        def rows(_client, table, _columns):
+            return iter([{"en_poster": "/api/images/v1/poster/not-a-digest/342.webp"}] if table == "finalMovies" else [])
+
+        with patch.object(backfill, "each_row", side_effect=rows):
+            with self.assertRaisesRegex(RuntimeError, "malformed R2 URL"):
+                backfill.referenced_keys(client)
 
     def test_production_detection_is_read_only_guard(self):
         self.assertTrue(backfill.is_production(f"https://{backfill.PRODUCTION_PROJECT_REF}.supabase.co"))

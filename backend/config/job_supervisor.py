@@ -15,16 +15,18 @@ import time
 from pathlib import Path
 
 from backend.config.job_control import CONTROL_FD_ENV
+from backend.utils.log.cloudflare_storage import write_recovery_envelope
 
 
 DEFAULT_JOB_SECONDS = 16_200  # 4h 30m, leaving setup and cleanup room in 5-hour Actions jobs.
 DEFAULT_SOLO_JOB_SECONDS = 1_800
 DEFAULT_TERMINATION_GRACE_SECONDS = 20
+MAX_JOB_SECONDS = 17_970
+MAX_TERMINATION_GRACE_SECONDS = 30
 FINALIZER_SECONDS = 5
 JOB_SECONDS_ENV = "PIPELINE_JOB_DEADLINE_SECONDS"
 SOLO_JOB_SECONDS_ENV = "PIPELINE_SOLO_UPDATE_DEADLINE_SECONDS"
 GRACE_SECONDS_ENV = "PIPELINE_TERMINATION_GRACE_SECONDS"
-ARTIFACT_ROOT = Path("backend/utils/log/logger_artifacts")
 
 
 @dataclass(frozen=True)
@@ -49,11 +51,17 @@ def configured_seconds(name: str, default: float, *, minimum: float = 0.1) -> fl
 
 def job_seconds(*, solo: bool = False) -> float:
     name, default = (SOLO_JOB_SECONDS_ENV, DEFAULT_SOLO_JOB_SECONDS) if solo else (JOB_SECONDS_ENV, DEFAULT_JOB_SECONDS)
-    return configured_seconds(name, default)
+    value = configured_seconds(name, default)
+    if value > MAX_JOB_SECONDS:
+        raise ValueError(f"{name} cannot exceed {MAX_JOB_SECONDS} seconds")
+    return value
 
 
 def termination_grace_seconds() -> float:
-    return configured_seconds(GRACE_SECONDS_ENV, DEFAULT_TERMINATION_GRACE_SECONDS)
+    value = configured_seconds(GRACE_SECONDS_ENV, DEFAULT_TERMINATION_GRACE_SECONDS)
+    if value > MAX_TERMINATION_GRACE_SECONDS:
+        raise ValueError(f"{GRACE_SECONDS_ENV} cannot exceed {MAX_TERMINATION_GRACE_SECONDS} seconds")
+    return value
 
 
 def _group_exists(process_group: int) -> bool:
@@ -121,7 +129,11 @@ def _read_events(fd: int, buffered: bytearray, state: dict) -> bool:
                 continue
             if not isinstance(event, dict):
                 continue
-            if event.get("event") == "run_id":
+            if event.get("event") == "lease_token":
+                token = event.get("token")
+                if isinstance(token, str) and len(token) == 32:
+                    state["lease_token"] = token
+            elif event.get("event") == "run_id":
                 try:
                     state["run_id"] = int(event["run_id"])
                 except (KeyError, TypeError, ValueError):
@@ -169,14 +181,10 @@ def _record_interrupted_run(run_id: int | None, *, reason: str, started_at: floa
         "remote_write_outcome": "unknown for database requests that were in flight at termination",
     }
     try:
-        directory = Path(root) / ARTIFACT_ROOT / str(run_id)
-        directory.mkdir(parents=True, exist_ok=True)
-        temporary = directory / "supervisor-outcome.json.tmp"
-        temporary.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
-        os.replace(temporary, directory / "supervisor-outcome.json")
-        (directory / ".job_ok").write_text("false", encoding="utf-8")
-    except OSError:
-        pass
+        recovery = write_recovery_envelope("supervisor_outcomes", str(run_id), record)
+        record["recovery_file"] = str(recovery[0])
+    except OSError as error:
+        print(f"Could not persist local recovery outcome: {type(error).__name__}", file=sys.stderr, flush=True)
 
 
 def _finalize_run_lock(run_id: int, *, started_at: float, seconds: float, cwd: str, env: dict[str, str]) -> bool:
@@ -226,7 +234,9 @@ def run_managed_process(
     except (TypeError, ValueError) as error:
         print(f"Invalid supervised job budget: {error}", file=sys.stderr, flush=True)
         return JobOutcome(125, "invalid_budget", None, None, 0.0)
-    if not math.isfinite(limit) or limit <= 0 or not math.isfinite(grace) or grace < 0:
+    if (not math.isfinite(limit) or limit <= 0 or limit > MAX_JOB_SECONDS
+            or not math.isfinite(grace) or grace < 0 or grace > MAX_TERMINATION_GRACE_SECONDS
+            or limit + grace > 18_000):
         return JobOutcome(125, "invalid_budget", None, None, 0.0)
 
     cancel = cancel_event or threading.Event()
@@ -235,12 +245,15 @@ def run_managed_process(
     previous_handlers = _install_signal_handlers(cancel)
     started_at = time.monotonic()
     deadline = started_at + limit
+    wall_deadline = time.time() + limit
     root = str(Path(cwd or os.getcwd()).resolve())
     child_env = os.environ.copy()
     if env:
         child_env.update(env)
     child_env["KARTISERET_JOB_STARTED_MONOTONIC"] = f"{started_at:.9f}"
     child_env["PYTHONUNBUFFERED"] = "1"
+    child_env["KARTISERET_LEASE_WORKER"] = "true"
+    child_env["KARTISERET_JOB_STARTED_WALL"] = str(time.time())
     pythonpath = child_env.get("PYTHONPATH", "")
     child_env["PYTHONPATH"] = root + (os.pathsep + pythonpath if pythonpath else "")
 
@@ -278,7 +291,7 @@ def run_managed_process(
                 if cancel.is_set():
                     reason = "cancelled"
                     break
-                if now >= deadline:
+                if now >= deadline or time.time() >= wall_deadline:
                     reason = "deadline_exceeded"
                     break
                 if control_open:
@@ -326,14 +339,15 @@ def run_managed_process(
         except Exception as error:
             print(f"Could not finish worker shutdown cleanly: {type(error).__name__}: {error}", file=sys.stderr, flush=True)
             _signal_group(child.pid, signal.SIGKILL, leader=child)
-            reaped = child.poll() is not None
+            reaped = child.poll() is not None and not _group_exists(child.pid)
         if not reaped and reason != "supervisor_error":
             reason = "child_reap_timeout"
 
         run_id = state["run_id"]
         _record_interrupted_run(run_id, reason=reason, started_at=started_at, root=root)
         remote_finalized = None
-        if run_id is not None:
+        if run_id is not None and reaped and state.get("lease_token"):
+            child_env["KARTISERET_ACTIVE_LEASE_TOKEN"] = state["lease_token"]
             remote_finalized = _finalize_run_lock(
                 run_id,
                 started_at=started_at,
@@ -341,6 +355,12 @@ def run_managed_process(
                 cwd=root,
                 env=child_env,
             )
+            if not remote_finalized:
+                print(
+                    f"Supabase/D1 finalization for run {run_id} is unconfirmed; inspect Cloudflare and local recovery before starting another run.",
+                    file=sys.stderr,
+                    flush=True,
+                )
 
         if reason == "deadline_exceeded":
             exit_code = 124
