@@ -94,6 +94,10 @@ def _print_r2_budget_summary() -> None:
                 f"Class B {usage['class_b']}/{budget.class_b_limit}, "
                 f"tripped={usage['tripped'] or 'no'}"
             )
+            from backend.utils.log.r2_storage_guard import storage_summary
+            storage = storage_summary()
+            if storage is not None:
+                print("R2 storage guard: " + json.dumps(storage, sort_keys=True))
     except Exception as error:
         print(f"R2 job budget summary unavailable ({type(error).__name__}).", file=sys.stderr)
 
@@ -117,6 +121,8 @@ def maintenance_lease(*, skip_if_busy: bool = False):
         try:
             from backend.utils.log.job_lease import reconcile_predecessor
             reconcile_predecessor(store)
+            from backend.utils.log.r2_storage_guard import initialize_storage_guard
+            initialize_storage_guard(store)
             yield store, token
         finally:
             store.release_run_lease(token=token)
@@ -255,6 +261,7 @@ def cleanup_orphan_run_artifacts(
     grace_days: int = 30,
     max_deletes: int = R2_DELETE_BATCH,
     lease_guard=None,
+    retain_object=None,
 ) -> dict[str, object]:
     """Delete only old, unreferenced objects belonging to confirmed successful runs."""
     if grace_days < 0 or max_deletes < 1:
@@ -288,7 +295,7 @@ def cleanup_orphan_run_artifacts(
                 continue
             if modified.tzinfo is None:
                 modified = modified.replace(tzinfo=timezone.utc)
-            if modified > cutoff or key in referenced:
+            if modified > cutoff or key in referenced or (retain_object and retain_object(key)):
                 continue
             run_id = int(match.group(2))
             if states.get(run_id) != "successful" or run_id in recoverable:
@@ -313,6 +320,31 @@ def cleanup_orphan_run_artifacts(
         "sample_keys": candidates[:20],
         "deleted": deleted,
     }
+
+
+def cleanup_r2_storage(store, *, apply, lease_guard, artwork=None, pins=None):
+    """One bounded safe R2 sweep, also usable when a watermark is reached."""
+    from backend.dataflow.utils.ArtworkStorage import ArtworkStorage
+    from backend.dataflow.backfill_catalog_artwork import run_cleanup as cleanup_artwork
+    from backend.dataflow.social_previews import cleanup_social_previews
+    from backend.utils.log.r2_storage_guard import retains
+
+    artwork = artwork or ArtworkStorage.from_environment()
+    if artwork is None:
+        raise RuntimeError("Selected target artwork R2 credentials are required for cleanup")
+    report = {}
+    artwork_pin = {"retain_object": lambda key: retains(pins, artwork.bucket, key)} if pins is not None else {}
+    artifact_pin = {"retain_object": lambda key: retains(pins, store.bucket, key)} if pins is not None else {}
+    report["artwork"] = cleanup_artwork(_supabase_client(), artwork, apply=apply, lease_guard=lease_guard, **artwork_pin)
+    if lease_guard:
+        lease_guard()
+    report["social_previews"] = cleanup_social_previews(_supabase_client(), artwork, apply=apply, lease_guard=lease_guard, **artwork_pin)
+    if lease_guard:
+        lease_guard()
+    report["run_artifacts"] = cleanup_orphan_run_artifacts(store, apply=apply, lease_guard=lease_guard, **artifact_pin)
+    if lease_guard:
+        lease_guard()
+    return report
 
 
 def run_shared_cleanup(
@@ -366,21 +398,7 @@ def run_shared_cleanup(
     report["orphan_final_theque_movies"] = clear_orphan_final_theque_movies(apply=apply, lease_guard=renew)
     renew()
 
-    from backend.dataflow.backfill_catalog_artwork import run_cleanup as cleanup_artwork
-    from backend.dataflow.social_previews import cleanup_social_previews
-    guard = renew
-    report["artwork"] = cleanup_artwork(
-        _supabase_client(), artwork, apply=apply, lease_guard=guard,
-    )
-    renew()
-    report["social_previews"] = cleanup_social_previews(
-        _supabase_client(), artwork, apply=apply, lease_guard=guard,
-    )
-    renew()
-    report["run_artifacts"] = cleanup_orphan_run_artifacts(
-        store, apply=apply, lease_guard=guard,
-    )
-    renew()
+    report.update(cleanup_r2_storage(store, apply=apply, lease_guard=renew, artwork=artwork))
     report["d1_after"] = store.check_storage(lease_token=lease_token)
     store.mark_cleanup_attempt(day, successful=apply)
     return report
@@ -398,6 +416,12 @@ def run_pipeline_preflight(store: RunArtifactStore, *, lease_token: str) -> dict
     resolve_target_environment(target, os.environ)
     apply = _cleanup_apply_from_environment()
     result = run_shared_cleanup(store, lease_token=lease_token, target=target, apply=apply)
+    from backend.utils.log.r2_storage_guard import initialize_storage_guard
+    guard = initialize_storage_guard(store)
+    # A daily sweep that just ran already attempted the same bounded cleanup.
+    # A skipped daily scan must not suppress pressure-triggered cleanup.
+    guard.reserve(upload=False, allow_cleanup=bool(result.get("skipped")))
+    result["r2_storage"] = guard.summary()
     print("Shared cleanup preflight: " + json.dumps(result, sort_keys=True, default=str))
     return result
 

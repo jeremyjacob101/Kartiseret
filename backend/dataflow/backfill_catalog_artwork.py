@@ -228,7 +228,7 @@ def ensure_no_active_pipeline(client):
         raise RuntimeError("Cleanup refused while a dataflow run is active")
 
 
-def run_cleanup(client, storage, *, apply: bool, grace_days=30, lease_guard=None, max_deletes=500) -> dict[str, object]:
+def run_cleanup(client, storage, *, apply: bool, grace_days=30, lease_guard=None, max_deletes=500, retain_object=None) -> dict[str, object]:
     """Plan or delete old unreferenced variants; caller must hold the D1 lease."""
     if grace_days < 0 or max_deletes < 1:
         raise ValueError("Cleanup grace period and deletion bound must be non-negative/positive")
@@ -259,7 +259,7 @@ def run_cleanup(client, storage, *, apply: bool, grace_days=30, lease_guard=None
                 raise RuntimeError("Artwork R2 listing contains an unknown object key; no deletion was attempted")
             if modified.tzinfo is None:
                 modified = modified.replace(tzinfo=timezone.utc)
-            if key in live or modified > cutoff:
+            if key in live or modified > cutoff or (retain_object and retain_object(key)):
                 continue
             # A completion marker belongs to a set; retain it while any output
             # from that set is still referenced.

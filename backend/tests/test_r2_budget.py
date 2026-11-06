@@ -134,7 +134,9 @@ class R2BudgetTests(unittest.TestCase):
             self.assertIs(create_r2_s3_client(access_key="writer", secret_key="secret"), client)
         config = create_client.call_args.kwargs["config"]
         self.assertEqual(config.retries["total_max_attempts"], 1)
-        self.assertEqual(client.meta.events.register_first.call_args.args[0], "before-send.s3.*")
+        events = [call.args[0] for call in client.meta.events.register_first.call_args_list]
+        self.assertIn("before-send.s3.*", events)
+        self.assertIn("before-parameter-build.s3.*", events)
 
     def test_reservations_are_shared_across_processes(self):
         processes = [multiprocessing.Process(target=_reserve_many, args=(str(self.path), 100)) for _ in range(4)]

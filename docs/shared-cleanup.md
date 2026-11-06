@@ -54,6 +54,27 @@ The validation job performs read-only access checks against Supabase, D1, and bo
 
 The workflow names each Actions secret explicitly. Mutually exclusive development and production steps receive their corresponding credentials through step-level environment variables; checkout, Python setup, and dependency installation receive no application credentials. Secret values are not copied into job-wide environment variables or persisted through `GITHUB_ENV`. The existing target matrix, validation barrier, and cleanup commands are unchanged.
 
+## R2 storage pressure protection
+
+Every pipeline preflight inventories the selected target's artwork and run-artifact buckets after the daily cleanup check, even when the full daily scan was skipped. Standalone maintenance also initializes this inventory under the same target lease. All object prefixes and pending multipart parts count, with an additional conservative 4 KiB allowance per object/part. The inventory uses existing S3 credentials and paginated listings, not delayed dashboard metrics or new API tokens.
+
+Default high/low watermarks, in decimal bytes:
+
+| Target | Stop/cleanup threshold | Recovery target |
+| --- | ---: | ---: |
+| Production | 6,000,000,000 | 5,000,000,000 |
+| Development | 2,000,000,000 | 1,500,000,000 |
+
+Override these with `KARTISERET_R2_STORAGE_PRODUCTION_HIGH_BYTES`, `KARTISERET_R2_STORAGE_PRODUCTION_LOW_BYTES`, `KARTISERET_R2_STORAGE_DEVELOPMENT_HIGH_BYTES`, and `KARTISERET_R2_STORAGE_DEVELOPMENT_LOW_BYTES`. Each requires positive integer bytes with low < high. Keep the sum of target ceilings below the desired account allowance, reserving room for other buckets and writers.
+
+Before a `PutObject` request is sent, its payload and overhead are reserved in a job-local SQLite ledger shared by threads and child processes. Failed uploads and overwrites remain conservatively charged for that job. Ordinary uploads add no remote storage lookup: refreshes occur after five minutes, 128 MiB of attempted uploads, or pressure at the high watermark. A periodic scan never discards reservations for writes still in flight.
+
+At pressure, one bounded R2 cleanup pass can run again even after today's successful cleanup. It reuses the existing reference scans, 30-day grace periods, recovery exclusions, deletion limits, and immediate ownership checks. Objects read, uploaded, or loaded into a publication workspace during this job are protected locally; touching an artwork variant or completion marker protects its whole variant set, including references not yet published. No Supabase sweep is repeated just to reclaim R2 space. Cleanup credits only a measured reduction in storage. If the recovery target cannot be reached, the guard fails the job before its next upload. Reads and deletion/recovery operations remain available unless the separate operation budget has tripped.
+
+The `KARTISERET_SHARED_CLEANUP_APPLY` rollout gate still controls automatic deletion. With it false, pressure cleanup is a dry run and uploads stop if room cannot be established. Inventory errors, missing ledgers, and unknown upload sizes fail closed. The pipeline's current uploads all use bounded `PutObject`; new copy/multipart writes and Infrequent Access writes are refused until they have explicit storage accounting. Existing pending multipart parts are counted and retained, not automatically aborted.
+
+This protects the four managed buckets through updated pipeline/maintenance entry points. It is not an account-wide billing cap: other buckets, old scheduler code, external clients, in-flight requests during failover, and operations already consumed remain outside this storage ceiling. Main-pipeline R2 operation limits and D1 retention are unchanged. No new service, credentials, runtime dependency, D1 migration, or scheduled job is introduced.
+
 ## Existing publication cleanup
 
 Category-specific post-publication cleanup remains in place because a publication can make rows obsolete after preflight. The preflight sweep is idempotent and runs at most once per target per UTC day after a successful applied run. The two former commented-out daily workflows have been consolidated into `daily_shared_cleanup.yml`.

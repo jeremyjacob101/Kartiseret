@@ -410,6 +410,7 @@ def cleanup_social_previews(
     grace_days: int = 30,
     max_deletes: int = 500,
     lease_guard=None,
+    retain_object=None,
 ) -> dict[str, object]:
     """Delete only old cards whose fingerprint is absent from every catalog table."""
     if grace_days < 0 or max_deletes < 1:
@@ -448,7 +449,7 @@ def cleanup_social_previews(
                 raise RuntimeError("Social preview R2 listing contains an unknown object key; no deletion was attempted")
             if modified.tzinfo is None:
                 modified = modified.replace(tzinfo=timezone.utc)
-            if match.group(1) in live or modified > cutoff:
+            if match.group(1) in live or modified > cutoff or (retain_object and retain_object(key)):
                 continue
             eligible += 1
             if len(candidates) < max_deletes:
