@@ -52,6 +52,31 @@ def _profile(prefix: str, target: str) -> dict[str, str]:
 
 
 class TargetEnvironmentTests(TestCase):
+    def test_resolved_profiles_survive_worker_revalidation_and_late_dotenv(self):
+        from io import StringIO
+        from dotenv import load_dotenv
+
+        for target in ('development', 'production'):
+            with self.subTest(target=target):
+                selected = resolve_target_environment(target, self.profiles)
+                # The supervisor overlays the selection on the original parent
+                # environment; the worker loads dotenv before validating again.
+                worker = {**self.profiles, **selected}
+                with patch.dict(os.environ, worker, clear=True):
+                    load_dotenv(stream=StringIO('\n'.join(
+                        f'{key}={value}' for key, value in self.profiles.items()
+                    )))
+                    checked = resolve_target_environment(target, os.environ)
+                self.assertEqual(checked, selected)
+                self.assertEqual(checked['SUPABASE_URL'], f'https://{PROJECT_REFS[target]}.supabase.co')
+                for prefix in ('DEV_', 'PROD_'):
+                    self.assertEqual(checked[f'{prefix}SUPABASE_SERVICE_ROLE_KEY'], '')
+
+    def test_revalidated_worker_cannot_switch_to_the_other_target(self):
+        selected = resolve_target_environment('production', self.profiles)
+        with self.assertRaises(TargetConfigurationError):
+            resolve_target_environment('development', selected)
+
     def test_missing_profile_settings_cannot_be_restored_by_dotenv(self):
         from io import StringIO
         from dotenv import load_dotenv
