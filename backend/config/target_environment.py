@@ -121,10 +121,14 @@ def resolve_target_environment(
     project_ref = PROJECT_REFS[target]
     prefix = "DEV_" if target == "development" else "PROD_"
     has_profiles = any(
-        f"{candidate}{key}" in environ
+        bool(environ.get(f"{candidate}{key}", "").strip())
         for candidate in ("DEV_", "PROD_")
         for key in PROFILE_KEYS
     )
+    # A resolved worker retains empty prefixed entries to prevent inherited
+    # secrets and later load_dotenv() calls from restoring the other target.
+    # Those tombstones are not an unresolved profile: validate its generic
+    # selected credentials again instead of blanking them on the second pass.
 
     # Never pass both environments' secrets to the worker process.
     resolved = {
