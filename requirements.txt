@@ -8,3 +8,4 @@ pytz
 rich
 readchar
 python-dotenv
+beautifulsoup4>=4.12,<5

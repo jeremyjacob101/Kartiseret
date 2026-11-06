@@ -9,6 +9,11 @@ import re
 class RavHen(QuickbookHelpers, BaseCinema):
     CINEMA_NAME = "Rav Hen"
     URL = "https://www.rav-hen.co.il/#/"
+    DEFAULT_SCRAPE_MODE = "auto"
+
+    def requests_logic(self):
+        from backend.scraping.utils.RavHenRequests import collect_rav_hen
+        return collect_rav_hen(self)
 
     month_mapping = {"ינואר": "01", "פברואר": "02", "מרץ": "03", "אפריל": "04", "מאי": "05", "יוני": "06", "יולי": "07", "אוגוסט": "08", "ספטמבר": "09", "אוקטובר": "10", "נובמבר": "11", "דצמבר": "12"}
 

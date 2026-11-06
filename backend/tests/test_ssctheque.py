@@ -1,7 +1,11 @@
 import unittest
 from datetime import date
 
-from backend.scraping.cinematheques.SSCtheque import parse_card, parse_titles
+from bs4 import BeautifulSoup
+
+from backend.config.registry import REGISTRY
+from backend.scraping.cinematheques.HOLONtheque import HOLONtheque
+from backend.scraping.cinematheques.SSCtheque import SSCtheque, parse_card, parse_titles
 
 
 class SamSpiegelTests(unittest.TestCase):
@@ -29,3 +33,28 @@ class SamSpiegelTests(unittest.TestCase):
     def test_incomplete_card_fails(self):
         with self.assertRaises(ValueError):
             parse_card(['סרט | Movie', 'חמישי'], [], [], date(2026, 11, 1))
+
+    def test_requests_card_parser_matches_the_live_loop_card_structure(self):
+        card = BeautifulSoup('''
+            <div data-elementor-type="loop-item">
+              <h2>בחירות או לא להיות | Election</h2>
+              <h4>03/11</h4><h4>20:30</h4>
+              <p>אלכסנדר פיין | ארה״ב | 1999 | 103 דקות</p>
+              <a href="https://tickets.example/123">לכרטיסים</a>
+            </div>
+        ''', 'html.parser').select_one('[data-elementor-type="loop-item"]')
+        row = SSCtheque._parse_html_card(card, date(2026, 11, 1))
+        self.assertEqual(row, {
+            'hebrew_title': 'בחירות או לא להיות',
+            'english_title': 'Election',
+            'date_of_showing': '2026-11-03',
+            'showtime': '20:30',
+            'release_year': '1999',
+            'runtime': 103,
+            'ticket': 'https://tickets.example/123',
+        })
+
+    def test_sam_is_enabled_and_holon_is_temporarily_disabled(self):
+        self.assertIn(SSCtheque, REGISTRY['allTheques'])
+        self.assertNotIn(HOLONtheque, REGISTRY['allTheques'])
+        self.assertEqual(SSCtheque.DEFAULT_SCRAPE_MODE, 'auto')
