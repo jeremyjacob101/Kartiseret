@@ -231,11 +231,13 @@ async def _subscribe_forever(event_queue: "queue.Queue[str]", stop_event: thread
 
             await client.realtime.connect()
             await channel.subscribe(on_subscribe_status)
-            logger.info("Subscribed to realtime changes for public.%s, public.%s, and public.%s", TABLE_FINAL_MOVIES, TABLE_FINAL_THEQUE_MOVIES, TABLE_FINAL_SOONS)
+            logger.info("Requested realtime subscription for public.%s, public.%s, and public.%s", TABLE_FINAL_MOVIES, TABLE_FINAL_THEQUE_MOVIES, TABLE_FINAL_SOONS)
 
             while not stop_event.is_set():
                 if not client.realtime.is_connected:
                     raise ConnectionError("Supabase realtime socket disconnected")
+                if channel.is_closed:
+                    raise ConnectionError("Supabase realtime channel closed; recreating subscription")
                 await asyncio.sleep(1)
 
         except asyncio.CancelledError:
