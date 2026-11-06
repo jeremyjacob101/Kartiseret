@@ -145,7 +145,9 @@ def resolve_target_environment(
         # Clear the generic values first so one target cannot inherit another
         # target's DB or bucket when a profile entry is missing.
         for key in PROFILE_KEYS:
-            resolved.pop(key, None)
+            # Empty values also block later load_dotenv() calls and inherited
+            # parent environments from restoring another target's defaults.
+            resolved[key] = ""
         for key in PROFILE_KEYS:
             value = environ.get(f"{prefix}{key}")
             if value is not None:
