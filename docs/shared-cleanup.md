@@ -52,6 +52,8 @@ The `Daily Shared Cleanup` workflow is scheduled for 02:00 UTC. GitHub can delay
 
 The validation job performs read-only access checks against Supabase, D1, and both R2 buckets. If any selected target fails validation, no cleanup job starts. The workflow needs only `contents: read`; it does not need a GitHub token with write permissions. Verify the validation job succeeds for every target before enabling `KARTISERET_SHARED_CLEANUP_ENABLED`.
 
+The workflow names each Actions secret explicitly. Mutually exclusive development and production steps receive their corresponding credentials through step-level environment variables; checkout, Python setup, and dependency installation receive no application credentials. Secret values are not copied into job-wide environment variables or persisted through `GITHUB_ENV`. The existing target matrix, validation barrier, and cleanup commands are unchanged.
+
 ## Existing publication cleanup
 
 Category-specific post-publication cleanup remains in place because a publication can make rows obsolete after preflight. The preflight sweep is idempotent and runs at most once per target per UTC day after a successful applied run. The two former commented-out daily workflows have been consolidated into `daily_shared_cleanup.yml`.
