@@ -130,6 +130,13 @@ class StorageGuardTests(unittest.TestCase):
         self.assertIsInstance(storage.R2StorageError('unknown'), R2BudgetError)
         self.assertIsInstance(storage.R2StorageFull('full'), R2BudgetExceeded)
 
+    def test_sdk_fixture_restores_environment_before_later_dataflow_tests(self):
+        environment = dict(os.environ)
+        result = unittest.TestResult()
+        InventoryAndHookTests('test_guard_checks_uploads_but_leaves_reads_and_recovery_deletes_available').run(result)
+        self.assertTrue(result.wasSuccessful(), result.errors or result.failures)
+        self.assertEqual(dict(os.environ), environment)
+
     def test_pressure_cleanup_receives_pins_for_unpublished_reused_variants(self):
         key = 'artwork/v1/poster/' + 'a' * 64 + '/complete'
         self.guard.pin('art', key)
@@ -184,6 +191,12 @@ class StorageGuardTests(unittest.TestCase):
 
 
 class InventoryAndHookTests(unittest.TestCase):
+    def setUp(self):
+        # Job budgets also set their shared path in os.environ. Restore the
+        # complete fixture environment before any later dataflow tests run.
+        self.enterContext(patch.dict(os.environ))
+        self.enterContext(patch.object(storage, '_active', None))
+
     def client(self, pages):
         client = Mock()
         client.get_paginator.side_effect = lambda name: SimpleNamespace(paginate=lambda **kwargs: pages.get(name, [{'IsTruncated': False}]))
@@ -229,8 +242,7 @@ class InventoryAndHookTests(unittest.TestCase):
             path = budget.path.with_name('r2-storage.sqlite3')
             path.touch()
             guard = Mock(path=path, target='development', token='owner')
-            self.enterContext(patch.dict(os.environ, {'KARTISERET_TARGET': 'development', 'KARTISERET_ACTIVE_LEASE_TOKEN': 'owner'}))
-            with patch.object(storage, '_active', guard):
+            with patch.dict(os.environ, {'KARTISERET_TARGET': 'development', 'KARTISERET_ACTIVE_LEASE_TOKEN': 'owner'}), patch.object(storage, '_active', guard):
                 hook(params={'Bucket': 'art', 'Key': 'key', 'Body': b'image'}, model=SimpleNamespace(name='PutObject'))
                 guard.reserve.assert_called_once_with(5, bucket='art', key='key')
                 with self.assertRaises(storage.R2StorageError):
