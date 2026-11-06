@@ -52,6 +52,20 @@ def _profile(prefix: str, target: str) -> dict[str, str]:
 
 
 class TargetEnvironmentTests(TestCase):
+    def test_missing_profile_settings_cannot_be_restored_by_dotenv(self):
+        from io import StringIO
+        from dotenv import load_dotenv
+
+        environment = dict(self.profiles)
+        environment.pop('DEV_PUBLICATION_DATABASE_URL')
+        environment.pop('DEV_PUBLICATION_DATABASE_SSL_CA_CERT')
+        environment['PUBLICATION_DATABASE_URL'] = self.profiles['PROD_PUBLICATION_DATABASE_URL']
+        resolved = resolve_target_environment('development', environment)
+        self.assertEqual(resolved['PUBLICATION_DATABASE_URL'], '')
+        with patch.dict(os.environ, resolved, clear=True):
+            load_dotenv(stream=StringIO('PUBLICATION_DATABASE_URL=wrong-target\n'))
+            self.assertEqual(os.environ['PUBLICATION_DATABASE_URL'], '')
+
     def setUp(self) -> None:
         self.profiles = {
             **_profile("DEV_", "development"),
@@ -113,7 +127,7 @@ class TargetEnvironmentTests(TestCase):
 
         self.assertEqual(resolved["R2_BUCKET"], BUCKETS["development"])
         self.assertEqual(resolved["R2_READ_ACCESS_KEY_ID"], "dev-read-id")
-        self.assertNotIn("R2_ACCESS_KEY_ID", resolved)
+        self.assertEqual(resolved["R2_ACCESS_KEY_ID"], "")
 
     def test_selected_profile_cannot_fall_back_to_generic_or_other_target(self):
         environment = {
