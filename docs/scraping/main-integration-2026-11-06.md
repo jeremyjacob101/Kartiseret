@@ -1,6 +1,6 @@
 # Current-main integration — 2026-11-06
 
-Merged main at `c1bf99bd675de3a9910569c78d503115b96860ad` into the Requests transition branch. Main was fetched again before committing and had not advanced.
+Merged main at `c1bf99bd675de3a9910569c78d503115b96860ad` into the Requests transition branch. Main was fetched again before committing and had not advanced. The existing remote PR commits through `51d16857` were also merged and preserved, including their transport-diagnostics storage test and metadata compatibility.
 
 The integration preserves main's scheduler, runner retry behavior, guarded Supabase client, atomic publication, target leases, heartbeat and takeover handling, R2 budgets, cleanup guards, and storage watermarks. There are no additional changes to those modules relative to main.
 
@@ -16,7 +16,7 @@ Six transport integration tests cover Requests success, whole-result browser fal
 
 Validation on the merged branch:
 
-- Backend: **628 tests passed**.
+- Backend: **629 tests passed**.
 - All `npm run verify` stages passed under Node 24: lint, formatting, type checks, builds, SSR/browser/OG/bundle checks, **604 web tests**, **157 server tests**, **99 database integration tests (1 skipped)**, and **12 end-to-end tests**.
 - Database integration and end-to-end checks used disposable local PostgreSQL. The first database attempt lacked the local Python `psycopg` dependency; rerunning with the pinned publication dependencies available passed.
 - `git diff --check origin/main` passed for the PR changes.

@@ -52,7 +52,7 @@ class ScrapePipelineIntegrationTests(TestCase):
         self.assertEqual(rows[0]['snapshot_id'], self.scraper.snapshot_id)
         self.assertEqual(events[1], ('complete', 1))
         diagnostic = self.store.save_text_artifact.call_args.kwargs
-        self.assertEqual(diagnostic['artifact_type'], 'scrape_transport')
+        self.assertEqual(diagnostic['artifact_type'], 'scraper_transport')
         self.assertEqual(json.loads(diagnostic['text'])['snapshot_id'], self.scraper.snapshot_id)
 
     def test_fallback_retains_failed_snapshot_and_uploads_only_fresh_browser_rows(self):

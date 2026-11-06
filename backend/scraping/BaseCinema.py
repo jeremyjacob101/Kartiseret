@@ -136,7 +136,7 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
         snapshot = getattr(self, 'snapshot_id', None) or 'no-snapshot'
         payload = {
             'scraper': self.__class__.__name__, 'transport': transport, 'status': status,
-            'snapshot_id': snapshot, 'attempt': attempt,
+            'snapshot_id': snapshot, 'attempt': attempt, 'outcome': status,
             'seconds': time.perf_counter() - started,
             'rows': len(self.gathering_info.get('hebrew_title', [])),
             'requests': getattr(self, '_http_stats', {}).get('requests', 0) if transport == 'requests' else 0,
@@ -148,7 +148,7 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
         # Use main's guarded D1 writer and recovery envelopes. Storage or lease
         # failures must propagate, never start another transport or publication.
         RunArtifactStore().save_text_artifact(
-            run_id=int(self.run_id), artifact_type='scrape_transport',
+            run_id=int(self.run_id), artifact_type='scraper_transport',
             name=f'{name}-{attempt}-{snapshot}-{transport}.json',
             text=json.dumps(payload, ensure_ascii=False), metadata=payload,
             identity_namespace=snapshot,
