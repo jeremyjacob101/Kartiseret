@@ -26,7 +26,7 @@ class MovieLand(BaseCinema):
             self.waitForVisible("#change-bg .bg-more-b")
             hebrew_name = self.element("#change-bg > div > div:nth-child(3) > div > div.col-12.col-sm-8.col-md-8.col-lg-9 > div > div > div.bg-more-b > span:nth-child(1)").text.strip()
             self.hebrew_titles.append(hebrew_name)
-            self.english_titles.append(self.element("#change-bg > div > div:nth-child(3) > div > div.col-12.col-sm-8.col-md-8.col-lg-9 > div > div > div.bg-more-b > span:nth-child(3)").text.strip() or hebrew_name)
+            self.english_titles.append(self.element("#change-bg > div > div:nth-child(3) > div > div.col-12.col-sm-8.col-md-8.col-lg-9 > div > div > div.bg-more-b > span:nth-of-type(2)").text.strip())
             self.original_languages.append(str(self.element(f"//*[@id='change-bg']/div/div[3]/div/div[2]/div/div/div[2]/span[16]").text.split(":", 1)[-1].strip()))
             release_year = self.element(f"//*[@id='change-bg']/div/div[3]/div/div[2]/div/div/div[2]/span[15]").text
             if re.search(r"\b\d{4}\b", release_year):

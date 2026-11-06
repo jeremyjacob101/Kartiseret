@@ -48,7 +48,7 @@ class CCsoon(BaseCinema):
             elif "אנגלית" in self.hebrew_title:
                 self.hebrew_title = re.sub(r"\s*[-–—־]?\s*אנגלית\s*[-–—־]?\s*", "", self.hebrew_title).strip()
 
-            self.english_title = self.waitForElement("#comp-mkb98jrw").get_attribute("textContent").replace("\u200b", "").strip() or self.hebrew_title
+            self.english_title = self.waitForElement("#comp-mkb98jrw").get_attribute("textContent").replace("\u200b", "").strip()
             self.runtime = self.tryExceptNone(lambda: int(re.sub(r"\D", "", self.waitForElement("#comp-mkbdaczu").get_attribute("textContent"))))
             self.rating = self.waitForElement("#comp-mkbdcdtv").get_attribute("textContent").split(":", 1)[-1].strip()
 

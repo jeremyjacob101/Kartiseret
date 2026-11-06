@@ -46,8 +46,6 @@ class MLsoon(BaseCinema):
                 self.english_title = self.english_title.replace("3D", "").strip()
             if "HFR" in self.english_title:
                 self.english_title = self.english_title.replace("HFR", "").strip()
-            if not self.english_title:
-                self.english_title = self.hebrew_title
 
             release_date = self.element("#change-bg .bg-more-b > span:nth-of-type(4)").text.strip()
             self.release_date = datetime.strptime(release_date, "%d/%m/%Y").date().isoformat()

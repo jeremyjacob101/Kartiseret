@@ -44,7 +44,7 @@ class CinemaCity(BaseCinema):
             self.zoomOut(50, 0)
 
             self.hebrew_title = self.waitForElement("main h1").get_attribute("textContent").strip()
-            self.english_title = self.waitForElement("#comp-mkb98jrw").get_attribute("textContent").replace("\u200b", "").strip() or self.hebrew_title
+            self.english_title = self.waitForElement("#comp-mkb98jrw").get_attribute("textContent").replace("\u200b", "").strip()
             self.runtime = self.tryExceptNone(lambda: int(re.sub(r"\D", "", self.waitForElement("#comp-mkbdaczu").get_attribute("textContent"))))
             self.rating = self.waitForElement("#comp-mkbdcdtv").get_attribute("textContent").split(":", 1)[-1].strip()
 
