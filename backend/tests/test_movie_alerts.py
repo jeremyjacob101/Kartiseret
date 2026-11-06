@@ -4,6 +4,7 @@ from unittest import TestCase
 
 from backend.notifications.movie_alerts import (
     MovieNotificationDispatcher,
+    SupabaseMovieNotificationRepository,
     collect_first_availability,
     create_movie_notification_unsubscribe_urls,
     render_movie_notification_email,
@@ -21,8 +22,51 @@ from backend.tests.test_letterboxd_alerts import (
     _source,
 )
 from backend.tests.test_ticket_alert_criteria import showtime
+from backend.tests.dataflow_database import DB
 
 NOW = datetime.fromisoformat("2026-10-21T14:00:00+03:00")
+
+
+class MoviePosterRepositoryTests(TestCase):
+    def test_posters_load_from_both_catalogs_with_safe_fallback_and_precedence(self):
+        now_poster = "https://seret.site/api/images/v1/poster/101"
+        soon_poster = "https://image.tmdb.org/t/p/w500/102.jpg"
+        database = DB({
+            "finalMovies": [
+                {"tmdb_id": 101, "en_poster": now_poster},
+                {"tmdb_id": 102, "en_poster": "https://untrusted.example/poster.jpg"},
+                {"tmdb_id": 103, "en_poster": "javascript:alert(1)"},
+                {"tmdb_id": 999, "en_poster": now_poster},
+            ],
+            "finalSoons": [
+                {"tmdb_id": 101, "en_poster": soon_poster},
+                {"tmdb_id": 102, "en_poster": soon_poster},
+                {"tmdb_id": 103, "en_poster": None},
+            ],
+        })
+        repository = SupabaseMovieNotificationRepository(database)
+
+        self.assertEqual(repository.load_movie_posters([101, 102, 103]), {
+            101: now_poster, 102: soon_poster,
+        })
+        self.assertEqual(repository.load_movie_posters([]), {})
+        self.assertEqual(database.actions, [])
+
+    def test_poster_queries_cover_multiple_id_chunks(self):
+        ids = list(range(1, 302))
+        database = DB({
+            "finalMovies": [
+                {"tmdb_id": movie_id, "en_poster": f"https://image.tmdb.org/t/p/w500/{movie_id}.jpg"}
+                for movie_id in ids[:151]
+            ],
+            "finalSoons": [
+                {"tmdb_id": movie_id, "en_poster": f"https://image.tmdb.org/t/p/w500/{movie_id}.jpg"}
+                for movie_id in ids[151:]
+            ],
+        })
+        posters = SupabaseMovieNotificationRepository(database).load_movie_posters(ids)
+        self.assertEqual(set(posters), set(ids))
+        self.assertEqual(database.actions, [])
 
 
 class Repository(FakeRepository):

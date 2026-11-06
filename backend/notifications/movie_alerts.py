@@ -20,6 +20,7 @@ from backend.utils.log.job_lease import create_client
 
 from backend.notifications.letterboxd_alerts import (
     COMING_SOON_TABLE,
+    NOW_PLAYING_TABLE,
     LetterboxdSourceDispatcher,
     SupabaseLetterboxdRepository,
     collect_current_events,

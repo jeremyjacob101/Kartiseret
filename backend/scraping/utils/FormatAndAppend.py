@@ -85,6 +85,14 @@ def formatAndUpload(self):
         for row in rows:
             row["snapshot_id"] = snapshot_id
     if self.supabase_table_name == "allSoons":
+        # Scrapers share gathering_info and format normalization. Coming-soon
+        # rows have no venue/session columns, even when a title (for example
+        # Infinity Vision) causes the shared normalizer to populate one.
+        session_columns = {
+            "showtime", "english_href", "hebrew_href", "screening_type",
+            "screening_tech", "dub_language", "date_of_showing", "screening_city",
+        }
+        rows = [{key: value for key, value in row.items() if key not in session_columns} for row in rows]
         for row in rows:
             date.fromisoformat(row.get("release_date") or "")
     # Save a copy before the request so failed upload attempts retain the
