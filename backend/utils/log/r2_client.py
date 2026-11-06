@@ -32,4 +32,6 @@ def create_r2_s3_client(*, access_key: str, secret_key: str, signature_version: 
     from backend.utils.log.job_lease import before_mutation
     client.meta.events.register_first("before-send.s3.*", lambda **_kwargs: before_mutation())
     install_budget(client)
+    from backend.utils.log.r2_storage_guard import install_storage_guard
+    install_storage_guard(client)
     return client

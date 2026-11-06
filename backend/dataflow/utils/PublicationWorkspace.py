@@ -110,6 +110,8 @@ class PublicationWorkspace:
                     page = query.range(start, start + 499).execute().data
                     if not isinstance(page, list) or any(not isinstance(row, dict) for row in page):
                         raise RuntimeError(f"Incomplete or malformed publication scan for {table}; publication refused")
+                    from backend.utils.log.r2_storage_guard import pin_catalog_rows
+                    pin_catalog_rows(page)
                     rows.extend(page)
                     if len(page) < 500:
                         break
