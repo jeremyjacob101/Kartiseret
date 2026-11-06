@@ -170,12 +170,23 @@ class RunArtifactStore:
         if result.changes != 1:
             raise CloudflareStorageError("Could not associate the D1 run lease with its Supabase run ID.")
 
-    def release_run_lease(self, *, token: str | None = None, run_id: int | None = None) -> None:
+    def release_run_lease(self, *, token: str | None = None, run_id: int | None = None,
+                          reconcile_run_id: int | None = None) -> None:
         if not token:
             # A run ID alone cannot authorize releasing another machine's lease.
             return
         from backend.utils.log.expiring_lease import ExpiringLeaseStore
         from backend.utils.log.job_lease import control_request, deactivate
+        if reconcile_run_id is not None:
+            # Persist before stopping the heartbeat or releasing ownership. The
+            # next host must clear an uncertain Supabase running_now flag even
+            # when this worker exits cleanly after its finalization failed.
+            result = self.d1.execute(
+                "UPDATE run_locks SET predecessor_run_id = COALESCE(predecessor_run_id, ?) "
+                "WHERE id = 1 AND lease_token = ?", (reconcile_run_id, token),
+            )
+            if result.changes != 1:
+                raise CloudflareStorageError("Could not preserve the interrupted run for takeover; lease must expire.")
         healthy = deactivate(token)
         if healthy:
             with control_request():

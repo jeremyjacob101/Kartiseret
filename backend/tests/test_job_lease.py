@@ -120,6 +120,7 @@ time.sleep(60)
         from tempfile import TemporaryDirectory
         store = Mock(predecessor_run_id=42)
         store.d1.execute.return_value.rows = [{'run_id': 42}]
+        store.d1.execute.return_value.changes = 1
         client = Mock()
         response = client.table.return_value.update.return_value.eq.return_value.execute.return_value
         response.data = []
@@ -136,3 +137,43 @@ time.sleep(60)
         self.assertIsNone(store.predecessor_run_id)
         store.mark_run_unconfirmed.assert_called_with(42, 'expired_lease_takeover', release_lease=False)
         self.assertEqual(store.d1.execute.call_args.args[1], ('new-owner',))
+
+    def test_reserved_predecessor_without_either_run_record_can_be_reconciled(self):
+        from backend.utils.log.job_lease import reconcile_predecessor
+        store = Mock(predecessor_run_id=42)
+        store.d1.execute.return_value.rows = []
+        store.d1.execute.return_value.changes = 1
+        client = Mock()
+        client.table.return_value.update.return_value.eq.return_value.execute.return_value.data = []
+        lookup = client.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value
+        for data in (None, [{'run_id': 42}], []):
+            lookup.data = data
+            store.predecessor_run_id = 42
+            with patch.dict('os.environ', {'SUPABASE_URL': 'url', 'SUPABASE_SERVICE_ROLE_KEY': 'key'}), patch(
+                'backend.utils.log.job_lease.create_client', return_value=client
+            ), patch('backend.utils.log.cloudflare_storage.write_recovery_envelope'), patch(
+                'backend.utils.log.job_lease._active', Mock(token='new-owner')
+            ):
+                if data != []:
+                    with self.assertRaises(LeaseLostError):
+                        reconcile_predecessor(store)
+                    self.assertEqual(store.predecessor_run_id, 42)
+                else:
+                    reconcile_predecessor(store)
+                    self.assertIsNone(store.predecessor_run_id)
+        store.mark_run_unconfirmed.assert_not_called()
+
+    def test_reconciliation_cannot_clear_a_replacement_owners_marker(self):
+        from backend.utils.log.job_lease import reconcile_predecessor
+        store = Mock(predecessor_run_id=42)
+        store.d1.execute.return_value.rows = [{'run_id': 42}]
+        store.d1.execute.return_value.changes = 0
+        client = Mock()
+        client.table.return_value.update.return_value.eq.return_value.execute.return_value.data = [{'run_id': 42}]
+        with patch.dict('os.environ', {'SUPABASE_URL': 'url', 'SUPABASE_SERVICE_ROLE_KEY': 'key'}), patch(
+            'backend.utils.log.job_lease.create_client', return_value=client
+        ), patch('backend.utils.log.cloudflare_storage.write_recovery_envelope'), patch(
+            'backend.utils.log.job_lease._active', Mock(token='expired-owner')
+        ), self.assertRaises(LeaseLostError):
+            reconcile_predecessor(store)
+        self.assertEqual(store.predecessor_run_id, 42)

@@ -73,6 +73,40 @@ class SharedCleanupTests(unittest.TestCase):
         self.store.release_run_lease(token=token)
         self.assertNotEqual(self.store.acquire_run_lease(), token)
 
+    def test_uncertain_finalization_is_preserved_across_release_and_takeover(self):
+        token = self.store.acquire_run_lease()
+        self.store.attach_run_id_to_lease(token, 42)
+        self.store.release_run_lease(token=token, reconcile_run_id=42)
+        row = self.d1.execute('SELECT * FROM run_locks WHERE id=1').rows[0]
+        self.assertEqual(row['lease_token'], '')
+        self.assertEqual(row['predecessor_run_id'], 42)
+        self.store.acquire_run_lease()
+        self.assertEqual(self.store.predecessor_run_id, 42)
+
+    def test_failed_recovery_marker_write_does_not_release_ownership(self):
+        token = self.store.acquire_run_lease()
+        self.store.attach_run_id_to_lease(token, 42)
+        with patch.object(self.d1, 'execute', side_effect=CloudflareStorageError('offline')), patch(
+            'backend.utils.log.job_lease.deactivate'
+        ) as deactivate:
+            with self.assertRaises(CloudflareStorageError):
+                self.store.release_run_lease(token=token, reconcile_run_id=42)
+        deactivate.assert_not_called()
+        self.assertEqual(self.d1.execute('SELECT lease_token FROM run_locks').rows[0]['lease_token'], token)
+
+    def test_unconfirmed_session_finalization_preserves_predecessor(self):
+        from backend.utils.log.run_logging import RunLogSession
+        session = RunLogSession()
+        session.run_id, session._start_time = 42, 1.0
+        session._storage, session._lease_token = Mock(), 'owner'
+        client = Mock()
+        client.table.return_value.update.return_value.eq.return_value.execute.return_value.data = []
+        with patch.dict('os.environ', {'SUPABASE_URL': 'url', 'SUPABASE_SERVICE_ROLE_KEY': 'key'}), patch(
+            'backend.utils.log.run_logging.create_client', return_value=client
+        ), patch('backend.utils.log.run_logging.write_recovery_envelope'), self.assertRaisesRegex(RuntimeError, 'unconfirmed in Supabase'):
+            session.__exit__(None, None, None)
+        session._storage.release_run_lease.assert_called_once_with(token='owner', reconcile_run_id=42)
+
     def test_recovery_requires_confirmation_and_exact_owner(self):
         from backend.utils.log.recover_run_lock import recover_lock
         token = self.store.acquire_run_lease()
