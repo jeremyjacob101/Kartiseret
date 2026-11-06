@@ -429,6 +429,7 @@ os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps(event) + '\\n
         )
         recovery.assert_called_once()
         self.assertFalse(recovery.call_args.args[2]["supabase_confirmed"])
+        store_class.return_value.release_run_lease.assert_called_once_with(token="a" * 32, reconcile_run_id=43)
 
     def test_allocated_run_id_is_reported_before_the_run_lock_insert(self):
         from backend.utils.log import run_logging
@@ -480,7 +481,7 @@ os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps(event) + '\\n
             with self.assertRaisesRegex(RuntimeError, 'D1 unavailable'):
                 run_logging.allocate_run_id()
         self.assertEqual(recovery.call_args.args[2]['status'], 'unconfirmed')
-        storage.release_run_lease.assert_called_once()
+        storage.release_run_lease.assert_called_once_with(token=storage.acquire_run_lease.return_value, reconcile_run_id=42)
 
 
 if __name__ == "__main__":

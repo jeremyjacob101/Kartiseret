@@ -30,6 +30,8 @@ python -m backend.utils.log.shared_cleanup --target production --dry-run --force
 
 Normal completion releases promptly. Crashed owners expire automatically after 120 seconds without a confirmed heartbeat. A successful replacement claim durably retains the predecessor run ID, marks that run unconfirmed in D1 and unsuccessful/not-running in Supabase, then starts new work. Failed reconciliation blocks new work and retains recovery information. A stale finalizer cannot unlock a replacement owner.
 
+If Supabase finalization is uncertain, the owner persists its run ID for reconciliation before releasing the lease. If that marker cannot be confirmed, it leaves the lease to expire. A run ID reserved just before a crash may have no run records yet; takeover accepts this only after both D1 and Supabase confirm their absence.
+
 The explicit recovery command below is only for operator recovery, including old year-9999 tokens left by the previous non-expiring implementation. Ordinary crash failover requires no manual unlock.
 
 Stop the old owner and all descendants on the scheduler host before recovering. Inspect `SELECT lease_token, run_id FROM run_locks WHERE id = 1` in the selected target's D1 console. Then run:

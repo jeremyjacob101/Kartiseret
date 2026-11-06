@@ -165,8 +165,15 @@ def reconcile_predecessor(store):
     client = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
     result = client.table('utilRunLogs').update({'successful': False, 'running_now': False}).eq('run_id', run_id).execute()
     if not result.data:
-        raise LeaseLostError('Predecessor finalization was not confirmed; new work refused')
-    store.d1.execute("UPDATE run_locks SET predecessor_run_id = NULL WHERE id = 1 AND lease_token = ?", (_active.token,))
+        # Acquisition reserves the ID before either run record is inserted. A
+        # crash in that small window leaves no record to finalize. Only accept
+        # that case after both stores explicitly confirm absence.
+        existing = client.table('utilRunLogs').select('run_id').eq('run_id', run_id).limit(1).execute().data
+        if rows or existing != []:
+            raise LeaseLostError('Predecessor finalization was not confirmed; new work refused')
+    cleared = store.d1.execute("UPDATE run_locks SET predecessor_run_id = NULL WHERE id = 1 AND lease_token = ?", (_active.token,))
+    if cleared.changes != 1:
+        raise LeaseLostError('Predecessor recovery marker could not be cleared by its owner')
     store.predecessor_run_id = None
 
 

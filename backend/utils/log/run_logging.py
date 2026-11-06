@@ -138,7 +138,7 @@ def allocate_run_id(on_allocated: Callable[[int], None] | None = None) -> int:
                 )
         if lease_token:
             try:
-                storage.release_run_lease(token=lease_token)
+                storage.release_run_lease(token=lease_token, reconcile_run_id=new_id)
             except Exception:
                 pass
         try:
@@ -338,7 +338,10 @@ class RunLogSession:
                             except Exception:
                                 pass
                 try:
-                    storage.release_run_lease(token=self._lease_token)
+                    if supabase_finalized:
+                        storage.release_run_lease(token=self._lease_token)
+                    else:
+                        storage.release_run_lease(token=self._lease_token, reconcile_run_id=int(self.run_id))
                     self._lease_released = True
                 except Exception as error:
                     write_recovery_envelope(

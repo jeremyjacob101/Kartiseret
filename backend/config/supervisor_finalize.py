@@ -45,7 +45,10 @@ def main() -> int:
         else:
             store.mark_run_unconfirmed(args.run_id, reason="supabase_finalization_unconfirmed")
         with control_request():
-            store.release_run_lease(token=token)
+            if supabase_confirmed:
+                store.release_run_lease(token=token)
+            else:
+                store.release_run_lease(token=token, reconcile_run_id=args.run_id)
     except Exception as error:
         errors.append(f"Cloudflare:{type(error).__name__}")
 
