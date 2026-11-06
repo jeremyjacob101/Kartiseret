@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 
 from dotenv import load_dotenv
-from supabase import create_client
+from backend.utils.log.job_lease import create_client
 
 from backend.config.target_environment import resolve_target_environment
 from backend.utils.log.cloudflare_storage import write_recovery_envelope
@@ -96,14 +96,18 @@ def main(argv: list[str] | None = None) -> int:
     _select_profile(args.target)
     store = RunArtifactStore()
     try:
-        store.save_text_artifact(
-            run_id=run_id,
-            artifact_type="cron_output",
-            name=log_path.name,
-            text=content.decode("utf-8", errors="replace"),
-            metadata={"target": args.target, "source": "scheduled-shell-runner"},
-        )
-        store.check_storage()
+        from backend.utils.log.shared_cleanup import maintenance_lease
+
+        with maintenance_lease(skip_if_busy=False) as (locked_store, lease_token):
+            store = locked_store
+            store.save_text_artifact(
+                run_id=run_id,
+                artifact_type="cron_output",
+                name=log_path.name,
+                text=content.decode("utf-8", errors="replace"),
+                metadata={"target": args.target, "source": "scheduled-shell-runner"},
+            )
+            store.check_storage(lease_token=lease_token)
     except Exception as error:
         supabase_confirmed = _record_storage_failure(
             store, run_id, f"cron_upload_{type(error).__name__}", error
@@ -159,4 +163,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from backend.utils.log.job_lease import run_cli
+    raise SystemExit(run_cli(main, "backend.config.upload_cron_log"))

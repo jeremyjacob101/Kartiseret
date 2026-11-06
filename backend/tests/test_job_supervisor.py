@@ -19,6 +19,34 @@ from backend.config import runner_worker
 
 
 class JobSupervisorTests(TestCase):
+    def test_unconfirmed_process_shutdown_never_releases_remote_lock(self):
+        from backend.config import job_supervisor
+        original_stop = job_supervisor._stop_process_group
+
+        def stop_but_report_unconfirmed(*args, **kwargs):
+            original_stop(*args, **kwargs)
+            return False
+
+        code = "import os,json,time; os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps({'event':'run_id','run_id':42})+'\\n').encode()); time.sleep(60)"
+        with patch.object(job_supervisor, "_stop_process_group", side_effect=stop_but_report_unconfirmed), patch.object(
+            job_supervisor, "_finalize_run_lock"
+        ) as finalize, patch.object(job_supervisor, "_record_interrupted_run"):
+            outcome = run_managed_process([sys.executable, "-c", code], seconds=0.3, grace_seconds=0.5)
+        self.assertEqual(outcome.reason, "child_reap_timeout")
+        finalize.assert_not_called()
+
+    def test_job_and_shutdown_limits_cannot_outlive_the_lease(self):
+        from backend.config.job_supervisor import job_seconds, termination_grace_seconds, run_managed_process
+
+        with patch.dict(os.environ, {"PIPELINE_JOB_DEADLINE_SECONDS": "17971"}):
+            with self.assertRaises(ValueError):
+                job_seconds()
+        with patch.dict(os.environ, {"PIPELINE_TERMINATION_GRACE_SECONDS": "301"}):
+            with self.assertRaises(ValueError):
+                termination_grace_seconds()
+        self.assertEqual(run_managed_process([sys.executable], seconds=17971).reason, "invalid_budget")
+        self.assertEqual(run_managed_process([sys.executable], seconds=1, grace_seconds=301).reason, "invalid_budget")
+
     @staticmethod
     def _assert_pid_stopped(test: TestCase, pid: int) -> None:
         deadline = time.monotonic() + 2
@@ -169,6 +197,7 @@ import json, os, time
 from pathlib import Path
 Path(os.environ['SUPERVISOR_TEST_PID_FILE']).write_text(str(os.getpid()))
 fd = int(os.environ['KARTISERET_JOB_CONTROL_FD'])
+os.write(fd, (json.dumps({'event': 'lease_token', 'token': 'a' * 32}) + '\\n').encode())
 event = {'event': 'run_id', 'run_id': 987654321}
 os.write(fd, (json.dumps(event) + '\\n').encode())
 time.sleep(60)
@@ -356,6 +385,8 @@ os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps(event) + '\\n
 
     def test_run_id_finalizer_marks_failure_and_releases_running_lock(self):
         from backend.config import supervisor_finalize
+        self.enterContext(patch.dict(os.environ, {"KARTISERET_ACTIVE_LEASE_TOKEN": "a" * 32}))
+        self.enterContext(patch("backend.utils.log.job_lease.before_mutation"))
 
         table = Mock()
         client = Mock()
@@ -376,6 +407,8 @@ os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps(event) + '\\n
 
     def test_run_id_finalizer_keeps_d1_status_unconfirmed_when_supabase_is_not_confirmed(self):
         from backend.config import supervisor_finalize
+        self.enterContext(patch.dict(os.environ, {"KARTISERET_ACTIVE_LEASE_TOKEN": "a" * 32}))
+        self.enterContext(patch("backend.utils.log.job_lease.before_mutation"))
 
         table = Mock()
         client = Mock()
@@ -413,9 +446,11 @@ os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps(event) + '\\n
             client.table.side_effect = [no_running_run, latest_run, insert]
             callback = lambda run_id: timeline.append(("allocated", run_id))
             storage = Mock()
-            with patch.dict(os.environ, {"SUPABASE_URL": "https://example.test", "SUPABASE_SERVICE_ROLE_KEY": "test-key"}), patch(
+            with patch.dict(os.environ, {"SUPABASE_URL": "https://example.test", "SUPABASE_SERVICE_ROLE_KEY": "test-key", "KARTISERET_TARGET": "development"}), patch(
                 "backend.utils.log.run_logging.create_client", return_value=client
-            ), patch("backend.utils.log.run_logging.RunArtifactStore", return_value=storage):
+            ), patch("backend.utils.log.run_logging.RunArtifactStore", return_value=storage), patch(
+                "backend.utils.log.shared_cleanup.run_pipeline_preflight", return_value={}
+            ), patch("backend.config.target_environment.resolve_target_environment", return_value={}):
                 self.assertEqual(run_logging.allocate_run_id(on_allocated=callback), 42)
             self.assertEqual(timeline, [("allocated", 42), "insert"])
             storage.acquire_run_lease.assert_called_once_with()
@@ -435,11 +470,13 @@ os.write(int(os.environ['KARTISERET_JOB_CONTROL_FD']), (json.dumps(event) + '\\n
         client.table.side_effect = [empty, latest, insert, finalize]
         storage = Mock()
         storage.start_run.side_effect = RuntimeError('D1 unavailable')
-        with patch.dict(os.environ, {'SUPABASE_URL': 'https://dev.example', 'SUPABASE_SERVICE_ROLE_KEY': 'test'}), patch(
+        with patch.dict(os.environ, {'SUPABASE_URL': 'https://dev.example', 'SUPABASE_SERVICE_ROLE_KEY': 'test', 'KARTISERET_TARGET': 'development'}), patch(
             'backend.utils.log.run_logging.create_client', return_value=client
         ), patch('backend.utils.log.run_logging.RunArtifactStore', return_value=storage), patch(
             'backend.utils.log.run_logging.write_recovery_envelope'
-        ) as recovery:
+        ) as recovery, patch(
+            'backend.utils.log.shared_cleanup.run_pipeline_preflight', return_value={}
+        ), patch('backend.config.target_environment.resolve_target_environment', return_value={}):
             with self.assertRaisesRegex(RuntimeError, 'D1 unavailable'):
                 run_logging.allocate_run_id()
         self.assertEqual(recovery.call_args.args[2]['status'], 'unconfirmed')

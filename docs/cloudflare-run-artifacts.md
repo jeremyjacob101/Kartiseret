@@ -56,8 +56,12 @@ and continues toward 300 MB. It deletes each run's screenshot objects before
 their D1 metadata, protects active/unconfirmed and recently created runs, and
 resumes interrupted cleanup on the next invocation. Cleanup reserves at most
 5,000 D1 writes per UTC day. If measurement fails, cleanup cannot make progress,
-or the database remains at or above 350 MB, the run stops safely. Cleanup only
-runs when the scraper or an explicit maintenance/backfill command runs. Large
+or the database remains at or above 350 MB, the run stops safely. Shared
+preflight and daily GitHub cleanup also audit old unreferenced run artifacts.
+That audit deletes only objects at least 30 days old whose complete D1 scan
+shows no reference and whose owner is a confirmed successful run. Active,
+failed, unconfirmed, unknown, and locally recoverable output is retained. See
+`docs/shared-cleanup.md` for the cross-host lease and dry-run rollout. Large
 individual runs can still hit storage or daily write limits between checks.
 
 If D1 or R2 fails, the affected run is marked failed where possible, or

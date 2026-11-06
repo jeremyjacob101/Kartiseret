@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 
 import requests
-from supabase import create_client
+from backend.utils.log.job_lease import create_client
 
 from backend.notifications.letterboxd_alerts import (
     COMING_SOON_TABLE,

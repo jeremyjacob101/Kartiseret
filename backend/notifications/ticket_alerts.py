@@ -11,7 +11,7 @@ import os
 import re
 
 import requests
-from supabase import create_client
+from backend.utils.log.job_lease import create_client
 
 
 TICKET_ALERTS_TABLE = "ticket_alert_subscriptions"

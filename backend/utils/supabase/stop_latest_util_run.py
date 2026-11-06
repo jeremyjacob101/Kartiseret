@@ -1,7 +1,7 @@
 import os
 
 from dotenv import load_dotenv
-from supabase import create_client
+from backend.utils.log.job_lease import create_client
 
 load_dotenv()
 

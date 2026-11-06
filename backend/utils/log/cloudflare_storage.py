@@ -19,6 +19,10 @@ class CloudflareStorageError(RuntimeError):
     """A D1 or R2 request failed; credentials are never included in the error."""
 
 
+class LeaseLostError(CloudflareStorageError):
+    """The job no longer owns its target's maintenance lease."""
+
+
 def redact_secrets(value: str) -> str:
     """Redact recognizable credentials and every configured secret value."""
     text = str(value or "")
@@ -72,6 +76,8 @@ class D1Client:
         return list(params)
 
     def _post(self, payload: dict) -> list[dict]:
+        from backend.utils.log.job_lease import before_mutation
+        before_mutation()
         try:
             response = requests.post(
                 self.endpoint,

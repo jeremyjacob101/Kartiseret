@@ -93,13 +93,13 @@ class RunArtifactStorageTests(TestCase):
             self.assertEqual(len(recovery_files), 1)
             self.assertEqual(json.loads(recovery_files[0].read_text())["run_id"], 3)
 
-    def test_marking_a_run_unconfirmed_releases_its_d1_lease(self):
+    def test_marking_a_run_unconfirmed_cannot_release_by_run_id_alone(self):
         d1 = FakeD1()
         store = RunArtifactStore(d1, bucket="private-test")
         store.mark_run_unconfirmed(17, "supabase_finalization_unconfirmed")
-        self.assertEqual(len(d1.calls), 2)
+        self.assertEqual(len(d1.calls), 1)
         self.assertIn("status = 'unconfirmed'", d1.calls[0][0])
-        self.assertIn("WHERE id = 1 AND run_id = ?", d1.calls[1][0])
+        self.assertFalse(any("UPDATE run_locks" in sql for sql, _params in d1.calls))
 
     def test_scraped_row_reads_are_paged_to_keep_worker_responses_bounded(self):
         d1 = FakeD1()

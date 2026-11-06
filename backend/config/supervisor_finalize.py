@@ -6,7 +6,7 @@ import argparse
 import os
 import sys
 
-from supabase import create_client
+from backend.utils.log.job_lease import create_client
 
 from backend.utils.log.cloudflare_storage import write_recovery_envelope
 from backend.utils.log.run_storage import RunArtifactStore
@@ -18,6 +18,11 @@ def main() -> int:
     parser.add_argument("--elapsed-seconds", required=True, type=float)
     args = parser.parse_args()
 
+    token = os.environ.get("KARTISERET_ACTIVE_LEASE_TOKEN")
+    if not token:
+        return 1
+    from backend.utils.log.job_lease import before_mutation, control_request
+    before_mutation()
     errors = []
     supabase_confirmed = False
     try:
@@ -39,7 +44,8 @@ def main() -> int:
             store.mark_run_failed(args.run_id, reason="supervisor_interrupted")
         else:
             store.mark_run_unconfirmed(args.run_id, reason="supabase_finalization_unconfirmed")
-        store.check_storage()
+        with control_request():
+            store.release_run_lease(token=token)
     except Exception as error:
         errors.append(f"Cloudflare:{type(error).__name__}")
 

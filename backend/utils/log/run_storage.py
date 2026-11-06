@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from hashlib import sha256
 from io import BytesIO
 import json
@@ -83,9 +83,9 @@ class RunArtifactStore:
     def schema_id(self) -> str:
         return self.d1.database_id
 
-    def check_storage(self) -> dict:
+    def check_storage(self, *, lease_token: str | None = None) -> dict:
         from backend.utils.log.retention import cleanup_by_storage, HIGH_WATER_BYTES
-        result = cleanup_by_storage(self)
+        result = cleanup_by_storage(self, lease_token=lease_token)
         if result["size"] >= HIGH_WATER_BYTES:
             raise CloudflareStorageError("D1 storage is above the safe threshold; cleanup must make more room.")
         return result
@@ -100,46 +100,67 @@ class RunArtifactStore:
                 "SELECT name FROM sqlite_master WHERE type IN ('table', 'index')"
             ).rows
             existing = {row.get("name") for row in rows}
-            required = {"run_locks", "run_logs", "scraped_rows", "gathering_rows", "artifacts", "diagnostics", "retention_state"}
+            required = {"run_locks", "run_logs", "scraped_rows", "gathering_rows", "artifacts", "diagnostics", "retention_state", "cleanup_state"}
             indexes = {"idx_scraped_rows_run_source", "idx_gathering_rows_run", "idx_artifacts_run_type", "idx_run_logs_started_at", "idx_diagnostics_run"}
             complete = required.union(indexes).issubset(existing)
             if complete:
+                columns = self.d1.execute("PRAGMA table_info(run_locks)").rows
+                complete = any(row.get("name") == "predecessor_run_id" for row in columns)
+            if complete:
                 rows = self.d1.execute(
                     "SELECT (SELECT COUNT(*) FROM run_locks WHERE id = 1) AS lock_count, "
-                    "(SELECT COUNT(*) FROM retention_state WHERE id = 1) AS retention_count"
+                    "(SELECT COUNT(*) FROM retention_state WHERE id = 1) AS retention_count, "
+                    "(SELECT COUNT(*) FROM cleanup_state WHERE id = 1) AS cleanup_count"
                 ).rows
-                complete = bool(rows and rows[0].get("lock_count") == 1 and rows[0].get("retention_count") == 1)
+                complete = bool(rows and rows[0].get("lock_count") == 1 and rows[0].get("retention_count") == 1 and rows[0].get("cleanup_count") == 1)
             if not complete:
-                migration = (
+                migrations = (
                     Path(__file__).resolve().parents[3]
-                    / "backend" / "cloudflare" / "d1" / "migrations" / "0001_run_artifacts.sql"
+                    / "backend" / "cloudflare" / "d1" / "migrations"
                 )
-                try:
-                    sql = migration.read_text(encoding="utf-8")
-                except OSError as error:
-                    raise CloudflareStorageError("D1 migration file could not be read.") from error
-                for statement in sql.split(";"):
-                    statement = statement.strip()
-                    if statement:
-                        self.d1.execute(statement)
+                for migration in sorted(migrations.glob("*.sql")):
+                    try:
+                        sql = migration.read_text(encoding="utf-8")
+                    except OSError as error:
+                        raise CloudflareStorageError("D1 migration file could not be read.") from error
+                    for statement in sql.split(";"):
+                        statement = statement.strip()
+                        if statement:
+                            if statement.startswith("ALTER TABLE run_locks ADD COLUMN predecessor_run_id"):
+                                columns = self.d1.execute("PRAGMA table_info(run_locks)").rows
+                                if any(row.get("name") == "predecessor_run_id" for row in columns):
+                                    continue
+                            self.d1.execute(statement)
             _schema_ready.add(self.schema_id)
 
     def acquire_run_lease(self, *, lease_hours: int = 5) -> str:
+        from backend.utils.log.expiring_lease import ExpiringLeaseStore
+        from backend.utils.log.job_lease import activate, control_request
+        with control_request():
+            self.ensure_schema()
+            claim = ExpiringLeaseStore(self.d1).acquire()
+        activate(self.d1, claim.token)
+        self.predecessor_run_id = claim.predecessor_run_id
+        return claim.token
+
+    def renew_run_lease(self, token: str, *, lease_hours: int = 5) -> None:
+        from backend.utils.log.expiring_lease import ExpiringLeaseStore
+        from backend.utils.log.job_lease import control_request
+        with control_request():
+            ExpiringLeaseStore(self.d1).verify(token)
+
+    def cleanup_state(self) -> dict:
         self.ensure_schema()
-        token = uuid.uuid4().hex
-        now = datetime.now(timezone.utc)
-        now_text = now.isoformat(timespec="seconds")
-        expiry = (now + timedelta(hours=lease_hours)).isoformat(timespec="seconds")
-        result = self.d1.execute(
-            "UPDATE run_locks SET lease_token = ?, run_id = NULL, lease_until = ? "
-            "WHERE id = 1 AND lease_until <= ?",
-            (token, expiry, now_text),
-        )
-        if result.changes != 1:
-            raise CloudflareStorageError(
-                "Another scraper run holds the D1 run lease; no run was started."
-            )
-        return token
+        rows = self.d1.execute("SELECT * FROM cleanup_state WHERE id = 1").rows
+        if len(rows) != 1:
+            raise CloudflareStorageError("Shared cleanup state is missing or malformed.")
+        return rows[0]
+
+    def mark_cleanup_attempt(self, day: str, *, successful: bool) -> None:
+        column = "last_successful_cleanup_day" if successful else "last_dry_run_day"
+        if column not in {"last_successful_cleanup_day", "last_dry_run_day"}:
+            raise CloudflareStorageError("Invalid cleanup state column.")
+        self.d1.execute(f"UPDATE cleanup_state SET {column} = ? WHERE id = 1", (day,))
 
     def attach_run_id_to_lease(self, token: str, run_id: int) -> None:
         result = self.d1.execute(
@@ -150,23 +171,15 @@ class RunArtifactStore:
             raise CloudflareStorageError("Could not associate the D1 run lease with its Supabase run ID.")
 
     def release_run_lease(self, *, token: str | None = None, run_id: int | None = None) -> None:
-        if token:
-            result = self.d1.execute(
-                "UPDATE run_locks SET lease_token = '', run_id = NULL, lease_until = '1970-01-01T00:00:00+00:00' "
-                "WHERE id = 1 AND lease_token = ?",
-                (token,),
-            )
-        elif run_id is not None:
-            result = self.d1.execute(
-                "UPDATE run_locks SET lease_token = '', run_id = NULL, lease_until = '1970-01-01T00:00:00+00:00' "
-                "WHERE id = 1 AND run_id = ?",
-                (run_id,),
-            )
-        else:
+        if not token:
+            # A run ID alone cannot authorize releasing another machine's lease.
             return
-        if result.changes != 1:
-            if token:
-                raise CloudflareStorageError("The D1 run lease could not be released or no longer belongs to this run.")
+        from backend.utils.log.expiring_lease import ExpiringLeaseStore
+        from backend.utils.log.job_lease import control_request, deactivate
+        healthy = deactivate(token)
+        if healthy:
+            with control_request():
+                ExpiringLeaseStore(self.d1).release(token)
 
     def start_run(self, *, run_id: int, target: str, run_from: str, selected_runners=None) -> None:
         self.ensure_schema()

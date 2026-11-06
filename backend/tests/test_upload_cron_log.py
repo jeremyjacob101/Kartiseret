@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import redirect_stderr
+from contextlib import nullcontext
 from io import StringIO
 import os
 from pathlib import Path
@@ -32,7 +33,10 @@ class UploadCronLogTests(TestCase):
             upload_cron_log, "RunArtifactStore", store_class
         ), patch.object(upload_cron_log, "create_client", return_value=client), patch.object(
             upload_cron_log, "write_recovery_envelope"
-        ) as recovery, patch("sys.argv", ["upload_cron_log", *args]):
+        ) as recovery, patch(
+            "backend.utils.log.shared_cleanup.maintenance_lease",
+            return_value=nullcontext((store_class.return_value, "lease")),
+        ), patch("sys.argv", ["upload_cron_log", *args]):
             stderr = StringIO()
             with redirect_stderr(stderr):
                 result = upload_cron_log.main()

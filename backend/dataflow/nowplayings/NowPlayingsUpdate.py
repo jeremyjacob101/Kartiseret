@@ -172,8 +172,9 @@ class NowPlayingsUpdate(BaseDataflow):
                         self.updates.append(result)
                 except Exception as error:
                     from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+                    from backend.utils.log.cloudflare_storage import LeaseLostError
 
-                    if isinstance(error, (R2BudgetError, R2BudgetExceeded)):
+                    if isinstance(error, (R2BudgetError, R2BudgetExceeded, LeaseLostError)):
                         raise
                     self.trace_note(f"row_update_failed | error={type(error).__name__}")
 

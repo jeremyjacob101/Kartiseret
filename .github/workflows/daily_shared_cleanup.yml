@@ -1,0 +1,134 @@
+name: Daily Shared Cleanup
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # GitHub may start scheduled workflows later than this.
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Target to inspect or clean
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - development
+          - production
+      apply:
+        description: Apply cleanup (leave unchecked for a dry run)
+        required: true
+        default: false
+        type: boolean
+      force:
+        description: Repeat scans even if cleanup already ran today
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  validate-targets:
+    name: Validate ${{ matrix.target }} credentials
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: development
+            prefix: DEV
+          - target: production
+            prefix: PROD
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && vars.KARTISERET_SHARED_CLEANUP_ENABLED == 'true')
+    steps:
+      - uses: actions/checkout@v5
+        if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
+      - uses: actions/setup-python@v6
+        if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
+        with:
+          python-version: "3.14.2"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install backend dependencies
+        if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
+        run: python -m pip install --prefer-binary -r requirements.txt
+      - name: Validate target credentials and access
+        if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
+        env:
+          TARGET: ${{ matrix.target }}
+          SUPABASE_URL: ${{ secrets[format('{0}_SUPABASE_URL', matrix.prefix)] }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets[format('{0}_SUPABASE_SERVICE_ROLE_KEY', matrix.prefix)] }}
+          PUBLICATION_DATABASE_URL: ${{ secrets[format('{0}_PUBLICATION_DATABASE_URL', matrix.prefix)] }}
+          PUBLICATION_DATABASE_SSL_CA_CERT: ${{ secrets[format('{0}_PUBLICATION_DATABASE_SSL_CA_CERT', matrix.prefix)] }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets[format('{0}_R2_BUCKET', matrix.prefix)] }}
+          R2_IMAGE_ORIGIN: ${{ secrets[format('{0}_R2_IMAGE_ORIGIN', matrix.prefix)] }}
+          R2_ACCESS_KEY_ID: ${{ secrets[format('{0}_R2_ACCESS_KEY_ID', matrix.prefix)] }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets[format('{0}_R2_SECRET_ACCESS_KEY', matrix.prefix)] }}
+          D1_DATABASE_ID: ${{ secrets[format('{0}_D1_DATABASE_ID', matrix.prefix)] }}
+          D1_API_TOKEN: ${{ secrets[format('{0}_D1_API_TOKEN', matrix.prefix)] }}
+          RUN_ARTIFACTS_R2_BUCKET: ${{ secrets[format('{0}_RUN_ARTIFACTS_R2_BUCKET', matrix.prefix)] }}
+          RUN_ARTIFACTS_R2_ACCESS_KEY_ID: ${{ secrets[format('{0}_RUN_ARTIFACTS_R2_ACCESS_KEY_ID', matrix.prefix)] }}
+          RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY: ${{ secrets[format('{0}_RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY', matrix.prefix)] }}
+          KARTISERET_TARGET: ${{ matrix.target }}
+        run: python -m backend.utils.log.shared_cleanup --target "$TARGET" --validate-only
+
+  cleanup:
+    name: Cleanup ${{ matrix.target }}
+    needs: validate-targets
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: development
+            prefix: DEV
+          - target: production
+            prefix: PROD
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && vars.KARTISERET_SHARED_CLEANUP_ENABLED == 'true')
+    concurrency:
+      group: kartiseret-shared-cleanup-${{ matrix.target }}
+      cancel-in-progress: false
+    env:
+      TARGET: ${{ matrix.target }}
+      KARTISERET_TARGET: ${{ matrix.target }}
+      KARTISERET_SHARED_CLEANUP_APPLY: ${{ (github.event_name == 'schedule' && vars.KARTISERET_SHARED_CLEANUP_APPLY == 'true') || (github.event_name == 'workflow_dispatch' && inputs.apply) }}
+      FORCE_CLEANUP: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+      SUPABASE_URL: ${{ secrets[format('{0}_SUPABASE_URL', matrix.prefix)] }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets[format('{0}_SUPABASE_SERVICE_ROLE_KEY', matrix.prefix)] }}
+      PUBLICATION_DATABASE_URL: ${{ secrets[format('{0}_PUBLICATION_DATABASE_URL', matrix.prefix)] }}
+      PUBLICATION_DATABASE_SSL_CA_CERT: ${{ secrets[format('{0}_PUBLICATION_DATABASE_SSL_CA_CERT', matrix.prefix)] }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_BUCKET: ${{ secrets[format('{0}_R2_BUCKET', matrix.prefix)] }}
+      R2_IMAGE_ORIGIN: ${{ secrets[format('{0}_R2_IMAGE_ORIGIN', matrix.prefix)] }}
+      R2_ACCESS_KEY_ID: ${{ secrets[format('{0}_R2_ACCESS_KEY_ID', matrix.prefix)] }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets[format('{0}_R2_SECRET_ACCESS_KEY', matrix.prefix)] }}
+      D1_DATABASE_ID: ${{ secrets[format('{0}_D1_DATABASE_ID', matrix.prefix)] }}
+      D1_API_TOKEN: ${{ secrets[format('{0}_D1_API_TOKEN', matrix.prefix)] }}
+      RUN_ARTIFACTS_R2_BUCKET: ${{ secrets[format('{0}_RUN_ARTIFACTS_R2_BUCKET', matrix.prefix)] }}
+      RUN_ARTIFACTS_R2_ACCESS_KEY_ID: ${{ secrets[format('{0}_RUN_ARTIFACTS_R2_ACCESS_KEY_ID', matrix.prefix)] }}
+      RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY: ${{ secrets[format('{0}_RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY', matrix.prefix)] }}
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    steps:
+      - uses: actions/checkout@v5
+        if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
+      - uses: actions/setup-python@v6
+        if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
+        with:
+          python-version: "3.14.2"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install backend dependencies
+        if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
+        run: python -m pip install --prefer-binary -r requirements.txt
+      - name: Run shared cleanup
+        if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
+        run: |
+          if [[ "$FORCE_CLEANUP" == "true" ]]; then
+            python -m backend.utils.log.shared_cleanup --target "$TARGET" --force
+          else
+            python -m backend.utils.log.shared_cleanup --target "$TARGET"
+          fi

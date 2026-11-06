@@ -482,6 +482,8 @@ class NowPlayingsTmdb(BaseDataflow):
             unresolved = bool(self.unresolved_identity_keys_by_snapshot.get(snapshot_id))
             self.advanceSnapshotPublication(snapshot_id, "published", has_unresolved=unresolved)
 
-        clear_old_entries("nowplayings")
-        clear_orphan_final_movies()
+        from backend.utils.log.shared_cleanup import current_run_lease_guard
+        lease_guard = current_run_lease_guard()
+        clear_old_entries("nowplayings", lease_guard=lease_guard)
+        clear_orphan_final_movies(lease_guard=lease_guard)
         dedupe_all_showtimes(dry_run=False)

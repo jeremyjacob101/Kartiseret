@@ -19,7 +19,7 @@ import uuid
 
 from backend.dataflow.utils.PostgresPublicationPublisher import PostgresPublicationPublisher
 
-from supabase import create_client as live_client
+from backend.utils.log.job_lease import create_client as live_client
 
 CATEGORY_TABLES = {
     "nowplayings": ("allShowtimes", "finalMovies", "finalShowtimes"),
@@ -107,7 +107,9 @@ class PublicationWorkspace:
                     query = self.client.table(table).select("*")
                     for column in KEYS.get(table, ("id",)):
                         query = query.order(column)
-                    page = query.range(start, start + 499).execute().data or []
+                    page = query.range(start, start + 499).execute().data
+                    if not isinstance(page, list) or any(not isinstance(row, dict) for row in page):
+                        raise RuntimeError(f"Incomplete or malformed publication scan for {table}; publication refused")
                     rows.extend(page)
                     if len(page) < 500:
                         break
