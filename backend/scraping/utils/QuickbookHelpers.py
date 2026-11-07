@@ -3,6 +3,15 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 
 
+def _is_non_screening_card(title, has_ticket_links):
+    """Skip blank promotional cards, but reject unidentified bookable shows."""
+    if title and title.strip():
+        return False
+    if has_ticket_links:
+        raise ValueError('Quickbook schedule card has ticket links but no film title')
+    return True
+
+
 class QuickbookHelpers:
     calendar_selector = "section.npm-quickbook .datepicker-days"
     date_heading_selector = "section.npm-quickbook .qb-calendar-widget h5"

@@ -1,5 +1,7 @@
 """Transport switching must obey the current pipeline's storage/lease boundary."""
 import json
+from datetime import datetime
+import pytz
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
@@ -14,15 +16,42 @@ class ExampleCinema(BaseCinema):
     URL = 'https://example.test'
 
     def requests_logic(self):
+        self._coverage = {'pages_expected': 1, 'pages_completed': 1}
         self.english_title = 'HTTP film'
+        self.date_of_showing = '2026-11-07'
+        self.showtime = '20:00'
+        self.screening_city = 'Test City'
+        self.english_href = 'https://example.test/ticket/1'
         self.appendToGatheringInfo()
 
     def selenium_logic(self):
         self.english_title = 'Browser film'
+        self.date_of_showing = '2026-11-07'
+        self.showtime = '20:00'
+        self.screening_city = 'Test City'
+        self.english_href = 'https://example.test/ticket/1'
         self.appendToGatheringInfo()
 
 
 class ScrapePipelineIntegrationTests(TestCase):
+    def test_fallback_refreshes_source_calendar_after_new_year_rollover(self):
+        self.scraper.today_date = datetime(2026, 12, 31, 23, 59)
+        self.scraper.current_year, self.scraper.current_month = '2026', '12'
+        started, weekday = self.scraper.startTime, self.scraper._timing_weekday
+        self.scraper.requests_logic = Mock(side_effect=ValueError('source unavailable'))
+        original = self.scraper.selenium_logic
+        def browser():
+            self.assertEqual(self.scraper.today_date, datetime(2027, 1, 1, 0, 1))
+            self.assertEqual((self.scraper.current_year, self.scraper.current_month), ('2027', '1'))
+            self.assertEqual((self.scraper.startTime, self.scraper._timing_weekday), (started, weekday))
+            original()
+        self.scraper.selenium_logic = Mock(side_effect=browser)
+        instant = pytz.UTC.localize(datetime(2026, 12, 31, 22, 1))
+        with patch('backend.scraping.utils.InitializeBaseCinema.datetime') as clock:
+            clock.now.side_effect = lambda zone: instant.astimezone(zone)
+            self.scraper.scrape()
+        self.scraper.selenium_logic.assert_called_once()
+
     def setUp(self):
         with patch('backend.scraping.BaseCinema.setUpSupabase'):
             self.scraper = ExampleCinema('allShowtimes', 'allShowtimes', 71)
@@ -77,6 +106,9 @@ class ScrapePipelineIntegrationTests(TestCase):
         diagnostics = [call.kwargs['metadata'] for call in self.store.save_text_artifact.call_args_list]
         self.assertEqual([d['transport'] for d in diagnostics], ['requests', 'selenium'])
         self.assertNotEqual(diagnostics[0]['snapshot_id'], diagnostics[1]['snapshot_id'])
+        self.assertEqual(diagnostics[1]['fallback_from'], {
+            'snapshot_id': diagnostics[0]['snapshot_id'], 'reason': 'ValueError',
+        })
 
     def test_diagnostic_storage_failure_blocks_upload_without_fallback(self):
         self.store.save_text_artifact.side_effect = CloudflareStorageError('D1 unavailable')
@@ -117,3 +149,47 @@ class ScrapePipelineIntegrationTests(TestCase):
             self.scraper.scrape()
         self.store.save_scraped_rows.assert_not_called()
         self.assertIsNone(self.scraper._uploaded_scrape_rows)
+
+    def test_incomplete_coverage_discards_valid_http_rows_and_falls_back(self):
+        original = self.scraper.requests_logic
+        def partial():
+            original()
+            self.scraper._coverage = {'pages_expected': 2, 'pages_completed': 1}
+        self.scraper.requests_logic = Mock(side_effect=partial)
+        self.scraper.scrape()
+        self.chrome.assert_called_once()
+        uploaded = self.scraper._uploaded_scrape_rows
+        self.assertEqual([row['english_title'] for row in uploaded], ['Browser film'])
+
+    def test_both_transports_fail_without_uploading_or_completing_snapshot(self):
+        self.scraper.requests_logic = Mock(side_effect=ValueError('challenge'))
+        self.scraper.selenium_logic = Mock(side_effect=ValueError('browser denied'))
+        self.scraper.finishScrapeSnapshot = Mock()
+        with self.assertRaisesRegex(ValueError, 'browser denied'):
+            self.scraper.scrape()
+        self.scraper.requests_logic.assert_called_once()
+        self.scraper.selenium_logic.assert_called_once()
+        self.scraper.finishScrapeSnapshot.assert_not_called()
+        self.assertIsNone(self.scraper._uploaded_scrape_rows)
+
+    def assert_invalid_field_falls_back(self, column, invalid):
+        original = self.scraper.requests_logic
+        def malformed():
+            original()
+            self.scraper.gathering_info[column][0] = invalid
+        self.scraper.requests_logic = Mock(side_effect=malformed)
+        self.scraper.scrape()
+        self.chrome.assert_called_once()
+        self.assertEqual(self.scraper._uploaded_scrape_rows[0]['english_title'], 'Browser film')
+
+    def test_invalid_screening_date_falls_back(self):
+        self.assert_invalid_field_falls_back('date_of_showing', 'not-a-date')
+
+    def test_invalid_screening_time_falls_back(self):
+        self.assert_invalid_field_falls_back('showtime', '25:00')
+
+    def test_missing_location_falls_back(self):
+        self.assert_invalid_field_falls_back('screening_city', '')
+
+    def test_missing_ticket_falls_back(self):
+        self.assert_invalid_field_falls_back('english_href', 'javascript:void(0)')

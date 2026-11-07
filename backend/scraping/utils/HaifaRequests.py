@@ -30,10 +30,15 @@ def collect_haifa(scraper):
         home = BeautifulSoup(response.text, 'html.parser')
         cards = list(home.select('#portfoliolist > div'))
         active_date = home.select_one('.slide.active[data-date]')
+        initial_date = re.search(r'\bstartDate\s*:\s*["\']([^"\']+)["\']', response.text)
+        # Events.init sets selectedDate from startDate. Late in the day the
+        # server can omit today's active slide while still listing future films.
+        selected_date = initial_date.group(1) if initial_date else active_date.get('data-date') if active_date else None
         category = re.search(r'window\.category\s*=\s*["\']([^"\']+)["\']', response.text)
         language = re.search(r'\bvar\s+_lang\s*=\s*["\']([^"\']+)["\']', response.text)
-        if not cards or active_date is None or not category or not language:
+        if not cards or not selected_date or not category or not language:
             raise ValueError('Haifa listing, date, or pagination configuration is missing')
+        datetime.strptime(selected_date, '%d.%m.%Y')
         shown = []
         for card in cards:
             identifier = card.get('data-id')
@@ -44,7 +49,7 @@ def collect_haifa(scraper):
         terminated = False
         # The first browser request uses start=0, then its page counter is 2.
         for offset in (0, 2, 3, 4, 5, 6, 7, 8, 9, 10):
-            params = {'ajax': '1', 'lang': language.group(1), 'date': active_date['data-date'], 'category': category.group(1), 'start': offset, 'limit': 7, 'shownEvents': ','.join(shown)}
+            params = {'ajax': '1', 'lang': language.group(1), 'date': selected_date, 'category': category.group(1), 'start': offset, 'limit': 7, 'shownEvents': ','.join(shown)}
             response = get('https://www.haifacin.co.il/includes/events.php', params)
             scraper._coverage['pagination_requests'] += 1
             if not response.text.strip():

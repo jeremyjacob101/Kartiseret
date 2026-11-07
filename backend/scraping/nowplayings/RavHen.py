@@ -1,5 +1,5 @@
 from backend.scraping.BaseCinema import BaseCinema
-from backend.scraping.utils.QuickbookHelpers import QuickbookHelpers
+from backend.scraping.utils.QuickbookHelpers import QuickbookHelpers, _is_non_screening_card
 from selenium.webdriver.common.by import By
 
 from datetime import datetime
@@ -110,11 +110,16 @@ class RavHen(QuickbookHelpers, BaseCinema):
                         self.clickWhenReady("/html/body/div[12]/div[2]/div/ul/li[1]/a")
 
                         for film_index in range(1, self.lenElements("/html/body/section[2]/section/div[1]/div/section/div[2]/div") + 1):
+                            card_path = f"/html/body/section[2]/section/div[1]/div/section/div[2]/div[{film_index}]"
                             selector = f"/html/body/section[2]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div/div/h4"
                             if self.lenElements(selector) and self.element(selector).text == "להזמנת כרטיסים במכירה מוקדמת בחרו בתאריך ההקרנה הרצוי":
                                 continue
 
-                            checking_film_name = self.element(f"/html/body/section[2]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[1]/a/h3").text
+                            titles = self.elements(f'{card_path}/div/div/div[2]/div/div[1]/a/h3')
+                            checking_film_name = titles[0].text if titles else ''
+                            tickets = self.elements(f'{card_path}//a[@data-url]')
+                            if _is_non_screening_card(checking_film_name, bool(tickets)):
+                                continue
                             checking_film = name_to_idx.get(checking_film_name)
                             if checking_film is None:
                                 continue

@@ -68,8 +68,13 @@ class LevRequestsTests(TestCase):
                 scraper.finishScrapeSnapshot = Mock()
 
                 def collect():
+                    scraper._coverage = {'pages_expected': 1, 'pages_completed': 1}
                     scraper.english_title = 'Film'
                     scraper.release_date = '2026-11-05'
+                    scraper.date_of_showing = '2026-11-07'
+                    scraper.showtime = '18:30'
+                    scraper.screening_city = 'Tel Aviv'
+                    scraper.english_href = 'https://example.test/ticket/1'
                     scraper.appendToGatheringInfo()
 
                 scraper.requests_logic = Mock(side_effect=collect)

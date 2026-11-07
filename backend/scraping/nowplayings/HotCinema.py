@@ -8,10 +8,7 @@ import re
 class HotCinema(BaseCinema):
     CINEMA_NAME = "Hot Cinema"
     URL = "https://hotcinema.co.il/ShowingNow"
-    # Keep the browser as the production default until repeated complete
-    # comparisons establish exact parity; the Requests route has shown a
-    # two-event discrepancy on one of three fresh pairs.
-    DEFAULT_SCRAPE_MODE = "selenium"
+    DEFAULT_SCRAPE_MODE = "auto"
 
     def requests_logic(self):
         from backend.scraping.utils.HotCinemaRequests import collect_hot_cinema

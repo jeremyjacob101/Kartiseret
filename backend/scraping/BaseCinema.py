@@ -3,12 +3,15 @@ from backend.scraping.utils.FormatAndAppend import AppendToInfo, formatAndUpload
 from backend.scraping.utils.ScrapedFixes import ScrapedFixes
 from backend.scraping.utils.ScrapingHelpers import ScrapingHelpers
 from datetime import date, datetime, timezone
+import re
+from urllib.parse import urlparse
 import uuid
 import logging
 import json
 import time
 from backend.utils.log.cloudflare_storage import CloudflareStorageError, LeaseLostError
 from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+from backend.scraping.utils.ScrapeRequests import validate_scrape_coverage
 
 
 class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToInfo):
@@ -18,6 +21,7 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
     HEADLESS: bool = True
     USES_BROWSER: bool = True
     DEFAULT_SCRAPE_MODE = None
+    ALLOW_MISSING_TITLES = False
 
     def __init__(self, cinema_type, supabase_table_name, run_id, *args, scrape_mode=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -105,10 +109,12 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
         # A fallback must not reuse partial rows or source-specific lists.
         for attribute in set(self.__dict__) - initial_attributes:
             delattr(self, attribute)
-        start, today, year, month = self.startTime, self.today_date, self.current_year, self.current_month
+        start = self.startTime
         timing_weekday = self._timing_weekday
         InitializeBaseCinema.__init__(self)
-        self.startTime, self.today_date, self.current_year, self.current_month = start, today, year, month
+        # Source calendars belong to the new transport attempt, which may start
+        # after midnight. Runner duration/weekday still belong to the outer run.
+        self.startTime = start
         self._timing_weekday = timing_weekday
         self._uploaded_scrape_rows = None
         self._empty_snapshot_evidence = None
@@ -122,9 +128,21 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
         rows, _ = _format_rows_from_gathering_info(self)
         if not rows and not self._empty_snapshot_evidence:
             raise ValueError("Empty collection without confirmed source evidence")
-        if self.supabase_table_name == "allSoons":
-            for row in rows:
+        validate_scrape_coverage(getattr(self, '_coverage', {}))
+        for row in rows:
+            if not self.ALLOW_MISSING_TITLES and not (row.get('hebrew_title') or row.get('english_title')):
+                raise ValueError('Requests row has no film title')
+            if self.supabase_table_name == "allSoons":
                 date.fromisoformat(row.get("release_date") or "")
+            else:
+                date.fromisoformat(row.get('date_of_showing') or '')
+                if not re.fullmatch(r'(?:[01]?\d|2[0-3]):[0-5]\d', row.get('showtime') or ''):
+                    raise ValueError('Requests row has an invalid screening time')
+                if not row.get('screening_city'):
+                    raise ValueError('Requests row has no screening location')
+                links = (row.get('hebrew_href'), row.get('english_href'))
+                if not any(link and urlparse(link).scheme in ('http', 'https') and urlparse(link).netloc for link in links):
+                    raise ValueError('Requests row has no valid ticket link')
 
     def _record_collection(self, transport, started, status, error=None):
         if not getattr(self, '_snapshot_manifest_started', False):
@@ -144,6 +162,7 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
             'coverage': getattr(self, '_coverage', {}),
             'failure_type': type(error).__name__ if error else None,
             'failure_reason': str(error)[:500] if error else None,
+            'fallback_from': getattr(self, '_fallback_from', None),
         }
         # Use main's guarded D1 writer and recovery envelopes. Storage or lease
         # failures must propagate, never start another transport or publication.
@@ -157,6 +176,7 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
     def scrape(self):
         catalog_published = False
         self._uploaded_scrape_rows = None
+        self._fallback_from = None
         try:
             self.startScrapeSnapshot()
             mode = getattr(self, "scrape_mode", "selenium" if self.USES_BROWSER else "requests")
@@ -185,6 +205,7 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
                         raise
                     logging.getLogger(__name__).warning("Requests collection failed for %s (%s: %s); retrying with Selenium", self.__class__.__name__, type(error).__name__, error)
                     self.failScrapeSnapshot(error)
+                    failed_attempt = {'snapshot_id': self.snapshot_id, 'reason': type(error).__name__}
                     previous_name = getattr(self, "_artifact_item_name", None)
                     self._artifact_item_name = f"{previous_name or self.__class__.__name__}_requests"
                     try:
@@ -192,6 +213,7 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
                     finally:
                         self._artifact_item_name = previous_name
                     self._reset_collection(initial_attributes)
+                    self._fallback_from = failed_attempt
                     self.startScrapeSnapshot()
                     self._coverage = {}
                     fallback_started = time.perf_counter()

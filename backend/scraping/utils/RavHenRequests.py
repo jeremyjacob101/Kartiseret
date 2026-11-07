@@ -85,7 +85,7 @@ def collect_rav_hen(scraper):
         metadata = {}
         for fid in {event['filmId'] for event, _ in events}:
             details = body(f'/10104/films/byDistributorCode/{fid}', lang='he_IL').get('filmDetails')
-            if not isinstance(details, dict) or not details.get('name'):
+            if not isinstance(details, dict) or details.get('id') != fid or not details.get('name'):
                 raise ValueError(f'Rav-Hen film details are missing: {fid}')
             metadata[fid] = details
             scraper._coverage['film_details_completed'] += 1
@@ -97,7 +97,7 @@ def collect_rav_hen(scraper):
                 raise ValueError(f'Rav-Hen has multiple film IDs for one title: {title}')
             names[title] = fid
 
-        languages = {'en': 'English', 'he': 'Hebrew', 'cs': 'צ׳כית'}
+        languages = {'en': 'English', 'he': 'Hebrew', 'cs': 'צ׳כית', 'fr': 'French'}
         for event, city in events:
             details = metadata[event['filmId']]
             attrs = event.get('attributeIds')

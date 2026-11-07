@@ -18,6 +18,25 @@ DETAIL = '''<div class="slide_info_event"><h1 class="slide_title">סרט</h1><di
 
 
 class HaifaRequestsTests(TestCase):
+    def test_browser_initial_date_works_when_today_has_no_active_slide(self):
+        home = HOME.replace('slide active', 'slide') + "<script>Events.init({startDate: '07.11.2026'});</script>"
+        session = Mock()
+        session.get.side_effect = [Mock(text=x) for x in (home, '', DETAIL)]
+        with patch('backend.scraping.utils.HaifaRequests.requests.Session') as factory:
+            factory.return_value.__enter__.return_value = session
+            scraper = self.make_scraper()
+            scraper.requests_logic()
+        self.assertEqual(session.get.call_args_list[1].kwargs['params']['date'], '07.11.2026')
+        self.assertEqual(len(scraper.gathering_info['english_title']), 1)
+
+    def test_missing_calendar_date_is_not_replaced_with_a_guessed_date(self):
+        session = Mock()
+        session.get.return_value = Mock(text=HOME.replace('slide active', 'slide'))
+        with patch('backend.scraping.utils.HaifaRequests.requests.Session') as factory:
+            factory.return_value.__enter__.return_value = session
+            with self.assertRaisesRegex(ValueError, 'configuration'):
+                self.make_scraper().requests_logic()
+
     def make_scraper(self):
         scraper = HAIFtheque.__new__(HAIFtheque)
         InitializeBaseCinema.__init__(scraper)

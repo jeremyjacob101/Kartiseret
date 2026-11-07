@@ -5,11 +5,56 @@ import json
 from pathlib import Path
 import tempfile
 from unittest.mock import Mock, patch
+from requests import Response, HTTPError, Session
 
-from backend.scraping.utils.ScrapeRequests import BoundedRetry, CountingAdapter, configure_scrape_session
+from backend.scraping.utils.ScrapeRequests import BoundedRetry, CountingAdapter, configure_scrape_session, validate_scrape_response, validate_scrape_coverage
 
 
 class ScrapeRequestsTests(TestCase):
+    def test_bootstrap_reconfiguration_keeps_connections_owned_by_session(self):
+        with Session() as session:
+            configure_scrape_session(session, capture=False)
+            adapter = session.get_adapter('https://example.test')
+            configure_scrape_session(session, retry_methods=('GET', 'POST'))
+            self.assertIs(session.get_adapter('https://example.test'), adapter)
+            self.assertEqual(adapter.max_retries.allowed_methods, frozenset({'GET', 'POST'}))
+            self.assertEqual(session.hooks['response'].count(validate_scrape_response), 1)
+
+    def response(self, text, status=200, headers=None):
+        response = Response()
+        response.status_code = status
+        response.url = 'https://example.test/movies'
+        response._content = text.encode()
+        response.headers.update(headers or {'Content-Type': 'text/html'})
+        return response
+
+    def test_denials_and_200_challenges_fail_before_parsing(self):
+        for response in (
+            self.response('Forbidden', 403),
+            self.response('<title>Just a moment...</title>'),
+            self.response('<title>403 Forbidden</title>'),
+            self.response('challenge', headers={'cf-mitigated': 'challenge'}),
+        ):
+            with self.subTest(response=response.text), self.assertRaises((ValueError, HTTPError)):
+                validate_scrape_response(response)
+
+    def test_ordinary_page_with_captcha_widget_is_not_a_challenge(self):
+        response = self.response('<title>Movies</title><script>cloudflare; captcha;</script>')
+        self.assertIs(validate_scrape_response(response), response)
+
+    def test_incomplete_discovery_counts_are_not_accepted_as_partial_success(self):
+        for coverage in (
+            {},
+            {'cinemas_expected': 12, 'cinemas_completed': 11},
+            {'calendar_dates_expected': 20, 'dates_completed': 19},
+            {'pages_expected': 2},
+            {'cards_expected': 4, 'cards_parsed': 3},
+        ):
+            with self.subTest(coverage=coverage), self.assertRaisesRegex(ValueError, 'coverage'):
+                validate_scrape_coverage(coverage)
+        validate_scrape_coverage({'cards_expected': 4, 'cards_parsed': 4})
+        validate_scrape_coverage({'calendar_dates_expected': 20, 'dates_completed': 20})
+
     def test_session_uses_bounded_get_retries(self):
         session = Mock()
         self.assertIs(configure_scrape_session(session), session)

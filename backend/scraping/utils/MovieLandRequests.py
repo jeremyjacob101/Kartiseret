@@ -66,6 +66,8 @@ def collect_movieland(scraper):
         'films_enriched_from_events': 0,
         'cinemas_completed': 0,
         'dates_completed': 0,
+        'dates_expected': 0,
+        'explicit_empty_dates': 0,
         'unlisted_films_skipped': 0,
     }
     with requests.Session() as session:
@@ -114,19 +116,23 @@ def collect_movieland(scraper):
             if not isinstance(dates, list):
                 raise ValueError('MovieLand theater dates are invalid')
             films = []
-            visited_dates = set()
+            selected_dates = {}
             for entry in dates:
                 timestamp = entry.get('date') if isinstance(entry, dict) else None
                 if not isinstance(timestamp, str):
                     raise ValueError('MovieLand theater date is invalid')
                 selected_day = datetime.fromisoformat(timestamp).date()
-                if selected_day < current or (selected_day.year, selected_day.month) not in months or selected_day in visited_dates:
+                if selected_day < current or (selected_day.year, selected_day.month) not in months:
                     continue
-                visited_dates.add(selected_day)
+                selected_dates.setdefault(selected_day, timestamp)
+            scraper._coverage['dates_expected'] += len(selected_dates)
+            for selected_day, timestamp in selected_dates.items():
                 params = {'TheatreId': cinema_id, 'MovieId': '', 'Date': timestamp, 'HebrewSubs': '', 'Dubbed': 'false', 'ThreeD': 'false', 'isVenueUpgrated': 'false', 'isHFR3D': 'false', 'isHideVODRent': 'true'}
                 daily_films = get('https://movieland.co.il/api/Events', params).json()
                 if not isinstance(daily_films, list):
                     raise ValueError('MovieLand events response is not a list')
+                if not daily_films:
+                    scraper._coverage['explicit_empty_dates'] += 1
                 films.extend((film, selected_day) for film in daily_films)
                 scraper._coverage['dates_completed'] += 1
             for film, selected_day in films:

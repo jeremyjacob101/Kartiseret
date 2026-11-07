@@ -9,6 +9,9 @@ class TLVtheque(BaseCinema):
     SCREENING_CITY = "Tel Aviv"
     URL = "https://www.cinema.co.il/en/shown/"
     DEFAULT_SCRAPE_MODE = "auto"
+    # The existing English-only collector emits null titles when the source
+    # has no English translation. Keep those ticketed rows unchanged.
+    ALLOW_MISSING_TITLES = True
 
     def requests_logic(self):
         from backend.scraping.utils.TLVRequests import collect_tel_aviv

@@ -88,6 +88,7 @@ class MovieLandSoonRequestsTests(TestCase):
         scraper.failScrapeSnapshot = Mock()
 
         def invalid_http():
+            scraper._coverage = {'film_pages_expected': 1, 'film_pages_completed': 1}
             scraper.english_title = 'Bad date'
             scraper.release_date = 'not-a-date'
             scraper.appendToGatheringInfo()

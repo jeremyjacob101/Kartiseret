@@ -107,9 +107,14 @@ class JaffaRequestsTests(TestCase):
         chrome.assert_not_called()
         scraper.startScrapeSnapshot = Mock()
         scraper.finishScrapeSnapshot = Mock()
-        scraper.logic = Mock(side_effect=lambda: scraper.confirmEmptySnapshot("Source explicitly has no screenings"))
-        with patch('backend.scraping.BaseCinema.navigate') as navigate, patch('backend.scraping.BaseCinema.formatAndUpload'), patch('backend.scraping.BaseCinema.logSuccessfulRun'), patch('backend.scraping.BaseCinema.formatAndWriteCsv'):
+        def empty():
+            scraper._coverage = {'pages_expected': 2, 'pages_completed': 2}
+            scraper.confirmEmptySnapshot('Source explicitly has no screenings')
+        scraper.logic = Mock(side_effect=empty)
+        chrome.side_effect = AssertionError('Unexpected browser startup')
+        with patch('backend.scraping.BaseCinema.build_chrome', chrome), patch('backend.scraping.BaseCinema.navigate') as navigate, patch('backend.scraping.BaseCinema.formatAndUpload'), patch('backend.scraping.BaseCinema.logSuccessfulRun'), patch('backend.scraping.BaseCinema.formatAndWriteCsv'):
             scraper.scrape()
+        chrome.assert_not_called()
         navigate.assert_not_called()
         scraper.logic.assert_called_once()
 
@@ -157,8 +162,11 @@ class JaffaRequestsTests(TestCase):
             scraper = JAFCtheque('allTheques', 'allTheques', 1)
         scraper.startScrapeSnapshot = Mock()
         scraper.failScrapeSnapshot = Mock()
-        scraper.logic = Mock(side_effect=lambda: scraper.confirmEmptySnapshot('source confirms empty'))
-        with patch('backend.scraping.BaseCinema.build_chrome') as chrome, patch('backend.scraping.BaseCinema.formatAndUpload', side_effect=RuntimeError('upload failed')), patch('backend.scraping.BaseCinema.formatAndWriteCsv'), self.assertRaises(RuntimeError):
+        def empty():
+            scraper._coverage = {'pages_expected': 2, 'pages_completed': 2}
+            scraper.confirmEmptySnapshot('source confirms empty')
+        scraper.logic = Mock(side_effect=empty)
+        with patch('backend.scraping.BaseCinema.build_chrome', side_effect=AssertionError('Unexpected browser startup')) as chrome, patch('backend.scraping.BaseCinema.formatAndUpload', side_effect=RuntimeError('upload failed')), patch('backend.scraping.BaseCinema.formatAndWriteCsv'), self.assertRaises(RuntimeError):
             scraper.scrape()
         chrome.assert_not_called()
         scraper.failScrapeSnapshot.assert_called_once()

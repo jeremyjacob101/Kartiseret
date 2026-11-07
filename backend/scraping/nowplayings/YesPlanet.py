@@ -1,18 +1,9 @@
 from backend.scraping.BaseCinema import BaseCinema
-from backend.scraping.utils.QuickbookHelpers import QuickbookHelpers
+from backend.scraping.utils.QuickbookHelpers import QuickbookHelpers, _is_non_screening_card
 from selenium.webdriver.common.by import By
 
 from datetime import datetime
 import re
-
-
-def _is_non_screening_card(title, has_ticket_links):
-    """Skip blank promotional cards, but reject cards that hide bookable shows."""
-    if title and title.strip():
-        return False
-    if has_ticket_links:
-        raise ValueError("Yes Planet schedule card has ticket links but no film title")
-    return True
 
 
 class YesPlanet(QuickbookHelpers, BaseCinema):

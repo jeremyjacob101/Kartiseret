@@ -5,10 +5,56 @@ import gzip
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+
+def validate_scrape_response(response, *args, **kwargs):
+    """Reject observable denials before a collector can mistake them for data."""
+    response.raise_for_status()
+    if response.headers.get('cf-mitigated', '').lower() == 'challenge':
+        raise ValueError(f'Scrape response is a Cloudflare challenge: {response.url}')
+    if 'html' in response.headers.get('Content-Type', '').lower():
+        # Do not reject ordinary pages merely for including CAPTCHA widgets or
+        # the word "Cloudflare" in their scripts/footer.
+        title = re.search(r'<title[^>]*>(.*?)</title>', response.text, re.I | re.S)
+        title = re.sub(r'\s+', ' ', title.group(1)).strip().lower() if title else ''
+        if title in {
+            'just a moment...', 'just a moment…', '403 forbidden',
+            'access denied', 'attention required! | cloudflare',
+        }:
+            raise ValueError(f'Scrape response is an access-denial page: {response.url}')
+    return response
+
+
+def validate_scrape_coverage(coverage):
+    """Check discovery/completion counts without consulting another transport.
+
+    Cinema City's feature/presentation totals have source-specific accounting
+    (including filtered and duplicate records), checked inside its collectors.
+    """
+    if not isinstance(coverage, dict) or not any(key.endswith('_expected') for key in coverage):
+        raise ValueError('Requests collection has no discovery coverage evidence')
+    aliases = {
+        'calendar_dates': 'dates_completed',
+        'date_tokens': 'date_tokens_found',
+        'locations': 'locations_validated',
+    }
+    for key, expected in coverage.items():
+        if not key.endswith('_expected'):
+            continue
+        prefix = key[:-len('_expected')]
+        if prefix in {'features', 'features_upcoming', 'presentations'}:
+            continue
+        completed_key = aliases.get(prefix, prefix + '_completed')
+        if prefix == 'cards' and 'cards_parsed' in coverage:
+            completed_key = 'cards_parsed'
+        completed = coverage.get(completed_key)
+        if type(expected) is not int or type(completed) is not int or expected < 0 or completed != expected:
+            raise ValueError(f'Incomplete scrape coverage: {key}={expected}, {completed_key}={completed}')
 
 
 class BoundedRetry(Retry):
@@ -44,9 +90,20 @@ def configure_scrape_session(session, *, stats=None, retry_methods=("GET",), cap
         respect_retry_after_header=True,
         raise_on_status=False,
     )
-    adapter = CountingAdapter(max_retries=retry, stats=stats)
-    session.mount('http://', adapter)
-    session.mount('https://', adapter)
+    adapter = session.adapters.get('https://')
+    if isinstance(adapter, CountingAdapter):
+        # Wix enables POST retries after its token bootstrap. Keep that
+        # attempt's connection pool owned by the session instead of replacing
+        # an adapter whose live connections would escape Session.close().
+        adapter.max_retries = retry
+        adapter.stats = stats
+    else:
+        adapter = CountingAdapter(max_retries=retry, stats=stats)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+    hooks = session.hooks.setdefault('response', [])
+    if isinstance(hooks, list) and validate_scrape_response in hooks:
+        hooks.remove(validate_scrape_response)
     capture_dir = os.environ.get("SCRAPER_SOURCE_CAPTURE_DIR") if capture else None
     if capture_dir:
         capture_path = Path(capture_dir) / "source-responses.jsonl.gz"
@@ -82,4 +139,6 @@ def configure_scrape_session(session, *, stats=None, retry_methods=("GET",), cap
             return response
 
         session.hooks.setdefault("response", []).append(capture_response)
+    # Capture failed responses too, before the validation hook raises.
+    hooks.append(validate_scrape_response)
     return session

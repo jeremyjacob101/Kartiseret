@@ -14,6 +14,20 @@ EVENT = '''<div id="nav-date"><div class="fest-box-parent-wrapper"><div class="f
 
 
 class TelAvivRequestsTests(TestCase):
+    def test_missing_english_translation_preserves_legacy_null_title(self):
+        page = EVENT.replace('Film   Title', 'סרט בעברית').replace('Film details', 'תיאור בעברית')
+        session = Mock()
+        session.get.side_effect = [Mock(text=page)] + [Mock(text='<div id="nav-date"><p>אין אירועים בתאריך זה</p></div>') for _ in range(59)]
+        scraper = self.make_scraper()
+        scraper.supabase_table_name = 'allTheques'
+        scraper._empty_snapshot_evidence = None
+        with patch('backend.scraping.utils.TLVRequests.requests.Session') as factory:
+            factory.return_value.__enter__.return_value = session
+            scraper.requests_logic()
+        self.assertEqual(scraper.gathering_info['english_title'], [None])
+        self.assertEqual(scraper.gathering_info['hebrew_title'], [None])
+        scraper._validate_requests_collection()
+
     def make_scraper(self):
         scraper = TLVtheque.__new__(TLVtheque)
         InitializeBaseCinema.__init__(scraper)

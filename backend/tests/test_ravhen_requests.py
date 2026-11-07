@@ -37,7 +37,7 @@ class RavHenRequestsTests(TestCase):
             response.json.return_value = {'body': {'events': [self.event, self.event.copy()]}}
         elif '/films/byDistributorCode/' in url:
             response.json.return_value = {'body': {'filmDetails': {
-                'name': 'סרט', 'releaseYear': '2026', 'length': 90,
+                'id': 'film', 'name': 'סרט', 'releaseYear': '2026', 'length': 90,
                 'languages': {'original': ['en']}, 'ageRestrictionName': '12-plus',
             }}}
         else:
@@ -65,6 +65,39 @@ class RavHenRequestsTests(TestCase):
     def test_unknown_screening_format_fails_instead_of_dropping_information(self):
         self.event['attributeIds'].append('vip')
         with self.assertRaisesRegex(ValueError, 'premium format'):
+            self.run_collector()
+
+    def test_french_original_language_matches_existing_browser_normalization(self):
+        respond = self.response
+        def french(url, **kwargs):
+            response = respond(url, **kwargs)
+            if '/films/byDistributorCode/' in url:
+                response.json.return_value['body']['filmDetails']['languages']['original'] = ['fr']
+            return response
+        self.response = french
+        self.run_collector()
+        self.assertEqual(self.scraper.gathering_info['original_language'], ['French', 'French'])
+
+    def test_unknown_original_language_still_fails_closed(self):
+        respond = self.response
+        def unknown(url, **kwargs):
+            response = respond(url, **kwargs)
+            if '/films/byDistributorCode/' in url:
+                response.json.return_value['body']['filmDetails']['languages']['original'] = ['unknown']
+            return response
+        self.response = unknown
+        with self.assertRaisesRegex(ValueError, 'original language'):
+            self.run_collector()
+
+    def test_metadata_for_a_different_film_id_fails_closed(self):
+        respond = self.response
+        def wrong_film(url, **kwargs):
+            response = respond(url, **kwargs)
+            if '/films/byDistributorCode/' in url:
+                response.json.return_value['body']['filmDetails']['id'] = 'another-film'
+            return response
+        self.response = wrong_film
+        with self.assertRaisesRegex(ValueError, 'film details'):
             self.run_collector()
 
     def test_unlisted_film_fails_instead_of_publishing_partial_data(self):
