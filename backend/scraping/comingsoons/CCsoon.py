@@ -1,5 +1,5 @@
 from backend.scraping.BaseCinema import BaseCinema
-from selenium.webdriver.common.by import By
+from backend.scraping.utils.CinemaCityListing import load_movie_listing
 
 from datetime import datetime
 import re
@@ -21,16 +21,7 @@ class CCsoon(BaseCinema):
         self.driver.set_page_load_timeout(45)
         self.driver.set_script_timeout(15)
         self.zoomOut(50, 0)
-        self.waitForElement("[id^='comp-mrjafvop__']")
-
-        while self.lenElements("//button[normalize-space()='תראו לי עוד סרטים']"):
-            more_button = self.element("//button[normalize-space()='תראו לי עוד סרטים']")
-            if not more_button.is_displayed():
-                break
-            film_count = self.lenElements("[id^='comp-mrjafvop__']")
-            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", more_button)
-            self.clickWhenReady("//button[normalize-space()='תראו לי עוד סרטים']")
-            self.waitUntil(lambda driver: len(driver.find_elements(By.CSS_SELECTOR, "[id^='comp-mrjafvop__']")) > film_count)
+        load_movie_listing(self, "[id^='comp-mrjafvop__']")
 
         for film_card in self.elements("[id^='comp-mrjafvop__']"):
             movie_id = film_card.get_attribute("id").split("__")[-1]

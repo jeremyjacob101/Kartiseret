@@ -1,7 +1,7 @@
 from backend.scraping.BaseCinema import BaseCinema
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
+from backend.scraping.utils.CinemaCityListing import load_movie_listing
 
 from datetime import datetime
 import json, re
@@ -16,17 +16,7 @@ class CinemaCity(BaseCinema):
         self.driver.set_script_timeout(15)
         self.sleep(3)
         self.zoomOut(50)
-        self.element("[id^='comp-mpkxxq0h__']")
-
-        while self.lenElements("//button[normalize-space()='תראו לי עוד סרטים']"):
-            more_button = self.element("//button[normalize-space()='תראו לי עוד סרטים']")
-            if not more_button.is_displayed():
-                break
-            film_count = self.lenElements("[id^='comp-mpkxxq0h__']")
-            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", more_button)
-            self.sleep(0.5)
-            self.click("//button[normalize-space()='תראו לי עוד סרטים']", 0.5)
-            WebDriverWait(self.driver, 15).until(lambda driver: self.lenElements("[id^='comp-mpkxxq0h__']") > film_count)
+        load_movie_listing(self, "[id^='comp-mpkxxq0h__']")
 
         for film_card in self.elements("[id^='comp-mpkxxq0h__']"):
             movie_id = film_card.get_attribute("id").split("__")[-1]
