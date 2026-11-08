@@ -1,43 +1,17 @@
 import unittest
 from unittest.mock import Mock
 
-from selenium.common.exceptions import NoSuchElementException
-from selenium.webdriver.common.by import By
-
 from backend.scraping.nowplayings.YesPlanet import YesPlanet
 from backend.scraping.utils.InitializeBaseCinema import InitializeBaseCinema
 
 
-def text_element(text, **attributes):
-    element = Mock(text=text)
-    element.get_attribute.side_effect = lambda name: attributes.get(name, text if name == "innerText" else None)
-    return element
-
-
-def showtype(language="ENGLISH", formats=("2D",), times=("18:00",)):
-    tickets = [text_element(time, **{"data-url": f"https://tickets5.planetcinema.co.il/api/order/{index}?lang=en"}) for index, time in enumerate(times, 1)]
-    element = Mock()
-    element.find_elements.side_effect = lambda by, selector: {
-        ":scope > a[data-url]": tickets,
-        ":scope > .qb-screening-attributes > .lang-attributes": [text_element(language)],
-        ":scope > .qb-screening-attributes > li:not(.lang-attributes)": [text_element(value) for value in formats],
-    }[selector]
-    return element, tickets
-
-
-def film(title, *formats):
-    element = Mock()
-    tickets = [ticket for _, group in formats for ticket in group]
-    element.find_elements.side_effect = lambda by, selector: {
-        ".events a[data-url]": tickets,
-        ".events .type-row .qb-movie-info-column": [group for group, _ in formats],
-    }[selector]
-    element.find_element.return_value = text_element(title)
-    return element
+def screening(title="DUNE 1", time="18:00", tech="2D", language="ENGLISH", event_id=1):
+    return {"title": title, "time": time, "tech": tech, "language": language,
+            "href": f"https://tickets5.planetcinema.co.il/api/order/{event_id}?lang=en"}
 
 
 class YesPlanetShowtimeTests(unittest.TestCase):
-    def scraper(self, *films):
+    def scraper(self, *screenings):
         scraper = YesPlanet.__new__(YesPlanet)
         InitializeBaseCinema.__init__(scraper)
         scraper.run_id = 1
@@ -50,13 +24,17 @@ class YesPlanetShowtimeTests(unittest.TestCase):
         scraper.directed_bys = ["Denis Villeneuve"] * 2
         scraper.ratings = ["12", "14"]
         scraper.runtimes = [155, 166]
-        scraper.elements = Mock(return_value=list(films))
+        scraper.driver = Mock()
+        scraper.driver.execute_script.return_value = list(screenings)
         return scraper
 
     def test_preserves_films_formats_times_and_checkout_links(self):
         scraper = self.scraper(
-            film(" DUNE 1 ", showtype(formats=("4DX", "2D"), times=("17:30",)), showtype(times=("18:00",))),
-            film("DUNE 2", showtype(formats=("ScreenX", "2D"), times=("18:30",)), showtype(formats=("4DX", "2D"), times=("20:45",)), showtype(times=("21:15",))),
+            screening(" DUNE 1 ", "17:30", "4DX2D", event_id=1),
+            screening("DUNE 1", "18:00", event_id=2),
+            screening("DUNE 2", "18:30", "ScreenX2D", event_id=3),
+            screening("DUNE 2", "20:45", "4DX2D", event_id=4),
+            screening("DUNE 2", "21:15", event_id=5),
         )
         scraper.scrapeQuickbookShowtimes({"dune 1": 0, "dune 2": 1})
         rows = scraper.gathering_info
@@ -65,35 +43,39 @@ class YesPlanetShowtimeTests(unittest.TestCase):
         self.assertEqual(rows["screening_type"], ["Regular"] * 5)
         self.assertEqual(rows["screening_tech"], ["2D 4DX", "2D", "2D ScreenX", "2D 4DX", "2D"])
         self.assertEqual(rows["runtime"], [155, 155, 166, 166, 166])
-        self.assertTrue(all(href.endswith("?lang=en") and "/api/" not in href for href in rows["english_href"]))
-        self.assertTrue(all(href.endswith("?lang=he") for href in rows["hebrew_href"]))
-        scraper.elements.assert_called_once_with("section.npm-quickbook .movie-row")
+        self.assertEqual(rows["english_href"], [f"https://tickets5.planetcinema.co.il/order/{i}?lang=en" for i in range(1, 6)])
+        self.assertEqual(rows["hebrew_href"], [f"https://tickets5.planetcinema.co.il/order/{i}?lang=he" for i in range(1, 6)])
 
-    def test_preorder_and_non_ticket_rows_need_no_title(self):
-        preorder = film("No checkout links")
-        scraper = self.scraper(preorder, film("DUNE 1", showtype()))
-        scraper.scrapeQuickbookShowtimes({"dune 1": 0})
-        preorder.find_element.assert_not_called()
-        self.assertEqual(scraper.gathering_info["showtime"], ["18:00"])
+    def test_date_is_read_once_before_appending_any_screenings(self):
+        scraper = self.scraper(screening(time="18:00"), screening(time="20:00"))
+        append = scraper.appendToGatheringInfo
 
-    def test_empty_format_and_unknown_film_do_not_hide_valid_screenings(self):
-        scraper = self.scraper(film("Unknown", showtype()), film("DUNE 1", showtype(times=()), showtype(times=("18:00", "20:00"))))
+        def append_after_page_rerenders():
+            # Once extraction returns, Vue may replace every node. No further
+            # driver reads may be needed to finish this date or duplicate rows.
+            scraper.driver.execute_script.side_effect = AssertionError("Page already rerendered")
+            append()
+
+        scraper.appendToGatheringInfo = append_after_page_rerenders
         scraper.scrapeQuickbookShowtimes({"dune 1": 0})
+        scraper.driver.execute_script.assert_called_once()
         self.assertEqual(scraper.gathering_info["showtime"], ["18:00", "20:00"])
 
+    def test_unknown_film_does_not_hide_valid_screenings(self):
+        scraper = self.scraper(screening("Unknown"), screening())
+        scraper.scrapeQuickbookShowtimes({"dune 1": 0})
+        self.assertEqual(scraper.gathering_info["showtime"], ["18:00"])
+
     def test_preserves_russian_exclusion_and_resets_dubbing_between_formats(self):
-        scraper = self.scraper(film("DUNE 1", showtype(language="ru"), showtype(language="dub"), showtype()))
+        scraper = self.scraper(screening(language="ru"), screening(language="dub"), screening())
         scraper.scrapeQuickbookShowtimes({"dune 1": 0})
         self.assertEqual(scraper.gathering_info["dub_language"], ["Hebrew", None])
 
     def test_ticket_row_without_a_title_is_fatal(self):
-        broken = film("Missing title", showtype())
-        broken.find_element.side_effect = NoSuchElementException("Missing movie name")
-        scraper = self.scraper(broken)
-        with self.assertRaises(NoSuchElementException):
+        scraper = self.scraper(screening(title=""))
+        with self.assertRaisesRegex(ValueError, "missing its movie title"):
             scraper.scrapeQuickbookShowtimes({"dune 1": 0})
         self.assertEqual(scraper.gathering_info["showtime"], [])
-        broken.find_element.assert_called_once_with(By.CSS_SELECTOR, ".qb-movie-name")
 
 
 if __name__ == "__main__":

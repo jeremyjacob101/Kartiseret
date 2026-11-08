@@ -115,36 +115,42 @@ class YesPlanet(QuickbookHelpers, BaseCinema):
                         self.scrapeQuickbookShowtimes(name_to_idx)
 
     def scrapeQuickbookShowtimes(self, name_to_idx):
-        for film in self.elements("section.npm-quickbook .movie-row"):
-            # Advance-booking cards link to other dates, not ticket checkout.
-            # Scope every lookup to its movie/format instead of indexing wrappers.
-            if not film.find_elements(By.CSS_SELECTOR, ".events a[data-url]"):
-                continue
-            checking_film_name = film.find_element(By.CSS_SELECTOR, ".qb-movie-name").text.strip().lower()
-            checking_film = name_to_idx.get(checking_film_name)
+        # Vue replaces the rows after a date change. Read plain values in one
+        # browser task so a rerender cannot invalidate Selenium element handles
+        # between the title, format, and ticket reads.
+        screenings = self.driver.execute_script("""
+            const text = element => (element?.textContent || '').trim();
+            return Array.from(document.querySelectorAll('section.npm-quickbook .movie-row')).flatMap(film => {
+                const title = text(film.querySelector('.qb-movie-name'));
+                return Array.from(film.querySelectorAll('.events .type-row .qb-movie-info-column')).flatMap(format => {
+                    const language = Array.from(format.querySelectorAll(':scope > .qb-screening-attributes > .lang-attributes')).map(text).join(' ');
+                    const tech = Array.from(format.querySelectorAll(':scope > .qb-screening-attributes > li:not(.lang-attributes)')).map(text).join('');
+                    return Array.from(format.querySelectorAll(':scope > a[data-url]')).map(ticket => ({
+                        title, language, tech, time: ticket.innerText.trim(), href: ticket.getAttribute('data-url')
+                    }));
+                });
+            });
+        """)
+        for screening in screenings:
+            if not screening["title"]:
+                raise ValueError("Yes Planet ticket row is missing its movie title")
+            checking_film = name_to_idx.get(screening["title"].strip().lower())
             if checking_film is None:
                 continue
-
-            for showtype in film.find_elements(By.CSS_SELECTOR, ".events .type-row .qb-movie-info-column"):
-                tickets = showtype.find_elements(By.CSS_SELECTOR, ":scope > a[data-url]")
-                if not tickets:
-                    continue
-                dub_stuff = " ".join((element.get_attribute("innerText") or "").strip() for element in showtype.find_elements(By.CSS_SELECTOR, ":scope > .qb-screening-attributes > .lang-attributes")).upper()
-                if "RU" in dub_stuff:
-                    continue
-                self.dub_language = "Hebrew" if "DUB" in dub_stuff else None
-                self.screening_type = "".join((element.get_attribute("innerText") or "").strip() for element in showtype.find_elements(By.CSS_SELECTOR, ":scope > .qb-screening-attributes > li:not(.lang-attributes)")).upper()
-                self.screening_tech = self.screening_type
-
-                for ticket in tickets:
-                    self.showtime = ticket.text.strip()
-                    self.english_href = ticket.get_attribute("data-url").replace("/api", "")
-                    self.hebrew_href = self.english_href.replace("lang=en", "lang=he")
-                    self.original_language = self.original_languages[checking_film]
-                    self.release_year = self.release_years[checking_film]
-                    self.directed_by = self.directed_bys[checking_film]
-                    self.rating = self.ratings[checking_film]
-                    self.runtime = self.runtimes[checking_film]
-                    self.english_title = self.english_titles[checking_film]
-                    self.hebrew_title = self.hebrew_titles[checking_film]
-                    self.appendToGatheringInfo()
+            dub_stuff = screening["language"].upper()
+            if "RU" in dub_stuff:
+                continue
+            self.dub_language = "Hebrew" if "DUB" in dub_stuff else None
+            self.screening_type = screening["tech"].upper()
+            self.screening_tech = self.screening_type
+            self.showtime = screening["time"]
+            self.english_href = screening["href"].replace("/api", "")
+            self.hebrew_href = self.english_href.replace("lang=en", "lang=he")
+            self.original_language = self.original_languages[checking_film]
+            self.release_year = self.release_years[checking_film]
+            self.directed_by = self.directed_bys[checking_film]
+            self.rating = self.ratings[checking_film]
+            self.runtime = self.runtimes[checking_film]
+            self.english_title = self.english_titles[checking_film]
+            self.hebrew_title = self.hebrew_titles[checking_film]
+            self.appendToGatheringInfo()
