@@ -65,7 +65,7 @@ class YesPlanet(QuickbookHelpers, BaseCinema):
             runtime = self.element("/html/body/div[5]/section[2]/div/div[2]/div[1]/div[1]/div[2]/p").get_attribute("textContent").strip()
             self.runtimes.append(int(m.group()) if runtime and (m := re.search(r"\d+", runtime)) else None)
 
-        name_to_idx = {str(name).lower(): i for i, name in enumerate(self.english_titles)}
+        name_to_idx = {str(name).strip().lower(): i for i, name in enumerate(self.english_titles)}
 
         self.clickWhenReady("#header-change-location")
         self.clickWhenReady("body > div.modal.location-picker-modal.fade.search.in > div > div > div > div:nth-child(2) > div:nth-child(3) > div.row.all-cinemas-list > div > div > div > button")
@@ -112,43 +112,39 @@ class YesPlanet(QuickbookHelpers, BaseCinema):
                         date_name = self.element(f"body > section.light.quickbook-section.npm-quickbook > section > div:nth-child(1) > div > div > div:nth-child(2) > div.col-xs-12.col-md-6.qb-calendar-widget > div > div.col-xs-12.mb-sm > h5").text
                         self.date_of_showing = datetime.strptime(date_name.split(" ", 1)[1], "%d/%m/%Y").date().isoformat()
 
-                        self.clickWhenReady("/html/body/section[3]/section/div[1]/div/div/div[2]/div[3]/div/div/button")
-                        self.clickWhenReady("/html/body/div[12]/div[2]/div/ul/li[2]/a")
-                        self.clickWhenReady("/html/body/section[3]/section/div[1]/div/div/div[2]/div[3]/div/div/button")
-                        self.clickWhenReady("/html/body/div[12]/div[2]/div/ul/li[1]/a")
+                        self.scrapeQuickbookShowtimes(name_to_idx)
 
-                        for film_index in range(1, self.lenElements("/html/body/section[3]/section/div[1]/div/section/div[2]/div") + 1):
-                            selector = f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div/div/h4"
-                            if self.lenElements(selector) and self.element(selector).text == "PRE-ORDER YOUR TICKETS NOW":
-                                continue
+    def scrapeQuickbookShowtimes(self, name_to_idx):
+        for film in self.elements("section.npm-quickbook .movie-row"):
+            # Advance-booking cards link to other dates, not ticket checkout.
+            # Scope every lookup to its movie/format instead of indexing wrappers.
+            if not film.find_elements(By.CSS_SELECTOR, ".events a[data-url]"):
+                continue
+            checking_film_name = film.find_element(By.CSS_SELECTOR, ".qb-movie-name").text.strip().lower()
+            checking_film = name_to_idx.get(checking_film_name)
+            if checking_film is None:
+                continue
 
-                            checking_film_name = str(self.element(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[1]/a/h3").text).lower()
-                            checking_film = name_to_idx.get(checking_film_name)
-                            if checking_film is None:
-                                continue
+            for showtype in film.find_elements(By.CSS_SELECTOR, ".events .type-row .qb-movie-info-column"):
+                tickets = showtype.find_elements(By.CSS_SELECTOR, ":scope > a[data-url]")
+                if not tickets:
+                    continue
+                dub_stuff = " ".join((element.get_attribute("innerText") or "").strip() for element in showtype.find_elements(By.CSS_SELECTOR, ":scope > .qb-screening-attributes > .lang-attributes")).upper()
+                if "RU" in dub_stuff:
+                    continue
+                self.dub_language = "Hebrew" if "DUB" in dub_stuff else None
+                self.screening_type = "".join((element.get_attribute("innerText") or "").strip() for element in showtype.find_elements(By.CSS_SELECTOR, ":scope > .qb-screening-attributes > li:not(.lang-attributes)")).upper()
+                self.screening_tech = self.screening_type
 
-                            for showtype in range(1, self.lenElements(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div") + 1):
-                                dub_stuff = " ".join((element.get_attribute("innerText") or "").strip() for element in self.elements(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div[{showtype}]/div/ul[1]/li[contains(concat(' ', normalize-space(@class), ' '), ' lang-attributes ')]"))
-                                if "RU" in dub_stuff:
-                                    continue
-                                else:
-                                    self.dub_language = "Hebrew" if "DUB" in dub_stuff else None
-
-                                self.screening_type = "".join((element.get_attribute("innerText") or "").strip() for element in self.elements(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div[{showtype}]/div/ul[1]/li[not(contains(concat(' ', normalize-space(@class), ' '), ' lang-attributes '))]"))
-                                self.screening_tech = self.screening_type
-
-                                for showtime in range(1, self.lenElements(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div[{showtype}]/div/a") + 1):
-                                    self.showtime = self.element(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div[{showtype}]/div/a[{showtime}]").text
-                                    self.english_href = self.element(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div[{showtype}]/div/a[{showtime}]").get_attribute("data-url").replace("/api", "")
-                                    self.hebrew_href = self.english_href.replace("lang=en", "lang=he")
-
-                                    self.original_language = self.original_languages[checking_film]
-                                    self.release_year = self.release_years[checking_film]
-                                    self.directed_by = self.directed_bys[checking_film]
-                                    self.rating = self.ratings[checking_film]
-                                    self.runtime = self.runtimes[checking_film]
-
-                                    self.english_title = self.english_titles[checking_film]
-                                    self.hebrew_title = self.hebrew_titles[checking_film]
-
-                                    self.appendToGatheringInfo()
+                for ticket in tickets:
+                    self.showtime = ticket.text.strip()
+                    self.english_href = ticket.get_attribute("data-url").replace("/api", "")
+                    self.hebrew_href = self.english_href.replace("lang=en", "lang=he")
+                    self.original_language = self.original_languages[checking_film]
+                    self.release_year = self.release_years[checking_film]
+                    self.directed_by = self.directed_bys[checking_film]
+                    self.rating = self.ratings[checking_film]
+                    self.runtime = self.runtimes[checking_film]
+                    self.english_title = self.english_titles[checking_film]
+                    self.hebrew_title = self.hebrew_titles[checking_film]
+                    self.appendToGatheringInfo()
