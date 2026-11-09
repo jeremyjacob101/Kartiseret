@@ -1,9 +1,10 @@
 from backend.scraping.BaseCinema import BaseCinema
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from backend.scraping.utils.CinemaCityListing import load_movie_listing
+from backend.scraping.utils.CinemaCityListing import SHOWTIME_CARD_SELECTOR, load_movie_listing
 
 from datetime import datetime
+from urllib.parse import urlsplit
 import json, re
 
 
@@ -21,9 +22,9 @@ class CinemaCity(BaseCinema):
         self.driver.set_script_timeout(15)
         self.sleep(3)
         self.zoomOut(50)
-        load_movie_listing(self, "[id^='comp-mpkxxq0h__']")
+        load_movie_listing(self, SHOWTIME_CARD_SELECTOR)
 
-        for film_card in self.elements("[id^='comp-mpkxxq0h__']"):
+        for film_card in self.elements(SHOWTIME_CARD_SELECTOR):
             movie_id = film_card.get_attribute("id").split("__")[-1]
             self.hebrew_hrefs.append(f"https://www.cinema-city.co.il/movie/{movie_id}")
 
@@ -34,8 +35,8 @@ class CinemaCity(BaseCinema):
 
         for href in self.hebrew_hrefs:
             self.driver.get(href)
-            if "/movie/" not in self.driver.current_url:
-                continue
+            if urlsplit(self.driver.current_url).path.rstrip('/') != urlsplit(href).path:
+                raise ValueError(f'Cinema City redirected away from a discovered movie: {href}')
             self.zoomOut(50, 0)
 
             self.hebrew_title = self.waitForElement("main h1").get_attribute("textContent").strip()
@@ -68,9 +69,11 @@ class CinemaCity(BaseCinema):
                 tech_prefix = "2D"
 
             self.click(cinema_selector)
-            self.waitUntil(lambda driver: driver.find_elements(By.CSS_SELECTOR, cinema_selector + ' option:not([value=""])') or not driver.find_element(By.CSS_SELECTOR, cinema_selector).is_enabled())
-            if not self.waitForElement(cinema_selector).is_enabled():
-                continue
+            # These films came from the bookable homepage listing. A disabled
+            # control can be Wix's initial loading state, not empty evidence.
+            # Fail the attempt if choices never initialize instead of silently
+            # publishing the other films as a complete collection.
+            self.waitUntil(lambda driver: driver.find_element(By.CSS_SELECTOR, cinema_selector).is_enabled() and driver.find_elements(By.CSS_SELECTOR, cinema_selector + ' option:not([value=""])'))
             self.waitForElement(cinema_selector).send_keys(Keys.ESCAPE)
             seen_event_ids = set()
 

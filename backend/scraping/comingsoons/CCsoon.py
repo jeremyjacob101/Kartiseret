@@ -1,7 +1,8 @@
 from backend.scraping.BaseCinema import BaseCinema
-from backend.scraping.utils.CinemaCityListing import load_movie_listing
+from backend.scraping.utils.CinemaCityListing import COMING_SOON_CARD_SELECTOR, load_movie_listing
 
 from datetime import datetime
+from urllib.parse import urlsplit
 import re
 
 
@@ -26,16 +27,16 @@ class CCsoon(BaseCinema):
         self.driver.set_page_load_timeout(45)
         self.driver.set_script_timeout(15)
         self.zoomOut(50, 0)
-        load_movie_listing(self, "[id^='comp-mrjafvop__']")
+        load_movie_listing(self, COMING_SOON_CARD_SELECTOR)
 
-        for film_card in self.elements("[id^='comp-mrjafvop__']"):
+        for film_card in self.elements(COMING_SOON_CARD_SELECTOR):
             movie_id = film_card.get_attribute("id").split("__")[-1]
             self.hebrew_hrefs.append(f"https://www.cinema-city.co.il/movie/{movie_id}")
 
         for href in self.hebrew_hrefs:
             self.driver.get(href)
-            if "/movie/" not in self.driver.current_url:
-                continue
+            if urlsplit(self.driver.current_url).path.rstrip('/') != urlsplit(href).path:
+                raise ValueError(f'Cinema City redirected away from a discovered movie: {href}')
             self.hebrew_title = self.waitForElement("main h1").get_attribute("textContent").strip()
             if "מדובב לרוסית" in self.hebrew_title or "בתרגום לרוסית" in self.hebrew_title or "מדובב לצרפתית" in self.hebrew_title or "בתרגום לצרפתית" in self.hebrew_title or "מתורגם לצרפתית" in self.hebrew_title or "מתורגם לרוסית" in self.hebrew_title or "סינמה קידס" in self.hebrew_title or "cook" in self.hebrew_title.lower() or "מדובב" in self.hebrew_title or "hfr" in self.hebrew_title.lower():
                 continue

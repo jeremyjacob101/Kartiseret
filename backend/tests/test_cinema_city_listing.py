@@ -1,13 +1,81 @@
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
+from pathlib import Path
+
+from bs4 import BeautifulSoup
 
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 
-from backend.scraping.utils.CinemaCityListing import MORE_BUTTON, load_movie_listing
+from backend.scraping.utils.CinemaCityListing import COMING_SOON_CARD_SELECTOR, MORE_BUTTON, SHOWTIME_CARD_SELECTOR, load_movie_listing
+from backend.scraping.nowplayings.CinemaCity import CinemaCity
+from backend.scraping.comingsoons.CCsoon import CCsoon
+from backend.scraping.utils.InitializeBaseCinema import InitializeBaseCinema
 
 
 class CinemaCityListingTests(unittest.TestCase):
+    def test_discovered_movie_redirect_is_fatal(self):
+        for cls in (CinemaCity, CCsoon):
+            with self.subTest(scraper=cls.__name__):
+                scraper = self.movie_page_scraper(cls)
+                scraper.driver.current_url = 'https://www.cinema-city.co.il/'
+                with patch(cls.__module__ + '.load_movie_listing'):
+                    with self.assertRaisesRegex(ValueError, 'redirected away'):
+                        scraper.logic()
+                self.assertEqual(scraper.gathering_info['showtime'], [])
+
+    def test_disabled_loading_control_is_not_empty_screening_evidence(self):
+        scraper = self.movie_page_scraper()
+        scraper.driver.find_element.return_value.is_enabled.return_value = False
+        scraper.driver.find_elements.return_value = []
+
+        def wait(condition):
+            self.assertFalse(condition(scraper.driver))
+            raise TimeoutException('Cinema choices have not initialized')
+
+        scraper.waitUntil = wait
+        with patch('backend.scraping.nowplayings.CinemaCity.load_movie_listing'):
+            with self.assertRaisesRegex(TimeoutException, 'not initialized'):
+                scraper.logic()
+        self.assertEqual(scraper.gathering_info['showtime'], [])
+
+    def movie_page_scraper(self, cls=CinemaCity):
+        scraper = cls.__new__(cls)
+        InitializeBaseCinema.__init__(scraper)
+        scraper.sleep = Mock()
+        scraper.zoomOut = Mock()
+        scraper.driver = Mock()
+        scraper.driver.current_url = 'https://www.cinema-city.co.il/movie/6467'
+        scraper.elements = Mock(return_value=[Mock(**{'get_attribute.return_value': 'comp-mkmrxabz__6467'})])
+        scraper.waitForElement = Mock(return_value=Mock(**{'get_attribute.return_value': '95'}))
+        return scraper
+
+    def test_listing_discovery_preserves_poster_and_details_cards(self):
+        html = (Path(__file__).parent / 'fixtures' / 'cinema_city_homepage_states.html').read_text()
+        for cls, selector, fixture in (
+            (CinemaCity, SHOWTIME_CARD_SELECTOR, html),
+            (CCsoon, COMING_SOON_CARD_SELECTOR, html.replace('comp-mkmrxabz__', 'comp-mrjafvoi1__').replace('comp-mpkxxq0h__', 'comp-mrjafvop__')),
+        ):
+            for markup in (fixture, fixture.replace('comp-mpkxxq0h__6467', 'comp-mkmrxacs3__6467').replace('comp-mrjafvop__6467', 'details__6467')):
+                with self.subTest(scraper=cls.__name__, markup=markup):
+                    page = BeautifulSoup(markup, 'html.parser')
+                    scraper = cls.__new__(cls)
+                    InitializeBaseCinema.__init__(scraper)
+                    scraper.sleep = Mock()
+                    scraper.zoomOut = Mock()
+                    scraper.driver = Mock()
+                    # Stop immediately after discovery, before movie metadata.
+                    scraper.driver.get.side_effect = RuntimeError('discovery complete')
+                    scraper.elements = lambda selector: [Mock(**{'get_attribute.return_value': node['id']}) for node in page.select(selector)]
+                    with patch(cls.__module__ + '.load_movie_listing') as listing:
+                        with self.assertRaisesRegex(RuntimeError, 'discovery complete'):
+                            scraper.logic()
+                    listing.assert_called_once_with(scraper, selector)
+                    self.assertEqual(scraper.hebrew_hrefs, [
+                        'https://www.cinema-city.co.il/movie/6467',
+                        'https://www.cinema-city.co.il/movie/6675',
+                    ])
+
     def scraper(self, batches, ignored_clicks=0):
         scraper = Mock()
         state = {"count": 12, "batches": list(batches), "clicks": 0}
@@ -31,7 +99,7 @@ class CinemaCityListingTests(unittest.TestCase):
         return scraper, state
 
     def test_loads_all_pages_for_both_cinema_city_listings(self):
-        for selector in ("[id^='comp-mrjafvop__']", "[id^='comp-mpkxxq0h__']"):
+        for selector in (COMING_SOON_CARD_SELECTOR, SHOWTIME_CARD_SELECTOR):
             with self.subTest(selector=selector):
                 scraper, state = self.scraper([12, 12, 12, 12, 4])
                 load_movie_listing(scraper, selector)

@@ -1,0 +1,440 @@
+{
+  "sha256": "129c8027f6e1cc04afe6592625a98529f282c1b38f5756ee59887b0925ae8241",
+  "archive": "comparisons.tar.gz",
+  "runs": [
+    {
+      "artifact": "pr214-cc-current-20261109/CinemaCity-20261109T093152717342Z.json",
+      "scraper": "CinemaCity",
+      "order": [
+        "selenium",
+        "requests"
+      ],
+      "snapshots": {
+        "selenium": {
+          "status": "ok",
+          "rows": 2292,
+          "seconds": 247.055572958001,
+          "error": null,
+          "coverage": {}
+        },
+        "requests": {
+          "status": "ok",
+          "rows": 2313,
+          "seconds": 2.1437989999976708,
+          "error": null,
+          "coverage": {
+            "locations_expected": 8,
+            "locations_validated": 8,
+            "features_expected": 135,
+            "features_referenced": 72,
+            "presentations_expected": 2314,
+            "presentations_collected": 2313,
+            "presentations_skipped_by_title": 1,
+            "presentations_skipped_expired": 0,
+            "duplicate_event_ids_skipped": 0,
+            "duplicate_showtime_options_skipped": 0,
+            "collection_pages": {
+              "CityDynamicPage": 1,
+              "SyncFeatures": 1,
+              "SyncPresentations": 3
+            }
+          }
+        }
+      },
+      "comparison": {
+        "matched": 2291,
+        "selenium_only": 1,
+        "requests_only": 22
+      }
+    },
+    {
+      "artifact": "pr214-cc-hover-fixed-20261109/CinemaCity-20261109T095146198662Z.json",
+      "scraper": "CinemaCity",
+      "order": [
+        "selenium",
+        "requests"
+      ],
+      "snapshots": {
+        "selenium": {
+          "status": "ok",
+          "rows": 2310,
+          "seconds": 235.23223508299998,
+          "error": null,
+          "coverage": {}
+        },
+        "requests": {
+          "status": "ok",
+          "rows": 2313,
+          "seconds": 2.3618011660000775,
+          "error": null,
+          "coverage": {
+            "locations_expected": 8,
+            "locations_validated": 8,
+            "features_expected": 135,
+            "features_referenced": 72,
+            "presentations_expected": 2314,
+            "presentations_collected": 2313,
+            "presentations_skipped_by_title": 1,
+            "presentations_skipped_expired": 0,
+            "duplicate_event_ids_skipped": 0,
+            "duplicate_showtime_options_skipped": 0,
+            "collection_pages": {
+              "CityDynamicPage": 1,
+              "SyncFeatures": 1,
+              "SyncPresentations": 3
+            }
+          }
+        }
+      },
+      "comparison": {
+        "matched": 2310,
+        "selenium_only": 0,
+        "requests_only": 3
+      }
+    },
+    {
+      "artifact": "pr214-cc-fixed-reverse-20261109/CinemaCity-20261109T095716601690Z.json",
+      "scraper": "CinemaCity",
+      "order": [
+        "requests",
+        "selenium"
+      ],
+      "snapshots": {
+        "requests": {
+          "status": "ok",
+          "rows": 2313,
+          "seconds": 2.2157036249991506,
+          "error": null,
+          "coverage": {
+            "locations_expected": 8,
+            "locations_validated": 8,
+            "features_expected": 135,
+            "features_referenced": 72,
+            "presentations_expected": 2314,
+            "presentations_collected": 2313,
+            "presentations_skipped_by_title": 1,
+            "presentations_skipped_expired": 0,
+            "duplicate_event_ids_skipped": 0,
+            "duplicate_showtime_options_skipped": 0,
+            "collection_pages": {
+              "CityDynamicPage": 1,
+              "SyncFeatures": 1,
+              "SyncPresentations": 3
+            }
+          }
+        },
+        "selenium": {
+          "status": "ok",
+          "rows": 2313,
+          "seconds": 230.23834195900417,
+          "error": null,
+          "coverage": {}
+        }
+      },
+      "comparison": {
+        "matched": 2313,
+        "selenium_only": 0,
+        "requests_only": 0
+      }
+    },
+    {
+      "artifact": "pr214-cc-fixed-final-20261109/CinemaCity-20261109T100229824179Z.json",
+      "scraper": "CinemaCity",
+      "order": [
+        "selenium",
+        "requests"
+      ],
+      "snapshots": {
+        "selenium": {
+          "status": "ok",
+          "rows": 2313,
+          "seconds": 238.87322558300366,
+          "error": null,
+          "coverage": {}
+        },
+        "requests": {
+          "status": "ok",
+          "rows": 2313,
+          "seconds": 1.9547109170016483,
+          "error": null,
+          "coverage": {
+            "locations_expected": 8,
+            "locations_validated": 8,
+            "features_expected": 135,
+            "features_referenced": 72,
+            "presentations_expected": 2314,
+            "presentations_collected": 2313,
+            "presentations_skipped_by_title": 1,
+            "presentations_skipped_expired": 0,
+            "duplicate_event_ids_skipped": 0,
+            "duplicate_showtime_options_skipped": 0,
+            "collection_pages": {
+              "CityDynamicPage": 1,
+              "SyncFeatures": 1,
+              "SyncPresentations": 3
+            }
+          }
+        }
+      },
+      "comparison": {
+        "matched": 2259,
+        "selenium_only": 54,
+        "requests_only": 54
+      }
+    },
+    {
+      "artifact": "pr214-ccsoon-hover-fixed-20261109/CCsoon-20261109T095223602780Z.json",
+      "scraper": "CCsoon",
+      "order": [
+        "requests",
+        "selenium"
+      ],
+      "snapshots": {
+        "requests": {
+          "status": "ok",
+          "rows": 47,
+          "seconds": 0.5939029580040369,
+          "error": null,
+          "coverage": {
+            "features_expected": 135,
+            "features_upcoming_expected": 84,
+            "features_collected": 47,
+            "features_skipped_before_today": 51,
+            "features_skipped_with_presentations": 21,
+            "features_skipped_by_title": 16,
+            "collection_pages": 1
+          }
+        },
+        "selenium": {
+          "status": "ok",
+          "rows": 47,
+          "seconds": 28.987633291995735,
+          "error": null,
+          "coverage": {}
+        }
+      },
+      "comparison": {
+        "matched": 47,
+        "selenium_only": 0,
+        "requests_only": 0
+      }
+    },
+    {
+      "artifact": "pr214-cc-release-20261109/CCsoon-20261109T100151964312Z.json",
+      "scraper": "CCsoon",
+      "order": [
+        "requests",
+        "selenium"
+      ],
+      "snapshots": {
+        "requests": {
+          "status": "ok",
+          "rows": 47,
+          "seconds": 0.7101872499988531,
+          "error": null,
+          "coverage": {
+            "features_expected": 135,
+            "features_upcoming_expected": 84,
+            "features_collected": 47,
+            "features_skipped_before_today": 51,
+            "features_skipped_with_presentations": 21,
+            "features_skipped_by_title": 16,
+            "collection_pages": 1
+          }
+        },
+        "selenium": {
+          "status": "ok",
+          "rows": 47,
+          "seconds": 34.46527070800221,
+          "error": null,
+          "coverage": {}
+        }
+      },
+      "comparison": {
+        "matched": 47,
+        "selenium_only": 0,
+        "requests_only": 0
+      }
+    },
+    {
+      "artifact": "pr214-cc-release-20261109/CinemaCity-20261109T100535080934Z.json",
+      "scraper": "CinemaCity",
+      "order": [
+        "requests",
+        "selenium"
+      ],
+      "snapshots": {
+        "requests": {
+          "status": "ok",
+          "rows": 2313,
+          "seconds": 2.293048458006524,
+          "error": null,
+          "coverage": {
+            "locations_expected": 8,
+            "locations_validated": 8,
+            "features_expected": 135,
+            "features_referenced": 72,
+            "presentations_expected": 2314,
+            "presentations_collected": 2313,
+            "presentations_skipped_by_title": 1,
+            "presentations_skipped_expired": 0,
+            "duplicate_event_ids_skipped": 0,
+            "duplicate_showtime_options_skipped": 0,
+            "collection_pages": {
+              "CityDynamicPage": 1,
+              "SyncFeatures": 1,
+              "SyncPresentations": 3
+            }
+          }
+        },
+        "selenium": {
+          "status": "ok",
+          "rows": 2313,
+          "seconds": 255.97524587499356,
+          "error": null,
+          "coverage": {}
+        }
+      },
+      "comparison": {
+        "matched": 2313,
+        "selenium_only": 0,
+        "requests_only": 0
+      }
+    },
+    {
+      "artifact": "pr214-cc-post-update-20261109/CinemaCity-20261109T100805974816Z.json",
+      "scraper": "CinemaCity",
+      "order": [
+        "selenium",
+        "requests"
+      ],
+      "snapshots": {
+        "selenium": {
+          "status": "ok",
+          "rows": 2313,
+          "seconds": 236.98203858300258,
+          "error": null,
+          "coverage": {}
+        },
+        "requests": {
+          "status": "ok",
+          "rows": 2313,
+          "seconds": 2.5550037089997204,
+          "error": null,
+          "coverage": {
+            "locations_expected": 8,
+            "locations_validated": 8,
+            "features_expected": 135,
+            "features_referenced": 72,
+            "presentations_expected": 2314,
+            "presentations_collected": 2313,
+            "presentations_skipped_by_title": 1,
+            "presentations_skipped_expired": 0,
+            "duplicate_event_ids_skipped": 0,
+            "duplicate_showtime_options_skipped": 0,
+            "collection_pages": {
+              "CityDynamicPage": 1,
+              "SyncFeatures": 1,
+              "SyncPresentations": 3
+            }
+          }
+        }
+      },
+      "comparison": {
+        "matched": 2285,
+        "selenium_only": 28,
+        "requests_only": 28
+      }
+    },
+    {
+      "artifact": "pr214-cc-current-ages-20261109/CinemaCity-20261109T101708798693Z.json",
+      "scraper": "CinemaCity",
+      "order": [
+        "requests",
+        "selenium"
+      ],
+      "snapshots": {
+        "requests": {
+          "status": "ok",
+          "rows": 2313,
+          "seconds": 2.0586702919972595,
+          "error": null,
+          "coverage": {
+            "locations_expected": 8,
+            "locations_validated": 8,
+            "features_expected": 135,
+            "features_referenced": 72,
+            "presentations_expected": 2314,
+            "presentations_collected": 2313,
+            "presentations_skipped_by_title": 1,
+            "presentations_skipped_expired": 0,
+            "duplicate_event_ids_skipped": 0,
+            "duplicate_showtime_options_skipped": 0,
+            "collection_pages": {
+              "CityDynamicPage": 1,
+              "SyncFeatures": 1,
+              "SyncPresentations": 3
+            }
+          }
+        },
+        "selenium": {
+          "status": "ok",
+          "rows": 2313,
+          "seconds": 230.79553537500033,
+          "error": null,
+          "coverage": {}
+        }
+      },
+      "comparison": {
+        "matched": 2313,
+        "selenium_only": 0,
+        "requests_only": 0
+      }
+    },
+    {
+      "artifact": "pr214-cc-current-ages-reverse-20261109/CinemaCity-20261109T102254155795Z.json",
+      "scraper": "CinemaCity",
+      "order": [
+        "selenium",
+        "requests"
+      ],
+      "snapshots": {
+        "selenium": {
+          "status": "ok",
+          "rows": 2313,
+          "seconds": 228.95139558400115,
+          "error": null,
+          "coverage": {}
+        },
+        "requests": {
+          "status": "ok",
+          "rows": 2313,
+          "seconds": 2.206651041000441,
+          "error": null,
+          "coverage": {
+            "locations_expected": 8,
+            "locations_validated": 8,
+            "features_expected": 135,
+            "features_referenced": 72,
+            "presentations_expected": 2314,
+            "presentations_collected": 2313,
+            "presentations_skipped_by_title": 1,
+            "presentations_skipped_expired": 0,
+            "duplicate_event_ids_skipped": 0,
+            "duplicate_showtime_options_skipped": 0,
+            "collection_pages": {
+              "CityDynamicPage": 1,
+              "SyncFeatures": 1,
+              "SyncPresentations": 3
+            }
+          }
+        }
+      },
+      "comparison": {
+        "matched": 2313,
+        "selenium_only": 0,
+        "requests_only": 0
+      }
+    }
+  ]
+}

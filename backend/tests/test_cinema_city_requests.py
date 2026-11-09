@@ -133,6 +133,7 @@ class CinemaCityRequestsTests(TestCase):
         self.assertEqual(rows["english_title"], ["Shrek (25 years)", "The Beast"])
         self.assertEqual(rows["runtime"], [90, 99])
         self.assertEqual(rows["rating"], ["All", "14+"])
+
         self.assertEqual(rows["screening_city"], ["Beer Sheva", "Glilot"])
         self.assertEqual(rows["screening_type"], ["Regular", "Regular"])
         self.assertEqual(rows["screening_tech"], ["2D", "3D HFR ONYX"])
@@ -148,6 +149,17 @@ class CinemaCityRequestsTests(TestCase):
         self.assertEqual(self.scraper._coverage["presentations_skipped_by_title"], 1)
         self.assertEqual(self.scraper._coverage["presentations_skipped_expired"], 1)
         self.assertEqual(self.scraper._coverage["collection_pages"]["SyncPresentations"], 2)
+
+    def test_preserves_unassigned_and_published_age_restrictions(self):
+        # Actual source values seen before/after the 2026-11-09 update. A new
+        # attempt must read the current value without retaining an older age
+        # restriction or leaking it into the next film's screenings.
+        for source_value, expected in (("טרם נקבע", None), ("מותר לכל", "All"), ("הותר מגיל 9", "9+")):
+            with self.subTest(age_restriction=source_value):
+                self.setUp()
+                self.features[0]["data"]["ratingName"] = source_value
+                self.run_collector()
+                self.assertEqual(self.scraper.gathering_info["rating"], [expected, "14+"])
 
     def test_excludes_a_screening_at_the_frozen_local_scrape_instant(self):
         event_at_scrape_time = {

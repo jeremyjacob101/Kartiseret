@@ -3,6 +3,10 @@ from selenium.webdriver.common.by import By
 
 
 MORE_BUTTON = "//button[normalize-space()='תראו לי עוד סרטים']"
+# The poster panel is unmounted when Wix switches a hovered card to its
+# details state. Count/discover persistent repeater items instead of panels.
+SHOWTIME_CARD_SELECTOR = "[id^='comp-mkmrxabz__']"
+COMING_SOON_CARD_SELECTOR = "[id^='comp-mrjafvoi1__']"
 
 
 def load_movie_listing(scraper, card_selector):

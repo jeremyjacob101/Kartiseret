@@ -125,7 +125,7 @@ Ashdod, Ashkelon, Ayalon, Beer Sheva, Carmiel, Chadera, Even Yehuda, Givataim, G
 ### Backend Pipeline
 
 - Written in Python and currently pinned only through `requirements.txt`, with GitHub Actions using Python `3.14.2`.
-- Uses Selenium + Chrome for source scraping.
+- Prefers Requests-based HTML/API scraping, with Selenium + Chrome started only when needed for fallback.
 - Uploads data into Supabase using the service-role key.
 - Uses TMDb for movie matching and core metadata enrichment.
 - Enriches now-playing movies further with IMDb, Rotten Tomatoes, and Letterboxd data when available.
@@ -318,7 +318,7 @@ The coordinated Production auth transition is complete; its migration, account c
 ├── .github/workflows/          GitHub Actions for main runs, cleanup, and license maintenance
 ├── backend/
 │   ├── config/                 Runner entrypoints, registries, and cron helpers
-│   ├── scraping/               Selenium scrapers for chains, coming-soon pages, and cinematheques
+│   ├── scraping/               Requests-first scrapers with Selenium fallback for chains, coming-soon pages, and cinematheques
 │   ├── dataflow/               Cleaning, TMDb matching, enrichment, dedupe, and preview generation
 │   └── utils/                  Console UI, logging artifacts, and Supabase helpers
 ├── packages/contracts/         Shared Zod contracts and pure domain helpers
@@ -348,7 +348,7 @@ The coordinated Production auth transition is complete; its migration, account c
 - `backend/config/runner.py` is the main entry point for local, weekly, and GitHub Actions runs.
 - `backend/config/job_supervisor.py` gives each selected pipeline run (starting after the local plan menu) and each realtime solo Update a whole-process deadline. Defaults are 4h 30m and 30m; `PIPELINE_JOB_DEADLINE_SECONDS` and `PIPELINE_SOLO_UPDATE_DEADLINE_SECONDS` override them. On timeout or shutdown, the supervisor stops the worker process group, escalates to a kill after a bounded grace period, and makes a bounded best-effort attempt to release an allocated run lock. `PIPELINE_TERMINATION_GRACE_SECONDS` controls the default 20-second shutdown window, including up to 5 seconds reserved for run-lock cleanup.
 - `backend/config/runners.py` runs selected scrapers through six timing-aware workers, then coordinates the shared Clean → TMDB → Update dataflow stages and runtime reporting.
-- `backend/scraping/BaseCinema.py` defines the base Selenium scraping contract used across all cinema sources.
+- `backend/scraping/BaseCinema.py` defines transport selection, collection validation, and clean whole-scrape Selenium fallback. Full comparison evidence and per-scraper status are in [the November 9 transport recheck](docs/scraping/full-retest-2026-11-09.md).
 - `backend/dataflow/nowplayings/NowPlayingsTmdb.py` handles now-playing grouping, TMDb matching, and movement into final showtime/movie tables.
 - `backend/dataflow/nowplayings/NowPlayingsUpdate.py` performs richer metadata enrichment for now-playing movies.
 - `backend/dataflow/comingsoons/ComingSoonsTmdb.py` matches and enriches coming-soon titles before final dedupe.

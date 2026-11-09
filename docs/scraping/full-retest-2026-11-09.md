@@ -2,7 +2,7 @@
 
 All 17 enabled scrapers were collected completely with both transports, without database uploads, publication, notifications, or timing-history writes. Output comparisons preserve every field, value, type, and duplicate. Holon remains disabled. No merge was performed.
 
-Sixteen scrapers have an exact complete pair in this recheck. Cinema City showtimes is the documented correctness exception: all 2,257 browser baseline rows matched; Requests had 52 additional screenings. A separate browser collection using the actual movie-page dropdowns matched all 52 additional rows exactly. That separate check is not presented as an exact full baseline pair.
+All **17 enabled scrapers now have exact complete Selenium/Requests pairs**. Cinema City showtimes now matches **2,313/2,313 across every field**, including the current age restrictions; its coming-soon collector matches **47/47**. The earlier Cinema City exception is resolved: our Selenium selector targeted a replaceable poster panel, so a card in its alternate details state could be skipped even though it was on the homepage. Both collectors now count and discover the persistent outer movie cards. No sitemap workaround is used. See [the homepage diagnosis and retained comparisons](cinema-city-homepage-fix-2026-11-09.md).
 
 ## Latest qualifying pairs
 
@@ -15,7 +15,7 @@ Times include setup, discovery, metadata, schedules, parsing, validation, and cl
 | MovieLand | 96.7s | 7.8s | 891/891 exact |
 | HotCinema | 136.5s | 36.3s | 2,191/2,191 exact |
 | YesPlanet | 102.0s | 34.8s | 2,997/2,997 exact |
-| CinemaCity | 229.7s | 2.1s | 2,257 exact shared; 52 extras independently verified in browser |
+| CinemaCity | 229.0s | 2.2s | 2,313/2,313 exact |
 | JAFCtheque | 4.1s | 1.5s | 28/28 exact |
 | SSCtheque | 5.3s | 1.5s | 23/23 exact |
 | HERZtheque | 133.7s | 60.1s | 50/50 exact |
@@ -24,7 +24,7 @@ Times include setup, discovery, metadata, schedules, parsing, validation, and cl
 | TLVtheque | 143.4s | 4.0s | 302/302 exact |
 | LCsoon | 32.6s | 15.1s | 20/20 exact |
 | YPsoon | 19.4s | 7.0s | 27/27 exact |
-| CCsoon | 46.8s | 0.7s | 48/48 exact |
+| CCsoon | 34.5s | 0.7s | 47/47 exact |
 | HCsoon | 87.6s | 8.6s | 47/47 exact |
 | MLsoon | 24.2s | 5.6s | 40/40 exact |
 
@@ -46,9 +46,11 @@ The previously authorized transport-history migration had already been applied b
 
 ## Verification and evidence
 
-- 688 backend tests passed after the fixes, including atomic ticket extraction, filter reset, current-date selection, response readiness, and Lev empty-booking evidence.
+- 692 backend tests passed after the fixes, including atomic ticket extraction, filter reset, current-date selection, response readiness, and Lev empty-booking evidence.
 - The independent comparison command is `python -m backend.scraping.compare all --output DIR --capture-source-responses --workers 3`. Reversed pairs use `--first requests`.
 - [Manifest](evidence/2026-11-09/full-retest/manifest.json) lists **every** complete pair, mismatch, timeout, row count, coverage summary, request count, and archive path. [Captured outputs and source responses](evidence/2026-11-09/full-retest/captures.tar.gz) include failed attempts as well as successful reruns, direct Cinema City browser proof, and Yes Planet diagnosis.
 - Runtime fallback remains Requests first, then a clean whole Selenium collection on observable collection/validation failure. It does not compare both outputs in production and cannot guarantee detection of all silent source changes.
 
 No percentage claim about total pipeline speedup is made.
+
+The subsequent Cinema City homepage fix adds [a separate evidence manifest](evidence/2026-11-09/cinema-city-homepage/manifest.json) and retained [full captures](evidence/2026-11-09/cinema-city-homepage/comparisons.tar.gz). These include the mismatches during the source age-restriction update; no differing rows were excluded to obtain an exact result.
