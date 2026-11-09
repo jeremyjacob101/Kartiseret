@@ -84,6 +84,14 @@ const expectedPipelineTableColumns = {
     "updated_at",
     "transport",
   ],
+  tmdb_movie_details_cache: [
+    "tmdb_id",
+    "response_profile",
+    "payload",
+    "original_release_date",
+    "fetched_at",
+    "cache_format_version",
+  ],
   letterboxd_event_alerts: [
     "id",
     "user_id",
