@@ -1479,6 +1479,124 @@ describe("PostgreSQL 17 integration", () => {
     );
   });
 
+  it("combines the four Jerusalem cinemas for the same film and date", async () => {
+    const tmdbId = 9201001;
+    const title = "Jerusalem Four Venue Fixture";
+    const dateResult = await adminDatabase.pool.query<{ date: string }>(
+      "SELECT to_char(CURRENT_DATE + 14, 'YYYY-MM-DD') AS date",
+    );
+    const date = dateResult.rows[0]?.date;
+    expect(date).toBeDefined();
+
+    await adminDatabase.db.insert(schema.finalMovies).values({
+      tmdbId,
+      englishTitle: title,
+      releaseYear: 2026n,
+      soloUpdate: false,
+    });
+    await adminDatabase.db.insert(schema.finalThequeMovies).values({
+      tmdbId,
+      englishTitle: title,
+      releaseYear: 2026,
+      soloUpdate: false,
+    });
+    await adminDatabase.db.insert(schema.finalShowtimes).values([
+      {
+        tmdbId,
+        englishTitle: title,
+        screeningCity: "Jerusalem",
+        dateOfShowing: date!,
+        cinema: "Cinema City Jerusalem",
+        showtime: "18:00:00",
+        englishHref: "https://tickets.example/cinema-city",
+        screeningTech: "2D",
+        screeningType: "Regular",
+      },
+      {
+        tmdbId,
+        englishTitle: title,
+        screeningCity: "Jerusalem",
+        dateOfShowing: date!,
+        cinema: "Yes Planet Jerusalem",
+        showtime: "19:00:00",
+        englishHref: "https://tickets.example/yes-planet",
+        screeningTech: "2D",
+        screeningType: "Regular",
+      },
+    ]);
+    await adminDatabase.db.insert(schema.finalTheques).values([
+      {
+        tmdbId,
+        englishTitle: title,
+        screeningCity: "Jerusalem",
+        dateOfShowing: date!,
+        cinema: "Sam Spiegel Cinema",
+        showtime: "20:00:00",
+        englishHref: "https://tickets.example/sam-spiegel",
+        screeningTech: "35mm",
+        screeningType: "Special",
+        runId: 9100000,
+      },
+      {
+        tmdbId,
+        englishTitle: title,
+        screeningCity: "Jerusalem",
+        dateOfShowing: date!,
+        cinema: "Jerusalem Cinematheque",
+        showtime: "21:00:00",
+        englishHref: "https://tickets.example/jerusalem-cinematheque",
+        screeningTech: "2D",
+        screeningType: "Regular",
+        runId: 9100000,
+      },
+    ]);
+
+    const response = await request(app).get(
+      `/api/v1/showtimes?city=Jerusalem&startDate=${date}&endDate=${date}&tmdbId=${tmdbId}`,
+    );
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(
+      response.body.data.showtimes.map((row: { cinema: string }) => row.cinema),
+    ).toEqual([
+      "Cinema City Jerusalem",
+      "Yes Planet Jerusalem",
+      "Jerusalem Cinematheque",
+      "Sam Spiegel Cinema",
+    ]);
+    expect(response.body.data.showtimes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          cinema: "Cinema City Jerusalem",
+          englishHref: "https://tickets.example/cinema-city",
+          screeningTech: "2D",
+          screeningType: "Regular",
+        }),
+        expect.objectContaining({
+          cinema: "Sam Spiegel Cinema",
+          englishHref: "https://tickets.example/sam-spiegel",
+          screeningTech: "35mm",
+          screeningType: "Special",
+        }),
+      ]),
+    );
+
+    const wrongCity = await request(app).get(
+      `/api/v1/showtimes?city=Tel%20Aviv&startDate=${date}&endDate=${date}&tmdbId=${tmdbId}`,
+    );
+    expect(wrongCity.status).toBe(200);
+    expect(wrongCity.body.data.showtimes).toEqual([]);
+
+    const wrongDateResult = await adminDatabase.pool.query<{ date: string }>(
+      "SELECT to_char(CURRENT_DATE + 15, 'YYYY-MM-DD') AS date",
+    );
+    const wrongDate = wrongDateResult.rows[0]?.date;
+    const isolatedDate = await request(app).get(
+      `/api/v1/showtimes?city=Jerusalem&startDate=${wrongDate}&endDate=${wrongDate}&tmdbId=${tmdbId}`,
+    );
+    expect(isolatedDate.status).toBe(200);
+    expect(isolatedDate.body.data.showtimes).toEqual([]);
+  });
+
   it("uses a metadata read for an empty code lookup and never builds invalid SQL", async () => {
     await expect(
       new DrizzleCatalogRepository(runtimeDatabase.db).findMovieCodes([]),
