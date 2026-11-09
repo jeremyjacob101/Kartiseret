@@ -271,18 +271,19 @@ export async function getShowtimeRange(
   repository: PublicDataRepository,
   range: PublicShowtimeRange,
 ): Promise<PublicShowtime[]> {
-  const rows = await repository.findShowtimeRows(range);
-  return rows
-    .filter((value) => {
+  const [rows, cinemathequeRows] = await Promise.all([
+    repository.findShowtimeRows(range),
+    repository.findCinemathequeRows(range),
+  ]);
+  const completeRows = (values: readonly unknown[]) =>
+    values.filter((value) => {
       const tmdbId = readField(value, "tmdbId");
       const city = readField(value, "screeningCity");
       const date = readField(value, "dateOfShowing");
       const cinema = readField(value, "cinema");
       const showtime = readField(value, "showtime");
 
-      // These physical columns are nullable. Rows without a movie, city,
-      // theater, date, or local time cannot appear in the existing UI and are
-      // omitted just as the former browser mapper omitted incomplete rows.
+      // Rows with nullable identity or schedule fields cannot appear in the UI.
       return (
         tmdbId !== null &&
         city !== null &&
@@ -296,8 +297,35 @@ export async function getShowtimeRange(
         typeof showtime === "string" &&
         showtime.trim().length > 0
       );
-    })
-    .map(mapDatabaseShowtime);
+    });
+  const ordinaryShowtimes = completeRows(rows).map(mapDatabaseShowtime);
+  const cinemaShowtimes = cinemathequeRows.flatMap((value) => {
+    const parsed = databaseCinemathequeRowSchema.safeParse(value);
+    if (
+      !parsed.success ||
+      readField(parsed.data.movie, "soloUpdate") === true
+    ) {
+      return [];
+    }
+    return completeRows([parsed.data.showtime]).map(mapDatabaseShowtime);
+  });
+  const showtimesByIdentity = new Map<string, PublicShowtime>();
+  for (const showtime of [...ordinaryShowtimes, ...cinemaShowtimes]) {
+    const identity = [
+      showtime.tmdbId,
+      showtime.screeningCity,
+      showtime.dateOfShowing,
+      showtime.cinema,
+      showtime.showtime,
+      showtime.screeningTech,
+      showtime.screeningType,
+      showtime.dubLanguage ?? "",
+      showtime.englishHref ?? "",
+      showtime.hebrewHref ?? "",
+    ].join("\u001f");
+    showtimesByIdentity.set(identity, showtime);
+  }
+  return [...showtimesByIdentity.values()];
 }
 
 export type PublicCinemaPageContext = {

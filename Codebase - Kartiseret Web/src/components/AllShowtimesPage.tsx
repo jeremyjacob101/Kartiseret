@@ -512,6 +512,7 @@ export function AllShowtimesPage() {
                     key={`${effectiveSelectedDayPanel.date}-${movie.tmdbId}`}
                     movie={movie}
                     theaters={theaters}
+                    city={location}
                     sources={sources}
                     onOpenTrailer={setOpenTrailerMovieId}
                   />

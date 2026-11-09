@@ -76,12 +76,7 @@ function createRepository(
     findNowPlayingRows: vi.fn(async () => [nowPlaying]),
     findMovieCodes: vi.fn(async () => new Map([["9100001", "Ab1"]])),
     findComingSoonRows: vi.fn(async () => [comingSoon]),
-    findCinemathequeRows: vi.fn(async () => [
-      {
-        movie: nowPlaying,
-        showtime: { ...databaseShowtime, cinema: "Jerusalem Cinematheque" },
-      },
-    ]),
+    findCinemathequeRows: vi.fn(async () => []),
     findShowtimeRows: vi.fn(async () => [databaseShowtime]),
     findMovieShowtimeRows: vi.fn(async () => [databaseShowtime]),
     findTheaterCityRows: vi.fn(async () => []),
@@ -321,6 +316,15 @@ describe("public showtime service", () => {
     const failure = new Error("private database error");
     const onFailure = vi.fn();
     const repository = createRepository({
+      findCinemathequeRows: vi.fn(async () => [
+        {
+          movie: nowPlaying,
+          showtime: {
+            ...databaseShowtime,
+            cinema: "Jerusalem Cinematheque",
+          },
+        },
+      ]),
       findMovieCodes: vi.fn(async () => {
         throw failure;
       }),
@@ -444,6 +448,50 @@ describe("public showtime service", () => {
         endDate: "2026-10-20",
       }),
     ).rejects.toBeInstanceOf(CatalogDataIntegrityError);
+  });
+
+  it("combines regular and cinematheque showtimes and removes exact duplicates", async () => {
+    const cinemathequeShowtime = {
+      ...databaseShowtime,
+      cinema: "Jerusalem Cinematheque",
+      showtime: "20:15:00",
+      screeningTech: "35mm",
+      screeningType: "Film",
+    };
+    const repository = createRepository({
+      findShowtimeRows: vi.fn(async () => [
+        databaseShowtime,
+        cinemathequeShowtime,
+      ]),
+      findCinemathequeRows: vi.fn(async () => [
+        { movie: nowPlaying, showtime: cinemathequeShowtime },
+      ]),
+    });
+
+    const result = await getShowtimeRange(repository, {
+      city: "Jerusalem",
+      startDate: "2026-10-20",
+      endDate: "2026-10-20",
+      tmdbId: "9100001",
+    });
+
+    expect(result.map((showtime) => showtime.cinema)).toEqual([
+      "Cinema City",
+      "Jerusalem Cinematheque",
+    ]);
+    expect(result[1]).toMatchObject({
+      screeningCity: "Jerusalem",
+      dateOfShowing: "2026-10-20",
+      showtime: "20:15",
+      screeningTech: "35mm",
+      screeningType: "Film",
+    });
+    expect(repository.findCinemathequeRows).toHaveBeenCalledWith({
+      city: "Jerusalem",
+      startDate: "2026-10-20",
+      endDate: "2026-10-20",
+      tmdbId: "9100001",
+    });
   });
 });
 

@@ -3,7 +3,7 @@ import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { type Movie } from "../data/movieCatalog";
 import { Search } from "lucide-react";
 
-export type MovieSearchMode = "nowPlaying" | "comingSoon";
+export type MovieSearchMode = "nowPlaying" | "comingSoon" | "cinematheque";
 
 export type MovieSearchCollection = {
   mode: MovieSearchMode;
@@ -19,11 +19,13 @@ export type MovieSearchResult = {
   imageSrc: string;
   mode: MovieSearchMode;
   sectionLabel: string;
+  isCinematheque: boolean;
 };
 
 type MovieSearchMenuProps = {
   collections: readonly MovieSearchCollection[];
   loading?: boolean;
+  cinemathequeUnavailable?: boolean;
   onOpen?: () => void;
   panelDirection?: "down" | "up";
   triggerTabIndex?: number;
@@ -70,6 +72,7 @@ function getSearchScore(movie: Movie, query: string): number {
 export function MovieSearchMenu({
   collections,
   loading = false,
+  cinemathequeUnavailable = false,
   onOpen,
   panelDirection = "down",
   triggerTabIndex,
@@ -127,35 +130,50 @@ export function MovieSearchMenu({
       return [] as MovieSearchResult[];
     }
 
-    return collections
-      .flatMap((collection) =>
-        collection.movies
-          .map((movie) => ({
-            result: {
-              tmdbId: movie.tmdbId,
-              movieCode: movie.movieCode,
-              title: movie.title,
-              year: movie.year,
-              imageSrc: movie.imageSrc,
-              mode: collection.mode,
-              sectionLabel: collection.label,
-            } satisfies MovieSearchResult,
-            score: getSearchScore(movie, normalizedQuery),
-          }))
-          .filter((entry) => entry.score > 0))
+    const candidates = new Map<string, MovieSearchResult>();
+    const scores = new Map<string, number>();
+    for (const collection of collections) {
+      for (const movie of collection.movies) {
+        const score = getSearchScore(movie, normalizedQuery);
+        if (score === 0) continue;
+        const existing = candidates.get(movie.tmdbId);
+        const isCinematheque =
+          collection.mode === "cinematheque" || existing?.isCinematheque;
+        const useCurrent =
+          !existing ||
+          (existing.mode === "cinematheque" &&
+            collection.mode !== "cinematheque");
+        if (useCurrent) {
+          candidates.set(movie.tmdbId, {
+            tmdbId: movie.tmdbId,
+            movieCode: movie.movieCode,
+            title: movie.title,
+            year: movie.year,
+            imageSrc: movie.imageSrc,
+            mode: collection.mode,
+            sectionLabel: collection.label,
+            isCinematheque: Boolean(isCinematheque),
+          });
+          scores.set(movie.tmdbId, score);
+        } else if (isCinematheque && existing && !existing.isCinematheque) {
+          candidates.set(movie.tmdbId, { ...existing, isCinematheque: true });
+        }
+      }
+    }
+
+    return [...candidates.values()]
       .sort((left, right) => {
-        if (right.score !== left.score) {
-          return right.score - left.score;
+        const scoreDifference =
+          (scores.get(right.tmdbId) ?? 0) - (scores.get(left.tmdbId) ?? 0);
+        if (scoreDifference !== 0) return scoreDifference;
+        if (left.year !== right.year) {
+          return right.year - left.year;
         }
 
-        if (left.result.year !== right.result.year) {
-          return right.result.year - left.result.year;
-        }
-
-        return left.result.title.localeCompare(right.result.title);
+        return left.title.localeCompare(right.title);
       })
       .slice(0, MAX_RESULTS)
-      .map((entry) => entry.result);
+      .map((entry) => entry);
   }, [collections, normalizedQuery]);
 
   function handleQueryChange(event: ChangeEvent<HTMLInputElement>) {
@@ -200,7 +218,7 @@ export function MovieSearchMenu({
               type="search"
               value={query}
               onChange={handleQueryChange}
-              placeholder="Search now playing and coming soon"
+              placeholder="Search movies and cinematheque titles"
             />
           </label>
 
@@ -238,12 +256,27 @@ export function MovieSearchMenu({
                       {result.title}
                     </span>
                     <span className="movie-search-result-meta">
-                      {result.sectionLabel} • {result.year || "Unknown year"}
+                      {result.mode === "cinematheque"
+                        ? result.year || "Unknown year"
+                        : `${result.sectionLabel} • ${result.year || "Unknown year"}`}
                     </span>
+                    {result.isCinematheque ? (
+                      <span className="movie-search-cinematheque-label">
+                        Cinematheque
+                      </span>
+                    ) : null}
                   </span>
                 </button>
               ))
             )}
+            {cinemathequeUnavailable ? (
+              <p
+                className="movie-search-cinematheque-unavailable"
+                role="status"
+              >
+                Cinematheque titles could not be loaded.
+              </p>
+            ) : null}
           </div>
         </div>
       ) : null}
