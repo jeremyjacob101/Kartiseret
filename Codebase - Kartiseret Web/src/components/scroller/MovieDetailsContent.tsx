@@ -14,77 +14,13 @@ import { ShowtimeFilterMenu } from "../showtimes/ShowtimeFilterMenu";
 import { ShowtimeDayPicker } from "../showtimes/ShowtimeDayPicker";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TheaterMapDialog } from "../maps/TheaterMapDialog";
+import { getTheaterTheme } from "../showtimes/theaterTheme";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { TicketAlertControl } from "./TicketAlertControl";
 import { useShallow } from "zustand/react/shallow";
 import { createPortal } from "react-dom";
 import { Link } from "react-router";
 
-type TheaterTheme = {
-  accent: string;
-  surface: string;
-  glow: string;
-  pillBackground?: string;
-  pillClassName?: string;
-};
-
-const theaterThemes: Record<string, TheaterTheme> = {
-  "Yes Planet": {
-    accent: "#d9710f",
-    surface: "rgba(255, 154, 61, 0.12)",
-    glow: "rgba(217, 113, 15, 0.28)",
-    pillClassName: "details-time-pill--yes-planet",
-  },
-  "Cinema City": {
-    accent: "#186bdf",
-    surface: "rgba(94, 168, 255, 0.12)",
-    glow: "rgba(24, 107, 223, 0.3)",
-    pillClassName: "details-time-pill--cinema-city",
-  },
-  "Lev Cinema": {
-    accent: "#b50519",
-    surface: "rgba(255, 107, 107, 0.12)",
-    glow: "rgba(181, 5, 25, 0.28)",
-    pillClassName: "details-time-pill--lev-cinema",
-  },
-  "Rav Hen": {
-    accent: "#ab5306",
-    surface: "rgba(255, 177, 74, 0.14)",
-    glow: "rgba(13, 6, 218, 0.32)",
-    pillBackground:
-      "linear-gradient(135deg, rgba(79, 146, 255, 0.22), rgba(255, 177, 74, 0.18))",
-    pillClassName: "details-time-pill--rav-hen",
-  },
-  "Hot Cinema": {
-    accent: "#f06a87",
-    surface: "rgba(255, 79, 160, 0.14)",
-    glow: "rgba(240, 106, 135, 0.32)",
-    pillClassName: "details-time-pill--hot-cinema",
-  },
-  MovieLand: {
-    accent: "#a80371",
-    surface: "rgba(88, 0, 58, 0.12)",
-    glow: "rgba(168, 3, 113, 0.3)",
-    pillClassName: "details-time-pill--movieland",
-  },
-};
-const fallbackTheaterThemes: TheaterTheme[] = [
-  {
-    accent: "#d29bff",
-    surface: "rgba(210, 155, 255, 0.12)",
-    glow: "rgba(210, 155, 255, 0.28)",
-  },
-  {
-    accent: "#ffd166",
-    surface: "rgba(255, 209, 102, 0.12)",
-    glow: "rgba(255, 209, 102, 0.28)",
-  },
-  {
-    accent: "#7bdff2",
-    surface: "rgba(123, 223, 242, 0.12)",
-    glow: "rgba(123, 223, 242, 0.28)",
-  },
-];
 const showtimeDateFormatter = new Intl.DateTimeFormat(undefined, {
   timeZone: APP_TIME_ZONE,
   weekday: "long",
@@ -312,13 +248,6 @@ function getTmdbUrl(movie: Movie): string {
   }
 
   return `https://www.themoviedb.org/movie/${encodeURIComponent(tmdbId)}`;
-}
-
-function getTheaterTheme(theater: string, index: number): TheaterTheme {
-  return (
-    theaterThemes[theater] ??
-    fallbackTheaterThemes[index % fallbackTheaterThemes.length]
-  );
 }
 
 function hasRating(value: number | null | undefined): value is number {
@@ -1590,6 +1519,7 @@ export function MovieDetailsContent({
                           const colors = getTheaterTheme(
                             theater.theater,
                             theaterIndex,
+                            location,
                           );
                           const cinemaIdentity = findCinemaIdentityForScreening(
                             location,

@@ -7,11 +7,13 @@ import { MoviePosterArtwork } from "../MoviePosterArtwork";
 export function ShowtimesMovieRow({
   movie,
   theaters,
+  city,
   sources,
   onOpenTrailer,
 }: {
   movie: Movie;
   theaters: readonly TheaterShowtimes[];
+  city?: string;
   sources: readonly RatingSource[];
   onOpenTrailer: (movieId: string) => void;
 }) {
@@ -73,7 +75,7 @@ export function ShowtimesMovieRow({
       </div>
 
       <div className="all-showtimes-theaters">
-        <ShowtimeTheaters movie={movie} theaters={theaters} />
+        <ShowtimeTheaters movie={movie} theaters={theaters} city={city} />
       </div>
     </article>
   );

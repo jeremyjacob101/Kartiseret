@@ -168,15 +168,28 @@ export const publicShowtimeRangeQuerySchema = z
     }
   });
 
-export const publicCinemathequeQuerySchema = z.union([
-  publicShowtimeRangeQuerySchema,
-  z
-    .object({
-      city: appLocationSchema,
-      startDate: isoDateStringSchema,
-    })
-    .strict(),
-]);
+export const publicCinemathequeQuerySchema = z
+  .object({
+    city: appLocationSchema.optional(),
+    startDate: isoDateStringSchema,
+    endDate: isoDateStringSchema.optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.endDate) {
+      const rangeLength =
+        calendarDayNumber(value.endDate) -
+        calendarDayNumber(value.startDate) +
+        1;
+      if (rangeLength < 1 || rangeLength > maximumShowtimeRangeDays) {
+        context.addIssue({
+          code: "custom",
+          path: ["endDate"],
+          message: `The requested range must contain 1–${maximumShowtimeRangeDays} days.`,
+        });
+      }
+    }
+  });
 
 export type PublicCinemathequeQuery = z.output<
   typeof publicCinemathequeQuerySchema

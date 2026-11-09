@@ -1,5 +1,6 @@
 import { adminMovieEditMutationOptions, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, movieCollectionQueryOptions, reloadComingSoonMovies, reloadNowPlayingMovies, showtimeCityQueryOptions, type Movie } from "./data/movieCatalog";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { getCinemathequeDateRange, nationwideCinemathequeQueryOptions } from "./data/cinemathequeCatalog";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
 import { useMovieDisplayPreferences } from "./contexts/MovieDisplayPreferencesContext";
 import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
@@ -396,6 +397,8 @@ function MainApplication() {
     })),
   );
   const pathname = routeLocation.pathname;
+  const [cinemathequeSearchEnabled, setCinemathequeSearchEnabled] =
+    useState(false);
   const { data: isAdmin = false } = useQuery({
     ...adminStatusQueryOptions(user?.id ?? null),
     enabled: Boolean(user),
@@ -411,6 +414,13 @@ function MainApplication() {
   const comingSoonQuery = useQuery({
     ...movieCollectionQueryOptions("comingSoon"),
     enabled: shouldLoadCatalog,
+  });
+  const cinemathequeSearchQuery = useQuery({
+    ...nationwideCinemathequeQueryOptions(
+      getCinemathequeDateRange().endDate,
+      publicationRevision,
+    ),
+    enabled: cinemathequeSearchEnabled,
   });
   const showtimeCityQuery = useQuery({
     ...showtimeCityQueryOptions(selectedCity, publicationRevision),
@@ -750,6 +760,11 @@ function MainApplication() {
     });
   }, []);
 
+  const handleSearchOpen = useCallback(() => {
+    handleCatalogLoadRequest();
+    setCinemathequeSearchEnabled(true);
+  }, [handleCatalogLoadRequest]);
+
   const handleAdminSaveEdit = useCallback(
     async (payload: {
       mode: MovieSearchMode;
@@ -816,6 +831,10 @@ function MainApplication() {
 
   const handleMovieSearchSelect = useCallback(
     (result: MovieSearchResult) => {
+      if (result.mode === "cinematheque") {
+        navigate("/cinematheques");
+        return;
+      }
       if (result.movieCode) {
         navigate(`/${result.movieCode}`);
         return;
@@ -882,19 +901,30 @@ function MainApplication() {
       label: "Coming Soon",
       movies: catalogReady ? comingSoonMovies : [],
     },
+    {
+      mode: "cinematheque" as const,
+      label: "Cinematheque",
+      movies: cinemathequeSearchQuery.data?.movies ?? [],
+    },
   ];
 
   return (
     <div className="app-shell">
       <Navbar
         catalogReady={catalogReady}
+        searchLoading={
+          cinemathequeSearchEnabled && cinemathequeSearchQuery.isFetching
+        }
+        cinemathequeUnavailable={
+          cinemathequeSearchEnabled && cinemathequeSearchQuery.isError
+        }
         miniNavPortalTarget={miniNavPortalTarget}
         searchCollections={searchCollections}
         settingsDisabled={!user || loading}
         onAllShowtimesNavClick={handleAllShowtimesNavClick}
         onHomeClick={handleFloatingHomeClick}
         onMoviesNavClick={handleMoviesNavClick}
-        onSearchOpen={handleCatalogLoadRequest}
+        onSearchOpen={handleSearchOpen}
         onSelectResult={handleMovieSearchSelect}
         onSettingsClick={handleSettingsClick}
         onSoonsNavClick={handleSoonsNavClick}

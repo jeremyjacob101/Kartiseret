@@ -21,6 +21,8 @@ function getWindowScrollY(): number {
 
 type NavbarActionsProps = {
   catalogReady: boolean;
+  searchLoading: boolean;
+  cinemathequeUnavailable: boolean;
   searchCollections: readonly MovieSearchCollection[];
   settingsDisabled: boolean;
   variant?: "inline" | "floating";
@@ -32,6 +34,8 @@ type NavbarActionsProps = {
 
 export type NavbarProps = {
   catalogReady: boolean;
+  searchLoading?: boolean;
+  cinemathequeUnavailable?: boolean;
   miniNavPortalTarget?: HTMLDivElement | null;
   searchCollections: readonly MovieSearchCollection[];
   settingsDisabled: boolean;
@@ -46,6 +50,8 @@ export type NavbarProps = {
 
 function NavbarActions({
   catalogReady,
+  searchLoading,
+  cinemathequeUnavailable,
   searchCollections,
   settingsDisabled,
   variant = "inline",
@@ -68,7 +74,8 @@ function NavbarActions({
     >
       <MovieSearchMenu
         collections={searchCollections}
-        loading={!catalogReady}
+        loading={!catalogReady || searchLoading}
+        cinemathequeUnavailable={cinemathequeUnavailable}
         onOpen={onSearchOpen}
         panelDirection={isFloating ? "up" : "down"}
         triggerTabIndex={triggerTabIndex}
@@ -139,6 +146,8 @@ function NavbarActions({
 
 export function Navbar({
   catalogReady,
+  searchLoading = false,
+  cinemathequeUnavailable = false,
   miniNavPortalTarget,
   searchCollections,
   settingsDisabled,
@@ -524,6 +533,8 @@ export function Navbar({
             </nav>
             <NavbarActions
               catalogReady={catalogReady}
+              searchLoading={searchLoading}
+              cinemathequeUnavailable={cinemathequeUnavailable}
               searchCollections={searchCollections}
               settingsDisabled={settingsDisabled}
               onSearchOpen={onSearchOpen}
@@ -539,6 +550,8 @@ export function Navbar({
           actions={
             <NavbarActions
               catalogReady={catalogReady}
+              searchLoading={searchLoading}
+              cinemathequeUnavailable={cinemathequeUnavailable}
               searchCollections={searchCollections}
               settingsDisabled={settingsDisabled}
               variant="floating"

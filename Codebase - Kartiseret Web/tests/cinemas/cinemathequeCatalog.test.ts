@@ -1,5 +1,5 @@
+import { cinemathequeQueryOptions, nationwideCinemathequeQueryOptions } from "../../src/data/cinemathequeCatalog";
 import { PUBLICATION_REVISION_HEADER } from "@kartiseret/contracts/public-data";
-import { cinemathequeQueryOptions } from "../../src/data/cinemathequeCatalog";
 import { fixedAppDateString } from "../../src/data/movieCatalog";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
@@ -54,6 +54,49 @@ describe("cinematheque query", () => {
       showtimes: [],
       publicationRevision: "7",
     });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    queryClient.clear();
+  });
+
+  it("requests the nationwide cinematheque collection without a city parameter", async () => {
+    const endDate = "2026-11-22";
+    const fetchMock = vi.fn(async (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ) => {
+      expect(String(input)).toBe(
+        `/api/v1/cinematheques?startDate=${fixedAppDateString}&endDate=${endDate}`,
+      );
+      expect(new Headers(init?.headers).get(PUBLICATION_REVISION_HEADER)).toBe(
+        "7",
+      );
+      return new Response(
+        JSON.stringify({
+          data: {
+            movies: [sampleMovie],
+            movieCodesStatus: "ready",
+            showtimes: [],
+          },
+          error: null,
+        }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            [PUBLICATION_REVISION_HEADER]: "7",
+          },
+        },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    await queryClient.fetchQuery(
+      nationwideCinemathequeQueryOptions(endDate, "7"),
+    );
+
     expect(fetchMock).toHaveBeenCalledTimes(1);
     queryClient.clear();
   });

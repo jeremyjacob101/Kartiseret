@@ -323,10 +323,12 @@ export class DrizzleCatalogRepository
   ): Promise<readonly unknown[]> {
     try {
       const conditions = [
-        eq(finalTheques.screeningCity, range.city),
         gte(finalTheques.dateOfShowing, range.startDate),
         eq(finalThequeMovies.soloUpdate, false),
       ];
+      if (range.city) {
+        conditions.push(eq(finalTheques.screeningCity, range.city));
+      }
       if (range.endDate) {
         conditions.push(lte(finalTheques.dateOfShowing, range.endDate));
       }

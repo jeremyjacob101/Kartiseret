@@ -290,7 +290,7 @@ function createPublicDataRepository(
   return {
     ...catalog,
     findComingSoonRows: vi.fn(async () => [comingSoonMovie]),
-    findCinemathequeRows: vi.fn(async () => [cinemathequeRow]),
+    findCinemathequeRows: vi.fn(async () => []),
     findShowtimeRows: vi.fn(async () => [showtime]),
     findMovieShowtimeRows: vi.fn(async () => [showtime]),
     findTheaterCityRows: vi.fn(async () => [
@@ -583,6 +583,25 @@ describe("Express API composition", () => {
     });
   });
 
+  it("returns regular and matching cinematheque venues in one showtime response", async () => {
+    const repository = createPublicDataRepository({
+      findCinemathequeRows: vi.fn(async () => [cinemathequeRow]),
+    });
+    const response = await request(
+      createApp({
+        catalogRepository: repository,
+        publicDataRepository: repository,
+      }),
+    ).get(
+      "/api/v1/showtimes?city=Jerusalem&startDate=2026-10-20&endDate=2026-10-21&tmdbId=9100001",
+    );
+
+    expect(response.status).toBe(200);
+    expect(
+      response.body.data.showtimes.map((row: { cinema: string }) => row.cinema),
+    ).toEqual(["Cinema City", "Jerusalem Cinematheque"]);
+  });
+
   it.each([
     "city=Jerusalem&startDate=2026-10-20&endDate=2026-10-19",
     "city=Jerusalem&startDate=2026-02-30&endDate=2026-03-01",
@@ -603,7 +622,9 @@ describe("Express API composition", () => {
   });
 
   it("serves cinematheque movie details and screenings from the dedicated data path", async () => {
-    const repository = createPublicDataRepository();
+    const repository = createPublicDataRepository({
+      findCinemathequeRows: vi.fn(async () => [cinemathequeRow]),
+    });
     const response = await request(
       createApp({
         catalogRepository: repository,
@@ -658,6 +679,31 @@ describe("Express API composition", () => {
     });
   });
 
+  it("serves nationwide cinematheque search results without a city filter", async () => {
+    const repository = createPublicDataRepository({
+      findCinemathequeRows: vi.fn(async () => [cinemathequeRow]),
+    });
+    const response = await request(
+      createApp({
+        catalogRepository: repository,
+        publicDataRepository: repository,
+      }),
+    ).get("/api/v1/cinematheques?startDate=2026-10-20&endDate=2026-10-21");
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.showtimes).toEqual([
+      expect.objectContaining({
+        tmdbId: "9100001",
+        screeningCity: "Jerusalem",
+        cinema: "Jerusalem Cinematheque",
+      }),
+    ]);
+    expect(repository.findCinemathequeRows).toHaveBeenCalledWith({
+      startDate: "2026-10-20",
+      endDate: "2026-10-21",
+    });
+  });
+
   it("rejects invalid cinematheque ranges before querying the repository", async () => {
     const repository = createPublicDataRepository();
     const response = await request(
@@ -668,6 +714,19 @@ describe("Express API composition", () => {
     ).get(
       "/api/v1/cinematheques?city=Jerusalem&startDate=2026-10-21&endDate=2026-10-20",
     );
+
+    expect(response.status).toBe(400);
+    expect(repository.findCinemathequeRows).not.toHaveBeenCalled();
+  });
+
+  it("rejects oversized nationwide cinematheque ranges before querying the repository", async () => {
+    const repository = createPublicDataRepository();
+    const response = await request(
+      createApp({
+        catalogRepository: repository,
+        publicDataRepository: repository,
+      }),
+    ).get("/api/v1/cinematheques?startDate=2026-10-20&endDate=2027-05-01");
 
     expect(response.status).toBe(400);
     expect(repository.findCinemathequeRows).not.toHaveBeenCalled();
