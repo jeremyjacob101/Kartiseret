@@ -82,6 +82,7 @@ const expectedPipelineTableColumns = {
     "weekday",
     "recent_times",
     "updated_at",
+    "transport",
   ],
   letterboxd_event_alerts: [
     "id",
@@ -448,6 +449,7 @@ describe("PostgreSQL 17 integration", () => {
           "claim_pipeline_publication_checkpoint",
           "advance_pipeline_publication_checkpoint",
           "append_util_avg_time_history",
+          "append_util_avg_time_transport_history",
         ],
       ],
     );
@@ -462,6 +464,13 @@ describe("PostgreSQL 17 integration", () => {
       },
       {
         function_name: "append_util_avg_time_history",
+        service_execute: true,
+        api_execute: false,
+        anon_execute: false,
+        authenticated_execute: false,
+      },
+      {
+        function_name: "append_util_avg_time_transport_history",
         service_execute: true,
         api_execute: false,
         anon_execute: false,

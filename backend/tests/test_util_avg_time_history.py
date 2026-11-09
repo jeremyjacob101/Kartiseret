@@ -5,9 +5,11 @@ from unittest.mock import Mock, patch
 
 from backend.dataflow.utils.InitializeBaseDataflow import logSuccessfulRun as log_dataflow_run
 from backend.dataflow.utils.PublicationWorkspace import PublicationWorkspace
+from backend.utils.log.cloudflare_storage import LeaseLostError
 from backend.scraping.utils.InitializeBaseCinema import logSuccessfulRun as log_scrape_run
 from backend.utils.util_avg_time_history import (
     APPEND_RPC,
+    TRANSPORT_APPEND_RPC,
     average_recent_times,
     load_recent_averages,
     weekday_at,
@@ -52,6 +54,7 @@ class UtilAvgTimeHistoryTests(TestCase):
         client.table.assert_called_once_with("utilAvgTimeHistory")
         query.eq.assert_any_call("runner_machine", "m5_mac")
         query.eq.assert_any_call("weekday", "tuesday")
+        query.eq.assert_any_call('transport', 'legacy')
         query.in_.assert_called_once_with("name", ["Alpha", "Beta", "Gamma"])
 
     def test_average_lookup_returns_empty_for_missing_scope(self):
@@ -97,8 +100,57 @@ class UtilAvgTimeHistoryTests(TestCase):
                     ), patch(f"{module_name}.append_recent_duration") as record:
                         logger(runner)
                     record.assert_called_once_with(
-                        runner.supabase, runner_name, "intel_mac", "sunday", 12.0
+                        runner.supabase, runner_name, "intel_mac", "sunday", 12.0,
+                        **({'transport': 'legacy'} if runner_name == 'Cinema' else {}),
                     )
+
+    def test_transport_append_uses_separate_rpc_scope(self):
+        for transport in ('requests', 'selenium', 'requests_selenium_fallback'):
+            client = Mock()
+            append_recent_duration(client, 'Cinema', 'm5_mac', 'monday', 20, transport=transport)
+            client.rpc.assert_called_once_with(TRANSPORT_APPEND_RPC, {
+                'p_name': 'Cinema', 'p_runner_machine': 'm5_mac',
+                'p_weekday': 'monday', 'p_duration': 20.0, 'p_transport': transport,
+            })
+
+    def test_transport_lookup_never_combines_legacy_or_other_transports(self):
+        query = Mock()
+        query.select.return_value = query
+        query.eq.return_value = query
+        query.in_.return_value = query
+        query.execute.return_value.data = [{'name': 'Cinema', 'recent_times': [3, 5]}]
+        client = Mock()
+        client.table.return_value = query
+        self.assertEqual(load_recent_averages(client, ['Cinema'], 'm5_mac', 'monday', transport='requests'), {'Cinema': 4})
+        query.eq.assert_any_call('transport', 'requests')
+
+    def test_unknown_transport_cannot_read_or_write_history(self):
+        client = Mock()
+        with self.assertRaisesRegex(ValueError, 'transport'):
+            append_recent_duration(client, 'Cinema', 'm5_mac', 'monday', 20, transport='auto')
+        with self.assertRaisesRegex(ValueError, 'transport'):
+            load_recent_averages(client, ['Cinema'], 'm5_mac', 'monday', transport='auto')
+        client.table.assert_not_called()
+        client.rpc.assert_not_called()
+
+    def test_scraper_logs_actual_success_transport_and_fallback_inclusive_duration(self):
+        for transport in ('requests', 'selenium', 'requests_selenium_fallback'):
+            runner = type('Cinema', (), {})()
+            runner.startTime, runner._timing_weekday = 5.0, 'sunday'
+            runner._timing_transport, runner.supabase = transport, Mock()
+            with patch.dict('os.environ', {'RUNNER_MACHINE': 'intel_mac'}), patch('backend.scraping.utils.InitializeBaseCinema.runningGithubActions', False), patch('backend.scraping.utils.InitializeBaseCinema.time.perf_counter', return_value=17), patch('backend.scraping.utils.InitializeBaseCinema.append_recent_duration') as record:
+                log_scrape_run(runner)
+            record.assert_called_once_with(runner.supabase, 'Cinema', 'intel_mac', 'sunday', 12, transport=transport)
+
+    def test_timing_outage_is_advisory_after_successful_scrape(self):
+        runner = SimpleNamespace(startTime=1, _timing_weekday='monday', _timing_transport='requests', supabase=Mock())
+        with patch.dict('os.environ', {'RUNNER_MACHINE': 'intel_mac'}), patch('backend.scraping.utils.InitializeBaseCinema.runningGithubActions', False), patch('backend.scraping.utils.InitializeBaseCinema.append_recent_duration', side_effect=RuntimeError('RPC unavailable')), self.assertLogs('backend.scraping.utils.InitializeBaseCinema', level='WARNING'):
+            log_scrape_run(runner)
+
+    def test_timing_write_does_not_swallow_lease_loss(self):
+        runner = SimpleNamespace(startTime=1, _timing_weekday='monday', _timing_transport='requests', supabase=Mock())
+        with patch.dict('os.environ', {'RUNNER_MACHINE': 'intel_mac'}), patch('backend.scraping.utils.InitializeBaseCinema.runningGithubActions', False), patch('backend.scraping.utils.InitializeBaseCinema.append_recent_duration', side_effect=LeaseLostError('lease lost')), self.assertRaises(LeaseLostError):
+            log_scrape_run(runner)
 
     def test_solo_update_does_not_record_dataflow_duration(self):
         runner = type("Dataflow", (), {})()

@@ -8,6 +8,11 @@ class HERZtheque(BaseCinema):
     CINEMA_NAME = "Herziliya Cinematheque"
     SCREENING_CITY = "Herziliya"
     URL = "https://www.hcinema.org.il/"
+    DEFAULT_SCRAPE_MODE = "auto"
+
+    def requests_logic(self):
+        from backend.scraping.utils.HerzliyaRequests import collect_herzliya
+        return collect_herzliya(self)
 
     def logic(self):
         self.driver.set_page_load_timeout(45)

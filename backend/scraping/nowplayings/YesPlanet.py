@@ -9,6 +9,11 @@ import re
 class YesPlanet(QuickbookHelpers, BaseCinema):
     CINEMA_NAME = "Yes Planet"
     URL = "https://www.planetcinema.co.il/?lang=en_gb#/"
+    DEFAULT_SCRAPE_MODE = "auto"
+
+    def requests_logic(self):
+        from backend.scraping.utils.YesPlanetRequests import collect_yes_planet
+        return collect_yes_planet(self)
 
     month_mapping = {"January": "01", "February": "02", "March": "03", "April": "04", "May": "05", "June": "06", "July": "07", "August": "08", "September": "09", "October": "10", "November": "11", "December": "12"}
 
@@ -115,6 +120,7 @@ class YesPlanet(QuickbookHelpers, BaseCinema):
                         self.scrapeQuickbookShowtimes(name_to_idx)
 
     def scrapeQuickbookShowtimes(self, name_to_idx):
+        self.clearQuickbookMovieFilter()
         # Vue replaces the rows after a date change. Read plain values in one
         # browser task so a rerender cannot invalidate Selenium element handles
         # between the title, format, and ticket reads.

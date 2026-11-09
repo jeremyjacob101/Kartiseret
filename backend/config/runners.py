@@ -11,6 +11,7 @@ from rich.text import Text
 
 from backend.utils.console.progressBars import RunResult, RichRunUI
 from backend.config.registry import DATAFLOW_REGISTRY, POST_STAGE_DATAFLOW_CLASS_NAMES, REGISTRY
+from backend.scraping.BaseCinema import BaseCinema
 from backend.utils.log.artifact_logging import artifactPrinting
 from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
 from backend.utils.log.cloudflare_storage import LeaseLostError
@@ -37,6 +38,10 @@ def _run_attempt(spec, cls: type, key: str, run_id: int, attempt: int, request_c
         instance = spec.make_instance(cls, key, run_id, request_context)
         instance._artifact_item_name = cls.__name__
         instance._artifact_attempt = attempt
+        callback = getattr(spec, 'on_transport_change', None)
+        if callback:
+            start_weekday = getattr(instance, '_timing_weekday', None) or current_weekday()
+            instance._timing_transport_callback = lambda transport, elapsed: callback(cls, transport, elapsed, start_weekday)
         spec.run_instance(instance)
         ok = True
     except Exception as error:
@@ -62,23 +67,49 @@ def _run_attempt(spec, cls: type, key: str, run_id: int, attempt: int, request_c
     return RunResult(name=cls.__name__, secs=time.time() - starting_time, ok=ok, attempts=attempt)
 
 
-def _average_times(classes: list[type]) -> dict[str, float]:
+def _preferred_timing_transport(cls: type) -> str:
+    if not issubclass(cls, BaseCinema):
+        return 'legacy'
+    mode = cls.DEFAULT_SCRAPE_MODE or ('selenium' if cls.USES_BROWSER else 'auto')
+    return 'requests' if mode in ('auto', 'requests') else 'selenium'
+
+
+def _average_times(classes: list[type], *, transport: str | None = None, weekday: str | None = None) -> dict[str, float]:
     averages: dict[str, float] = {}
     url, service_key = os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     machine = os.environ.get("RUNNER_MACHINE")
     if not url or not service_key or not machine or not classes:
         return averages
     try:
-        averages = load_recent_averages(
-            create_client(url, service_key),
-            [cls.__name__ for cls in classes],
-            machine,
-            current_weekday(),
-        )
+        client, weekday = create_client(url, service_key), weekday or current_weekday()
+        groups = {}
+        for cls in classes:
+            groups.setdefault(transport or _preferred_timing_transport(cls), []).append(cls.__name__)
+        for selected, names in groups.items():
+            averages.update(load_recent_averages(client, names, machine, weekday, transport=selected))
     except Exception:
         # Missing timing history must not prevent a run.
         return {}
     return averages
+
+
+def _transport_estimate(cls, transport, elapsed, preferred_estimates, cache, *, weekday=None, preferred_weekday=None):
+    if transport == _preferred_timing_transport(cls) and (weekday is None or weekday == preferred_weekday):
+        return preferred_estimates.get(cls.__name__) or 60.0
+
+    def history(selected):
+        key = (cls, selected, weekday)
+        if key not in cache:
+            options = {'weekday': weekday} if weekday is not None else {}
+            cache[key] = _average_times([cls], transport=selected, **options).get(cls.__name__)
+        return cache[key]
+
+    estimate = history(transport)
+    if estimate is not None:
+        return estimate
+    if transport == 'requests_selenium_fallback':
+        return elapsed + (history('selenium') or 60.0)
+    return 60.0
 
 
 def _run_scheduled_scrapes(items: list[tuple[str, type]], run_id: int, *, console: Console) -> bool:
@@ -88,7 +119,8 @@ def _run_scheduled_scrapes(items: list[tuple[str, type]], run_id: int, *, consol
 
     classes = [cls for _key, cls in items]
     key_by_class = {cls: key for key, cls in items}
-    avg_by_name = _average_times(classes)
+    history_weekday = current_weekday()
+    avg_by_name = _average_times(classes, weekday=history_weekday)
     durations = [duration_to_milliseconds(avg_by_name.get(cls.__name__)) for cls in classes]
     pending = list(range(len(items)))
     attempts = [0] * len(items)
@@ -99,6 +131,9 @@ def _run_scheduled_scrapes(items: list[tuple[str, type]], run_id: int, *, consol
     # _run_attempt uses the attribute-based runner-spec interface used by
     # runGroup. Keep the shared scheduler on that same interface.
     scrape_spec = SimpleNamespace(**cinemaDictionary)
+    transport_events = queue.SimpleQueue()
+    transport_cache = {}
+    scrape_spec.on_transport_change = lambda cls, selected, elapsed, weekday=None: transport_events.put((cls, selected, elapsed, weekday))
 
     ui_spec = SimpleNamespace(
         count_label="Scrapers",
@@ -164,6 +199,18 @@ def _run_scheduled_scrapes(items: list[tuple[str, type]], run_id: int, *, consol
         with ThreadPoolExecutor(max_workers=WORKER_COUNT) as executor:
             recalculate(list(range(WORKER_COUNT)))
             while active or pending:
+                changed = False
+                while not transport_events.empty():
+                    cls, selected, elapsed, weekday = transport_events.get_nowait()
+                    estimate = _transport_estimate(cls, selected, elapsed, avg_by_name, transport_cache, weekday=weekday, preferred_weekday=history_weekday)
+                    index = classes.index(cls)
+                    duration = duration_to_milliseconds(estimate)
+                    if durations[index] != duration:
+                        durations[index] = duration
+                        ui.set_item_estimate(cls, estimate)
+                        changed = True
+                if changed:
+                    recalculate([])
                 ui.tick()
                 done_futures, _ = wait(active, timeout=0.2, return_when=FIRST_COMPLETED)
                 if not done_futures:
@@ -430,6 +477,9 @@ def runGroup(kind: str, key: str, run_id: int, *, classes_override: list[type] |
         return {} if return_results else True
 
     attempt_events: "queue.SimpleQueue[tuple]" = queue.SimpleQueue()
+    transport_cache = {}
+    if kind == 'cinema':
+        spec.on_transport_change = lambda cls, selected, elapsed, weekday=None: attempt_events.put(('transport', cls, selected, elapsed, weekday))
 
     def run_one(cls: type) -> RunResult:
         total_secs, last_attempt, ok = 0.0, 0, False
@@ -453,7 +503,11 @@ def runGroup(kind: str, key: str, run_id: int, *, classes_override: list[type] |
             except queue.Empty:
                 return
 
-            evt_type, item, attempt, started_at = evt
+            evt_type, item, attempt, started_at = evt[:4]
+            if evt_type == 'transport':
+                estimate = _transport_estimate(item, attempt, started_at, avg_by_name, transport_cache, weekday=evt[4], preferred_weekday=history_weekday)
+                ui.set_item_estimate(item, estimate)
+                continue
             if evt_type == "attempt_start":
                 if attempt == 1:
                     ui.start_item(item, attempt=attempt, started_at=started_at)
@@ -483,21 +537,8 @@ def runGroup(kind: str, key: str, run_id: int, *, classes_override: list[type] |
     # LOCAL MACHINE LOGIC
     if not RUNNING_NON_INTERACTIVE:
         FALLBACK = 60.0
-        avg_by_name: dict[str, float] = {}
-
-        url, svc_key = os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-        runner_machine = os.environ.get("RUNNER_MACHINE")
-        if url and svc_key and runner_machine:
-            try:
-                avg_by_name = load_recent_averages(
-                    create_client(url, svc_key),
-                    [cls.__name__ for cls in classes],
-                    runner_machine,
-                    current_weekday(),
-                )
-            except Exception:
-                # Timing history is advisory; missing history uses the default.
-                avg_by_name = {}
+        history_weekday = current_weekday()
+        avg_by_name = _average_times(classes, weekday=history_weekday)
 
         results: list[RunResult] = []
 

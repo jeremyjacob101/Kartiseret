@@ -168,6 +168,10 @@ class RichRunUI:
         self.status.update(task_id, description=f"[yellow]{_label(attempt, name)}[/yellow]", completed=0.0, time=f"[yellow]       [/yellow]", bar_color="#f266e0", failed=False, attempt=attempt)
         self.tick(now=started_at)
 
+    def set_item_estimate(self, item: Any, seconds: float) -> None:
+        self.est_by_item[item] = float(seconds)
+        self.status.update(self.status_task_id_by_item[item], total=float(seconds))
+
     def tick(self, now: Optional[float] = None) -> None:
         now = float(now if now is not None else time.time())
         done_count = len(self._done)

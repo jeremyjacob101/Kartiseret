@@ -554,12 +554,18 @@ export const utilAvgTimeHistory = pgTable(
     name: text("name").notNull(),
     runnerMachine: text("runner_machine").notNull(),
     weekday: text("weekday").notNull(),
+    transport: text("transport").notNull().default("legacy"),
     recentTimes: doublePrecision("recent_times").array().notNull().default([]),
     updatedAt: instant("updated_at").notNull().defaultNow(),
   },
   (table) => [
     primaryKey({
-      columns: [table.name, table.runnerMachine, table.weekday],
+      columns: [
+        table.name,
+        table.runnerMachine,
+        table.weekday,
+        table.transport,
+      ],
       name: "util_avg_time_history_pkey",
     }),
   ],

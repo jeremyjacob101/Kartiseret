@@ -25,6 +25,9 @@ class YesPlanetShowtimeTests(unittest.TestCase):
         scraper.ratings = ["12", "14"]
         scraper.runtimes = [155, 166]
         scraper.driver = Mock()
+        # Filter readiness is covered separately; these cases exercise the
+        # atomic extraction after the page has selected All Films.
+        scraper.clearQuickbookMovieFilter = Mock()
         scraper.driver.execute_script.return_value = list(screenings)
         return scraper
 
