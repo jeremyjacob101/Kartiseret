@@ -679,7 +679,7 @@ describe("Express API composition", () => {
     });
   });
 
-  it("serves nationwide cinematheque search results with optional movie filtering", async () => {
+  it("serves nationwide cinematheque search results without a city filter", async () => {
     const repository = createPublicDataRepository({
       findCinemathequeRows: vi.fn(async () => [cinemathequeRow]),
     });
@@ -688,9 +688,7 @@ describe("Express API composition", () => {
         catalogRepository: repository,
         publicDataRepository: repository,
       }),
-    ).get(
-      "/api/v1/cinematheques?startDate=2026-10-20&endDate=2026-10-21&tmdbId=9100001",
-    );
+    ).get("/api/v1/cinematheques?startDate=2026-10-20&endDate=2026-10-21");
 
     expect(response.status).toBe(200);
     expect(response.body.data.showtimes).toEqual([
@@ -703,7 +701,6 @@ describe("Express API composition", () => {
     expect(repository.findCinemathequeRows).toHaveBeenCalledWith({
       startDate: "2026-10-20",
       endDate: "2026-10-21",
-      tmdbId: "9100001",
     });
   });
 

@@ -50,6 +50,7 @@ function addApiRequestCapture(page: Page): string[] {
 async function getFixtureShowtimeDate(
   page: Page,
   city: string,
+  tmdbId = "9100001",
 ): Promise<string> {
   const startDate = getJerusalemCinemaDate(new Date());
   const endDate = addCalendarDays(startDate, 30);
@@ -62,15 +63,16 @@ async function getFixtureShowtimeDate(
       city,
       startDate,
       endDate,
-      tmdbId: "9100001",
+      tmdbId,
     })}`,
   );
   expect(response.ok()).toBe(true);
   const body = (await response.json()) as {
     data: { showtimes: Array<{ cinema: string; dateOfShowing: string }> };
   };
-  const fixture = body.data.showtimes.find((row) =>
-    row.cinema.startsWith("Development Cinema "));
+  const fixture =
+    body.data.showtimes.find((row) =>
+      row.cinema.startsWith("Development Cinema ")) ?? body.data.showtimes[0];
   if (!fixture) {
     throw new Error(`No seeded showtime fixture was found for ${city}.`);
   }
@@ -185,9 +187,9 @@ test("catalog API supports search and permanent short-code movie details", async
   await shortLinkPage.close();
 });
 
-test("nationwide cinematheque search opens a focused schedule on desktop and mobile", async ({
+test("nationwide cinematheque search leaves the existing cinema page unchanged", async ({
   page,
-}, testInfo) => {
+}) => {
   const requests = addApiRequestCapture(page);
   await page.goto("/movies");
 
@@ -211,78 +213,271 @@ test("nationwide cinematheque search opens a focused schedule on desktop and mob
   expect(nationwideParams.get("endDate")).toBeTruthy();
 
   await result.click();
-  await expect(page).toHaveURL(/\/cinematheques\?movie=9100012$/);
-  await expect(
-    page.getByRole("heading", {
-      name: "Dev Cinematheque Film · Cinematheque Showtimes",
-    }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("heading", {
-      name: "Jerusalem · Development Cinematheque",
-    }),
-  ).toBeVisible();
-  await expect(page.getByText("20:00", { exact: true })).toBeVisible();
-
-  const venueHeading = page.locator(".cinematheques-cinema-title").first();
-  await expect(venueHeading).toHaveCSS("color", "rgb(49, 162, 109)");
-  const timeChip = page
-    .locator(".cinematheques-times .cinematheques-time")
-    .first();
-  expect(
-    await timeChip.evaluate(
-      (element) => getComputedStyle(element).backgroundImage,
-    ),
-  ).toContain("linear-gradient");
-  const focusedPoster = page.getByRole("button", {
-    name: "View details for Dev Cinematheque Film",
-  });
-  expect((await focusedPoster.boundingBox())?.width).toBeLessThanOrEqual(130);
-  await page.screenshot({
-    path: testInfo.outputPath("cinematheque-desktop.png"),
-    fullPage: false,
-  });
-
-  await page
-    .getByRole("button", { name: "View details for Dev Cinematheque Film" })
-    .click();
-  await expect(
-    page.getByRole("dialog", { name: "Dev Cinematheque Film details" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Close movie details" }).click();
-
-  await page.goBack();
-  await expect(page).toHaveURL(/\/movies$/);
-  await page.goForward();
-  await expect(page).toHaveURL(/\/cinematheques\?movie=9100012$/);
-  await expect(
-    page.getByRole("heading", {
-      name: "Jerusalem · Development Cinematheque",
-    }),
-  ).toBeVisible();
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  const mobileWidth = await page.evaluate(() => ({
-    document: document.documentElement.scrollWidth,
-    viewport: window.innerWidth,
-  }));
-  expect(mobileWidth.document).toBeLessThanOrEqual(mobileWidth.viewport + 1);
-  const mobileTimeChip = await timeChip.boundingBox();
-  expect(mobileTimeChip).not.toBeNull();
-  expect(mobileTimeChip!.x + mobileTimeChip!.width).toBeLessThanOrEqual(
-    mobileWidth.viewport,
-  );
-  expect((await focusedPoster.boundingBox())?.width).toBeLessThanOrEqual(90);
-  await page.screenshot({
-    path: testInfo.outputPath("cinematheque-mobile.png"),
-    fullPage: false,
-  });
-
-  await page.getByRole("link", { name: "Clear movie filter" }).click();
   await expect(page).toHaveURL(/\/cinematheques$/);
   await expect(
     page.getByRole("heading", { name: "Cinematheque Showtimes" }),
   ).toBeVisible();
+  await expect(page.locator(".cinematheques-focus-controls")).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Development Cinematheque" }),
+  ).toBeVisible();
+});
+
+test("cinematheque showings appear after commercial cinemas in movie showtimes", async ({
+  page,
+}, testInfo) => {
+  const database = new Client({
+    connectionString: process.env.TEST_DATABASE_URL,
+  });
+  const target = new URL(process.env.TEST_DATABASE_URL ?? "http://invalid");
+  if (
+    !["localhost", "127.0.0.1", "::1"].includes(target.hostname) ||
+    target.pathname !== "/kartiseret_test"
+  ) {
+    throw new Error("Local disposable database required");
+  }
+
+  const tmdbId = 9201002;
+  const movieCode = "Wh9";
+  const title = "Wild Horse Nine";
+  await database.connect();
+  try {
+    const dateResult = await database.query<{ date: string }>(
+      "SELECT to_char(CURRENT_DATE + 14, 'YYYY-MM-DD') AS date",
+    );
+    const fixtureDate = dateResult.rows[0]?.date;
+    if (!fixtureDate) throw new Error("Could not calculate fixture date.");
+
+    await database.query(
+      `INSERT INTO public."finalMovies"
+        (tmdb_id, english_title, release_year, runtime, popularity, genres, solo_update)
+       VALUES ($1, $2, 2026, 117, 100, ARRAY['Comedy', 'Crime', 'Thriller'], false)`,
+      [tmdbId, title],
+    );
+    await database.query(
+      `INSERT INTO public."finalThequeMovies"
+        (tmdb_id, english_title, release_year, genres, solo_update)
+       VALUES ($1, $2, 2026, ARRAY['Comedy', 'Crime', 'Thriller'], false)`,
+      [tmdbId, title],
+    );
+    await database.query(
+      `INSERT INTO public."movieCodes" (tmdb_id, movie_code)
+       VALUES ($1, $2)`,
+      [tmdbId, movieCode],
+    );
+
+    const commercialShowtimes = [
+      ["Yes Planet", "10:00", "https://tickets.example/yes-planet"],
+      ["Cinema City", "11:30", "https://tickets.example/cinema-city"],
+      ["Lev Cinema", "14:00", "https://tickets.example/lev-cinema"],
+    ];
+    for (const [cinema, showtime, href] of commercialShowtimes) {
+      await database.query(
+        `INSERT INTO public."finalShowtimes"
+          (tmdb_id, english_title, cinema, screening_city, date_of_showing,
+           showtime, english_href, screening_tech, screening_type)
+         VALUES ($1, $2, $3, 'Jerusalem', $4, $5, $6, '2D', 'Regular')`,
+        [tmdbId, title, cinema, fixtureDate, showtime, href],
+      );
+    }
+
+    const cinemathequeShowtimes = [
+      [
+        "Jerusalem Cinematheque",
+        "16:00",
+        "https://tickets.example/jerusalem-cinematheque",
+        "2D",
+        "Regular",
+      ],
+      [
+        "Sam Spiegel Cinema",
+        "18:00",
+        "https://tickets.example/sam-spiegel",
+        "IMAX",
+        "Regular",
+      ],
+    ];
+    for (const [
+      cinema,
+      showtime,
+      href,
+      screeningTech,
+      screeningType,
+    ] of cinemathequeShowtimes) {
+      await database.query(
+        `INSERT INTO public."finalTheques"
+          (tmdb_id, english_title, screening_city, date_of_showing, cinema,
+           showtime, english_href, screening_tech, screening_type, run_id)
+         VALUES ($1, $2, 'Jerusalem', $3, $4, $5, $6, $7, $8, 9100000)`,
+        [
+          tmdbId,
+          title,
+          fixtureDate,
+          cinema,
+          showtime,
+          href,
+          screeningTech,
+          screeningType,
+        ],
+      );
+    }
+
+    await page.goto("/movies");
+    await page.getByRole("button", { name: "Search movies" }).click();
+    await page.getByRole("searchbox", { name: "Search movies" }).fill(title);
+    const result = page
+      .locator("button.movie-search-result")
+      .filter({ hasText: title });
+    await expect(result).toBeVisible();
+    await expect(
+      result.getByText("Cinematheque", { exact: true }),
+    ).toBeVisible();
+    expect(await result.count()).toBe(1);
+
+    const showtimeDate = await getFixtureShowtimeDate(
+      page,
+      "Jerusalem",
+      String(tmdbId),
+    );
+    await page.goto("/showtimes");
+    const dateButton = page.getByRole("radio", {
+      name: new RegExp(
+        escapeRegularExpression(dateCalendarLabel(showtimeDate)),
+      ),
+    });
+    await expect(dateButton).toBeVisible();
+    await dateButton.scrollIntoViewIfNeeded();
+    await dateButton.click();
+
+    const movieRow = page.locator(".all-showtimes-movie-row").filter({
+      has: page.getByRole("heading", { name: title, exact: true }),
+    });
+    await expect(movieRow).toBeVisible();
+    const venueNames = movieRow.locator(
+      ".details-theater-name > span:last-child",
+    );
+    await expect(venueNames).toHaveText([
+      "Yes Planet",
+      "Cinema City",
+      "Lev Cinema",
+      "Jerusalem Cinematheque",
+      "Sam Spiegel Cinema",
+    ]);
+
+    const venueDots = movieRow.locator(".details-theater-dot");
+    await expect(venueDots.nth(3)).toHaveCSS(
+      "background-color",
+      "rgb(49, 162, 109)",
+    );
+    await expect(venueDots.nth(4)).toHaveCSS(
+      "background-color",
+      "rgb(118, 201, 159)",
+    );
+    await expect(
+      movieRow.getByRole("link", {
+        name: /Open Wild Horse Nine 18:00 showtime at Sam Spiegel Cinema/,
+      }),
+    ).toHaveAttribute("href", "https://tickets.example/sam-spiegel");
+    await expect(movieRow.getByText("IMAX", { exact: true })).toBeVisible();
+
+    await movieRow.scrollIntoViewIfNeeded();
+    await movieRow.screenshot({
+      path: testInfo.outputPath("combined-showtimes-desktop.png"),
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    const mobileWidth = await page.evaluate(() => ({
+      document: document.documentElement.scrollWidth,
+      viewport: window.innerWidth,
+    }));
+    expect(mobileWidth.document).toBeLessThanOrEqual(mobileWidth.viewport + 1);
+    await movieRow.screenshot({
+      path: testInfo.outputPath("combined-showtimes-mobile.png"),
+    });
+
+    await page.getByRole("button", { name: "Filter showtimes" }).click();
+    const filterDialog = page.getByRole("dialog", { name: "Showtime filters" });
+    const filmFilter = filterDialog.getByRole("button", {
+      name: "IMAX",
+      exact: true,
+    });
+    await expect(filmFilter).toBeVisible();
+    await filmFilter.click();
+    await expect(venueNames).toHaveText([
+      "Yes Planet",
+      "Cinema City",
+      "Lev Cinema",
+      "Jerusalem Cinematheque",
+    ]);
+    await filmFilter.click();
+    await expect(venueNames).toHaveText([
+      "Yes Planet",
+      "Cinema City",
+      "Lev Cinema",
+      "Jerusalem Cinematheque",
+      "Sam Spiegel Cinema",
+    ]);
+
+    await page.goto(`/${movieCode}`);
+    await expect(
+      page.getByRole("heading", { name: title, exact: true }),
+    ).toBeVisible();
+    const movieDateButton = page.getByRole("radio", {
+      name: new RegExp(
+        escapeRegularExpression(dateCalendarLabel(showtimeDate)),
+      ),
+    });
+    await expect(movieDateButton).toBeVisible();
+    await movieDateButton.scrollIntoViewIfNeeded();
+    await movieDateButton.click();
+    const detailsDayPanel = page.locator(".details-day-panel");
+    await expect(detailsDayPanel).toHaveAttribute(
+      "data-showtime-date",
+      showtimeDate,
+    );
+    const detailVenueNames = detailsDayPanel.locator(
+      ".details-theater-name > span:last-child",
+    );
+    await expect(detailVenueNames).toHaveText([
+      "Yes Planet",
+      "Cinema City",
+      "Lev Cinema",
+      "Jerusalem Cinematheque",
+      "Sam Spiegel Cinema",
+    ]);
+    await expect(
+      detailsDayPanel.locator(".details-theater-dot").nth(3),
+    ).toHaveCSS("background-color", "rgb(49, 162, 109)");
+    await expect(
+      detailsDayPanel.getByRole("link", {
+        name: /Open Wild Horse Nine 18:00 showtime at Sam Spiegel Cinema/,
+      }),
+    ).toHaveAttribute("href", "https://tickets.example/sam-spiegel");
+    await page.locator(".movie-page-card").screenshot({
+      path: testInfo.outputPath("movie-detail-showtimes-desktop.png"),
+    });
+  } finally {
+    await database.query(
+      'DELETE FROM public."finalTheques" WHERE tmdb_id = $1',
+      [tmdbId],
+    );
+    await database.query(
+      'DELETE FROM public."finalShowtimes" WHERE tmdb_id = $1',
+      [tmdbId],
+    );
+    await database.query('DELETE FROM public."movieCodes" WHERE tmdb_id = $1', [
+      tmdbId,
+    ]);
+    await database.query(
+      'DELETE FROM public."finalThequeMovies" WHERE tmdb_id = $1',
+      [tmdbId],
+    );
+    await database.query(
+      'DELETE FROM public."finalMovies" WHERE tmdb_id = $1',
+      [tmdbId],
+    );
+    await database.end();
+  }
 });
 
 test("showtimes browse a real city/date and the active filter changes results", async ({

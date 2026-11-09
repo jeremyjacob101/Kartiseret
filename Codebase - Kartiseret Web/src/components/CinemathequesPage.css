@@ -35,50 +35,6 @@ html[data-device-type="mobile"] .cinematheques-page-title {
   font-size: 1rem;
 }
 
-.cinematheques-focus-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 0 20px;
-}
-
-.cinematheques-focus-clear {
-  border: 1px solid rgba(118, 201, 159, 0.38);
-  border-radius: 999px;
-  background: rgba(49, 162, 109, 0.1);
-  color: #a5e1be;
-  padding: 7px 11px;
-  font: inherit;
-  font-size: 0.82rem;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.cinematheques-focused-movie {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-}
-
-.cinematheques-focused-poster {
-  width: min(28vw, 130px);
-  flex: 0 0 auto;
-}
-
-.cinematheques-poster-button.cinematheques-focused-poster {
-  width: min(28vw, 130px);
-}
-
-.cinematheques-focused-movie .cinematheques-times {
-  min-width: 0;
-  flex: 1 1 auto;
-  margin-top: 0;
-}
-
-.cinematheques-time {
-  background: #31a26d;
-}
-
 .cinematheques-poster-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(130px, 160px));
@@ -171,14 +127,6 @@ html[data-device-type="mobile"] .cinematheques-page-title {
   .cinematheques-poster-grid {
     grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
     gap: 18px 12px;
-  }
-
-  .cinematheques-focus-controls {
-    margin-inline: 0;
-  }
-
-  .cinematheques-poster-button.cinematheques-focused-poster {
-    width: min(24vw, 90px);
   }
 }
 

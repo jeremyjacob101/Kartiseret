@@ -58,14 +58,14 @@ describe("cinematheque query", () => {
     queryClient.clear();
   });
 
-  it("requests nationwide cinematheque titles without a city parameter", async () => {
+  it("requests the nationwide cinematheque collection without a city parameter", async () => {
     const endDate = "2026-11-22";
     const fetchMock = vi.fn(async (
       input: RequestInfo | URL,
       init?: RequestInit,
     ) => {
       expect(String(input)).toBe(
-        `/api/v1/cinematheques?startDate=${fixedAppDateString}&endDate=${endDate}&tmdbId=${sampleMovie.tmdbId}`,
+        `/api/v1/cinematheques?startDate=${fixedAppDateString}&endDate=${endDate}`,
       );
       expect(new Headers(init?.headers).get(PUBLICATION_REVISION_HEADER)).toBe(
         "7",
@@ -94,7 +94,7 @@ describe("cinematheque query", () => {
     });
 
     await queryClient.fetchQuery(
-      nationwideCinemathequeQueryOptions(endDate, "7", sampleMovie.tmdbId),
+      nationwideCinemathequeQueryOptions(endDate, "7"),
     );
 
     expect(fetchMock).toHaveBeenCalledTimes(1);

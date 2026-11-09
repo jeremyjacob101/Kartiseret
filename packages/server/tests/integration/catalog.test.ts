@@ -1465,7 +1465,7 @@ describe("PostgreSQL 17 integration", () => {
     ).toEqual(["Development Cinema Jerusalem", "Development Cinematheque"]);
 
     const nationwide = await request(app).get(
-      `/api/v1/cinematheques?startDate=${date}&endDate=${date}&tmdbId=9100012`,
+      `/api/v1/cinematheques?startDate=${date}&endDate=${date}`,
     );
     expect(nationwide.status).toBe(200);
     expect(nationwide.body.data.showtimes).toEqual(

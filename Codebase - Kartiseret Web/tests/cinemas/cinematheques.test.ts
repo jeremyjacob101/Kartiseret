@@ -1,4 +1,4 @@
-import { buildCinemathequeSchedule, buildCinemathequeShowtimesByDate, buildFocusedCinemathequeSchedule, isCinemathequeTheaterName } from "../../src/data/cinematheques";
+import { buildCinemathequeSchedule, buildCinemathequeShowtimesByDate, isCinemathequeTheaterName } from "../../src/data/cinematheques";
 import type { PublicShowtime } from "@kartiseret/contracts/public-data";
 import { describe, expect, it } from "vitest";
 import { sampleMovie } from "../fixtures";
@@ -43,58 +43,6 @@ describe("cinematheque showtimes", () => {
     );
     expect(isCinemathequeTheaterName("Cinema City Jerusalem")).toBe(false);
     expect(isCinemathequeTheaterName("Lev Cinema")).toBe(false);
-  });
-
-  it("builds a focused nationwide schedule grouped by city and venue", () => {
-    const row: PublicShowtime = {
-      tmdbId: sampleMovie.tmdbId,
-      screeningCity: "Jerusalem",
-      dateOfShowing: "2028-01-01",
-      cinema: "Jerusalem Cinematheque",
-      showtime: "20:00",
-      englishHref: "https://tickets.example.test/en",
-      hebrewHref: null,
-      screeningTech: "35mm",
-      screeningType: "Film",
-      dubLanguage: null,
-    };
-    const otherCity = {
-      ...row,
-      screeningCity: "Tel Aviv",
-      cinema: "Jaffa Cinema",
-    };
-    const unrelatedMovie = {
-      ...row,
-      tmdbId: "999",
-      cinema: "Other Cinematheque",
-    };
-
-    expect(
-      buildFocusedCinemathequeSchedule(
-        [sampleMovie],
-        [row, otherCity, unrelatedMovie],
-        sampleMovie.tmdbId,
-      ),
-    ).toEqual([
-      {
-        date: "2028-01-01",
-        venues: [
-          expect.objectContaining({
-            city: "Jerusalem",
-            cinema: "Jerusalem Cinematheque",
-          }),
-          expect.objectContaining({ city: "Tel Aviv", cinema: "Jaffa Cinema" }),
-        ],
-      },
-    ]);
-    expect(
-      buildFocusedCinemathequeSchedule(
-        [sampleMovie],
-        [row, otherCity],
-        sampleMovie.tmdbId,
-        "Jerusalem",
-      ).flatMap((day) => day.venues.map((venue) => venue.city)),
-    ).toEqual(["Jerusalem"]);
   });
 
   it("groups dedicated API screenings and retains dates without screenings", () => {

@@ -173,7 +173,6 @@ export const publicCinemathequeQuerySchema = z
     city: appLocationSchema.optional(),
     startDate: isoDateStringSchema,
     endDate: isoDateStringSchema.optional(),
-    tmdbId: tmdbIdSchema.optional(),
   })
   .strict()
   .superRefine((value, context) => {
@@ -189,16 +188,6 @@ export const publicCinemathequeQuerySchema = z
           message: `The requested range must contain 1–${maximumShowtimeRangeDays} days.`,
         });
       }
-    }
-    if (
-      value.tmdbId !== undefined &&
-      Number(value.tmdbId) > postgresIntegerMaximum
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["tmdbId"],
-        message: "The movie ID is outside the supported database range.",
-      });
     }
   });
 

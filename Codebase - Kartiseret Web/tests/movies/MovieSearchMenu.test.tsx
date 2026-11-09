@@ -130,7 +130,7 @@ describe("MovieSearchMenu", () => {
     );
   });
 
-  it("returns cinematheque-only results for focused schedule navigation", async () => {
+  it("allows selecting cinematheque-only results and reports load failures", async () => {
     const user = userEvent.setup();
     const onlyAtCinematheque = movie({
       tmdbId: "103",

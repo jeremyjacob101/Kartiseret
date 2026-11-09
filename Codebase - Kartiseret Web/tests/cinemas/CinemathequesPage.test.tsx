@@ -50,10 +50,6 @@ function seedData() {
     ],
   };
   queryClient.setQueryData(cinemathequeQueryKeys.data(location), data);
-  queryClient.setQueryData(
-    cinemathequeQueryKeys.data(null, undefined, undefined, sampleMovie.tmdbId),
-    data,
-  );
 }
 
 beforeEach(() => {
@@ -205,39 +201,5 @@ describe("CinemathequesPage", () => {
     expect(
       screen.getByRole("link", { name: /20:00 showtime/ }),
     ).toHaveAttribute("href", "https://tickets.example.test/cinematheque");
-  });
-
-  it("opens a nationwide focused movie schedule from a direct query URL", () => {
-    render(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter
-          initialEntries={[`/cinematheques?movie=${sampleMovie.tmdbId}`]}
-        >
-          <Routes>
-            <Route path="/cinematheques" element={<CinemathequesPage />} />
-          </Routes>
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
-
-    expect(
-      screen.getByRole("heading", {
-        name: `${sampleMovie.title} · Cinematheque Showtimes`,
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Clear movie filter" }),
-    ).toHaveAttribute("href", "/cinematheques");
-    expect(screen.getByText("All cities")).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", {
-        name: `${DEFAULT_LOCATION} · Jerusalem Cinematheque`,
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", {
-        name: `View details for ${sampleMovie.title}`,
-      }),
-    ).toBeInTheDocument();
   });
 });

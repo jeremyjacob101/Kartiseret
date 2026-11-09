@@ -832,7 +832,7 @@ function MainApplication() {
   const handleMovieSearchSelect = useCallback(
     (result: MovieSearchResult) => {
       if (result.mode === "cinematheque") {
-        navigate(`/cinematheques?movie=${encodeURIComponent(result.tmdbId)}`);
+        navigate("/cinematheques");
         return;
       }
       if (result.movieCode) {
