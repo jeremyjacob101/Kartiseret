@@ -85,7 +85,7 @@ def cleanup_abandoned_publications(client, *, apply: bool, lease_guard=None) -> 
             eligible = result["eligible"]
         batch_deleted = result["deleted"]
         deleted += batch_deleted
-        if not apply or batch_deleted < PUBLICATION_DELETE_BATCH:
+        if not apply or batch_deleted == 0 or result["eligible"] <= batch_deleted:
             break
     return {"eligible": eligible or 0, "deleted": deleted}
 

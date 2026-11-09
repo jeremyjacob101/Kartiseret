@@ -155,6 +155,22 @@ class SharedCleanupTests(unittest.TestCase):
         self.assertEqual(client.rpc.call_count, 3)
         self.assertEqual(lease_guard.call_count, 3)
 
+    def test_publication_cleanup_retries_a_partial_batch_when_rows_remain_eligible(self):
+        client = Mock()
+        client.rpc.return_value.execute.side_effect = [
+            SimpleNamespace(data={"eligible": 100, "deleted": 99}),
+            SimpleNamespace(data={"eligible": 1, "deleted": 1}),
+        ]
+        lease_guard = Mock(spec=[])
+
+        result = shared_cleanup.cleanup_abandoned_publications(
+            client, apply=True, lease_guard=lease_guard,
+        )
+
+        self.assertEqual(result, {"eligible": 100, "deleted": 100})
+        self.assertEqual(client.rpc.call_count, 2)
+        self.assertEqual(lease_guard.call_count, 2)
+
     def test_publication_cleanup_rejects_malformed_rpc_result(self):
         client = Mock()
         client.rpc.return_value.execute.return_value.data = {"eligible": "7", "deleted": 0}
