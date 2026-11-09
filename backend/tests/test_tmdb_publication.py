@@ -95,7 +95,7 @@ class PublicationTests(TestCase):
             for stage in ("search", "enrich"):
                 with self.subTest(flow=path, stage=stage):
                     def fault(url, params):
-                        if (stage == "search" and url == "search/movie") or (stage == "enrich" and params.get("append_to_response") == "external_ids,videos"):
+                        if (stage == "search" and url == "search/movie") or (stage == "enrich" and params.get("append_to_response") == "external_ids,credits,videos"):
                             raise DataflowRequestError("provider unavailable")
                     flow = self.build_flow(path, [raw_row("1", "Alpha")], fault)
                     with self.assertRaises(DataflowRequestError):
@@ -197,7 +197,7 @@ class PublicationTests(TestCase):
         for path in FLOWS:
             with self.subTest(flow=path):
                 def missing_movie(url, params):
-                    if params.get("append_to_response") == "external_ids,videos":
+                    if params.get("append_to_response") == "external_ids,credits,videos":
                         return {}
                 flow = self.build_flow(path, [raw_row("1", "Alpha")], missing_movie)
                 flow.logic()

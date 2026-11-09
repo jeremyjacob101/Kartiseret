@@ -56,6 +56,18 @@ class ProviderFreshness:
             self.startProviderFreshness(target, target)
         state = target["provider_freshness"].setdefault(provider, {})
         state.update({key: deepcopy(value) for key, value in event.items()})
+        if event.get("outcome") == "cached":
+            source = deepcopy(event.get("source", {}))
+            observed_at = source.get("fetched_at")
+            fields = state.setdefault("fields", {})
+            for field in refreshed:
+                if field in FIELDS[provider]:
+                    fields[field] = {
+                        "state": "cached",
+                        "observed_at": observed_at,
+                        "source": source,
+                    }
+            return
         if event["outcome"] in ("success", "no_score", "no_data", "no_listing") and event.get("checked_at"):
             state["last_checked_at"] = event["checked_at"]
         refreshed = [field for field in refreshed if field in FIELDS[provider]]
@@ -83,7 +95,9 @@ class ProviderFreshness:
     def recordTmdbFreshness(self, target, data, tmdb_id, *, original=None, mapping=False):
         if original is not None:
             self.startProviderFreshness(original, target)
-        key = (f"movie/{tmdb_id}", (("append_to_response", "external_ids,videos"),))
+        from backend.dataflow.utils.DataflowRequests import TMDB_MOVIE_DETAILS_PARAMS
+
+        key = (f"movie/{tmdb_id}", tuple(sorted(TMDB_MOVIE_DETAILS_PARAMS.items())))
         with self._request_lock:
             event = deepcopy(getattr(self._request_context, "tmdb_observations", {}).get(key))
         if event is None:
@@ -139,7 +153,9 @@ class ProviderFreshness:
             tmdb_id = self.clean_int(row.get("tmdb_id"))
             previous = self.supabase.table(table).select("*").eq("tmdb_id", tmdb_id).execute().data or []
             self.startProviderFreshness(previous[0] if previous else {}, row)
-            key = (f"movie/{tmdb_id}", (("append_to_response", "external_ids,videos"),))
+            from backend.dataflow.utils.DataflowRequests import TMDB_MOVIE_DETAILS_PARAMS
+
+            key = (f"movie/{tmdb_id}", tuple(sorted(TMDB_MOVIE_DETAILS_PARAMS.items())))
             with self._request_lock:
                 pending = self._tmdb_cache.get(key)
             if pending is not None and pending.done() and pending.exception() is None:
