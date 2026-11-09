@@ -29,6 +29,7 @@ const app = createApp({
 const movieId = 2101000001;
 const cinema = "__publication_fixture__";
 const publications: string[] = [];
+const publicationCleanupRunIds: number[] = [];
 const publisherFinalSoonIds: string[] = [];
 const publisherFinalThequeIds: string[] = [];
 const repositoryRoot = resolve(
@@ -299,9 +300,107 @@ describe("atomic category publication and supported readers", () => {
       "delete from public.pipeline_publications where publication_id = any($1::uuid[])",
       [publications.splice(0)],
     );
+    await pool.query(
+      'delete from public."utilRunLogs" where run_id = any($1::int[])',
+      [publicationCleanupRunIds.splice(0)],
+    );
   });
   afterAll(async () => {
     await Promise.all([pool.end(), runtime.close()]);
+  });
+
+  it("prunes recent inactive preparations in dry-run and apply while preserving active runs and receipts", async () => {
+    const baseRunId = 1_500_000_000 + Math.floor(Math.random() * 100_000_000);
+    const cases = [
+      { status: "prepared", running: false },
+      { status: "prepared", running: true },
+      { status: "applied", running: false },
+    ] as const;
+    const ids: string[] = [];
+    for (const [index, item] of cases.entries()) {
+      const publicationId = randomUUID();
+      const runId = baseRunId + index;
+      ids.push(publicationId);
+      publications.push(publicationId);
+      publicationCleanupRunIds.push(runId);
+      await pool.query(
+        'insert into public."utilRunLogs" (run_id, running_now, run_from) values ($1,$2,$3)',
+        [runId, item.running, "publication-cleanup-test"],
+      );
+      await pool.query(
+        `insert into public.pipeline_publications
+           (publication_id,category,run_id,fingerprint,part_count,status,revision,completed_at)
+         values ($1,'nowplayings',$2,$3,1,$4,case when $4='applied' then 1 end,
+                 case when $4='applied' then now() end)`,
+        [publicationId, runId, digest(publicationId), item.status],
+      );
+      await pool.query(
+        "insert into public.pipeline_publication_parts(publication_id,part,payload) values ($1,0,$2)",
+        [publicationId, '{"kind":"claims","rows":[]}'],
+      );
+    }
+
+    const dryRun = await pool.query(
+      "select public.prune_abandoned_publications(false) result",
+    );
+    expect(dryRun.rows[0].result).toEqual({ eligible: 1, deleted: 0 });
+    const applied = await pool.query(
+      "select public.prune_abandoned_publications(true) result",
+    );
+    expect(applied.rows[0].result).toEqual({ eligible: 1, deleted: 1 });
+    const remaining = await pool.query(
+      `select p.status,count(x.part)::int staged_parts
+       from public.pipeline_publications p
+       left join public.pipeline_publication_parts x using (publication_id)
+       where p.publication_id = any($1::uuid[])
+       group by p.publication_id
+       order by p.status`,
+      [ids],
+    );
+    expect(remaining.rows).toEqual([
+      { status: "applied", staged_parts: 1 },
+      { status: "prepared", staged_parts: 1 },
+    ]);
+    const access = await pool.query(`select
+      has_function_privilege('service_role','public.prune_abandoned_publications(boolean)','EXECUTE') service_role,
+      has_function_privilege('anon','public.prune_abandoned_publications(boolean)','EXECUTE') anon`);
+    expect(access.rows[0]).toEqual({ service_role: true, anon: false });
+  });
+
+  it("deletes publications in 100-row batches and cascades their parts", async () => {
+    const ids = Array.from({ length: 101 }, () => randomUUID());
+    const baseRunId = 1_700_000_000 + Math.floor(Math.random() * 100_000_000);
+    const runIds = ids.map((_, index) => baseRunId + index);
+    publications.push(...ids);
+    await pool.query(
+      `insert into public.pipeline_publications
+         (publication_id,category,run_id,fingerprint,part_count,status)
+       select publication_id,'nowplayings',run_id,fingerprint,1,'prepared'
+       from unnest($1::uuid[],$2::int[],$3::text[]) as rows(publication_id,run_id,fingerprint)`,
+      [ids, runIds, ids.map(digest)],
+    );
+    await pool.query(
+      `insert into public.pipeline_publication_parts(publication_id,part,payload)
+       select publication_id,0,'{"kind":"claims","rows":[]}'
+       from unnest($1::uuid[]) as rows(publication_id)`,
+      [ids],
+    );
+
+    const firstBatch = await pool.query(
+      "select public.prune_abandoned_publications(true) result",
+    );
+    expect(firstBatch.rows[0].result).toEqual({ eligible: 101, deleted: 100 });
+    const lastBatch = await pool.query(
+      "select public.prune_abandoned_publications(true) result",
+    );
+    expect(lastBatch.rows[0].result).toEqual({ eligible: 1, deleted: 1 });
+    const remaining = await pool.query(
+      `select
+         (select count(*)::int from public.pipeline_publications where publication_id=any($1::uuid[])) publications,
+         (select count(*)::int from public.pipeline_publication_parts where publication_id=any($1::uuid[])) parts`,
+      [ids],
+    );
+    expect(remaining.rows[0]).toEqual({ publications: 0, parts: 0 });
   });
 
   it("runs through the restricted publisher login and reconciles a lost commit acknowledgement", async () => {

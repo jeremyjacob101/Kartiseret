@@ -2,7 +2,7 @@ name: Daily Shared Cleanup
 
 on:
   schedule:
-    - cron: "0 2 * * *" # GitHub may start scheduled workflows later than this.
+    - cron: "0 2 * * *" # Daily shared catalog and storage cleanup.
   workflow_dispatch:
     inputs:
       target:
@@ -105,7 +105,7 @@ jobs:
         include:
           - target: development
           - target: production
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && vars.KARTISERET_SHARED_CLEANUP_ENABLED == 'true')
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && github.event.schedule == '0 2 * * *' && vars.KARTISERET_SHARED_CLEANUP_ENABLED == 'true')
     concurrency:
       group: kartiseret-shared-cleanup-${{ matrix.target }}
       cancel-in-progress: false

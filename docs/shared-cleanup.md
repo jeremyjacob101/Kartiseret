@@ -2,6 +2,10 @@
 
 `backend.utils.log.shared_cleanup` is the one preflight and scheduled cleanup entry point. It runs the established Supabase old-entry sweep, final-movie orphan sweeps, 30-day artwork and social-card cleanup, the existing D1 screenshot retention check, and a conservative audit of old orphan run artifacts.
 
+The separate `weekly_publication_cleanup.yml` GitHub Actions workflow runs every Sunday at 03:00 UTC. It removes every `prepared` publication whose `utilRunLogs.running_now` flag is false or whose run record no longer exists; there is no minimum age. Applied receipts are preserved, and deleting a preparation cascades to its staged JSON parts. The cleanup reports eligible and deleted publication counts without fetching payloads, processes at most 100 publications per database call, and verifies the target lease between batches. If another job holds the lease, it reports a safe skip for the next weekly run.
+
+Apply the `weekly_publication_cleanup` Supabase migration to development and production before merging the new workflow; merging then enables the Sunday schedule automatically. The standalone workflow can also be dispatched manually for a selected target, with the same dry-run/apply choice. Its `--publications-only` path uses the target lease but does not consult or update the daily cleanup marker.
+
 ## Safety and coordination
 
 - Each target uses its own D1 lease. A confirmed heartbeat every 10 seconds gives it another 120 seconds. D1 server time decides expiry; an expired token cannot renew or release its replacement. This covers pipeline preflight, publication, finalization, daily cleanup, and standalone commands.

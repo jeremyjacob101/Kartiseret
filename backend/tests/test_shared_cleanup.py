@@ -125,6 +125,81 @@ class SharedCleanupTests(unittest.TestCase):
                 shared_cleanup.run_shared_cleanup(self.store, lease_token="held", target="development", apply=True)
         retention.assert_not_called()
 
+    def test_publication_cleanup_dry_run_reports_candidates_without_repeating(self):
+        client = Mock()
+        client.rpc.return_value.execute.return_value.data = {"eligible": 7, "deleted": 0}
+        lease_guard = Mock(spec=[])
+
+        result = shared_cleanup.cleanup_abandoned_publications(
+            client, apply=False, lease_guard=lease_guard,
+        )
+
+        self.assertEqual(result, {"eligible": 7, "deleted": 0})
+        client.rpc.assert_called_once_with("prune_abandoned_publications", {"p_apply": False})
+        lease_guard.assert_called_once_with()
+
+    def test_publication_cleanup_applies_all_batches_and_verifies_lease_each_time(self):
+        client = Mock()
+        client.rpc.return_value.execute.side_effect = [
+            SimpleNamespace(data={"eligible": 235, "deleted": 100}),
+            SimpleNamespace(data={"eligible": 135, "deleted": 100}),
+            SimpleNamespace(data={"eligible": 35, "deleted": 35}),
+        ]
+        lease_guard = Mock(spec=[])
+
+        result = shared_cleanup.cleanup_abandoned_publications(
+            client, apply=True, lease_guard=lease_guard,
+        )
+
+        self.assertEqual(result, {"eligible": 235, "deleted": 235})
+        self.assertEqual(client.rpc.call_count, 3)
+        self.assertEqual(lease_guard.call_count, 3)
+
+    def test_publication_cleanup_rejects_malformed_rpc_result(self):
+        client = Mock()
+        client.rpc.return_value.execute.return_value.data = {"eligible": "7", "deleted": 0}
+        with self.assertRaisesRegex(RuntimeError, "invalid result"):
+            shared_cleanup.cleanup_abandoned_publications(client, apply=False)
+
+    def test_publications_only_cli_runs_under_lease_without_daily_marker(self):
+        lease = nullcontext((self.store, "held"))
+        with patch.object(shared_cleanup, "_load_target"), patch.object(
+            shared_cleanup, "maintenance_lease", return_value=lease,
+        ), patch.object(
+            shared_cleanup, "_supabase_client", return_value=object(),
+        ), patch.object(
+            shared_cleanup, "cleanup_abandoned_publications",
+            return_value={"eligible": 3, "deleted": 3},
+        ) as cleanup, patch.object(shared_cleanup, "run_shared_cleanup") as daily_cleanup:
+            result = shared_cleanup.main([
+                "--target", "development", "--publications-only", "--apply",
+            ])
+
+        self.assertEqual(result, 0)
+        cleanup.assert_called_once()
+        daily_cleanup.assert_not_called()
+
+    def test_publications_only_cli_skips_when_another_run_holds_lease(self):
+        with patch.object(shared_cleanup, "_load_target"), patch.object(
+            shared_cleanup, "maintenance_lease", return_value=nullcontext(None),
+        ), patch.object(shared_cleanup, "cleanup_abandoned_publications") as cleanup:
+            result = shared_cleanup.main([
+                "--target", "development", "--publications-only", "--dry-run",
+            ])
+
+        self.assertEqual(result, 0)
+        cleanup.assert_not_called()
+
+    def test_publication_cleanup_has_a_separate_weekly_workflow(self):
+        daily = Path(".github/workflows/daily_shared_cleanup.yml").read_text()
+        weekly = Path(".github/workflows/weekly_publication_cleanup.yml").read_text()
+        self.assertIn('"0 2 * * *"', daily)
+        self.assertNotIn("0 3 * * 0", daily)
+        self.assertIn('"0 3 * * 0"', weekly)
+        self.assertIn("workflow_dispatch:", weekly)
+        self.assertIn("--publications-only", weekly)
+        self.assertIn("concurrency:", weekly)
+
     def test_publication_reference_source_rejects_missing_pages(self):
         from backend.dataflow.utils.PublicationWorkspace import PublicationWorkspace
         client = Mock()
