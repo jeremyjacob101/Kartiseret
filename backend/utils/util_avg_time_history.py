@@ -1,4 +1,4 @@
-"""Helpers for weekday-specific rolling runner duration history."""
+"""Rolling duration history scoped by runner machine, weekday and transport."""
 
 from datetime import datetime
 from math import isfinite
@@ -10,6 +10,8 @@ WEEKDAY_ORDER = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturd
 WEEKDAYS = frozenset(WEEKDAY_ORDER)
 HISTORY_TABLE = "utilAvgTimeHistory"
 APPEND_RPC = "append_util_avg_time_history"
+TRANSPORT_APPEND_RPC = "append_util_avg_time_transport_history"
+TIMING_TRANSPORTS = frozenset({'legacy', 'requests', 'selenium', 'requests_selenium_fallback'})
 HISTORY_LIMIT = 5
 
 
@@ -49,8 +51,12 @@ def load_recent_averages(
     names: list[str],
     runner_machine: str | None,
     weekday: str,
+    *,
+    transport: str = 'legacy',
 ) -> dict[str, float]:
-    """Load averages for one machine and weekday; missing rows stay missing."""
+    """Load one machine/weekday/transport; missing buckets stay missing."""
+    if transport not in TIMING_TRANSPORTS:
+        raise ValueError('Unknown timing transport')
     if not names or not runner_machine or weekday not in WEEKDAYS:
         return {}
 
@@ -59,6 +65,7 @@ def load_recent_averages(
         .select("name,recent_times")
         .eq("runner_machine", runner_machine)
         .eq("weekday", weekday)
+        .eq('transport', transport)
         .in_("name", names)
         .execute()
     )
@@ -78,8 +85,12 @@ def append_recent_duration(
     runner_machine: str,
     weekday: str,
     duration_seconds: float,
+    *,
+    transport: str = 'legacy',
 ) -> None:
     """Append a successful duration through Postgres' atomic rolling update."""
+    if transport not in TIMING_TRANSPORTS:
+        raise ValueError('Unknown timing transport')
     try:
         duration = float(duration_seconds)
     except (TypeError, ValueError, OverflowError) as error:
@@ -89,12 +100,12 @@ def append_recent_duration(
     if not name or not name.strip() or not runner_machine or not runner_machine.strip() or weekday not in WEEKDAYS:
         raise ValueError("runner name, machine, and a lowercase weekday are required")
 
-    supabase.rpc(
-        APPEND_RPC,
-        {
-            "p_name": name,
-            "p_runner_machine": runner_machine,
-            "p_weekday": weekday,
-            "p_duration": duration,
-        },
-    ).execute()
+    params = {
+        "p_name": name,
+        "p_runner_machine": runner_machine,
+        "p_weekday": weekday,
+        "p_duration": duration,
+    }
+    if transport != 'legacy':
+        params['p_transport'] = transport
+    supabase.rpc(APPEND_RPC if transport == 'legacy' else TRANSPORT_APPEND_RPC, params).execute()

@@ -1,0 +1,12 @@
+{
+  "python_tests": 60,
+  "postgres_tests": 30,
+  "typescript_integration_typecheck": "passed",
+  "targeted_eslint": "passed",
+  "targeted_prettier": "passed",
+  "local_security_advisors": {
+    "results": [],
+    "message": "db advisors"
+  },
+  "hosted_migration_applied": false
+}

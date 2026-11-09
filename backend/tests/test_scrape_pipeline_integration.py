@@ -34,6 +34,15 @@ class ExampleCinema(BaseCinema):
 
 
 class ScrapePipelineIntegrationTests(TestCase):
+    def test_forced_selenium_records_only_the_browser_transport(self):
+        self.scraper.scrape_mode = 'selenium'
+        self.scraper.requests_logic = Mock(side_effect=AssertionError('Unexpected HTTP attempt'))
+        self.scraper._timing_transport_callback = Mock()
+        self.scraper.scrape()
+        self.assertEqual(self.scraper._timing_transport, 'selenium')
+        self.scraper.requests_logic.assert_not_called()
+        self.assertEqual(self.scraper._timing_transport_callback.call_args.args[0], 'selenium')
+
     def test_fallback_refreshes_source_calendar_after_new_year_rollover(self):
         self.scraper.today_date = datetime(2026, 12, 31, 23, 59)
         self.scraper.current_year, self.scraper.current_month = '2026', '12'
@@ -74,6 +83,7 @@ class ScrapePipelineIntegrationTests(TestCase):
         self.scraper.finishScrapeSnapshot = Mock(side_effect=lambda n: events.append(('complete', n)))
         self.scraper.scrape()
         self.chrome.assert_not_called()
+        self.assertEqual(self.scraper._timing_transport, 'requests')
         rows = self.scraper.supabase.table.return_value.insert.call_args.args[0]
         saved = events[0][1]
         self.assertEqual(saved['rows'], rows)
@@ -102,6 +112,7 @@ class ScrapePipelineIntegrationTests(TestCase):
         self.assertEqual(successful['rows'][0]['english_title'], 'Browser film')
         self.assertEqual(successful['rows'][0]['snapshot_id'], self.scraper.snapshot_id)
         self.assertEqual(self.scraper._timing_weekday, weekday)
+        self.assertEqual(self.scraper._timing_transport, 'requests_selenium_fallback')
         self.chrome.assert_called_once()
         diagnostics = [call.kwargs['metadata'] for call in self.store.save_text_artifact.call_args_list]
         self.assertEqual([d['transport'] for d in diagnostics], ['requests', 'selenium'])

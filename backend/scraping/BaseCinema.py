@@ -105,6 +105,12 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
         navigate(self)
         self.selenium_logic()
 
+    def _set_timing_transport(self, transport):
+        self._timing_transport = transport
+        callback = getattr(self, '_timing_transport_callback', None)
+        if callback:
+            callback(transport, time.perf_counter() - self.startTime)
+
     def _reset_collection(self, initial_attributes):
         # A fallback must not reuse partial rows or source-specific lists.
         for attribute in set(self.__dict__) - initial_attributes:
@@ -177,6 +183,7 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
         catalog_published = False
         self._uploaded_scrape_rows = None
         self._fallback_from = None
+        self._timing_transport = None
         try:
             self.startScrapeSnapshot()
             mode = getattr(self, "scrape_mode", "selenium" if self.USES_BROWSER else "requests")
@@ -185,6 +192,7 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
             initial_attributes = set(self.__dict__)
             collection_started = time.perf_counter()
             if mode == "selenium":
+                self._set_timing_transport('selenium')
                 try:
                     self._collect_selenium()
                 except (LeaseLostError, R2BudgetError, R2BudgetExceeded):
@@ -194,6 +202,7 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
                     raise
                 self._record_collection('selenium', collection_started, 'complete')
             else:
+                self._set_timing_transport('requests')
                 try:
                     self.requests_logic()
                     self._validate_requests_collection()
@@ -214,6 +223,7 @@ class BaseCinema(ScrapingHelpers, ScrapedFixes, InitializeBaseCinema, AppendToIn
                         self._artifact_item_name = previous_name
                     self._reset_collection(initial_attributes)
                     self._fallback_from = failed_attempt
+                    self._set_timing_transport('requests_selenium_fallback')
                     self.startScrapeSnapshot()
                     self._coverage = {}
                     fallback_started = time.perf_counter()
