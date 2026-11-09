@@ -73,6 +73,25 @@ def _render_stage_breakdown(summary: dict) -> list[str]:
     return lines
 
 
+def _render_tmdb_metrics(summary: dict) -> list[str]:
+    metrics = summary.get("tmdb_metrics") or {}
+    lines = ["", "TMDB REQUEST / CACHE METRICS"]
+    if not metrics:
+        lines.append("- (none)")
+        return lines
+    search = int(metrics.get("tmdb_search_http_requests") or 0)
+    details = int(metrics.get("tmdb_movie_detail_http_requests") or 0)
+    other = int(metrics.get("tmdb_other_http_requests") or 0)
+    lines.extend([
+        f"- Scope: {metrics.get('scope') or 'run'}",
+        f"- Network requests: {search + details + other} total | search={search} | details={details} | other={other}",
+        f"- Detail reuse hits: in_memory={metrics.get('tmdb_in_memory_hits', 0)} | run_cache={metrics.get('tmdb_run_cache_detail_hits', 0)} | persistent={metrics.get('tmdb_persistent_detail_hits', 0)}",
+        f"- Archived films covered: {metrics.get('tmdb_archived_movie_count', 0)} unique",
+        f"- Persistent rows loaded={metrics.get('tmdb_persistent_cache_rows_loaded', 0)} | writes={metrics.get('tmdb_cache_writes', 0)} | read_failures={metrics.get('tmdb_cache_read_failures', 0)} | write_failures={metrics.get('tmdb_cache_write_failures', 0)}",
+    ])
+    return lines
+
+
 def _render_coming_soon_details(summary: dict) -> list[str]:
     lines = ["", "COMING SOONS DETAILS"]
     raw = summary.get("coming_soon_details") or []
@@ -173,6 +192,7 @@ def render_summary_text(summary: dict) -> str:
     lines: list[str] = []
     lines.extend(_render_header(summary))
     lines.extend(_render_summary_counts(summary))
+    lines.extend(_render_tmdb_metrics(summary))
     lines.extend(_render_stage_breakdown(summary))
     lines.extend(_render_coming_soon_details(summary))
     lines.extend(_render_cinematheque_groups(summary))

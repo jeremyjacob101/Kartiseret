@@ -50,3 +50,23 @@ class DataflowSummaryLoggingTests(TestCase):
             "Result: STAGED (PUBLICATION PENDING)",
             store_class.return_value.save_text_artifact.call_args.kwargs["text"],
         )
+
+    def test_tmdb_metrics_are_visible_in_compact_summary_text(self):
+        text = render_summary_text({
+            "name": "NowPlayingsTmdb",
+            "run_id": 41,
+            "attempt": 1,
+            "successful": True,
+            "tmdb_metrics": {
+                "scope": "shared_run_cumulative",
+                "tmdb_search_http_requests": 4,
+                "tmdb_movie_detail_http_requests": 2,
+                "tmdb_in_memory_hits": 3,
+                "tmdb_run_cache_detail_hits": 1,
+                "tmdb_persistent_detail_hits": 7,
+                "tmdb_archived_movie_count": 6,
+            },
+        })
+        self.assertIn("Network requests: 6 total | search=4 | details=2 | other=0", text)
+        self.assertIn("in_memory=3 | run_cache=1 | persistent=7", text)
+        self.assertIn("Archived films covered: 6 unique", text)

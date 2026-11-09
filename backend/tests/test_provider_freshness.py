@@ -10,7 +10,7 @@ from backend.dataflow.nowplayings.NowPlayingsUpdate import NowPlayingsUpdate
 from backend.dataflow.comingsoons.ComingSoonsUpdate import ComingSoonsUpdate
 from backend.dataflow.cinematheques.CinemathequesUpdate import CinemathequesUpdate
 from backend.dataflow.utils.InitializeBaseDataflow import InitializeBaseDataflow
-from backend.dataflow.utils.DataflowRequests import DataflowRequestError
+from backend.dataflow.utils.DataflowRequests import DataflowRequestError, TMDB_MOVIE_DETAILS_PARAMS
 from backend.dataflow.utils.ProviderFreshness import observation
 from test_dataflow_requests import Client, response
 
@@ -96,8 +96,8 @@ class ProviderFreshnessTests(TestCase):
         second._tmdb_cache = first._tmdb_cache
         second._owns_request_context = False
         first.requestGet = Mock(return_value=response({"id": 101, "title": "Fuzzy resolved title", "runtime": 120}))
-        data = first.tmdbGet("movie/101", {"append_to_response": "external_ids,videos"})
-        cached = second.tmdbGet("movie/101", {"append_to_response": "external_ids,videos"})
+        data = first.tmdbGet("movie/101", TMDB_MOVIE_DETAILS_PARAMS)
+        cached = second.tmdbGet("movie/101", TMDB_MOVIE_DETAILS_PARAMS)
         targets = []
         for flow, payload in ((first, data), (second, cached)):
             target = {"tmdb_id": 101, "english_title": payload["title"], "runtime": payload["runtime"]}
@@ -202,7 +202,7 @@ class ProviderFreshnessTests(TestCase):
         flow.recordProviderFreshness(original, "imdb", old_event, ("imdbRating", "imdbVotes"))
         flow.supabase = DB({"finalMovies": [original]})
         flow.requestGet = Mock(return_value=response({"id": 101, "title": "Fuzzy resolved title"}))
-        flow.tmdbGet("movie/101", {"append_to_response": "external_ids,videos"})
+        flow.tmdbGet("movie/101", TMDB_MOVIE_DETAILS_PARAMS)
         flow.updates = [{"tmdb_id": 101, "english_title": "Fuzzy resolved title"}]
         flow.upsertUpdates("finalMovies", refresh=False)
         published = flow.supabase.tables["finalMovies"][0]
