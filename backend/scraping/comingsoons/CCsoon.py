@@ -1,5 +1,5 @@
 from backend.scraping.BaseCinema import BaseCinema
-from backend.scraping.utils.CinemaCityBrowser import collect_movie_links
+from backend.scraping.utils.CinemaCityListing import load_movie_listing
 
 from datetime import datetime
 import re
@@ -26,7 +26,11 @@ class CCsoon(BaseCinema):
         self.driver.set_page_load_timeout(45)
         self.driver.set_script_timeout(15)
         self.zoomOut(50, 0)
-        self.hebrew_hrefs.extend(collect_movie_links(self, "[id^='comp-mrjafvop__']"))
+        load_movie_listing(self, "[id^='comp-mrjafvop__']")
+
+        for film_card in self.elements("[id^='comp-mrjafvop__']"):
+            movie_id = film_card.get_attribute("id").split("__")[-1]
+            self.hebrew_hrefs.append(f"https://www.cinema-city.co.il/movie/{movie_id}")
 
         for href in self.hebrew_hrefs:
             self.driver.get(href)

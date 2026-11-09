@@ -26,11 +26,10 @@ class ComingSoonDateTests(TestCase):
         scraper.driver.page_source, scraper.driver.title = "", "Cinema City"
         scraper.driver.get.side_effect = lambda url: setattr(scraper.driver, "current_url", url)
         scraper.zoomOut = Mock()
-        listing = patch('backend.scraping.comingsoons.CCsoon.collect_movie_links', return_value=[
-            f'https://www.cinema-city.co.il/movie/{index}' for index in range(len(dates))
-        ])
-        listing.start()
-        self.addCleanup(listing.stop)
+        scraper.lenElements = Mock(return_value=0)
+        scraper.elements = Mock(return_value=[SimpleNamespace(get_attribute=lambda name, index=index: f"comp-mrjafvop__{index}") for index in range(len(dates))])
+        film_cards = scraper.elements.return_value
+        scraper.elements.side_effect = lambda selector: [] if selector.startswith("//button") else film_cards
 
         def element(selector):
             index = int(scraper.driver.current_url.rsplit("/", 1)[-1]) if "/movie/" in scraper.driver.current_url else 0

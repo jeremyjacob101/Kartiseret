@@ -1,5 +1,5 @@
 from backend.scraping.BaseCinema import BaseCinema
-from backend.scraping.utils.QuickbookHelpers import QuickbookHelpers, _is_non_screening_card
+from backend.scraping.utils.QuickbookHelpers import QuickbookHelpers
 from selenium.webdriver.common.by import By
 
 from datetime import datetime
@@ -18,7 +18,6 @@ class YesPlanet(QuickbookHelpers, BaseCinema):
     month_mapping = {"January": "01", "February": "02", "March": "03", "April": "04", "May": "05", "June": "06", "July": "07", "August": "08", "September": "09", "October": "10", "November": "11", "December": "12"}
 
     def logic(self):
-        self._coverage = {"untitled_non_screening_cards_skipped": 0}
         self.driver.set_page_load_timeout(45)
         self.driver.set_script_timeout(15)
         self.acceptQuickbookCookies()
@@ -71,7 +70,7 @@ class YesPlanet(QuickbookHelpers, BaseCinema):
             runtime = self.element("/html/body/div[5]/section[2]/div/div[2]/div[1]/div[1]/div[2]/p").get_attribute("textContent").strip()
             self.runtimes.append(int(m.group()) if runtime and (m := re.search(r"\d+", runtime)) else None)
 
-        name_to_idx = {str(name).lower(): i for i, name in enumerate(self.english_titles)}
+        name_to_idx = {str(name).strip().lower(): i for i, name in enumerate(self.english_titles)}
 
         self.clickWhenReady("#header-change-location")
         self.clickWhenReady("body > div.modal.location-picker-modal.fade.search.in > div > div > div > div:nth-child(2) > div:nth-child(3) > div.row.all-cinemas-list > div > div > div > button")
@@ -118,51 +117,45 @@ class YesPlanet(QuickbookHelpers, BaseCinema):
                         date_name = self.element(f"body > section.light.quickbook-section.npm-quickbook > section > div:nth-child(1) > div > div > div:nth-child(2) > div.col-xs-12.col-md-6.qb-calendar-widget > div > div.col-xs-12.mb-sm > h5").text
                         self.date_of_showing = datetime.strptime(date_name.split(" ", 1)[1], "%d/%m/%Y").date().isoformat()
 
-                        self.clickWhenReady("/html/body/section[3]/section/div[1]/div/div/div[2]/div[3]/div/div/button")
-                        self.clickWhenReady("/html/body/div[12]/div[2]/div/ul/li[2]/a")
-                        self.clickWhenReady("/html/body/section[3]/section/div[1]/div/div/div[2]/div[3]/div/div/button")
-                        self.clickWhenReady("/html/body/div[12]/div[2]/div/ul/li[1]/a")
+                        self.scrapeQuickbookShowtimes(name_to_idx)
 
-                        for film_index in range(1, self.lenElements("/html/body/section[3]/section/div[1]/div/section/div[2]/div") + 1):
-                            card_path = f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]"
-                            selector = f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div/div/h4"
-                            if self.lenElements(selector) and self.element(selector).text == "PRE-ORDER YOUR TICKETS NOW":
-                                continue
-
-                            title_selector = f"{card_path}/div/div/div[2]/div/div[1]/a/h3"
-                            title_elements = self.elements(title_selector)
-                            checking_film_name = title_elements[0].text if title_elements else ""
-                            ticket_links = self.elements(f"{card_path}//a[@data-url]")
-                            if _is_non_screening_card(checking_film_name, bool(ticket_links)):
-                                self._coverage["untitled_non_screening_cards_skipped"] += 1
-                                continue
-                            checking_film_name = str(checking_film_name).lower()
-                            checking_film = name_to_idx.get(checking_film_name)
-                            if checking_film is None:
-                                continue
-
-                            for showtype in range(1, self.lenElements(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div") + 1):
-                                dub_stuff = " ".join((element.get_attribute("innerText") or "").strip() for element in self.elements(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div[{showtype}]/div/ul[1]/li[contains(concat(' ', normalize-space(@class), ' '), ' lang-attributes ')]"))
-                                if "RU" in dub_stuff:
-                                    continue
-                                else:
-                                    self.dub_language = "Hebrew" if "DUB" in dub_stuff else None
-
-                                self.screening_type = "".join((element.get_attribute("innerText") or "").strip() for element in self.elements(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div[{showtype}]/div/ul[1]/li[not(contains(concat(' ', normalize-space(@class), ' '), ' lang-attributes '))]"))
-                                self.screening_tech = self.screening_type
-
-                                for showtime in range(1, self.lenElements(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div[{showtype}]/div/a") + 1):
-                                    self.showtime = self.element(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div[{showtype}]/div/a[{showtime}]").text
-                                    self.english_href = self.element(f"/html/body/section[3]/section/div[1]/div/section/div[2]/div[{film_index}]/div/div/div[2]/div/div[2]/div[{showtype}]/div/a[{showtime}]").get_attribute("data-url").replace("/api", "")
-                                    self.hebrew_href = self.english_href.replace("lang=en", "lang=he")
-
-                                    self.original_language = self.original_languages[checking_film]
-                                    self.release_year = self.release_years[checking_film]
-                                    self.directed_by = self.directed_bys[checking_film]
-                                    self.rating = self.ratings[checking_film]
-                                    self.runtime = self.runtimes[checking_film]
-
-                                    self.english_title = self.english_titles[checking_film]
-                                    self.hebrew_title = self.hebrew_titles[checking_film]
-
-                                    self.appendToGatheringInfo()
+    def scrapeQuickbookShowtimes(self, name_to_idx):
+        # Vue replaces the rows after a date change. Read plain values in one
+        # browser task so a rerender cannot invalidate Selenium element handles
+        # between the title, format, and ticket reads.
+        screenings = self.driver.execute_script("""
+            const text = element => (element?.textContent || '').trim();
+            return Array.from(document.querySelectorAll('section.npm-quickbook .movie-row')).flatMap(film => {
+                const title = text(film.querySelector('.qb-movie-name'));
+                return Array.from(film.querySelectorAll('.events .type-row .qb-movie-info-column')).flatMap(format => {
+                    const language = Array.from(format.querySelectorAll(':scope > .qb-screening-attributes > .lang-attributes')).map(text).join(' ');
+                    const tech = Array.from(format.querySelectorAll(':scope > .qb-screening-attributes > li:not(.lang-attributes)')).map(text).join('');
+                    return Array.from(format.querySelectorAll(':scope > a[data-url]')).map(ticket => ({
+                        title, language, tech, time: ticket.innerText.trim(), href: ticket.getAttribute('data-url')
+                    }));
+                });
+            });
+        """)
+        for screening in screenings:
+            if not screening["title"]:
+                raise ValueError("Yes Planet ticket row is missing its movie title")
+            checking_film = name_to_idx.get(screening["title"].strip().lower())
+            if checking_film is None:
+                continue
+            dub_stuff = screening["language"].upper()
+            if "RU" in dub_stuff:
+                continue
+            self.dub_language = "Hebrew" if "DUB" in dub_stuff else None
+            self.screening_type = screening["tech"].upper()
+            self.screening_tech = self.screening_type
+            self.showtime = screening["time"]
+            self.english_href = screening["href"].replace("/api", "")
+            self.hebrew_href = self.english_href.replace("lang=en", "lang=he")
+            self.original_language = self.original_languages[checking_film]
+            self.release_year = self.release_years[checking_film]
+            self.directed_by = self.directed_bys[checking_film]
+            self.rating = self.ratings[checking_film]
+            self.runtime = self.runtimes[checking_film]
+            self.english_title = self.english_titles[checking_film]
+            self.hebrew_title = self.hebrew_titles[checking_film]
+            self.appendToGatheringInfo()

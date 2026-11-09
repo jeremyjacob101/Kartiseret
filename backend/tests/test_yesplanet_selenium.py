@@ -1,6 +1,7 @@
 from unittest import TestCase
 
-from backend.scraping.nowplayings.YesPlanet import YesPlanet, _is_non_screening_card
+from backend.scraping.nowplayings.YesPlanet import YesPlanet
+from backend.scraping.utils.QuickbookHelpers import _is_non_screening_card
 
 
 class YesPlanetSeleniumCardTests(TestCase):
