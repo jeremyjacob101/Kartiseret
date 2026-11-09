@@ -4,7 +4,7 @@ Timing history now keys each rolling last-five by **scraper class × runner mach
 
 ## Existing last-fives and migration
 
-Migration [`20261109081746_util_avg_time_transport_history.sql`](../../supabase/migrations/20261109081746_util_avg_time_transport_history.sql) adds a non-null transport column with default `legacy`, then extends the existing primary key. Every existing array and `updated_at` is preserved unchanged. Nothing is deleted, copied into multiple buckets, or guessed to be Requests/Selenium. The new buckets start with tagged successful runs.
+Migration [`20261109084321_util_avg_time_transport_history.sql`](../../supabase/migrations/20261109084321_util_avg_time_transport_history.sql) adds a non-null transport column with default `legacy`, then extends the existing primary key. Every existing array and `updated_at` is preserved unchanged. Nothing is deleted, copied into multiple buckets, or guessed to be Requests/Selenium. The new buckets start with tagged successful runs.
 
 The existing four-argument `append_util_avg_time_history` RPC remains usable and writes to `legacy`. This preserves older workers and unchanged dataflow timing. Updated scrapers use a distinct `append_util_avg_time_transport_history` RPC with an explicit transport, avoiding ambiguous overload resolution. Each bucket independently retains its newest five samples through an atomic upsert, including concurrent writers.
 
@@ -32,3 +32,7 @@ When fallback actually starts, a worker emits a transport event. The scheduled a
 - Supabase security advisors against disposable **local** PostgreSQL reported no issues. No hosted schema, history rows, notifications, or publication were modified. No scraper reruns or full test suites were needed for this timing-only change.
 
 Receipts: [`timing/`](evidence/2026-11-09/timing/).
+
+## Hosted migration history
+
+The migration was already applied through the connector before deployment was handed back to Jeremy. The repository filename now matches production’s recorded version, `20261109084321`, so production must not apply the SQL again. Development recorded the identical migration as `20261109084306`; its history entry needs reconciliation to `20261109084321` before using CLI migration pushes there. This is migration-history bookkeeping, not a second schema or data migration. No history repair or additional hosted writes were performed during the final PR recheck. Existing unrelated development history differences are outside this PR.

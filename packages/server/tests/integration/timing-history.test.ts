@@ -51,7 +51,7 @@ describe("transport timing history", () => {
         `INSERT INTO public."utilAvgTimeHistory" (name, runner_machine, weekday, recent_times, updated_at) VALUES ('OldCinema','m5_mac','monday',ARRAY[11,22,33,44,55]::double precision[],'2026-11-01T00:00:00Z')`,
       );
       await client.query(
-        migration("20261109081746_util_avg_time_transport_history.sql"),
+        migration("20261109084321_util_avg_time_transport_history.sql"),
       );
       const { rows } = await client.query(
         `SELECT transport,recent_times,extract(epoch from updated_at)::double precision AS updated_at FROM public."utilAvgTimeHistory" WHERE name='OldCinema'`,
