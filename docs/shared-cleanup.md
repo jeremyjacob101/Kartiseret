@@ -18,7 +18,7 @@ Apply the `weekly_publication_cleanup` Supabase migration to development and pro
 
 ## Dry-run rollout
 
-Automatic deletion is off by default. Pipeline preflight reads `KARTISERET_SHARED_CLEANUP_APPLY` and defaults to `false`. Scheduled jobs are entirely skipped until the repository variable `KARTISERET_SHARED_CLEANUP_ENABLED` is set to `true`, so the workflow does not consume runner minutes or fail on missing secrets before setup. Manual dispatch can validate and dry-run before enabling the schedule; it has an explicit `apply` checkbox. Inspect the counts and candidate key samples in the workflow output for both targets first. Then enable the schedule, run an applied cleanup, verify its summary, and only then set the repository variable `KARTISERET_SHARED_CLEANUP_APPLY` to `true` and configure the same environment variable on the pipeline scheduler host.
+Automatic deletion is off by default. Pipeline preflight reads `KARTISERET_SHARED_CLEANUP_APPLY` and defaults to `false`. The `KARTISERET_SHARED_CLEANUP_ENABLED` repository variable gates only the daily shared cleanup workflow; it does not gate the separate Sunday publication cleanup workflow. Once that weekly workflow is merged, it runs each Sunday and uses `KARTISERET_SHARED_CLEANUP_APPLY` to choose dry-run or apply. Manual dispatch on either workflow has an explicit `apply` checkbox. Inspect the counts in the workflow output before enabling automatic deletion, then set `KARTISERET_SHARED_CLEANUP_APPLY` to `true` in GitHub and on the pipeline scheduler host when ready.
 
 Commands:
 

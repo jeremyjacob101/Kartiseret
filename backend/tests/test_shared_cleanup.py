@@ -199,6 +199,8 @@ class SharedCleanupTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", weekly)
         self.assertIn("--publications-only", weekly)
         self.assertIn("concurrency:", weekly)
+        self.assertNotIn("KARTISERET_SHARED_CLEANUP_ENABLED", weekly)
+        self.assertIn("vars.KARTISERET_SHARED_CLEANUP_APPLY", weekly)
 
     def test_publication_reference_source_rejects_missing_pages(self):
         from backend.dataflow.utils.PublicationWorkspace import PublicationWorkspace
