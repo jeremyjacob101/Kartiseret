@@ -28,7 +28,7 @@ RUNNING_NON_INTERACTIVE = os.environ.get("GITHUB_ACTIONS") == "true" or os.envir
 def _is_r2_budget_error(error: BaseException) -> bool:
     return isinstance(error, (R2BudgetError, R2BudgetExceeded, LeaseLostError))
 
-cinemaDictionary = {"registry": REGISTRY, "make_instance": lambda cls, key, run_id, _context=None: cls(cinema_type=key, supabase_table_name=key, run_id=run_id), "run_instance": lambda inst: inst.scrape(), "cleanup": lambda instance: (instance.driver.quit() if instance and getattr(instance, "driver", None) else None), "count_label": "Scrapers", "mode": "parallel", "total_strategy": "max", "overall_task_name": "Scrape", "get_item_name": lambda cls: getattr(cls, "CINEMA_NAME", cls.__name__)}
+cinemaDictionary = {"registry": REGISTRY, "make_instance": lambda cls, key, run_id, _context=None: cls(cinema_type=key, supabase_table_name=key, run_id=run_id), "run_instance": lambda inst: inst.scrape(), "cleanup": lambda instance: (instance.driver.quit() if instance and getattr(instance, "driver", None) else None), "count_label": "Scrapers", "mode": "parallel", "total_strategy": "max", "overall_task_name": "Scrape", "show_transport": True, "get_item_name": lambda cls: getattr(cls, "CINEMA_NAME", cls.__name__)}
 dataflowDictionary = {"registry": DATAFLOW_REGISTRY, "make_instance": lambda cls, _key, run_id, context=None: cls(run_id=run_id, **({"request_context": context} if context is not None and cls.__name__ != "TicketAlertDispatcher" else {})), "run_instance": lambda inst: inst.dataRun(), "cleanup": lambda instance: (instance.driver.quit() if instance and getattr(instance, "driver", None) else None), "count_label": "Dataflows", "mode": "sequential", "total_strategy": "sum", "overall_task_name": "Dataflow", "get_item_name": lambda cls: cls.__name__}
 
 
@@ -140,6 +140,7 @@ def _run_scheduled_scrapes(items: list[tuple[str, type]], run_id: int, *, consol
         mode="parallel",
         total_strategy="max",
         overall_task_name="Scrape",
+        show_transport=True,
         get_item_name=lambda cls: getattr(cls, "CINEMA_NAME", cls.__name__),
     )
     ui = RichRunUI(
@@ -202,6 +203,7 @@ def _run_scheduled_scrapes(items: list[tuple[str, type]], run_id: int, *, consol
                 changed = False
                 while not transport_events.empty():
                     cls, selected, elapsed, weekday = transport_events.get_nowait()
+                    ui.set_item_transport(cls, selected)
                     estimate = _transport_estimate(cls, selected, elapsed, avg_by_name, transport_cache, weekday=weekday, preferred_weekday=history_weekday)
                     index = classes.index(cls)
                     duration = duration_to_milliseconds(estimate)
@@ -505,6 +507,7 @@ def runGroup(kind: str, key: str, run_id: int, *, classes_override: list[type] |
 
             evt_type, item, attempt, started_at = evt[:4]
             if evt_type == 'transport':
+                ui.set_item_transport(item, attempt)
                 estimate = _transport_estimate(item, attempt, started_at, avg_by_name, transport_cache, weekday=evt[4], preferred_weekday=history_weekday)
                 ui.set_item_estimate(item, estimate)
                 continue

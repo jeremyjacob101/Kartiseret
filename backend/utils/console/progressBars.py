@@ -8,6 +8,7 @@ from rich.progress import Progress, ProgressColumn, SpinnerColumn, TextColumn
 from rich.console import Console, Group, RenderableType
 from rich.progress_bar import ProgressBar
 from rich.table import Column
+from rich.text import Text
 from rich.theme import Theme
 from rich.live import Live
 
@@ -38,6 +39,19 @@ class PerTaskBarColumn(ProgressColumn):
         if failed:
             return ProgressBar(total=total, completed=min(completed, task.total or 0) if task.total is not None else completed, width=self.bar_width, pulse=False, style=back_color, complete_style="red", finished_style="red", pulse_style="red")
         return ProgressBar(total=total, completed=completed, width=self.bar_width, pulse=False, style=back_color, complete_style=bar_color, finished_style=bar_color)
+
+
+class TransportColumn(ProgressColumn):
+    def __init__(self):
+        super().__init__(Column(width=4, no_wrap=True))
+
+    def render(self, task):
+        transport = task.fields.get("transport", "")
+        if transport == "requests":
+            return Text("·R·", style="bold #66d6f2")
+        if transport in {"selenium", "requests_selenium_fallback"}:
+            return Text("·S·", style="bold yellow")
+        return Text("")
 
 
 def _label(attempt: int, name: str) -> str:
@@ -82,9 +96,11 @@ class RichRunUI:
         self.get_eta_secs = get_eta_secs
         self.refresh_per_second = refresh_per_second
         self.use_live = bool(use_live)
+        self.show_transport = bool(getattr(spec, "show_transport", False))
 
         self.attempt_by_item: Dict[Any, int] = {item: 1 for item in self.items}
         self.est_by_item: Dict[Any, float] = {item: float(get_item_est(item)) for item in self.items}
+        self.transport_by_item: Dict[Any, str] = {}
 
         all_estimated = list(self.est_by_item.values())
         if not all_estimated:
@@ -97,7 +113,14 @@ class RichRunUI:
         self.console = console or Console(theme=Theme({"progress.elapsed": "bold #9c27f5"}))
 
         self.overall = Progress(TextColumn("[bold {task.fields[elapsed_color]}]{task.fields[elapsed]}[/bold {task.fields[elapsed_color]}]"), PerTaskBarColumn(bar_width=20, default_bar="#f266e0"), TextColumn("[bold {task.fields[eta_color]}]{task.fields[eta]}[/bold {task.fields[eta_color]}]"), TextColumn("[bold green]{task.fields[done]}/{task.fields[total_count]} " + spec.count_label + "[/bold green] " + "[bold #66d6f2]{task.fields[group_label]}[/bold #66d6f2]", table_column=Column(ratio=1, overflow="ellipsis", no_wrap=True)), SpinnerColumn(style="bold #f266e0"), console=self.console, refresh_per_second=refresh_per_second)
-        self.status = Progress(TextColumn("{task.fields[time]}"), PerTaskBarColumn(bar_width=20, default_bar="#f266e0"), TextColumn("{task.description}"), console=self.console, refresh_per_second=refresh_per_second)
+        self.status = Progress(
+            TextColumn("{task.fields[time]}"),
+            PerTaskBarColumn(bar_width=20, default_bar="#f266e0"),
+            *([TransportColumn()] if self.show_transport else []),
+            TextColumn("{task.description}"),
+            console=self.console,
+            refresh_per_second=refresh_per_second,
+        )
 
         self.overall_task_id = self.overall.add_task(spec.overall_task_name, total=total_estimated, elapsed=_hms(0), eta=_hms(total_estimated), done=0, total_count=len(self.items), group_label=key, bar_color="#f266e0", elapsed_color="#9c27f5", eta_color="orange1")
 
@@ -106,7 +129,7 @@ class RichRunUI:
             name = spec.get_item_name(item)
             est = self.est_by_item[item]
             attempt = self.attempt_by_item[item]
-            task_id = self.status.add_task(f"[dim]Queued: {_label(attempt, name)}[/dim]", total=est, completed=0.0, time=f"[dim]queued [/dim]", bar_color="#f266e0", attempt=attempt, failed=False, start=False)
+            task_id = self.status.add_task(f"[dim]Queued: {_label(attempt, name)}[/dim]", total=est, completed=0.0, time=f"[dim]queued [/dim]", bar_color="#f266e0", attempt=attempt, failed=False, transport="", start=False)
             self.status_task_id_by_item[item] = task_id
 
         self._live: Optional[Live] = None
@@ -142,12 +165,13 @@ class RichRunUI:
 
         self.attempt_by_item[item] = attempt
         self._start_by_item[item] = started_at
+        self.transport_by_item[item] = ""
 
         task_id = self.status_task_id_by_item[item]
         self.status.start_task(task_id)
         name = self.spec.get_item_name(item)
 
-        self.status.update(task_id, description=f"[yellow]{_label(attempt, name)}[/yellow]", completed=0.0, time=f"[yellow]       [/yellow]", bar_color="#f266e0", failed=False, attempt=attempt)
+        self.status.update(task_id, description=f"[yellow]{_label(attempt, name)}[/yellow]", completed=0.0, time=f"[yellow]       [/yellow]", bar_color="#f266e0", failed=False, attempt=attempt, transport="")
         self.tick(now=started_at)
 
     def retry_item(self, item: Any, attempt: int, started_at: Optional[float] = None) -> None:
@@ -160,17 +184,26 @@ class RichRunUI:
 
         self.attempt_by_item[item] = attempt
         self._start_by_item[item] = started_at
+        self.transport_by_item[item] = ""
 
         task_id = self.status_task_id_by_item[item]
         self.status.start_task(task_id)
         name = self.spec.get_item_name(item)
 
-        self.status.update(task_id, description=f"[yellow]{_label(attempt, name)}[/yellow]", completed=0.0, time=f"[yellow]       [/yellow]", bar_color="#f266e0", failed=False, attempt=attempt)
+        self.status.update(task_id, description=f"[yellow]{_label(attempt, name)}[/yellow]", completed=0.0, time=f"[yellow]       [/yellow]", bar_color="#f266e0", failed=False, attempt=attempt, transport="")
         self.tick(now=started_at)
 
     def set_item_estimate(self, item: Any, seconds: float) -> None:
         self.est_by_item[item] = float(seconds)
         self.status.update(self.status_task_id_by_item[item], total=float(seconds))
+
+    def set_item_transport(self, item: Any, transport: str) -> None:
+        selected = str(transport or "")
+        task_id = self.status_task_id_by_item.get(item)
+        if task_id is None or self.transport_by_item.get(item, "") == selected:
+            return
+        self.transport_by_item[item] = selected
+        self.status.update(task_id, transport=selected)
 
     def tick(self, now: Optional[float] = None) -> None:
         now = float(now if now is not None else time.time())

@@ -1,4 +1,5 @@
 from io import StringIO
+import re
 from time import sleep
 from types import SimpleNamespace
 from unittest import TestCase
@@ -50,6 +51,30 @@ class TransportTimingEtaTests(TestCase):
         self.assertEqual(ui.est_by_item[MovieLand], 45)
         self.assertEqual(ui.status.tasks[ui.status_task_id_by_item[MovieLand]].total, 45)
 
+    def test_ui_marks_requests_selenium_and_fallback_rows(self):
+        spec = SimpleNamespace(total_strategy='max', count_label='Scrapers', overall_task_name='Scrape', show_transport=True, get_item_name=lambda cls: cls.__name__)
+        output = StringIO()
+        ui = RichRunUI(spec, 'test', [MovieLand], lambda cls: 5, use_live=False, console=Console(file=output, width=120))
+        ui.start_item(MovieLand)
+
+        for transport, marker in (('requests', '·R·'), ('selenium', '·S·'), ('requests_selenium_fallback', '·S·')):
+            with self.subTest(transport=transport):
+                output.seek(0)
+                output.truncate(0)
+                ui.set_item_transport(MovieLand, transport)
+                ui.console.print(ui.renderable)
+                self.assertRegex(output.getvalue(), re.escape(marker) + r'\s+\(1\) MovieLand')
+
+    def test_dataflow_rows_do_not_show_transport_markers(self):
+        spec = SimpleNamespace(total_strategy='sum', count_label='Dataflows', overall_task_name='Dataflow', get_item_name=lambda cls: cls.__name__)
+        output = StringIO()
+        ui = RichRunUI(spec, 'test', [MovieLand], lambda cls: 5, use_live=False, console=Console(file=output, width=120))
+        ui.start_item(MovieLand)
+        ui.console.print(ui.renderable)
+        self.assertIn('(1) MovieLand', output.getvalue())
+        self.assertNotIn('·R·', output.getvalue())
+        self.assertNotIn('·S·', output.getvalue())
+
     def test_scheduler_updates_fallback_eta_while_scrape_is_still_running(self):
         def run(spec, cls, key, run_id, attempt):
             spec.on_transport_change(cls, 'requests_selenium_fallback', 2)
@@ -60,6 +85,26 @@ class TransportTimingEtaTests(TestCase):
         with patch.object(runners, '_average_times', side_effect=estimates), patch.object(runners, '_run_attempt', side_effect=run), patch.object(RichRunUI, 'set_item_estimate', autospec=True) as update:
             self.assertTrue(runners._run_scheduled_scrapes([('allShowtimes', MovieLand)], 1, console=Console(file=StringIO())))
         self.assertTrue(any(call.args[1:] == (MovieLand, 45) for call in update.call_args_list))
+
+    def test_scheduled_scrapes_marks_the_selected_transport(self):
+        def run(spec, cls, key, run_id, attempt):
+            spec.on_transport_change(cls, 'requests_selenium_fallback', 2)
+            sleep(.3)
+            return RunResult(cls.__name__, .3, True, attempt)
+        def estimates(classes, *, transport=None, weekday=None):
+            return {'MovieLand': 45 if transport else 5}
+        with patch.object(runners, '_average_times', side_effect=estimates), patch.object(runners, '_run_attempt', side_effect=run), patch.object(RichRunUI, 'set_item_transport', autospec=True) as update:
+            self.assertTrue(runners._run_scheduled_scrapes([('allShowtimes', MovieLand)], 1, console=Console(file=StringIO())))
+        self.assertTrue(any(call.args[1:] == (MovieLand, 'requests_selenium_fallback') for call in update.call_args_list))
+
+    def test_rungroup_marks_the_selected_transport(self):
+        def run(spec, cls, key, run_id, attempt, request_context=None):
+            spec.on_transport_change(cls, 'selenium', 1)
+            return RunResult(cls.__name__, 1, True, attempt)
+        with patch.object(runners, 'RUNNING_NON_INTERACTIVE', False), patch.object(runners, '_average_times', return_value={'MovieLand': 5}), patch.object(runners, '_run_attempt', side_effect=run), patch.object(RichRunUI, 'set_item_transport', autospec=True) as update:
+            result = runners.runGroup('cinema', 'allShowtimes', 1, classes_override=[MovieLand], ui_parent=Mock(), console=Console(file=StringIO()), return_results=True)
+        self.assertEqual(result, {MovieLand: True})
+        self.assertTrue(any(call.args[1:] == (MovieLand, 'selenium') for call in update.call_args_list))
 
     def test_fallback_uses_captured_weekday_even_after_calendar_rollover(self):
         with patch.object(runners, '_average_times', return_value={'MovieLand': 45}) as load:
