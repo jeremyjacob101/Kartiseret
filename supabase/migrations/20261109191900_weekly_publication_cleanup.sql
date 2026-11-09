@@ -1,8 +1,8 @@
 -- Let the weekly maintenance job inspect all eligible preparations and remove
 -- them in bounded batches without waiting for an age threshold.
-DROP FUNCTION public.prune_abandoned_publications();
+DROP FUNCTION IF EXISTS public.prune_abandoned_publications();
 
-CREATE FUNCTION public.prune_abandoned_publications(p_apply boolean DEFAULT true) RETURNS jsonb
+CREATE OR REPLACE FUNCTION public.prune_abandoned_publications(p_apply boolean DEFAULT true) RETURNS jsonb
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = '' SET lock_timeout = '5s' AS $$
 DECLARE
   eligible integer;
