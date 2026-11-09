@@ -44,7 +44,7 @@ def _details(scraper, session, href):
 
 
 def collect_lev(scraper, *, coming_soon):
-    scraper._coverage = {'tabs_expected': 1 if coming_soon else 2, 'tabs_completed': 0, 'film_pages_completed': 0}
+    scraper._coverage = {'tabs_expected': 1 if coming_soon else 2, 'tabs_completed': 0, 'film_pages_completed': 0, 'explicit_empty_film_schedules': 0}
     with requests.Session() as session:
         configure_scrape_session(session, stats=getattr(scraper, '_http_stats', None))
         session.headers.update({'User-Agent': CHROME_USER_AGENT})
@@ -84,7 +84,15 @@ def collect_lev(scraper, *, coming_soon):
                     scraper.hebrew_title = scraper.hebrew_title[:-len(' אנגלית')].strip()
 
                 if tab == 1 and en.select_one('#content .movie_shows') is None:
-                    raise ValueError(f'Lev current film is missing its schedule container: {href}')
+                    # Lev also lists films before tickets go on sale. The real
+                    # page renders a named, empty booking form in both HTML and
+                    # Chrome, without a movie_shows container. Missing markup
+                    # alone is still a failure, rather than empty evidence.
+                    booking = en.select_one('#content .bookform .bookform_innner')
+                    expected = f'Purchase tickets for {_text(en.select_one("#content .movie_title h1"))}'
+                    if booking is None or _text(booking).replace('\xa0', ' ').rstrip(' :') != expected or booking.select('a, input, select, button') or en.select('#content .showitem'):
+                        raise ValueError(f'Lev current film is missing its schedule container: {href}')
+                    scraper._coverage['explicit_empty_film_schedules'] += 1
                 for city in en.select('#content .movie_shows > .forloc'):
                     if city.select('.showitem') and not city.select('div div.showitem'):
                         raise ValueError(f'Lev screening structure is incomplete: {href}')

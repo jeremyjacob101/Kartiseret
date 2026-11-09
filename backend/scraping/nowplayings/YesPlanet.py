@@ -120,6 +120,7 @@ class YesPlanet(QuickbookHelpers, BaseCinema):
                         self.scrapeQuickbookShowtimes(name_to_idx)
 
     def scrapeQuickbookShowtimes(self, name_to_idx):
+        self.clearQuickbookMovieFilter()
         # Vue replaces the rows after a date change. Read plain values in one
         # browser task so a rerender cannot invalidate Selenium element handles
         # between the title, format, and ticket reads.

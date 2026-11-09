@@ -52,6 +52,19 @@ class LevRequestsTests(TestCase):
         with self.assertRaises(ValueError):
             self.run_pages(self.collector(LCsoon), [bad, film('סרט'), film('Film')])
 
+    def test_current_film_with_verified_empty_booking_form_has_no_screenings(self):
+        listing = '<div id="tab-1"><div class="feat"><a href="/en/film/1"></a></div></div><div id="tab-2"><div class="feat"><a href="/en/film/1"></a></div></div>'
+        # Wildwood's live English page on 2026-11-09 has this booking form
+        # and no movie_shows container; independently confirmed in Chrome.
+        empty = film('Wildwood').split('<div class="movie_shows">')[0] + '<div class="bookform"><div class="bookform_innner"><div>Purchase tickets for Wildwood&nbsp;:</div></div></div></div>'
+        scraper = self.collector(LevCinema)
+        self.run_pages(scraper, [listing, film('סרט'), empty, film('סרט'), film('Film')])
+        self.assertEqual(scraper._coverage['explicit_empty_film_schedules'], 1)
+        self.assertEqual(len(scraper.gathering_info['showtime']), 1)
+        for invalid in (empty.replace('Purchase tickets for Wildwood', 'Unavailable'), empty.replace('</div></div></div></div>', '<a href="/ticket/1">18:30</a></div></div></div></div>')):
+            with self.subTest(page=invalid), self.assertRaises(ValueError):
+                self.run_pages(self.collector(LevCinema), [listing, film('סרט'), invalid])
+
     def test_missing_listing_and_film_structure_fail(self):
         with self.assertRaises(ValueError):
             self.run_pages(self.collector(LevCinema), ['<html>access denied</html>'])
