@@ -136,3 +136,67 @@ export function buildCinemathequeSchedule(
       : [];
   });
 }
+
+export function buildFocusedCinemathequeSchedule(
+  movies: readonly Movie[],
+  showtimes: readonly PublicShowtime[],
+  tmdbId: string,
+  city?: string,
+): Array<{
+  date: string;
+  venues: Array<{
+    city: string;
+    cinema: string;
+    showtimes: ShowtimeEntry[];
+  }>;
+}> {
+  const movie = movies.find((candidate) => candidate.tmdbId === tmdbId);
+  if (!movie) return [];
+
+  const dates = new Map<
+    string,
+    Map<string, { city: string; cinema: string; showtimes: ShowtimeEntry[] }>
+  >();
+  for (const showtime of showtimes) {
+    if (
+      showtime.tmdbId !== tmdbId ||
+      !isCinemathequeTheaterName(showtime.cinema) ||
+      (city !== undefined && showtime.screeningCity !== city)
+    ) {
+      continue;
+    }
+    const venues = dates.get(showtime.dateOfShowing) ?? new Map();
+    const key = `${showtime.screeningCity}\u001f${showtime.cinema}`;
+    const venue = venues.get(key) ?? {
+      city: showtime.screeningCity,
+      cinema: showtime.cinema,
+      showtimes: [],
+    };
+    venue.showtimes.push({
+      time: showtime.showtime,
+      href: showtime.englishHref ?? showtime.hebrewHref,
+      screeningTech: showtime.screeningTech,
+      screeningType: showtime.screeningType,
+      dubLanguage: showtime.dubLanguage,
+    });
+    venues.set(key, venue);
+    dates.set(showtime.dateOfShowing, venues);
+  }
+
+  return [...dates.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([date, venues]) => ({
+      date,
+      venues: [...venues.values()]
+        .map((venue) => ({
+          ...venue,
+          showtimes: venue.showtimes.sort((left, right) =>
+            left.time.localeCompare(right.time)),
+        }))
+        .sort(
+          (left, right) =>
+            left.city.localeCompare(right.city) ||
+            left.cinema.localeCompare(right.cinema),
+        ),
+    }));
+}

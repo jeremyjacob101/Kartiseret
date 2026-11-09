@@ -1426,6 +1426,57 @@ describe("PostgreSQL 17 integration", () => {
         }),
       ]),
     );
+
+    const cinemathequeRows = await adminDatabase.db
+      .select()
+      .from(schema.finalTheques)
+      .where(eq(schema.finalTheques.tmdbId, 9100012));
+    const cinemathequeRow = cinemathequeRows.find(
+      (row) => String(row.dateOfShowing) === date,
+    );
+    expect(cinemathequeRow).toBeDefined();
+    await adminDatabase.db.insert(schema.finalShowtimes).values([
+      {
+        tmdbId: 9100012,
+        screeningCity: "Jerusalem",
+        dateOfShowing: date,
+        cinema: "Development Cinema Jerusalem",
+        showtime: "19:00:00",
+      },
+      {
+        tmdbId: cinemathequeRow!.tmdbId,
+        screeningCity: cinemathequeRow!.screeningCity,
+        dateOfShowing: cinemathequeRow!.dateOfShowing,
+        cinema: cinemathequeRow!.cinema,
+        showtime: cinemathequeRow!.showtime,
+        englishHref: cinemathequeRow!.englishHref,
+        hebrewHref: cinemathequeRow!.hebrewHref,
+        screeningTech: cinemathequeRow!.screeningTech,
+        screeningType: cinemathequeRow!.screeningType,
+        dubLanguage: cinemathequeRow!.dubLanguage,
+      },
+    ]);
+    const combined = await request(app).get(
+      `/api/v1/showtimes?city=Jerusalem&startDate=${date}&endDate=${date}&tmdbId=9100012`,
+    );
+    expect(combined.status).toBe(200);
+    expect(
+      combined.body.data.showtimes.map((row: { cinema: string }) => row.cinema),
+    ).toEqual(["Development Cinema Jerusalem", "Development Cinematheque"]);
+
+    const nationwide = await request(app).get(
+      `/api/v1/cinematheques?startDate=${date}&endDate=${date}&tmdbId=9100012`,
+    );
+    expect(nationwide.status).toBe(200);
+    expect(nationwide.body.data.showtimes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          tmdbId: "9100012",
+          screeningCity: "Jerusalem",
+          cinema: "Development Cinematheque",
+        }),
+      ]),
+    );
   });
 
   it("uses a metadata read for an empty code lookup and never builds invalid SQL", async () => {

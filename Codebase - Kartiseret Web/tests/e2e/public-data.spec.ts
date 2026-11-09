@@ -185,6 +185,106 @@ test("catalog API supports search and permanent short-code movie details", async
   await shortLinkPage.close();
 });
 
+test("nationwide cinematheque search opens a focused schedule on desktop and mobile", async ({
+  page,
+}, testInfo) => {
+  const requests = addApiRequestCapture(page);
+  await page.goto("/movies");
+
+  await page.getByRole("button", { name: "Search movies" }).click();
+  await page
+    .getByRole("searchbox", { name: "Search movies" })
+    .fill("Dev Cinematheque Film");
+
+  const result = page.getByRole("button", { name: /Dev Cinematheque Film/ });
+  await expect(result).toBeVisible();
+  await expect(result.getByText("Cinematheque", { exact: true })).toBeVisible();
+  expect(await result.count()).toBe(1);
+
+  const nationwideRequest = requests.find((request) =>
+    request.startsWith("GET /api/v1/cinematheques?"));
+  expect(nationwideRequest).toBeDefined();
+  const nationwideParams = new URLSearchParams(
+    nationwideRequest!.split("?", 2)[1],
+  );
+  expect(nationwideParams.get("city")).toBeNull();
+  expect(nationwideParams.get("endDate")).toBeTruthy();
+
+  await result.click();
+  await expect(page).toHaveURL(/\/cinematheques\?movie=9100012$/);
+  await expect(
+    page.getByRole("heading", {
+      name: "Dev Cinematheque Film · Cinematheque Showtimes",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "Jerusalem · Development Cinematheque",
+    }),
+  ).toBeVisible();
+  await expect(page.getByText("20:00", { exact: true })).toBeVisible();
+
+  const venueHeading = page.locator(".cinematheques-cinema-title").first();
+  await expect(venueHeading).toHaveCSS("color", "rgb(49, 162, 109)");
+  const timeChip = page
+    .locator(".cinematheques-times .cinematheques-time")
+    .first();
+  expect(
+    await timeChip.evaluate(
+      (element) => getComputedStyle(element).backgroundImage,
+    ),
+  ).toContain("linear-gradient");
+  const focusedPoster = page.getByRole("button", {
+    name: "View details for Dev Cinematheque Film",
+  });
+  expect((await focusedPoster.boundingBox())?.width).toBeLessThanOrEqual(130);
+  await page.screenshot({
+    path: testInfo.outputPath("cinematheque-desktop.png"),
+    fullPage: false,
+  });
+
+  await page
+    .getByRole("button", { name: "View details for Dev Cinematheque Film" })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: "Dev Cinematheque Film details" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Close movie details" }).click();
+
+  await page.goBack();
+  await expect(page).toHaveURL(/\/movies$/);
+  await page.goForward();
+  await expect(page).toHaveURL(/\/cinematheques\?movie=9100012$/);
+  await expect(
+    page.getByRole("heading", {
+      name: "Jerusalem · Development Cinematheque",
+    }),
+  ).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileWidth = await page.evaluate(() => ({
+    document: document.documentElement.scrollWidth,
+    viewport: window.innerWidth,
+  }));
+  expect(mobileWidth.document).toBeLessThanOrEqual(mobileWidth.viewport + 1);
+  const mobileTimeChip = await timeChip.boundingBox();
+  expect(mobileTimeChip).not.toBeNull();
+  expect(mobileTimeChip!.x + mobileTimeChip!.width).toBeLessThanOrEqual(
+    mobileWidth.viewport,
+  );
+  expect((await focusedPoster.boundingBox())?.width).toBeLessThanOrEqual(90);
+  await page.screenshot({
+    path: testInfo.outputPath("cinematheque-mobile.png"),
+    fullPage: false,
+  });
+
+  await page.getByRole("link", { name: "Clear movie filter" }).click();
+  await expect(page).toHaveURL(/\/cinematheques$/);
+  await expect(
+    page.getByRole("heading", { name: "Cinematheque Showtimes" }),
+  ).toBeVisible();
+});
+
 test("showtimes browse a real city/date and the active filter changes results", async ({
   page,
 }) => {

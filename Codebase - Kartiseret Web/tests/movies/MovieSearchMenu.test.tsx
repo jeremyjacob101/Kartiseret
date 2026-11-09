@@ -90,4 +90,79 @@ describe("MovieSearchMenu", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+
+  it("marks cinematheque titles and keeps the regular catalog result when they overlap", async () => {
+    const user = userEvent.setup();
+    const onlyAtCinematheque = movie({
+      tmdbId: "103",
+      title: "Sample Archive",
+      movieCode: undefined,
+    });
+    const onSelectResult = vi.fn();
+    render(
+      <MovieSearchMenu
+        collections={[
+          ...collections,
+          {
+            mode: "cinematheque" as const,
+            label: "Cinematheque",
+            movies: [sampleMovie, onlyAtCinematheque],
+          },
+        ]}
+        onSelectResult={onSelectResult}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Search movies" }));
+    await user.type(screen.getByRole("searchbox"), "sample");
+
+    expect(screen.getAllByText("Cinematheque")).toHaveLength(2);
+    const overlappingResult = screen.getByRole("button", {
+      name: /Sample Movie.*Now Playing.*Cinematheque/s,
+    });
+    await user.click(overlappingResult);
+    expect(onSelectResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tmdbId: sampleMovie.tmdbId,
+        mode: "nowPlaying",
+        isCinematheque: true,
+      }),
+    );
+  });
+
+  it("returns cinematheque-only results for focused schedule navigation", async () => {
+    const user = userEvent.setup();
+    const onlyAtCinematheque = movie({
+      tmdbId: "103",
+      title: "Archive Screening",
+      movieCode: undefined,
+    });
+    const onSelectResult = vi.fn();
+    render(
+      <MovieSearchMenu
+        collections={[
+          {
+            mode: "cinematheque" as const,
+            label: "Cinematheque",
+            movies: [onlyAtCinematheque],
+          },
+        ]}
+        cinemathequeUnavailable
+        onSelectResult={onSelectResult}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Search movies" }));
+    await user.type(screen.getByRole("searchbox"), "archive");
+    expect(
+      screen.getByText("Cinematheque titles could not be loaded."),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Archive Screening/ }));
+    expect(onSelectResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tmdbId: "103",
+        mode: "cinematheque",
+      }),
+    );
+  });
 });

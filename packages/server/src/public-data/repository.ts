@@ -7,7 +7,11 @@ export type PublicShowtimeRange = {
   tmdbId?: string;
 };
 
-export type PublicCinemathequeRange = Omit<PublicShowtimeRange, "endDate"> & {
+export type PublicCinemathequeRange = Omit<
+  PublicShowtimeRange,
+  "city" | "endDate"
+> & {
+  city?: string;
   endDate?: string;
 };
 
