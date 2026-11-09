@@ -23,6 +23,7 @@ from backend.utils.log.run_storage import RunArtifactStore
 
 RUN_OBJECT_KEY_RE = re.compile(r"^runs/(\d{4}-\d{2}-\d{2})/(\d+)/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
 R2_DELETE_BATCH = 500
+PUBLICATION_DELETE_BATCH = 100
 CATALOG_SCAN_CATEGORIES = ("nowplayings", "soons", "cinematheques")
 
 
@@ -58,6 +59,35 @@ def lease_renewal_callback(store: RunArtifactStore, token: str, *, interval_seco
 def verify_lease(guard) -> None:
     if guard:
         getattr(guard, "verify", guard)()
+
+
+def cleanup_abandoned_publications(client, *, apply: bool, lease_guard=None) -> dict[str, int]:
+    """Inspect or prune inactive prepared publications under the target lease."""
+    eligible: int | None = None
+    deleted = 0
+    while True:
+        verify_lease(lease_guard)
+        response = client.rpc(
+            "prune_abandoned_publications", {"p_apply": apply}
+        ).execute()
+        result = getattr(response, "data", None)
+        if (
+            not isinstance(result, dict)
+            or isinstance(result.get("eligible"), bool)
+            or not isinstance(result.get("eligible"), int)
+            or isinstance(result.get("deleted"), bool)
+            or not isinstance(result.get("deleted"), int)
+            or result["eligible"] < 0
+            or not 0 <= result["deleted"] <= PUBLICATION_DELETE_BATCH
+        ):
+            raise RuntimeError("Publication cleanup returned an invalid result")
+        if eligible is None:
+            eligible = result["eligible"]
+        batch_deleted = result["deleted"]
+        deleted += batch_deleted
+        if not apply or batch_deleted == 0 or result["eligible"] <= batch_deleted:
+            break
+    return {"eligible": eligible or 0, "deleted": deleted}
 
 
 def current_run_lease_guard():
@@ -444,9 +474,12 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--dry-run", action="store_true", help="Report cleanup candidates without deleting")
     parser.add_argument("--validate-only", action="store_true", help="Validate selected target credentials and read-only access before cleanup")
     parser.add_argument("--force", action="store_true", help="Ignore this target's once-per-day cleanup marker")
+    parser.add_argument("--publications-only", action="store_true", help="Run only abandoned publication cleanup under the target lease")
     args = parser.parse_args(argv)
     if not args.target:
         parser.error("select --target development or --target production")
+    if args.publications_only and args.force:
+        parser.error("--force does not apply to --publications-only")
     _load_target(args.target)
     apply = args.apply or (not args.dry_run and _cleanup_apply_from_environment())
     if args.validate_only:
@@ -465,11 +498,35 @@ def main(argv: list[str] | None = None) -> int:
             raise RuntimeError("Selected D1 database did not confirm the validation query")
         client = _supabase_client()
         client.table("utilRunLogs").select("run_id").limit(1).execute()
+        publication_cleanup = None
+        if args.publications_only:
+            publication_cleanup = cleanup_abandoned_publications(client, apply=False)
         artwork.client.list_objects_v2(Bucket=artwork.bucket, MaxKeys=1)
         run_client = _r2_client()
         run_client.list_objects_v2(Bucket=store.bucket, MaxKeys=1)
-        print(json.dumps({"target": args.target, "validated": True, "mode": "apply" if apply else "dry-run"}))
+        result = {"target": args.target, "validated": True, "mode": "apply" if apply else "dry-run"}
+        if publication_cleanup is not None:
+            result["publications"] = publication_cleanup
+        print(json.dumps(result, sort_keys=True))
         _print_r2_budget_summary()
+        return 0
+
+    if args.publications_only:
+        with maintenance_lease(skip_if_busy=True) as lease:
+            if lease is None:
+                print(json.dumps({"target": args.target, "skipped": "another-job-holds-target-lease"}))
+                return 0
+            store, token = lease
+            result = cleanup_abandoned_publications(
+                _supabase_client(),
+                apply=apply,
+                lease_guard=lease_renewal_callback(store, token),
+            )
+            print(json.dumps({
+                "target": args.target,
+                "mode": "apply" if apply else "dry-run",
+                "publications": result,
+            }, sort_keys=True))
         return 0
 
     with maintenance_lease(skip_if_busy=True) as lease:
