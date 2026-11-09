@@ -86,10 +86,13 @@ def collect_lev(scraper, *, coming_soon):
                 if tab == 1 and en.select_one('#content .movie_shows') is None:
                     # Lev also lists films before tickets go on sale. The real
                     # page renders a named, empty booking form in both HTML and
-                    # Chrome, without a movie_shows container. Missing markup
-                    # alone is still a failure, rather than empty evidence.
+                    # Chrome, without a movie_shows container. A title-less
+                    # festival/grouping page can render the same form without a
+                    # film name; it has no schedules, so it is also empty.
+                    # Missing markup alone is still a failure, rather than
+                    # empty evidence.
                     booking = en.select_one('#content .bookform .bookform_innner')
-                    expected = f'Purchase tickets for {_text(en.select_one("#content .movie_title h1"))}'
+                    expected = f'Purchase tickets for {_text(en.select_one("#content .movie_title h1"))}'.rstrip(' :')
                     if booking is None or _text(booking).replace('\xa0', ' ').rstrip(' :') != expected or booking.select('a, input, select, button') or en.select('#content .showitem'):
                         raise ValueError(f'Lev current film is missing its schedule container: {href}')
                     scraper._coverage['explicit_empty_film_schedules'] += 1

@@ -65,6 +65,17 @@ class LevRequestsTests(TestCase):
             with self.subTest(page=invalid), self.assertRaises(ValueError):
                 self.run_pages(self.collector(LevCinema), [listing, film('סרט'), invalid])
 
+    def test_titleless_festival_landing_page_is_verified_empty(self):
+        listing = '<div id="tab-1"><div class="feat"><a href="/en/film/1"></a></div></div><div id="tab-2"><div class="feat"><a href="/en/film/1"></a></div></div>'
+        festival = film('').split('<div class="movie_shows">')[0] + '<div class="bookform"><div class="bookform_innner"><div>Purchase tickets for &nbsp;:</div></div></div></div>'
+        scraper = self.collector(LevCinema)
+        self.run_pages(scraper, [listing, film('סרט'), festival, film('סרט'), film('Film')])
+        self.assertEqual(scraper._coverage['explicit_empty_film_schedules'], 1)
+        self.assertEqual(len(scraper.gathering_info['showtime']), 1)
+        for invalid in (festival.replace('Purchase tickets for', 'Unavailable'), festival.replace('</div></div></div></div>', '<a href="/ticket/1">18:30</a></div></div></div></div>')):
+            with self.subTest(page=invalid), self.assertRaises(ValueError):
+                self.run_pages(self.collector(LevCinema), [listing, film('סרט'), invalid])
+
     def test_missing_listing_and_film_structure_fail(self):
         with self.assertRaises(ValueError):
             self.run_pages(self.collector(LevCinema), ['<html>access denied</html>'])
