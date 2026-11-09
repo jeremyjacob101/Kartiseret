@@ -12,7 +12,7 @@ from backend.scraping.utils.ScrapeRequests import configure_scrape_session
 
 class JAFCtheque(BaseCinema):
     CINEMA_NAME = "Jaffa Cinema"
-    SCREENING_CITY = "Jaffa"
+    SCREENING_CITY = "Tel Aviv"
     URL = "https://www.jaffacinema.com/"
     USES_BROWSER = False
     DEFAULT_SCRAPE_MODE = "auto"
