@@ -14,6 +14,7 @@ const preferences = {
   ratingSources: ["imdbRating" as const],
   location: "Haifa",
   siteColor: "#123456",
+  hideReReleases: false,
 };
 function setup(protectedRateLimit?: ProtectedRateLimitOptions) {
   const user = { id, email: "qa@example.test" };
@@ -298,6 +299,20 @@ describe("protected HTTP contracts", () => {
       .send(body);
     expect(result.status).toBe(400);
     expect(workflows.patchPreferences).not.toHaveBeenCalled();
+  });
+  it("accepts the hide Re-Releases preference", async () => {
+    const { app, workflows } = setup();
+    const result = await request(app)
+      .patch("/api/v1/preferences")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({ hideReReleases: true });
+
+    expect(result.status).toBe(200);
+    expect(workflows.patchPreferences).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      { hideReReleases: true },
+    );
   });
   it("rejects server-owned subscription fields and non-admin corrections", async () => {
     const { app, workflows } = setup();

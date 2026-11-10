@@ -150,6 +150,7 @@ type CatalogRouteProps = {
   onRefreshRequested: (mode: MovieSearchMode) => Promise<void>;
   releaseCategory: MovieReleaseCategory;
   onReleaseCategoryChange: (category: MovieReleaseCategory) => void;
+  showReleaseCategorySwitcher?: boolean;
   scrollerSlotMinHeight: number;
 };
 
@@ -212,6 +213,7 @@ export function CatalogRoute({
   onRefreshRequested,
   releaseCategory,
   onReleaseCategoryChange,
+  showReleaseCategorySwitcher = true,
   scrollerSlotMinHeight,
 }: CatalogRouteProps) {
   const routeLabel = jumpMode === "nowPlaying" ? "Now Playing" : "Coming Soon";
@@ -270,11 +272,13 @@ export function CatalogRoute({
           <p className="section-kicker">{routeLabel}</p>
           <h1 className="section-title">{releaseLabel}</h1>
         </div>
-        <ReleaseCategorySwitcher
-          category={releaseCategory}
-          onChange={onReleaseCategoryChange}
-          routeLabel={routeLabel}
-        />
+        {showReleaseCategorySwitcher ? (
+          <ReleaseCategorySwitcher
+            category={releaseCategory}
+            onChange={onReleaseCategoryChange}
+            routeLabel={routeLabel}
+          />
+        ) : null}
       </div>
       {catalogContent}
     </section>
@@ -434,13 +438,15 @@ function MainApplication() {
   const routeLocation = useLocation();
   const navigate = useNavigate();
   const isMobile = useDeviceStore((state) => state.isMobile);
-  const { user, loading, selectedCity } = useUserPreferencesStore(
-    useShallow((state) => ({
-      user: state.user,
-      loading: state.loading,
-      selectedCity: state.preferences.location,
-    })),
-  );
+  const { user, loading, selectedCity, hideReReleases } =
+    useUserPreferencesStore(
+      useShallow((state) => ({
+        user: state.user,
+        loading: state.loading,
+        selectedCity: state.preferences.location,
+        hideReReleases: state.preferences.hideReReleases,
+      })),
+    );
   const pathname = routeLocation.pathname;
   const [cinemathequeSearchEnabled, setCinemathequeSearchEnabled] =
     useState(false);
@@ -533,12 +539,18 @@ function MainApplication() {
     useState<MovieReleaseCategory>("newReleases");
   const [soonsReleaseCategory, setSoonsReleaseCategory] =
     useState<MovieReleaseCategory>("newReleases");
+  const moviesDisplayReleaseCategory = hideReReleases
+    ? "newReleases"
+    : moviesReleaseCategory;
+  const soonsDisplayReleaseCategory = hideReReleases
+    ? "newReleases"
+    : soonsReleaseCategory;
   const moviesPageMovies =
-    moviesReleaseCategory === "reReleases"
+    moviesDisplayReleaseCategory === "reReleases"
       ? nowPlayingReReleaseMovies
       : nowPlayingNewReleaseMovies;
   const soonsPageMovies =
-    soonsReleaseCategory === "reReleases"
+    soonsDisplayReleaseCategory === "reReleases"
       ? comingSoonReReleaseMovies
       : comingSoonNewReleaseMovies;
   const [miniNavPortalTarget, setMiniNavPortalTarget] =
@@ -1075,10 +1087,11 @@ function MainApplication() {
                     view={moviesPageView}
                     onAdminSaveEdit={handleAdminSaveEdit}
                     onRefreshRequested={handleAdminRefreshRequested}
-                    releaseCategory={moviesReleaseCategory}
+                    releaseCategory={moviesDisplayReleaseCategory}
                     onReleaseCategoryChange={(category) => {
                       handleReleaseCategoryChange("nowPlaying", category);
                     }}
+                    showReleaseCategorySwitcher={!hideReReleases}
                     scrollerSlotMinHeight={scrollerSlotMinHeight}
                   />
                 ) : catalogReady ? (
@@ -1133,10 +1146,11 @@ function MainApplication() {
                     view={soonsPageView}
                     onAdminSaveEdit={handleAdminSaveEdit}
                     onRefreshRequested={handleAdminRefreshRequested}
-                    releaseCategory={soonsReleaseCategory}
+                    releaseCategory={soonsDisplayReleaseCategory}
                     onReleaseCategoryChange={(category) => {
                       handleReleaseCategoryChange("comingSoon", category);
                     }}
+                    showReleaseCategorySwitcher={!hideReReleases}
                     scrollerSlotMinHeight={scrollerSlotMinHeight}
                   />
                 ) : catalogReady ? (

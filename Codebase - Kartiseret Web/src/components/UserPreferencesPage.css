@@ -660,6 +660,23 @@ a.prefs-alert-title:focus-visible {
   accent-color: var(--main-app-color);
 }
 
+.prefs-release-setting-title {
+  margin: 0 0 8px;
+}
+
+.prefs-release-visibility-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.prefs-release-visibility-description {
+  color: rgba(233, 218, 255, 0.72);
+  font-size: 0.84rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
 .prefs-color-setting {
   display: flex;
   align-items: center;

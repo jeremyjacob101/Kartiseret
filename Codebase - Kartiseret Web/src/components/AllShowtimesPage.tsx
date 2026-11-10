@@ -38,13 +38,15 @@ export function AllShowtimesPage() {
   const { cinemaDate } = usePublicRenderClock();
   const publicationRevision = usePublicationRevision();
   const displayPreferences = useMovieDisplayPreferences();
-  const { location, sources, setLocationPreference } = useUserPreferencesStore(
-    useShallow((state) => ({
-      location: state.preferences.location,
-      sources: state.preferences.ratingSources,
-      setLocationPreference: state.setLocationPreference,
-    })),
-  );
+  const { location, sources, hideReReleases, setLocationPreference } =
+    useUserPreferencesStore(
+      useShallow((state) => ({
+        location: state.preferences.location,
+        sources: state.preferences.ratingSources,
+        hideReReleases: state.preferences.hideReReleases,
+        setLocationPreference: state.setLocationPreference,
+      })),
+    );
   const { data: rawNowPlayingMovies = [] } = useQuery({
     ...movieCollectionQueryOptions("nowPlaying"),
     select: selectMovies,
@@ -59,13 +61,16 @@ export function AllShowtimesPage() {
   );
   const [releaseCategory, setReleaseCategory] =
     useState<MovieReleaseCategory>("newReleases");
+  const displayReleaseCategory = hideReReleases
+    ? "newReleases"
+    : releaseCategory;
   const nowPlayingMovies = useMemo(
     () =>
       filterMoviesByReleaseCategory(
         displayFilteredNowPlayingMovies,
-        releaseCategory,
+        displayReleaseCategory,
       ),
-    [displayFilteredNowPlayingMovies, releaseCategory],
+    [displayFilteredNowPlayingMovies, displayReleaseCategory],
   );
   const showtimeCities = useMemo(
     () => [...new Set<string>([...ALL_LOCATIONS, location])],
@@ -418,14 +423,16 @@ export function AllShowtimesPage() {
         <div>
           <p className="section-kicker">All Showtimes</p>
           <h1 className="section-title">
-            {MOVIE_RELEASE_CATEGORY_LABELS[releaseCategory]}
+            {MOVIE_RELEASE_CATEGORY_LABELS[displayReleaseCategory]}
           </h1>
         </div>
-        <ReleaseCategorySwitcher
-          category={releaseCategory}
-          onChange={handleReleaseCategoryChange}
-          routeLabel="All Showtimes"
-        />
+        {hideReReleases ? null : (
+          <ReleaseCategorySwitcher
+            category={displayReleaseCategory}
+            onChange={handleReleaseCategoryChange}
+            routeLabel="All Showtimes"
+          />
+        )}
       </div>
 
       {nowPlayingMovies.length > 0 ? (
@@ -569,7 +576,10 @@ export function AllShowtimesPage() {
       ) : (
         <section className="details-showtimes all-showtimes-empty-category">
           <p className="details-day-empty" role="status">
-            No {MOVIE_RELEASE_CATEGORY_LABELS[releaseCategory].toLowerCase()}{" "}
+            No{" "}
+            {MOVIE_RELEASE_CATEGORY_LABELS[
+              displayReleaseCategory
+            ].toLowerCase()}{" "}
             with showtimes are currently available in {location}.
           </p>
         </section>

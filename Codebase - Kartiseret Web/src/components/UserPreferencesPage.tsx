@@ -73,6 +73,7 @@ export function UserPreferencesPage() {
     user,
     sources,
     location,
+    hideReReleases,
     allSources,
     allSiteColors,
     siteColor,
@@ -80,6 +81,7 @@ export function UserPreferencesPage() {
     syncing,
     error,
     saveSources,
+    saveHideReReleases,
     setLocationPreference,
     saveSiteColor,
     resetSiteColor,
@@ -88,6 +90,7 @@ export function UserPreferencesPage() {
       user: state.user,
       sources: state.preferences.ratingSources,
       location: state.preferences.location,
+      hideReReleases: state.preferences.hideReReleases,
       allSources: state.allSources,
       allSiteColors: state.allSiteColors,
       siteColor: state.preferences.siteColor,
@@ -95,6 +98,7 @@ export function UserPreferencesPage() {
       syncing: state.syncing,
       error: state.error,
       saveSources: state.saveSources,
+      saveHideReReleases: state.saveHideReReleases,
       setLocationPreference: state.setLocationPreference,
       saveSiteColor: state.saveSiteColor,
       resetSiteColor: state.resetSiteColor,
@@ -115,6 +119,13 @@ export function UserPreferencesPage() {
       await saveSources(nextSources);
     },
     [saveSources, sources],
+  );
+
+  const handleHideReReleasesChange = useCallback(
+    async (hide: boolean) => {
+      await saveHideReReleases(hide);
+    },
+    [saveHideReReleases],
   );
 
   const handleLocationPick = useCallback(
@@ -271,6 +282,37 @@ export function UserPreferencesPage() {
                 </div>
               </div>
             ) : null}
+          </section>
+
+          <section className="prefs-setting" aria-label="Release categories">
+            <div className="prefs-setting-content prefs-setting-content--static">
+              <p className="prefs-setting-label prefs-release-setting-title">
+                Release categories
+              </p>
+              <label
+                className={`prefs-setting-option${
+                  hideReReleases ? " is-selected" : ""
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={hideReReleases}
+                  disabled={syncing || !user}
+                  onChange={(event) => {
+                    void handleHideReReleasesChange(
+                      event.currentTarget.checked,
+                    );
+                  }}
+                />
+                <span className="prefs-release-visibility-copy">
+                  <strong>Hide Re-Releases</strong>
+                  <span className="prefs-release-visibility-description">
+                    Remove Re-Releases and their selector from Now Playing,
+                    Coming Soon, and All Showtimes.
+                  </span>
+                </span>
+              </label>
+            </div>
           </section>
 
           {user ? <UserMovieDisplayPreferences userId={user.id} /> : null}

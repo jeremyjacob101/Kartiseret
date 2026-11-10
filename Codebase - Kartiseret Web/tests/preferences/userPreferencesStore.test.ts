@@ -37,6 +37,7 @@ beforeEach(async () => {
     rating_sources: ["imdbRating"],
     location: "Jerusalem",
     site_color: "#a66ae3",
+    hide_re_releases: false,
   };
   vi.stubGlobal("fetch", async (
     _input: RequestInfo | URL,
@@ -57,6 +58,7 @@ beforeEach(async () => {
           ],
           location: row?.location ?? "Haifa",
           siteColor: row?.site_color ?? "#a66ae3",
+          hideReReleases: row?.hide_re_releases ?? false,
         },
         error: null,
       });
@@ -68,6 +70,7 @@ beforeEach(async () => {
           location: "Haifa",
           rating_sources: ["imdbRating", "rtAudienceRating", "rtCriticRating"],
           site_color: "#a66ae3",
+          hide_re_releases: false,
         };
       return output();
     }
@@ -81,6 +84,7 @@ beforeEach(async () => {
                 ratingSources: "rating_sources",
                 siteColor: "site_color",
                 location: "location",
+                hideReReleases: "hide_re_releases",
               }[key] ?? key]: value,
             };
         resolve(
@@ -182,6 +186,19 @@ describe("preference synchronization protocol", () => {
     await Promise.resolve();
     expect(initializationRequests).toBe(1);
     expect(row?.location).toBe("Jerusalem");
+  });
+
+  it("persists the hide Re-Releases preference for the signed-in user", async () => {
+    await initialize();
+    await storeModule.useUserPreferencesStore
+      .getState()
+      .saveHideReReleases(true);
+
+    await vi.waitFor(() => expect(row?.hide_re_releases).toBe(true));
+    expect(
+      storeModule.useUserPreferencesStore.getState().preferences.hideReReleases,
+    ).toBe(true);
+    expect(writes[0]?.body).toEqual({ hideReReleases: true });
   });
 
   it("keeps a pending preference save alive across session refresh", async () => {

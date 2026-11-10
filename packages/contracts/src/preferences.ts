@@ -158,6 +158,19 @@ export const SITE_COLOR_OPTIONS = [
   { label: "Purple", value: DEFAULT_SITE_COLOR },
 ] as const satisfies readonly SiteColorOption[];
 
+export const DEFAULT_HIDE_RE_RELEASES = false as const;
+export const HIDE_RE_RELEASES_PREFERENCE_KEY = "hideReReleases";
+export const HIDE_RE_RELEASES_PREFERENCE_COLUMN = {
+  name: "hide_re_releases",
+} as const;
+export const hideReReleasesSchema = z.boolean();
+export type HideReReleases = z.infer<typeof hideReReleasesSchema>;
+
+export function normalizeHideReReleases(value: unknown): HideReReleases {
+  const result = hideReReleasesSchema.safeParse(value);
+  return result.success ? result.data : DEFAULT_HIDE_RE_RELEASES;
+}
+
 export function normalizeSiteColor(
   value: unknown,
   fallback: SiteColor = DEFAULT_SITE_COLOR,

@@ -535,6 +535,7 @@ export const userPreferences = pgTable("userPreferences", {
   ratingSources: text("rating_sources").array().notNull().default([]),
   location: text("location"),
   siteColor: text("site_color"),
+  hideReReleases: boolean("hide_re_releases").notNull().default(false),
 });
 
 export const utilAvgTime = pgTable("utilAvgTime", {

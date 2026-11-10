@@ -1,8 +1,10 @@
 import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import {
   DEFAULT_LOCATION,
+  DEFAULT_HIDE_RE_RELEASES,
   DEFAULT_RATING_SOURCES,
   DEFAULT_SITE_COLOR,
+  normalizeHideReReleases,
   normalizeLocation,
   normalizeRatingSources,
   normalizeSiteColor,
@@ -202,6 +204,7 @@ export class ProtectedWorkflows {
         ratingSources: [...DEFAULT_RATING_SOURCES],
         location: initialLocation,
         siteColor: DEFAULT_SITE_COLOR,
+        hideReReleases: DEFAULT_HIDE_RE_RELEASES,
         signupInitialized: true,
       })
       .onConflictDoNothing({ target: userPreferences.userId });
@@ -222,6 +225,7 @@ export class ProtectedWorkflows {
           : row.location,
       ),
       siteColor: normalizeSiteColor(row.siteColor),
+      hideReReleases: normalizeHideReReleases(row.hideReReleases),
     };
     const repair =
       !row.signupInitialized || !row.location?.trim() || !row.siteColor?.trim();
