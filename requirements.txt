@@ -1,7 +1,8 @@
 selenium
 webdriver-manager
 supabase
--r requirements-publication.txt
+psycopg[binary]==3.3.6
+requests
 boto3
 Pillow>=9.1
 pytz
