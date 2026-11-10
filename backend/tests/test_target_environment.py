@@ -275,6 +275,9 @@ class TargetEnvironmentTests(TestCase):
 
 class RunnerTargetSelectionTests(TestCase):
     def setUp(self) -> None:
+        installer = patch.object(runner, "_install_requirements", return_value=0)
+        installer.start()
+        self.addCleanup(installer.stop)
         self.profiles = {
             **_profile("DEV_", "development"),
             **_profile("PROD_", "production"),
@@ -291,8 +294,8 @@ class RunnerTargetSelectionTests(TestCase):
             runner,
             "_select_plan",
             side_effect=lambda: order.append("plan") or ([], None),
-        ), patch.object(
-            runner, "run_managed_process", return_value=SimpleNamespace(exit_code=0)
+        ), patch(
+            "backend.config.job_supervisor.run_managed_process", return_value=SimpleNamespace(exit_code=0)
         ) as process:
             self.assertEqual(runner.main([]), 0)
 
@@ -306,8 +309,8 @@ class RunnerTargetSelectionTests(TestCase):
         environment = {**self.profiles, "JJ_INTEL_MAC_DAILY_RUN": "true"}
         with patch.dict(os.environ, environment, clear=True), patch.object(
             runner, "_select_plan", return_value=([], None)
-        ), patch.object(
-            runner, "run_managed_process", return_value=SimpleNamespace(exit_code=0)
+        ), patch(
+            "backend.config.job_supervisor.run_managed_process", return_value=SimpleNamespace(exit_code=0)
         ) as process:
             self.assertEqual(runner.main(["--target", "development"]), 0)
 

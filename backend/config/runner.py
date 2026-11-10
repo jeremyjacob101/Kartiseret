@@ -1,16 +1,12 @@
 from __future__ import annotations
 
-from dotenv import load_dotenv
-
-load_dotenv()  # Load .env before selecting a local or scheduled plan.
-
 import json
 import os
 import argparse
 from pathlib import Path
 import sys
+import subprocess
 
-from backend.config.job_supervisor import job_seconds, run_managed_process, termination_grace_seconds
 from backend.config.target_environment import (
     TargetConfigurationError,
     is_scheduled,
@@ -20,6 +16,25 @@ from backend.config.target_environment import (
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _install_requirements() -> int:
+    print("Checking Python dependencies from requirements.txt...", flush=True)
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--prefer-binary",
+             "--disable-pip-version-check", "--no-input", "--quiet",
+             "-r", str(PROJECT_ROOT / "requirements.txt")],
+            cwd=PROJECT_ROOT,
+            stdin=subprocess.DEVNULL,
+            timeout=600,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        print(f"Dependency installation failed: {error}", file=sys.stderr, flush=True)
+        return 1
+    if result.returncode:
+        print("Dependency installation failed; pipeline was not started.", file=sys.stderr, flush=True)
+    return result.returncode
 
 
 def _serialize_plan(plan: list[tuple]) -> str:
@@ -68,6 +83,15 @@ def main(argv: list[str] | None = None) -> int:
         parser = argparse.ArgumentParser(add_help=True)
         parser.add_argument("--target", choices=("development", "production"))
         args, _unknown = parser.parse_known_args(argv)
+        dependency_status = _install_requirements()
+        if dependency_status:
+            return dependency_status
+
+        # Bootstrap before importing packages that may not be installed yet.
+        from dotenv import load_dotenv
+        from backend.config.job_supervisor import job_seconds, run_managed_process, termination_grace_seconds
+
+        load_dotenv(PROJECT_ROOT / ".env")
         target, selected_environment = _select_target(args.target)
         plan, header = _select_plan()
         environment = {

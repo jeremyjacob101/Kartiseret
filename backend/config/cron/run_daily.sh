@@ -49,9 +49,6 @@ sync_phase() {
 
 sync_phase 2>&1 | tee "$LOG_FILE"
 
-echo "==== installing Python dependencies from requirements.txt ====" | tee -a "$LOG_FILE"
-"$PYTHON" -m pip install --prefer-binary -r "$PROJECT_ROOT/requirements.txt" 2>&1 | tee -a "$LOG_FILE"
-
 set +e
 "$PYTHON" -u -m backend.config.runner "${ARGS[@]}" 2>&1 | tee -a "$LOG_FILE"
 RUN_STATUSES=("${PIPESTATUS[@]}")

@@ -109,7 +109,7 @@ class CronScriptTests(TestCase):
                     self.assertEqual(self.git("status", "--porcelain", cwd=root), "")
                     self.assertEqual(
                         (Path(temp) / "python-calls.log").read_text().splitlines(),
-                        ["pip", "runner"],
+                        ["runner"],
                     )
                     transcript = uploaded.read_text()
                     self.assertIn("runner-stdout", transcript)
