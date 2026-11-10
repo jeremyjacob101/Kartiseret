@@ -21,16 +21,16 @@
 .showtime-theaters .details-time-pill--yes-planet {
   --details-showtime-pill-background: linear-gradient(
     180deg,
-    #e4770c 0%,
-    #df730c 100%
+    #e0730d 0%,
+    #de710d 100%
   );
 }
 
 .showtime-theaters .details-time-pill--cinema-city {
   --details-showtime-pill-background: linear-gradient(
     180deg,
-    #1472ee 0%,
-    #136eed 100%
+    #146dee 0%,
+    #146cec 100%
   );
 }
 
