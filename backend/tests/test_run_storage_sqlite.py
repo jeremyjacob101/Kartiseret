@@ -42,7 +42,7 @@ class SQLiteRunStorageTests(TestCase):
     def setUp(self):
         self.enterContext(patch('backend.utils.log.job_lease.activate'))
 
-    def test_scrape_cleanup_removes_old_run_and_linked_screenshot_only(self):
+    def test_d1_pressure_cleanup_protects_legacy_rows_until_snapshot_migration(self):
         d1 = SQLiteD1()
         self.addCleanup(d1.connection.close)
         d1.size = 351_000_000
@@ -58,10 +58,12 @@ class SQLiteRunStorageTests(TestCase):
         r2 = Mock()
         r2.delete_objects.return_value = {}
         store = RunArtifactStore(d1, r2_client=r2, bucket='dev')
-        self.assertFalse(store.check_storage()['pending'])
-        self.assertEqual(d1.connection.execute('SELECT run_id FROM run_logs').fetchone()[0], 2)
-        self.assertEqual(d1.connection.execute('SELECT count(*) FROM artifacts').fetchone()[0], 0)
-        r2.delete_objects.assert_called_once()
+        with self.assertRaisesRegex(CloudflareStorageError, 'No safely removable completed run'):
+            store.check_storage()
+        self.assertEqual(d1.connection.execute('SELECT count(*) FROM run_logs').fetchone()[0], 2)
+        self.assertEqual(d1.connection.execute('SELECT count(*) FROM scraped_rows').fetchone()[0], 1)
+        self.assertEqual(d1.connection.execute('SELECT count(*) FROM artifacts').fetchone()[0], 1)
+        r2.delete_objects.assert_not_called()
 
     def test_r2_cleanup_failure_keeps_metadata_for_next_scrape(self):
         d1 = SQLiteD1()

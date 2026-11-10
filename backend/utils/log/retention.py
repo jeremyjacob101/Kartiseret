@@ -43,7 +43,13 @@ def cleanup_by_storage(store, *, now=None, lease_token: str | None = None):
                 return {'size': size, 'pending': False}
             if run_id is None:
                 cutoff = (now - timedelta(days=1)).isoformat()
-                candidates = d1.execute("SELECT run_id FROM run_logs WHERE status IN ('successful','failed') AND started_at < ? AND created_at < ? ORDER BY started_at, run_id LIMIT 1", (cutoff, cutoff)).rows
+                candidates = d1.execute(
+                    "SELECT r.run_id FROM run_logs r WHERE r.status IN ('successful','failed') "
+                    "AND r.started_at < ? AND r.created_at < ? "
+                    "AND NOT EXISTS (SELECT 1 FROM scraped_rows s WHERE s.run_id = r.run_id) "
+                    "AND NOT EXISTS (SELECT 1 FROM artifacts a WHERE a.run_id = r.run_id AND a.artifact_type = 'scraped_snapshot') "
+                    "ORDER BY r.started_at, r.run_id LIMIT 1", (cutoff, cutoff),
+                ).rows
                 if not candidates:
                     raise CloudflareStorageError('No safely removable completed run is available.')
                 run_id = int(candidates[0]['run_id'])

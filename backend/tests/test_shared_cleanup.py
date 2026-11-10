@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import json
+import os
 from pathlib import Path
 import sqlite3
 from tempfile import TemporaryDirectory
+from io import BytesIO
 import unittest
 from contextlib import nullcontext
 from unittest.mock import Mock, patch
@@ -48,11 +50,214 @@ class SharedCleanupTests(unittest.TestCase):
             self.d1.connection.execute("SELECT count(*) FROM cleanup_state WHERE id=1").fetchone()[0],
             1,
         )
+
+    def test_scrape_archive_reader_merges_legacy_rows_with_verified_r2_snapshot(self):
+        class MemoryR2:
+            objects = {}
+            def put_object(inner, *, Bucket, Key, Body, **_kwargs):
+                inner.objects[(Bucket, Key)] = bytes(Body)
+            def get_object(inner, *, Bucket, Key):
+                return {"Body": BytesIO(inner.objects[(Bucket, Key)])}
+
+        r2 = MemoryR2()
+        self.store.r2 = r2
+        self.d1.execute(
+            "INSERT INTO run_logs (run_id,target,run_from,status,started_at,created_at) "
+            "VALUES (42,'dev','test','successful','2026-11-10T08:00:00+00:00','2026-11-10')"
+        )
+        row = {
+            "row_key": "same-row", "run_id": 42, "scraper": "Cinema", "attempt": 1,
+            "outcome": "successful", "row_order": 0, "english_title": "Film",
+            "created_at": "2026-11-10T08:01:00+00:00",
+        }
+        self.d1.execute(
+            "INSERT INTO scraped_rows (row_key,run_id,scraper,attempt,outcome,row_order,english_title,created_at) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (row["row_key"], 42, "Cinema", 1, "successful", 0, "Film", row["created_at"]),
+        )
+        with TemporaryDirectory() as recovery, patch.dict(os.environ, {"KARTISERET_RECOVERY_ROOT": recovery}):
+            self.store.save_scraped_snapshot(
+                run_id=42, scraper="Cinema", attempt=1, outcome="successful", rows=[row],
+            )
+        result = self.store.read_scraped_rows_since(since_iso="2026-11-10T00:00:00+00:00")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["english_title"], "Film")
+        self.assertIn("artifact_id", result[0])
+
+    def test_scrape_archive_migration_copies_then_resumes_budgeted_deletion(self):
+        from backend.utils.log import migrate_scraped_archives
+
+        class MemoryR2:
+            objects = {}
+            def put_object(inner, *, Bucket, Key, Body, **_kwargs):
+                inner.objects[(Bucket, Key)] = bytes(Body)
+            def get_object(inner, *, Bucket, Key):
+                return {"Body": BytesIO(inner.objects[(Bucket, Key)])}
+
+        self.store.r2 = MemoryR2()
+        self.d1.execute(
+            "INSERT INTO run_logs (run_id,target,run_from,status,started_at,created_at) "
+            "VALUES (43,'dev','test','failed','2026-11-10T08:00:00+00:00','2026-11-10')"
+        )
+        for index, title in enumerate(("Film A", "Film B", "Film C")):
+            self.d1.execute(
+                "INSERT INTO scraped_rows (row_key,run_id,scraper,attempt,outcome,row_order,english_title,created_at) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (f"legacy-{index}", 43, "Cinema", 2, "unsuccessful", index, title, "2026-11-10T08:01:00+00:00"),
+            )
+        budget = Mock()
+        budget.available.return_value = 60_000
+        lease_context = nullcontext((self.store, "held"))
+        patches = (
+            patch("backend.utils.log.shared_cleanup._load_target"),
+            patch("backend.utils.log.shared_cleanup.maintenance_lease", return_value=lease_context),
+            patch("backend.utils.log.migrate_scraped_archives.RunArtifactStore", return_value=self.store),
+            patch("backend.utils.log.migrate_scraped_archives.MigrationWriteBudget.from_environment", return_value=budget),
+        )
+        with TemporaryDirectory() as recovery, patch.dict(os.environ, {"KARTISERET_RECOVERY_ROOT": recovery}):
+            with patch("backend.config.target_environment.resolve_target_environment", return_value={"D1_DATABASE_ID": self.d1.database_id, "R2_ACCOUNT_ID": "a" * 32, "D1_API_TOKEN": "x" * 40}), patches[0], patches[1], patches[2], patches[3]:
+                copied = migrate_scraped_archives.run("production", phase="copy", apply=True)
+            self.assertEqual(copied["rows_copied"], 3)
+            self.assertGreater(copied["snapshot_bytes_verified"], 0)
+            self.assertEqual(copied["budget_reserved_writes"], 20)
+            # Simulate an interruption after one small deletion batch.
+            self.d1.execute("DELETE FROM scraped_rows WHERE row_key = ?", ("legacy-0",))
+            with patch("backend.config.target_environment.resolve_target_environment", return_value={"D1_DATABASE_ID": self.d1.database_id, "R2_ACCOUNT_ID": "a" * 32, "D1_API_TOKEN": "x" * 40}), patches[0], patches[1], patches[2], patches[3]:
+                deleted = migrate_scraped_archives.run("production", phase="delete", apply=True)
+        self.assertEqual(deleted["rows_deleted"], 2)
+        self.assertGreater(deleted["snapshot_bytes_verified"], 0)
+        self.assertEqual(deleted["budget_reserved_writes"], 16)
+        self.assertEqual(self.d1.connection.execute("SELECT count(*) FROM scraped_rows WHERE run_id=43").fetchone()[0], 0)
+        self.assertEqual(self.d1.connection.execute("SELECT count(*) FROM artifacts WHERE artifact_type='scraped_snapshot' AND run_id=43").fetchone()[0], 1)
+
+    def test_migration_budget_is_persistent_and_resets_by_d1_utc_day(self):
+        from backend.utils.log.migrate_scraped_archives import MigrationWriteBudget
+
+        budget = MigrationWriteBudget(self.d1)
+        budget.initialize()
+        budget.reserve(59_990)
+        self.assertEqual(budget.available(), 10)
+        with self.assertRaisesRegex(CloudflareStorageError, "budget exhausted"):
+            budget.reserve(11)
+        yesterday = self.d1.execute("SELECT date('now','-1 day') AS day").rows[0]["day"]
+        self.d1.execute("UPDATE snapshot_migration_budget SET day_utc = ? WHERE id = 1", (yesterday,))
+        self.assertEqual(budget.available(), 60_000)
+
+    def test_uncertain_budget_reservation_remains_charged(self):
+        from backend.utils.log.migrate_scraped_archives import MigrationWriteBudget
+
+        budget = MigrationWriteBudget(self.d1)
+        budget.initialize()
+        execute = self.d1.execute
+
+        def commit_then_lose_response(sql, params=()):
+            result = execute(sql, params)
+            if sql.startswith("UPDATE snapshot_migration_budget"):
+                raise CloudflareStorageError("uncertain response after reservation commit")
+            return result
+
+        with patch.object(self.d1, "execute", side_effect=commit_then_lose_response):
+            with self.assertRaisesRegex(CloudflareStorageError, "uncertain response"):
+                budget.reserve(321)
+        self.assertEqual(budget.available(), 60_000 - 321)
+
+    def test_expired_snapshot_cleanup_deletes_object_before_catalog(self):
+        old = (datetime.now(timezone.utc) - timedelta(days=31)).isoformat()
+        self.d1.execute(
+            "INSERT INTO run_logs (run_id,target,run_from,status,started_at,finished_at,created_at) "
+            "VALUES (51,'dev','test','failed','2025-01-01',?,'2025-01-01')", (old,),
+        )
+        object_key = "runs/2025-01-01/51/scraped_snapshots/Cinema-1-deadbeef.json.gz"
+        self.d1.execute(
+            "INSERT INTO artifacts (artifact_id,run_id,artifact_type,artifact_name,object_key,content_type,metadata_json,created_at) "
+            "VALUES ('snapshot',51,'scraped_snapshot','Cinema-1',?,'application/gzip','{\"size_bytes\":1234}',?)",
+            (object_key, old),
+        )
+        self.store.r2 = Mock()
+        with patch("backend.utils.log.shared_cleanup._recoverable_run_ids", return_value=set()):
+            dry = shared_cleanup.cleanup_scraped_snapshots(self.store, apply=False)
+            applied = shared_cleanup.cleanup_scraped_snapshots(self.store, apply=True)
+        self.assertEqual(dry["eligible"], 1)
+        self.assertEqual(applied["deleted"], 1)
+        self.assertEqual(applied["deleted_bytes"], 1234)
+        self.assertEqual(applied["retained_bytes"], 0)
+        self.store.r2.delete_object.assert_called_once_with(Bucket="test-bucket", Key=object_key)
+        self.assertEqual(self.d1.execute("SELECT count(*) AS c FROM artifacts WHERE artifact_id='snapshot'").rows[0]["c"], 0)
         self.store.ensure_schema()
         self.assertEqual(
             self.d1.connection.execute("SELECT count(*) FROM cleanup_state WHERE id=1").fetchone()[0],
             1,
         )
+
+    def test_snapshot_catalog_is_retained_when_r2_deletion_is_uncertain(self):
+        old = (datetime.now(timezone.utc) - timedelta(days=31)).isoformat()
+        self.d1.execute(
+            "INSERT INTO run_logs (run_id,target,run_from,status,started_at,finished_at,created_at) "
+            "VALUES (55,'dev','test','successful','2025-01-01',?,'2025-01-01')", (old,),
+        )
+        object_key = "runs/2025-01-01/55/scraped_snapshots/Cinema-1-deadbeef.json.gz"
+        self.d1.execute(
+            "INSERT INTO artifacts (artifact_id,run_id,artifact_type,artifact_name,object_key,content_type,metadata_json,created_at) "
+            "VALUES ('snapshot-r2-failure',55,'scraped_snapshot','Cinema-1',?,'application/gzip','{\"size_bytes\":1234}',?)",
+            (object_key, old),
+        )
+        self.store.r2 = Mock()
+        self.store.r2.delete_object.side_effect = RuntimeError("timeout")
+        with patch("backend.utils.log.shared_cleanup._recoverable_run_ids", return_value=set()):
+            with self.assertRaisesRegex(CloudflareStorageError, "deletion was not confirmed"):
+                shared_cleanup.cleanup_scraped_snapshots(self.store, apply=True)
+        self.assertEqual(
+            self.d1.execute("SELECT count(*) AS c FROM artifacts WHERE artifact_id='snapshot-r2-failure'").rows[0]["c"],
+            1,
+        )
+
+    def test_snapshot_without_confirmed_completion_time_is_retained(self):
+        old = (datetime.now(timezone.utc) - timedelta(days=40)).isoformat()
+        self.d1.execute(
+            "INSERT INTO run_logs (run_id,target,run_from,status,started_at,finished_at,created_at) "
+            "VALUES (52,'dev','test','failed','2025-01-01',NULL,'2025-01-01')"
+        )
+        object_key = "runs/2025-01-01/52/scraped_snapshots/Cinema-1-deadbeef.json.gz"
+        self.d1.execute(
+            "INSERT INTO artifacts (artifact_id,run_id,artifact_type,artifact_name,object_key,content_type,metadata_json,created_at) "
+            "VALUES ('snapshot-no-finish',52,'scraped_snapshot','Cinema-1',?,'application/gzip','{\"size_bytes\":1234}',?)",
+            (object_key, old),
+        )
+        self.store.r2 = Mock()
+        with patch("backend.utils.log.shared_cleanup._recoverable_run_ids", return_value=set()):
+            result = shared_cleanup.cleanup_scraped_snapshots(self.store, apply=True)
+        self.assertEqual(result["deleted"], 0)
+        self.assertEqual(result["protected"], 1)
+        self.assertEqual(result["retained_bytes"], 1234)
+        self.store.r2.delete_object.assert_not_called()
+        self.assertEqual(
+            self.d1.execute("SELECT count(*) AS c FROM artifacts WHERE artifact_id='snapshot-no-finish'").rows[0]["c"],
+            1,
+        )
+
+    def test_snapshot_cleanup_respects_deletion_batch_and_reports_remaining_bytes(self):
+        old = (datetime.now(timezone.utc) - timedelta(days=31)).isoformat()
+        for run_id in (53, 54):
+            self.d1.execute(
+                "INSERT INTO run_logs (run_id,target,run_from,status,started_at,finished_at,created_at) "
+                "VALUES (?, 'dev','test','successful','2025-01-01',?,'2025-01-01')", (run_id, old),
+            )
+            self.d1.execute(
+                "INSERT INTO artifacts (artifact_id,run_id,artifact_type,artifact_name,object_key,content_type,metadata_json,created_at) "
+                "VALUES (?,?,'scraped_snapshot','Cinema-1',?,'application/gzip','{\"size_bytes\":1234}',?)",
+                (f"snapshot-{run_id}", run_id,
+                 f"runs/2025-01-01/{run_id}/scraped_snapshots/Cinema-1-deadbeef.json.gz", old),
+            )
+        self.store.r2 = Mock()
+        with patch("backend.utils.log.shared_cleanup._recoverable_run_ids", return_value=set()):
+            result = shared_cleanup.cleanup_scraped_snapshots(self.store, apply=True, max_deletes=1)
+        self.assertEqual(result["eligible"], 2)
+        self.assertEqual(result["deletion_batch"], 1)
+        self.assertEqual(result["deleted"], 1)
+        self.assertEqual(result["deleted_bytes"], 1234)
+        self.assertEqual(result["retained"], 1)
+        self.assertEqual(result["retained_bytes"], 1234)
+        self.store.r2.delete_object.assert_called_once()
 
     def test_target_lease_can_be_renewed_and_released(self):
         token = self.store.acquire_run_lease()

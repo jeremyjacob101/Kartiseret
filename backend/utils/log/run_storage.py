@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import gzip
 from hashlib import sha256
 from io import BytesIO
 import json
@@ -30,6 +31,8 @@ SCRAPED_COLUMNS = (
 )
 SCRAPED_READ_PAGE_SIZE = 500
 TEXT_ARTIFACT_READ_PAGE_SIZE = 25
+SCRAPE_SNAPSHOT_TYPE = "scraped_snapshot"
+SCRAPE_SNAPSHOT_VERSION = 1
 _schema_lock = threading.Lock()
 _schema_ready: set[str] = set()
 
@@ -100,7 +103,7 @@ class RunArtifactStore:
                 "SELECT name FROM sqlite_master WHERE type IN ('table', 'index')"
             ).rows
             existing = {row.get("name") for row in rows}
-            required = {"run_locks", "run_logs", "scraped_rows", "gathering_rows", "artifacts", "diagnostics", "retention_state", "cleanup_state"}
+            required = {"run_locks", "run_logs", "scraped_rows", "gathering_rows", "artifacts", "diagnostics", "retention_state", "cleanup_state", "snapshot_migration_budget"}
             indexes = {"idx_scraped_rows_run_source", "idx_gathering_rows_run", "idx_artifacts_run_type", "idx_run_logs_started_at", "idx_diagnostics_run"}
             complete = required.union(indexes).issubset(existing)
             if complete:
@@ -255,46 +258,95 @@ class RunArtifactStore:
                 "extra_json": _canonical(extras),
                 "created_at": utc_now(),
             })
-        payload = {
-            "environment": os.environ.get("KARTISERET_TARGET", ""),
-            "run_id": int(run_id), "scraper": str(scraper), "attempt": int(attempt),
-            "outcome": outcome, "rows": normalized,
-        }
-        identity = _hash(_canonical(payload))
-        recovery = write_recovery_envelope("scraped_rows", f"{run_id}-{scraper}-{attempt}-{identity[:16]}", payload)
-        fields = (
-            "row_key", "run_id", "scraper", "attempt", "outcome", "row_order", *SCRAPED_COLUMNS,
-            "source_run_id", "extra_json", "created_at",
+        writes = self.save_scraped_snapshot(
+            run_id=int(run_id), scraper=str(scraper), attempt=int(attempt), outcome=outcome,
+            rows=normalized,
         )
-        updates = ", ".join(
-            f"{field} = excluded.{field}"
-            for field in fields
-            if field not in {"row_key", "run_id", "scraper", "attempt", "row_order"}
-        )
-        conflict = "DO NOTHING" if insert_only else f"DO UPDATE SET {updates}"
-        sql = (
-            f"INSERT INTO scraped_rows ({', '.join(fields)}) "
-            f"VALUES ({', '.join('?' for _ in fields)}) "
-            f"ON CONFLICT(row_key) {conflict}"
-        )
-        writes = 0
-        changes = 0
-        try:
-            for start in range(0, len(normalized), max(1, int(batch_size))):
-                statements = [
-                    (sql, tuple(row.get(field, "") for field in fields))
-                    for row in normalized[start:start + max(1, int(batch_size))]
-                ]
-                batch_results = self.d1.batch(statements)
-                writes += sum(result.rows_written for result in batch_results)
-                changes += sum(result.changes for result in batch_results)
-        except Exception:
-            # No inline retry: the spool is retained even if D1 may have committed.
-            raise
-        else:
-            remove_recovery_envelope(recovery)
-        self._last_scraped_rows_changed = changes
+        self._last_scraped_rows_changed = len(normalized) if writes else 0
         return writes
+
+    def save_scraped_snapshot(
+        self, *, run_id: int, scraper: str, attempt: int, outcome: str,
+        rows: list[dict], recovery_identity: str | None = None,
+    ) -> int:
+        """Persist one immutable gzip snapshot and one D1 catalog reference."""
+        if outcome not in {"successful", "unsuccessful"} or not rows:
+            raise CloudflareStorageError("Scrape snapshots require rows and a valid attempt outcome.")
+        ordered_rows = sorted((dict(row) for row in rows), key=lambda row: int(row.get("row_order", 0)))
+        if any(int(row.get("run_id", -1)) != int(run_id) for row in ordered_rows):
+            raise CloudflareStorageError("Scrape snapshot rows do not match their run ID.")
+        identity = _hash(f"scraped-snapshot:{run_id}:{scraper}:{attempt}:{outcome}")
+        comparable = [{key: value for key, value in row.items() if key != "created_at"} for row in ordered_rows]
+        content_hash = _hash(_canonical(comparable))
+        catalog_id = identity
+        raw = _canonical({
+            "version": SCRAPE_SNAPSHOT_VERSION, "run_id": int(run_id),
+            "scraper": str(scraper), "attempt": int(attempt), "outcome": outcome,
+            "rows": ordered_rows,
+        }).encode("utf-8")
+        compressed = gzip.compress(raw, mtime=0)
+        compressed_hash = sha256(compressed).hexdigest()
+        created_at = min((str(row.get("created_at") or utc_now()) for row in ordered_rows), default=utc_now())
+        day = created_at[:10]
+        object_key = (f"runs/{day}/{int(run_id)}/scraped_snapshots/"
+                      f"{_safe_segment(scraper)}-{int(attempt)}-{content_hash[:20]}.json.gz")
+        recovery_payload = {
+            "run_id": int(run_id), "scraper": str(scraper), "attempt": int(attempt),
+            "outcome": outcome, "object_key": object_key, "content_sha256": content_hash,
+            "compressed_sha256": compressed_hash, "row_count": len(ordered_rows),
+        }
+        recovery = write_recovery_envelope(
+            "scraped_snapshots", recovery_identity or identity, recovery_payload, compressed,
+        )
+        existing = self.d1.execute(
+            "SELECT artifact_id, run_id, object_key, metadata_json FROM artifacts WHERE artifact_id = ?",
+            (catalog_id,),
+        ).rows
+        if existing:
+            try:
+                old_metadata = json.loads(existing[0]["metadata_json"])
+            except (KeyError, TypeError, ValueError) as error:
+                raise CloudflareStorageError("Existing scrape snapshot catalog entry is malformed.") from error
+            if old_metadata.get("content_sha256") != content_hash or old_metadata.get("row_count") != len(ordered_rows):
+                raise CloudflareStorageError("Scraper attempt produced conflicting rows for an existing snapshot.")
+            # A catalog row alone does not prove its object still exists or is
+            # intact. Keep the recovery spool unless the referenced object also
+            # passes the same checks archive readers require.
+            self.read_scraped_snapshot(existing[0])
+            remove_recovery_envelope(recovery)
+            return 0
+        client = self.r2 or _r2_client()
+        try:
+            client.put_object(
+                Bucket=self.bucket, Key=object_key, Body=compressed,
+                ContentType="application/gzip",
+                Metadata={"run-id": str(run_id), "artifact-type": SCRAPE_SNAPSHOT_TYPE,
+                          "content-sha256": content_hash, "created-at": created_at},
+            )
+        except Exception as error:
+            from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+            if isinstance(error, (R2BudgetError, R2BudgetExceeded)):
+                raise
+            raise CloudflareStorageError(f"R2 scrape snapshot upload failed ({type(error).__name__}); local recovery copy retained.") from error
+        metadata = {
+            "version": SCRAPE_SNAPSHOT_VERSION, "scraper": str(scraper),
+            "attempt": int(attempt), "outcome": outcome, "row_count": len(ordered_rows),
+            "size_bytes": len(compressed), "content_sha256": content_hash,
+            "compressed_sha256": compressed_hash,
+        }
+        try:
+            self._insert_artifact_row(
+                artifact_id=catalog_id, run_id=run_id, artifact_type=SCRAPE_SNAPSHOT_TYPE,
+                name=f"{_safe_segment(scraper)}-{int(attempt)}", object_key=object_key,
+                content_type="application/gzip", text_content="", metadata=metadata,
+                created_at=created_at,
+            )
+        except Exception:
+            # Keep the spool: the next identical attempt can safely retry the
+            # content-addressed R2 put and complete the missing catalog entry.
+            raise
+        remove_recovery_envelope(recovery)
+        return self._last_artifact_rows_written
 
     def save_gathering_rows(self, *, run_id: int, scraper: str, source_file: str, rows: list[dict]) -> int:
         """Import intermediate historical rows without inventing an attempt outcome."""
@@ -507,6 +559,66 @@ class RunArtifactStore:
         self._last_imported_run_changed = result.changes
         return result.rows_written
 
+    def read_scraped_snapshot(self, catalog: dict) -> dict:
+        """Fetch and verify one catalogued snapshot before exposing its rows."""
+        if not isinstance(catalog.get("object_key"), str) or not catalog["object_key"].startswith("runs/"):
+            raise CloudflareStorageError("Scrape snapshot catalog contains an invalid R2 key.")
+        try:
+            metadata = json.loads(catalog["metadata_json"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise CloudflareStorageError("Scrape snapshot catalog metadata is malformed.") from error
+        client = self.r2 or _r2_client()
+        try:
+            response = client.get_object(Bucket=self.bucket, Key=catalog["object_key"])
+            body = response["Body"]
+            compressed = body.read()
+            close = getattr(body, "close", None)
+            if close:
+                close()
+        except Exception as error:
+            raise CloudflareStorageError(f"Referenced R2 scrape snapshot could not be read ({type(error).__name__}).") from error
+        if sha256(compressed).hexdigest() != metadata.get("compressed_sha256"):
+            raise CloudflareStorageError("R2 scrape snapshot checksum does not match its D1 catalog entry.")
+        try:
+            document = json.loads(gzip.decompress(compressed))
+        except (OSError, EOFError, UnicodeDecodeError, ValueError) as error:
+            raise CloudflareStorageError("R2 scrape snapshot is corrupt or has an invalid format.") from error
+        if not isinstance(document, dict):
+            raise CloudflareStorageError("R2 scrape snapshot header is malformed.")
+        try:
+            expected = (int(catalog["run_id"]), metadata.get("scraper"), int(metadata.get("attempt", -1)), metadata.get("outcome"))
+        except (KeyError, TypeError, ValueError) as error:
+            raise CloudflareStorageError("Scrape snapshot catalog identity is malformed.") from error
+        observed = (document.get("run_id"), document.get("scraper"), document.get("attempt"), document.get("outcome"))
+        snapshot_rows = document.get("rows")
+        if (metadata.get("version") != SCRAPE_SNAPSHOT_VERSION
+                or document.get("version") != SCRAPE_SNAPSHOT_VERSION
+                or observed != expected or not isinstance(snapshot_rows, list)
+                or len(snapshot_rows) != metadata.get("row_count")
+                or any(not isinstance(row, dict) for row in snapshot_rows)):
+            raise CloudflareStorageError("R2 scrape snapshot header or row count does not match its catalog entry.")
+        row_keys = [row.get("row_key") for row in snapshot_rows]
+        if any(not isinstance(key, str) or not key for key in row_keys) or len(set(row_keys)) != len(row_keys):
+            raise CloudflareStorageError("R2 scrape snapshot contains missing or duplicate row identities.")
+        if any(row.get("run_id") != expected[0] for row in snapshot_rows):
+            raise CloudflareStorageError("R2 scrape snapshot contains rows for another run.")
+        try:
+            row_orders = [int(row["row_order"]) for row in snapshot_rows]
+            row_identities_match = all(
+                row.get("scraper") == expected[1]
+                and int(row.get("attempt", -1)) == expected[2]
+                and row.get("outcome") == expected[3]
+                for row in snapshot_rows
+            )
+        except (KeyError, TypeError, ValueError) as error:
+            raise CloudflareStorageError("R2 scrape snapshot row identity is malformed.") from error
+        if row_orders != sorted(row_orders) or not row_identities_match:
+            raise CloudflareStorageError("R2 scrape snapshot rows do not match their ordered attempt identity.")
+        identity_rows = [{key: value for key, value in row.items() if key != "created_at"} for row in snapshot_rows]
+        if _hash(_canonical(identity_rows)) != metadata.get("content_sha256"):
+            raise CloudflareStorageError("R2 scrape snapshot content checksum does not match its D1 catalog entry.")
+        return {"metadata": metadata, "document": document, "rows": snapshot_rows}
+
     def read_scraped_rows_since(self, *, since_iso: str, limit: int = 50000) -> list[dict]:
         maximum = min(max(1, int(limit)), 50000)
         rows: list[dict] = []
@@ -525,7 +637,44 @@ class RunArtifactStore:
             if len(result.rows) < page_limit:
                 break
             offset += len(result.rows)
-        return rows
+        # Catalog reads share the same limit. During migration, catalog snapshots
+        # overlap legacy D1 rows, so identity-based merging avoids double counts.
+        catalogs: list[dict] = []
+        offset = 0
+        while len(catalogs) < maximum:
+            page_limit = min(SCRAPED_READ_PAGE_SIZE, maximum - len(catalogs))
+            result = self.d1.execute(
+                "SELECT a.artifact_id, a.run_id, a.artifact_name, a.object_key, a.metadata_json, a.created_at, "
+                "r.started_at AS run_started_at, r.status AS d1_run_status "
+                "FROM artifacts a JOIN run_logs r ON r.run_id = a.run_id "
+                "WHERE a.artifact_type = ? AND r.started_at >= ? "
+                "ORDER BY r.started_at, a.run_id, a.artifact_name, a.artifact_id LIMIT ? OFFSET ?",
+                (SCRAPE_SNAPSHOT_TYPE, since_iso, page_limit, offset),
+            )
+            catalogs.extend(result.rows)
+            if len(result.rows) < page_limit:
+                break
+            offset += len(result.rows)
+        for catalog in catalogs:
+            snapshot = self.read_scraped_snapshot(catalog)
+            for row in snapshot["rows"]:
+                rows.append({**row, "artifact_id": catalog["artifact_id"],
+                             "run_started_at": catalog["run_started_at"], "d1_run_status": catalog["d1_run_status"]})
+        # Prefer R2 when old D1 rows and their verified replacement overlap.
+        deduplicated = {}
+        for row in rows:
+            key = row.get("row_key")
+            if not isinstance(key, str) or not key:
+                raise CloudflareStorageError("Scrape archive row has no stable identity.")
+            current = deduplicated.get(key)
+            if current is None or row.get("artifact_id"):
+                deduplicated[key] = row
+        output = sorted(
+            deduplicated.values(),
+            key=lambda row: (str(row.get("run_started_at", "")), int(row.get("run_id", 0)),
+                             str(row.get("scraper", "")), int(row.get("attempt", 0)), int(row.get("row_order", 0))),
+        )
+        return output[:maximum]
 
     def read_text_artifacts_since(self, *, since_iso: str, limit: int = 10000) -> list[dict]:
         maximum = min(max(1, int(limit)), 10000)

@@ -12,7 +12,7 @@ Apply the `weekly_publication_cleanup` Supabase migration to development and pro
 - On an uncertain renewal, the worker latches failure, blocks new R2/PostgREST/D1 requests, and terminates. Its supervisor stops the process group. Requests already sent may finish; recovery records preserve that uncertainty. Ownership is checked before storage requests, including after sleep or supervisor loss.
 - Commands have a five-hour maximum total lifetime including shutdown. Defaults remain 4.5 hours for normal jobs and 30 minutes for realtime updates. Shorter workflow timeouts still apply.
 - Cleanup scans the selected target only. `--target` is required unless `KARTISERET_TARGET` is already selected; the target resolver checks Supabase project, artwork bucket, D1 UUID shape, and private artifact bucket names before work starts.
-- The R2 artwork, social-card, and orphan-artifact stages delete at most 500 objects each per invocation. Artwork and social references must scan completely and pass validation before deletion. Run artifacts are eligible only when older than 30 days, absent from D1 references, and owned by a confirmed successful run; active, failed, unconfirmed, unknown, or recoverable runs are retained.
+- The R2 artwork, social-card, and orphan-artifact stages delete at most 500 objects each per invocation. Artwork and social references must scan completely and pass validation before deletion. Ordinary run artifacts are eligible only when older than 30 days, absent from D1 references, and owned by a confirmed successful run; active, failed, unconfirmed, unknown, or recoverable runs are retained. Scrape snapshots use the completed-run retention rules below, including failed runs.
 - A successful applied cleanup is recorded in the target's D1 database and suppresses expensive catalog scans until the next UTC day. Dry-runs have a separate daily marker and never count as a successful cleanup. D1 storage checks still run before and after jobs.
 - Do not delete R2 buckets. The cleanup only deletes individually verified objects.
 
@@ -78,6 +78,23 @@ At pressure, one bounded R2 cleanup pass can run again even after today's succes
 The `KARTISERET_SHARED_CLEANUP_APPLY` rollout gate still controls automatic deletion. With it false, pressure cleanup is a dry run and uploads stop if room cannot be established. Inventory errors, missing ledgers, and unknown upload sizes fail closed. The pipeline's current uploads all use bounded `PutObject`; new copy/multipart writes and Infrequent Access writes are refused until they have explicit storage accounting. Existing pending multipart parts are counted and retained, not automatically aborted.
 
 This protects the four managed buckets through updated pipeline/maintenance entry points. It is not an account-wide billing cap: other buckets, old scheduler code, external clients, in-flight requests during failover, and operations already consumed remain outside this storage ceiling. Main-pipeline R2 operation limits and D1 retention are unchanged. No new service, credentials, runtime dependency, D1 migration, or scheduled job is introduced.
+
+## Scrape snapshots
+
+New scraper attempts are archived as versioned gzip JSON objects under `runs/<UTC date>/<run ID>/scraped_snapshots/`. Supabase continues to receive the same working rows. D1 stores one catalog record per attempt with its R2 key, checksum, row count, outcome, and format version. Archive reads verify the compressed and content checksums and merge catalogued snapshots with legacy D1 rows by stable row key.
+
+The existing daily and pressure cleanup paths in the Python run preflight scan the full snapshot catalog and delete up to 500 expired snapshots per pass, only after the owning run has a confirmed completion timestamp at least 30 days old. They report eligible, retained, and deleted object counts and bytes, with counts for retention blockers. Active or unresolved runs, runs without a completion timestamp, local recovery spools, and objects pinned by the active job are retained. The R2 object is deleted before its D1 catalog record. D1 size retention skips legacy scrape rows and snapshot catalog entries so it cannot remove migration sources or retained references. No Cloudflare Worker or separate background service is added for snapshot cleanup.
+
+Use `backend.utils.log.migrate_scraped_archives` to copy and later delete legacy per-row archives. Both phases default to read-only. Review the dry run first, apply copy, and begin deletion only after every copied snapshot has passed checksum, row count, and row-key verification:
+
+```sh
+python -m backend.utils.log.migrate_scraped_archives --target production --phase copy
+python -m backend.utils.log.migrate_scraped_archives --target production --phase copy --apply
+python -m backend.utils.log.migrate_scraped_archives --target production --phase delete
+python -m backend.utils.log.migrate_scraped_archives --target production --phase delete --apply
+```
+
+The same command accepts `development`. Migration writes reserve against one persistent account-wide ledger in production D1, capped at 60,000 conservative writes per UTC day. Deletion reserves three writes per legacy row plus batch overhead, and reservations are kept after uncertain outcomes. Catalog entries remain for the normal 30-day retention period after legacy row deletion. Do not run migration commands until the D1 daily allowance resets; all runner hosts must use the snapshot-writing version before production migration begins.
 
 ## Existing publication cleanup
 

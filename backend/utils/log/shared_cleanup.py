@@ -257,7 +257,7 @@ def _recoverable_run_ids() -> set[int]:
     except OSError as error:
         raise CloudflareStorageError("Recovery state could not be inspected; screenshot deletion was skipped") from error
     recoverable: set[int] = set()
-    relevant = {"file_artifacts", "text_artifacts", "diagnostics", "run_finalization", "scraped_rows", "gathering_rows"}
+    relevant = {"file_artifacts", "text_artifacts", "diagnostics", "run_finalization", "scraped_rows", "scraped_snapshots", "gathering_rows"}
     for kind in relevant:
         directory = root / kind
         try:
@@ -325,10 +325,29 @@ def cleanup_orphan_run_artifacts(
                 continue
             if modified.tzinfo is None:
                 modified = modified.replace(tzinfo=timezone.utc)
-            if modified > cutoff or key in referenced or (retain_object and retain_object(key)):
+            snapshot_object = "/scraped_snapshots/" in key
+            if snapshot_object:
+                completion = store.d1.execute(
+                    "SELECT finished_at FROM run_logs WHERE run_id = ? AND status IN ('successful','failed')",
+                    (int(match.group(2)),),
+                ).rows
+                if len(completion) != 1 or not completion[0].get("finished_at"):
+                    continue
+                try:
+                    archived = datetime.fromisoformat(completion[0]["finished_at"])
+                    if archived.tzinfo is None:
+                        archived = archived.replace(tzinfo=timezone.utc)
+                except ValueError as error:
+                    raise CloudflareStorageError("Scrape snapshot owner has an invalid completion time") from error
+                if archived > cutoff:
+                    continue
+            elif modified > cutoff:
+                continue
+            if key in referenced or (retain_object and retain_object(key)):
                 continue
             run_id = int(match.group(2))
-            if states.get(run_id) != "successful" or run_id in recoverable:
+            allowed_states = {"successful", "failed"} if snapshot_object else {"successful"}
+            if states.get(run_id) not in allowed_states or run_id in recoverable:
                 continue
             eligible += 1
             if len(candidates) < max_deletes:
@@ -371,10 +390,117 @@ def cleanup_r2_storage(store, *, apply, lease_guard, artwork=None, pins=None):
     report["social_previews"] = cleanup_social_previews(_supabase_client(), artwork, apply=apply, lease_guard=lease_guard, **artwork_pin)
     if lease_guard:
         lease_guard()
+    report["scraped_snapshots"] = cleanup_scraped_snapshots(
+        store, apply=apply, lease_guard=lease_guard,
+        retain_object=(lambda key: retains(pins, store.bucket, key)) if pins is not None else None,
+    )
+    if lease_guard:
+        lease_guard()
     report["run_artifacts"] = cleanup_orphan_run_artifacts(store, apply=apply, lease_guard=lease_guard, **artifact_pin)
     if lease_guard:
         lease_guard()
     return report
+
+
+def cleanup_scraped_snapshots(store, *, apply, lease_guard=None, retain_object=None, grace_days=30, max_deletes=500):
+    """Expire snapshots 30 days after confirmed completion of their owning run."""
+    from datetime import datetime, timedelta, timezone
+
+    if grace_days < 0 or max_deletes < 1:
+        raise ValueError("Snapshot grace period and deletion bound must be non-negative/positive")
+    recoverable = _recoverable_run_ids()
+    cutoff = datetime.now(timezone.utc) - timedelta(days=grace_days)
+    rows = []
+    offset = 0
+    page_size = 500
+    while True:
+        page = store.d1.execute(
+            "SELECT a.artifact_id, a.run_id, a.object_key, a.metadata_json, "
+            "r.status, r.finished_at FROM artifacts a JOIN run_logs r ON r.run_id = a.run_id "
+            "WHERE a.artifact_type = ? ORDER BY a.created_at, a.artifact_id LIMIT ? OFFSET ?",
+            ("scraped_snapshot", page_size, offset),
+        ).rows
+        rows.extend(page)
+        if len(page) < page_size:
+            break
+        offset += len(page)
+    eligible = []
+    eligible_count = eligible_bytes = total_bytes = 0
+    protected = 0
+    blocked_reasons = {"run_unresolved": 0, "missing_completion_time": 0,
+                       "within_retention": 0, "job_pinned": 0}
+    for row in rows:
+        if lease_guard:
+            lease_guard()
+        try:
+            metadata = json.loads(row["metadata_json"])
+            raw_size_bytes = metadata.get("size_bytes")
+        except (KeyError, TypeError, ValueError) as error:
+            raise CloudflareStorageError("A scrape snapshot has invalid catalog size metadata") from error
+        if (not isinstance(metadata, dict) or isinstance(raw_size_bytes, bool)
+                or not isinstance(raw_size_bytes, int) or raw_size_bytes < 0):
+            raise CloudflareStorageError("A scrape snapshot has invalid catalog size metadata")
+        size_bytes = raw_size_bytes
+        total_bytes += size_bytes
+        if row.get("status") not in {"successful", "failed"} or int(row["run_id"]) in recoverable:
+            protected += 1
+            blocked_reasons["run_unresolved"] += 1
+            continue
+        finished_at = row.get("finished_at")
+        if not finished_at:
+            # A completed status without its completion timestamp is not enough
+            # evidence to start the 30-day retention clock.
+            protected += 1
+            blocked_reasons["missing_completion_time"] += 1
+            continue
+        try:
+            anchor = datetime.fromisoformat(finished_at)
+            if anchor.tzinfo is None:
+                anchor = anchor.replace(tzinfo=timezone.utc)
+        except (TypeError, ValueError) as error:
+            raise CloudflareStorageError("A scrape snapshot has no reliable completed-run age") from error
+        if anchor > cutoff:
+            blocked_reasons["within_retention"] += 1
+            continue
+        if retain_object and retain_object(row["object_key"]):
+            blocked_reasons["job_pinned"] += 1
+            continue
+        eligible_count += 1
+        eligible_bytes += size_bytes
+        if len(eligible) < max_deletes:
+            eligible.append({**row, "size_bytes": size_bytes})
+    deleted = 0
+    deleted_bytes = 0
+    if apply:
+        client = store.r2
+        if client is None:
+            from backend.utils.log.run_storage import _r2_client
+            client = _r2_client()
+        for row in eligible:
+            if lease_guard:
+                lease_guard()
+            try:
+                client.delete_object(Bucket=store.bucket, Key=row["object_key"])
+            except Exception as error:
+                raise CloudflareStorageError("Expired scrape snapshot deletion was not confirmed; catalog retained.") from error
+            if lease_guard:
+                lease_guard()
+            result = store.d1.execute(
+                "DELETE FROM artifacts WHERE artifact_id = ? AND artifact_type = ? AND object_key = ?",
+                (row["artifact_id"], "scraped_snapshot", row["object_key"]),
+            )
+            if result.changes != 1:
+                raise CloudflareStorageError("Deleted scrape snapshot catalog reference could not be confirmed.")
+            deleted += 1
+            deleted_bytes += row["size_bytes"]
+    return {
+        "eligible": eligible_count, "eligible_bytes": eligible_bytes,
+        "deletion_batch": len(eligible), "deleted": deleted,
+        "deleted_bytes": deleted_bytes, "retained": len(rows) - deleted,
+        "retained_bytes": total_bytes - deleted_bytes, "protected": protected,
+        "blocked_reasons": blocked_reasons, "scanned": len(rows),
+        "scan_limited": False,
+    }
 
 
 def run_shared_cleanup(

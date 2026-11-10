@@ -308,7 +308,10 @@ class InventoryAndHookTests(unittest.TestCase):
             {'Key': key, 'LastModified': old} for key in keys[kw['Prefix']]
         ]}]
         artwork = SimpleNamespace(client=client, bucket='art')
-        store = SimpleNamespace(r2=client, bucket='runs')
+        store = SimpleNamespace(
+            r2=client, bucket='runs',
+            d1=SimpleNamespace(execute=Mock(return_value=SimpleNamespace(rows=[]))),
+        )
         pins = {('art', prefix + '/'), ('art', social), ('runs', artifact)}
         with patch.object(shared_cleanup, '_supabase_client'), patch(
             'backend.dataflow.backfill_catalog_artwork.referenced_keys', return_value=set()
