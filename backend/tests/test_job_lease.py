@@ -45,6 +45,48 @@ class JobLeaseTests(TestCase):
         self.assertTrue(session.failed.is_set())
         session.terminate.assert_called_once()
 
+    def test_failure_details_preserve_cause_and_redact_credentials(self):
+        import io
+        from backend.utils.log.cloudflare_storage import CloudflareStorageError
+        session = self.session()
+        session.store.d1.timeout = 5
+        try:
+            try:
+                raise TimeoutError('request timed out secret-credential owner')
+            except TimeoutError as cause:
+                raise CloudflareStorageError('D1 request failed') from cause
+        except CloudflareStorageError as error:
+            with patch.dict('os.environ', {'D1_API_TOKEN': 'secret-credential'}), patch(
+                'backend.utils.log.cloudflare_storage.write_recovery_envelope'
+            ) as record, patch('sys.stderr', new_callable=io.StringIO) as stderr:
+                with self.assertRaises(LeaseLostError):
+                    session._fail(error)
+        details = record.call_args.args[2]
+        self.assertEqual(details['operation'], 'verify')
+        self.assertEqual(details['request_timeout_seconds'], 5)
+        self.assertIn('TimeoutError', details['traceback'])
+        self.assertIn('request timed out', details['traceback'])
+        self.assertNotIn('secret-credential', str(details))
+        self.assertNotIn('owner', str(details))
+        self.assertIn('D1 request failed', stderr.getvalue())
+        session.terminate.assert_called_once()
+
+    def test_renewal_failure_records_operation_and_still_stops(self):
+        session = self.session()
+        session.closed.wait = Mock(return_value=False)
+        session.store.renew.side_effect = TimeoutError('renewal timed out')
+        with patch('backend.utils.log.cloudflare_storage.write_recovery_envelope') as record:
+            session._heartbeat()
+        self.assertEqual(record.call_args.args[2]['operation'], 'renew')
+        session.terminate.assert_called_once()
+
+    def test_failure_to_save_diagnostics_still_terminates(self):
+        session = self.session()
+        with patch('backend.utils.log.cloudflare_storage.write_recovery_envelope', side_effect=OSError('disk full')):
+            with self.assertRaises(LeaseLostError):
+                session._fail(TimeoutError('uncertain'))
+        session.terminate.assert_called_once()
+
     def test_resumed_or_replaced_owner_cannot_issue_another_mutation(self):
         session = self.session()
         session.store.verify.side_effect = LeaseLostError('expired')

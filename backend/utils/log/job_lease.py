@@ -39,7 +39,7 @@ class LeaseSession:
         self.terminate = terminate or (lambda: os.kill(os.getpid(), signal.SIGTERM))
         self.thread = threading.Thread(target=self._heartbeat, name='target-lease', daemon=True)
 
-    def _fail(self, error):
+    def _fail(self, error, *, operation='verify'):
         with self.failure_lock:
             first = not self.failed.is_set()
             self.failed.set()
@@ -47,11 +47,22 @@ class LeaseSession:
             # Local output only: reporting must never issue another storage write.
             import sys
             try:
-                from backend.utils.log.cloudflare_storage import write_recovery_envelope
-                write_recovery_envelope('lease_failures', self.token, {
+                import traceback
+                from backend.utils.log.cloudflare_storage import redact_secrets, utc_now, write_recovery_envelope
+                def safe(text):
+                    return redact_secrets(str(text)).replace(self.token, '[REDACTED]') if self.token else redact_secrets(str(text))
+                timeout = getattr(self.store.d1, 'timeout', None)
+                details = {
                     'target': os.environ.get('KARTISERET_TARGET'),
                     'status': 'unconfirmed', 'error_type': type(error).__name__,
-                })
+                    'error_message': safe(error)[:2000],
+                    'operation': operation, 'occurred_at': utc_now(),
+                    'pid': os.getpid(), 'thread': threading.current_thread().name,
+                    'request_timeout_seconds': timeout if isinstance(timeout, (int, float)) else None,
+                    'traceback': safe(''.join(traceback.format_exception(error)))[-16000:],
+                }
+                write_recovery_envelope('lease_failures', self.token, details)
+                print(f"Target lease {operation} failed ({details['error_type']}): {details['error_message']}", file=sys.stderr, flush=True)
             except Exception:
                 pass
             print('Target lease could not be confirmed; stopping job.', file=sys.stderr, flush=True)
@@ -80,7 +91,7 @@ class LeaseSession:
             except Exception as error:
                 if not self.failed.is_set():
                     try:
-                        self._fail(error)
+                        self._fail(error, operation='renew')
                     except LeaseLostError:
                         pass
                 return
