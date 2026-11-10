@@ -1338,6 +1338,7 @@
   --details-showtime-pill-font-size: 1rem;
   --details-showtime-pill-border-width: 2px;
   --details-showtime-pill-radius: 0.75rem;
+  --details-showtime-notch-radius: 0.5rem;
   --details-showtime-cap-width-offset: 0.25rem;
   --details-showtime-cap-min-height: 1.35rem;
   --details-showtime-cap-font-size: 0.75rem;
@@ -1441,6 +1442,17 @@
 }
 
 .details-time-pill {
+  --details-showtime-ticket-mask:
+    radial-gradient(
+      circle at left center,
+      transparent 0 var(--details-showtime-notch-radius),
+      #000 calc(var(--details-showtime-notch-radius) + 0.5px)
+    ),
+    radial-gradient(
+      circle at right center,
+      transparent 0 var(--details-showtime-notch-radius),
+      #000 calc(var(--details-showtime-notch-radius) + 0.5px)
+    );
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1451,9 +1463,9 @@
   padding: var(--details-showtime-pill-padding-y)
     var(--details-showtime-pill-padding-x);
   box-sizing: content-box;
-  border: var(--details-showtime-pill-border-width) solid #040408;
+  border: var(--details-showtime-pill-border-width) solid transparent;
   border-radius: var(--details-showtime-pill-radius);
-  background: linear-gradient(180deg, #ec870c 0%, #d87302 100%);
+  background: #040408;
   color: #f4efec;
   font-family: BlinkMacSystemFont, "Helvetica Neue", sans-serif;
   font-size: var(--details-showtime-pill-font-size);
@@ -1461,16 +1473,46 @@
   letter-spacing: -0.02em;
   line-height: 1;
   text-decoration: none;
-  box-shadow:
-    0 6px 12px rgba(0, 0, 0, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.18);
+  -webkit-mask-image: var(--details-showtime-ticket-mask);
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-composite: source-in;
+  mask-image: var(--details-showtime-ticket-mask);
+  mask-repeat: no-repeat;
+  mask-composite: intersect;
   transition:
     transform 140ms ease,
     filter 140ms ease,
     box-shadow 140ms ease;
 }
 
+.details-time-pill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: calc(
+    var(--details-showtime-pill-radius) -
+      var(--details-showtime-pill-border-width)
+  );
+  background: var(
+    --details-showtime-pill-background,
+    linear-gradient(180deg, #ec870c 0%, #d87302 100%)
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  pointer-events: none;
+  -webkit-mask-image: var(--details-showtime-ticket-mask);
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-composite: source-in;
+  mask-image: var(--details-showtime-ticket-mask);
+  mask-repeat: no-repeat;
+  mask-composite: intersect;
+}
+
 .details-time-pill-label {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1654,9 +1696,7 @@
   .details-showtime-card:focus-visible
   .details-time-pill {
   filter: brightness(1.04);
-  box-shadow:
-    0 7px 14px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  box-shadow: 0 7px 14px rgba(0, 0, 0, 0.2);
 }
 
 .movie-scroller-detail-card .details-showtime-card:hover .details-showtime-tech,
@@ -1682,27 +1722,51 @@
 }
 
 .movie-scroller-detail-card .details-time-pill--yes-planet {
-  background: linear-gradient(to left, #d9710f, #b05806);
+  --details-showtime-pill-background: linear-gradient(
+    to left,
+    #d9710f,
+    #b05806
+  );
 }
 
 .movie-scroller-detail-card .details-time-pill--cinema-city {
-  background: linear-gradient(to right, #186bdf, #084cab);
+  --details-showtime-pill-background: linear-gradient(
+    to right,
+    #186bdf,
+    #084cab
+  );
 }
 
 .movie-scroller-detail-card .details-time-pill--lev-cinema {
-  background: linear-gradient(to right, #b50519, #5e030d);
+  --details-showtime-pill-background: linear-gradient(
+    to right,
+    #b50519,
+    #5e030d
+  );
 }
 
 .movie-scroller-detail-card .details-time-pill--rav-hen {
-  background: linear-gradient(to right, #0d06da, #ab5306);
+  --details-showtime-pill-background: linear-gradient(
+    to right,
+    #0d06da,
+    #ab5306
+  );
 }
 
 .movie-scroller-detail-card .details-time-pill--hot-cinema {
-  background: linear-gradient(to left, #f06a87, #c13043);
+  --details-showtime-pill-background: linear-gradient(
+    to left,
+    #f06a87,
+    #c13043
+  );
 }
 
 .movie-scroller-detail-card .details-time-pill--movieland {
-  background: linear-gradient(to right, #58003a, #a80371);
+  --details-showtime-pill-background: linear-gradient(
+    to right,
+    #58003a,
+    #a80371
+  );
 }
 
 .movie-scroller-detail-card .details-rail {

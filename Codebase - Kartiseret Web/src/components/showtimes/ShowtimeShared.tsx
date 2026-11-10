@@ -1,9 +1,9 @@
 import { type Movie, type ShowtimeEntry, type TheaterShowtimes } from "../../data/movieCatalog";
 import { getTheaterTheme, type TheaterTheme } from "./theaterTheme";
+import { type CSSProperties, useEffect } from "react";
 import { type MetricDisplay } from "./showtimeUtils";
 import { createPortal } from "react-dom";
 import { Star, X } from "lucide-react";
-import { useEffect } from "react";
 import "./ShowtimeShared.css";
 
 function getShowtimeTechLabel(screeningTech: string): string | null {
@@ -75,11 +75,11 @@ function renderShowtimeCard(
     .join(" ");
   const showtimeCardStyle = colors.pillClassName
     ? undefined
-    : {
-        background:
+    : ({
+        "--details-showtime-pill-background":
           colors.pillBackground ??
           `linear-gradient(180deg, color-mix(in srgb, ${colors.accent} 88%, white 12%), color-mix(in srgb, ${colors.accent} 72%, black 28%))`,
-      };
+      } as CSSProperties);
   const showtimeLabel = [
     `Open ${movieTitle} ${showtime.time} showtime at ${theater}`,
     showtimeTech,
