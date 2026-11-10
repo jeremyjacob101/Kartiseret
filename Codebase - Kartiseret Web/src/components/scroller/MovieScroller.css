@@ -571,7 +571,7 @@
   padding: 1px;
   border-radius: 999px;
   background: var(--main-app-color);
-  color: #f4efec;
+  color: #fff;
   stroke-width: 3;
 }
 
@@ -1115,7 +1115,7 @@
 
 .details-empty-link:hover,
 .details-empty-link:focus-visible {
-  color: #f4efec;
+  color: #fff;
   transform: translateX(1px);
   border-color: rgba(240, 232, 255, 0.32);
   background: rgba(25, 20, 40, 0.94);
@@ -1123,7 +1123,7 @@
 
 .details-empty-link:hover .details-empty-link-arrow,
 .details-empty-link:focus-visible .details-empty-link-arrow {
-  color: #f4efec;
+  color: #fff;
   transform: translateX(2px);
 }
 
