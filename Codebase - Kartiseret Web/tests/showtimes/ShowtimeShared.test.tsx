@@ -20,6 +20,12 @@ describe("showtime shared rendered surfaces", () => {
       "/flags/israel.svg",
     );
     expect(screen.getByText("Premium")).toBeInTheDocument();
+    expect(
+      screen
+        .getByText("22:15")
+        .closest<HTMLElement>(".details-time-pill")
+        ?.style.getPropertyValue("--details-showtime-pill-background"),
+    ).toContain("linear-gradient");
   });
 
   it("renders metrics only when there is useful content", () => {
