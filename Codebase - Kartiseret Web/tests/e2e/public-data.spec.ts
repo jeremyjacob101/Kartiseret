@@ -328,11 +328,38 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
     const result = page
       .locator("button.movie-search-result")
       .filter({ hasText: title });
-    await expect(result).toBeVisible();
+    await expect(result).toHaveCount(2);
+    const regularResult = result.filter({ hasText: "Now Playing" });
+    const cinemathequeResult = result.filter({ hasText: "Cinematheque" });
+    await expect(regularResult).toBeVisible();
+    await expect(regularResult.getByText("Cinematheque")).toHaveCount(0);
     await expect(
-      result.getByText("Cinematheque", { exact: true }),
+      cinemathequeResult.getByText("Cinematheque", { exact: true }),
     ).toBeVisible();
-    expect(await result.count()).toBe(1);
+    await page.getByRole("dialog", { name: "Search movies" }).screenshot({
+      path: testInfo.outputPath("separate-search-desktop.png"),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(regularResult).toBeVisible();
+    await expect(cinemathequeResult).toBeVisible();
+    await page.getByRole("dialog", { name: "Search movies" }).screenshot({
+      path: testInfo.outputPath("separate-search-mobile.png"),
+    });
+    await cinemathequeResult.click();
+    await expect(page).toHaveURL(/\/cinematheques$/);
+    await expect(
+      page.getByRole("heading", { name: "Cinematheque Showtimes" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Search movies" }).click();
+    await page.getByRole("searchbox", { name: "Search movies" }).fill(title);
+    await page
+      .getByRole("button", { name: `${title} Now Playing • 2026` })
+      .click();
+    await expect(page).toHaveURL(new RegExp(`/${movieCode}`));
+    await expect(
+      page.getByRole("heading", { name: title, exact: true }),
+    ).toBeVisible();
+    await page.setViewportSize({ width: 1280, height: 900 });
 
     const showtimeDate = await getFixtureShowtimeDate(
       page,

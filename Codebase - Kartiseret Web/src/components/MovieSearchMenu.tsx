@@ -130,50 +130,51 @@ export function MovieSearchMenu({
       return [] as MovieSearchResult[];
     }
 
-    const candidates = new Map<string, MovieSearchResult>();
-    const scores = new Map<string, number>();
+    const candidates = new Map<
+      string,
+      { result: MovieSearchResult; score: number }
+    >();
     for (const collection of collections) {
       for (const movie of collection.movies) {
         const score = getSearchScore(movie, normalizedQuery);
         if (score === 0) continue;
-        const existing = candidates.get(movie.tmdbId);
-        const isCinematheque =
-          collection.mode === "cinematheque" || existing?.isCinematheque;
-        const useCurrent =
-          !existing ||
-          (existing.mode === "cinematheque" &&
-            collection.mode !== "cinematheque");
-        if (useCurrent) {
-          candidates.set(movie.tmdbId, {
-            tmdbId: movie.tmdbId,
-            movieCode: movie.movieCode,
-            title: movie.title,
-            year: movie.year,
-            imageSrc: movie.imageSrc,
-            mode: collection.mode,
-            sectionLabel: collection.label,
-            isCinematheque: Boolean(isCinematheque),
+        const isCinematheque = collection.mode === "cinematheque";
+        const key = `${isCinematheque ? "cinematheque" : "catalog"}-${movie.tmdbId}`;
+        if (!candidates.has(key)) {
+          candidates.set(key, {
+            result: {
+              tmdbId: movie.tmdbId,
+              movieCode: movie.movieCode,
+              title: movie.title,
+              year: movie.year,
+              imageSrc: movie.imageSrc,
+              mode: collection.mode,
+              sectionLabel: collection.label,
+              isCinematheque,
+            },
+            score,
           });
-          scores.set(movie.tmdbId, score);
-        } else if (isCinematheque && existing && !existing.isCinematheque) {
-          candidates.set(movie.tmdbId, { ...existing, isCinematheque: true });
         }
       }
     }
 
     return [...candidates.values()]
-      .sort((left, right) => {
-        const scoreDifference =
-          (scores.get(right.tmdbId) ?? 0) - (scores.get(left.tmdbId) ?? 0);
+      .sort((leftEntry, rightEntry) => {
+        const scoreDifference = rightEntry.score - leftEntry.score;
         if (scoreDifference !== 0) return scoreDifference;
+        const left = leftEntry.result;
+        const right = rightEntry.result;
         if (left.year !== right.year) {
           return right.year - left.year;
         }
 
-        return left.title.localeCompare(right.title);
+        return (
+          left.title.localeCompare(right.title) ||
+          Number(left.isCinematheque) - Number(right.isCinematheque)
+        );
       })
       .slice(0, MAX_RESULTS)
-      .map((entry) => entry);
+      .map((entry) => entry.result);
   }, [collections, normalizedQuery]);
 
   function handleQueryChange(event: ChangeEvent<HTMLInputElement>) {
