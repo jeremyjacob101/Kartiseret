@@ -5,7 +5,7 @@
 
 .showtime-theaters .details-showtime-card:hover .details-time-pill,
 .showtime-theaters .details-showtime-card:focus-visible .details-time-pill {
-  filter: brightness(1.04) drop-shadow(0 4px 2px rgba(0, 0, 0, 0.28));
+  filter: brightness(1.04) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.42));
 }
 
 .showtime-theaters .details-showtime-card:hover .details-showtime-tech,

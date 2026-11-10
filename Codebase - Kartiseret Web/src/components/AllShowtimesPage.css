@@ -258,6 +258,29 @@
   margin-top: 10px;
 }
 
+@media (min-width: 1024px) {
+  .all-showtimes-theaters .details-theater-name {
+    font-size: 2rem;
+  }
+
+  .all-showtimes-theaters .details-time-grid {
+    --details-showtime-outer-width: 10rem;
+    --details-showtime-pill-content-width: 7.125rem;
+    --details-showtime-pill-content-height: 3.625rem;
+    --details-showtime-pill-outer-height: 5.25rem;
+    --details-showtime-pill-padding-y: 0.625rem;
+    --details-showtime-pill-padding-x: 1.25rem;
+    --details-showtime-pill-font-size: 2rem;
+    --details-showtime-pill-border-width: 3px;
+    --details-showtime-cap-width-offset: 0.5rem;
+    --details-showtime-cap-min-height: 1.75rem;
+    --details-showtime-cap-font-size: 1rem;
+    --details-showtime-slot-height: 5.25rem;
+    --details-showtime-slot-height-with-tech: 6.25rem;
+    gap: 1rem;
+  }
+}
+
 .all-showtimes-day-header .details-day-kicker {
   color: rgba(200, 183, 230, 0.72);
 }

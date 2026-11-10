@@ -1335,8 +1335,8 @@
   --details-showtime-pill-outer-height: 2.4375rem;
   --details-showtime-pill-padding-y: 0.3125rem;
   --details-showtime-pill-padding-x: 0.625rem;
-  --details-showtime-pill-font-size: 1rem;
-  --details-showtime-pill-border-width: 2px;
+  --details-showtime-pill-font-size: 0.9375rem;
+  --details-showtime-pill-border-width: 1.5px;
   --details-showtime-cap-width-offset: 0.25rem;
   --details-showtime-cap-min-height: 1.35rem;
   --details-showtime-cap-font-size: 0.75rem;
@@ -1470,7 +1470,7 @@
   mask-repeat: no-repeat;
   mask-size: 100% 100%;
   mask-position: center;
-  filter: drop-shadow(0 4px 2px rgba(0, 0, 0, 0.28));
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.42));
   transition:
     transform 140ms ease,
     filter 140ms ease,
@@ -1686,7 +1686,7 @@
 .movie-scroller-detail-card
   .details-showtime-card:focus-visible
   .details-time-pill {
-  filter: brightness(1.04) drop-shadow(0 4px 2px rgba(0, 0, 0, 0.28));
+  filter: brightness(1.04) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.42));
 }
 
 .movie-scroller-detail-card .details-showtime-card:hover .details-showtime-tech,
