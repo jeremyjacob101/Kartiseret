@@ -19,49 +19,25 @@
 }
 
 .showtime-theaters .details-time-pill--yes-planet {
-  --details-showtime-pill-background: linear-gradient(
-    180deg,
-    #e0730d 0%,
-    #de710d 100%
-  );
+  --details-showtime-pill-background: linear-gradient(to left, #d9710f, #b05806);
 }
 
 .showtime-theaters .details-time-pill--cinema-city {
-  --details-showtime-pill-background: linear-gradient(
-    180deg,
-    #146dee 0%,
-    #146cec 100%
-  );
+  --details-showtime-pill-background: linear-gradient(to right, #186bdf, #084cab);
 }
 
 .showtime-theaters .details-time-pill--lev-cinema {
-  --details-showtime-pill-background: linear-gradient(
-    to right,
-    #b50519,
-    #5e030d
-  );
+  --details-showtime-pill-background: linear-gradient(to right, #b50519, #5e030d);
 }
 
 .showtime-theaters .details-time-pill--rav-hen {
-  --details-showtime-pill-background: linear-gradient(
-    to right,
-    #0d06da,
-    #ab5306
-  );
+  --details-showtime-pill-background: linear-gradient(to right, #0d06da, #ab5306);
 }
 
 .showtime-theaters .details-time-pill--hot-cinema {
-  --details-showtime-pill-background: linear-gradient(
-    to left,
-    #f06a87,
-    #c13043
-  );
+  --details-showtime-pill-background: linear-gradient(to left, #f06a87, #c13043);
 }
 
 .showtime-theaters .details-time-pill--movieland {
-  --details-showtime-pill-background: linear-gradient(
-    to right,
-    #58003a,
-    #a80371
-  );
+  --details-showtime-pill-background: linear-gradient(to right, #58003a, #a80371);
 }
