@@ -235,9 +235,13 @@ describe.sequential(
         location: "Haifa",
         ratingSources: [],
         siteColor: "#a66ae3",
+        hideReReleases: false,
       });
+      await workflows.patchPreferences(alice, { hideReReleases: true });
+      expect((await workflows.preferences(alice)).hideReReleases).toBe(true);
       await workflows.patchPreferences(alice, { location: "Tel Aviv" });
       expect((await workflows.preferences(alice)).location).toBe("Tel Aviv");
+      expect((await workflows.preferences(alice)).hideReReleases).toBe(true);
       expect((await workflows.account(alice)).isAdmin).toBe(false);
       expect((await workflows.account(owner)).isAdmin).toBe(true);
     });
@@ -249,11 +253,13 @@ describe.sequential(
         workflows.patchPreferences(bob, { location: "Raanana" }),
         workflows.patchPreferences(bob, { siteColor: "#123456" }),
         workflows.patchPreferences(bob, { ratingSources: ["lbRating"] }),
+        workflows.patchPreferences(bob, { hideReReleases: true }),
       ]);
       expect(await workflows.preferences(bob)).toEqual({
         location: "Raanana",
         siteColor: "#123456",
         ratingSources: ["lbRating"],
+        hideReReleases: true,
       });
       expect(
         (await workflows.preferences({ ...bob, signupLocation: "Haifa" }))

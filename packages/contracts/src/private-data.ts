@@ -3,6 +3,7 @@ import {
   ALL_LOCATIONS,
   DEFAULT_LOCATION,
   appLocationSchema,
+  hideReReleasesSchema,
   ratingSourceSchema,
   siteColorSchema,
 } from "./preferences.js";
@@ -38,6 +39,7 @@ export const preferencesSchema = z
     ratingSources: z.array(ratingSourceSchema).max(5),
     location: appLocationSchema.pipe(z.string().max(200)),
     siteColor: siteColorSchema,
+    hideReReleases: hideReReleasesSchema,
   })
   .strict();
 export const preferencePatchSchema = preferencesSchema

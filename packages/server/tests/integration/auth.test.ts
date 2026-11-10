@@ -118,13 +118,14 @@ describe.sequential(
       expect(
         (
           await admin.pool.query(
-            `SELECT rating_sources,location,site_color FROM public."userPreferences" WHERE user_id='00000000-0000-4000-8000-0000000000c1'`,
+            `SELECT rating_sources,location,site_color,hide_re_releases FROM public."userPreferences" WHERE user_id='00000000-0000-4000-8000-0000000000c1'`,
           )
         ).rows[0],
       ).toEqual({
         rating_sources: [],
         location: "Raanana",
         site_color: "#123456",
+        hide_re_releases: false,
       });
       expect(
         (

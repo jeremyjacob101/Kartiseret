@@ -3,6 +3,7 @@ import { DEFAULT_LOCATION, loadGuestLocation, locationPreferenceDefinition, type
 import { preferencesResponseSchema, applicationIdentitySchema, type ApplicationIdentity } from "@kartiseret/contracts/private-data";
 import { createContext, createElement, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { ratingSourcesPreferenceDefinition, type RatingSource } from "../prefs/definitions/ratingSources";
+import { hideReReleasesPreferenceDefinition } from "../prefs/definitions/hideReReleases";
 import { privateApiResponse, privateIdentityChanged } from "../data/privateApi";
 import type { UserPreferenceDefinition } from "../prefs/definitions/shared";
 import { shouldRollbackOptimisticSave } from "./preferenceSavePolicy";
@@ -17,6 +18,7 @@ const preferenceDefinitions = {
   ratingSources: ratingSourcesPreferenceDefinition,
   location: locationPreferenceDefinition,
   siteColor: siteColorPreferenceDefinition,
+  hideReReleases: hideReReleasesPreferenceDefinition,
 } as const;
 
 type PreferenceDefinitions = typeof preferenceDefinitions;
@@ -66,6 +68,7 @@ export type UserPreferencesStoreState = {
   saveSources: (sources: readonly RatingSource[]) => Promise<boolean>;
   saveLocation: (location: AppLocation) => Promise<boolean>;
   saveSiteColor: (siteColor: SiteColor) => Promise<boolean>;
+  saveHideReReleases: (hide: boolean) => Promise<boolean>;
   resetSiteColor: () => Promise<boolean>;
   setLocationPreference: (location: AppLocation) => Promise<boolean>;
 };
@@ -406,6 +409,7 @@ const userPreferencesStore = create<UserPreferencesStoreState>()(() => ({
   saveSources: (sources) => savePreferenceValue("ratingSources", [...sources]),
   saveLocation: (location) => savePreferenceValue("location", location),
   saveSiteColor: (siteColor) => savePreferenceValue("siteColor", siteColor),
+  saveHideReReleases: (hide) => savePreferenceValue("hideReReleases", hide),
   resetSiteColor: () => savePreferenceValue("siteColor", DEFAULT_SITE_COLOR),
   setLocationPreference: (location) =>
     savePreferenceValue("location", location),

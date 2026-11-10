@@ -1,6 +1,7 @@
 import { DEFAULT_SITE_COLOR, SITE_COLOR_OPTIONS, applySiteColor, clearCachedSiteColor, getSiteColorLabel, initializeSiteColorTheme, loadCachedSiteColor, normalizeSiteColor, saveCachedSiteColor } from "../../src/prefs/definitions/siteColor";
 import { DEFAULT_LOCATION, loadGuestLocation, normalizeLocation, saveGuestLocation } from "../../src/prefs/definitions/locations";
 import { ALL_RATING_SOURCES, DEFAULT_RATING_SOURCES, normalizeRatingSources } from "../../src/prefs/definitions/ratingSources";
+import { DEFAULT_HIDE_RE_RELEASES, normalizeHideReReleases } from "@kartiseret/contracts/preferences";
 import { describe, expect, it, vi } from "vitest";
 
 function installStorage() {
@@ -19,6 +20,13 @@ function installStorage() {
 }
 
 describe("user preference definitions and theme transitions", () => {
+  it("defaults to showing Re-Releases and normalizes the saved visibility setting", () => {
+    expect(DEFAULT_HIDE_RE_RELEASES).toBe(false);
+    expect(normalizeHideReReleases(true)).toBe(true);
+    expect(normalizeHideReReleases(false)).toBe(false);
+    expect(normalizeHideReReleases("invalid")).toBe(false);
+  });
+
   it("canonicalizes locations and safely persists guest location", () => {
     const storage = installStorage();
     expect(normalizeLocation("  jerusalem ")).toBe("jerusalem");

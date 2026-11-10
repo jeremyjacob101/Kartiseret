@@ -1,4 +1,5 @@
 import { adminMovieEditMutationOptions, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, movieCollectionQueryOptions, reloadComingSoonMovies, reloadNowPlayingMovies, showtimeCityQueryOptions, type Movie } from "./data/movieCatalog";
+import { filterMoviesByReleaseCategory, getMovieReleaseCategory, MOVIE_RELEASE_CATEGORY_LABELS, type MovieReleaseCategory } from "./domain/movieRelease";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { getCinemathequeDateRange, nationwideCinemathequeQueryOptions } from "./data/cinemathequeCatalog";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
@@ -7,6 +8,7 @@ import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPic
 import { getCurrentRobotsDirectives, setSeoMetadata } from "./routing/seoMetadata";
 import { LetterboxdUnsubscribePage } from "./components/LetterboxdUnsubscribePage";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
+import { ReleaseCategorySwitcher } from "./components/ReleaseCategorySwitcher";
 import type { ApplicationIdentity } from "@kartiseret/contracts/private-data";
 import { applyMovieDisplayPreferences } from "./data/movieDisplayPreferences";
 import { backdropPreloader } from "./components/scroller/backdropPreloader";
@@ -146,6 +148,9 @@ type CatalogRouteProps = {
     isManualEntry: boolean;
   }) => Promise<void>;
   onRefreshRequested: (mode: MovieSearchMode) => Promise<void>;
+  releaseCategory: MovieReleaseCategory;
+  onReleaseCategoryChange: (category: MovieReleaseCategory) => void;
+  showReleaseCategorySwitcher?: boolean;
   scrollerSlotMinHeight: number;
 };
 
@@ -158,6 +163,7 @@ type HomeRouteProps = {
   gap: number;
   nowPlayingReady: boolean;
   nowPlayingMovies: readonly Movie[];
+  nowPlayingReReleaseMovies: readonly Movie[];
   scrollerSlotMinHeight: number;
 };
 
@@ -192,7 +198,7 @@ function NotFoundRoute() {
   );
 }
 
-function CatalogRoute({
+export function CatalogRoute({
   catalogMovieJumpRequest,
   cardHeight,
   cardWidth,
@@ -205,37 +211,36 @@ function CatalogRoute({
   view,
   onAdminSaveEdit,
   onRefreshRequested,
+  releaseCategory,
+  onReleaseCategoryChange,
+  showReleaseCategorySwitcher = true,
   scrollerSlotMinHeight,
 }: CatalogRouteProps) {
   const routeLabel = jumpMode === "nowPlaying" ? "Now Playing" : "Coming Soon";
-
-  if (movies.length === 0) {
-    return (
-      <p className="app-inline-note" role="status">
-        No movies match your display preferences.
+  const releaseLabel = MOVIE_RELEASE_CATEGORY_LABELS[releaseCategory];
+  const catalogContent =
+    movies.length === 0 ? (
+      <p className="catalog-empty-state" role="status">
+        No {releaseLabel.toLowerCase()} are currently available.
       </p>
-    );
-  }
-
-  return view === "grid" ? (
-    <Suspense fallback={null}>
-      <PosterGridPage
-        title={routeLabel}
-        movies={movies}
-        onPosterSelect={(movie) => {
-          onPosterSelect(movie.tmdbId);
-        }}
-        isAdmin={isAdmin}
-        onAdminSaveEdit={async (payload) => {
-          await onAdminSaveEdit({ mode: jumpMode, ...payload });
-        }}
-        onRefreshRequested={async () => {
-          await onRefreshRequested(jumpMode);
-        }}
-      />
-    </Suspense>
-  ) : (
-    <section className="catalog-browser-page" aria-label={routeLabel}>
+    ) : view === "grid" ? (
+      <Suspense fallback={null}>
+        <PosterGridPage
+          title={routeLabel + " " + releaseLabel}
+          movies={movies}
+          onPosterSelect={(movie) => {
+            onPosterSelect(movie.tmdbId);
+          }}
+          isAdmin={isAdmin}
+          onAdminSaveEdit={async (payload) => {
+            await onAdminSaveEdit({ mode: jumpMode, ...payload });
+          }}
+          onRefreshRequested={async () => {
+            await onRefreshRequested(jumpMode);
+          }}
+        />
+      </Suspense>
+    ) : (
       <div
         className="scroller-slot"
         style={{ minHeight: scrollerSlotMinHeight }}
@@ -258,11 +263,29 @@ function CatalogRoute({
           />
         </ClientMounted>
       </div>
+    );
+
+  return (
+    <section className="catalog-browser-page" aria-label={routeLabel}>
+      <div className="catalog-page-header">
+        <div>
+          <p className="section-kicker">{routeLabel}</p>
+          <h1 className="section-title">{releaseLabel}</h1>
+        </div>
+        {showReleaseCategorySwitcher ? (
+          <ReleaseCategorySwitcher
+            category={releaseCategory}
+            onChange={onReleaseCategoryChange}
+            routeLabel={routeLabel}
+          />
+        ) : null}
+      </div>
+      {catalogContent}
     </section>
   );
 }
 
-function HomeRoute({
+export function HomeRoute({
   catalogError,
   cardHeight,
   cardWidth,
@@ -271,14 +294,15 @@ function HomeRoute({
   gap,
   nowPlayingReady,
   nowPlayingMovies,
+  nowPlayingReReleaseMovies,
   scrollerSlotMinHeight,
 }: HomeRouteProps) {
   return (
-    <section className="scroller-panel" aria-label="Now Playing">
+    <section className="scroller-panel" aria-label="Movie releases">
       <CatalogErrorNote message={catalogError} />
       <div className="section-heading">
-        <p className="section-kicker">Movies</p>
-        <h1 className="section-title">Now Playing</h1>
+        <p className="section-kicker">Now Playing</p>
+        <h1 className="section-title">New Releases</h1>
       </div>
       <div
         className="scroller-slot"
@@ -297,7 +321,7 @@ function HomeRoute({
           </ClientMounted>
         ) : nowPlayingReady ? (
           <p className="app-inline-note" role="status">
-            No movies match your display preferences.
+            No new releases are currently available.
           </p>
         ) : null}
       </div>
@@ -322,7 +346,32 @@ function HomeRoute({
           </ClientMounted>
         ) : comingSoonReady ? (
           <p className="app-inline-note" role="status">
-            No movies match your display preferences.
+            No new releases are currently available.
+          </p>
+        ) : null}
+      </div>
+      <div className="section-heading">
+        <p className="section-kicker">Now Playing</p>
+        <h2 className="section-title">Re-Releases</h2>
+      </div>
+      <div
+        className="scroller-slot"
+        style={{ minHeight: scrollerSlotMinHeight }}
+      >
+        {nowPlayingReady && nowPlayingReReleaseMovies.length > 0 ? (
+          <ClientMounted>
+            <MovieScroller
+              mode="nowPlaying"
+              movieItems={nowPlayingReReleaseMovies}
+              cardWidth={cardWidth}
+              cardHeight={cardHeight}
+              gap={gap}
+              maxWidth={SCROLLER_MAX_WIDTH}
+            />
+          </ClientMounted>
+        ) : nowPlayingReady ? (
+          <p className="app-inline-note" role="status">
+            No re-releases are currently available.
           </p>
         ) : null}
       </div>
@@ -389,13 +438,15 @@ function MainApplication() {
   const routeLocation = useLocation();
   const navigate = useNavigate();
   const isMobile = useDeviceStore((state) => state.isMobile);
-  const { user, loading, selectedCity } = useUserPreferencesStore(
-    useShallow((state) => ({
-      user: state.user,
-      loading: state.loading,
-      selectedCity: state.preferences.location,
-    })),
-  );
+  const { user, loading, selectedCity, hideReReleases } =
+    useUserPreferencesStore(
+      useShallow((state) => ({
+        user: state.user,
+        loading: state.loading,
+        selectedCity: state.preferences.location,
+        hideReReleases: state.preferences.hideReReleases,
+      })),
+    );
   const pathname = routeLocation.pathname;
   const [cinemathequeSearchEnabled, setCinemathequeSearchEnabled] =
     useState(false);
@@ -445,6 +496,22 @@ function MainApplication() {
       ),
     [comingSoonQuery.data?.movies, displayPreferences.preferencesById],
   );
+  const nowPlayingNewReleaseMovies = useMemo(
+    () => filterMoviesByReleaseCategory(nowPlayingMovies, "newReleases"),
+    [nowPlayingMovies],
+  );
+  const nowPlayingReReleaseMovies = useMemo(
+    () => filterMoviesByReleaseCategory(nowPlayingMovies, "reReleases"),
+    [nowPlayingMovies],
+  );
+  const comingSoonNewReleaseMovies = useMemo(
+    () => filterMoviesByReleaseCategory(comingSoonMovies, "newReleases"),
+    [comingSoonMovies],
+  );
+  const comingSoonReReleaseMovies = useMemo(
+    () => filterMoviesByReleaseCategory(comingSoonMovies, "reReleases"),
+    [comingSoonMovies],
+  );
   const nowPlayingReady = nowPlayingQuery.data !== undefined;
   const comingSoonReady = comingSoonQuery.data !== undefined;
   const catalogReady = nowPlayingReady && comingSoonReady;
@@ -468,6 +535,24 @@ function MainApplication() {
     useState<CatalogMovieJumpRequest | null>(null);
   const [moviesPageView, setMoviesPageView] = useState<CatalogPageView>("grid");
   const [soonsPageView, setSoonsPageView] = useState<CatalogPageView>("grid");
+  const [moviesReleaseCategory, setMoviesReleaseCategory] =
+    useState<MovieReleaseCategory>("newReleases");
+  const [soonsReleaseCategory, setSoonsReleaseCategory] =
+    useState<MovieReleaseCategory>("newReleases");
+  const moviesDisplayReleaseCategory = hideReReleases
+    ? "newReleases"
+    : moviesReleaseCategory;
+  const soonsDisplayReleaseCategory = hideReReleases
+    ? "newReleases"
+    : soonsReleaseCategory;
+  const moviesPageMovies =
+    moviesDisplayReleaseCategory === "reReleases"
+      ? nowPlayingReReleaseMovies
+      : nowPlayingNewReleaseMovies;
+  const soonsPageMovies =
+    soonsDisplayReleaseCategory === "reReleases"
+      ? comingSoonReReleaseMovies
+      : comingSoonNewReleaseMovies;
   const [miniNavPortalTarget, setMiniNavPortalTarget] =
     useState<HTMLDivElement | null>(null);
   const nonCriticalPreloadStartedRef = useRef(false);
@@ -791,6 +876,22 @@ function MainApplication() {
     await reloadComingSoonMovies();
   }, []);
 
+  const handleReleaseCategoryChange = useCallback((
+    mode: MovieSearchMode,
+    category: MovieReleaseCategory,
+  ) => {
+    setCatalogMovieJumpRequest(null);
+
+    if (mode === "nowPlaying") {
+      setMoviesReleaseCategory(category);
+      setMoviesPageView("grid");
+      return;
+    }
+
+    setSoonsReleaseCategory(category);
+    setSoonsPageView("grid");
+  }, []);
+
   const handleSettingsClick = useCallback(() => {
     if (!user || loading) {
       return;
@@ -802,8 +903,10 @@ function MainApplication() {
   const resetCatalogPage = useCallback((mode: MovieSearchMode) => {
     if (mode === "nowPlaying") {
       setMoviesPageView("grid");
+      setMoviesReleaseCategory("newReleases");
     } else {
       setSoonsPageView("grid");
+      setSoonsReleaseCategory("newReleases");
     }
 
     setCatalogMovieJumpRequest(null);
@@ -840,6 +943,10 @@ function MainApplication() {
         return;
       }
 
+      handleReleaseCategoryChange(
+        result.mode,
+        getMovieReleaseCategory({ year: result.year }),
+      );
       openCatalogMovie(result.mode, result.tmdbId);
 
       const targetPath = result.mode === "nowPlaying" ? "/movies" : "/soons";
@@ -848,7 +955,7 @@ function MainApplication() {
         navigate(targetPath);
       }
     },
-    [navigate, openCatalogMovie, pathname],
+    [handleReleaseCategoryChange, navigate, openCatalogMovie, pathname],
   );
 
   const handleMoviesNavClick = useCallback(() => {
@@ -947,10 +1054,11 @@ function MainApplication() {
                 cardHeight={scrollerCardHeight}
                 cardWidth={scrollerCardWidth}
                 comingSoonReady={comingSoonReady}
-                comingSoonMovies={comingSoonMovies}
+                comingSoonMovies={comingSoonNewReleaseMovies}
                 gap={scrollerGap}
                 nowPlayingReady={nowPlayingReady}
-                nowPlayingMovies={nowPlayingMovies}
+                nowPlayingMovies={nowPlayingNewReleaseMovies}
+                nowPlayingReReleaseMovies={nowPlayingReReleaseMovies}
                 scrollerSlotMinHeight={scrollerSlotMinHeight}
               />
             }
@@ -968,7 +1076,7 @@ function MainApplication() {
                     cardWidth={scrollerCardWidth}
                     gap={scrollerGap}
                     jumpMode="nowPlaying"
-                    movies={nowPlayingMovies}
+                    movies={moviesPageMovies}
                     onExitDetail={() => {
                       resetCatalogPage("nowPlaying");
                     }}
@@ -979,6 +1087,11 @@ function MainApplication() {
                     view={moviesPageView}
                     onAdminSaveEdit={handleAdminSaveEdit}
                     onRefreshRequested={handleAdminRefreshRequested}
+                    releaseCategory={moviesDisplayReleaseCategory}
+                    onReleaseCategoryChange={(category) => {
+                      handleReleaseCategoryChange("nowPlaying", category);
+                    }}
+                    showReleaseCategorySwitcher={!hideReReleases}
                     scrollerSlotMinHeight={scrollerSlotMinHeight}
                   />
                 ) : catalogReady ? (
@@ -1022,7 +1135,7 @@ function MainApplication() {
                     cardWidth={scrollerCardWidth}
                     gap={scrollerGap}
                     jumpMode="comingSoon"
-                    movies={comingSoonMovies}
+                    movies={soonsPageMovies}
                     onExitDetail={() => {
                       resetCatalogPage("comingSoon");
                     }}
@@ -1033,6 +1146,11 @@ function MainApplication() {
                     view={soonsPageView}
                     onAdminSaveEdit={handleAdminSaveEdit}
                     onRefreshRequested={handleAdminRefreshRequested}
+                    releaseCategory={soonsDisplayReleaseCategory}
+                    onReleaseCategoryChange={(category) => {
+                      handleReleaseCategoryChange("comingSoon", category);
+                    }}
+                    showReleaseCategorySwitcher={!hideReReleases}
                     scrollerSlotMinHeight={scrollerSlotMinHeight}
                   />
                 ) : catalogReady ? (

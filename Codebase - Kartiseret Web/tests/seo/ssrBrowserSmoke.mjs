@@ -182,13 +182,19 @@ try {
   await noScriptHomePage.goto(`${baseUrl}/`);
   assert.equal(
     await noScriptHomePage
-      .getByRole("heading", { name: "Now Playing" })
+      .getByRole("heading", { name: "New Releases" })
       .count(),
     1,
   );
   assert.equal(
     await noScriptHomePage
       .getByRole("heading", { name: "Coming Soon" })
+      .count(),
+    1,
+  );
+  assert.equal(
+    await noScriptHomePage
+      .getByRole("heading", { name: "Re-Releases" })
       .count(),
     1,
   );
@@ -262,7 +268,9 @@ try {
     1,
   );
   assert.equal(
-    await delayedHomePage.getByRole("heading", { name: "Now Playing" }).count(),
+    await delayedHomePage
+      .getByRole("heading", { name: "New Releases" })
+      .count(),
     1,
   );
   assert.equal(
