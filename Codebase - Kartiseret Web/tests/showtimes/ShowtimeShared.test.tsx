@@ -14,12 +14,24 @@ describe("showtime shared rendered surfaces", () => {
     expect(
       screen.getByRole("link", { name: /19:30 showtime/ }),
     ).toHaveAttribute("target", "_blank");
+    expect(
+      screen
+        .getByText("19:30")
+        .closest<HTMLElement>(".details-time-pill")
+        ?.querySelector(".details-time-pill-label"),
+    ).toHaveTextContent("19:30");
     expect(screen.getByText("IMAX")).toBeInTheDocument();
     expect(screen.getAllByAltText("")[0]).toHaveAttribute(
       "src",
       "/flags/israel.svg",
     );
     expect(screen.getByText("Premium")).toBeInTheDocument();
+    expect(
+      screen
+        .getByText("22:15")
+        .closest<HTMLElement>(".details-time-pill")
+        ?.style.getPropertyValue("--details-showtime-pill-background"),
+    ).toContain("linear-gradient");
   });
 
   it("renders metrics only when there is useful content", () => {
