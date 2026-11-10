@@ -91,44 +91,68 @@ describe("MovieSearchMenu", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("marks cinematheque titles and keeps the regular catalog result when they overlap", async () => {
-    const user = userEvent.setup();
-    const onlyAtCinematheque = movie({
-      tmdbId: "103",
-      title: "Sample Archive",
-      movieCode: undefined,
-    });
-    const onSelectResult = vi.fn();
-    render(
-      <MovieSearchMenu
-        collections={[
-          ...collections,
-          {
-            mode: "cinematheque" as const,
-            label: "Cinematheque",
-            movies: [sampleMovie, onlyAtCinematheque],
-          },
-        ]}
-        onSelectResult={onSelectResult}
-      />,
-    );
+  it.each([false, true])(
+    "keeps separate catalog and cinematheque results regardless of collection order (cinematheque first: %s)",
+    async (cinemathequeFirst) => {
+      const user = userEvent.setup();
+      const onlyAtCinematheque = movie({
+        tmdbId: "103",
+        title: "Sample Archive",
+        movieCode: undefined,
+      });
+      const onSelectResult = vi.fn();
+      const cinemathequeCollection = {
+        mode: "cinematheque" as const,
+        label: "Cinematheque",
+        movies: [sampleMovie, sampleMovie, onlyAtCinematheque],
+      };
+      render(
+        <MovieSearchMenu
+          collections={
+            cinemathequeFirst
+              ? [cinemathequeCollection, ...collections]
+              : [...collections, cinemathequeCollection]
+          }
+          onSelectResult={onSelectResult}
+        />,
+      );
 
-    await user.click(screen.getByRole("button", { name: "Search movies" }));
-    await user.type(screen.getByRole("searchbox"), "sample");
+      await user.click(screen.getByRole("button", { name: "Search movies" }));
+      await user.type(screen.getByRole("searchbox"), "sample");
 
-    expect(screen.getAllByText("Cinematheque")).toHaveLength(2);
-    const overlappingResult = screen.getByRole("button", {
-      name: /Sample Movie.*Now Playing.*Cinematheque/s,
-    });
-    await user.click(overlappingResult);
-    expect(onSelectResult).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tmdbId: sampleMovie.tmdbId,
-        mode: "nowPlaying",
-        isCinematheque: true,
-      }),
-    );
-  });
+      expect(screen.getAllByText("Cinematheque")).toHaveLength(2);
+      const overlappingResults = screen.getAllByRole("button", {
+        name: /Sample Movie/,
+      });
+      expect(overlappingResults).toHaveLength(2);
+      const regularResult = screen.getByRole("button", {
+        name: /^Sample Movie\s*Now Playing • 2026$/,
+      });
+      expect(overlappingResults[0]).toBe(regularResult);
+      await user.click(regularResult);
+      expect(onSelectResult).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tmdbId: sampleMovie.tmdbId,
+          mode: "nowPlaying",
+          isCinematheque: false,
+        }),
+      );
+      await user.click(screen.getByRole("button", { name: "Search movies" }));
+      await user.type(screen.getByRole("searchbox"), "sample");
+      await user.click(
+        screen.getByRole("button", {
+          name: /^Sample Movie\s*2026\s*Cinematheque$/,
+        }),
+      );
+      expect(onSelectResult).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          tmdbId: sampleMovie.tmdbId,
+          mode: "cinematheque",
+          isCinematheque: true,
+        }),
+      );
+    },
+  );
 
   it("allows selecting cinematheque-only results and reports load failures", async () => {
     const user = userEvent.setup();
