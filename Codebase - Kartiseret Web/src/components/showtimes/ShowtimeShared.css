@@ -5,8 +5,7 @@
 
 .showtime-theaters .details-showtime-card:hover .details-time-pill,
 .showtime-theaters .details-showtime-card:focus-visible .details-time-pill {
-  filter: brightness(1.04);
-  box-shadow: 0 7px 14px rgba(0, 0, 0, 0.2);
+  filter: brightness(1.04) drop-shadow(0 4px 2px rgba(0, 0, 0, 0.28));
 }
 
 .showtime-theaters .details-showtime-card:hover .details-showtime-tech,
@@ -21,17 +20,17 @@
 
 .showtime-theaters .details-time-pill--yes-planet {
   --details-showtime-pill-background: linear-gradient(
-    to left,
-    #d9710f,
-    #b05806
+    180deg,
+    #e4770c 0%,
+    #df730c 100%
   );
 }
 
 .showtime-theaters .details-time-pill--cinema-city {
   --details-showtime-pill-background: linear-gradient(
-    to right,
-    #186bdf,
-    #084cab
+    180deg,
+    #1472ee 0%,
+    #136eed 100%
   );
 }
 

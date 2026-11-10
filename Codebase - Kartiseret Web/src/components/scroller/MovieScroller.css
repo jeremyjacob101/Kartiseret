@@ -1337,8 +1337,6 @@
   --details-showtime-pill-padding-x: 0.625rem;
   --details-showtime-pill-font-size: 1rem;
   --details-showtime-pill-border-width: 2px;
-  --details-showtime-pill-radius: 0.75rem;
-  --details-showtime-notch-radius: 0.5rem;
   --details-showtime-cap-width-offset: 0.25rem;
   --details-showtime-cap-min-height: 1.35rem;
   --details-showtime-cap-font-size: 0.75rem;
@@ -1442,17 +1440,7 @@
 }
 
 .details-time-pill {
-  --details-showtime-ticket-mask:
-    radial-gradient(
-      circle at left center,
-      transparent 0 var(--details-showtime-notch-radius),
-      #000 calc(var(--details-showtime-notch-radius) + 0.5px)
-    ),
-    radial-gradient(
-      circle at right center,
-      transparent 0 var(--details-showtime-notch-radius),
-      #000 calc(var(--details-showtime-notch-radius) + 0.5px)
-    );
+  --details-showtime-ticket-mask: url("../../assets/showtime-ticket-mask.svg");
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1464,7 +1452,7 @@
     var(--details-showtime-pill-padding-x);
   box-sizing: content-box;
   border: var(--details-showtime-pill-border-width) solid transparent;
-  border-radius: var(--details-showtime-pill-radius);
+  border-radius: 0;
   background: #040408;
   color: #f4efec;
   font-family: BlinkMacSystemFont, "Helvetica Neue", sans-serif;
@@ -1473,13 +1461,16 @@
   letter-spacing: -0.02em;
   line-height: 1;
   text-decoration: none;
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.18);
   -webkit-mask-image: var(--details-showtime-ticket-mask);
   -webkit-mask-repeat: no-repeat;
-  -webkit-mask-composite: source-in;
+  -webkit-mask-size: 100% 100%;
+  -webkit-mask-position: center;
   mask-image: var(--details-showtime-ticket-mask);
+  mask-mode: alpha;
   mask-repeat: no-repeat;
-  mask-composite: intersect;
+  mask-size: 100% 100%;
+  mask-position: center;
+  filter: drop-shadow(0 4px 2px rgba(0, 0, 0, 0.28));
   transition:
     transform 140ms ease,
     filter 140ms ease,
@@ -1491,10 +1482,7 @@
   position: absolute;
   inset: 0;
   z-index: 0;
-  border-radius: calc(
-    var(--details-showtime-pill-radius) -
-      var(--details-showtime-pill-border-width)
-  );
+  border-radius: 0;
   background: var(
     --details-showtime-pill-background,
     linear-gradient(180deg, #ec870c 0%, #d87302 100%)
@@ -1503,10 +1491,13 @@
   pointer-events: none;
   -webkit-mask-image: var(--details-showtime-ticket-mask);
   -webkit-mask-repeat: no-repeat;
-  -webkit-mask-composite: source-in;
+  -webkit-mask-size: 100% 100%;
+  -webkit-mask-position: center;
   mask-image: var(--details-showtime-ticket-mask);
+  mask-mode: alpha;
   mask-repeat: no-repeat;
-  mask-composite: intersect;
+  mask-size: 100% 100%;
+  mask-position: center;
 }
 
 .details-time-pill-label {
@@ -1695,8 +1686,7 @@
 .movie-scroller-detail-card
   .details-showtime-card:focus-visible
   .details-time-pill {
-  filter: brightness(1.04);
-  box-shadow: 0 7px 14px rgba(0, 0, 0, 0.2);
+  filter: brightness(1.04) drop-shadow(0 4px 2px rgba(0, 0, 0, 0.28));
 }
 
 .movie-scroller-detail-card .details-showtime-card:hover .details-showtime-tech,
@@ -1723,17 +1713,17 @@
 
 .movie-scroller-detail-card .details-time-pill--yes-planet {
   --details-showtime-pill-background: linear-gradient(
-    to left,
-    #d9710f,
-    #b05806
+    180deg,
+    #e4770c 0%,
+    #df730c 100%
   );
 }
 
 .movie-scroller-detail-card .details-time-pill--cinema-city {
   --details-showtime-pill-background: linear-gradient(
-    to right,
-    #186bdf,
-    #084cab
+    180deg,
+    #1472ee 0%,
+    #136eed 100%
   );
 }
 
