@@ -73,9 +73,25 @@ const expectedTableNames = [
   "utilRunLogs",
 ];
 
-// These Python-only pipeline tables deliberately stay out of Drizzle's
-// applicationTables, which is the schema granted to the public API runtime.
+// These private pipeline and operational tables deliberately stay out of
+// Drizzle's applicationTables, which is granted to the public API runtime.
 const expectedPipelineTableColumns = {
+  utilAvgTimeHistory: [
+    "name",
+    "runner_machine",
+    "weekday",
+    "recent_times",
+    "updated_at",
+    "transport",
+  ],
+  tmdb_movie_details_cache: [
+    "tmdb_id",
+    "response_profile",
+    "payload",
+    "original_release_date",
+    "fetched_at",
+    "cache_format_version",
+  ],
   letterboxd_event_alerts: [
     "id",
     "user_id",
@@ -377,7 +393,7 @@ describe("PostgreSQL 17 integration", () => {
     ]);
   });
 
-  it("keeps pipeline tables and checkpoint RPCs service-role only", async () => {
+  it("keeps private pipeline and timing tables and RPCs service-role only", async () => {
     const { rows: tablePrivileges } = await adminDatabase.pool.query<{
       table_name: string;
       row_security: boolean;
@@ -440,6 +456,8 @@ describe("PostgreSQL 17 integration", () => {
         [
           "claim_pipeline_publication_checkpoint",
           "advance_pipeline_publication_checkpoint",
+          "append_util_avg_time_history",
+          "append_util_avg_time_transport_history",
         ],
       ],
     );
@@ -453,11 +471,65 @@ describe("PostgreSQL 17 integration", () => {
         authenticated_execute: false,
       },
       {
+        function_name: "append_util_avg_time_history",
+        service_execute: true,
+        api_execute: false,
+        anon_execute: false,
+        authenticated_execute: false,
+      },
+      {
+        function_name: "append_util_avg_time_transport_history",
+        service_execute: true,
+        api_execute: false,
+        anon_execute: false,
+        authenticated_execute: false,
+      },
+      {
         function_name: "claim_pipeline_publication_checkpoint",
         service_execute: true,
         api_execute: false,
         anon_execute: false,
         authenticated_execute: false,
+      },
+    ]);
+  });
+
+  it("limits rolling timing history writes to the trusted service role", async () => {
+    const { rows } = await adminDatabase.pool.query<{
+      row_security: boolean;
+      service_select: boolean;
+      service_insert: boolean;
+      service_update: boolean;
+      service_delete: boolean;
+      runtime_select: boolean;
+      anon_select: boolean;
+      authenticated_select: boolean;
+    }>(`
+      SELECT
+        relation.relrowsecurity AS row_security,
+        has_table_privilege('service_role', relation.oid, 'SELECT') AS service_select,
+        has_table_privilege('service_role', relation.oid, 'INSERT') AS service_insert,
+        has_table_privilege('service_role', relation.oid, 'UPDATE') AS service_update,
+        has_table_privilege('service_role', relation.oid, 'DELETE') AS service_delete,
+        has_table_privilege('kartiseret_runtime', relation.oid, 'SELECT') AS runtime_select,
+        has_table_privilege('anon', relation.oid, 'SELECT') AS anon_select,
+        has_table_privilege('authenticated', relation.oid, 'SELECT') AS authenticated_select
+      FROM pg_catalog.pg_class AS relation
+      JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+      WHERE namespace.nspname = 'public'
+        AND relation.relname = 'utilAvgTimeHistory'
+    `);
+
+    expect(rows).toEqual([
+      {
+        row_security: true,
+        service_select: true,
+        service_insert: true,
+        service_update: true,
+        service_delete: false,
+        runtime_select: false,
+        anon_select: false,
+        authenticated_select: false,
       },
     ]);
   });
@@ -937,96 +1009,168 @@ describe("PostgreSQL 17 integration", () => {
     }
   });
 
-  it("loads local dates and counts only today-or-later showtimes across cities", async () => {
-    const movieIds = [9199978, 9199979];
+  it("counts all upcoming all-city regular screenings and applies ranking consistently in both API paths", async () => {
+    const [
+      fewShowtimeMovie,
+      manyShowtimeMovie,
+      upcomingReleaseMovie,
+      todayReleaseMovie,
+    ] = [9199978, 9199979, 9199980, 9199981] as const;
+    const movieIds: number[] = [
+      fewShowtimeMovie,
+      manyShowtimeMovie,
+      upcomingReleaseMovie,
+      todayReleaseMovie,
+    ];
     const { rows } = await adminDatabase.pool.query<{
       today: string;
       yesterday: string;
-      future: string;
+      tomorrow: string;
+      day14: string;
+      day15: string;
+      day60: string;
     }>(`
       SELECT
         (now() AT TIME ZONE 'Asia/Jerusalem')::date::text AS today,
         ((now() AT TIME ZONE 'Asia/Jerusalem')::date - 1)::text AS yesterday,
-        ((now() AT TIME ZONE 'Asia/Jerusalem')::date + 2)::text AS future
+        ((now() AT TIME ZONE 'Asia/Jerusalem')::date + 1)::text AS tomorrow,
+        ((now() AT TIME ZONE 'Asia/Jerusalem')::date + 14)::text AS day14,
+        ((now() AT TIME ZONE 'Asia/Jerusalem')::date + 15)::text AS day15,
+        ((now() AT TIME ZONE 'Asia/Jerusalem')::date + 60)::text AS day60
     `);
-    const { today, yesterday, future } = rows[0]!;
+    const { today, yesterday, tomorrow, day14, day15, day60 } = rows[0]!;
 
-    await adminDatabase.db.insert(schema.finalMovies).values([
-      {
-        tmdbId: movieIds[0]!,
-        englishTitle: "Two Future Shows",
-        popularity: 20,
-      },
-      { tmdbId: movieIds[1]!, englishTitle: "One Future Show", popularity: 10 },
-    ]);
-    await adminDatabase.db.insert(schema.movieReleaseDates).values([
-      { tmdbId: movieIds[0]!, localReleaseDate: "2026-01-05" },
-      { tmdbId: movieIds[1]!, localReleaseDate: "2026-02-05" },
-    ]);
-    const insertedShowtimes = await adminDatabase.db
-      .insert(schema.finalShowtimes)
-      .values([
+    try {
+      await adminDatabase.db.insert(schema.finalMovies).values(
+        movieIds.map((tmdbId) => ({
+          tmdbId,
+          englishTitle: `Ranking Fixture ${tmdbId}`,
+          popularity: 20,
+        })),
+      );
+      await adminDatabase.db.insert(schema.movieReleaseDates).values([
+        { tmdbId: fewShowtimeMovie, localReleaseDate: yesterday },
+        { tmdbId: manyShowtimeMovie, localReleaseDate: yesterday },
+        { tmdbId: upcomingReleaseMovie, localReleaseDate: tomorrow },
+        { tmdbId: todayReleaseMovie, localReleaseDate: today },
+      ]);
+      await adminDatabase.db.insert(schema.finalShowtimes).values([
         {
-          tmdbId: movieIds[0]!,
+          tmdbId: fewShowtimeMovie,
           screeningCity: "Jerusalem",
           dateOfShowing: today,
-          cinema: "Ranking Fixture A",
+          cinema: "Ranking Fixture Few A",
           showtime: "18:00:00",
         },
         {
-          tmdbId: movieIds[0]!,
+          tmdbId: fewShowtimeMovie,
           screeningCity: "Tel Aviv",
-          dateOfShowing: future,
-          cinema: "Ranking Fixture B",
+          dateOfShowing: day14,
+          cinema: "Ranking Fixture Few B",
           showtime: "20:00:00",
         },
         {
-          tmdbId: movieIds[0]!,
+          tmdbId: fewShowtimeMovie,
+          screeningCity: "Haifa",
+          dateOfShowing: day15,
+          cinema: "Ranking Fixture Few C",
+          showtime: "21:00:00",
+        },
+        {
+          tmdbId: fewShowtimeMovie,
           screeningCity: "Haifa",
           dateOfShowing: yesterday,
-          cinema: "Ranking Fixture C",
+          cinema: "Ranking Fixture Past",
           showtime: "21:00:00",
         },
         {
-          tmdbId: movieIds[1]!,
-          screeningCity: "Beer Sheva",
-          dateOfShowing: future,
-          cinema: "Ranking Fixture D",
+          tmdbId: fewShowtimeMovie,
+          screeningCity: "Haifa",
+          dateOfShowing: null,
+          cinema: "Ranking Fixture Undated",
+          showtime: "21:00:00",
+        },
+        ...Array.from({ length: 100 }, (_, index) => ({
+          tmdbId: manyShowtimeMovie,
+          screeningCity: index % 2 ? "Beer Sheva" : "Eilat",
+          dateOfShowing: index % 2 ? day15 : day60,
+          cinema: `Ranking Fixture D ${index}`,
           showtime: "19:00:00",
-        },
-        {
-          tmdbId: movieIds[1]!,
-          screeningCity: "Eilat",
-          dateOfShowing: yesterday,
-          cinema: "Ranking Fixture E",
-          showtime: "21:00:00",
-        },
-      ])
-      .returning({ id: schema.finalShowtimes.id });
+        })),
+      ]);
+      await adminDatabase.db.insert(schema.finalTheques).values({
+        tmdbId: upcomingReleaseMovie,
+        englishTitle: "Ranking Fixture Cinematheque",
+        showtime: "18:00:00",
+        runId: 991201,
+        dateOfShowing: today,
+        screeningCity: "Jerusalem",
+        cinema: "Ranking Fixture Cinematheque",
+      });
 
-    try {
-      const rows = await runtimeRepository.findNowPlayingRows();
+      const loaded = await runtimeRepository.findNowPlayingRows();
       const byId = new Map(
-        (rows as Array<Record<string, unknown>>)
+        (loaded as Array<Record<string, unknown>>)
           .filter((row) => movieIds.includes(Number(row.tmdbId)))
           .map((row) => [Number(row.tmdbId), row]),
       );
+      expect(byId.get(fewShowtimeMovie)).toMatchObject({
+        upcomingShowtimeCount: 3,
+        localReleaseDate: yesterday,
+        rankingDate: today,
+      });
+      expect(byId.get(manyShowtimeMovie)).toMatchObject({
+        upcomingShowtimeCount: 100,
+        localReleaseDate: yesterday,
+        rankingDate: today,
+      });
+      expect(byId.get(upcomingReleaseMovie)).toMatchObject({
+        upcomingShowtimeCount: 0,
+        localReleaseDate: tomorrow,
+        rankingDate: today,
+      });
+      expect(byId.get(todayReleaseMovie)).toMatchObject({
+        upcomingShowtimeCount: 0,
+        localReleaseDate: today,
+        rankingDate: today,
+      });
 
-      expect(byId.get(movieIds[0]!)).toMatchObject({
-        showtimeCount: 2,
-        localReleaseDate: "2026-01-05",
-      });
-      expect(byId.get(movieIds[1]!)).toMatchObject({
-        showtimeCount: 1,
-        localReleaseDate: "2026-02-05",
-      });
+      const legacyApp = createApp({ catalogRepository: runtimeRepository });
+      const responses = await Promise.all([
+        request(app).get("/api/v1/catalog/now-playing"),
+        request(legacyApp).get("/api/v1/catalog/now-playing"),
+      ]);
+      const orders: string[][] = [];
+      for (const response of responses) {
+        expect(response.status).toBe(200);
+        const movies = response.body.data.movies as Array<
+          Record<string, unknown>
+        >;
+        const ids = movies
+          .filter((movie) => movieIds.includes(Number(movie.tmdbId)))
+          .map((movie) => String(movie.tmdbId));
+        expect(ids).toHaveLength(4);
+        expect(ids.indexOf(String(manyShowtimeMovie))).toBeLessThan(
+          ids.indexOf(String(fewShowtimeMovie)),
+        );
+        expect(ids.indexOf(String(todayReleaseMovie))).toBeLessThan(
+          ids.indexOf(String(upcomingReleaseMovie)),
+        );
+        for (const movie of movies) {
+          expect(movie).not.toHaveProperty("rankingDate");
+          expect(movie).not.toHaveProperty("upcomingShowtimeCount");
+          expect(movie).not.toHaveProperty("localReleaseDate");
+        }
+        orders.push(ids);
+      }
+      expect(orders[0]).toEqual(orders[1]);
     } finally {
-      await adminDatabase.db.delete(schema.finalShowtimes).where(
-        inArray(
-          schema.finalShowtimes.id,
-          insertedShowtimes.map((row) => row.id),
-        ),
-      );
+      await adminDatabase.db
+        .delete(schema.finalShowtimes)
+        .where(inArray(schema.finalShowtimes.tmdbId, movieIds));
+      await adminDatabase.db
+        .delete(schema.finalTheques)
+        .where(inArray(schema.finalTheques.tmdbId, movieIds));
       await adminDatabase.db
         .delete(schema.movieReleaseDates)
         .where(inArray(schema.movieReleaseDates.tmdbId, movieIds));
@@ -1290,6 +1434,175 @@ describe("PostgreSQL 17 integration", () => {
         }),
       ]),
     );
+
+    const cinemathequeRows = await adminDatabase.db
+      .select()
+      .from(schema.finalTheques)
+      .where(eq(schema.finalTheques.tmdbId, 9100012));
+    const cinemathequeRow = cinemathequeRows.find(
+      (row) => String(row.dateOfShowing) === date,
+    );
+    expect(cinemathequeRow).toBeDefined();
+    await adminDatabase.db.insert(schema.finalShowtimes).values([
+      {
+        tmdbId: 9100012,
+        screeningCity: "Jerusalem",
+        dateOfShowing: date,
+        cinema: "Development Cinema Jerusalem",
+        showtime: "19:00:00",
+      },
+      {
+        tmdbId: cinemathequeRow!.tmdbId,
+        screeningCity: cinemathequeRow!.screeningCity,
+        dateOfShowing: cinemathequeRow!.dateOfShowing,
+        cinema: cinemathequeRow!.cinema,
+        showtime: cinemathequeRow!.showtime,
+        englishHref: cinemathequeRow!.englishHref,
+        hebrewHref: cinemathequeRow!.hebrewHref,
+        screeningTech: cinemathequeRow!.screeningTech,
+        screeningType: cinemathequeRow!.screeningType,
+        dubLanguage: cinemathequeRow!.dubLanguage,
+      },
+    ]);
+    const combined = await request(app).get(
+      `/api/v1/showtimes?city=Jerusalem&startDate=${date}&endDate=${date}&tmdbId=9100012`,
+    );
+    expect(combined.status).toBe(200);
+    expect(
+      combined.body.data.showtimes.map((row: { cinema: string }) => row.cinema),
+    ).toEqual(["Development Cinema Jerusalem", "Development Cinematheque"]);
+
+    const nationwide = await request(app).get(
+      `/api/v1/cinematheques?startDate=${date}&endDate=${date}`,
+    );
+    expect(nationwide.status).toBe(200);
+    expect(nationwide.body.data.showtimes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          tmdbId: "9100012",
+          screeningCity: "Jerusalem",
+          cinema: "Development Cinematheque",
+        }),
+      ]),
+    );
+  });
+
+  it("combines the four Jerusalem cinemas for the same film and date", async () => {
+    const tmdbId = 9201001;
+    const title = "Jerusalem Four Venue Fixture";
+    const dateResult = await adminDatabase.pool.query<{ date: string }>(
+      "SELECT to_char(CURRENT_DATE + 14, 'YYYY-MM-DD') AS date",
+    );
+    const date = dateResult.rows[0]?.date;
+    expect(date).toBeDefined();
+
+    await adminDatabase.db.insert(schema.finalMovies).values({
+      tmdbId,
+      englishTitle: title,
+      releaseYear: 2026n,
+      soloUpdate: false,
+    });
+    await adminDatabase.db.insert(schema.finalThequeMovies).values({
+      tmdbId,
+      englishTitle: title,
+      releaseYear: 2026,
+      soloUpdate: false,
+    });
+    await adminDatabase.db.insert(schema.finalShowtimes).values([
+      {
+        tmdbId,
+        englishTitle: title,
+        screeningCity: "Jerusalem",
+        dateOfShowing: date!,
+        cinema: "Cinema City Jerusalem",
+        showtime: "18:00:00",
+        englishHref: "https://tickets.example/cinema-city",
+        screeningTech: "2D",
+        screeningType: "Regular",
+      },
+      {
+        tmdbId,
+        englishTitle: title,
+        screeningCity: "Jerusalem",
+        dateOfShowing: date!,
+        cinema: "Yes Planet Jerusalem",
+        showtime: "19:00:00",
+        englishHref: "https://tickets.example/yes-planet",
+        screeningTech: "2D",
+        screeningType: "Regular",
+      },
+    ]);
+    await adminDatabase.db.insert(schema.finalTheques).values([
+      {
+        tmdbId,
+        englishTitle: title,
+        screeningCity: "Jerusalem",
+        dateOfShowing: date!,
+        cinema: "Sam Spiegel Cinema",
+        showtime: "20:00:00",
+        englishHref: "https://tickets.example/sam-spiegel",
+        screeningTech: "35mm",
+        screeningType: "Special",
+        runId: 9100000,
+      },
+      {
+        tmdbId,
+        englishTitle: title,
+        screeningCity: "Jerusalem",
+        dateOfShowing: date!,
+        cinema: "Jerusalem Cinematheque",
+        showtime: "21:00:00",
+        englishHref: "https://tickets.example/jerusalem-cinematheque",
+        screeningTech: "2D",
+        screeningType: "Regular",
+        runId: 9100000,
+      },
+    ]);
+
+    const response = await request(app).get(
+      `/api/v1/showtimes?city=Jerusalem&startDate=${date}&endDate=${date}&tmdbId=${tmdbId}`,
+    );
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(
+      response.body.data.showtimes.map((row: { cinema: string }) => row.cinema),
+    ).toEqual([
+      "Cinema City Jerusalem",
+      "Yes Planet Jerusalem",
+      "Jerusalem Cinematheque",
+      "Sam Spiegel Cinema",
+    ]);
+    expect(response.body.data.showtimes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          cinema: "Cinema City Jerusalem",
+          englishHref: "https://tickets.example/cinema-city",
+          screeningTech: "2D",
+          screeningType: "Regular",
+        }),
+        expect.objectContaining({
+          cinema: "Sam Spiegel Cinema",
+          englishHref: "https://tickets.example/sam-spiegel",
+          screeningTech: "35mm",
+          screeningType: "Special",
+        }),
+      ]),
+    );
+
+    const wrongCity = await request(app).get(
+      `/api/v1/showtimes?city=Tel%20Aviv&startDate=${date}&endDate=${date}&tmdbId=${tmdbId}`,
+    );
+    expect(wrongCity.status).toBe(200);
+    expect(wrongCity.body.data.showtimes).toEqual([]);
+
+    const wrongDateResult = await adminDatabase.pool.query<{ date: string }>(
+      "SELECT to_char(CURRENT_DATE + 15, 'YYYY-MM-DD') AS date",
+    );
+    const wrongDate = wrongDateResult.rows[0]?.date;
+    const isolatedDate = await request(app).get(
+      `/api/v1/showtimes?city=Jerusalem&startDate=${wrongDate}&endDate=${wrongDate}&tmdbId=${tmdbId}`,
+    );
+    expect(isolatedDate.status).toBe(200);
+    expect(isolatedDate.body.data.showtimes).toEqual([]);
   });
 
   it("uses a metadata read for an empty code lookup and never builds invalid SQL", async () => {

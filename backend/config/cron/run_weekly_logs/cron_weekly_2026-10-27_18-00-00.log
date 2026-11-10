@@ -1,0 +1,106 @@
+==== cron run start: 2026-10-27T18:00:00+0200 ====
+From github.com:jeremyjacob101/Kartiseret
+ * branch              main       -> FETCH_HEAD
+Already on 'main'
+M	backend/config/cron/cron_weekly.log
+M	backend/utils/log/logger_artifacts/.last_run_id
+Your branch is up to date with 'origin/main'.
+HEAD is now at c148a9af Rate limit protected API and scope workflow permissions (#205)
+Removing backend/utils/log/logger_artifacts/663/
+╭────────────────────────────────── Run Plan ──────────────────────────────────╮
+│ Running…                                                                     │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭────────╮
+│ Scrape │
+╰────────╯
+
+--------------------
+
+CinemaCity: 05m11s
+RavHen: 08m18s
+TLVtheque: 09m07s
+MovieLand: 12m07s
+JLEMtheque: 05m32s
+HERZtheque: 08m08s
+MLsoon: 03m34s
+HAIFtheque: 10m48s
+LevCinema: 08m21s
+YPsoon: 04m01s
+JAFCtheque: 00m20s
+LCsoon: 03m03s
+HCsoon: 24m20s
+CCsoon: 07m41s
+HotCinema: 31m09s
+YesPlanet: 35m20s
+
+--------------------
+
+
+╭──────────╮
+│ Dataflow │
+╰──────────╯
+╭───────╮
+│ Clean │
+╰───────╯
+
+--------------------
+
+ComingSoonsClean: 00m04s
+CinemathequesClean: 00m05s
+NowPlayingsClean: 01m04s
+
+--------------------
+
+
+╭──────╮
+│ Tmdb │
+╰──────╯
+
+--------------------
+
+ComingSoonsTmdb: 05m32s
+NowPlayingsTmdb: 05m43s
+CinemathequesTmdb: 12m10s
+
+--------------------
+
+
+╭────────╮
+│ Update │
+╰────────╯
+
+--------------------
+
+ComingSoonsUpdate: 00m13s
+NowPlayingsUpdate: 00m58s
+CinemathequesUpdate: 02m41s
+
+--------------------
+
+2026-10-27 18:51:26,653 INFO PostgresPublicationPublisher.py:265 publication_metric={"event":"publication_stage_complete","publication_id":"332adf7c-c84c-45cb-a35d-e7c597013e2d","run_id":664,"category":"comingsoons","parts":16,"payload_bytes":1876330,"seconds":2.206}
+2026-10-27 18:51:28,099 INFO PostgresPublicationPublisher.py:321 publication_metric={"event":"publication_apply_committed","publication_id":"332adf7c-c84c-45cb-a35d-e7c597013e2d","run_id":664,"category":"comingsoons","transaction_seconds":1.071,"function_seconds":0.659,"commit_and_ack_seconds":0.063,"revision":"20"}
+╭───────────────────────────────────────╮
+│ comingSoonsData publication committed │
+╰───────────────────────────────────────╯
+2026-10-27 18:51:42,595 INFO PostgresPublicationPublisher.py:265 publication_metric={"event":"publication_stage_complete","publication_id":"2c2b120c-b3b0-4756-a12f-510c4942741d","run_id":664,"category":"nowplayings","parts":507,"payload_bytes":77227973,"seconds":10.426}
+2026-10-27 18:52:19,912 INFO PostgresPublicationPublisher.py:321 publication_metric={"event":"publication_apply_committed","publication_id":"2c2b120c-b3b0-4756-a12f-510c4942741d","run_id":664,"category":"nowplayings","transaction_seconds":36.96,"function_seconds":36.517,"commit_and_ack_seconds":0.104,"revision":"21"}
+╭──────────────────────────────────────╮
+│ nowPlayingData publication committed │
+╰──────────────────────────────────────╯
+2026-10-27 18:52:27,004 INFO PostgresPublicationPublisher.py:265 publication_metric={"event":"publication_stage_complete","publication_id":"5aa1434b-e86e-447b-90d4-fa57fd6417a9","run_id":664,"category":"cinematheques","parts":49,"payload_bytes":11913159,"seconds":6.539}
+2026-10-27 18:52:33,616 INFO PostgresPublicationPublisher.py:321 publication_metric={"event":"publication_apply_committed","publication_id":"5aa1434b-e86e-447b-90d4-fa57fd6417a9","run_id":664,"category":"cinematheques","transaction_seconds":6.258,"function_seconds":5.832,"commit_and_ack_seconds":0.066,"revision":"22"}
+╭────────────────────────────────────────╮
+│ cinemathequeData publication committed │
+╰────────────────────────────────────────╯
+
+╭─────────────────────╮
+│ Movie notifications │
+╰─────────────────────╯
+Movie notifications: 0 emails, 0 first-availability updates; 2 sources synced, 0 sources failed.
+
+--------------------
+
+MovieNotificationDispatcher: 00m12s
+
+--------------------
+

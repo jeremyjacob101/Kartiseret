@@ -1,0 +1,13 @@
+{
+  "project": "gsdrcyrduxbrxgsvhxvr",
+  "checked_on": "2026-11-09",
+  "run_id": 685,
+  "snapshot_started_at_utc": "2026-11-08T19:03:38.220785Z",
+  "snapshot_rows": 2492,
+  "snapshot_status": "complete",
+  "avengers_tickets_checked": 515,
+  "present_in_latest_raw": 0,
+  "present_in_published_catalog": 0,
+  "present_in_prior_raw_run_683": 515,
+  "changes_made_by_verification": false
+}

@@ -1,10 +1,14 @@
-from supabase import create_client
+from backend.utils.log.job_lease import create_client
 from selenium import webdriver
 from datetime import datetime
 import time, pytz, os
+import logging
+from backend.utils.log.cloudflare_storage import CloudflareStorageError
+from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+from backend.utils.util_avg_time_history import append_recent_duration, current_weekday
 
 runningGithubActions = os.environ.get("GITHUB_ACTIONS") == "true"
-RUNNER_MACHINE = os.environ.get("RUNNER_MACHINE")
+CHROME_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.92 Safari/537.36"
 
 
 def setUpSupabase(self):
@@ -27,24 +31,33 @@ def build_chrome(headless: bool = True):
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument(f"--window-size=1920,1080")
-    options.add_argument("user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.92 Safari/537.36")
+    options.add_argument(f"user-agent={CHROME_USER_AGENT}")
     # options.add_argument(f"user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.0 Safari/537.36")
     return webdriver.Chrome(options=options)
 
 
 def logSuccessfulRun(self) -> None:
     if not runningGithubActions:
+        runner_machine = os.environ.get("RUNNER_MACHINE")
+        if not runner_machine:
+            return
+
         duration_seconds = time.perf_counter() - self.startTime
-        avg_time_col, num_runs_col = "avg_time_" + str(RUNNER_MACHINE), "num_runs_" + str(RUNNER_MACHINE)
-
-        resp = self.supabase.table("utilAvgTime").select(f"{avg_time_col},{num_runs_col},type").eq("name", self.__class__.__name__).limit(1).execute()
-        row = resp.data[0]
-        old_avg = float(row.get(avg_time_col) or 0.0)
-        n = int(row.get(num_runs_col) or 0)
-        new_avg = (old_avg * n + float(duration_seconds)) / (n + 1)
-        update_payload = {avg_time_col: float(new_avg), num_runs_col: n + 1, "type": row.get("type")}
-
-        self.supabase.table("utilAvgTime").update(update_payload).eq("name", self.__class__.__name__).eq(num_runs_col, n).execute()
+        try:
+            append_recent_duration(
+                self.supabase,
+                self.__class__.__name__,
+                runner_machine,
+                getattr(self, "_timing_weekday", current_weekday()),
+                duration_seconds,
+                transport=getattr(self, '_timing_transport', None) or 'legacy',
+            )
+        except (CloudflareStorageError, R2BudgetError, R2BudgetExceeded):
+            raise
+        except Exception:
+            # Timing is advisory; a missing migration or timing outage must
+            # not turn an already-published scrape into another outer retry.
+            logging.getLogger(__name__).warning('Could not record scraper timing history for %s', self.__class__.__name__, exc_info=True)
 
 
 class InitializeBaseCinema:
@@ -52,10 +65,14 @@ class InitializeBaseCinema:
         super().__init__(*args, **kwargs)
         self.sleep = lambda s=None: time.sleep(999999999 if s is None else s)
 
+        self._timing_weekday = current_weekday()
         self.startTime = time.perf_counter()
-        self.today_date = datetime.today()
-        self.current_year = str(datetime.now(pytz.timezone("Asia/Jerusalem")).year)
-        self.current_month = str(datetime.now(pytz.timezone("Asia/Jerusalem")).month)
+        local_now = datetime.now(pytz.timezone("Asia/Jerusalem"))
+        # Keep the existing naive-datetime interface while freezing all three
+        # calendar values at the same Jerusalem-local instant.
+        self.today_date = local_now.replace(tzinfo=None)
+        self.current_year = str(local_now.year)
+        self.current_month = str(local_now.month)
 
         self.showtimes = []
         self.english_titles = []

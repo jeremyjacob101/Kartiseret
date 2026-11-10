@@ -734,7 +734,7 @@ export function MovieScrollerBase({
             introInteractive &&
             selectedItemIndex === null;
           const isTabbable = isKeyboardInteractive && isVisible;
-          const activateMovie = (target: HTMLDivElement) => {
+          const activateMovie = (target: HTMLElement) => {
             const rect = target.getBoundingClientRect();
 
             onSelectMovie?.(
@@ -750,7 +750,22 @@ export function MovieScrollerBase({
             );
           };
 
-          const handleSelectMovie = (event: MouseEvent<HTMLDivElement>) => {
+          const handleSelectMovie = (
+            event: MouseEvent<HTMLAnchorElement | HTMLDivElement>,
+          ) => {
+            if (event.currentTarget.tagName === "A") {
+              if (
+                event.button !== 0 ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey ||
+                !onSelectMovie
+              ) {
+                return;
+              }
+              event.preventDefault();
+            }
             activateMovie(event.currentTarget);
           };
 
@@ -769,13 +784,94 @@ export function MovieScrollerBase({
             activateMovie(event.currentTarget);
           };
 
-          return (
+          const className = ["movie-scroller-card", cardClassName]
+            .filter(Boolean)
+            .join(" ");
+          const style: CSSProperties = {
+            position: "absolute",
+            left,
+            bottom: 0,
+            width: cardWidth,
+            height: cardHeight,
+            padding: 0,
+            border: "none",
+            borderRadius: 14,
+            overflow: "hidden",
+            opacity: introOpacity,
+            background: "transparent",
+            cursor:
+              onSelectMovie && introInteractive
+                ? "pointer"
+                : introInteractive
+                  ? "grab"
+                  : "default",
+            WebkitTapHighlightColor: "transparent",
+            transform:
+              `translateZ(0) ` +
+              `translateX(calc(${introTranslateX}px + var(--card-translate-x, 0px))) ` +
+              `translateY(var(--card-translate-y, 0px)) ` +
+              `rotate(var(--card-rotate, 0deg)) ` +
+              `scale(calc(${scale} * var(--card-scale, 1)))`,
+            transformOrigin: "center bottom",
+            transition: shouldAnimateIntroCard
+              ? `transform ${INTRO_DURATION_MS}ms cubic-bezier(0.22, 0.86, 0.24, 1) ${introDelayMs}ms, ` +
+                `opacity 540ms ease ${introDelayMs}ms`
+              : selectedItemIndex === null && isMobile
+                ? "transform 72ms cubic-bezier(0.22, 0.9, 0.34, 1)"
+                : "transform 72ms cubic-bezier(0.22, 0.9, 0.34, 1), opacity 80ms linear",
+            willChange:
+              selectedItemIndex === null && isMobile
+                ? "transform"
+                : "transform, opacity",
+            zIndex: Math.round(waveLift * 100),
+            ...cardStyle,
+          };
+          const poster = (
+            <MoviePosterArtwork
+              title={movie.title}
+              tmdbId={movie.tmdbId}
+              imageSrc={movie.imageSrc}
+              imageSrcSet={movie.imageSrcSet}
+              imageSizes={`${cardWidth}px`}
+              alt={movie.title}
+              loading={isVisible ? "eager" : "lazy"}
+              fetchPriority={
+                isVisible || shouldAnimateIntroCard ? "high" : "low"
+              }
+              decoding="async"
+              draggable={false}
+              showFallbackWhileLoading
+              deferRequest={
+                !isVisible &&
+                !shouldAnimateIntroCard &&
+                !startedPosters.has(movie.imageSrc)
+              }
+              className="movie-scroller-card-media"
+            />
+          );
+          const cardData = {
+            "data-movie-scroller-item-index": i,
+            "data-movie-scroller-positional-opacity":
+              renderedOpacity.toFixed(6),
+            className,
+            style,
+          };
+
+          return movie.movieCode ? (
+            <a
+              key={`${i}:${movie.tmdbId}`}
+              {...cardData}
+              href={`/${movie.movieCode}`}
+              onClick={handleSelectMovie}
+              tabIndex={isKeyboardInteractive && isVisible ? 0 : -1}
+              aria-label={`Open ${movie.title} details`}
+            >
+              {poster}
+            </a>
+          ) : (
             <div
               key={`${i}:${movie.tmdbId}`}
-              data-movie-scroller-item-index={i}
-              data-movie-scroller-positional-opacity={renderedOpacity.toFixed(
-                6,
-              )}
+              {...cardData}
               onClick={handleSelectMovie}
               onKeyDown={handleCardKeyDown}
               role={isKeyboardInteractive ? "button" : undefined}
@@ -785,68 +881,8 @@ export function MovieScrollerBase({
                   ? `Open ${movie.title} details`
                   : undefined
               }
-              className={["movie-scroller-card", cardClassName]
-                .filter(Boolean)
-                .join(" ")}
-              style={{
-                position: "absolute",
-                left,
-                bottom: 0,
-                width: cardWidth,
-                height: cardHeight,
-                padding: 0,
-                border: "none",
-                borderRadius: 14,
-                overflow: "hidden",
-                opacity: introOpacity,
-                background: "transparent",
-                cursor:
-                  onSelectMovie && introInteractive
-                    ? "pointer"
-                    : introInteractive
-                      ? "grab"
-                      : "default",
-                WebkitTapHighlightColor: "transparent",
-                transform:
-                  `translateZ(0) ` +
-                  `translateX(calc(${introTranslateX}px + var(--card-translate-x, 0px))) ` +
-                  `translateY(var(--card-translate-y, 0px)) ` +
-                  `rotate(var(--card-rotate, 0deg)) ` +
-                  `scale(calc(${scale} * var(--card-scale, 1)))`,
-                transformOrigin: "center bottom",
-                transition: shouldAnimateIntroCard
-                  ? `transform ${INTRO_DURATION_MS}ms cubic-bezier(0.22, 0.86, 0.24, 1) ${introDelayMs}ms, ` +
-                    `opacity 540ms ease ${introDelayMs}ms`
-                  : selectedItemIndex === null && isMobile
-                    ? "transform 72ms cubic-bezier(0.22, 0.9, 0.34, 1)"
-                    : "transform 72ms cubic-bezier(0.22, 0.9, 0.34, 1), opacity 80ms linear",
-                willChange:
-                  selectedItemIndex === null && isMobile
-                    ? "transform"
-                    : "transform, opacity",
-                zIndex: Math.round(waveLift * 100),
-                ...cardStyle,
-              }}
             >
-              <MoviePosterArtwork
-                title={movie.title}
-                tmdbId={movie.tmdbId}
-                imageSrc={movie.imageSrc}
-                alt={movie.title}
-                loading={isVisible ? "eager" : "lazy"}
-                fetchPriority={
-                  isVisible || shouldAnimateIntroCard ? "high" : "low"
-                }
-                decoding="async"
-                draggable={false}
-                showFallbackWhileLoading
-                deferRequest={
-                  !isVisible &&
-                  !shouldAnimateIntroCard &&
-                  !startedPosters.has(movie.imageSrc)
-                }
-                className="movie-scroller-card-media"
-              />
+              {poster}
             </div>
           );
         });

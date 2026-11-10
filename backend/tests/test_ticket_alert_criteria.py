@@ -1,12 +1,19 @@
 import unittest
 from datetime import datetime
+import json
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from backend.notifications.ticket_alerts import (
     TicketAlertConfig,
     TicketAlertDispatcher,
+    DeliveryItem,
+    build_movie_showtime_path,
     build_ticket_alert_path,
+    delivery_item_from_snapshot,
+    filter_mask_from_exclusions,
     matches_ticket_alert_criteria,
+    render_ticket_alert_email,
     resolve_ticket_alert_criteria,
     select_linked_showtime,
 )
@@ -42,6 +49,142 @@ def showtime(tmdb_id=101, **changes):
 
 
 class TicketAlertCriteriaTests(unittest.TestCase):
+    def test_shared_showtime_link_vectors_match_typescript_contract(self):
+        vectors_path = (
+            Path(__file__).resolve().parents[2]
+            / "packages/contracts/test-data/showtime-link-vectors.json"
+        )
+        vectors = json.loads(vectors_path.read_text())
+        for vector in vectors:
+            with self.subTest(path=vector["path"]):
+                self.assertEqual(
+                    filter_mask_from_exclusions(vector["filterExclusions"]),
+                    vector["filterMask"],
+                )
+                self.assertEqual(
+                    build_ticket_alert_path(
+                        vector["movieCode"],
+                        vector["city"],
+                        vector["date"],
+                        NOW.date(),
+                        vector["filterExclusions"],
+                    ),
+                    vector["path"],
+                )
+
+    def test_ticket_alert_email_links_to_movie_page_with_snapshot_preferences(self):
+        item = DeliveryItem(
+            tmdb_id=101,
+            title="Future Film",
+            city="Tel Aviv",
+            date="2027-01-15",
+            ticket_href="https://tickets.example.test/101",
+            movie_code="A7z",
+            filter_mask=45120,
+        )
+        email = render_ticket_alert_email(
+            (item,), "https://seret.site", NOW.date()
+        )
+        self.assertIn("View showtimes", email.html)
+        self.assertIn("View showtimes:", email.text)
+        self.assertIn("/A7zlb1fHK?date=2027-01-15", email.text)
+        self.assertNotIn("tickets.example.test", email.html)
+        self.assertNotIn("tickets.example.test", email.text)
+
+    def test_legacy_delivery_snapshot_defaults_missing_filter_mask(self):
+        item = delivery_item_from_snapshot(
+            {
+                "tmdb_id": 101,
+                "delivery_title": "Future Film",
+                "delivery_city": "Jerusalem",
+                "delivery_date": "2026-10-22",
+                "delivery_href": "https://tickets.example.test/101",
+                "delivery_movie_code": None,
+            }
+        )
+        self.assertIsNotNone(item)
+        self.assertEqual(item.filter_mask, 0)
+        email = render_ticket_alert_email((item,), "https://seret.site", NOW.date())
+        self.assertIn("https://seret.site/showtimes", email.html)
+        self.assertNotIn("tickets.example.test", email.html)
+
+    def test_retry_enriches_an_old_snapshot_movie_code_without_using_ticket_href(self):
+        class Repository:
+            def __init__(self):
+                self.sent = None
+
+            def load_pending_subscriptions(self):
+                return [
+                    {
+                        "user_id": "alice",
+                        "tmdb_id": 101,
+                        "created_at": "2026-10-20T10:00:00Z",
+                        "delivery_id": "old-delivery",
+                        "delivery_title": "Future Film",
+                        "delivery_city": "Tel Aviv",
+                        "delivery_date": "2027-01-15",
+                        "delivery_href": "https://tickets.example.test/booking",
+                        "delivery_movie_code": None,
+                        "notified_at": None,
+                    }
+                ]
+
+            def load_movie_codes(self, tmdb_ids):
+                self.asserted_ids = tmdb_ids
+                return {101: "A7z"}
+
+            def record_attempt(self, *_args):
+                pass
+
+            def canonical_email(self, _user_id):
+                return "alice@example.test"
+
+            def mark_success(self, *_args):
+                pass
+
+            def mark_failure(self, *_args):
+                raise AssertionError("The legacy delivery should remain deliverable")
+
+        class Response:
+            status_code = 200
+            text = ""
+
+            @staticmethod
+            def json():
+                return {"id": "resend-1"}
+
+        class Resend:
+            def __init__(self):
+                self.payload = None
+
+            def post(self, _url, *, json, **_kwargs):
+                self.payload = json
+                return Response()
+
+        repository = Repository()
+        resend = Resend()
+        dispatcher = TicketAlertDispatcher(
+            1,
+            repository=repository,
+            http_client=resend,
+            config=TicketAlertConfig(
+                resend_api_key="fake",
+                from_email="alerts@example.test",
+                site_url="https://seret.site",
+            ),
+            now_factory=lambda: NOW,
+        )
+
+        summary = dispatcher.dispatch()
+
+        self.assertEqual(summary.emails_sent, 1)
+        self.assertEqual(repository.asserted_ids, [101])
+        self.assertIn(
+            f"https://seret.site{build_movie_showtime_path('A7z', 'Tel Aviv', '2027-01-15', 0)}",
+            resend.payload["text"],
+        )
+        self.assertNotIn("tickets.example.test", resend.payload["html"])
+
     def test_bat_yam_ticket_alerts_use_the_city_short_link(self):
         path = build_ticket_alert_path(
             "ABC",

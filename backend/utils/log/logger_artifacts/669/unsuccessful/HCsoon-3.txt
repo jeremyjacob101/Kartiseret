@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: HCsoon
+URL: https://hotcinema.co.il/movie/3997/perla
+Exception: ReadTimeoutError - HTTPConnectionPool(host='localhost', port=58923): Read timed out. (read timeout=120)
+Call Chain: runners.py:33 > runners.py:23 > BaseCinema.py:82 > HCsoon.py:25
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/669/unsuccessful/HCsoon-3.png
+CSV: backend/utils/log/logger_artifacts/669/unsuccessful/HCsoon-3.csv

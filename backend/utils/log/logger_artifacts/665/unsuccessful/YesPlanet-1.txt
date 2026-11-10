@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: YesPlanet
+URL: https://www.planetcinema.co.il/cinemas/haifa/1070#/buy-tickets-by-cinema?in-cinema=1070&at=2026-11-01&view-mode=list
+Exception: TimeoutException - Message: 
+Call Chain: runners.py:33 > runners.py:23 > BaseCinema.py:82 > YesPlanet.py:125 > ScrapingHelpers.py:43
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/665/unsuccessful/YesPlanet-1.png
+CSV: backend/utils/log/logger_artifacts/665/unsuccessful/YesPlanet-1.csv

@@ -16,3 +16,122 @@
 html[data-device-type="mobile"] .cinematheques-page-title {
   margin-left: 0;
 }
+
+.cinematheques-page .cinematheques-day {
+  flex: none;
+  margin-bottom: 24px;
+}
+.cinematheques-date {
+  margin: 0 0 16px;
+  color: #f4efff;
+  font-size: 1.2rem;
+}
+.cinematheques-cinema {
+  margin-bottom: 24px;
+}
+.cinematheques-cinema-title {
+  margin: 0 0 12px;
+  color: #d7c8f3;
+  font-size: 1rem;
+}
+
+.cinematheques-poster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 160px));
+  gap: 22px 16px;
+}
+
+.cinematheques-poster-tile {
+  min-width: 0;
+}
+.cinematheques-poster-button {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(221, 194, 255, 0.2);
+  border-radius: 10px;
+  background: #181124;
+  cursor: pointer;
+  text-decoration: none;
+}
+.cinematheques-poster-button:focus-visible {
+  outline: 3px solid #d7a6ff;
+  outline-offset: 3px;
+}
+.cinematheques-poster-button .movie-poster-artwork-shell,
+.cinematheques-poster {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cinematheques-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+.cinematheques-time {
+  display: inline-flex;
+  justify-content: center;
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: #a875d1;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+.cinematheques-time:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+.cinematheques-time--unavailable {
+  background: #48404f;
+}
+.cinematheques-dialog {
+  width: min(90vw, 460px);
+  padding: 0;
+  border: 1px solid #665477;
+  border-radius: 18px;
+  background: #171121;
+  color: #f4efff;
+}
+.cinematheques-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.75);
+}
+.cinematheques-dialog-content {
+  position: relative;
+  padding: 28px;
+}
+.cinematheques-dialog-content h2 {
+  padding-right: 30px;
+  margin: 0 0 12px;
+}
+.cinematheques-dialog-content p {
+  color: #c9bed1;
+}
+.cinematheques-dialog-close {
+  position: absolute;
+  right: 16px;
+  top: 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 1.8rem;
+  cursor: pointer;
+}
+@media (max-width: 600px) {
+  .cinematheques-poster-grid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 18px 12px;
+  }
+}
+
+.cinematheques-poster-button .movie-poster-fallback-title {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: clamp(0.7rem, 1.4vw, 1rem);
+}

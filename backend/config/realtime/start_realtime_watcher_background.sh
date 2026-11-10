@@ -11,8 +11,20 @@ RESTART_MAX_SLEEP_SECONDS="${RESTART_MAX_SLEEP_SECONDS:-60}"
 RUN_LOCK_SLEEP_SECONDS="${RUN_LOCK_SLEEP_SECONDS:-600}"
 RUN_LOCK_MAX_WAIT_SECONDS="${RUN_LOCK_MAX_WAIT_SECONDS:-10800}"
 PIPELINE_TERMINATION_GRACE_SECONDS="${PIPELINE_TERMINATION_GRACE_SECONDS:-}"
-SUPABASE_URL="${SUPABASE_URL:-}"
-SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-}"
+TARGET="${KARTISERET_TARGET:-production}"
+
+if [[ "${1:-}" == "--target" ]]; then
+  if (( $# < 2 )); then
+    echo "--target requires development or production" >&2
+    exit 2
+  fi
+  TARGET="$2"
+  shift 2
+fi
+if [[ "$TARGET" != "development" && "$TARGET" != "production" ]]; then
+  echo "KARTISERET_TARGET must be development or production" >&2
+  exit 2
+fi
 
 cd "$PROJECT"
 
@@ -35,21 +47,6 @@ if [[ -z "$PIPELINE_TERMINATION_GRACE_SECONDS" ]]; then
 fi
 PIPELINE_TERMINATION_GRACE_SECONDS="${PIPELINE_TERMINATION_GRACE_SECONDS:-20}"
 
-if [[ -z "$SUPABASE_URL" ]]; then
-  SUPABASE_URL="$(dotenv_value SUPABASE_URL)"
-fi
-
-if [[ -z "$SUPABASE_SERVICE_ROLE_KEY" ]]; then
-  SUPABASE_SERVICE_ROLE_KEY="$(dotenv_value SUPABASE_SERVICE_ROLE_KEY)"
-fi
-
-SUPABASE_URL="${SUPABASE_URL:-https://gsdrcyrduxbrxgsvhxvr.supabase.co}"
-
-if [[ -z "$SUPABASE_SERVICE_ROLE_KEY" ]]; then
-  echo "Missing SUPABASE_SERVICE_ROLE_KEY. Export it first or add it to $PROJECT/.env."
-  exit 1
-fi
-
 export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 export PROJECT
 export PYTHON="$PYTHON_BIN"
@@ -59,13 +56,13 @@ export REALTIME_LOG_LEVEL
 export RUN_LOCK_MAX_WAIT_SECONDS
 export RUN_LOCK_SLEEP_SECONDS
 export PIPELINE_TERMINATION_GRACE_SECONDS
-export SUPABASE_SERVICE_ROLE_KEY
-export SUPABASE_URL
+export KARTISERET_TARGET="$TARGET"
 
 LOG_FILE="$PROJECT/$REALTIME_LOG_DIR/realtime_watcher.log"
 PID_FILE="$PROJECT/$REALTIME_LOG_DIR/realtime_watcher.pid"
 
 check_runtime() {
+  "$PYTHON" -m backend.config.realtime.launch_realtime_watcher --target "$TARGET" --validate-only
   "$PYTHON" "$SCRIPT_DIR/check_realtime_runtime.py"
 }
 
@@ -152,7 +149,7 @@ run_supervisor() {
     start_ts="$(date '+%Y-%m-%dT%H:%M:%S%z')"
     echo "[$start_ts] Launching realtime watcher process..."
 
-    "$PYTHON" -u -m backend.config.realtime.realtime_watcher &
+    "$PYTHON" -u -m backend.config.realtime.launch_realtime_watcher --target "$TARGET" --exec &
     child_pid="$!"
 
     set +e
@@ -206,7 +203,7 @@ start_background() {
 show_usage() {
   cat <<'USAGE'
 Usage:
-  ./backend/config/realtime/start_realtime_watcher_background.sh
+  ./backend/config/realtime/start_realtime_watcher_background.sh [--target development|production]
   ./backend/config/realtime/start_realtime_watcher_background.sh --status
   ./backend/config/realtime/start_realtime_watcher_background.sh --stop
   ./backend/config/realtime/start_realtime_watcher_background.sh --foreground

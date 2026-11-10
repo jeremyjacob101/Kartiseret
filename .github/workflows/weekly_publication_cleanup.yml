@@ -1,0 +1,88 @@
+name: Weekly Publication Cleanup
+
+on:
+  schedule:
+    - cron: "0 3 * * 0" # Sunday at 03:00 UTC.
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Target to inspect or clean
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - development
+          - production
+      apply:
+        description: Apply cleanup (leave unchecked for a dry run)
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    name: Clean abandoned publications (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: development
+          - target: production
+    concurrency:
+      group: kartiseret-shared-cleanup-${{ matrix.target }}
+      cancel-in-progress: false
+    env:
+      TARGET: ${{ matrix.target }}
+      KARTISER_TARGET: ${{ matrix.target }}
+      KARTISERET_SHARED_CLEANUP_APPLY: ${{ (github.event_name == 'schedule' && vars.KARTISERET_SHARED_CLEANUP_APPLY == 'true') || (github.event_name == 'workflow_dispatch' && inputs.apply) }}
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    steps:
+      - uses: actions/checkout@v5
+        if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
+      - uses: actions/setup-python@v6
+        if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
+        with:
+          python-version: "3.14.2"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install backend dependencies
+        if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
+        run: python -m pip install --prefer-binary -r requirements.txt
+      - name: Validate publication cleanup access
+        if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
+        env:
+          SUPABASE_URL: ${{ matrix.target == 'development' && secrets.DEV_SUPABASE_URL || secrets.PROD_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ matrix.target == 'development' && secrets.DEV_SUPABASE_SERVICE_ROLE_KEY || secrets.PROD_SUPABASE_SERVICE_ROLE_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ matrix.target == 'development' && secrets.DEV_R2_BUCKET || secrets.PROD_R2_BUCKET }}
+          R2_IMAGE_ORIGIN: ${{ matrix.target == 'development' && secrets.DEV_R2_IMAGE_ORIGIN || secrets.PROD_R2_IMAGE_ORIGIN }}
+          R2_ACCESS_KEY_ID: ${{ matrix.target == 'development' && secrets.DEV_R2_ACCESS_KEY_ID || secrets.PROD_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ matrix.target == 'development' && secrets.DEV_R2_SECRET_ACCESS_KEY || secrets.PROD_R2_SECRET_ACCESS_KEY }}
+          D1_DATABASE_ID: ${{ matrix.target == 'development' && secrets.DEV_D1_DATABASE_ID || secrets.PROD_D1_DATABASE_ID }}
+          D1_API_TOKEN: ${{ matrix.target == 'development' && secrets.DEV_D1_API_TOKEN || secrets.PROD_D1_API_TOKEN }}
+          RUN_ARTIFACTS_R2_BUCKET: ${{ matrix.target == 'development' && secrets.DEV_RUN_ARTIFACTS_R2_BUCKET || secrets.PROD_RUN_ARTIFACTS_R2_BUCKET }}
+          RUN_ARTIFACTS_R2_ACCESS_KEY_ID: ${{ matrix.target == 'development' && secrets.DEV_RUN_ARTIFACTS_R2_ACCESS_KEY_ID || secrets.PROD_RUN_ARTIFACTS_R2_ACCESS_KEY_ID }}
+          RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY: ${{ matrix.target == 'development' && secrets.DEV_RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY || secrets.PROD_RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY }}
+        run: python -m backend.utils.log.shared_cleanup --target "$TARGET" --publications-only --validate-only
+      - name: Run publication cleanup
+        if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
+        env:
+          SUPABASE_URL: ${{ matrix.target == 'development' && secrets.DEV_SUPABASE_URL || secrets.PROD_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ matrix.target == 'development' && secrets.DEV_SUPABASE_SERVICE_ROLE_KEY || secrets.PROD_SUPABASE_SERVICE_ROLE_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ matrix.target == 'development' && secrets.DEV_R2_BUCKET || secrets.PROD_R2_BUCKET }}
+          R2_IMAGE_ORIGIN: ${{ matrix.target == 'development' && secrets.DEV_R2_IMAGE_ORIGIN || secrets.PROD_R2_IMAGE_ORIGIN }}
+          R2_ACCESS_KEY_ID: ${{ matrix.target == 'development' && secrets.DEV_R2_ACCESS_KEY_ID || secrets.PROD_R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ matrix.target == 'development' && secrets.DEV_R2_SECRET_ACCESS_KEY || secrets.PROD_R2_SECRET_ACCESS_KEY }}
+          D1_DATABASE_ID: ${{ matrix.target == 'development' && secrets.DEV_D1_DATABASE_ID || secrets.PROD_D1_DATABASE_ID }}
+          D1_API_TOKEN: ${{ matrix.target == 'development' && secrets.DEV_D1_API_TOKEN || secrets.PROD_D1_API_TOKEN }}
+          RUN_ARTIFACTS_R2_BUCKET: ${{ matrix.target == 'development' && secrets.DEV_RUN_ARTIFACTS_R2_BUCKET || secrets.PROD_RUN_ARTIFACTS_R2_BUCKET }}
+          RUN_ARTIFACTS_R2_ACCESS_KEY_ID: ${{ matrix.target == 'development' && secrets.DEV_RUN_ARTIFACTS_R2_ACCESS_KEY_ID || secrets.PROD_RUN_ARTIFACTS_R2_ACCESS_KEY_ID }}
+          RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY: ${{ matrix.target == 'development' && secrets.DEV_RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY || secrets.PROD_RUN_ARTIFACTS_R2_SECRET_ACCESS_KEY }}
+        run: python -m backend.utils.log.shared_cleanup --target "$TARGET" --publications-only

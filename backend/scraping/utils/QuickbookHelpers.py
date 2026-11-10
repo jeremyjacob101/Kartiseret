@@ -3,6 +3,15 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 
 
+def _is_non_screening_card(title, has_ticket_links):
+    """Skip blank promotional cards, but reject unidentified bookable shows."""
+    if title and title.strip():
+        return False
+    if has_ticket_links:
+        raise ValueError('Quickbook schedule card has ticket links but no film title')
+    return True
+
+
 class QuickbookHelpers:
     calendar_selector = "section.npm-quickbook .datepicker-days"
     date_heading_selector = "section.npm-quickbook .qb-calendar-widget h5"
@@ -21,6 +30,28 @@ class QuickbookHelpers:
     def waitForQuickbook(self):
         self.waitUntil(lambda driver: driver.find_elements(By.CSS_SELECTOR, self.tickets_selector))
         self.waitUntil(lambda driver: driver.find_elements(By.CSS_SELECTOR, 'section.npm-quickbook .qb-days-group button[data-automation-id^="day_"]:not([disabled])'))
+
+    def clearQuickbookMovieFilter(self):
+        # Quickbook auto-selects the only film on sparse dates, then sometimes
+        # retains it when a later date contains additional films. Collect all
+        # films using the page's own dropdown change handler.
+        changed = self.driver.execute_script("""
+            const select = Array.from(document.querySelectorAll('section.npm-quickbook select'))
+                .find(element => element.querySelector('option[data-link]'));
+            if (!select) throw new Error('Quickbook movie filter is missing');
+            if (!select.value || select.querySelectorAll('option[data-link]').length < 2) return false;
+            select.value = '';
+            select.dispatchEvent(new Event('change', {bubbles: true}));
+            return true;
+        """)
+        if changed:
+            self.waitUntil(lambda driver: driver.execute_script("""
+                const select = Array.from(document.querySelectorAll('section.npm-quickbook select'))
+                    .find(element => element.querySelector('option[data-link]'));
+                const query = new URLSearchParams(location.hash.split('?')[1] || '');
+                return select && select.value === '' && !query.get('for-movie');
+            """))
+            self.waitForQuickbook()
 
     def openQuickbookCalendar(self, checking_month: int):
         if not self.tryExceptNone(lambda: self.driver.find_element(By.CSS_SELECTOR, self.calendar_selector).is_displayed()):
@@ -41,9 +72,21 @@ class QuickbookHelpers:
         expected_date = checking_date.strftime("%d/%m/%Y")
         same_date = self.element(self.date_heading_selector).text.strip().endswith(expected_date)
         previous_ticket = next(iter(self.elements(self.tickets_selector)), None)
+        request_started = self.driver.execute_script('performance.clearResourceTimings(); return performance.now()')
         button.click()
         self.waitUntil(lambda driver: driver.find_element(By.CSS_SELECTOR, self.date_heading_selector).text.strip().endswith(expected_date))
         # The date heading changes before the tickets; selecting the same date may not reload them.
         if not same_date:
             self.waitForStale(previous_ticket)
+            # Vue can remove the previous tickets and show preorder cards
+            # before the selected day's schedule arrives. Neither a changed
+            # heading nor another remaining ticket proves that response is
+            # complete. Observe this click's own request, not an older request
+            # for the same date at another cinema.
+            self.waitUntil(lambda driver: driver.execute_script("""
+                return performance.getEntriesByType('resource').some(entry =>
+                    entry.startTime >= arguments[1] && entry.responseEnd > 0 &&
+                    new URL(entry.name).pathname.includes('/film-events/in-cinema/') &&
+                    new URL(entry.name).pathname.endsWith('/at-date/' + arguments[0]));
+            """, checking_date.isoformat(), request_started))
         self.waitForQuickbook()

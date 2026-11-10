@@ -8,6 +8,7 @@ from rich.align import Align
 from rich.panel import Panel
 from rich.theme import Theme
 from rich.live import Live
+from rich.prompt import Prompt
 from rich.text import Text
 
 from backend.utils.console.utils.readchar import read_key, is_back, is_enter, is_left, is_quit, is_right, is_space
@@ -353,6 +354,14 @@ def _select_registry_items(console: Console, title: str, classes: List[type]) ->
 
                 picked = [by_value[it.value] for it in menu_items if it.value in selected and it.value in by_value]
                 return picked, False
+
+
+def choose_environment_target() -> str:
+    """Prompt for the Supabase and R2 environment before selecting a run plan."""
+    return Prompt.ask(
+        "Select scraper target",
+        choices=["development", "production"],
+    )
 
 
 def choose_run_plan() -> Tuple[List[Tuple], Panel]:

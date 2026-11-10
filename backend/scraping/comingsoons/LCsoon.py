@@ -7,6 +7,11 @@ import re
 class LCsoon(BaseCinema):
     CINEMA_NAME = "Lev Cinema"
     URL = "https://www.lev.co.il/en/"
+    DEFAULT_SCRAPE_MODE = "auto"
+
+    def requests_logic(self):
+        from backend.scraping.utils.LevRequests import collect_lev
+        return collect_lev(self, coming_soon=True)
 
     def logic(self):
         self.driver.set_page_load_timeout(45)

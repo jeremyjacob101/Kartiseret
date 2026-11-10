@@ -7,11 +7,21 @@ export type PublicShowtimeRange = {
   tmdbId?: string;
 };
 
+export type PublicCinemathequeRange = Omit<
+  PublicShowtimeRange,
+  "city" | "endDate"
+> & {
+  city?: string;
+  endDate?: string;
+};
+
 export interface PublicDataRepository extends CatalogRepository {
   findComingSoonRows(): Promise<readonly unknown[]>;
-  findCinemathequeRows(range: PublicShowtimeRange): Promise<readonly unknown[]>;
+  findCinemathequeRows(
+    range: PublicCinemathequeRange,
+  ): Promise<readonly unknown[]>;
   findShowtimeRows(range: PublicShowtimeRange): Promise<readonly unknown[]>;
-  findTicketAvailabilityRows(
+  findMovieShowtimeRows(
     tmdbId: string,
     fromDate: string,
   ): Promise<readonly unknown[]>;

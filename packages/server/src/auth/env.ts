@@ -33,11 +33,14 @@ export function parseAuthEnvironment(env: Record<string, string | undefined>) {
       "BETTER_AUTH_SECRET and INTERNAL_API_SECRET must each contain at least 32 characters.",
     );
   const rawUrl =
-    env.BETTER_AUTH_URL ??
-    (env.VERCEL_URL ? `https://${env.VERCEL_URL}` : undefined);
+    env.VERCEL_ENV === "production"
+      ? "https://seret.site"
+      : env.VERCEL_ENV === "preview"
+        ? env.VERCEL_URL && `https://${env.VERCEL_URL}`
+        : "http://localhost:5173";
   if (!rawUrl)
     throw new ServerConfigurationError(
-      "BETTER_AUTH_URL is required outside a Vercel deployment.",
+      "VERCEL_URL is required for Preview deployments.",
     );
   let baseURL: string;
   let trustedOrigins: string[];
@@ -46,11 +49,9 @@ export function parseAuthEnvironment(env: Record<string, string | undefined>) {
     trustedOrigins = [
       ...new Set([
         baseURL,
-        ...(env.AUTH_TRUSTED_ORIGINS ?? "")
-          .split(",")
-          .map((value) => value.trim())
-          .filter(Boolean)
-          .map(origin),
+        ...(env.VERCEL_ENV === "production"
+          ? ["https://seret.site", "https://www.seret.site"]
+          : []),
         ...(env.VERCEL_ENV === "preview" && env.VERCEL_BRANCH_URL
           ? [origin(`https://${env.VERCEL_BRANCH_URL}`)]
           : []),
@@ -58,15 +59,9 @@ export function parseAuthEnvironment(env: Record<string, string | undefined>) {
     ];
   } catch {
     throw new ServerConfigurationError(
-      "BETTER_AUTH_URL or AUTH_TRUSTED_ORIGINS contains an invalid origin.",
+      "VERCEL_URL or VERCEL_BRANCH_URL contains an invalid origin.",
     );
   }
-  const from = env.AUTH_EMAIL_FROM ?? "Kartiseret <notifications@seret.site>";
-  if (!from.trim() || /[\r\n]/.test(from))
-    throw new ServerConfigurationError("AUTH_EMAIL_FROM is invalid.");
-  const allowedRecipients = env.AUTH_EMAIL_ALLOWED_RECIPIENTS?.split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
   return {
     baseURL,
     trustedOrigins,
@@ -75,11 +70,7 @@ export function parseAuthEnvironment(env: Record<string, string | undefined>) {
     cookiePrefix: `kartiseret-${env.VERCEL_ENV ?? env.NODE_ENV ?? "development"}`,
     mail: {
       apiKey: env.RESEND_API_KEY,
-      from,
-      allowedRecipients:
-        env.VERCEL_ENV === "preview"
-          ? (allowedRecipients ?? [])
-          : allowedRecipients,
+      from: "Kartiseret <notifications@seret.site>",
     },
   };
 }

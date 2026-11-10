@@ -1,4 +1,5 @@
 from backend.dataflow.BaseDataflow import BaseDataflow
+from backend.dataflow.utils.ArtworkStorage import resolve_tmdb_artwork
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -35,8 +36,7 @@ class ComingSoonsUpdate(BaseDataflow):
         new_row["genres"] = genres or existing["genres"]
         new_row["imdb_id"] = data.get("external_ids", {}).get("imdb_id") if isinstance(data, dict) and data.get("external_ids", {}).get("imdb_id") else existing["imdb_id"]
         new_row["en_trailer"] = trailer.get("key") if trailer else existing["en_trailer"]
-        new_row["en_poster"] = "https://image.tmdb.org/t/p/w342" + data["poster_path"] if isinstance(data, dict) and data.get("poster_path") else existing["en_poster"]
-        new_row["backdrop"] = "https://image.tmdb.org/t/p/w1280" + data["backdrop_path"] if isinstance(data, dict) and data.get("backdrop_path") else existing["backdrop"]
+        resolve_tmdb_artwork(self, new_row, data)
 
         self.recordTmdbFreshness(new_row, data, tmdb_id)
         return self.apply_solo_update_postprocess(new_row)
@@ -66,6 +66,11 @@ class ComingSoonsUpdate(BaseDataflow):
                     if result:
                         self.updates.append(result)
                 except Exception as error:
+                    from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+                    from backend.utils.log.cloudflare_storage import LeaseLostError
+
+                    if isinstance(error, (R2BudgetError, R2BudgetExceeded, LeaseLostError)):
+                        raise
                     self.trace_note(f"row_update_failed | error={type(error).__name__}")
 
         self.finishSharedUpdate(len(target_rows), self.updates)

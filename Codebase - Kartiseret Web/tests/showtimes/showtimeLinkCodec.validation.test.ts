@@ -1,0 +1,207 @@
+import { buildMovieShowtimeSharePath, buildMovieShowtimeShareUrl, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, migrateShowtimeFilterJson, migrateShowtimeFilterState, parseMovieRouteCode } from "@kartiseret/contracts/showtime-links";
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+
+const showtimeLinkVectors = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../packages/contracts/test-data/showtime-link-vectors.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+) as Array<{
+  movieCode: string;
+  city: string;
+  date: string;
+  filterExclusions: {
+    showType: string[];
+    screenFormat: string[];
+    screeningTech: string[];
+    dubLanguage: string[];
+  };
+  filterMask: number;
+  path: string;
+}>;
+
+describe("showtime filter persistence validation", () => {
+  it("migrates legacy version-one screen formats and drops invalid entries", () => {
+    expect(
+      migrateShowtimeFilterState({
+        version: 1,
+        unchecked: {
+          showType: ["VIP", 4, " VIP "],
+          screeningTech: ["2D", "IMAX", "3D"],
+          dubLanguage: ["Hebrew"],
+        },
+      }),
+    ).toEqual({
+      version: 3,
+      unchecked: {
+        showType: ["VIP"],
+        screeningTech: ["IMAX"],
+        screenFormat: ["2D", "3D"],
+        dubLanguage: ["Hebrew"],
+      },
+    });
+  });
+
+  it("rejects unsupported persistence versions and malformed containers", () => {
+    expect(
+      migrateShowtimeFilterState({ version: 4, unchecked: {} }),
+    ).toBeNull();
+    expect(migrateShowtimeFilterState([])).toBeNull();
+    expect(migrateShowtimeFilterState(null)).toBeNull();
+  });
+
+  it("decodes and validates persisted JSON in one migration pass", () => {
+    expect(
+      migrateShowtimeFilterJson(
+        JSON.stringify({ version: 3, unchecked: { showType: ["VIP"] } }),
+      ),
+    ).toMatchObject({
+      version: 3,
+      unchecked: { showType: ["VIP"] },
+    });
+    expect(migrateShowtimeFilterJson("not json")).toBeNull();
+    expect(
+      migrateShowtimeFilterJson(JSON.stringify({ version: 9 })),
+    ).toBeNull();
+  });
+});
+
+describe("movie route runtime validation", () => {
+  it("builds relative share paths without weakening absolute URL validation", () => {
+    const state = {
+      movieCode: "A7z",
+      city: "Tel Aviv",
+      date: "2026-09-04",
+      filterMask: 0,
+    };
+    const path = buildMovieShowtimeSharePath(state);
+    const url = buildMovieShowtimeShareUrl(state, "https://seret.site");
+
+    expect(path).not.toBeNull();
+    const parsedUrl = new URL(url ?? "https://invalid.example.test");
+    expect(parsedUrl.pathname).toBe(path?.split("?")[0]);
+    expect(parsedUrl.searchParams.get("date")).toBe(state.date);
+    expect(parseMovieRouteCode(parsedUrl.pathname.slice(1))).toMatchObject({
+      kind: "encoded",
+      cityCode: "l",
+      dateCode: encodeDateCode(state.date),
+      mode: "share",
+    });
+    expect(buildMovieShowtimeShareUrl(state, "")).toBeNull();
+    expect(
+      buildMovieShowtimeSharePath({ ...state, date: "2026-02-30" }),
+    ).toBeNull();
+    expect(
+      buildMovieShowtimeSharePath({ ...state, movieCode: "bad-code" }),
+    ).toBeNull();
+  });
+
+  it("matches the shared Python movie-link vectors and carries explicit dates", () => {
+    for (const vector of showtimeLinkVectors) {
+      expect(filterMaskFromUnchecked(vector.filterExclusions)).toBe(
+        vector.filterMask,
+      );
+      const path = buildMovieShowtimeSharePath({
+        movieCode: vector.movieCode,
+        city: vector.city,
+        date: vector.date,
+        filterMask: vector.filterMask,
+      });
+      expect(path).toBe(vector.path);
+      const url = new URL(path ?? "/", "https://seret.site");
+      expect(url.searchParams.get("date")).toBe(vector.date);
+      expect(parseMovieRouteCode(url.pathname.slice(1))).toMatchObject({
+        filterMask: vector.filterMask,
+      });
+    }
+  });
+
+  it("round-trips validated encoded route state", () => {
+    const routeCode = encodeMovieRouteCode({
+      movieCode: "A7z",
+      cityCode: "i",
+      dateCode: "a",
+      filterMask: 42,
+      mode: "edit",
+    });
+
+    expect(routeCode).not.toBeNull();
+    expect(parseMovieRouteCode(routeCode ?? "")).toMatchObject({
+      kind: "encoded",
+      movieCode: "A7z",
+      cityCode: "i",
+      dateCode: "a",
+      filterMask: 42,
+      mode: "edit",
+    });
+  });
+
+  it("rejects malformed route state before encoding", () => {
+    expect(
+      encodeMovieRouteCode({
+        movieCode: "bad-code",
+        cityCode: "i",
+        dateCode: "a",
+        filterMask: 0,
+        mode: "share",
+      }),
+    ).toBeNull();
+    expect(
+      encodeMovieRouteCode({
+        movieCode: "A7z",
+        cityCode: "?",
+        dateCode: "a",
+        filterMask: 0,
+        mode: "share",
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects malformed external route strings", () => {
+    expect(parseMovieRouteCode("A7")).toBeNull();
+    expect(parseMovieRouteCode("A7z<script>")).toBeNull();
+    expect(parseMovieRouteCode("A7zi?j")).toBeNull();
+  });
+
+  it("builds share URLs only from valid state and HTTP origins", () => {
+    const date = "2026-08-20";
+    expect(encodeDateCode(date)).not.toBeNull();
+    expect(
+      buildMovieShowtimeShareUrl(
+        {
+          movieCode: "A7z",
+          city: "Jerusalem",
+          date,
+          filterMask: 0,
+        },
+        "https://seret.site/some/path",
+      ),
+    ).toMatch(/^https:\/\/seret\.site\/A7z/);
+    expect(
+      buildMovieShowtimeShareUrl(
+        {
+          movieCode: "A7z",
+          city: "Jerusalem",
+          date: "2026-02-30",
+          filterMask: 0,
+        },
+        "https://seret.site",
+      ),
+    ).toBeNull();
+    expect(
+      buildMovieShowtimeShareUrl(
+        {
+          movieCode: "A7z",
+          city: "Jerusalem",
+          date,
+          filterMask: 0,
+        },
+        "javascript:alert(1)",
+      ),
+    ).toBeNull();
+  });
+});

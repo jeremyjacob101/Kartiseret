@@ -1,13 +1,19 @@
 from backend.scraping.BaseCinema import BaseCinema
-from selenium.webdriver.common.by import By
+from backend.scraping.utils.CinemaCityListing import COMING_SOON_CARD_SELECTOR, load_movie_listing
 
 from datetime import datetime
+from urllib.parse import urlsplit
 import re
 
 
 class CCsoon(BaseCinema):
     CINEMA_NAME = "Cinema City"
     URL = "https://www.cinema-city.co.il/movie-categories/coming-soon"
+    DEFAULT_SCRAPE_MODE = "auto"
+
+    def requests_logic(self):
+        from backend.scraping.utils.CinemaCityRequests import collect_cinema_city_coming_soon
+        return collect_cinema_city_coming_soon(self)
 
     def parseReleaseDate(self, value):
         release_date = re.sub(r"[\u200b-\u200f\u202a-\u202e\u2066-\u2069]", "", value or "").strip().replace(".", "/")
@@ -21,25 +27,16 @@ class CCsoon(BaseCinema):
         self.driver.set_page_load_timeout(45)
         self.driver.set_script_timeout(15)
         self.zoomOut(50, 0)
-        self.waitForElement("[id^='comp-mrjafvop__']")
+        load_movie_listing(self, COMING_SOON_CARD_SELECTOR)
 
-        while self.lenElements("//button[normalize-space()='תראו לי עוד סרטים']"):
-            more_button = self.element("//button[normalize-space()='תראו לי עוד סרטים']")
-            if not more_button.is_displayed():
-                break
-            film_count = self.lenElements("[id^='comp-mrjafvop__']")
-            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", more_button)
-            self.clickWhenReady("//button[normalize-space()='תראו לי עוד סרטים']")
-            self.waitUntil(lambda driver: len(driver.find_elements(By.CSS_SELECTOR, "[id^='comp-mrjafvop__']")) > film_count)
-
-        for film_card in self.elements("[id^='comp-mrjafvop__']"):
+        for film_card in self.elements(COMING_SOON_CARD_SELECTOR):
             movie_id = film_card.get_attribute("id").split("__")[-1]
             self.hebrew_hrefs.append(f"https://www.cinema-city.co.il/movie/{movie_id}")
 
         for href in self.hebrew_hrefs:
             self.driver.get(href)
-            if "/movie/" not in self.driver.current_url:
-                continue
+            if urlsplit(self.driver.current_url).path.rstrip('/') != urlsplit(href).path:
+                raise ValueError(f'Cinema City redirected away from a discovered movie: {href}')
             self.hebrew_title = self.waitForElement("main h1").get_attribute("textContent").strip()
             if "מדובב לרוסית" in self.hebrew_title or "בתרגום לרוסית" in self.hebrew_title or "מדובב לצרפתית" in self.hebrew_title or "בתרגום לצרפתית" in self.hebrew_title or "מתורגם לצרפתית" in self.hebrew_title or "מתורגם לרוסית" in self.hebrew_title or "סינמה קידס" in self.hebrew_title or "cook" in self.hebrew_title.lower() or "מדובב" in self.hebrew_title or "hfr" in self.hebrew_title.lower():
                 continue

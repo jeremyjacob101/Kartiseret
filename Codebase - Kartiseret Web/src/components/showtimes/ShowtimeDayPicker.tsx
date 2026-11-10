@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
+import { usePublicRenderClock } from "../../contexts/PublicRenderClock";
 import { getShowtimeDateLabel } from "./showtimeUtils";
 import "./ShowtimeDayPicker.css";
 
@@ -98,8 +99,8 @@ function getDayMonth(dateString: string): string {
   return monthFormatter.format(parseCalendarDate(dateString));
 }
 
-function getDayAriaLabel(dateString: string): string {
-  const relativeLabel = getShowtimeDateLabel(dateString);
+function getDayAriaLabel(dateString: string, todayDate: string): string {
+  const relativeLabel = getShowtimeDateLabel(dateString, todayDate);
   const calendarLabel = accessibleDateFormatter.format(
     parseCalendarDate(dateString),
   );
@@ -157,6 +158,7 @@ export function ShowtimeDayPicker({
   disabledBeforeDate = null,
   trailingPlaceholderCount = 0,
 }: ShowtimeDayPickerProps) {
+  const { cinemaDate } = usePublicRenderClock();
   const entries = useMemo<DayPickerEntry[]>(
     () => buildDayPickerEntries(dates, disabledBeforeDate),
     [dates, disabledBeforeDate],
@@ -530,13 +532,23 @@ export function ShowtimeDayPicker({
       setPreviewDateIfChanged(entry.date);
       isInteractingRef.current = true;
 
+      const viewport = viewportRef.current;
+      if (viewport) {
+        const currentScrollLeft = viewport.scrollLeft;
+        const previousScrollBehavior = viewport.style.scrollBehavior;
+        const previousScrollSnapType = viewport.style.scrollSnapType;
+        viewport.style.scrollBehavior = "auto";
+        viewport.style.scrollSnapType = "none";
+        viewport.scrollTo({ left: currentScrollLeft, behavior: "auto" });
+        viewport.style.scrollBehavior = previousScrollBehavior;
+        viewport.style.scrollSnapType = previousScrollSnapType;
+      }
+
+      onSelect(entry.date);
+
       if (!centerDate(entry.date, getPreferredScrollBehavior())) {
         requestedDateRef.current = null;
         isInteractingRef.current = false;
-
-        if (entry.date !== selectedEntryDate) {
-          onSelect(entry.date);
-        }
       }
     },
     [
@@ -544,7 +556,6 @@ export function ShowtimeDayPicker({
       clearScheduledSettle,
       entries,
       onSelect,
-      selectedEntryDate,
       setPreviewDateIfChanged,
     ],
   );
@@ -939,7 +950,7 @@ export function ShowtimeDayPicker({
                   .join(" ")}
                 aria-checked={isSelected}
                 aria-current={isSelected ? "date" : undefined}
-                aria-label={getDayAriaLabel(entry.date)}
+                aria-label={getDayAriaLabel(entry.date, cinemaDate)}
                 disabled={entry.isDisabled}
                 tabIndex={isSelected ? 0 : -1}
                 onClick={(event) => {

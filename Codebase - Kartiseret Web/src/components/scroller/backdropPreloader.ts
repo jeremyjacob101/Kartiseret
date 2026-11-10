@@ -9,6 +9,25 @@ type QueuedImage = {
   backdrops: Set<symbol>;
 };
 
+export function setResponsiveImageSource(image: HTMLImageElement, src: string) {
+  const match =
+    /^(https?:\/\/[^/]+)?\/api\/images\/v1\/(poster|backdrop)\/([a-f0-9]{64})\/\d+\.webp$/.exec(
+      src,
+    );
+  if (match) {
+    const [, , kind, hash] = match;
+    const widths = kind === "poster" ? [185, 342, 780] : [780, 1280];
+    image.srcset = widths
+      .map((width) => `/api/images/v1/${kind}/${hash}/${width}.webp ${width}w`)
+      .join(", ");
+    image.sizes =
+      kind === "poster"
+        ? "(max-width: 640px) 38vw, (max-width: 1000px) 22vw, 300px"
+        : "100vw";
+  }
+  image.src = src;
+}
+
 /** Share the speculative download budget across all mounted scrollers. */
 export function createBackdropPreloader() {
   const posterSources = new Set<string>();
@@ -71,7 +90,7 @@ export function createBackdropPreloader() {
       record.failed = true;
       finish();
     };
-    image.src = src;
+    setResponsiveImageSource(image, src);
     if (posterSources.has(src)) markPosterStarted(src);
     if (image.complete) {
       record.failed = image.naturalWidth === 0;

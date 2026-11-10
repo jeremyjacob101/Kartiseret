@@ -7,11 +7,13 @@ import { MoviePosterArtwork } from "../MoviePosterArtwork";
 export function ShowtimesMovieRow({
   movie,
   theaters,
+  city,
   sources,
   onOpenTrailer,
 }: {
   movie: Movie;
   theaters: readonly TheaterShowtimes[];
+  city?: string;
   sources: readonly RatingSource[];
   onOpenTrailer: (movieId: string) => void;
 }) {
@@ -31,6 +33,8 @@ export function ShowtimesMovieRow({
             title={movie.title}
             tmdbId={movie.tmdbId}
             imageSrc={movie.imageSrc}
+            imageSrcSet={movie.imageSrcSet}
+            imageSizes="(max-width: 640px) 97px, 124px"
             alt={movie.title}
             className="all-showtimes-poster"
             fallbackClassName="all-showtimes-poster"
@@ -71,7 +75,7 @@ export function ShowtimesMovieRow({
       </div>
 
       <div className="all-showtimes-theaters">
-        <ShowtimeTheaters movie={movie} theaters={theaters} />
+        <ShowtimeTheaters movie={movie} theaters={theaters} city={city} />
       </div>
     </article>
   );

@@ -1,4 +1,7 @@
-import { Router, type ErrorRequestHandler } from "express";
+import { Router, type ErrorRequestHandler, type Request } from "express";
+import { ipKeyGenerator, rateLimit, type Store } from "express-rate-limit";
+import { isIP } from "node:net";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
   EXPECTED_ACCOUNT_HEADER,
@@ -22,12 +25,81 @@ import { HttpError } from "../http-errors.js";
 import type { IdentityVerifier, VerifiedIdentity } from "./identity.js";
 import type { ProtectedWorkflowService } from "./service.js";
 
+export const PROTECTED_RATE_LIMIT = 600;
+export const PROTECTED_RATE_LIMIT_WINDOW_MS = 60_000;
+
+export interface ProtectedRateLimitOptions {
+  store?: Store;
+  limit?: number;
+  windowMs?: number;
+  clientIp?: (request: Request) => string | undefined;
+  onDiagnostic?: (
+    kind:
+      | "client_ip_unavailable"
+      | "rate_limit_store_error"
+      | "rate_limit_cleanup_error",
+  ) => void;
+}
+
+function trustedClientIp(request: Request): string | undefined {
+  const candidate = process.env.VERCEL
+    ? request.get("x-real-ip")
+    : request.socket.remoteAddress;
+  return candidate && isIP(candidate) ? candidate : undefined;
+}
+
 export function createProtectedRouter(
   verifier: IdentityVerifier,
   workflows: ProtectedWorkflowService,
   trustedOrigins: readonly string[],
+  rateLimitOptions: ProtectedRateLimitOptions = {},
 ) {
   const router = Router();
+  const clientIp = rateLimitOptions.clientIp ?? trustedClientIp;
+  const windowMs = rateLimitOptions.windowMs ?? PROTECTED_RATE_LIMIT_WINDOW_MS;
+  const limiter = rateLimit({
+    windowMs,
+    limit: rateLimitOptions.limit ?? PROTECTED_RATE_LIMIT,
+    ...(rateLimitOptions.store ? { store: rateLimitOptions.store } : {}),
+    standardHeaders: "draft-6",
+    legacyHeaders: false,
+    passOnStoreError: true,
+    validate: { xForwardedForHeader: false },
+    skip: (request) => {
+      if (clientIp(request)) return false;
+      rateLimitOptions.onDiagnostic?.("client_ip_unavailable");
+      return true;
+    },
+    keyGenerator: (request) => {
+      const address = clientIp(request);
+      // `skip` runs first. This fallback also keeps malformed infrastructure
+      // state from accidentally sharing one blocking bucket across visitors.
+      return address
+        ? ipKeyGenerator(address, 64)
+        : `unidentified:${randomUUID()}`;
+    },
+    logger: {
+      error: () => rateLimitOptions.onDiagnostic?.("rate_limit_store_error"),
+      warn: () => undefined,
+    },
+    handler: (request, response) => {
+      response.setHeader("Cache-Control", "no-store");
+      const resetTime = (
+        request as Request & { rateLimit?: { resetTime?: Date } }
+      ).rateLimit?.resetTime;
+      const retryAfter = resetTime
+        ? Math.max(1, Math.ceil((resetTime.getTime() - Date.now()) / 1000))
+        : Math.ceil(windowMs / 1000);
+      response.setHeader("Retry-After", String(retryAfter));
+      response.status(429).json({
+        data: null,
+        error: {
+          code: "rate_limited",
+          message: "Please wait briefly and try again.",
+        },
+      });
+    },
+  });
   router.use(
     [
       "/account",
@@ -37,6 +109,7 @@ export function createProtectedRouter(
       "/letterboxd-sources",
       "/admin",
     ],
+    limiter,
     async (request, response, next) => {
       response.setHeader("Cache-Control", "no-store");
       response.vary("Cookie");

@@ -1,9 +1,12 @@
 selenium
 webdriver-manager
 supabase
+psycopg[binary]==3.3.6
 requests
+boto3
+Pillow>=9.1
 pytz
 rich
 readchar
 python-dotenv
-psycopg[binary]==3.3.6
+beautifulsoup4>=4.12,<5

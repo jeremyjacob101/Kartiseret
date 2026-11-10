@@ -41,6 +41,7 @@ backend/config/cron/run_realtime_logs/
 
 # Kartiseret web dependencies and builds
 /node_modules/
+/coverage/
 /packages/contracts/dist/
 /Codebase\ -\ Kartiseret\ Web/node_modules/
 /Codebase\ -\ Kartiseret\ Web/**/node_modules/
@@ -70,3 +71,7 @@ backend/config/cron/run_realtime_logs/
 !.env.example
 .vercel
 .env*
+
+# Xcode per-user workspace state
+**/xcuserdata/
+*.xcuserstate

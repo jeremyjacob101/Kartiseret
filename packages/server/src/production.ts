@@ -11,36 +11,90 @@ import { createApp } from "./app.js";
 import { createDatabase } from "./db/client.js";
 import { parseServerEnvironment } from "./env.js";
 import { createTmdbSearchProvider } from "./public-data/tmdb-search.js";
+import {
+  PROTECTED_RATE_LIMIT_WINDOW_MS,
+  type ProtectedRateLimitOptions,
+} from "./protected/router.js";
+import { PostgresProtectedRateLimitStore } from "./protected/rate-limit-store.js";
+import { createR2ImageStore } from "./artwork/s3.js";
+import { resolveRuntimeTargetEnvironment } from "./target-environment.js";
+import {
+  createMovieNotificationUnsubscribeRouter,
+  createPostgresMovieNotificationUnsubscribeService,
+} from "./notifications/unsubscribe.js";
 
 type ProductionRuntime = ReturnType<typeof createProductionRuntime>;
 
 function createProductionRuntime(
   environment: Record<string, string | undefined>,
 ) {
-  const config = parseServerEnvironment(environment);
+  const selectedEnvironment = resolveRuntimeTargetEnvironment(environment);
+  const config = parseServerEnvironment(selectedEnvironment);
   const database = createDatabase(config.DATABASE_URL, {
     poolMax: config.DATABASE_POOL_MAX,
     sslCaCertificate: config.DATABASE_SSL_CA_CERT,
   });
   const repository = new DrizzleCatalogRepository(database.db);
-  const authConfig = parseAuthEnvironment(environment);
+  const authConfig = parseAuthEnvironment(selectedEnvironment);
   const auth = createApplicationAuth(database.pool, {
     ...authConfig,
     mailer: createResendAuthMailer(authConfig.mail),
     ...(environment.VERCEL ? { backgroundTask: waitUntil } : {}),
   });
+  let lastRateLimitDiagnosticAt = 0;
+  const reportRateLimitDiagnostic = (
+    kind:
+      | "client_ip_unavailable"
+      | "rate_limit_store_error"
+      | "rate_limit_cleanup_error",
+  ) => {
+    const now = Date.now();
+    if (now - lastRateLimitDiagnosticAt < 60_000) return;
+    lastRateLimitDiagnosticAt = now;
+    console.error("Protected API rate limiter degraded.", { kind });
+  };
+  const protectedRateLimit: ProtectedRateLimitOptions = {
+    store: new PostgresProtectedRateLimitStore(
+      database.pool,
+      authConfig.secret,
+      PROTECTED_RATE_LIMIT_WINDOW_MS,
+      reportRateLimitDiagnostic,
+    ),
+    onDiagnostic: reportRateLimitDiagnostic,
+  };
 
   return {
     config,
+    artworkStore: createR2ImageStore(selectedEnvironment as NodeJS.ProcessEnv),
     repository,
     tmdbSearch: createTmdbSearchProvider(config.TMDB_API_KEY),
     workflows: new ProtectedWorkflows(database.db, repository),
     identityVerifier: new BetterAuthIdentityVerifier(auth),
     authHandler: toNodeHandler(auth),
     trustedOrigins: authConfig.trustedOrigins,
+    protectedRateLimit,
     recipientRouter: createRecipientRouter(
       database.pool,
       authConfig.internalSecret,
+      {
+        store: new PostgresProtectedRateLimitStore(
+          database.pool,
+          authConfig.secret,
+          60_000,
+          reportRateLimitDiagnostic,
+        ),
+      },
+    ),
+    notificationUnsubscribeRouter: createMovieNotificationUnsubscribeRouter(
+      createPostgresMovieNotificationUnsubscribeService(database.pool),
+      {
+        store: new PostgresProtectedRateLimitStore(
+          database.pool,
+          authConfig.secret,
+          60_000,
+          reportRateLimitDiagnostic,
+        ),
+      },
     ),
     close: database.close,
   };
@@ -73,7 +127,10 @@ export function createProductionApp(
     protectedWorkflows: runtime.workflows,
     authHandler: runtime.authHandler,
     trustedOrigins: runtime.trustedOrigins,
+    protectedRateLimit: runtime.protectedRateLimit,
     recipientRouter: runtime.recipientRouter,
+    notificationUnsubscribeRouter: runtime.notificationUnsubscribeRouter,
+    artworkStore: runtime.artworkStore,
     logger: {
       error: (message, error) => console.error(message, error),
     },

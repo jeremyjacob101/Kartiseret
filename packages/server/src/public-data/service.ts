@@ -10,8 +10,8 @@ import {
   type MovieCatalogMode,
   type PublicCinemathequeData,
   type PublicShowtime,
-  type PublicShowtimeRangeQuery,
   type PublicTheaterData,
+  type PublicCinemaPageData,
   type TicketAvailabilityShowtime,
 } from "@kartiseret/contracts/public-data";
 import {
@@ -32,8 +32,22 @@ import {
   toNowPlayingMovie,
 } from "../catalog/movie-mapper.js";
 import { orderNowPlayingRows } from "../catalog/now-playing-ranking.js";
-import type { PublicDataRepository } from "./repository.js";
+import type {
+  PublicCinemathequeRange,
+  PublicDataRepository,
+  PublicShowtimeRange,
+} from "./repository.js";
 import { PublicDataIntegrityError } from "./errors.js";
+import {
+  findCinemaIdentityForScreening,
+  findTheaterByCinemaId,
+  getCinemaIdentityById,
+} from "@kartiseret/contracts/cinema-identities";
+import { addCalendarDays } from "@kartiseret/contracts/showtime-links";
+import {
+  getCinemaDayDate,
+  shouldIncludeShowtime,
+} from "@kartiseret/contracts/showtime-day";
 import { z } from "zod";
 
 function readField(value: unknown, field: string): unknown {
@@ -255,20 +269,21 @@ function mapDatabaseShowtime(value: unknown): PublicShowtime {
 
 export async function getShowtimeRange(
   repository: PublicDataRepository,
-  range: PublicShowtimeRangeQuery,
+  range: PublicShowtimeRange,
 ): Promise<PublicShowtime[]> {
-  const rows = await repository.findShowtimeRows(range);
-  return rows
-    .filter((value) => {
+  const [rows, cinemathequeRows] = await Promise.all([
+    repository.findShowtimeRows(range),
+    repository.findCinemathequeRows(range),
+  ]);
+  const completeRows = (values: readonly unknown[]) =>
+    values.filter((value) => {
       const tmdbId = readField(value, "tmdbId");
       const city = readField(value, "screeningCity");
       const date = readField(value, "dateOfShowing");
       const cinema = readField(value, "cinema");
       const showtime = readField(value, "showtime");
 
-      // These physical columns are nullable. Rows without a movie, city,
-      // theater, date, or local time cannot appear in the existing UI and are
-      // omitted just as the former browser mapper omitted incomplete rows.
+      // Rows with nullable identity or schedule fields cannot appear in the UI.
       return (
         tmdbId !== null &&
         city !== null &&
@@ -282,13 +297,192 @@ export async function getShowtimeRange(
         typeof showtime === "string" &&
         showtime.trim().length > 0
       );
+    });
+  const ordinaryShowtimes = completeRows(rows).map(mapDatabaseShowtime);
+  const cinemaShowtimes = cinemathequeRows.flatMap((value) => {
+    const parsed = databaseCinemathequeRowSchema.safeParse(value);
+    if (
+      !parsed.success ||
+      readField(parsed.data.movie, "soloUpdate") === true
+    ) {
+      return [];
+    }
+    return completeRows([parsed.data.showtime]).map(mapDatabaseShowtime);
+  });
+  const showtimesByIdentity = new Map<string, PublicShowtime>();
+  for (const showtime of [...ordinaryShowtimes, ...cinemaShowtimes]) {
+    const identity = [
+      showtime.tmdbId,
+      showtime.screeningCity,
+      showtime.dateOfShowing,
+      showtime.cinema,
+      showtime.showtime,
+      showtime.screeningTech,
+      showtime.screeningType,
+      showtime.dubLanguage ?? "",
+      showtime.englishHref ?? "",
+      showtime.hebrewHref ?? "",
+    ].join("\u001f");
+    showtimesByIdentity.set(identity, showtime);
+  }
+  return [...showtimesByIdentity.values()];
+}
+
+export type PublicCinemaPageContext = {
+  theaterCatalog: PublicTheaterData;
+  nowPlaying: MovieCatalogData;
+  comingSoon: MovieCatalogData;
+};
+
+export async function getCinemaPageData(
+  repository: PublicDataRepository,
+  cinemaId: string,
+  instant = new Date(),
+  context?: PublicCinemaPageContext | Promise<PublicCinemaPageContext>,
+): Promise<PublicCinemaPageData | null> {
+  const identity = getCinemaIdentityById(cinemaId);
+  if (!identity) return null;
+
+  const contextPromise: Promise<PublicCinemaPageContext> = context
+    ? Promise.resolve(context)
+    : Promise.all([
+        getPublicTheaterData(repository),
+        getMovieCatalog(repository, "nowPlaying"),
+        getMovieCatalog(repository, "comingSoon"),
+      ]).then(([theaterCatalog, nowPlaying, comingSoon]) => ({
+        theaterCatalog,
+        nowPlaying,
+        comingSoon,
+      }));
+  const fromDate = getCinemaDayDate(instant);
+  const endDate = addCalendarDays(fromDate, 29) ?? fromDate;
+  const screeningCities = [
+    ...new Set(
+      identity.screeningCityKeys.length
+        ? identity.screeningCityKeys
+        : [identity.city],
+    ),
+  ];
+  const normalizedScreeningCities = new Set(
+    screeningCities.map((city) => city.toLocaleLowerCase("en")),
+  );
+  const ordinaryRowsPromise = Promise.all(
+    screeningCities.map((city) =>
+      getShowtimeRange(repository, { city, startDate: fromDate, endDate }),
+    ),
+  );
+  const cinemathequeDataPromise = Promise.all(
+    screeningCities.map((city) =>
+      getCinemathequeData(repository, { city, startDate: fromDate, endDate }),
+    ),
+  );
+  const [pageContext, ordinaryRows, cinemathequeData] = await Promise.all([
+    contextPromise,
+    ordinaryRowsPromise,
+    cinemathequeDataPromise,
+  ]);
+  const { theaterCatalog, nowPlaying, comingSoon } = pageContext;
+  if (
+    nowPlaying.movieCodesStatus !== "ready" ||
+    comingSoon.movieCodesStatus !== "ready"
+  ) {
+    throw new CatalogDataIntegrityError(
+      "Cinema listings are temporarily unavailable.",
+    );
+  }
+  const theater = findTheaterByCinemaId(theaterCatalog.theaters, identity.id);
+  if (!theater) return null;
+  const publicMoviesById = new Map(
+    [...comingSoon.movies, ...nowPlaying.movies].map((movie) => [
+      movie.tmdbId,
+      movie,
+    ]),
+  );
+  const cinemaMoviesById = new Map(
+    cinemathequeData.flatMap((data) =>
+      data.movies.map((movie) => [movie.tmdbId, movie] as const),
+    ),
+  );
+  const moviesById = new Map(publicMoviesById);
+  for (const [tmdbId, movie] of cinemaMoviesById) {
+    if (!moviesById.has(tmdbId)) {
+      // Cinematheque-only records do not resolve through permanent movie
+      // routes. Keep their title and artwork, but render them as text.
+      const plainMovie = { ...movie };
+      delete plainMovie.movieCode;
+      moviesById.set(tmdbId, plainMovie);
+    }
+  }
+
+  const uniqueShowtimes = new Map<string, PublicShowtime>();
+  for (const screening of [
+    ...ordinaryRows.flat(),
+    ...cinemathequeData.flatMap((data) => data.showtimes),
+  ]) {
+    const matchingIdentity = findCinemaIdentityForScreening(
+      screening.screeningCity,
+      screening.cinema,
+    );
+    if (
+      matchingIdentity?.id !== identity.id ||
+      !normalizedScreeningCities.has(
+        screening.screeningCity.toLocaleLowerCase("en"),
+      ) ||
+      !shouldIncludeShowtime(
+        screening.dateOfShowing,
+        screening.showtime.trim().slice(0, 5),
+        instant,
+      )
+    ) {
+      continue;
+    }
+    const key = [
+      screening.tmdbId,
+      screening.dateOfShowing,
+      screening.showtime.trim().slice(0, 5),
+      screening.screeningTech.toLocaleLowerCase("en"),
+      screening.screeningType.toLocaleLowerCase("en"),
+      screening.dubLanguage?.toLocaleLowerCase("en") ?? "",
+    ].join("|");
+    const existing = uniqueShowtimes.get(key);
+    if (!existing) {
+      uniqueShowtimes.set(key, screening);
+    } else {
+      uniqueShowtimes.set(key, {
+        ...existing,
+        englishHref: existing.englishHref ?? screening.englishHref,
+        hebrewHref: existing.hebrewHref ?? screening.hebrewHref,
+      });
+    }
+  }
+
+  const screenings = [...uniqueShowtimes.values()]
+    .flatMap((screening) => {
+      const movie = moviesById.get(screening.tmdbId);
+      return movie ? [{ movie, screening }] : [];
     })
-    .map(mapDatabaseShowtime);
+    .sort(
+      (left, right) =>
+        left.screening.dateOfShowing.localeCompare(
+          right.screening.dateOfShowing,
+        ) || left.screening.showtime.localeCompare(right.screening.showtime),
+    );
+
+  return {
+    id: identity.id,
+    displayName: identity.displayName,
+    city: identity.city,
+    address: theater.address,
+    mapUrl: identity.locationKeys[0]!,
+    latitude: theater.lat,
+    longitude: theater.lng,
+    screenings,
+  };
 }
 
 export async function getCinemathequeData(
   repository: PublicDataRepository,
-  range: PublicShowtimeRangeQuery,
+  range: PublicCinemathequeRange,
   onCodeLookupFailure?: (error: unknown) => void,
 ): Promise<PublicCinemathequeData> {
   const rows = await timeCatalogStage("movie_rows", () =>
@@ -356,7 +550,7 @@ export async function getTicketAvailabilityShowtimes(
   tmdbId: string,
   fromDate: string,
 ): Promise<TicketAvailabilityShowtime[]> {
-  const rows = await repository.findTicketAvailabilityRows(tmdbId, fromDate);
+  const rows = await repository.findMovieShowtimeRows(tmdbId, fromDate);
   return rows.flatMap((row) => {
     const parsedRow = databaseShowtimeRowSchema.safeParse(row);
     if (!parsedRow.success) {
@@ -381,6 +575,39 @@ export async function getTicketAvailabilityShowtimes(
     }
     return [normalized.data];
   });
+}
+
+export async function getMovieShowtimes(
+  repository: PublicDataRepository,
+  tmdbId: string,
+  fromDate: string,
+): Promise<PublicShowtime[]> {
+  const expectedTmdbId = tmdbIdSchema.parse(tmdbId);
+  const rows = await repository.findMovieShowtimeRows(expectedTmdbId, fromDate);
+  return rows
+    .filter((value) => {
+      const rowTmdbId = readField(value, "tmdbId");
+      const city = readField(value, "screeningCity");
+      const date = readField(value, "dateOfShowing");
+      const cinema = readField(value, "cinema");
+      const showtime = readField(value, "showtime");
+
+      return (
+        rowTmdbId !== null &&
+        city !== null &&
+        typeof city === "string" &&
+        city.trim().length > 0 &&
+        date !== null &&
+        cinema !== null &&
+        typeof cinema === "string" &&
+        cinema.trim().length > 0 &&
+        showtime !== null &&
+        typeof showtime === "string" &&
+        showtime.trim().length > 0
+      );
+    })
+    .map(mapDatabaseShowtime)
+    .filter((showtime) => showtime.tmdbId === expectedTmdbId);
 }
 
 const theaterCityRowSchema = z.object({

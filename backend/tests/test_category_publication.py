@@ -158,10 +158,11 @@ class CategoryPublicationTests(TestCase):
                 raise ConnectionError("commit acknowledgement lost")
             return SimpleNamespace(execute=execute)
         live.rpc = rpc
-        with patch("backend.dataflow.utils.PublicationWorkspace.Path"):
+        with patch("backend.utils.log.run_storage.RunArtifactStore") as storage:
             receipt = workspace.commit()
             self.assertEqual(receipt["status"], "applied")
             self.assertEqual(workspace.commit(), receipt)
+            storage.return_value.save_text_artifact.assert_called_once()
         self.assertEqual(calls, ["commit_category_publication"])
 
     def test_non_applied_commit_receipt_fails(self):
@@ -171,7 +172,7 @@ class CategoryPublicationTests(TestCase):
             execute=lambda: SimpleNamespace(data={"status": "prepared"})
         )
 
-        with patch("backend.dataflow.utils.PublicationWorkspace.Path"):
+        with patch("backend.utils.log.run_storage.RunArtifactStore"):
             with self.assertRaisesRegex(RuntimeError, "was not applied"):
                 workspace.commit()
 
@@ -179,7 +180,7 @@ class CategoryPublicationTests(TestCase):
         workspace, live = self.workspace()
         workspace.table("finalMovies").insert({"tmdb_id": 1, "english_title": "Ready"}).execute()
         publisher = SimpleNamespace(publish=Mock(return_value={"status": "applied", "revision": "8"}))
-        with patch("backend.dataflow.utils.PublicationWorkspace.Path"), patch(
+        with patch("backend.utils.log.run_storage.RunArtifactStore"), patch(
             "backend.dataflow.utils.PublicationWorkspace.PostgresPublicationPublisher.from_environment",
             return_value=publisher,
         ):
@@ -190,7 +191,7 @@ class CategoryPublicationTests(TestCase):
     def test_invalid_configured_postgres_publisher_never_falls_back_to_rest(self):
         workspace, live = self.workspace()
         workspace.table("finalMovies").insert({"tmdb_id": 1, "english_title": "Ready"}).execute()
-        with patch("backend.dataflow.utils.PublicationWorkspace.Path"), patch(
+        with patch("backend.utils.log.run_storage.RunArtifactStore"), patch(
             "backend.dataflow.utils.PublicationWorkspace.PostgresPublicationPublisher.from_environment",
             side_effect=ValueError("bad publisher configuration"),
         ):

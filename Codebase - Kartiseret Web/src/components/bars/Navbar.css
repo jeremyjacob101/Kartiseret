@@ -68,11 +68,13 @@
   background: var(--surface);
   backdrop-filter: blur(22px);
   transform: translate(-50%, -50%);
-  animation: navbar-reveal-surface var(--navbar-reveal-duration) var(--navbar-reveal-ease) both;
+  animation: navbar-reveal-surface var(--navbar-reveal-duration)
+    var(--navbar-reveal-ease) both;
 }
 
 .navbar.is-intro .navbar-intro-mark {
-  animation: navbar-intro-mark var(--navbar-reveal-duration) var(--navbar-reveal-ease) both;
+  animation: navbar-intro-mark var(--navbar-reveal-duration)
+    var(--navbar-reveal-ease) both;
 }
 
 .navbar.is-intro .navbar-content > .brand,
@@ -472,6 +474,24 @@ span.topnav-icon {
   font-size: 0.82rem;
   font-weight: 600;
   color: rgba(85, 71, 104, 0.78);
+}
+
+.movie-search-cinematheque-label {
+  width: fit-content;
+  border-radius: 999px;
+  background: rgba(49, 162, 109, 0.12);
+  color: #207047;
+  padding: 2px 7px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.movie-search-cinematheque-unavailable {
+  margin: 0;
+  padding: 4px;
+  color: rgba(85, 71, 104, 0.7);
+  font-size: 0.76rem;
 }
 
 .location-menu-title {

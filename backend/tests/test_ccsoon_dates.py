@@ -9,6 +9,11 @@ from backend.scraping.utils.InitializeBaseCinema import InitializeBaseCinema
 
 
 class ComingSoonDateTests(TestCase):
+    def setUp(self):
+        storage = patch("backend.utils.log.run_storage.RunArtifactStore")
+        storage.start()
+        self.addCleanup(storage.stop)
+
     def build_scraper(self, dates):
         scraper = CCsoon.__new__(CCsoon)
         InitializeBaseCinema.__init__(scraper)
@@ -23,6 +28,8 @@ class ComingSoonDateTests(TestCase):
         scraper.zoomOut = Mock()
         scraper.lenElements = Mock(return_value=0)
         scraper.elements = Mock(return_value=[SimpleNamespace(get_attribute=lambda name, index=index: f"comp-mrjafvop__{index}") for index in range(len(dates))])
+        film_cards = scraper.elements.return_value
+        scraper.elements.side_effect = lambda selector: [] if selector.startswith("//button") else film_cards
 
         def element(selector):
             index = int(scraper.driver.current_url.rsplit("/", 1)[-1]) if "/movie/" in scraper.driver.current_url else 0

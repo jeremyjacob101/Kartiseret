@@ -16,13 +16,15 @@ export type CinemathequeData = PublicCinemathequeData & {
 export const cinemathequeQueryKeys = {
   all: ["cinematheques"] as const,
   data: (
-    city: AppLocation,
+    city: AppLocation | null,
     publicationRevision = currentPublicationRevision(),
+    endDate?: string,
   ) =>
     [
       "cinematheques",
       {
-        city,
+        city: city ?? "nationwide",
+        endDate: endDate ?? "open-ended",
         ...(publicationRevision === undefined ? {} : { publicationRevision }),
       },
     ] as const,
@@ -53,14 +55,17 @@ export function buildCinemathequeDateRange(
 }
 
 export function cinemathequeQueryOptions(
-  city: AppLocation,
+  city: AppLocation | null,
   publicationRevision = currentPublicationRevision(),
+  endDate?: string,
 ) {
   return queryOptions({
-    queryKey: cinemathequeQueryKeys.data(city, publicationRevision),
+    queryKey: cinemathequeQueryKeys.data(city, publicationRevision, endDate),
     queryFn: async ({ signal }): Promise<CinemathequeData> => {
-      const range = getCinemathequeDateRange();
-      const params = new URLSearchParams({ city, ...range });
+      const params = new URLSearchParams();
+      if (city) params.set("city", city);
+      params.set("startDate", fixedAppDateString);
+      if (endDate) params.set("endDate", endDate);
 
       try {
         const { response, revision } = await getPublicationResponse(
@@ -89,4 +94,11 @@ export function cinemathequeQueryOptions(
     staleTime: CINEMATHEQUE_STALE_TIME,
     gcTime: CINEMATHEQUE_GC_TIME,
   });
+}
+
+export function nationwideCinemathequeQueryOptions(
+  endDate?: string,
+  publicationRevision = currentPublicationRevision(),
+) {
+  return cinemathequeQueryOptions(null, publicationRevision, endDate);
 }

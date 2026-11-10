@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime, timezone
-import os
 import pathlib
 
 ARTIFACT_ROOT = pathlib.Path("backend/utils/log/logger_artifacts")
@@ -71,6 +70,25 @@ def _render_stage_breakdown(summary: dict) -> list[str]:
         return lines
     for key in sorted(stage_counts.keys()):
         lines.append(f"- {key}: {stage_counts[key]}")
+    return lines
+
+
+def _render_tmdb_metrics(summary: dict) -> list[str]:
+    metrics = summary.get("tmdb_metrics") or {}
+    lines = ["", "TMDB REQUEST / CACHE METRICS"]
+    if not metrics:
+        lines.append("- (none)")
+        return lines
+    search = int(metrics.get("tmdb_search_http_requests") or 0)
+    details = int(metrics.get("tmdb_movie_detail_http_requests") or 0)
+    other = int(metrics.get("tmdb_other_http_requests") or 0)
+    lines.extend([
+        f"- Scope: {metrics.get('scope') or 'run'}",
+        f"- Network requests: {search + details + other} total | search={search} | details={details} | other={other}",
+        f"- Detail reuse hits: in_memory={metrics.get('tmdb_in_memory_hits', 0)} | run_cache={metrics.get('tmdb_run_cache_detail_hits', 0)} | persistent={metrics.get('tmdb_persistent_detail_hits', 0)}",
+        f"- Archived films covered: {metrics.get('tmdb_archived_movie_count', 0)} unique",
+        f"- Persistent rows loaded={metrics.get('tmdb_persistent_cache_rows_loaded', 0)} | writes={metrics.get('tmdb_cache_writes', 0)} | read_failures={metrics.get('tmdb_cache_read_failures', 0)} | write_failures={metrics.get('tmdb_cache_write_failures', 0)}",
+    ])
     return lines
 
 
@@ -174,6 +192,7 @@ def render_summary_text(summary: dict) -> str:
     lines: list[str] = []
     lines.extend(_render_header(summary))
     lines.extend(_render_summary_counts(summary))
+    lines.extend(_render_tmdb_metrics(summary))
     lines.extend(_render_stage_breakdown(summary))
     lines.extend(_render_coming_soon_details(summary))
     lines.extend(_render_cinematheque_groups(summary))
@@ -193,19 +212,18 @@ def _atomic_write(path: pathlib.Path, content: str) -> None:
 
 
 def write_dataflow_summary(summary: dict, *, successful: bool) -> str | None:
-    try:
-        run_id = int(summary.get("run_id"))
-        name = str(summary.get("name") or "Unknown")
-        attempt = int(summary.get("attempt") or 1)
-        path = build_summary_path(
-            run_id,
-            name,
-            attempt,
-            successful,
-            publication_pending=bool(summary.get("publication_pending")),
-        )
-        body = render_summary_text(summary)
-        _atomic_write(path, body)
-        return str(path)
-    except Exception:
-        return None
+    run_id = int(summary.get("run_id"))
+    name = str(summary.get("name") or "Unknown")
+    attempt = int(summary.get("attempt") or 1)
+    status = "prepared" if summary.get("publication_pending") else "successful" if successful else "unsuccessful"
+    body = render_summary_text(summary)
+    from backend.utils.log.run_storage import RunArtifactStore
+
+    RunArtifactStore().save_text_artifact(
+        run_id=run_id,
+        artifact_type="dataflow_summary",
+        name=f"{name}-{attempt}-{status}",
+        text=body,
+        metadata=summary,
+    )
+    return f"d1://run_logs/{run_id}/dataflow_summary/{name}/{attempt}/{status}"

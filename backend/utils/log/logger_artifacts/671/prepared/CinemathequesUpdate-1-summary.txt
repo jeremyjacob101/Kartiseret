@@ -1,0 +1,41 @@
+- - -
+DATAFLOW SUMMARY
+- - -
+Name: CinemathequesUpdate
+Run ID: 671
+Attempt: 1
+Result: STAGED (PUBLICATION PENDING)
+Started (UTC): 2026-11-01T02:45:17.169851+00:00
+Finished (UTC): 2026-11-01T02:49:44.010151+00:00
+Duration Seconds: 266.8403
+Generated At (UTC): 2026-11-01T02:49:44.010258+00:00
+
+SUMMARY COUNTS
+- (none)
+
+STAGE BREAKDOWN
+- (none)
+
+COMING SOONS DETAILS
+- (none)
+
+CINEMATHEQUE GROUP DETAILS
+- (none)
+
+NOW PLAYING GROUP DETAILS
+- (none)
+
+UNRESOLVED / DROPPED ITEMS
+- (none)
+
+WRITE/DEDUPE ACTIONS
+- (none)
+
+NOTES
+- request_retry | host=letterboxd.com | attempt=1
+- request_retry | host=letterboxd.com | attempt=1
+- provider_unavailable | host=letterboxd.com | attempts=1
+- provider_unavailable | host=letterboxd.com | attempts=1
+- provider_unavailable | host=letterboxd.com | attempts=1
+- update_rows | requested=298 | updated=298
+- Changes are staged; they are not live until category publication commits.

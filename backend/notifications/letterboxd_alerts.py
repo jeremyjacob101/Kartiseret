@@ -11,7 +11,7 @@ import os
 import unicodedata
 
 import requests
-from supabase import create_client
+from backend.utils.log.job_lease import create_client
 
 from backend.notifications.letterboxd_public import (
     LetterboxdFilm,
@@ -21,6 +21,7 @@ from backend.notifications.letterboxd_public import (
 from backend.notifications.ticket_alerts import (
     JERUSALEM_TIME_ZONE,
     ALERT_FILTER_OPTIONS,
+    MOVIE_CODE_PATTERN,
     RenderedEmail,
     TicketAlertConfig,
     _format_showtime,
@@ -29,6 +30,10 @@ from backend.notifications.ticket_alerts import (
     _parse_date,
     _safe_header,
     _text,
+    DEFAULT_SITE_URL,
+    build_movie_showtime_path,
+    filter_mask_from_exclusions,
+    safe_site_url,
     get_canonical_app_email,
     is_future_showtime,
     matches_ticket_alert_criteria,
@@ -159,6 +164,7 @@ def collect_current_events(
     subscriptions: Iterable[dict[str, Any]],
     now: datetime,
     match_criteria: bool,
+    movie_codes: dict[int, str] | None = None,
 ) -> list[LetterboxdEvent]:
     current = _jerusalem_now(now)
     today = current.date()
@@ -231,13 +237,13 @@ def collect_current_events(
         for user_id in user_ids:
             if tmdb_id not in pairs.get(user_id, set()):
                 continue
+            defaults = defaults_by_user.get(
+                user_id, {"cities": None, "filters": DEFAULT_FILTERS}
+            )
+            criteria = resolve_ticket_alert_criteria(
+                defaults, overrides_by_pair.get((user_id, tmdb_id), {})
+            )
             if match_criteria:
-                defaults = defaults_by_user.get(
-                    user_id, {"cities": None, "filters": DEFAULT_FILTERS}
-                )
-                criteria = resolve_ticket_alert_criteria(
-                    defaults, overrides_by_pair.get((user_id, tmdb_id), {})
-                )
                 if not matches_ticket_alert_criteria(row, criteria):
                     continue
             payload = {
@@ -247,6 +253,12 @@ def collect_current_events(
                 "date_of_showing": cinema_date,
                 "showtime": showtime,
                 "ticket_href": ticket_href,
+                "movie_code": (movie_codes or {}).get(tmdb_id),
+                "filter_mask": (
+                    filter_mask_from_exclusions(criteria["filters"])
+                    if match_criteria
+                    else 0
+                ),
             }
             events.append(
                 LetterboxdEvent(
@@ -267,16 +279,24 @@ def collect_current_events(
     )
 
 
-def render_letterboxd_event_email(events: tuple[dict[str, Any], ...]) -> RenderedEmail:
+def render_letterboxd_event_email(
+    events: tuple[dict[str, Any], ...],
+    site_url: str = DEFAULT_SITE_URL,
+    movie_codes: dict[int, str] | None = None,
+) -> RenderedEmail:
     if not events:
         raise ValueError("A Letterboxd update email must contain at least one event.")
-    normalized: list[tuple[str, dict[str, Any]]] = []
+    normalized: list[tuple[str, dict[str, Any], int]] = []
     for row in events:
         event_type = _text(row.get("event_type"))
         payload = row.get("event_payload")
         if event_type not in {"coming_soon", "showtime"} or not isinstance(payload, dict):
             raise ValueError("A Letterboxd event snapshot is invalid.")
-        normalized.append((event_type, payload))
+        try:
+            tmdb_id = int(row.get("tmdb_id"))
+        except (TypeError, ValueError):
+            tmdb_id = 0
+        normalized.append((event_type, payload, tmdb_id))
     normalized.sort(
         key=lambda pair: (
             _text(pair[1].get("date_of_showing") or pair[1].get("release_date")),
@@ -291,7 +311,9 @@ def render_letterboxd_event_email(events: tuple[dict[str, Any], ...]) -> Rendere
     )
     html_items: list[str] = []
     text_items: list[str] = []
-    for event_type, payload in normalized:
+    destination_origin = safe_site_url(site_url)
+
+    for event_type, payload, tmdb_id in normalized:
         title = _safe_event_title(payload.get("title"))
         if event_type == "coming_soon":
             release_date = _text(payload.get("release_date"))
@@ -310,13 +332,22 @@ def render_letterboxd_event_email(events: tuple[dict[str, Any], ...]) -> Rendere
         href = valid_ticket_href({"english_href": payload.get("ticket_href")})
         if not href:
             raise ValueError("A Letterboxd showtime event has no ticket link.")
+        movie_code = _text(payload.get("movie_code")) or (movie_codes or {}).get(tmdb_id)
+        filter_mask = payload.get("filter_mask", 0)
+        movie_path = build_movie_showtime_path(
+            movie_code,
+            city,
+            showing_date,
+            filter_mask if isinstance(filter_mask, int) and not isinstance(filter_mask, bool) else 0,
+        )
+        destination = f"{destination_origin}{movie_path}"
         detail = f"{city} · {_friendly_date(showing_date)} at {showtime}"
         html_items.append(
             f"<li style=\"margin:0 0 16px;\"><strong>{escape(title)}</strong><br>"
             f"<span>{escape(detail)} · {escape(cinema)}</span><br>"
-            f"<a href=\"{escape(href, quote=True)}\">Tickets</a></li>"
+            f"<a href=\"{escape(destination, quote=True)}\">View showtimes</a></li>"
         )
-        text_items.append(f"- {title} — {detail} · {cinema}\n  {href}")
+        text_items.append(f"- {title} — {detail} · {cinema}\n  View showtimes: {destination}")
 
     html_body = "".join(
         [
@@ -555,6 +586,26 @@ class SupabaseLetterboxdRepository:
                 )
             )
         return dates, showtimes, movie_titles
+
+    def load_movie_codes(self, tmdb_ids: list[int]) -> dict[int, str]:
+        movie_codes: dict[int, str] = {}
+        for start in range(0, len(tmdb_ids), 150):
+            chunk = tmdb_ids[start : start + 150]
+            rows = self._collect_pages(
+                lambda page_start, page_end: self.supabase.table("movieCodes")
+                .select("tmdb_id,movie_code")
+                .in_("tmdb_id", chunk)
+                .range(page_start, page_end)
+            )
+            for row in rows:
+                try:
+                    tmdb_id = int(row.get("tmdb_id"))
+                except (TypeError, ValueError):
+                    continue
+                movie_code = _text(row.get("movie_code"))
+                if tmdb_id > 0 and MOVIE_CODE_PATTERN.fullmatch(movie_code):
+                    movie_codes[tmdb_id] = movie_code
+        return movie_codes
 
     def load_criteria(
         self, user_ids: list[str], tmdb_ids: list[int]
@@ -854,6 +905,7 @@ class LetterboxdSourceDispatcher:
         dates, showtimes, movie_titles = self.repository.load_local_events(
             ids, _jerusalem_now(now).date()
         )
+        movie_codes = self.repository.load_movie_codes(ids)
         user_ids = sorted(pairs)
         preferences, subscriptions = self.repository.load_criteria(user_ids, ids)
         return collect_current_events(
@@ -866,6 +918,7 @@ class LetterboxdSourceDispatcher:
             subscriptions=subscriptions,
             now=now,
             match_criteria=match_criteria,
+            movie_codes=movie_codes,
         )
 
     def dispatch(self) -> LetterboxdDispatchSummary:
@@ -893,7 +946,19 @@ class LetterboxdSourceDispatcher:
         for batch in batches:
             try:
                 self.repository.record_attempt(batch.user_id, batch.delivery_id)
-                email = render_letterboxd_event_email(batch.events)
+                movie_ids = sorted(
+                    {
+                        int(event["tmdb_id"])
+                        for event in batch.events
+                        if _positive_int(event.get("tmdb_id")) is not None
+                    }
+                )
+                movie_codes = self.repository.load_movie_codes(movie_ids)
+                email = render_letterboxd_event_email(
+                    batch.events,
+                    self.config.site_url,
+                    movie_codes,
+                )
                 recipient = self.repository.canonical_email(batch.user_id)
                 resend_id = send_resend_email(
                     self.http_client,

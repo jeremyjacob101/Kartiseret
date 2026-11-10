@@ -7,7 +7,7 @@ import hashlib
 import json
 
 
-MATCHING_POLICY_VERSION = 1
+MATCHING_POLICY_VERSION = 2
 
 
 def stable_fingerprint(value) -> str:

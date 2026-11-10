@@ -1,74 +1,80 @@
-import { createPreviewImage, createHomepagePreviewImage } from "./previewImage.js";
-import { NO_STORE_CACHE_CONTROL, PREVIEW_CACHE_CONTROL } from "./cacheControl.js";
+import { socialPreviewImageUrl } from "@kartiseret/contracts/social-preview";
 import type { VercelRequest, VercelResponse } from "./vercelTypes.js";
+import { getRequestOrigin, safeHttpUrl } from "../seo/renderHtml.js";
+import { NO_STORE_CACHE_CONTROL } from "./cacheControl.js";
 import { ogRequestQuerySchema } from "./schemas.js";
 import { getPreviewData } from "./previewData.js";
 
-const FALLBACK_JPEG = Buffer.from(
-  "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAIABQADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYI4Q/SFhSRFJiMkVic4EzQjR0RSlFNkVUcCZS/9oADABEAAxEB/9qAP/9k=",
-  "base64",
-);
-
+/**
+ * Compatibility endpoint for previously published `/api/og-image` metadata.
+ * New metadata points directly at immutable R2-backed cards; this endpoint
+ * only redirects and never renders or downloads an image on demand.
+ */
 export default async function handler(
   request: VercelRequest,
   response: VercelResponse,
 ): Promise<void> {
+  const queryResult = ogRequestQuerySchema.safeParse(request.query);
+  if (!queryResult.success) {
+    response
+      .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
+      .status(404)
+      .send("");
+    return;
+  }
+
+  if (queryResult.data.home) {
+    response
+      .setHeader("Cache-Control", "public, max-age=86400, s-maxage=31536000")
+      .setHeader("Location", `${getRequestOrigin(request.headers)}/og/home.jpg`)
+      .status(302)
+      .send("");
+    return;
+  }
+
+  const routeCode = queryResult.data.routeCode;
+  if (!routeCode) {
+    response
+      .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
+      .status(404)
+      .send("");
+    return;
+  }
+
   try {
-    const queryResult = ogRequestQuerySchema.safeParse(request.query);
-    const routeCode = queryResult.success ? queryResult.data.routeCode : "";
-    const isHome = queryResult.success && queryResult.data.home;
-
-    if (isHome) {
-      const image = await createHomepagePreviewImage();
+    const data = await getPreviewData(routeCode);
+    if (!data) {
       response
-        .status(200)
-        .setHeader("Content-Type", "image/jpeg")
-        .setHeader("Cache-Control", PREVIEW_CACHE_CONTROL)
-        .send(image);
-      return;
-    }
-
-    if (!routeCode) {
-      response
-        .status(404)
         .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
-        .send("Not found");
-      return;
-    }
-
-    const previewData = await getPreviewData(routeCode);
-
-    if (!previewData) {
-      response
         .status(404)
-        .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
-        .send("Not found");
+        .send("");
       return;
     }
 
-    const image = await createPreviewImage(previewData);
+    const cardUrl =
+      (data.socialPreviewFingerprint
+        ? socialPreviewImageUrl(
+            getRequestOrigin(request.headers),
+            data.socialPreviewFingerprint,
+          )
+        : null) ?? safeHttpUrl(data.posterUrl);
+    if (!cardUrl) {
+      response
+        .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
+        .status(404)
+        .send("");
+      return;
+    }
 
     response
-      .status(200)
-      .setHeader("Content-Type", "image/jpeg")
-      .setHeader("Cache-Control", PREVIEW_CACHE_CONTROL)
-      .send(image);
-  } catch (error) {
-    console.error("OG image handler error:", error);
-
-    try {
-      const fallback = await createHomepagePreviewImage();
-      response
-        .status(200)
-        .setHeader("Content-Type", "image/jpeg")
-        .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
-        .send(fallback);
-    } catch {
-      response
-        .status(200)
-        .setHeader("Content-Type", "image/jpeg")
-        .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
-        .send(FALLBACK_JPEG);
-    }
+      .setHeader("Cache-Control", "public, max-age=300, s-maxage=3600")
+      .setHeader("Location", cardUrl)
+      .status(302)
+      .send("");
+  } catch {
+    response
+      .setHeader("Cache-Control", NO_STORE_CACHE_CONTROL)
+      .status(503)
+      .send("");
   }
 }

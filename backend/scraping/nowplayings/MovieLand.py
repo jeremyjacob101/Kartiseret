@@ -8,6 +8,11 @@ import re
 class MovieLand(BaseCinema):
     CINEMA_NAME = "MovieLand"
     URL = "https://movieland.co.il/movies"
+    DEFAULT_SCRAPE_MODE = "auto"
+
+    def requests_logic(self):
+        from backend.scraping.utils.MovieLandRequests import collect_movieland
+        return collect_movieland(self)
 
     def logic(self):
         self.driver.set_page_load_timeout(45)

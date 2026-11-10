@@ -1,4 +1,5 @@
 from backend.dataflow.BaseDataflow import BaseDataflow
+from backend.dataflow.utils.ArtworkStorage import resolve_tmdb_artwork
 from backend.dataflow.cinematheques.utils.CinemathequesHelpers import CinemathequesHelpers
 from backend.utils.supabase.clear_old_entries import clear_old_entries
 from backend.utils.supabase.clear_orphan_final_theque_movies import clear_orphan_final_theque_movies
@@ -61,6 +62,11 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
                 continue
 
             override_tmdb = self.tmdbFixForTitle(self.english_title, self.tmdb_fix_by_title)
+            fix_match = self.tmdbFixMatch(self.english_title, self.tmdb_fix_by_title)
+            if fix_match and fix_match["conflict"]:
+                self.protectUnresolvedSnapshot([row], category="cinematheques")
+                self.trace_unresolved(f"ambiguous_tmdb_fix | title={self.english_title!r} | tier={fix_match['tier']} | fixes={fix_match['titles']!r} | ids={fix_match['ids']!r}")
+                continue
             if override_tmdb:
                 title_for_count = self.clean_str(self.english_title).strip()
                 key = f"tmdb_fix:{override_tmdb}"
@@ -104,6 +110,11 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
         for key, rows in self.grouped_rows_by_key.items():
             self.reset_np_groupkey_row_state()
             self.load_np_groupkey_meta_row(key)
+            self.beginTmdbMatchEvidence(
+                key,
+                rows,
+                input_fingerprint=identity_fingerprints.get(key, ""),
+            )
             row_count = len(rows)
 
             if self.year_counts:
@@ -120,6 +131,7 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
                     continue
                 self.key_result[key] = {"tmdb_id": self.potential_chosen_id, "imdb_id": None, "english_title": representative_title, "hebrew_title": self.hebrew_title, "alt_options": self.alt_options}
                 self.trace_event("tmdb_choice", "mapped", "tmdb_fix_override", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": 0, "chosen_tmdb": self.potential_chosen_id, "chosen_path": "tmdb_fix_override"})
+                self.finishTmdbMatchEvidence("tmdb_fix_override", "mapped", self.potential_chosen_id, chosen_path="tmdb_fix_override", candidate_ids=[])
                 continue
 
             candidate_titles = [title for title, _ in titles_sorted if not self.titleIsSkipped(title, self.skip_tokens)]
@@ -128,21 +140,6 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
                 self.trace_unresolved(f"skip_token | group={key} | rows={row_count}")
                 continue
             representative_title = candidate_titles[0]
-
-            # TMDB FIX OVERRIDE (title -> tmdb_id)
-            for title in candidate_titles:
-                self.override_tmdb = self.tmdbFixForTitle(title, self.tmdb_fix_by_title)
-                if self.override_tmdb:
-                    break
-            if self.override_tmdb:
-                self.potential_chosen_id = self.override_tmdb
-                if str(self.potential_chosen_id).lower() in self.skip_tokens:
-                    self.trace_event("tmdb_choice", "dropped", "skip_token", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": 0, "chosen_tmdb": self.potential_chosen_id, "chosen_path": "tmdb_fix_override"})
-                    self.trace_unresolved(f"skip_token_on_override | group={key} | title={representative_title}")
-                    continue
-                self.key_result[key] = {"tmdb_id": self.potential_chosen_id, "imdb_id": None, "english_title": representative_title, "hebrew_title": self.hebrew_title, "alt_options": self.alt_options}
-                self.trace_event("tmdb_choice", "mapped", "tmdb_fix_override", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": 0, "chosen_tmdb": self.potential_chosen_id, "chosen_path": "tmdb_fix_override"})
-                continue
 
             # 1) SEARCH TMDB AND COLLECT CANDIDATES
             if self.parsed_year:
@@ -158,6 +155,7 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
                     if year is not None:
                         params["primary_release_year"] = year
                     response = self.tmdbGet("search/movie", params)
+                    self.recordTmdbSearchResponse(params, response)
                     results = response.get("results") or []
                     if not results:
                         break
@@ -252,6 +250,7 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
 
             self.key_result[key] = {"tmdb_id": self.potential_chosen_id, "imdb_id": chosen_imdb, "english_title": representative_title, "hebrew_title": self.hebrew_title, "alt_options": self.alt_options}
             self.trace_event("tmdb_choice", "mapped", self.chosen_path or "mapped", key=key, payload={"key": key, "row_count": row_count, "representative_title": representative_title, "parsed_year": self.parsed_year, "candidate_count": len(self.candidates), "chosen_tmdb": self.potential_chosen_id, "chosen_path": self.chosen_path or "mapped"})
+            self.finishTmdbMatchEvidence(self.chosen_path or "mapped", "mapped", self.potential_chosen_id, chosen_path=self.chosen_path or "mapped", candidate_ids=self.candidates)
 
         # 5) DEDUPE BY TMDB ID
         for key, res in self.key_result.items():
@@ -288,7 +287,7 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
         # 6) ENRICH TITLE + POSTER + IMDB_ID + GENRES
         enriched_ids = set()
         for tmdb_id, res in self.movies_by_tmdb.items():
-            data = self.tmdbGet(f"movie/{tmdb_id}", {"append_to_response": "external_ids,videos"}, allow_missing=True)
+            data = self.tmdbMovieDetails(tmdb_id, allow_missing=True)
             if not isinstance(data, dict) or not data.get("id"):
                 self.trace_unresolved(f"enrich_invalid_details | tmdb={tmdb_id}")
                 continue
@@ -300,8 +299,7 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
             res["runtime"] = data["runtime"] if data.get("runtime") is not None else res.get("runtime")
             res["popularity"] = data["popularity"] if data.get("popularity") is not None else res.get("popularity")
             res["imdb_id"] = external_ids.get("imdb_id") or res.get("imdb_id")
-            res["en_poster"] = "https://image.tmdb.org/t/p/w342" + data["poster_path"] if data.get("poster_path") else res.get("en_poster")
-            res["backdrop"] = "https://image.tmdb.org/t/p/w1280" + data["backdrop_path"] if data.get("backdrop_path") else res.get("backdrop")
+            resolve_tmdb_artwork(self, res, data)
             res["genres"] = genres or res.get("genres")
             res["en_trailer"] = trailer.get("key") if trailer else res.get("en_trailer")
             res["release_year"] = data["release_date"][:4] if data.get("release_date") else res.get("release_year")
@@ -472,6 +470,7 @@ class CinemathequesTmdb(CinemathequesHelpers, BaseDataflow):
             unresolved = bool(self.unresolved_identity_keys_by_snapshot.get(snapshot_id))
             self.advanceSnapshotPublication(snapshot_id, "published", has_unresolved=unresolved)
 
-        clear_old_entries("cinematheques")
-        clear_orphan_final_theque_movies()
+        from backend.utils.log.shared_cleanup import current_run_lease_guard
+        clear_old_entries("cinematheques", lease_guard=current_run_lease_guard())
+        clear_orphan_final_theque_movies(lease_guard=current_run_lease_guard())
         dedupe_all_theques(dry_run=False)

@@ -79,6 +79,26 @@ class ReleaseDateBackfillTests(TestCase):
         self.assertEqual(normalize_english("The Cat-in-the-Hat: Part 2!"), "the cat in the hat part 2")
         self.assertEqual(normalize_hebrew("אוֹתוֹ שֵׁם"), normalize_hebrew("אותו שם"))
 
+    def test_includes_d1_rows_alongside_legacy_csv_artifacts(self):
+        report = build_report(
+            self.snapshot,
+            self.root,
+            as_of=self.as_of,
+            d1_rows=[{
+                "run_id": 42, "scraper": "CCsoon", "attempt": 1, "outcome": "successful",
+                "row_order": 0, "english_title": "Alpha", "hebrew_title": "",
+                "release_date": "2031-04-05", "source_run_id": "42",
+                "extra_json": "{}", "run_started_at": "2026-10-25T10:00:00+00:00",
+                "d1_run_status": "successful",
+            }],
+        )
+
+        self.assertEqual(self.movie(report, 101)["status"], "ready_to_insert")
+        self.assertEqual(self.movie(report, 101)["proposed_date"], "2031-04-05")
+        observation = self.movie(report, 101)["latest_observations"][0]
+        self.assertEqual(observation["artifact"], "d1://scraped_rows/42/CCsoon/1")
+        self.assertEqual(report["input_summary"]["d1_scraped_rows_considered"], 1)
+
     def test_uses_successful_summary_mapping_and_current_titles_after_failed_parent_run(self):
         self.add_run(10, "2026-10-01 12:00:00", [
             {"english_title": "Archive Alias", "hebrew_title": "", "release_date": "2030-12-05"},
@@ -194,6 +214,23 @@ class ReleaseDateBackfillTests(TestCase):
             self.movie(report, 102)["latest_observations"][0]["identity_evidence"][0]["source"],
             "tableFixes",
         )
+
+    def test_fix_matching_preserves_hebrew_and_exact_precedence(self):
+        self.snapshot["title_fixes"] = [
+            {"tmdb_id": "101", "title_fix": "movieretro הוק"},
+            {"tmdb_id": "102", "title_fix": "movieretro אסירים"},
+            {"tmdb_id": "102", "title_fix": "A: Film"},
+            {"tmdb_id": "103", "title_fix": "A - Film"},
+        ]
+        self.add_run(10, "2026-10-01 12:00:00", [
+            {"english_title": "MovieRetro- הוק", "hebrew_title": "", "release_date": "2031-06-20"},
+            {"english_title": "A: Film", "hebrew_title": "", "release_date": "2031-06-21"},
+        ])
+        report = self.report()
+        self.assertEqual(self.movie(report, 101)["proposed_date"], "2031-06-20")
+        self.assertEqual(self.movie(report, 102)["proposed_date"], "2031-06-21")
+        evidence = self.movie(report, 101)["latest_observations"][0]["identity_evidence"]
+        self.assertEqual(evidence[0]["match_tier"], "normalized")
 
     def test_invalid_date_rows_are_reported_and_not_written(self):
         self.add_run(10, "2026-10-01 12:00:00", [

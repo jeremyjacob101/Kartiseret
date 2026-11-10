@@ -111,6 +111,23 @@ export const publicTheaterResponseSchema = apiSuccessResponseSchema(
   publicTheaterDataSchema,
 );
 
+export const publicCinemaPageDataSchema = z.object({
+  id: nonEmptyTrimmedStringSchema,
+  displayName: nonEmptyTrimmedStringSchema,
+  city: nonEmptyTrimmedStringSchema,
+  address: z.string(),
+  mapUrl: httpUrlSchema,
+  latitude: z.number().finite().min(-90).max(90),
+  longitude: z.number().finite().min(-180).max(180),
+  screenings: z.array(
+    z.object({ movie: movieSchema, screening: publicShowtimeSchema }),
+  ),
+});
+export const publicCinemaPageResponseSchema = apiSuccessResponseSchema(
+  publicCinemaPageDataSchema,
+);
+export type PublicCinemaPageData = z.infer<typeof publicCinemaPageDataSchema>;
+
 const maximumShowtimeRangeDays = 180;
 const postgresIntegerMaximum = 2_147_483_647;
 
@@ -150,6 +167,33 @@ export const publicShowtimeRangeQuerySchema = z
       });
     }
   });
+
+export const publicCinemathequeQuerySchema = z
+  .object({
+    city: appLocationSchema.optional(),
+    startDate: isoDateStringSchema,
+    endDate: isoDateStringSchema.optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.endDate) {
+      const rangeLength =
+        calendarDayNumber(value.endDate) -
+        calendarDayNumber(value.startDate) +
+        1;
+      if (rangeLength < 1 || rangeLength > maximumShowtimeRangeDays) {
+        context.addIssue({
+          code: "custom",
+          path: ["endDate"],
+          message: `The requested range must contain 1–${maximumShowtimeRangeDays} days.`,
+        });
+      }
+    }
+  });
+
+export type PublicCinemathequeQuery = z.output<
+  typeof publicCinemathequeQuerySchema
+>;
 
 export const ticketAvailabilityQuerySchema = z
   .object({

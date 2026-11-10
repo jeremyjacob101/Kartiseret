@@ -1,88 +1,26 @@
-import { APP_TIME_ZONE, fixedAppDateString, getMovieShowtimeCities, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, selectMovieShowtimeDays, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
+import { APP_TIME_ZONE, getMovieShowtimeCities, getMovieShowtimeDays, getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, selectMovieShowtimeDays, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, type Movie, type MovieShowtimeDay } from "../../data/movieCatalog";
 import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, saveShowtimeFilters, updateShowtimeFilterState, useShowtimeFiltersStore, type ShowtimeFilterOptions, type ShowtimeFilterSelections, type ShowtimeFilterState } from "../showtimes/showtimeFilters";
-import { addCalendarDays, SHOWTIME_LINK_DATE_COUNT } from "@kartiseret/contracts/showtime-links";
-import { selectCities, theaterDataQueryOptions, type City } from "../../data/theaters";
+import { cinemaIdForLocation, findCinemaIdentityForScreening } from "@kartiseret/contracts/cinema-identities";
 import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from "react";
 import { Clock8, ExternalLink, MapPin, MoveRight, Star, X } from "lucide-react";
 import { usePublicationRevision } from "../../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
+import { theaterDataQueryOptions, type City } from "../../data/theaters";
+import { usePublicRenderClock } from "../../contexts/PublicRenderClock";
+import { addCalendarDays } from "@kartiseret/contracts/showtime-links";
 import { type AppLocation } from "../../prefs/definitions/locations";
 import { ShowtimeFilterMenu } from "../showtimes/ShowtimeFilterMenu";
 import { ShowtimeDayPicker } from "../showtimes/ShowtimeDayPicker";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TheaterMapDialog } from "../maps/TheaterMapDialog";
+import { getTheaterTheme } from "../showtimes/theaterTheme";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { TicketAlertControl } from "./TicketAlertControl";
 import { useShallow } from "zustand/react/shallow";
-import { useQuery } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { Link } from "react-router";
 
-type TheaterTheme = {
-  accent: string;
-  surface: string;
-  glow: string;
-  pillBackground?: string;
-  pillClassName?: string;
-};
-
-const theaterThemes: Record<string, TheaterTheme> = {
-  "Yes Planet": {
-    accent: "#d9710f",
-    surface: "rgba(255, 154, 61, 0.12)",
-    glow: "rgba(217, 113, 15, 0.28)",
-    pillClassName: "details-time-pill--yes-planet",
-  },
-  "Cinema City": {
-    accent: "#186bdf",
-    surface: "rgba(94, 168, 255, 0.12)",
-    glow: "rgba(24, 107, 223, 0.3)",
-    pillClassName: "details-time-pill--cinema-city",
-  },
-  "Lev Cinema": {
-    accent: "#b50519",
-    surface: "rgba(255, 107, 107, 0.12)",
-    glow: "rgba(181, 5, 25, 0.28)",
-    pillClassName: "details-time-pill--lev-cinema",
-  },
-  "Rav Hen": {
-    accent: "#ab5306",
-    surface: "rgba(255, 177, 74, 0.14)",
-    glow: "rgba(13, 6, 218, 0.32)",
-    pillBackground:
-      "linear-gradient(135deg, rgba(79, 146, 255, 0.22), rgba(255, 177, 74, 0.18))",
-    pillClassName: "details-time-pill--rav-hen",
-  },
-  "Hot Cinema": {
-    accent: "#f06a87",
-    surface: "rgba(255, 79, 160, 0.14)",
-    glow: "rgba(240, 106, 135, 0.32)",
-    pillClassName: "details-time-pill--hot-cinema",
-  },
-  MovieLand: {
-    accent: "#a80371",
-    surface: "rgba(88, 0, 58, 0.12)",
-    glow: "rgba(168, 3, 113, 0.3)",
-    pillClassName: "details-time-pill--movieland",
-  },
-};
-const fallbackTheaterThemes: TheaterTheme[] = [
-  {
-    accent: "#d29bff",
-    surface: "rgba(210, 155, 255, 0.12)",
-    glow: "rgba(210, 155, 255, 0.28)",
-  },
-  {
-    accent: "#ffd166",
-    surface: "rgba(255, 209, 102, 0.12)",
-    glow: "rgba(255, 209, 102, 0.28)",
-  },
-  {
-    accent: "#7bdff2",
-    surface: "rgba(123, 223, 242, 0.12)",
-    glow: "rgba(123, 223, 242, 0.28)",
-  },
-];
 const showtimeDateFormatter = new Intl.DateTimeFormat(undefined, {
   timeZone: APP_TIME_ZONE,
   weekday: "long",
@@ -102,6 +40,7 @@ const RT_AUDIENCE_HOT_MIN_SCORE = 90;
 const RT_AUDIENCE_HOT_MIN_VERIFIED_RATINGS = 500;
 const YOUTUBE_KEY_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const EMPTY_SHOWTIME_DAYS: readonly MovieShowtimeDay[] = Object.freeze([]);
+const EMPTY_CITIES: readonly City[] = Object.freeze([]);
 
 type MovieDetailsContentProps = {
   movie: Movie;
@@ -200,9 +139,9 @@ function parseShowtimeDate(dateString: string): Date {
   return new Date(Date.UTC(year, month - 1, day, 12));
 }
 
-function getShowtimeDateLabel(dateString: string): string {
+function getShowtimeDateLabel(dateString: string, todayString: string): string {
   const showDate = parseShowtimeDate(dateString);
-  const today = parseShowtimeDate(fixedAppDateString);
+  const today = parseShowtimeDate(todayString);
   const dayOffset = Math.round(
     (showDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
   );
@@ -309,13 +248,6 @@ function getTmdbUrl(movie: Movie): string {
   }
 
   return `https://www.themoviedb.org/movie/${encodeURIComponent(tmdbId)}`;
-}
-
-function getTheaterTheme(theater: string, index: number): TheaterTheme {
-  return (
-    theaterThemes[theater] ??
-    fallbackTheaterThemes[index % fallbackTheaterThemes.length]
-  );
 }
 
 function hasRating(value: number | null | undefined): value is number {
@@ -634,7 +566,9 @@ export function MovieDetailsContent({
   onShareShowtimes,
   shareFeedback = null,
 }: MovieDetailsContentProps) {
-  usePublicationRevision();
+  const { cinemaDate } = usePublicRenderClock();
+  const queryClient = useQueryClient();
+  const publicationRevision = usePublicationRevision();
   const {
     sources,
     location: preferenceLocation,
@@ -660,15 +594,24 @@ export function MovieDetailsContent({
     [locationOverride, onLocationOverrideChange, setLocationPreference],
   );
   const { data: showtimeCityData } = useQuery({
-    ...showtimeCityQueryOptions(location),
+    ...showtimeCityQueryOptions(location, publicationRevision),
     enabled: false,
   });
   const showtimesReady = showtimeCityData?.broadReady ?? false;
-  const { data: cities = [] } = useQuery({
+  const { data: theaterData } = useQuery({
     ...theaterDataQueryOptions(),
-    select: selectCities,
     enabled: variant === "nowPlaying",
   });
+  const cities = theaterData?.cities ?? EMPTY_CITIES;
+  const verifiedCinemaIds = useMemo(
+    () =>
+      new Set(
+        (theaterData?.theaters ?? [])
+          .map((theater) => cinemaIdForLocation(theater.location))
+          .filter((id): id is string => id !== null),
+      ),
+    [theaterData?.theaters],
+  );
   const [openTrailerModalId, setOpenTrailerModalId] = useState<string | null>(
     null,
   );
@@ -696,7 +639,9 @@ export function MovieDetailsContent({
     );
   }, [movie.tmdbId, showtimeCityData, variant]);
   const shouldRenderShowtimes =
-    variant === "nowPlaying" || hasComingSoonShowtimes;
+    variant === "nowPlaying" ||
+    hasComingSoonShowtimes ||
+    (exactDateShowtimeQueries && Boolean(preferredShowtimeDate));
   const showtimeDays = useMemo(() => {
     if (!shouldRenderShowtimes) {
       return EMPTY_SHOWTIME_DAYS;
@@ -712,16 +657,37 @@ export function MovieDetailsContent({
 
     const windowEnd = addCalendarDays(
       showtimeDateWindowStart,
-      SHOWTIME_LINK_DATE_COUNT - 1,
+      SHOWTIME_WINDOW_DAY_COUNT - 1,
     );
 
     if (!windowEnd) {
       return loadedShowtimeDays;
     }
 
-    return loadedShowtimeDays.filter(
-      (day) => day.date >= showtimeDateWindowStart && day.date <= windowEnd,
+    const loadedDaysByDate = new Map(
+      loadedShowtimeDays
+        .filter(
+          (day) => day.date >= showtimeDateWindowStart && day.date <= windowEnd,
+        )
+        .map((day) => [day.date, day] as const),
     );
+    const visibleDays: MovieShowtimeDay[] = [];
+
+    for (
+      let dayOffset = 0;
+      dayOffset < SHOWTIME_WINDOW_DAY_COUNT;
+      dayOffset += 1
+    ) {
+      const date = addCalendarDays(showtimeDateWindowStart, dayOffset);
+
+      if (!date) {
+        break;
+      }
+
+      visibleDays.push(loadedDaysByDate.get(date) ?? { date, theaters: [] });
+    }
+
+    return visibleDays;
   }, [
     exactDateShowtimeQueries,
     movie.tmdbId,
@@ -746,7 +712,9 @@ export function MovieDetailsContent({
     (variant === "comingSoon" || exactDateShowtimeQueries || showtimesReady) &&
     showtimeDays.length > 0;
   const hasLoadedCompleteShowtimeWindow =
-    hasLoadedShowtimeWindow && showtimeDays.length >= SHOWTIME_WINDOW_DAY_COUNT;
+    !exactDateShowtimeQueries &&
+    hasLoadedShowtimeWindow &&
+    showtimeDays.length >= SHOWTIME_WINDOW_DAY_COUNT;
   const firstCityShowtimeDate = hasLoadedShowtimeWindow
     ? getFirstShowtimeDate(showtimeDays)
     : null;
@@ -759,7 +727,7 @@ export function MovieDetailsContent({
     hasLoadedShowtimeWindow &&
     !hasTodayShowtimes &&
     firstCityShowtimeDate !== null &&
-    firstCityShowtimeDate !== fixedAppDateString;
+    firstCityShowtimeDate !== cinemaDate;
   const effectiveVisibleShowtimeDate = targetShowtimeDate;
   const selectedShowtimeDay =
     showtimeDays.find((day) => day.date === effectiveVisibleShowtimeDate) ??
@@ -879,10 +847,10 @@ export function MovieDetailsContent({
   const shouldShowTodayReturnButton =
     shouldShowSkipToShowingDayButton &&
     effectiveVisibleShowtimeDate !== null &&
-    effectiveVisibleShowtimeDate !== fixedAppDateString &&
+    effectiveVisibleShowtimeDate !== cinemaDate &&
     effectiveVisibleShowtimeDate >= firstCityShowtimeDate;
   const showtimeJumpTargetDate = shouldShowTodayReturnButton
-    ? fixedAppDateString
+    ? cinemaDate
     : firstCityShowtimeDate;
   const showtimeJumpButtonLabel = shouldShowTodayReturnButton
     ? "BACK TO TODAY"
@@ -896,7 +864,9 @@ export function MovieDetailsContent({
       return [];
     }
 
-    const cachedCities = [...getMovieShowtimeCities(movie.tmdbId)];
+    const cachedCities = [
+      ...getMovieShowtimeCities(movie.tmdbId, queryClient, publicationRevision),
+    ];
     const currentCityHasShowtimes = selectMovieShowtimeDays(
       showtimeCityData,
       movie.tmdbId,
@@ -907,7 +877,14 @@ export function MovieDetailsContent({
     }
 
     return cachedCities;
-  }, [hasLoadedShowtimeWindow, location, movie.tmdbId, showtimeCityData]);
+  }, [
+    hasLoadedShowtimeWindow,
+    location,
+    movie.tmdbId,
+    publicationRevision,
+    queryClient,
+    showtimeCityData,
+  ]);
   const nearbyCityChoices = useMemo<NearbyCityChoice[]>(() => {
     if (!hasLoadedShowtimeWindow || playingCities.length === 0) {
       return [];
@@ -918,7 +895,12 @@ export function MovieDetailsContent({
       cityByName,
       playingCities,
     ).flatMap((cityName) => {
-      const cityShowtimeDays = getMovieShowtimeDays(movie.tmdbId, cityName);
+      const cityShowtimeDays = getMovieShowtimeDays(
+        movie.tmdbId,
+        cityName,
+        queryClient,
+        publicationRevision,
+      );
       const selectedDayShowtimeDate =
         effectiveVisibleShowtimeDate &&
         cityShowtimeDays.some(
@@ -939,7 +921,9 @@ export function MovieDetailsContent({
     hasLoadedShowtimeWindow,
     location,
     movie.tmdbId,
+    publicationRevision,
     playingCities,
+    queryClient,
   ]);
   const isTrailerModalOpen =
     Boolean(trailerEmbedUrl) && openTrailerModalId === trailerModalId;
@@ -1105,7 +1089,7 @@ export function MovieDetailsContent({
 
   const handleShowtimePreviewDateChange = useCallback(
     (date: string) => {
-      if (variant !== "nowPlaying") {
+      if (variant !== "nowPlaying" && !exactDateShowtimeQueries) {
         return;
       }
 
@@ -1165,9 +1149,7 @@ export function MovieDetailsContent({
   const handleNearbyCityClick = useCallback(
     async (cityName: string, nextShowtimeDate: string) => {
       const previousDate =
-        effectiveVisibleShowtimeDate ??
-        targetShowtimeDate ??
-        fixedAppDateString;
+        effectiveVisibleShowtimeDate ?? targetShowtimeDate ?? cinemaDate;
 
       setPendingNearbyCity(cityName);
       onPreferredShowtimeDateChange?.(nextShowtimeDate);
@@ -1189,6 +1171,7 @@ export function MovieDetailsContent({
     },
     [
       effectiveVisibleShowtimeDate,
+      cinemaDate,
       onPreferredShowtimeDateChange,
       targetShowtimeDate,
       updateLocation,
@@ -1207,12 +1190,13 @@ export function MovieDetailsContent({
     previousShowtimeLocationRef.current = location;
     void loadShowtimesAroundDate(
       location,
-      preferredShowtimeDate ?? fixedAppDateString,
+      preferredShowtimeDate ?? cinemaDate,
       targetShowtimeQueries ? movie.tmdbId : undefined,
     ).catch((error: unknown) => {
       console.error("Could not load showtimes for the selected city.", error);
     });
   }, [
+    cinemaDate,
     location,
     movie.tmdbId,
     preferredShowtimeDate,
@@ -1364,6 +1348,8 @@ export function MovieDetailsContent({
               title={movie.title}
               tmdbId={movie.tmdbId}
               imageSrc={movie.imageSrc}
+              imageSrcSet={movie.imageSrcSet}
+              imageSizes="(max-width: 700px) 30vw, 216px"
               alt={movie.title}
               className={posterClassName}
               draggable={false}
@@ -1422,9 +1408,7 @@ export function MovieDetailsContent({
                 ariaLabel={`Choose ${movie.title} showtime day`}
                 dates={showtimeDays.map((day) => day.date)}
                 selectedDate={effectiveVisibleShowtimeDate}
-                disabledBeforeDate={
-                  showtimeDateWindowStart ?? fixedAppDateString
-                }
+                disabledBeforeDate={showtimeDateWindowStart ?? cinemaDate}
                 trailingPlaceholderCount={
                   exactDateShowtimeQueries
                     ? 0
@@ -1523,8 +1507,8 @@ export function MovieDetailsContent({
                     ) : effectiveSelectedShowtimeDay.theaters.length === 0 ? (
                       renderNoShowtimesState(
                         hasFilteredOutAllSelectedShowtimes
-                          ? `No showtimes match current filters on ${getShowtimeDateLabel(effectiveSelectedShowtimeDay.date)} in ${location}`
-                          : `No showtimes on ${getShowtimeDateLabel(effectiveSelectedShowtimeDay.date)} in ${location}`,
+                          ? `No showtimes match current filters on ${getShowtimeDateLabel(effectiveSelectedShowtimeDay.date, cinemaDate)} in ${location}`
+                          : `No showtimes on ${getShowtimeDateLabel(effectiveSelectedShowtimeDay.date, cinemaDate)} in ${location}`,
                       )
                     ) : (
                       <div className="details-theaters">
@@ -1535,7 +1519,15 @@ export function MovieDetailsContent({
                           const colors = getTheaterTheme(
                             theater.theater,
                             theaterIndex,
+                            location,
                           );
+                          const cinemaIdentity = findCinemaIdentityForScreening(
+                            location,
+                            theater.theater,
+                          );
+                          const cinemaLinkIsCurrent =
+                            cinemaIdentity !== null &&
+                            verifiedCinemaIds.has(cinemaIdentity.id);
 
                           return (
                             <section
@@ -1550,7 +1542,16 @@ export function MovieDetailsContent({
                                     boxShadow: `0 0 18px ${colors.glow}`,
                                   }}
                                 />
-                                <span>{theater.theater}</span>
+                                {cinemaLinkIsCurrent ? (
+                                  <a
+                                    className="details-cinema-link"
+                                    href={`/c/${cinemaIdentity.id}`}
+                                  >
+                                    {cinemaIdentity.displayName}
+                                  </a>
+                                ) : (
+                                  <span>{theater.theater}</span>
+                                )}
                               </div>
 
                               <div className="details-time-grid">

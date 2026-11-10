@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: MLsoon
+URL: https://movieland.co.il/movie/5058
+Exception: ValueError - time data '' does not match format '%d/%m/%Y'
+Call Chain: runners.py:33 > runners.py:23 > BaseCinema.py:82 > MLsoon.py:53
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/673/unsuccessful/MLsoon-1.png
+CSV: 

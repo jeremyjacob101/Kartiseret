@@ -1,0 +1,10 @@
+- - -
+ERROR
+- - -
+Name: CCsoon
+URL: https://www.cinema-city.co.il/movie-categories/coming-soon
+Exception: TimeoutException - Message: 
+Call Chain: runners.py:33 > runners.py:23 > BaseCinema.py:82 > CCsoon.py:33 > ScrapingHelpers.py:12
+Selector: 
+Screenshot: backend/utils/log/logger_artifacts/667/unsuccessful/CCsoon-1.png
+CSV: 

@@ -43,10 +43,25 @@
       "import": "./dist/public-data.js",
       "default": "./dist/public-data.js"
     },
+    "./public-render": {
+      "types": "./dist/public-render.d.ts",
+      "import": "./dist/public-render.js",
+      "default": "./dist/public-render.js"
+    },
+    "./cinema-identities": {
+      "types": "./dist/cinema-identities.d.ts",
+      "import": "./dist/cinema-identities.js",
+      "default": "./dist/cinema-identities.js"
+    },
     "./private-data": {
       "types": "./dist/private-data.d.ts",
       "import": "./dist/private-data.js",
       "default": "./dist/private-data.js"
+    },
+    "./social-preview": {
+      "types": "./dist/social-preview.d.ts",
+      "import": "./dist/social-preview.js",
+      "default": "./dist/social-preview.js"
     }
   },
   "scripts": {

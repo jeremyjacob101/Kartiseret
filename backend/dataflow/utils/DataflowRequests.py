@@ -6,6 +6,19 @@ from urllib.parse import urlsplit
 import copy, requests, time
 import uuid
 from backend.dataflow.utils.ProviderFreshness import utc_now, observation, failure
+from backend.dataflow.utils.TmdbMovieDetailsCache import (
+    TMDB_DETAILS_CACHE_FORMAT_VERSION,
+    TMDB_DETAILS_RESPONSE_PROFILE,
+    TmdbMovieDetailsCache,
+    is_archived_release,
+    validate_movie_details,
+)
+
+
+TMDB_MOVIE_DETAILS_PARAMS = {
+    "append_to_response": "external_ids,credits,videos",
+    "language": "en-US",
+}
 
 
 class DataflowRequestError(RuntimeError):
@@ -23,6 +36,25 @@ class DataflowRequestContext:
         self.request_next = {}
         self.tmdb_cache = {}
         self.tmdb_observations = {}
+        self.tmdb_movie_cache_rows = {}
+        self.tmdb_movie_cache_loaded_ids = set()
+        self.tmdb_movie_cache_persisted_ids = set()
+        self.tmdb_movie_cache_lock = RLock()
+        self.tmdb_movie_cache_unavailable = False
+        self.tmdb_movie_details_cache = None
+        self.tmdb_metrics = {
+            "tmdb_search_http_requests": 0,
+            "tmdb_movie_detail_http_requests": 0,
+            "tmdb_other_http_requests": 0,
+            "tmdb_in_memory_hits": 0,
+            "tmdb_run_cache_detail_hits": 0,
+            "tmdb_persistent_cache_rows_loaded": 0,
+            "tmdb_persistent_detail_hits": 0,
+            "tmdb_cache_writes": 0,
+            "tmdb_cache_read_failures": 0,
+            "tmdb_cache_write_failures": 0,
+            "tmdb_archived_movie_ids": set(),
+        }
         self.tmdb_executor = None
         self.provider_executor = None
         self.request_workers = request_workers
@@ -49,6 +81,10 @@ class DataflowRequestContext:
             self.provider_executor = None
             self.tmdb_cache.clear()
             self.tmdb_observations.clear()
+            self.tmdb_movie_cache_rows.clear()
+            self.tmdb_movie_cache_loaded_ids.clear()
+            self.tmdb_movie_cache_persisted_ids.clear()
+            self.tmdb_metrics.clear()
             self.request_next.clear()
         for executor in executors:
             if executor is not None:
@@ -73,6 +109,10 @@ class DataflowRequests:
         # Keep these aliases for existing callers and diagnostics.
         self._request_next = self._request_context.request_next
         self._tmdb_cache = self._request_context.tmdb_cache
+        self._tmdb_movie_cache_rows = self._request_context.tmdb_movie_cache_rows
+        self._tmdb_movie_cache_loaded_ids = self._request_context.tmdb_movie_cache_loaded_ids
+        self._tmdb_movie_cache_persisted_ids = self._request_context.tmdb_movie_cache_persisted_ids
+        self._tmdb_metrics = self._request_context.tmdb_metrics
         self._tmdb_executor = self._request_context.tmdb_executor
         self._provider_executor = self._request_context.provider_executor
         self._update_tmdb = {}
@@ -126,6 +166,11 @@ class DataflowRequests:
                 if remaining <= 0:
                     break
                 bounded_timeout = tuple(min(v, remaining) for v in timeout) if isinstance(timeout, tuple) else min(timeout, remaining)
+                if host == "api.themoviedb.org":
+                    path = urlsplit(url).path
+                    metric = "tmdb_search_http_requests" if path.endswith("/search/movie") else "tmdb_movie_detail_http_requests" if "/movie/" in path else "tmdb_other_http_requests"
+                    with self._request_lock:
+                        self._tmdb_metrics[metric] = self._tmdb_metrics.get(metric, 0) + 1
                 response = self.requestSession(url).get(url, timeout=bounded_timeout, **kwargs)
                 if check_status and response.status_code in (429, 500, 502, 503, 504):
                     raise requests.RequestException("transient response")
@@ -159,6 +204,8 @@ class DataflowRequests:
             if owner:
                 pending = self._tmdb_cache[key] = Future()
         if not owner:
+            with self._request_lock:
+                self._tmdb_metrics["tmdb_in_memory_hits"] = self._tmdb_metrics.get("tmdb_in_memory_hits", 0) + 1
             data = pending.result()
             if not data and not allow_missing:
                 raise DataflowRequestError(f"TMDB resource missing: {path}")
@@ -186,6 +233,8 @@ class DataflowRequests:
                     data = response.json()
             with self._request_lock:
                 self._request_context.tmdb_observations[key] = observation("success" if data else "no_listing", "usable_response" if data else "http_404", source, started)
+            if data and path.startswith("movie/") and tuple(sorted(params.items())) == tuple(sorted(TMDB_MOVIE_DETAILS_PARAMS.items())):
+                self._saveTmdbMovieDetails(data, key)
             pending.set_result(data)
             if not data:
                 with self._request_lock:
@@ -198,6 +247,10 @@ class DataflowRequests:
                 outcome, reason = failure(error)
                 self._request_context.tmdb_observations[key] = observation(outcome, reason, source, started)
             pending.set_exception(error)
+            if path == "search/movie" and hasattr(self, "recordTmdbSearchResponse"):
+                self.recordTmdbSearchResponse(params, {})
+            elif path.startswith("movie/") and hasattr(self, "recordTmdbDetailFailure"):
+                self.recordTmdbDetailFailure(path)
             raise
 
     def tmdbExecutor(self):
@@ -205,8 +258,10 @@ class DataflowRequests:
         return self._tmdb_executor
 
     def fetchTmdbDetails(self, candidates):
+        self._loadTmdbMovieDetailsCache(candidates)
+
         def fetch(tmdb_id):
-            data = self.tmdbGet(f"movie/{tmdb_id}", {"append_to_response": "external_ids,credits"}, allow_missing=True)
+            data = self.tmdbMovieDetails(tmdb_id, allow_missing=True)
             return tmdb_id, data
 
         # map retains candidate order even when later requests finish first.
@@ -214,16 +269,107 @@ class DataflowRequests:
 
     def prepareUpdateTmdb(self, rows):
         ids = list(dict.fromkeys(self.clean_int(row.get("tmdb_id")) for row in rows if self.clean_int(row.get("tmdb_id"))))
+        self._loadTmdbMovieDetailsCache(ids)
         self._update_tmdb = dict(zip(ids, self.tmdbExecutor().map(self.tmdbForUpdate, ids)))
 
     def tmdbForUpdate(self, tmdb_id):
         if tmdb_id in self._update_tmdb:
             return self._update_tmdb[tmdb_id]
         try:
-            return self.tmdbGet(f"movie/{tmdb_id}", {"append_to_response": "external_ids,videos"}, allow_missing=True)
+            return self.tmdbMovieDetails(tmdb_id, allow_missing=True)
         except DataflowRequestError:
             self.trace_note(f"provider_unavailable | source=tmdb | tmdb={tmdb_id}")
             return {}
+
+    def _loadTmdbMovieDetailsCache(self, tmdb_ids):
+        ids = sorted({int(value) for value in tmdb_ids if self.clean_int(value) and self.clean_int(value) > 0})
+        with self._request_context.tmdb_movie_cache_lock:
+            missing = [value for value in ids if value not in self._tmdb_movie_cache_loaded_ids]
+            if not missing or self._request_context.tmdb_movie_cache_unavailable:
+                return
+            try:
+                with self._request_lock:
+                    if self._request_context.tmdb_movie_details_cache is None:
+                        self._request_context.tmdb_movie_details_cache = TmdbMovieDetailsCache()
+                    cache = self._request_context.tmdb_movie_details_cache
+                rows = cache.read_many(missing)
+                with self._request_lock:
+                    self._tmdb_movie_cache_rows.update(rows)
+                    self._request_context.tmdb_movie_cache_loaded_ids.update(missing)
+                    self._request_context.tmdb_movie_cache_persisted_ids.update(rows)
+                    self._tmdb_metrics["tmdb_persistent_cache_rows_loaded"] = self._tmdb_metrics.get("tmdb_persistent_cache_rows_loaded", 0) + len(rows)
+            except Exception as error:
+                with self._request_lock:
+                    self._request_context.tmdb_movie_cache_unavailable = True
+                    self._request_context.tmdb_movie_cache_loaded_ids.update(missing)
+                    self._tmdb_metrics["tmdb_cache_read_failures"] = self._tmdb_metrics.get("tmdb_cache_read_failures", 0) + 1
+                self.trace_note(f"tmdb_cache_read_failed | error={type(error).__name__}")
+
+    def tmdbMovieDetails(self, tmdb_id, *, allow_missing=False, force_refresh=False):
+        movie_id = self.clean_int(tmdb_id)
+        if not movie_id or movie_id <= 0:
+            return {}
+        self._loadTmdbMovieDetailsCache([movie_id])
+        cached = self._tmdb_movie_cache_rows.get(movie_id)
+        if cached and not force_refresh and is_archived_release(cached.get("original_release_date")):
+            data = validate_movie_details(cached.get("payload"), movie_id)
+            if data is not None:
+                key = (f"movie/{movie_id}", tuple(sorted(TMDB_MOVIE_DETAILS_PARAMS.items())))
+                event = {
+                    "outcome": "cached",
+                    "reason": "archived_tmdb_details",
+                    "source": {
+                        "tmdb_id": str(movie_id),
+                        "fetched_at": cached.get("fetched_at"),
+                        "original_release_date": cached.get("original_release_date"),
+                        "response_profile": cached.get("response_profile"),
+                        "cache_format_version": cached.get("cache_format_version"),
+                    },
+                }
+                with self._request_lock:
+                    persisted_hit = movie_id in self._tmdb_movie_cache_persisted_ids
+                    if persisted_hit:
+                        self._tmdb_metrics["tmdb_persistent_detail_hits"] = self._tmdb_metrics.get("tmdb_persistent_detail_hits", 0) + 1
+                    else:
+                        self._tmdb_metrics["tmdb_run_cache_detail_hits"] = self._tmdb_metrics.get("tmdb_run_cache_detail_hits", 0) + 1
+                    self._tmdb_metrics.setdefault("tmdb_archived_movie_ids", set()).add(movie_id)
+                    prior = self._request_context.tmdb_observations.get(key)
+                    if persisted_hit or prior is None:
+                        self._request_context.tmdb_observations[key] = event
+                return copy.deepcopy(data)
+        return self.tmdbGet(f"movie/{movie_id}", TMDB_MOVIE_DETAILS_PARAMS, allow_missing=allow_missing)
+
+    def _saveTmdbMovieDetails(self, data, key):
+        try:
+            movie_id = self.clean_int(data.get("id"))
+            if not movie_id:
+                return
+            valid = validate_movie_details(data, movie_id)
+            if valid is None:
+                raise ValueError("incomplete canonical TMDb details response")
+            with self._request_lock:
+                if self._request_context.tmdb_movie_details_cache is None:
+                    self._request_context.tmdb_movie_details_cache = TmdbMovieDetailsCache()
+                cache = self._request_context.tmdb_movie_details_cache
+                event = self._request_context.tmdb_observations.get(key) or {}
+            row = cache.write(movie_id, valid, fetched_at=event.get("checked_at"))
+            with self._request_lock:
+                self._tmdb_movie_cache_rows[movie_id] = {
+                    "payload": valid,
+                    "original_release_date": row.get("original_release_date"),
+                    "fetched_at": row.get("fetched_at"),
+                    "response_profile": TMDB_DETAILS_RESPONSE_PROFILE,
+                    "cache_format_version": TMDB_DETAILS_CACHE_FORMAT_VERSION,
+                }
+                self._tmdb_movie_cache_loaded_ids.add(movie_id)
+                self._tmdb_movie_cache_persisted_ids.discard(movie_id)
+                self._tmdb_metrics["tmdb_cache_writes"] = self._tmdb_metrics.get("tmdb_cache_writes", 0) + 1
+                if is_archived_release(row.get("original_release_date")):
+                    self._tmdb_metrics.setdefault("tmdb_archived_movie_ids", set()).add(movie_id)
+        except Exception as error:
+            with self._request_lock:
+                self._tmdb_metrics["tmdb_cache_write_failures"] = self._tmdb_metrics.get("tmdb_cache_write_failures", 0) + 1
+            self.trace_note(f"tmdb_cache_write_failed | error={type(error).__name__}")
 
     def updateProviders(self, new_row, existing, tmdb_id):
         self._provider_executor = self._request_context.get_provider_executor()

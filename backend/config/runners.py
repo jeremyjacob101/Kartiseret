@@ -1,5 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED, as_completed
-from supabase import create_client
+from backend.utils.log.job_lease import create_client
 from types import SimpleNamespace
 import logging, time, os, queue
 
@@ -11,16 +11,24 @@ from rich.text import Text
 
 from backend.utils.console.progressBars import RunResult, RichRunUI
 from backend.config.registry import DATAFLOW_REGISTRY, POST_STAGE_DATAFLOW_CLASS_NAMES, REGISTRY
+from backend.scraping.BaseCinema import BaseCinema
 from backend.utils.log.artifact_logging import artifactPrinting
+from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+from backend.utils.log.cloudflare_storage import LeaseLostError
 from backend.config.scrape_scheduler import optimal_assignment, duration_to_milliseconds, WORKER_COUNT
 from backend.dataflow.utils.DataflowRequests import DataflowRequestContext
 from backend.dataflow.utils.PublicationWorkspace import CATEGORY_KEYS, publication_scope
 from backend.dataflow.utils.InitializeBaseDataflow import logSuccessfulRun
+from backend.utils.util_avg_time_history import current_weekday, load_recent_averages
 
 DEFAULT_PLAN: list[tuple[str, str]] = [("cinema", "allSoons"), ("cinema", "allShowtimes"), ("cinema", "allTheques"), ("dataflow", "comingSoonsData"), ("dataflow", "nowPlayingData"), ("dataflow", "cinemathequeData")]
 RUNNING_NON_INTERACTIVE = os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("JJ_INTEL_MAC_DAILY_RUN") == "true" or os.environ.get("JJ_INTEL_MAC_WEEKLY_RUN") == "true"
 
-cinemaDictionary = {"registry": REGISTRY, "make_instance": lambda cls, key, run_id, _context=None: cls(cinema_type=key, supabase_table_name=key, run_id=run_id), "run_instance": lambda inst: inst.scrape(), "cleanup": lambda instance: (instance.driver.quit() if instance and getattr(instance, "driver", None) else None), "count_label": "Scrapers", "mode": "parallel", "total_strategy": "max", "overall_task_name": "Scrape", "get_item_name": lambda cls: getattr(cls, "CINEMA_NAME", cls.__name__)}
+
+def _is_r2_budget_error(error: BaseException) -> bool:
+    return isinstance(error, (R2BudgetError, R2BudgetExceeded, LeaseLostError))
+
+cinemaDictionary = {"registry": REGISTRY, "make_instance": lambda cls, key, run_id, _context=None: cls(cinema_type=key, supabase_table_name=key, run_id=run_id), "run_instance": lambda inst: inst.scrape(), "cleanup": lambda instance: (instance.driver.quit() if instance and getattr(instance, "driver", None) else None), "count_label": "Scrapers", "mode": "parallel", "total_strategy": "max", "overall_task_name": "Scrape", "show_transport": True, "get_item_name": lambda cls: getattr(cls, "CINEMA_NAME", cls.__name__)}
 dataflowDictionary = {"registry": DATAFLOW_REGISTRY, "make_instance": lambda cls, _key, run_id, context=None: cls(run_id=run_id, **({"request_context": context} if context is not None and cls.__name__ != "TicketAlertDispatcher" else {})), "run_instance": lambda inst: inst.dataRun(), "cleanup": lambda instance: (instance.driver.quit() if instance and getattr(instance, "driver", None) else None), "count_label": "Dataflows", "mode": "sequential", "total_strategy": "sum", "overall_task_name": "Dataflow", "get_item_name": lambda cls: cls.__name__}
 
 
@@ -30,9 +38,18 @@ def _run_attempt(spec, cls: type, key: str, run_id: int, attempt: int, request_c
         instance = spec.make_instance(cls, key, run_id, request_context)
         instance._artifact_item_name = cls.__name__
         instance._artifact_attempt = attempt
+        callback = getattr(spec, 'on_transport_change', None)
+        if callback:
+            start_weekday = getattr(instance, '_timing_weekday', None) or current_weekday()
+            instance._timing_transport_callback = lambda transport, elapsed: callback(cls, transport, elapsed, start_weekday)
         spec.run_instance(instance)
         ok = True
-    except Exception:
+    except Exception as error:
+        if _is_r2_budget_error(error):
+            # Do not make further R2 calls while reporting an exhausted or
+            # unavailable budget. Let the job supervisor fail the whole run.
+            attempt_failed = True
+            raise
         attempt_failed = True
         artifactPrinting(instance, run_id, item_name=cls.__name__, attempt=attempt)
     finally:
@@ -50,29 +67,49 @@ def _run_attempt(spec, cls: type, key: str, run_id: int, attempt: int, request_c
     return RunResult(name=cls.__name__, secs=time.time() - starting_time, ok=ok, attempts=attempt)
 
 
-def _average_times(classes: list[type]) -> dict[str, float]:
+def _preferred_timing_transport(cls: type) -> str:
+    if not issubclass(cls, BaseCinema):
+        return 'legacy'
+    mode = cls.DEFAULT_SCRAPE_MODE or ('selenium' if cls.USES_BROWSER else 'auto')
+    return 'requests' if mode in ('auto', 'requests') else 'selenium'
+
+
+def _average_times(classes: list[type], *, transport: str | None = None, weekday: str | None = None) -> dict[str, float]:
     averages: dict[str, float] = {}
     url, service_key = os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     machine = os.environ.get("RUNNER_MACHINE")
     if not url or not service_key or not machine or not classes:
         return averages
     try:
-        response = create_client(url, service_key).table("utilAvgTime").select(
-            f"name,avg_time_{machine}"
-        ).in_("name", [cls.__name__ for cls in classes]).execute()
-        for row in response.data or []:
-            name, value = row.get("name"), row.get(f"avg_time_{machine}")
-            if name:
-                try:
-                    parsed = float(value)
-                    if parsed > 0 and parsed < float("inf"):
-                        averages[name] = parsed
-                except (TypeError, ValueError, OverflowError):
-                    pass
+        client, weekday = create_client(url, service_key), weekday or current_weekday()
+        groups = {}
+        for cls in classes:
+            groups.setdefault(transport or _preferred_timing_transport(cls), []).append(cls.__name__)
+        for selected, names in groups.items():
+            averages.update(load_recent_averages(client, names, machine, weekday, transport=selected))
     except Exception:
         # Missing timing history must not prevent a run.
         return {}
     return averages
+
+
+def _transport_estimate(cls, transport, elapsed, preferred_estimates, cache, *, weekday=None, preferred_weekday=None):
+    if transport == _preferred_timing_transport(cls) and (weekday is None or weekday == preferred_weekday):
+        return preferred_estimates.get(cls.__name__) or 60.0
+
+    def history(selected):
+        key = (cls, selected, weekday)
+        if key not in cache:
+            options = {'weekday': weekday} if weekday is not None else {}
+            cache[key] = _average_times([cls], transport=selected, **options).get(cls.__name__)
+        return cache[key]
+
+    estimate = history(transport)
+    if estimate is not None:
+        return estimate
+    if transport == 'requests_selenium_fallback':
+        return elapsed + (history('selenium') or 60.0)
+    return 60.0
 
 
 def _run_scheduled_scrapes(items: list[tuple[str, type]], run_id: int, *, console: Console) -> bool:
@@ -82,7 +119,8 @@ def _run_scheduled_scrapes(items: list[tuple[str, type]], run_id: int, *, consol
 
     classes = [cls for _key, cls in items]
     key_by_class = {cls: key for key, cls in items}
-    avg_by_name = _average_times(classes)
+    history_weekday = current_weekday()
+    avg_by_name = _average_times(classes, weekday=history_weekday)
     durations = [duration_to_milliseconds(avg_by_name.get(cls.__name__)) for cls in classes]
     pending = list(range(len(items)))
     attempts = [0] * len(items)
@@ -93,12 +131,16 @@ def _run_scheduled_scrapes(items: list[tuple[str, type]], run_id: int, *, consol
     # _run_attempt uses the attribute-based runner-spec interface used by
     # runGroup. Keep the shared scheduler on that same interface.
     scrape_spec = SimpleNamespace(**cinemaDictionary)
+    transport_events = queue.SimpleQueue()
+    transport_cache = {}
+    scrape_spec.on_transport_change = lambda cls, selected, elapsed, weekday=None: transport_events.put((cls, selected, elapsed, weekday))
 
     ui_spec = SimpleNamespace(
         count_label="Scrapers",
         mode="parallel",
         total_strategy="max",
         overall_task_name="Scrape",
+        show_transport=True,
         get_item_name=lambda cls: getattr(cls, "CINEMA_NAME", cls.__name__),
     )
     ui = RichRunUI(
@@ -158,6 +200,19 @@ def _run_scheduled_scrapes(items: list[tuple[str, type]], run_id: int, *, consol
         with ThreadPoolExecutor(max_workers=WORKER_COUNT) as executor:
             recalculate(list(range(WORKER_COUNT)))
             while active or pending:
+                changed = False
+                while not transport_events.empty():
+                    cls, selected, elapsed, weekday = transport_events.get_nowait()
+                    ui.set_item_transport(cls, selected)
+                    estimate = _transport_estimate(cls, selected, elapsed, avg_by_name, transport_cache, weekday=weekday, preferred_weekday=history_weekday)
+                    index = classes.index(cls)
+                    duration = duration_to_milliseconds(estimate)
+                    if durations[index] != duration:
+                        durations[index] = duration
+                        ui.set_item_estimate(cls, estimate)
+                        changed = True
+                if changed:
+                    recalculate([])
                 ui.tick()
                 done_futures, _ = wait(active, timeout=0.2, return_when=FIRST_COMPLETED)
                 if not done_futures:
@@ -200,6 +255,7 @@ def _run_shared_update_round(entries, run_id: int, attempt: int, context: Datafl
 
     flows, targets, updated = {}, {}, {}
     failures: dict[type, bool] = {}
+    budget_error: Exception | None = None
 
     for key, cls in entries:
         flow = None
@@ -210,7 +266,12 @@ def _run_shared_update_round(entries, run_id: int, attempt: int, context: Datafl
             flows[cls] = flow
             with publication_scope(getattr(flow, "_publication", None)):
                 targets[cls] = flow.beginSharedUpdate()
-        except Exception:
+        except Exception as error:
+            if _is_r2_budget_error(error):
+                budget_error = error
+                failures[cls] = True
+                record_result(cls, False)
+                continue
             artifactPrinting(flow, run_id, item_name=cls.__name__, attempt=attempt)
             failures[cls] = True
             if flow is not None:
@@ -225,7 +286,7 @@ def _run_shared_update_round(entries, run_id: int, attempt: int, context: Datafl
     shared_tmdb = {}
     imdb_ratings = {}
 
-    if viable and all_target_rows:
+    if viable and all_target_rows and budget_error is None:
         try:
             flows[viable[0]].prepareUpdateTmdb(all_target_rows)
             shared_tmdb = flows[viable[0]]._update_tmdb
@@ -240,42 +301,54 @@ def _run_shared_update_round(entries, run_id: int, attempt: int, context: Datafl
                 flows[cls]._imdb_ratings = imdb_ratings
                 if ratings_entries:
                     flows[cls]._imdb_observation = getattr(flows[ratings_entries[0]], "_imdb_observation", None)
-        except Exception:
-            for cls in viable:
-                artifactPrinting(flows[cls], run_id, item_name=cls.__name__, attempt=attempt)
-                failures[cls] = True
-                try:
-                    flows[cls].flush_summary(successful=False)
-                except Exception:
-                    pass
-                record_result(cls, False)
+        except Exception as error:
+            if _is_r2_budget_error(error):
+                budget_error = error
+                failures.update({cls: True for cls in viable})
+                for cls in viable:
+                    record_result(cls, False)
+            else:
+                for cls in viable:
+                    artifactPrinting(flows[cls], run_id, item_name=cls.__name__, attempt=attempt)
+                    failures[cls] = True
+                    try:
+                        flows[cls].flush_summary(successful=False)
+                    except Exception:
+                        pass
+                    record_result(cls, False)
 
     def finish_category(cls):
+        nonlocal budget_error
         try:
             with publication_scope(getattr(flows[cls], "_publication", None)):
                 flows[cls].finishSharedUpdate(len(targets.get(cls, [])), updated[cls])
                 flows[cls].finishSharedDataRun(successful=True)
-        except Exception:
-            artifactPrinting(flows[cls], run_id, item_name=cls.__name__, attempt=attempt)
+        except Exception as error:
             failures[cls] = True
-            try:
-                flows[cls].flush_summary(successful=False)
-            except Exception:
-                pass
+            if _is_r2_budget_error(error):
+                budget_error = error
+            else:
+                artifactPrinting(flows[cls], run_id, item_name=cls.__name__, attempt=attempt)
+                try:
+                    flows[cls].flush_summary(successful=False)
+                except Exception:
+                    pass
         record_result(cls, cls not in failures)
 
-    if viable and not any(cls in failures for cls in viable):
+    if viable and budget_error is None and not any(cls in failures for cls in viable):
         updated = {cls: [] for cls in viable}
         row_jobs = [(cls, row) for cls in viable for row in targets.get(cls, [])]
         remaining = {cls: len(targets.get(cls, [])) for cls in viable}
         for cls in viable:
+            if budget_error is not None:
+                break
             if remaining[cls] == 0:
                 finish_category(cls)
         if row_jobs:
             with ThreadPoolExecutor(max_workers=5) as executor:
                 future_to_item = {executor.submit(flows[cls].process_row, row): (cls, row) for cls, row in row_jobs}
                 pending = set(future_to_item)
-                while pending:
+                while pending and budget_error is None:
                     done_futures, _ = wait(pending, timeout=0.2, return_when=FIRST_COMPLETED)
                     if on_progress:
                         on_progress()
@@ -287,12 +360,22 @@ def _run_shared_update_round(entries, run_id: int, attempt: int, context: Datafl
                             if result:
                                 updated[cls].append(result)
                         except Exception as error:
+                            if _is_r2_budget_error(error):
+                                budget_error = error
+                                for pending_future in pending:
+                                    pending_future.cancel()
+                                break
                             flows[cls].trace_note(f"row_update_failed | error={type(error).__name__}")
                         remaining[cls] -= 1
-                        if remaining[cls] == 0:
+                        if remaining[cls] == 0 and budget_error is None:
                             # Finalize only this category; other categories keep
                             # using the shared provider cache and worker pool.
                             finish_category(cls)
+                    if budget_error is not None:
+                        break
+
+    if budget_error is not None:
+        failures.update({cls: True for cls in viable})
 
     for _key, cls in entries:
         flow = flows.get(cls)
@@ -307,6 +390,8 @@ def _run_shared_update_round(entries, run_id: int, attempt: int, context: Datafl
             flow.closeDataflowRequests()
         except Exception:
             pass
+    if budget_error is not None:
+        raise budget_error
     return results
 
 
@@ -394,6 +479,9 @@ def runGroup(kind: str, key: str, run_id: int, *, classes_override: list[type] |
         return {} if return_results else True
 
     attempt_events: "queue.SimpleQueue[tuple]" = queue.SimpleQueue()
+    transport_cache = {}
+    if kind == 'cinema':
+        spec.on_transport_change = lambda cls, selected, elapsed, weekday=None: attempt_events.put(('transport', cls, selected, elapsed, weekday))
 
     def run_one(cls: type) -> RunResult:
         total_secs, last_attempt, ok = 0.0, 0, False
@@ -417,7 +505,12 @@ def runGroup(kind: str, key: str, run_id: int, *, classes_override: list[type] |
             except queue.Empty:
                 return
 
-            evt_type, item, attempt, started_at = evt
+            evt_type, item, attempt, started_at = evt[:4]
+            if evt_type == 'transport':
+                ui.set_item_transport(item, attempt)
+                estimate = _transport_estimate(item, attempt, started_at, avg_by_name, transport_cache, weekday=evt[4], preferred_weekday=history_weekday)
+                ui.set_item_estimate(item, estimate)
+                continue
             if evt_type == "attempt_start":
                 if attempt == 1:
                     ui.start_item(item, attempt=attempt, started_at=started_at)
@@ -447,22 +540,8 @@ def runGroup(kind: str, key: str, run_id: int, *, classes_override: list[type] |
     # LOCAL MACHINE LOGIC
     if not RUNNING_NON_INTERACTIVE:
         FALLBACK = 60.0
-        avg_by_name: dict[str, float] = {}
-
-        url, svc_key = os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-        avg_time_col = "avg_time_" + str(os.environ.get("RUNNER_MACHINE"))
-        if url and svc_key:
-            table, name_col, time_col = "utilAvgTime", "name", f"{avg_time_col}"
-            class_names = [cls.__name__ for cls in classes]
-            sb = create_client(url, svc_key)
-            resp = sb.table(table).select(f"{name_col},{time_col}").in_(name_col, class_names).execute()
-
-            rows = resp.data or []
-            for row in rows:
-                k = row.get(name_col)
-                value = float(row.get(time_col) or 0.0)
-                if value > 0:
-                    avg_by_name[k] = value
+        history_weekday = current_weekday()
+        avg_by_name = _average_times(classes, weekday=history_weekday)
 
         results: list[RunResult] = []
 
@@ -574,6 +653,7 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
         if getattr(cls, "MAIN_TABLE_NAME", None)
     )
     failed_categories: set[str] = set()
+    catalog_publication_committed = False
     try:
         if scrape_items:
             console.print(Panel.fit(Text("Scrape", style="bold"), border_style="grey37"))
@@ -634,6 +714,12 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
                 if publication is not None:
                     try:
                         publication.commit()
+                        if key in {
+                            "nowPlayingData",
+                            "comingSoonsData",
+                            "cinemathequeData",
+                        }:
+                            catalog_publication_committed = True
                         console.print(
                             Panel.fit(
                                 Text(f"{key} publication committed", style="green"),
@@ -654,6 +740,11 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
                         failed_categories.add(key)
                         overall_ok = False
             console.print()
+
+        if catalog_publication_committed:
+            from backend.dataflow.social_previews import refresh_configured_social_previews
+
+            refresh_configured_social_previews()
 
         # Notification dispatchers run after selected updates commit, but can
         # also run alone against the already-published catalog.

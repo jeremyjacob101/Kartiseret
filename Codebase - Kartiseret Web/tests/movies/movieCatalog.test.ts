@@ -1,0 +1,279 @@
+import type { Movie, ShowtimeRow } from "../../src/data/movieCatalog";
+import { ticketAlertQueryKeys } from "../../src/data/ticketAlerts";
+import { afterAll, describe, expect, it, vi } from "vitest";
+import { QueryClient } from "@tanstack/react-query";
+
+vi.useFakeTimers();
+vi.setSystemTime(new Date("2026-09-16T16:30:00.000Z"));
+
+const {
+  fixedAppDateString,
+  invalidateAdminMovieEditQueries,
+  mergeShowtimeCityData,
+  movieCatalogQueryKeys,
+} = await import("../../src/data/movieCatalog");
+
+afterAll(() => {
+  vi.useRealTimers();
+});
+
+function addDay(date: string): string {
+  const value = new Date(`${date}T12:00:00.000Z`);
+  value.setUTCDate(value.getUTCDate() + 1);
+  return value.toISOString().slice(0, 10);
+}
+
+function createMovie(tmdbId = "101"): Movie {
+  return {
+    tmdbId,
+    movieCode: "Ab1",
+    title: "Test Movie",
+    year: 2026,
+    genres: ["Drama"],
+    imageSrc: "/poster.jpg",
+    imdbRating: null,
+    lbRating: null,
+    lbVotes: null,
+    tmdbRating: null,
+    tmdbVotes: null,
+    rtCriticRating: null,
+    rtCriticVotes: null,
+    rtAudienceRating: null,
+    rtAudienceVotes: null,
+    runtime: 100,
+    popularity: 10,
+    altOptions: [],
+  };
+}
+
+function createShowtimeRow(
+  date: string,
+  overrides: Partial<ShowtimeRow> = {},
+): ShowtimeRow {
+  return {
+    tmdbId: "101",
+    screeningCity: "Jerusalem",
+    dateOfShowing: date,
+    cinema: "Cinema City",
+    showtime: "20:00",
+    englishHref: "https://example.test/tickets",
+    hebrewHref: null,
+    screeningTech: "2D",
+    screeningType: "Regular",
+    dubLanguage: null,
+    ...overrides,
+  };
+}
+
+describe("movie catalog query keys", () => {
+  it("includes every showtime request dimension and normalizes no movie id", () => {
+    expect(
+      movieCatalogQueryKeys.showtimeRange({
+        city: "Jerusalem",
+        startDate: "2026-08-23",
+        endDate: "2026-09-06",
+      }),
+    ).toEqual([
+      "movieCatalog",
+      "showtimes",
+      "ranges",
+      {
+        city: "Jerusalem",
+        startDate: "2026-08-23",
+        endDate: "2026-09-06",
+        tmdbId: null,
+      },
+    ]);
+
+    expect(
+      movieCatalogQueryKeys.showtimeRange({
+        city: "Haifa",
+        startDate: "2026-08-25",
+        endDate: "2026-08-25",
+        tmdbId: "101",
+      }),
+    ).toEqual([
+      "movieCatalog",
+      "showtimes",
+      "ranges",
+      {
+        city: "Haifa",
+        startDate: "2026-08-25",
+        endDate: "2026-08-25",
+        tmdbId: "101",
+      },
+    ]);
+
+    expect(
+      movieCatalogQueryKeys.showtimeRange({
+        city: "Jerusalem",
+        startDate: "2026-08-23",
+        endDate: "2026-08-23",
+        tmdbId: "   ",
+      })[3].tmdbId,
+    ).toBeNull();
+  });
+});
+
+describe("showtime city cache merging", () => {
+  it("uses the request render date and instant when projecting SSR showtimes", () => {
+    const movie = createMovie();
+    const renderDate = "2026-11-03";
+    const data = mergeShowtimeCityData(undefined, {
+      city: "Jerusalem",
+      todayDate: renderDate,
+      renderInstant: new Date("2026-11-03T10:30:00.000Z"),
+      dates: [renderDate],
+      movies: [movie],
+      rows: [
+        createShowtimeRow(renderDate, { showtime: "10:00" }),
+        createShowtimeRow(renderDate, { showtime: "13:00" }),
+      ],
+      scope: "broad",
+      visibleDayCount: 1,
+    });
+
+    expect(data.broadLoadedDayCount).toBe(1);
+    expect(
+      data.movieShowtimesByTmdbId[
+        movie.tmdbId
+      ]?.[0]?.theaters[0]?.showtimes.map(({ time }) => time),
+    ).toEqual(["13:00"]);
+  });
+
+  it("keeps targeted readiness separate and merges rows idempotently", () => {
+    const movie = createMovie();
+    const todayRow = createShowtimeRow(fixedAppDateString);
+    const targeted = mergeShowtimeCityData(undefined, {
+      city: "Jerusalem",
+      dates: [fixedAppDateString],
+      movies: [movie],
+      rows: [todayRow],
+      scope: { tmdbId: movie.tmdbId },
+      visibleDayCount: 1,
+    });
+
+    expect(targeted.broadReady).toBe(false);
+    expect(targeted.broadLoadedDayCount).toBe(0);
+    expect(targeted.broadVisibleDayCount).toBe(0);
+    expect(targeted.targetedFetchedDatesByTmdbId[movie.tmdbId]).toEqual([
+      fixedAppDateString,
+    ]);
+
+    const broad = mergeShowtimeCityData(targeted, {
+      city: "Jerusalem",
+      dates: [fixedAppDateString, addDay(fixedAppDateString)],
+      movies: [movie],
+      rows: [todayRow, createShowtimeRow(addDay(fixedAppDateString))],
+      scope: "broad",
+      visibleDayCount: 2,
+    });
+
+    expect(broad.broadReady).toBe(true);
+    expect(broad.broadLoadedDayCount).toBe(2);
+    expect(broad.broadVisibleDayCount).toBe(2);
+    expect(Object.keys(broad.rowsByKey)).toHaveLength(2);
+    expect(broad.movieShowtimesByTmdbId[movie.tmdbId]).toHaveLength(2);
+  });
+
+  it("does not mistake an arbitrary future jump for contiguous coverage", () => {
+    const movie = createMovie();
+    const tomorrow = addDay(fixedAppDateString);
+    const futureDate = addDay(tomorrow);
+    const cache = mergeShowtimeCityData(undefined, {
+      city: "Jerusalem",
+      dates: [futureDate],
+      movies: [movie],
+      rows: [createShowtimeRow(futureDate)],
+      scope: "broad",
+      visibleDayCount: 3,
+    });
+
+    expect(cache.broadReady).toBe(true);
+    expect(cache.broadLoadedDayCount).toBe(0);
+    expect(cache.broadFetchedDates).toEqual([futureDate]);
+  });
+
+  it("replaces a fetched range so server-side updates and deletions do not linger", () => {
+    const movie = createMovie();
+    const initial = mergeShowtimeCityData(undefined, {
+      city: "Jerusalem",
+      dates: [fixedAppDateString],
+      movies: [movie],
+      rows: [createShowtimeRow(fixedAppDateString)],
+      scope: "broad",
+      visibleDayCount: 1,
+    });
+    const refreshed = mergeShowtimeCityData(initial, {
+      city: "Jerusalem",
+      dates: [fixedAppDateString],
+      movies: [movie],
+      rows: [
+        createShowtimeRow(fixedAppDateString, {
+          englishHref: "https://example.test/updated",
+        }),
+      ],
+      scope: "broad",
+      visibleDayCount: 1,
+    });
+
+    expect(Object.keys(refreshed.rowsByKey)).toHaveLength(1);
+    expect(
+      refreshed.movieShowtimesByTmdbId[movie.tmdbId]?.[0]?.theaters[0]
+        ?.showtimes[0]?.href,
+    ).toBe("https://example.test/updated");
+  });
+});
+
+describe("admin invalidation", () => {
+  it("invalidates now-playing and resets every showtime cache without touching coming soon", async () => {
+    const client = new QueryClient();
+    const cityKey = movieCatalogQueryKeys.showtimeCity("Jerusalem");
+    const rangeKey = movieCatalogQueryKeys.showtimeRange({
+      city: "Jerusalem",
+      startDate: fixedAppDateString,
+      endDate: fixedAppDateString,
+    });
+
+    client.setQueryData(movieCatalogQueryKeys.collection("nowPlaying"), {});
+    client.setQueryData(movieCatalogQueryKeys.collection("comingSoon"), {});
+    client.setQueryData(cityKey, {});
+    client.setQueryData(rangeKey, []);
+    const availabilityKey = ticketAlertQueryKeys.availability(
+      "101",
+      fixedAppDateString,
+    );
+    const subscriptionsKey = ticketAlertQueryKeys.subscriptions("user-a");
+    client.setQueryData(availabilityKey, []);
+    client.setQueryData(subscriptionsKey, []);
+
+    await invalidateAdminMovieEditQueries(client, "nowPlaying", "none");
+
+    expect(
+      client.getQueryState(movieCatalogQueryKeys.collection("nowPlaying"))
+        ?.isInvalidated,
+    ).toBe(true);
+    expect(client.getQueryData(cityKey)).toBeUndefined();
+    expect(client.getQueryData(rangeKey)).toBeUndefined();
+    expect(client.getQueryState(availabilityKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(subscriptionsKey)?.isInvalidated).toBe(false);
+    expect(
+      client.getQueryState(movieCatalogQueryKeys.collection("comingSoon"))
+        ?.isInvalidated,
+    ).toBe(false);
+  });
+
+  it("keeps coming-soon invalidation scoped to its collection", async () => {
+    const client = new QueryClient();
+    const comingSoonKey = movieCatalogQueryKeys.collection("comingSoon");
+    const cityKey = movieCatalogQueryKeys.showtimeCity("Jerusalem");
+
+    client.setQueryData(comingSoonKey, {});
+    client.setQueryData(cityKey, {});
+
+    await invalidateAdminMovieEditQueries(client, "comingSoon", "none");
+
+    expect(client.getQueryState(comingSoonKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(cityKey)?.isInvalidated).toBe(false);
+  });
+});

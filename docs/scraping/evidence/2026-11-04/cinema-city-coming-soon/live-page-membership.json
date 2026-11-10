@@ -1,0 +1,253 @@
+{
+  "observed_at": "2026-11-04T16:45:23Z",
+  "source_request_started_at": "2026-11-04T16:30:17.782792+00:00",
+  "live_page": {
+    "url": "https://www.cinema-city.co.il/movie-categories/coming-soon",
+    "cards_after_expansion": 69,
+    "unique_card_ids": 69,
+    "show_more_button_after_expansion": false,
+    "card_ids": [
+      "6532",
+      "6673",
+      "6568",
+      "6672",
+      "6120",
+      "6632",
+      "6676",
+      "6602",
+      "6635",
+      "6425",
+      "6076",
+      "6588",
+      "6631",
+      "6305",
+      "6653",
+      "6670",
+      "6597",
+      "6660",
+      "6460",
+      "6686",
+      "6687",
+      "6628",
+      "6690",
+      "6650",
+      "6544",
+      "6543",
+      "6689",
+      "6666",
+      "6655",
+      "6023",
+      "6024",
+      "6633",
+      "6658",
+      "6598",
+      "6691",
+      "6694",
+      "6595",
+      "6626",
+      "6688",
+      "6540",
+      "6539",
+      "6579",
+      "6669",
+      "6661",
+      "6551",
+      "6634",
+      "6106",
+      "6677",
+      "6586",
+      "6580",
+      "6693",
+      "6587",
+      "6648",
+      "6657",
+      "6656",
+      "6536",
+      "6535",
+      "6664",
+      "6692",
+      "6678",
+      "6663",
+      "6567",
+      "6538",
+      "6537",
+      "6554",
+      "6681",
+      "6682",
+      "6574",
+      "6590"
+    ]
+  },
+  "source_catalog": {
+    "collection": "SyncFeatures",
+    "complete_total": 139,
+    "future_release_count": 87,
+    "future_without_presentations_count": 69,
+    "candidate_card_id_set_matches_live_page": true,
+    "pre_title_filter_candidate_ids": [
+      "6023",
+      "6024",
+      "6076",
+      "6106",
+      "6120",
+      "6305",
+      "6425",
+      "6460",
+      "6532",
+      "6535",
+      "6536",
+      "6537",
+      "6538",
+      "6539",
+      "6540",
+      "6543",
+      "6544",
+      "6551",
+      "6554",
+      "6567",
+      "6568",
+      "6574",
+      "6579",
+      "6580",
+      "6586",
+      "6587",
+      "6588",
+      "6590",
+      "6595",
+      "6597",
+      "6598",
+      "6602",
+      "6626",
+      "6628",
+      "6631",
+      "6632",
+      "6633",
+      "6634",
+      "6635",
+      "6648",
+      "6650",
+      "6653",
+      "6655",
+      "6656",
+      "6657",
+      "6658",
+      "6660",
+      "6661",
+      "6663",
+      "6664",
+      "6666",
+      "6669",
+      "6670",
+      "6672",
+      "6673",
+      "6676",
+      "6677",
+      "6678",
+      "6681",
+      "6682",
+      "6686",
+      "6687",
+      "6688",
+      "6689",
+      "6690",
+      "6691",
+      "6692",
+      "6693",
+      "6694"
+    ]
+  },
+  "legacy_title_filter": {
+    "excluded_count": 15,
+    "excluded_ids_and_titles": [
+      {
+        "id": "6024",
+        "title": "חתול תעלול-מדובב"
+      },
+      {
+        "id": "6535",
+        "title": "עידן הקרח: חם אש-מדובב"
+      },
+      {
+        "id": "6537",
+        "title": "גאטו-מדובב"
+      },
+      {
+        "id": "6539",
+        "title": "אנגרי בירדס 3-מדובב"
+      },
+      {
+        "id": "6543",
+        "title": "הקס: עולם מכושף-מדובב"
+      },
+      {
+        "id": "6574",
+        "title": "בלואי הסרט-מדובב"
+      },
+      {
+        "id": "6634",
+        "title": "ג'ומנג'י: הבריחה הגדולה-מדובב לרוסית"
+      },
+      {
+        "id": "6635",
+        "title": "איך לשדוד בנק-מדובב לרוסית"
+      },
+      {
+        "id": "6653",
+        "title": "סודות פארק הדינוזאורים-מדובב"
+      },
+      {
+        "id": "6655",
+        "title": "הקרב על הבית-מדובב"
+      },
+      {
+        "id": "6663",
+        "title": "משתגעים על משפחת דינו-מדובב"
+      },
+      {
+        "id": "6666",
+        "title": "הקסם הצפוני-מדובב"
+      },
+      {
+        "id": "6682",
+        "title": "שרק 5-מדובב"
+      },
+      {
+        "id": "6686",
+        "title": "פגוש את הכלה-מדובב לרוסית"
+      },
+      {
+        "id": "6689",
+        "title": "הקס: עולם מכושף-מדובב לרוסית"
+      }
+    ],
+    "included_count": 54,
+    "request_output_title_multiset_matches_filtered_catalog": true
+  },
+  "output_parity": {
+    "requests_rows": 54,
+    "selenium_detail_pages_checked": 54,
+    "exact_detail_field_matches": 54,
+    "mismatches": [],
+    "compared_fields": [
+      "hebrew_title",
+      "english_title",
+      "runtime",
+      "rating",
+      "release_date"
+    ]
+  },
+  "timing_seconds": {
+    "requests_complete_collection": 0.6704717079992406,
+    "selenium_detail_pages_only": 15.217551208974328,
+    "note": "Selenium figure covers the 54 detail-page checks, not browser startup or list pagination."
+  },
+  "requests_coverage": {
+    "features_expected": 139,
+    "features_upcoming_expected": 87,
+    "features_collected": 54,
+    "features_skipped_before_today": 52,
+    "features_skipped_with_presentations": 18,
+    "features_skipped_by_title": 15,
+    "collection_pages": 1
+  }
+}

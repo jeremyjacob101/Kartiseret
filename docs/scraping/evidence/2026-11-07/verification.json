@@ -1,0 +1,18 @@
+{
+  "backend": {
+    "command": "PYTHONPATH=/private/tmp/kartiseret-test-deps python -m unittest discover -s backend/tests -q",
+    "tests": 657,
+    "exit_code": 0
+  },
+  "workspace": {
+    "command": "npm run verify",
+    "node": "24.22.2",
+    "web_tests": 604,
+    "server_tests": 157,
+    "database_tests": 99,
+    "database_skipped": 1,
+    "browser_tests": 12,
+    "exit_code": 0
+  },
+  "scope": "Read-only scraper collections; mocked transport tests; disposable local PostgreSQL for database/browser checks. No hosted database writes, publication, notifications or production timing-history updates."
+}

@@ -1,4 +1,5 @@
 from backend.dataflow.BaseDataflow import BaseDataflow
+from backend.dataflow.utils.ArtworkStorage import resolve_tmdb_artwork
 from backend.utils.supabase.clear_old_entries import clear_old_entries
 from backend.utils.supabase.dedupe_all_soons import dedupe_all_soons
 from backend.dataflow.utils.PipelineCheckpoints import PreparedPublication
@@ -100,6 +101,11 @@ class ComingSoonsTmdb(BaseDataflow):
             title_norm = self.normalizeTitle(self.english_title)
             row_key = self.clean_str(row.get("id"))
             identity_key = identity_key_by_row_id.get(row_key, "")
+            self.beginTmdbMatchEvidence(
+                identity_key or row_key,
+                [row],
+                input_fingerprint=fingerprint_by_row_id.get(row_key, ""),
+            )
             if row.get("added") is True and not self.clean_str(row.get("snapshot_id")).strip():
                 self.trace_event("row_filter", "skipped", "already_added", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
                 continue
@@ -122,6 +128,13 @@ class ComingSoonsTmdb(BaseDataflow):
                 self.trace_unresolved(f"skip_token | {self.english_title} | row_id={row.get('id')}")
                 continue
 
+            fix_match = self.tmdbFixMatch(self.english_title, tmdb_fix_by_title)
+            if fix_match and fix_match["conflict"]:
+                self.tmdbFixForTitle(self.english_title, tmdb_fix_by_title)
+                self.protectUnresolvedSnapshot([row], category="comingsoons", identity_key=identity_key)
+                self.trace_event("tmdb_choice", "unresolved", "ambiguous_tmdb_fix", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm})
+                self.trace_unresolved(f"ambiguous_tmdb_fix | title={self.english_title!r} | tier={fix_match['tier']} | fixes={fix_match['titles']!r} | ids={fix_match['ids']!r}")
+                continue
             if override_tmdb := self.tmdbFixForTitle(self.english_title, tmdb_fix_by_title):
                 if str(override_tmdb).lower() in self.skip_tokens:
                     intentional_skip_ids.add(row.get("id"))
@@ -131,6 +144,7 @@ class ComingSoonsTmdb(BaseDataflow):
                 self.potential_chosen_id = override_tmdb
                 self.non_deduplicated_updates.append({"old_uuid": row.get("id"), "run_id": row.get("run_id"), "english_title": self.english_title, "hebrew_title": self.hebrew_title, "release_date": self.release_date, "tmdb_id": override_tmdb, "imdb_id": None, "alt_options": []})
                 self.trace_event("tmdb_choice", "mapped", "tmdb_fix_override", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": override_tmdb})
+                self.finishTmdbMatchEvidence("tmdb_fix_override", "mapped", override_tmdb, chosen_path="tmdb_fix_override", candidate_ids=[])
                 self.processed_ids.add(row.get("id"))
                 continue
 
@@ -148,6 +162,7 @@ class ComingSoonsTmdb(BaseDataflow):
                     if year is not None:
                         params["primary_release_year"] = year
                     response = self.tmdbGet("search/movie", params)
+                    self.recordTmdbSearchResponse(params, response)
                     results = response.get("results") or []
                     if not results:
                         break
@@ -240,6 +255,7 @@ class ComingSoonsTmdb(BaseDataflow):
 
             self.non_deduplicated_updates.append({"old_uuid": row.get("id"), "run_id": row.get("run_id"), "english_title": self.english_title, "hebrew_title": self.hebrew_title, "release_date": self.release_date, "tmdb_id": self.potential_chosen_id, "imdb_id": chosen_imdb, "alt_options": alt_options})
             self.trace_event("tmdb_choice", "mapped", chosen_path or "mapped", key=str(row.get("id") or ""), payload={"title": self.english_title, "title_norm": title_norm, "chosen_tmdb": self.potential_chosen_id})
+            self.finishTmdbMatchEvidence(chosen_path or "mapped", "mapped", self.potential_chosen_id, chosen_path=chosen_path, candidate_ids=self.candidates)
             self.processed_ids.add(row.get("id"))
 
         # 5) DEDUPE BY TMDB ID
@@ -266,7 +282,7 @@ class ComingSoonsTmdb(BaseDataflow):
         for row in self.non_enriched_updates:
             if not (tmdb_id := row.get("tmdb_id")):
                 continue
-            data = self.tmdbGet(f"movie/{tmdb_id}", {"append_to_response": "external_ids,videos"}, allow_missing=True)
+            data = self.tmdbMovieDetails(tmdb_id, allow_missing=True)
             if not isinstance(data, dict) or not data.get("id"):
                 raw_row = next((candidate for candidate in self.latest_snapshot_rows if candidate.get("id") == row.get("old_uuid")), None)
                 if raw_row:
@@ -285,8 +301,7 @@ class ComingSoonsTmdb(BaseDataflow):
             new_row["runtime"] = data["runtime"] if data.get("runtime") else new_row.get("runtime")
             new_row["popularity"] = data["popularity"] if data.get("popularity") is not None else new_row.get("popularity")
             new_row["imdb_id"] = external_ids.get("imdb_id") or new_row.get("imdb_id")
-            new_row["en_poster"] = "https://image.tmdb.org/t/p/w342" + data["poster_path"] if data.get("poster_path") else new_row.get("en_poster")
-            new_row["backdrop"] = "https://image.tmdb.org/t/p/w1280" + data["backdrop_path"] if data.get("backdrop_path") else new_row.get("backdrop")
+            resolve_tmdb_artwork(self, new_row, data)
             new_row["genres"] = genres or new_row.get("genres")
             new_row["en_trailer"] = trailer.get("key") if trailer else new_row.get("en_trailer")
             new_row["release_year"] = data["release_date"][:4] if data.get("release_date") else new_row.get("release_year")
@@ -358,5 +373,6 @@ class ComingSoonsTmdb(BaseDataflow):
             unresolved = bool(self.unresolved_identity_keys_by_snapshot.get(snapshot_id))
             self.advanceSnapshotPublication(snapshot_id, "published", has_unresolved=unresolved)
 
-        clear_old_entries("soons")
+        from backend.utils.log.shared_cleanup import current_run_lease_guard
+        clear_old_entries("soons", lease_guard=current_run_lease_guard())
         dedupe_all_soons(dry_run=False)

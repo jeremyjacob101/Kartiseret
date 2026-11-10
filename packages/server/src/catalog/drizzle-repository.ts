@@ -22,6 +22,7 @@ import type { CatalogRepository } from "./service.js";
 import type {
   PublicDataRepository,
   PublicShowtimeRange,
+  PublicCinemathequeRange,
 } from "../public-data/repository.js";
 
 const MOVIE_CODE_QUERY_CHUNK_SIZE = 500;
@@ -33,6 +34,7 @@ const nowPlayingProjection = {
   genres: finalMovies.genres,
   enPoster: finalMovies.enPoster,
   backdrop: finalMovies.backdrop,
+  socialPreviewFingerprint: finalMovies.socialPreviewFingerprint,
   enTrailer: finalMovies.enTrailer,
   imdbId: finalMovies.imdbId,
   rtId: finalMovies.rtId,
@@ -61,6 +63,7 @@ const comingSoonProjection = {
   genres: finalSoons.genres,
   enPoster: finalSoons.enPoster,
   backdrop: finalSoons.backdrop,
+  socialPreviewFingerprint: finalSoons.socialPreviewFingerprint,
   enTrailer: finalSoons.enTrailer,
   runtime: finalSoons.runtime,
   popularity: finalSoons.popularity,
@@ -88,6 +91,7 @@ const cinemathequeMovieProjection = {
   genres: finalThequeMovies.genres,
   enPoster: finalThequeMovies.enPoster,
   backdrop: finalThequeMovies.backdrop,
+  socialPreviewFingerprint: finalThequeMovies.socialPreviewFingerprint,
   enTrailer: finalThequeMovies.enTrailer,
   imdbId: finalThequeMovies.imdbId,
   rtId: finalThequeMovies.rtId,
@@ -177,19 +181,19 @@ export class DrizzleCatalogRepository
 
   async findNowPlayingRows(): Promise<readonly unknown[]> {
     try {
+      const rankingDate = sql`(now() AT TIME ZONE 'Asia/Jerusalem')::date`;
       const futureShowtimeCounts = this.db
         .select({
           tmdbId: finalShowtimes.tmdbId,
-          showtimeCount: sql<number>`count(*)::int`.as("showtime_count"),
+          upcomingShowtimeCount: sql<number>`count(*)::int`.as(
+            "upcoming_showtime_count",
+          ),
         })
         .from(finalShowtimes)
         .where(
           and(
             isNotNull(finalShowtimes.tmdbId),
-            gte(
-              finalShowtimes.dateOfShowing,
-              sql`(now() AT TIME ZONE 'Asia/Jerusalem')::date`,
-            ),
+            gte(finalShowtimes.dateOfShowing, rankingDate),
           ),
         )
         .groupBy(finalShowtimes.tmdbId)
@@ -199,7 +203,8 @@ export class DrizzleCatalogRepository
         .select({
           ...nowPlayingProjection,
           localReleaseDate: movieReleaseDates.localReleaseDate,
-          showtimeCount: sql<number>`coalesce(${futureShowtimeCounts.showtimeCount}, 0)::int`,
+          rankingDate: sql<string>`${rankingDate}::text`,
+          upcomingShowtimeCount: sql<number>`coalesce(${futureShowtimeCounts.upcomingShowtimeCount}, 0)::int`,
         })
         .from(finalMovies)
         .leftJoin(
@@ -314,15 +319,19 @@ export class DrizzleCatalogRepository
   }
 
   async findCinemathequeRows(
-    range: PublicShowtimeRange,
+    range: PublicCinemathequeRange,
   ): Promise<readonly unknown[]> {
     try {
       const conditions = [
-        eq(finalTheques.screeningCity, range.city),
         gte(finalTheques.dateOfShowing, range.startDate),
-        lte(finalTheques.dateOfShowing, range.endDate),
         eq(finalThequeMovies.soloUpdate, false),
       ];
+      if (range.city) {
+        conditions.push(eq(finalTheques.screeningCity, range.city));
+      }
+      if (range.endDate) {
+        conditions.push(lte(finalTheques.dateOfShowing, range.endDate));
+      }
       if (range.tmdbId) {
         conditions.push(eq(finalTheques.tmdbId, Number(range.tmdbId)));
       }
@@ -353,7 +362,7 @@ export class DrizzleCatalogRepository
     }
   }
 
-  async findTicketAvailabilityRows(
+  async findMovieShowtimeRows(
     tmdbId: string,
     fromDate: string,
   ): Promise<readonly unknown[]> {

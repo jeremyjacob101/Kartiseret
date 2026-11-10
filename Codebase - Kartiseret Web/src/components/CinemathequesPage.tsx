@@ -1,24 +1,27 @@
-import { buildCinemathequeDateRange, cinemathequeQueryOptions, getCinemathequeDateRange } from "../data/cinemathequeCatalog";
-import { getShowtimeDateLabel, getShowtimeTargetDate, getTrailerEmbedUrl } from "./showtimes/showtimeUtils";
+import { getShowtimeDateLabel, getTrailerEmbedUrl, getMetricDisplays, getMovieInfoParts } from "./showtimes/showtimeUtils";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
+import { MovieMetricsRow, MovieTrailerModal } from "./showtimes/ShowtimeShared";
 import { applyMovieDisplayPreferences } from "../data/movieDisplayPreferences";
-import { buildCinemathequeShowtimesByDate } from "../data/cinematheques";
 import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
-import type { CinemathequeShowtimesDay } from "../data/cinematheques";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ShowtimeDayPicker } from "./showtimes/ShowtimeDayPicker";
-import { ShowtimesMovieRow } from "./showtimes/ShowtimesMovieRow";
-import { MovieTrailerModal } from "./showtimes/ShowtimeShared";
+import { cinemathequeQueryOptions } from "../data/cinemathequeCatalog";
+import { usePublicRenderClock } from "../contexts/PublicRenderClock";
+import { findMovieByCode, type Movie } from "../data/movieCatalog";
+import { buildCinemathequeSchedule } from "../data/cinematheques";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TheaterMapDialog } from "./maps/TheaterMapDialog";
-import { fixedAppDateString } from "../data/movieCatalog";
+import { MoviePosterArtwork } from "./MoviePosterArtwork";
+import { setSeoMetadata } from "../routing/seoMetadata";
 import { useShallow } from "zustand/react/shallow";
-import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router";
 import "./AllShowtimesPage.css";
 import "./CinemathequesPage.css";
 
 export function CinemathequesPage() {
+  const { cinemaDate } = usePublicRenderClock();
   const publicationRevision = usePublicationRevision();
+  const queryClient = useQueryClient();
   const displayPreferences = useMovieDisplayPreferences();
   const { preferenceLocation, sources } = useUserPreferencesStore(
     useShallow((state) => ({
@@ -27,49 +30,32 @@ export function CinemathequesPage() {
     })),
   );
   const [location, setLocation] = useState(preferenceLocation);
-  const [selectedShowtimeDate, setSelectedShowtimeDate] =
-    useState(fixedAppDateString);
+  const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const [detailMovie, setDetailMovie] = useState<Movie | null>(null);
   const [openTrailerMovieId, setOpenTrailerMovieId] = useState<string | null>(
     null,
   );
   const cinemathequeQuery = useQuery({
     ...cinemathequeQueryOptions(location, publicationRevision),
-    enabled: displayPreferences.ready,
   });
   const rawMovies = cinemathequeQuery.data?.movies;
   const nowPlayingMovies = useMemo(
     () =>
-      displayPreferences.ready
-        ? applyMovieDisplayPreferences(
-            rawMovies ?? [],
-            displayPreferences.preferencesById,
-          )
-        : [],
-    [displayPreferences.preferencesById, displayPreferences.ready, rawMovies],
+      applyMovieDisplayPreferences(
+        rawMovies ?? [],
+        displayPreferences.preferencesById,
+      ),
+    [displayPreferences.preferencesById, rawMovies],
   );
-  const range = getCinemathequeDateRange();
-  const dates = useMemo(
-    () => buildCinemathequeDateRange(range.startDate, range.endDate),
-    [range.endDate, range.startDate],
-  );
-  const dayPanels = useMemo<CinemathequeShowtimesDay[]>(
+  const dayPanels = useMemo(
     () =>
       cinemathequeQuery.data
-        ? buildCinemathequeShowtimesByDate(
+        ? buildCinemathequeSchedule(
             nowPlayingMovies,
             cinemathequeQuery.data.showtimes,
-            dates,
           )
         : [],
-    [cinemathequeQuery.data, dates, nowPlayingMovies],
-  );
-  const resolvedShowtimeDate = getShowtimeTargetDate(
-    dayPanels,
-    selectedShowtimeDate,
-  );
-  const selectedDayPanel = useMemo(
-    () => dayPanels.find((day) => day.date === resolvedShowtimeDate) ?? null,
-    [dayPanels, resolvedShowtimeDate],
+    [cinemathequeQuery.data, nowPlayingMovies],
   );
   const openTrailerMovie = useMemo(
     () =>
@@ -84,7 +70,6 @@ export function CinemathequesPage() {
     nextLocation: typeof location,
   ) => {
     setLocation(nextLocation);
-    setSelectedShowtimeDate(fixedAppDateString);
     return true;
   }, []);
 
@@ -93,6 +78,26 @@ export function CinemathequesPage() {
   }, []);
 
   const isLoading = cinemathequeQuery.isPending;
+
+  useLayoutEffect(() => {
+    if (isLoading || !cinemathequeQuery.data) return;
+    const hasPublicMovieLinks = cinemathequeQuery.data.movies.some(
+      (movie) =>
+        movie.movieCode &&
+        findMovieByCode(movie.movieCode, queryClient)?.movie.tmdbId ===
+          movie.tmdbId,
+    );
+    setSeoMetadata({
+      title: `Cinematheque showtimes in ${location} | Kartiseret`,
+      description: `Browse upcoming cinematheque movie screenings in ${location}.`,
+      canonicalPath: "/cinematheques",
+      robots:
+        cinemathequeQuery.data.movieCodesStatus === "ready" &&
+        hasPublicMovieLinks
+          ? "index, follow"
+          : "noindex, nofollow",
+    });
+  }, [cinemathequeQuery.data, isLoading, location, queryClient]);
 
   return (
     <section
@@ -103,7 +108,7 @@ export function CinemathequesPage() {
 
       <div
         className="details-showtimes all-showtimes-day-picker-shell"
-        aria-label="Cinematheque showtime day picker"
+        aria-label="Choose city"
       >
         <TheaterMapDialog
           className="all-showtimes-page-city city-map-trigger"
@@ -111,57 +116,145 @@ export function CinemathequesPage() {
           onLocationOverrideChange={handleLocationChange}
           triggerLabel={location}
         />
-        <ShowtimeDayPicker
-          className="all-showtimes-day-picker-scroll"
-          ariaLabel="Choose cinematheque showtime day"
-          dates={dayPanels.map((day) => day.date)}
-          selectedDate={resolvedShowtimeDate}
-          disabledBeforeDate={fixedAppDateString}
-          onSelect={setSelectedShowtimeDate}
-        />
       </div>
 
       <section
         className="details-showtimes all-showtimes-browser"
         aria-label={`Cinematheque showtimes in ${location}`}
       >
-        <article
-          className="details-day-panel all-showtimes-day-panel"
-          data-showtime-date={resolvedShowtimeDate ?? fixedAppDateString}
-        >
-          {isLoading ? (
-            <p className="details-day-empty" role="status">
-              Loading cinematheque showtimes…
-            </p>
-          ) : cinemathequeQuery.isError ? (
-            <p className="details-day-empty" role="alert">
-              Could not load cinematheque showtimes.
-            </p>
-          ) : selectedDayPanel?.movies.length ? (
-            <div className="all-showtimes-movie-list">
-              {selectedDayPanel.movies.map(({ movie, theaters }) => (
-                <ShowtimesMovieRow
-                  key={`${selectedDayPanel.date}-${movie.tmdbId}`}
-                  movie={movie}
-                  theaters={theaters}
-                  sources={sources}
-                  onOpenTrailer={setOpenTrailerMovieId}
-                />
+        {isLoading ? (
+          <p className="details-day-empty" role="status">
+            Loading cinematheque showtimes…
+          </p>
+        ) : cinemathequeQuery.isError ? (
+          <p className="details-day-empty" role="alert">
+            Could not load cinematheque showtimes.
+          </p>
+        ) : dayPanels.length ? (
+          dayPanels.map((day) => (
+            <section
+              className="details-day-panel all-showtimes-day-panel cinematheques-day"
+              data-showtime-date={day.date}
+              key={day.date}
+            >
+              <h2 className="cinematheques-date">
+                {getShowtimeDateLabel(day.date, cinemaDate)}
+              </h2>
+              {day.cinemas.map(({ cinema, movies }) => (
+                <section
+                  className="cinematheques-cinema"
+                  key={cinema}
+                  aria-label={cinema}
+                >
+                  <h3 className="cinematheques-cinema-title">{cinema}</h3>
+                  <div className="cinematheques-poster-grid">
+                    {movies.map(({ movie, theaters }) => (
+                      <article
+                        className="cinematheques-poster-tile"
+                        key={movie.tmdbId}
+                      >
+                        {movie.movieCode &&
+                        findMovieByCode(movie.movieCode, queryClient)?.movie
+                          .tmdbId === movie.tmdbId ? (
+                          <Link
+                            className="cinematheques-poster-button"
+                            to={`/${movie.movieCode}`}
+                            aria-label={`View details for ${movie.title}`}
+                          >
+                            <MoviePosterArtwork
+                              title={movie.title}
+                              tmdbId={movie.tmdbId}
+                              imageSrc={movie.imageSrc}
+                              imageSrcSet={movie.imageSrcSet}
+                              imageSizes="(max-width: 600px) calc((100vw - 48px) / 3), 160px"
+                              alt=""
+                              className="cinematheques-poster"
+                              fallbackClassName="cinematheques-poster"
+                              loading="lazy"
+                            />
+                          </Link>
+                        ) : (
+                          <button
+                            className="cinematheques-poster-button"
+                            type="button"
+                            aria-label={`View details for ${movie.title}`}
+                            onClick={(event) => {
+                              detailTriggerRef.current = event.currentTarget;
+                              setDetailMovie(movie);
+                            }}
+                          >
+                            <MoviePosterArtwork
+                              title={movie.title}
+                              tmdbId={movie.tmdbId}
+                              imageSrc={movie.imageSrc}
+                              imageSrcSet={movie.imageSrcSet}
+                              imageSizes="(max-width: 600px) calc((100vw - 48px) / 3), 160px"
+                              alt=""
+                              className="cinematheques-poster"
+                              fallbackClassName="cinematheques-poster"
+                              loading="lazy"
+                            />
+                          </button>
+                        )}
+                        <div
+                          className="cinematheques-times"
+                          aria-label={`Showtimes for ${movie.title}`}
+                        >
+                          {theaters[0]?.showtimes.map((showtime, index) => {
+                            const label = `${movie.title} ${showtime.time} showtime at ${cinema}`;
+                            const key = `${showtime.time}-${showtime.screeningTech}-${showtime.screeningType}-${showtime.dubLanguage}-${index}`;
+                            return showtime.href ? (
+                              <a
+                                key={key}
+                                className="cinematheques-time"
+                                href={showtime.href}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-label={`Open ${label}`}
+                              >
+                                {showtime.time}
+                              </a>
+                            ) : (
+                              <span
+                                key={key}
+                                className="cinematheques-time cinematheques-time--unavailable"
+                                aria-label={`${label}, ticket link unavailable`}
+                              >
+                                {showtime.time}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
               ))}
+            </section>
+          ))
+        ) : (
+          <div className="details-empty-state all-showtimes-empty-state">
+            <div className="details-empty-state-panel">
+              <p className="details-empty-state-title">
+                No cinematheque showtimes listed in {location}
+              </p>
             </div>
-          ) : (
-            <div className="details-empty-state all-showtimes-empty-state">
-              <div className="details-empty-state-panel">
-                <p className="details-empty-state-title">
-                  {selectedDayPanel
-                    ? `No cinematheque showtimes on ${getShowtimeDateLabel(selectedDayPanel.date)} in ${location}`
-                    : `No cinematheque showtimes listed in ${location}`}
-                </p>
-              </div>
-            </div>
-          )}
-        </article>
+          </div>
+        )}
       </section>
+
+      {detailMovie ? (
+        <CinemathequeMovieDialog
+          movie={detailMovie}
+          returnFocusRef={detailTriggerRef}
+          sources={sources}
+          onClose={() => setDetailMovie(null)}
+          onOpenTrailer={(id) => {
+            setDetailMovie(null);
+            setOpenTrailerMovieId(id);
+          }}
+        />
+      ) : null}
 
       <MovieTrailerModal
         movieTitle={openTrailerMovie?.title ?? ""}
@@ -172,5 +265,65 @@ export function CinemathequesPage() {
         }}
       />
     </section>
+  );
+}
+
+function CinemathequeMovieDialog({
+  movie,
+  sources,
+  onClose,
+  onOpenTrailer,
+  returnFocusRef,
+}: {
+  movie: Movie;
+  returnFocusRef: React.RefObject<HTMLButtonElement | null>;
+  sources: Parameters<typeof getMetricDisplays>[1];
+  onClose: () => void;
+  onOpenTrailer: (id: string) => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const returnFocus = returnFocusRef.current;
+    if (dialog && typeof dialog.showModal === "function") dialog.showModal();
+    else dialog?.setAttribute("open", "");
+    return () => {
+      returnFocus?.focus();
+    };
+  }, [returnFocusRef]);
+  const info = [...getMovieInfoParts(movie), ...movie.genres];
+  const trailer = getTrailerEmbedUrl(movie.trailerKey);
+  return (
+    <dialog
+      className="cinematheques-dialog"
+      aria-label={`${movie.title} details`}
+      ref={dialogRef}
+      onClose={onClose}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="cinematheques-dialog-content">
+        <button
+          className="cinematheques-dialog-close"
+          type="button"
+          onClick={onClose}
+          aria-label="Close movie details"
+          autoFocus
+        >
+          ×
+        </button>
+        <h2>{movie.title}</h2>
+        {info.length ? <p>{info.join(" · ")}</p> : null}
+        <MovieMetricsRow
+          movie={movie}
+          metrics={getMetricDisplays(movie, sources)}
+          trailerEmbedUrl={trailer}
+          onTrailerClick={
+            trailer ? () => onOpenTrailer(movie.tmdbId) : undefined
+          }
+        />
+      </div>
+    </dialog>
   );
 }

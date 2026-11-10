@@ -1,0 +1,11 @@
+- - -
+ERROR
+- - -
+Name: YesPlanet
+URL: ?
+Exception: TimeoutException - Message: timeout: Timed out receiving message from renderer: 45.000
+  (Session info: chrome=156.0.8078.73)
+Call Chain: runners.py:33 > runners.py:23 > BaseCinema.py:82 > YesPlanet.py:81 > ScrapingHelpers.py:18
+Selector: 
+Screenshot: 
+CSV: backend/utils/log/logger_artifacts/669/unsuccessful/YesPlanet-1.csv
