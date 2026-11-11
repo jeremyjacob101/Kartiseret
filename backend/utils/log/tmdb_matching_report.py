@@ -21,7 +21,7 @@ from backend.utils.log.cloudflare_storage import D1Client
 
 
 EVIDENCE_TYPE = "tmdb_matching_evidence"
-PAGE_SIZE = 100
+PAGE_SIZE = 25
 
 
 def _parse_iso(value: str) -> str:
@@ -97,8 +97,11 @@ def read_tmdb_evidence(d1: D1Client, *, since_iso: str | None = None,
             document = json.loads("".join(text for _, text in chunks))
         except (TypeError, ValueError) as error:
             raise ValueError(f"Evidence artifact {artifact_id} is invalid JSON.") from error
-        if not isinstance(document, dict) or document.get("evidence_format_version") != 1:
+        if not isinstance(document, dict) or document.get("evidence_format_version") not in {1, 2}:
             raise ValueError(f"Evidence artifact {artifact_id} has an unsupported format.")
+        if document.get("evidence_format_version") == 2 and "artifact_id" in document:
+            from backend.utils.log.run_storage import RunArtifactStore
+            document = RunArtifactStore(d1=d1).resolve_matching_pointer(document)
         groups = document.get("groups")
         if not isinstance(groups, list) or any(not isinstance(group, dict) for group in groups):
             raise ValueError(f"Evidence artifact {artifact_id} has an invalid group list.")
@@ -162,14 +165,28 @@ def build_tmdb_matching_report(groups: list[dict], *, current_year: int | None =
             entry["sources"].add(source.get("source") or source.get("cinema") or "unknown")
             if source.get("release_year") is not None:
                 entry["years"].add(int(source["release_year"]))
-            entry["evaluations"] += 1
+            entry["evaluations"] += int(source.get("comparison_weight", 1))
             if group.get("chosen_tmdb_id"):
                 entry["chosen_tmdb_ids"].add(int(group["chosen_tmdb_id"]))
 
         selected_id = group.get("chosen_tmdb_id")
-        for candidate in group.get("candidates") or []:
+        candidates_for_report = group.get("candidates") or []
+        if group.get("evidence_format_version") == 2:
+            detail_outcomes.update(group.get("candidate_detail_outcomes") or {})
+            detail_validations.update(group.get("candidate_detail_validations") or {})
+            missing_detail_fields.update(group.get("missing_candidate_detail_fields") or {})
+            for tmdb_id, release_date, valid in group.get("candidate_coverage", []):
+                if tmdb_id:
+                    candidates_seen.add(int(tmdb_id))
+                    try:
+                        if valid and release_date and int(release_date[:4]) <= cutoff_year:
+                            archived_candidate_ids.add(int(tmdb_id))
+                    except (TypeError, ValueError):
+                        pass
+            candidates_for_report = [{"tmdb_id": selected_id, "comparisons": group.get("selected_comparisons", {})}]
+        for candidate in candidates_for_report:
             tmdb_id = candidate.get("tmdb_id")
-            if tmdb_id:
+            if tmdb_id and group.get("evidence_format_version") != 2:
                 candidates_seen.add(int(tmdb_id))
             if candidate.get("detail_request"):
                 detail_outcomes[candidate["detail_request"].get("outcome") or "unknown"] += 1
@@ -189,11 +206,11 @@ def build_tmdb_matching_report(groups: list[dict], *, current_year: int | None =
                 if signal not in signal_counts:
                     continue
                 for comparison in rows or []:
-                    signal_counts[signal][comparison.get("signal") or "missing"] += 1
+                    signal_counts[signal][comparison.get("signal") or "missing"] += int(comparison.get("weight", 1))
                     delta = comparison.get("difference_minutes")
                     if signal == "runtime" and isinstance(delta, (int, float)):
                         bucket = "0" if delta == 0 else "1-5" if delta <= 5 else "6-15" if delta <= 15 else "16+"
-                        runtime_differences[bucket] += 1
+                        runtime_differences[bucket] += int(comparison.get("weight", 1))
 
     repeat_reuse = {"repeated_input_keys": 0, "same_choice_keys": 0, "changed_choice_keys": 0, "multi_choice_keys": 0}
     for record in repeated_inputs.values():

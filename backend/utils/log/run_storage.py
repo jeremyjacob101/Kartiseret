@@ -74,7 +74,10 @@ def _r2_client():
         raise CloudflareStorageError(f"Could not initialize guarded R2 client ({type(error).__name__}).") from error
 
 
-class RunArtifactStore:
+from backend.utils.log.matching_summary_storage import MatchingSummaryStorage
+
+
+class RunArtifactStore(MatchingSummaryStorage):
     def __init__(self, d1: D1Client | None = None, *, r2_client=None, bucket: str | None = None):
         self.d1 = d1 or D1Client.from_environment()
         self.r2 = r2_client
@@ -709,6 +712,10 @@ class RunArtifactStore:
                 raise CloudflareStorageError("A diagnostic is incomplete; refusing to return partial text.")
             item["text_content"] = "".join(text for _, text, _ in chunks)
             item["metadata_json"] = "".join(metadata for _, _, metadata in chunks)
+            if item.get("artifact_type") == "tmdb_matching_evidence":
+                document = json.loads(item["text_content"])
+                if document.get("evidence_format_version") == 2 and "artifact_id" in document:
+                    item["text_content"] = _canonical(self.resolve_matching_pointer(document))
             output.append(item)
         return output
 

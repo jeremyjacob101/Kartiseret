@@ -257,7 +257,7 @@ def _recoverable_run_ids() -> set[int]:
     except OSError as error:
         raise CloudflareStorageError("Recovery state could not be inspected; screenshot deletion was skipped") from error
     recoverable: set[int] = set()
-    relevant = {"file_artifacts", "text_artifacts", "diagnostics", "run_finalization", "scraped_rows", "scraped_snapshots", "gathering_rows"}
+    relevant = {"file_artifacts", "text_artifacts", "diagnostics", "run_finalization", "scraped_rows", "scraped_snapshots", "matching_summaries", "diagnostic_replacements", "gathering_rows"}
     for kind in relevant:
         directory = root / kind
         try:
@@ -325,7 +325,7 @@ def cleanup_orphan_run_artifacts(
                 continue
             if modified.tzinfo is None:
                 modified = modified.replace(tzinfo=timezone.utc)
-            snapshot_object = "/scraped_snapshots/" in key
+            snapshot_object = "/scraped_snapshots/" in key or "/matching_summaries/" in key
             if snapshot_object:
                 completion = store.d1.execute(
                     "SELECT finished_at FROM run_logs WHERE run_id = ? AND status IN ('successful','failed')",
@@ -396,13 +396,19 @@ def cleanup_r2_storage(store, *, apply, lease_guard, artwork=None, pins=None):
     )
     if lease_guard:
         lease_guard()
+    report["matching_summaries"] = cleanup_scraped_snapshots(
+        store, apply=apply, lease_guard=lease_guard, artifact_type="tmdb_matching_summary",
+        retain_object=(lambda key: retains(pins, store.bucket, key)) if pins is not None else None,
+    )
     report["run_artifacts"] = cleanup_orphan_run_artifacts(store, apply=apply, lease_guard=lease_guard, **artifact_pin)
     if lease_guard:
         lease_guard()
     return report
 
 
-def cleanup_scraped_snapshots(store, *, apply, lease_guard=None, retain_object=None, grace_days=30, max_deletes=500):
+def cleanup_scraped_snapshots(store, *, apply, lease_guard=None, retain_object=None, grace_days=30, max_deletes=500, artifact_type="scraped_snapshot"):
+    if artifact_type not in {"scraped_snapshot", "tmdb_matching_summary"}:
+        raise ValueError("Unsupported retained artifact type")
     """Expire snapshots 30 days after confirmed completion of their owning run."""
     from datetime import datetime, timedelta, timezone
 
@@ -418,7 +424,7 @@ def cleanup_scraped_snapshots(store, *, apply, lease_guard=None, retain_object=N
             "SELECT a.artifact_id, a.run_id, a.object_key, a.metadata_json, "
             "r.status, r.finished_at FROM artifacts a JOIN run_logs r ON r.run_id = a.run_id "
             "WHERE a.artifact_type = ? ORDER BY a.created_at, a.artifact_id LIMIT ? OFFSET ?",
-            ("scraped_snapshot", page_size, offset),
+            (artifact_type, page_size, offset),
         ).rows
         rows.extend(page)
         if len(page) < page_size:
@@ -485,9 +491,15 @@ def cleanup_scraped_snapshots(store, *, apply, lease_guard=None, retain_object=N
                 raise CloudflareStorageError("Expired scrape snapshot deletion was not confirmed; catalog retained.") from error
             if lease_guard:
                 lease_guard()
+            if artifact_type == "tmdb_matching_summary":
+                store.d1.execute(
+                    "DELETE FROM diagnostics WHERE run_id=? AND diagnostic_type='tmdb_matching_evidence' "
+                    "AND json_extract(CASE WHEN json_valid(text_content) THEN text_content ELSE '{}' END,'$.artifact_id')=?",
+                    (row["run_id"], row["artifact_id"]),
+                )
             result = store.d1.execute(
                 "DELETE FROM artifacts WHERE artifact_id = ? AND artifact_type = ? AND object_key = ?",
-                (row["artifact_id"], "scraped_snapshot", row["object_key"]),
+                (row["artifact_id"], artifact_type, row["object_key"]),
             )
             if result.changes != 1:
                 raise CloudflareStorageError("Deleted scrape snapshot catalog reference could not be confirmed.")

@@ -69,17 +69,12 @@ class MatchingEvidenceTests(TestCase):
         self.assertEqual(evidence["chosen_path"], "alias_remap")
         self.assertEqual(evidence["chosen_tmdb_id"], 12)
         self.assertEqual([event["reason"] for event in evidence["decisions"]], ["title_first_match", "alias_remap"])
-        self.assertEqual(evidence["candidates"][0]["search_positions"][0]["position_on_page"], 1)
+        self.assertEqual(evidence["evidence_format_version"], 2)
         self.assertEqual(evidence["candidates"][0]["original_title"], "L'Arrivée")
         self.assertEqual(evidence["candidates"][0]["directors"], ["Denis Villeneuve"])
         self.assertEqual(evidence["candidates"][0]["runtime"], 116)
-        self.assertTrue(evidence["candidates"][0]["response_validation"]["canonical_profile_valid"])
-        self.assertIn("videos.results", evidence["candidates"][0]["response_validation"]["empty_sections"])
-        self.assertNotIn("details.videos.results", evidence["candidates"][0]["missing_evidence"])
-        self.assertEqual(evidence["candidates"][0]["comparisons"]["year"][1]["signal"], "conflict")
-        self.assertEqual(evidence["candidates"][0]["comparisons"]["director"][1]["signal"], "conflict")
-        self.assertEqual(evidence["candidates"][0]["comparisons"]["runtime"][1]["difference_minutes"], 4)
-        self.assertIn("title", evidence["candidates"][0]["conflicting_evidence"])
+        self.assertEqual(evidence["selected_comparisons"]["runtime"][0]["weight"], 1)
+        self.assertEqual(evidence["all_candidate_signal_counts"]["year"], {"agree": 2, "conflict": 2})
         self.assertEqual(evidence["candidates"][1]["title"], "Arrival: The Return")
 
     def test_unresolved_attempt_and_search_failure_are_persistable_evidence(self):
@@ -93,7 +88,7 @@ class MatchingEvidenceTests(TestCase):
         result = flow.summaryTmdbEvidence[0]
         self.assertEqual(result["status"], "dropped")
         self.assertEqual(result["selection_reason"], "no_candidates")
-        self.assertEqual(result["search_requests"][0]["outcome"], "failed")
+        self.assertEqual(result["search_summary"]["outcomes"], {"failed": 1})
         self.assertEqual(result["candidates"], [])
 
     def test_shared_run_metrics_are_copied_without_consuming_archived_coverage(self):

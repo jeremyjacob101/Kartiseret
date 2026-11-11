@@ -47,7 +47,7 @@ def cleanup_by_storage(store, *, now=None, lease_token: str | None = None):
                     "SELECT r.run_id FROM run_logs r WHERE r.status IN ('successful','failed') "
                     "AND r.started_at < ? AND r.created_at < ? "
                     "AND NOT EXISTS (SELECT 1 FROM scraped_rows s WHERE s.run_id = r.run_id) "
-                    "AND NOT EXISTS (SELECT 1 FROM artifacts a WHERE a.run_id = r.run_id AND a.artifact_type = 'scraped_snapshot') "
+                    "AND NOT EXISTS (SELECT 1 FROM artifacts a WHERE a.run_id = r.run_id AND a.artifact_type IN ('scraped_snapshot','tmdb_matching_summary')) "
                     "ORDER BY r.started_at, r.run_id LIMIT 1", (cutoff, cutoff),
                 ).rows
                 if not candidates:

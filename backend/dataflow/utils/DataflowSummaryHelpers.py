@@ -60,6 +60,9 @@ class DataflowSummaryHelpers:
                 found = aggregate[identity] = {**source, "row_count": 0}
             found["row_count"] += 1
         source_rows = sorted(aggregate.values(), key=lambda item: (item["source"], item["title"], item["release_year"] or 0, item["row_id"]))
+        from backend.utils.log.compact_matching import compact_sources
+        fingerprint = input_fingerprint or stable_fingerprint(source_rows)
+        source_rows = compact_sources(source_rows)
         self._tmdb_current_match_evidence = {
             "evidence_format_version": 1,
             "run_id": self.run_id,
@@ -67,7 +70,7 @@ class DataflowSummaryHelpers:
             "category": categories.get(self.__class__.__name__, "unknown"),
             "dataflow": self.__class__.__name__,
             "identity_key": str(identity_key or ""),
-            "input_fingerprint": input_fingerprint or stable_fingerprint(source_rows),
+            "input_fingerprint": fingerprint,
             "started_at": datetime.now(timezone.utc).isoformat(),
             "source_rows": source_rows,
             "search_requests": [],
@@ -204,6 +207,9 @@ class DataflowSummaryHelpers:
                 comparisons["director"].append({"source_row_id": source.get("row_id"), "signal": "missing" if not source_director or not tmdb_directors else "agree" if source_director in tmdb_directors else "conflict"})
                 source_runtime = source.get("runtime")
                 comparisons["runtime"].append({"source_row_id": source.get("row_id"), "source_runtime": source_runtime, "tmdb_runtime": tmdb_runtime, "difference_minutes": abs(source_runtime - tmdb_runtime) if source_runtime is not None and tmdb_runtime is not None else None, "signal": "missing" if source_runtime is None or tmdb_runtime is None else "agree" if source_runtime == tmdb_runtime else "conflict"})
+            for values in comparisons.values():
+                for comparison, source in zip(values, source_rows):
+                    comparison["weight"] = source.get("comparison_weight", 1)
             candidate_evidence.append({
                 "tmdb_id": tmdb_id,
                 "search_rank": rank,
@@ -232,7 +238,8 @@ class DataflowSummaryHelpers:
             "alternatives": [item["tmdb_id"] for item in candidate_evidence if item["tmdb_id"] and item["tmdb_id"] != self.clean_int(chosen_tmdb)][:10],
             "decisions": list(current.get("decisions", [])),
         })
-        self.summaryTmdbEvidence.append(current)
+        from backend.utils.log.compact_matching import compact_group
+        self.summaryTmdbEvidence.append(compact_group(current))
         self._tmdb_current_match_evidence = None
 
     def _tmdbDetailRequestEvidence(self, tmdb_id):
@@ -389,19 +396,11 @@ class DataflowSummaryHelpers:
                 from backend.utils.log.run_storage import RunArtifactStore
                 evidence_name = f"{self.__class__.__name__}-{summary['attempt']}-evidence"
                 try:
-                    RunArtifactStore().save_text_artifact(
-                        run_id=int(self.run_id),
-                        artifact_type="tmdb_matching_evidence",
-                        name=evidence_name,
-                        text=json.dumps({
-                            "evidence_format_version": 1,
-                            "run_id": int(self.run_id),
-                            "attempt": summary["attempt"],
-                            "dataflow": self.__class__.__name__,
-                            "groups": evidence,
-                        }, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
-                        metadata={"evidence_format_version": 1, "group_count": len(evidence), "dataflow": self.__class__.__name__},
-                    )
+                    RunArtifactStore().save_matching_summary({
+                        "evidence_format_version": 2, "run_id": int(self.run_id),
+                        "attempt": summary["attempt"], "dataflow": self.__class__.__name__,
+                        "groups": evidence,
+                    }, name=evidence_name)
                     summary["tmdb_evidence_artifact"] = f"d1://run_logs/{self.run_id}/tmdb_matching_evidence/{evidence_name}"
                     summary["tmdb_evidence_group_count"] = len(evidence)
                 except Exception as error:

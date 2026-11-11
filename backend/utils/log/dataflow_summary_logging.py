@@ -216,7 +216,9 @@ def write_dataflow_summary(summary: dict, *, successful: bool) -> str | None:
     name = str(summary.get("name") or "Unknown")
     attempt = int(summary.get("attempt") or 1)
     status = "prepared" if summary.get("publication_pending") else "successful" if successful else "unsuccessful"
-    body = render_summary_text(summary)
+    from backend.utils.log.compact_matching import compact_dataflow_summary, canonical
+    compact = compact_dataflow_summary(summary)
+    body = canonical(compact)
     from backend.utils.log.run_storage import RunArtifactStore
 
     RunArtifactStore().save_text_artifact(
@@ -224,6 +226,7 @@ def write_dataflow_summary(summary: dict, *, successful: bool) -> str | None:
         artifact_type="dataflow_summary",
         name=f"{name}-{attempt}-{status}",
         text=body,
-        metadata=summary,
+        metadata={"summary_format_version": 2, "name": name, "attempt": attempt,
+                  "successful": successful, "publication_pending": bool(summary.get("publication_pending"))},
     )
     return f"d1://run_logs/{run_id}/dataflow_summary/{name}/{attempt}/{status}"

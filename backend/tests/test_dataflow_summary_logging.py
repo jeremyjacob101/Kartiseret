@@ -47,8 +47,11 @@ class DataflowSummaryLoggingTests(TestCase):
         )
         self.assertEqual(store_class.return_value.save_text_artifact.call_args.kwargs["run_id"], 41)
         self.assertIn(
-            "Result: STAGED (PUBLICATION PENDING)",
+            '"publication_pending":true',
             store_class.return_value.save_text_artifact.call_args.kwargs["text"],
+        )
+        self.assertTrue(
+            store_class.return_value.save_text_artifact.call_args.kwargs["metadata"]["publication_pending"]
         )
 
     def test_tmdb_metrics_are_visible_in_compact_summary_text(self):
