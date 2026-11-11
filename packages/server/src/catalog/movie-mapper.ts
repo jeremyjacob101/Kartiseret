@@ -321,7 +321,7 @@ function mapSourceComingSoonMovie(
   const parsedYear =
     row.releaseYear !== null && row.releaseYear > 0
       ? row.releaseYear
-      : Number.parseInt(row.releaseDate.slice(0, 4), 10);
+      : 0;
   const genres = parseGenres(row.genres);
   const runtime = parseInteger(row.runtime);
   const socialPreviewFingerprint = currentPreviewFingerprint(

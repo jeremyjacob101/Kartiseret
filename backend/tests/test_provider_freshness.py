@@ -109,6 +109,46 @@ class ProviderFreshnessTests(TestCase):
         first.requestGet.assert_called_once()
         self.assertNotIn("fixture-secret", json.dumps(targets))
 
+    def test_coming_soon_cached_original_year_survives_repeated_updates(self):
+        for year, original_date in ((1987, "1987-03-06"), (2021, "2021-09-15"), (2027, "2027-01-01")):
+            with self.subTest(year=year):
+                flow = self.flow(ComingSoonsUpdate)
+                row = {**self.row(), "release_date": "2026-12-08", "solo_update": False}
+                payload = {"id": 101, "title": "Original title", "release_date": original_date}
+                flow.tmdbForUpdate = Mock(return_value=payload)
+                key = ("movie/101", tuple(sorted(TMDB_MOVIE_DETAILS_PARAMS.items())))
+                flow._request_context.tmdb_observations[key] = {
+                    "outcome": "cached", "reason": "archived_tmdb_details",
+                    "source": {"fetched_at": "2026-11-10T00:00:00+00:00"},
+                }
+                with patch("backend.dataflow.comingsoons.ComingSoonsUpdate.resolve_tmdb_artwork"):
+                    updated = flow.process_row(row)
+                    repeated = flow.process_row(updated)
+                self.assertEqual(updated["release_year"], year)
+                self.assertEqual(repeated["release_year"], year)
+                self.assertEqual(repeated["release_date"], row["release_date"])
+                self.assertEqual(row["release_year"], 2026)
+                provenance = repeated["provider_freshness"]["tmdb"]["fields"]["release_year"]
+                self.assertEqual(provenance["state"], "cached")
+                self.assertEqual(provenance["observed_at"], "2026-11-10T00:00:00+00:00")
+
+    def test_coming_soon_missing_or_invalid_original_date_retains_year_without_inventing_provenance(self):
+        for solo in (False, True):
+            for release_date in (None, "", "2026-invalid"):
+                with self.subTest(solo=solo, release_date=release_date):
+                    flow = self.flow(ComingSoonsUpdate, solo=solo)
+                    row = {**self.row(), "release_year": 1987, "release_date": "2026-12-08"}
+                    payload = {"id": 101, "release_date": release_date}
+                    flow.tmdbForUpdate = Mock(return_value=payload)
+                    key = ("movie/101", tuple(sorted(TMDB_MOVIE_DETAILS_PARAMS.items())))
+                    flow._request_context.tmdb_observations[key] = observation("success", "usable_fields")
+                    with patch("backend.dataflow.comingsoons.ComingSoonsUpdate.resolve_tmdb_artwork"):
+                        result = flow.process_row(row)
+                    self.assertEqual(result["release_year"], None if solo else 1987)
+                    self.assertEqual(result["release_date"], "2026-12-08")
+                    provenance = result["provider_freshness"]["tmdb"]["fields"]["release_year"]
+                    self.assertNotEqual(provenance["state"], "refreshed")
+
     def test_solo_clears_values_without_relabelling_them_fresh(self):
         for cls in (NowPlayingsUpdate, CinemathequesUpdate):
             flow = self.flow(cls, solo=True)

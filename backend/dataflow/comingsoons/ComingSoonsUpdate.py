@@ -1,5 +1,6 @@
 from backend.dataflow.BaseDataflow import BaseDataflow
 from backend.dataflow.utils.ArtworkStorage import resolve_tmdb_artwork
+from backend.dataflow.utils.TmdbMovieDetailsCache import movie_release_year
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -24,13 +25,10 @@ class ComingSoonsUpdate(BaseDataflow):
         trailer = (next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Trailer" and v.get("site") == "YouTube" and v.get("key") and v.get("iso_639_1") == "en"), None) or next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Teaser" and v.get("site") == "YouTube" and v.get("key") and v.get("iso_639_1") == "en"), None) or next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Trailer" and v.get("site") == "YouTube" and v.get("key")), None) or next((v for v in ((data.get("videos") or {}).get("results") or []) if v.get("type") == "Teaser" and v.get("site") == "YouTube" and v.get("key")), None)) if isinstance(data, dict) else None
 
         new_row["english_title"] = data["title"].strip() if isinstance(data, dict) and data.get("title") else existing["english_title"]
-        # Keep source/cinema release_date for coming-soons. TMDB release dates can
-        # be historical first-release dates and should not replace local schedule dates.
-        source_release_date = new_row.get("release_date")
-        if source_release_date:
-            new_row["release_year"] = str(source_release_date)[:4]
-        else:
-            new_row["release_year"] = data["release_date"][:4] if isinstance(data, dict) and data.get("release_date") else existing["release_year"]
+        # release_date is the upcoming local screening; release_year is the
+        # movie's original year, including when details come from the archive cache.
+        original_year = movie_release_year(data.get("release_date")) if isinstance(data, dict) else None
+        new_row["release_year"] = original_year if original_year is not None else existing["release_year"]
         new_row["runtime"] = data["runtime"] if isinstance(data, dict) and data.get("runtime") is not None else existing["runtime"]
         new_row["popularity"] = data["popularity"] if isinstance(data, dict) and data.get("popularity") is not None else existing["popularity"]
         new_row["genres"] = genres or existing["genres"]

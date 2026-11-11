@@ -143,12 +143,12 @@ describe("toComingSoonMovie", () => {
     soloUpdate: false,
   };
 
-  it("normalizes future movie data and falls back from a zero release year", () => {
+  it("normalizes future movie data without inventing an original year", () => {
     expect(toComingSoonMovie(comingSoonRecord, "So1")).toMatchObject({
       tmdbId: "9100003",
       movieCode: "So1",
       title: "Coming Film",
-      year: 2027,
+      year: 0,
       releaseDate: "2027-04-12",
       genres: [],
       imageSrc: "/coming-backdrop.jpg",
@@ -164,6 +164,15 @@ describe("toComingSoonMovie", () => {
         },
       ],
     });
+  });
+
+  it("preserves original years separately from upcoming rerelease dates", () => {
+    expect(
+      toComingSoonMovie({ ...comingSoonRecord, releaseYear: 1987 }),
+    ).toMatchObject({ year: 1987, releaseDate: "2027-04-12" });
+    expect(
+      toComingSoonMovie({ ...comingSoonRecord, releaseYear: null }),
+    ).toMatchObject({ year: 0, releaseDate: "2027-04-12" });
   });
 
   it("rejects pending and malformed coming-soon rows", () => {
