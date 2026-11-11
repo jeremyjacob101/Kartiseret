@@ -28,6 +28,13 @@ final ties use ascending numeric TMDb ID.
 Popularity, upcoming showtime count, and release-date proximity each contribute
 one third of the overall score.
 
+After combining those signals, apply a 12% reduction when both a valid IMDb
+rating is below 6.2 and a valid Rotten Tomatoes critics score is below 60. IMDb
+ratings must be within 0–10 and Rotten Tomatoes scores within 0–100. Ratings
+that are missing or invalid do not trigger a reduction; there is no vote-count
+requirement. The strict thresholds mean 6.2 and 60 do not qualify. Ties after
+the adjusted score continue to use ascending numeric TMDb ID.
+
 ## Calendar and eligibility
 
 - Use the calendar date in `Asia/Jerusalem`, starting at midnight. This ranking

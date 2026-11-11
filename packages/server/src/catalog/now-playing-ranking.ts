@@ -23,6 +23,26 @@ function numericValue(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function ratingValue(value: unknown, maximum: number): number | null {
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= maximum
+    ? parsed
+    : null;
+}
+
+function hasPoorRatings(row: unknown): boolean {
+  const imdbRating = ratingValue(readField(row, "imdbRating"), 10);
+  const rtCriticRating = ratingValue(readField(row, "rtCriticRating"), 100);
+  return (
+    imdbRating !== null &&
+    rtCriticRating !== null &&
+    imdbRating < 6.2 &&
+    rtCriticRating < 60
+  );
+}
+
 function calendarDate(value: unknown): string | null {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return null;
@@ -73,7 +93,9 @@ function percentileRankNumerators(values: readonly RankValue[]): number[] {
  * Average popularity, upcoming showtime count, and release-date proximity
  * equally. The first two signals use catalog percentiles; release proximity is
  * a smooth 0–1 curve that peaks on the release date and decays symmetrically
- * before and after it. Integer-scaled signals preserve exact final ties.
+ * before and after it. Movies with IMDb below 6.2 and RT critics below 60
+ * receive a 12% score reduction. Integer-scaled signals preserve exact final
+ * ties.
  */
 export function orderNowPlayingRows<T>(
   rows: readonly T[],
@@ -121,10 +143,12 @@ export function orderNowPlayingRows<T>(
         (popularityRanks[index] ?? 0) * RECENCY_SCORE_PRECISION +
         (showtimeRanks[index] ?? 0) * RECENCY_SCORE_PRECISION +
         (releaseProximityScores[index] ?? 0) * percentileDenominator,
+      scoreMultiplier: hasPoorRatings(row) ? 88 : 100,
     }))
     .sort(
       (left, right) =>
-        right.score - left.score ||
+        right.score * right.scoreMultiplier -
+          left.score * left.scoreMultiplier ||
         (left.tmdbId < right.tmdbId ? -1 : left.tmdbId > right.tmdbId ? 1 : 0),
     )
     .map(({ row }) => row);

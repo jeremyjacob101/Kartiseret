@@ -109,8 +109,11 @@ class ProviderFreshness:
             for field, value in sources.items():
                 if field not in target or target[field] is None or target[field] == "" or target[field] == [] or value is None or value == "" or value == []:
                     continue
-                if field == "release_year" and self.MAIN_TABLE_NAME in ("allSoons", "finalSoons"):
-                    continue  # Local Coming Soon dates supply this value.
+                if field == "release_year":
+                    from backend.dataflow.utils.TmdbMovieDetailsCache import movie_release_year
+
+                    if movie_release_year(value) != self.clean_int(target[field]):
+                        continue  # Retained years must not claim a new observation.
                 if isinstance(value, (int, float)) and not isfinite(value):
                     continue
                 if field == "runtime" and self.MAIN_TABLE_NAME in ("allTheques", "finalThequeMovies") and isinstance(value, (int, float)) and value <= 0:

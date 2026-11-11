@@ -319,9 +319,7 @@ function mapSourceComingSoonMovie(
   const imageSrcSet = artworkSrcSet(row.enPoster);
   const backdropSrcSet = artworkSrcSet(row.backdrop);
   const parsedYear =
-    row.releaseYear !== null && row.releaseYear > 0
-      ? row.releaseYear
-      : Number.parseInt(row.releaseDate.slice(0, 4), 10);
+    row.releaseYear !== null && row.releaseYear > 0 ? row.releaseYear : 0;
   const genres = parseGenres(row.genres);
   const runtime = parseInteger(row.runtime);
   const socialPreviewFingerprint = currentPreviewFingerprint(
