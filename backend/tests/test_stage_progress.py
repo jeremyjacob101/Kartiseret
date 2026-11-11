@@ -51,6 +51,8 @@ class StageProgressTests(TestCase):
                 "RUNNER_MACHINE": "mac-studio",
                 "SUPABASE_URL": "https://example.test",
                 "SUPABASE_SERVICE_ROLE_KEY": "service-key",
+                "GITHUB_ACTIONS": "false",
+                "SOLO_UPDATE_ONLY": "",
             },
         ), patch("backend.utils.log.job_lease.create_client", return_value=client), patch.object(
             stage_progress, "current_weekday", return_value="wednesday"
@@ -65,6 +67,8 @@ class StageProgressTests(TestCase):
                 "RUNNER_MACHINE": "mac-studio",
                 "SUPABASE_URL": "https://example.test",
                 "SUPABASE_SERVICE_ROLE_KEY": "service-key",
+                "GITHUB_ACTIONS": "false",
+                "SOLO_UPDATE_ONLY": "",
             },
         ), patch("backend.utils.log.job_lease.create_client", return_value=client), patch.object(
             stage_progress, "append_recent_duration", side_effect=RuntimeError("database unavailable")
@@ -112,7 +116,14 @@ class StageProgressTests(TestCase):
 
     def test_live_refresh_stops_when_operation_raises(self):
         console = Console(file=StringIO(), force_terminal=True)
-        with patch.object(stage_progress, "load_stage_estimate", return_value=10), patch.object(
+        with patch.dict(
+            "os.environ",
+            {
+                "GITHUB_ACTIONS": "false",
+                "JJ_INTEL_MAC_DAILY_RUN": "false",
+                "JJ_INTEL_MAC_WEEKLY_RUN": "false",
+            },
+        ), patch.object(stage_progress, "load_stage_estimate", return_value=10), patch.object(
             stage_progress, "record_stage_duration"
         ) as record, patch.object(stage_progress.Progress, "start") as start, patch.object(
             stage_progress.Progress, "stop"
