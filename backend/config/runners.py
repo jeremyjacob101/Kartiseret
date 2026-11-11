@@ -8,6 +8,7 @@ from rich.panel import Panel
 from rich.theme import Theme
 from rich.live import Live
 from rich.text import Text
+from rich.table import Table
 
 from backend.utils.console.progressBars import RunResult, RichRunUI
 from backend.config.registry import DATAFLOW_REGISTRY, POST_STAGE_DATAFLOW_CLASS_NAMES, REGISTRY
@@ -20,6 +21,8 @@ from backend.dataflow.utils.DataflowRequests import DataflowRequestContext
 from backend.dataflow.utils.PublicationWorkspace import CATEGORY_KEYS, publication_scope
 from backend.dataflow.utils.InitializeBaseDataflow import logSuccessfulRun
 from backend.utils.util_avg_time_history import current_weekday, load_recent_averages
+from backend.utils.console.stage_progress import record_stage_duration
+from backend.utils.console.stage_progress import render_key_value_table, run_timed_stage
 
 DEFAULT_PLAN: list[tuple[str, str]] = [("cinema", "allSoons"), ("cinema", "allShowtimes"), ("cinema", "allTheques"), ("dataflow", "comingSoonsData"), ("dataflow", "nowPlayingData"), ("dataflow", "cinemathequeData")]
 RUNNING_NON_INTERACTIVE = os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("JJ_INTEL_MAC_DAILY_RUN") == "true" or os.environ.get("JJ_INTEL_MAC_WEEKLY_RUN") == "true"
@@ -34,6 +37,7 @@ dataflowDictionary = {"registry": DATAFLOW_REGISTRY, "make_instance": lambda cls
 
 def _run_attempt(spec, cls: type, key: str, run_id: int, attempt: int, request_context=None) -> RunResult:
     starting_time, instance, ok, attempt_failed = time.time(), None, False, False
+    timing_weekday = current_weekday()
     try:
         instance = spec.make_instance(cls, key, run_id, request_context)
         instance._artifact_item_name = cls.__name__
@@ -64,7 +68,61 @@ def _run_attempt(spec, cls: type, key: str, run_id: int, attempt: int, request_c
             else:
                 artifactPrinting(instance, run_id, item_name=cls.__name__, attempt=attempt)
             ok = False
-    return RunResult(name=cls.__name__, secs=time.time() - starting_time, ok=ok, attempts=attempt)
+    elapsed = time.time() - starting_time
+    if ok and cls.__name__ in POST_STAGE_DATAFLOW_CLASS_NAMES:
+        record_stage_duration(cls.__name__, elapsed, timing_weekday)
+    return RunResult(
+        name=cls.__name__,
+        secs=elapsed,
+        ok=ok,
+        attempts=attempt,
+        detail=getattr(instance, "_notification_summary", None),
+    )
+
+
+def _render_movie_notification_summary(console: Console, result: RunResult) -> None:
+    summary = result.detail
+    if summary is None:
+        return
+    table = Table(title="Movie notifications", header_style="bold #66d6f2", expand=False)
+    table.add_column("Measure", style="bold")
+    table.add_column("Count", justify="right")
+    table.add_row("Emails sent", str(summary.emails_sent))
+    table.add_row("First-availability updates", str(summary.events_notified))
+    table.add_row("Sources synced", str(summary.sources_synced))
+    table.add_row("Sources failed", str(summary.sources_failed))
+    console.print(Panel.fit(table, border_style="green" if result.ok else "red"))
+
+
+def _commit_publication_with_progress(publication, key: str, console: Console) -> None:
+    """Keep publisher metrics intact and print them after the live progress bar."""
+    logger = logging.getLogger("backend.dataflow.utils.PostgresPublicationPublisher")
+    records: list[logging.LogRecord] = []
+
+    class _Capture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = _Capture()
+    old_propagate = logger.propagate
+    old_level = logger.level
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    try:
+        run_timed_stage(
+            f"Publish:{key}",
+            f"Publish {key}",
+            publication.commit,
+            console,
+        )
+    finally:
+        logger.removeHandler(handler)
+        logger.setLevel(old_level)
+        logger.propagate = old_propagate
+        for record in records:
+            style = "yellow" if record.levelno >= logging.WARNING else "dim"
+            console.print(record.getMessage(), style=style)
 
 
 def _preferred_timing_transport(cls: type) -> str:
@@ -148,7 +206,7 @@ def _run_scheduled_scrapes(items: list[tuple[str, type]], run_id: int, *, consol
         "Scrape",
         classes,
         lambda cls: durations[classes.index(cls)] / 1000,
-        use_live=console.is_terminal,
+        use_live=console.is_terminal and not RUNNING_NON_INTERACTIVE,
         console=console,
         get_eta_secs=lambda: max(0.0, eta_state["remaining"] - (time.monotonic() - eta_state["at"])),
     )
@@ -234,7 +292,7 @@ def _run_scheduled_scrapes(items: list[tuple[str, type]], run_id: int, *, consol
 
         ui.finalize()
 
-    if RUNNING_NON_INTERACTIVE:
+    if RUNNING_NON_INTERACTIVE or not console.is_terminal:
         print("\n--------------------\n", flush=True)
         for result in final_results.values():
             minutes, seconds = divmod(int(result.secs), 60)
@@ -408,7 +466,7 @@ def _run_shared_updates(entries, run_id: int, context: DataflowRequestContext, *
         overall_task_name="Update",
         get_item_name=lambda cls: cls.__name__,
     )
-    ui = RichRunUI(ui_spec, "Update", classes, lambda cls: averages.get(cls.__name__, 60.0), use_live=console.is_terminal, console=console)
+    ui = RichRunUI(ui_spec, "Update", classes, lambda cls: averages.get(cls.__name__, 60.0), use_live=console.is_terminal and not RUNNING_NON_INTERACTIVE, console=console)
     attempts = {cls: 0 for cls in classes}
     durations = {cls: 0.0 for cls in classes}
     pending = list(entries)
@@ -446,7 +504,7 @@ def _run_shared_updates(entries, run_id: int, context: DataflowRequestContext, *
             ui.tick()
         ui.finalize()
 
-    if RUNNING_NON_INTERACTIVE:
+    if RUNNING_NON_INTERACTIVE or not console.is_terminal:
         print("\n--------------------\n", flush=True)
         for cls in classes:
             minutes, seconds = divmod(int(durations[cls]), 60)
@@ -486,6 +544,7 @@ def runGroup(kind: str, key: str, run_id: int, *, classes_override: list[type] |
     def run_one(cls: type) -> RunResult:
         total_secs, last_attempt, ok = 0.0, 0, False
         item_key = (class_keys or {}).get(cls, key)
+        detail = None
 
         for attempt in range(1, 4):
             starting_time, last_attempt, instance = time.time(), attempt, None
@@ -493,10 +552,11 @@ def runGroup(kind: str, key: str, run_id: int, *, classes_override: list[type] |
             result = _run_attempt(spec, cls, item_key, run_id, attempt, request_context)
             total_secs += result.secs
             ok = result.ok
+            detail = result.detail
             if ok:
                 break
 
-        return RunResult(name=cls.__name__, secs=total_secs, ok=ok, attempts=last_attempt)
+        return RunResult(name=cls.__name__, secs=total_secs, ok=ok, attempts=last_attempt, detail=detail)
 
     def drain_attempt_events(ui: RichRunUI):
         while True:
@@ -535,6 +595,10 @@ def runGroup(kind: str, key: str, run_id: int, *, classes_override: list[type] |
             print(f"{result.name}: {minutes:02d}m{seconds:02d}s", flush=True)
         print("\n--------------------\n", flush=True)
 
+        for result in results:
+            if result.name == "MovieNotificationDispatcher":
+                _render_movie_notification_summary(console or Console(), result)
+
         return ({cls: next(result.ok for result in results if result.name == cls.__name__) for cls in classes} if return_results else all(result.ok for result in results))
 
     # LOCAL MACHINE LOGIC
@@ -547,7 +611,14 @@ def runGroup(kind: str, key: str, run_id: int, *, classes_override: list[type] |
 
         use_embedded = ui_parent is not None
         get_item_est = lambda item: float(avg_by_name.get(item.__name__) or FALLBACK)
-        ui = RichRunUI(spec, key, classes, get_item_est, use_live=not use_embedded, console=console)
+        ui = RichRunUI(
+            spec,
+            key,
+            classes,
+            get_item_est,
+            use_live=not use_embedded and (console or Console()).is_terminal,
+            console=console,
+        )
 
         with ui:
             if not classes:
@@ -598,6 +669,17 @@ def runGroup(kind: str, key: str, run_id: int, *, classes_override: list[type] |
             if use_embedded:
                 hdr = header_renderable or Panel.fit(Text("Running...", style="bold"), border_style="grey37")
                 ui_parent.update(Group(hdr, ui.renderable))
+
+        if not (console or Console()).is_terminal:
+            print("\n--------------------\n", flush=True)
+            for result in results:
+                minutes, seconds = divmod(int(result.secs), 60)
+                print(f"{result.name}: {minutes:02d}m{seconds:02d}s", flush=True)
+            print("\n--------------------\n", flush=True)
+
+        for result in results:
+            if result.name == "MovieNotificationDispatcher":
+                _render_movie_notification_summary(console or Console(), result)
 
         return ({cls: next((r.ok for r in results if r.name == cls.__name__), False) for cls in classes} if return_results else (all(r.ok for r in results) if results else True))
 
@@ -713,7 +795,7 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
                 publication = request_context.publications.get(CATEGORY_KEYS.get(key))
                 if publication is not None:
                     try:
-                        publication.commit()
+                        _commit_publication_with_progress(publication, key, console)
                         if key in {
                             "nowPlayingData",
                             "comingSoonsData",
@@ -744,7 +826,38 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
         if catalog_publication_committed:
             from backend.dataflow.social_previews import refresh_configured_social_previews
 
-            refresh_configured_social_previews()
+            preview_stats = run_timed_stage(
+                "SocialPreviewRefresh",
+                "Refresh social preview images",
+                refresh_configured_social_previews,
+                console,
+                record_when=lambda value: isinstance(value, dict) and not value.get("failed"),
+                outcome_for=lambda value: (
+                    "Skipped" if value is None else
+                    "Completed with failures" if value.get("failed") else "Complete"
+                ),
+            )
+            if preview_stats is None:
+                render_key_value_table(
+                    "Social preview images",
+                    [("Status", "Skipped or unavailable")],
+                    console,
+                )
+            else:
+                render_key_value_table(
+                    "Social preview images",
+                    [
+                        ("Scanned", preview_stats.get("scanned", 0)),
+                        ("Updated", preview_stats.get("updated", 0)),
+                        ("Unchanged", preview_stats.get("unchanged", 0)),
+                        ("Failed", preview_stats.get("failed", 0)),
+                        ("Stale", preview_stats.get("stale", 0)),
+                        ("Pending", preview_stats.get("pending", 0)),
+                        ("Status", "Completed with failures" if preview_stats.get("failed") else "Complete"),
+                    ],
+                    console,
+                    status="failed" if preview_stats.get("failed") else None,
+                )
 
         # Notification dispatchers run after selected updates commit, but can
         # also run alone against the already-published catalog.

@@ -19,6 +19,7 @@ class RunResult:
     secs: float
     ok: bool
     attempts: int = 1
+    detail: Any = None
 
 
 class PerTaskBarColumn(ProgressColumn):

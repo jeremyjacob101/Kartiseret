@@ -227,24 +227,63 @@ class RunLogSession:
         return overall_ok
 
     def __exit__(self, exc_type, exc, tb) -> bool:
-        if exc_type is not None:
-            self._successful = False
+        if self.run_id is None:
+            return False
 
-        # Report before finalization so even a finalization failure caused by
-        # an exhausted budget leaves a useful, non-sensitive usage summary.
+        from rich.console import Console
+        from backend.utils.console.stage_progress import record_stage_duration, render_key_value_table
+        from backend.utils.console.stage_progress import TimedStageProgress
+        from backend.utils.log.r2_budget import R2Budget
+
+        console = Console()
+        progress = TimedStageProgress("RunFinalization", "Finalize run status and logs", console)
+        summary: dict[str, Any] = {
+            "Run ID": self.run_id,
+            "Target": os.environ.get("KARTISERET_TARGET", "—"),
+            "Outcome": "Successful" if self._successful and exc_type is None else "Failed",
+            "Log/status": "Pending",
+            "Storage check": "Pending",
+            "Lease": "Pending",
+            "R2 budget": "Unavailable",
+        }
         try:
-            from backend.utils.log.r2_budget import R2Budget
             budget = R2Budget.from_environment()
             if budget is not None:
                 counts = budget.snapshot()
-                print(
-                    "R2 job budget: "
-                    f"Class A {counts['class_a']}/{budget.class_a_limit}, "
-                    f"Class B {counts['class_b']}/{budget.class_b_limit}, "
+                summary["R2 budget"] = (
+                    f"Class A {counts['class_a']}/{budget.class_a_limit} · "
+                    f"Class B {counts['class_b']}/{budget.class_b_limit} · "
                     f"tripped={counts['tripped'] or 'no'}"
                 )
-        except Exception as error:
-            print(f"R2 job budget summary unavailable ({type(error).__name__}).")
+        except Exception:
+            pass
+
+        progress.__enter__()
+        try:
+            result = self._finalize_session(exc_type, exc, tb, progress, summary)
+            elapsed = progress.finish("Confirmed")
+            summary["Elapsed"] = f"{elapsed:.1f}s"
+            record_stage_duration("RunFinalization", elapsed, progress.weekday)
+            return result
+        except BaseException:
+            if progress.state == "running":
+                elapsed = progress.finish("Failed or unconfirmed", successful=False)
+                summary["Elapsed"] = f"{elapsed:.1f}s"
+            if summary["Log/status"] == "Pending":
+                summary["Log/status"] = "Failed or unconfirmed"
+            if summary["Storage check"] == "Pending":
+                summary["Storage check"] = "Not confirmed"
+            if summary["Lease"] == "Pending":
+                summary["Lease"] = "Not confirmed"
+            summary["Outcome"] = "Finalization failed or unconfirmed"
+            raise
+        finally:
+            progress.close()
+            render_key_value_table("Run finalization", list(summary.items()), console, status="failed" if "failed" in str(summary["Outcome"]).lower() else None)
+
+    def _finalize_session(self, exc_type, exc, tb, progress, summary: dict[str, Any]) -> bool:
+        if exc_type is not None:
+            self._successful = False
 
         if self.run_id is not None:
             total_time = max(0.0, time.monotonic() - self._start_time)
@@ -256,6 +295,7 @@ class RunLogSession:
             post_storage_error: Exception | None = None
             post_storage_confirmed = False
             supabase_finalized = False
+            progress.advance(0.18, "Writing run artifacts")
             try:
                 storage.finalize_run(
                     run_id=int(self.run_id), successful=bool(self._successful),
@@ -270,6 +310,7 @@ class RunLogSession:
                     {"run_id": self.run_id, "status": "failed", "error_type": type(error).__name__},
                 )
 
+            progress.advance(0.36, "Confirming run status")
             try:
                 response = sb.table("utilRunLogs").update({
                     "selected_runners": self._selected_runners,
@@ -280,7 +321,9 @@ class RunLogSession:
                 if not (response.data or []):
                     raise RuntimeError(f"Supabase did not confirm finalization for run {self.run_id}.")
                 supabase_finalized = True
+                summary["Log/status"] = "Confirmed in Supabase" if storage_error is None else "Supabase confirmed · D1 log failed"
             except Exception as error:
+                summary["Log/status"] = "Unconfirmed in Supabase"
                 write_recovery_envelope(
                     "run_finalization", str(self.run_id),
                     {"run_id": self.run_id, "status": "unconfirmed", "error_type": type(error).__name__},
@@ -300,17 +343,22 @@ class RunLogSession:
                         exc_type and issubclass(exc_type, (R2BudgetError, R2BudgetExceeded))
                     )
                     if budget_failure:
+                        progress.advance(0.62, "Checking D1 storage size")
                         try:
                             # Keep the post-run D1 size check without issuing
                             # another R2 request after the job budget tripped.
                             storage.d1.measure_database_size()
+                            summary["Storage check"] = "D1 size measured · R2 check skipped (budget limit)"
                         except Exception as error:
-                            print(f"Post-run D1 size check unavailable ({type(error).__name__}).")
+                            summary["Storage check"] = f"Unavailable ({type(error).__name__})"
                     else:
+                        progress.advance(0.62, "Checking storage")
                         try:
                             storage.check_storage(lease_token=self._lease_token)
+                            summary["Storage check"] = "Passed"
                         except Exception as error:
                             post_storage_error = error
+                            summary["Storage check"] = f"Failed ({type(error).__name__})"
                             confirmed = False
                             try:
                                 response = sb.table("utilRunLogs").update({"successful": False}).eq("run_id", int(self.run_id)).execute()
@@ -337,13 +385,18 @@ class RunLogSession:
                                     )
                             except Exception:
                                 pass
+                elif storage_error is not None:
+                    summary["Storage check"] = "Skipped (run artifact log failed)"
+                progress.advance(0.86, "Releasing target lease")
                 try:
                     if supabase_finalized:
                         storage.release_run_lease(token=self._lease_token)
                     else:
                         storage.release_run_lease(token=self._lease_token, reconcile_run_id=int(self.run_id))
                     self._lease_released = True
+                    summary["Lease"] = "Released"
                 except Exception as error:
+                    summary["Lease"] = f"Unconfirmed ({type(error).__name__})"
                     write_recovery_envelope(
                         "run_finalization", str(self.run_id),
                         {"run_id": self.run_id, "status": "unconfirmed", "error_type": type(error).__name__},
@@ -358,15 +411,19 @@ class RunLogSession:
                 finally:
                     _clear_current_run_context(int(self.run_id))
             if storage_error is not None:
+                summary["Outcome"] = "Failed · D1 log finalization failed"
                 raise RuntimeError(
                     f"Run {self.run_id} was marked unsuccessful because D1 finalization failed."
                 ) from storage_error
             if post_storage_error is not None:
+                summary["Outcome"] = "Failed · storage check failed"
                 from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
 
                 if isinstance(post_storage_error, (R2BudgetError, R2BudgetExceeded)):
                     raise post_storage_error
                 status = "failed" if post_storage_confirmed else "unconfirmed"
                 raise RuntimeError(f"Run {self.run_id} completed, but its D1 storage check failed; status is {status}.") from post_storage_error
+
+            summary["Outcome"] = "Successful" if self._successful else "Run completed with failures"
 
         return False

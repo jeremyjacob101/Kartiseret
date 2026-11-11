@@ -21,8 +21,8 @@ class _FakeLive:
     def __exit__(self, *_args):
         return False
 
-    def update(self, _renderable):
-        type(self).last_renderable = _renderable
+    def update(self, renderable):
+        type(self).last_renderable = renderable
 
 
 class InputMenuTests(TestCase):
@@ -36,49 +36,71 @@ class InputMenuTests(TestCase):
         with patch.object(inputMenu, "Live", _FakeLive), patch.object(
             inputMenu, "read_key", side_effect=keys
         ):
-            return inputMenu._select_registry_items(
-                Console(file=StringIO()), "Test", classes
-            )
+            return inputMenu._select_registry_items(Console(file=StringIO()), "Test", classes)
 
-    def test_top_level_alerts_mode_is_available_after_existing_modes(self):
-        mode, groups = self._select_mode([Keys.RIGHT] * 4 + [Keys.ENTER])
+    def test_top_level_modes_can_be_combined_with_space(self):
+        mode, selected = self._select_mode(
+            [Keys.RIGHT] * 2 + [Keys.SPACE, Keys.RIGHT, Keys.SPACE, Keys.ENTER]
+        )
 
-        self.assertEqual(mode, "alerts")
-        self.assertEqual(groups, set())
+        self.assertEqual(mode, "combined")
+        self.assertEqual(selected, {"scrape", "dataflow"})
+
+    def test_alerts_is_space_selectable_and_all_is_removed_from_top_level(self):
+        mode, selected = self._select_mode(
+            [Keys.RIGHT] * 4 + [Keys.SPACE, Keys.ENTER]
+        )
+
+        self.assertEqual((mode, selected), ("combined", {"alerts"}))
         output = StringIO()
         Console(file=output, width=120).print(_FakeLive.last_renderable)
         self.assertIn("Alerts", output.getvalue())
-        self.assertNotIn("ALERTS", output.getvalue())
+        self.assertNotIn("All", output.getvalue())
 
-    def test_none_group_checkbox_clears_when_a_group_is_selected(self):
-        mode, groups = self._select_mode(
-            [
-                Keys.RIGHT,
-                Keys.ENTER,  # All mode
-                Keys.RIGHT,
-                Keys.SPACE,  # None
-                Keys.RIGHT,
-                Keys.SPACE,  # Soons
-                Keys.ENTER,
-            ]
+    def test_everything_toggles_all_modes_and_none_clears_them(self):
+        mode, selected = self._select_mode(
+            [Keys.SPACE, Keys.RIGHT, Keys.RIGHT, Keys.SPACE, Keys.ENTER]
         )
+        self.assertEqual((mode, selected), ("combined", {"dataflow", "alerts"}))
 
-        self.assertEqual(mode, "all")
+        mode, selected = self._select_mode(
+            [Keys.RIGHT, Keys.SPACE, Keys.ENTER]
+        )
+        self.assertEqual((mode, selected), ("none", set()))
+
+    def test_empty_top_level_selection_is_none(self):
+        self.assertEqual(self._select_mode([Keys.ENTER]), ("none", set()))
+
+    def test_environment_selector_uses_keyboard_selection(self):
+        with patch.object(inputMenu, "Live", _FakeLive), patch.object(
+            inputMenu, "read_key", side_effect=[Keys.SPACE, Keys.ENTER]
+        ):
+            self.assertEqual(inputMenu.choose_environment_target(Console(file=StringIO())), "development")
+        with patch.object(inputMenu, "Live", _FakeLive), patch.object(
+            inputMenu, "read_key", side_effect=[Keys.RIGHT, Keys.SPACE, Keys.ENTER]
+        ):
+            self.assertEqual(inputMenu.choose_environment_target(Console(file=StringIO())), "production")
+
+    def test_quit_key_interrupts_the_mode_selector(self):
+        with patch.object(inputMenu, "Live", _FakeLive), patch.object(
+            inputMenu, "read_key", return_value="q"
+        ), self.assertRaises(KeyboardInterrupt):
+            inputMenu._select_mode_and_groups(Console(file=StringIO()))
+
+    def test_group_none_checkbox_clears_when_a_group_is_selected(self):
+        with patch.object(inputMenu, "Live", _FakeLive), patch.object(
+            inputMenu,
+            "read_key",
+            side_effect=[Keys.RIGHT, Keys.SPACE, Keys.RIGHT, Keys.SPACE, Keys.ENTER],
+        ):
+            groups, backed = inputMenu._select_group_items(Console(file=StringIO()), "Groups", ["Soons"])
         self.assertEqual(groups, {"Soons"})
-
-    def test_none_group_checkbox_can_finish_with_no_groups(self):
-        mode, groups = self._select_mode(
-            [Keys.RIGHT, Keys.ENTER, Keys.RIGHT, Keys.SPACE, Keys.ENTER]
-        )
-
-        self.assertEqual(mode, "all")
-        self.assertEqual(groups, set())
+        self.assertFalse(backed)
 
     def test_none_runner_checkbox_can_finish_with_no_runners(self):
         picked, backed = self._select_items(
             [Keys.RIGHT, Keys.SPACE, Keys.ENTER], [REGISTRY["allSoons"][0]]
         )
-
         self.assertEqual(picked, [])
         self.assertFalse(backed)
 
@@ -87,7 +109,6 @@ class InputMenuTests(TestCase):
         picked, backed = self._select_items(
             [Keys.RIGHT, Keys.SPACE, Keys.RIGHT, Keys.SPACE, Keys.ENTER], [runner]
         )
-
         self.assertEqual(picked, [runner])
         self.assertFalse(backed)
 
@@ -97,62 +118,46 @@ class InputMenuTests(TestCase):
             [Keys.RIGHT, Keys.RIGHT, Keys.SPACE, Keys.LEFT, Keys.SPACE, Keys.ENTER],
             [runner],
         )
-
         self.assertEqual(picked, [])
         self.assertFalse(backed)
 
-    def test_existing_modes_keep_their_group_and_stage_scope(self):
-        expected_titles = {
-            "all": ["Scrape → Soons", "Dataflow → Soons"],
-            "scrape": ["Scrape → Soons"],
-            "dataflow": ["Dataflow → Soons"],
-        }
+    def test_combined_modes_keep_scrape_and_dataflow_scope(self):
+        expected_titles = ["Scrape → Soons", "Dataflow → Soons"]
+        seen_titles = []
 
-        for mode, titles in expected_titles.items():
-            with self.subTest(mode=mode):
-                seen_titles = []
+        def pick_first(_console, title, classes):
+            seen_titles.append(title)
+            return classes[:1], False
 
-                def pick_first(_console, title, classes):
-                    seen_titles.append(title)
-                    return classes[:1], False
-
-                with patch.object(
-                    inputMenu, "_select_mode_and_groups", return_value=(mode, {"Soons"})
-                ), patch.object(inputMenu, "_select_registry_items", side_effect=pick_first):
-                    plan, _header = inputMenu.choose_run_plan()
-
-                self.assertEqual(seen_titles, titles)
-                self.assertEqual(len(plan), len(titles))
-                self.assertEqual(
-                    [entry[0] for entry in plan],
-                    ["dataflow" if title.startswith("Dataflow") else "cinema" for title in titles],
-                )
-
-    def test_everything_still_selects_every_registered_group(self):
         with patch.object(
-            inputMenu, "_select_mode_and_groups", return_value=("everything", set())
-        ):
+            inputMenu, "_select_mode_and_groups", return_value=("combined", {"scrape", "dataflow"})
+        ), patch.object(
+            inputMenu, "_select_group_items", side_effect=[({"Soons"}, False), ({"Soons"}, False)]
+        ), patch.object(inputMenu, "_select_registry_items", side_effect=pick_first):
             plan, _header = inputMenu.choose_run_plan()
 
-        self.assertEqual(len(plan), len(REGISTRY) + len(DATAFLOW_REGISTRY))
+        self.assertEqual(seen_titles, expected_titles)
+        self.assertEqual(len(plan), 2)
+        self.assertEqual([entry[0] for entry in plan], ["cinema", "dataflow"])
+
+    def test_everything_includes_all_registered_work_and_alert_dispatchers(self):
+        with patch.object(inputMenu, "_select_mode_and_groups", return_value=("everything", set())):
+            plan, _header = inputMenu.choose_run_plan()
+
+        self.assertEqual(len(plan), len(REGISTRY) + len(DATAFLOW_REGISTRY) + 1)
         self.assertEqual(
             sum(len(entry[2]) for entry in plan if entry[0] == "cinema"),
             sum(map(len, REGISTRY.values())),
         )
-        self.assertEqual(
-            sum(len(entry[2]) for entry in plan if entry[0] == "dataflow"),
-            sum(map(len, DATAFLOW_REGISTRY.values())),
-        )
+        alerts = [entry for entry in plan if len(entry) == 3 and entry[1] == "alerts"]
+        self.assertEqual(alerts, [("dataflow", "alerts", [cls for _key, cls in registered_post_stage_dataflows()])])
 
     def test_alert_mode_selects_unique_registered_post_stage_dispatchers(self):
         alert_classes = [cls for _key, cls in registered_post_stage_dataflows()]
-
         with patch.object(
-            inputMenu, "_select_mode_and_groups", return_value=("alerts", set())
+            inputMenu, "_select_mode_and_groups", return_value=("combined", {"alerts"})
         ), patch.object(
-            inputMenu,
-            "_select_registry_items",
-            return_value=(alert_classes, False),
+            inputMenu, "_select_registry_items", return_value=(alert_classes, False)
         ) as select_items:
             plan, _header = inputMenu.choose_run_plan()
 
@@ -162,53 +167,26 @@ class InputMenuTests(TestCase):
 
     def test_empty_runner_selection_completes_without_reopening_menu(self):
         with patch.object(
-            inputMenu, "_select_mode_and_groups", return_value=("scrape", {"Soons"})
+            inputMenu, "_select_mode_and_groups", return_value=("combined", {"scrape"})
         ) as select_mode, patch.object(
-            inputMenu, "_select_registry_items", return_value=([], False)
-        ) as select_items:
+            inputMenu, "_select_group_items", return_value=({"Soons"}, False)
+        ), patch.object(inputMenu, "_select_registry_items", return_value=([], False)) as select_items:
             plan, _header = inputMenu.choose_run_plan()
 
         self.assertEqual(plan, [])
         select_mode.assert_called_once()
         select_items.assert_called_once()
 
-    def test_none_skips_only_its_group_and_keeps_other_selected_groups(self):
-        coming_soon_clean = DATAFLOW_REGISTRY["comingSoonsData"][0]
-        showtime_scraper = REGISTRY["allShowtimes"][0]
-
-        def select_for_title(_console, title, classes):
-            if title == "Scrape → Soons":
-                return [], False
-            if title == "Dataflow → Soons":
-                return [coming_soon_clean], False
-            if title == "Scrape → Showtimes":
-                return [showtime_scraper], False
-            return [], False
-
-        with patch.object(
-            inputMenu,
-            "_select_mode_and_groups",
-            return_value=("all", {"Soons", "Showtimes"}),
-        ), patch.object(inputMenu, "_select_registry_items", side_effect=select_for_title):
-            plan, _header = inputMenu.choose_run_plan()
-
-        self.assertEqual(
-            plan,
-            [
-                ("dataflow", "comingSoonsData", [coming_soon_clean]),
-                ("cinema", "allShowtimes", [showtime_scraper]),
-            ],
-        )
-
     def test_back_from_runner_selection_restarts_mode_selection(self):
         with patch.object(
             inputMenu,
             "_select_mode_and_groups",
-            side_effect=[("scrape", {"Soons"}), ("everything", set())],
-        ) as select_mode, patch.object(
-            inputMenu, "_select_registry_items", return_value=(None, True)
-        ):
+            side_effect=[("combined", {"scrape"}), ("everything", set())],
+        ), patch.object(
+            inputMenu,
+            "_select_group_items",
+            return_value=({"Soons"}, False),
+        ), patch.object(inputMenu, "_select_registry_items", return_value=(None, True)):
             plan, _header = inputMenu.choose_run_plan()
 
-        self.assertEqual(select_mode.call_count, 2)
-        self.assertEqual(len(plan), len(REGISTRY) + len(DATAFLOW_REGISTRY))
+        self.assertEqual(len(plan), len(REGISTRY) + len(DATAFLOW_REGISTRY) + 1)

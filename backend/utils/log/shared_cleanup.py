@@ -571,14 +571,72 @@ def run_pipeline_preflight(store: RunArtifactStore, *, lease_token: str) -> dict
     # Revalidate target pairing before the cleanup code creates clients or mutates data.
     resolve_target_environment(target, os.environ)
     apply = _cleanup_apply_from_environment()
-    result = run_shared_cleanup(store, lease_token=lease_token, target=target, apply=apply)
-    from backend.utils.log.r2_storage_guard import initialize_storage_guard
-    guard = initialize_storage_guard(store)
-    # A daily sweep that just ran already attempted the same bounded cleanup.
-    # A skipped daily scan must not suppress pressure-triggered cleanup.
-    guard.reserve(upload=False, allow_cleanup=bool(result.get("skipped")))
-    result["r2_storage"] = guard.summary()
-    print("Shared cleanup preflight: " + json.dumps(result, sort_keys=True, default=str))
+    from rich.console import Console
+    from backend.utils.console.stage_progress import format_bytes, render_key_value_table, run_timed_stage
+
+    console = Console()
+
+    def preflight() -> dict:
+        result = run_shared_cleanup(store, lease_token=lease_token, target=target, apply=apply)
+        from backend.utils.log.r2_storage_guard import initialize_storage_guard
+
+        guard = initialize_storage_guard(store)
+        # A daily sweep that just ran already attempted the same bounded cleanup.
+        # A skipped daily scan must not suppress pressure-triggered cleanup.
+        guard.reserve(upload=False, allow_cleanup=bool(result.get("skipped")))
+        result["r2_storage"] = guard.summary()
+        return result
+
+    result = run_timed_stage(
+        "SharedCleanupPreflight",
+        "Shared cleanup preflight",
+        preflight,
+        console,
+        record_when=lambda value: not value.get("skipped"),
+        outcome_for=lambda value: f"Skipped: {value['skipped']}" if value.get("skipped") else "Complete",
+    )
+
+    def summary_rows() -> list[tuple[str, str]]:
+        rows = [
+            ("Target", target),
+            ("Mode", result.get("mode", "—")),
+            ("Status", f"Skipped: {result['skipped']}" if result.get("skipped") else "Complete"),
+        ]
+        for label, key in (("D1 before", "d1_before"), ("D1 after", "d1_after")):
+            d1 = result.get(key)
+            if isinstance(d1, dict) and "size" in d1:
+                rows.append((label, format_bytes(d1.get("size"))))
+        guard = result.get("r2_storage")
+        if isinstance(guard, dict):
+            estimated = format_bytes(guard.get("estimated_bytes"))
+            high = format_bytes(guard.get("high_bytes"))
+            low = format_bytes(guard.get("low_bytes"))
+            rows.append(("R2 storage guard", f"{estimated} estimated · high {high} · low {low}"))
+            if guard.get("blocked"):
+                rows.append(("R2 guard status", guard["blocked"]))
+        for key in ("supabase_old_entries", "orphan_final_movies", "orphan_final_theque_movies", "artwork", "social_previews", "scraped_snapshots", "run_artifacts"):
+            value = result.get(key)
+            label = key.replace("_", " ").title()
+            if isinstance(value, int) and not isinstance(value, bool):
+                rows.append((label, f"{value} removed"))
+                continue
+            if not isinstance(value, dict):
+                continue
+            eligible = value.get("eligible", value.get("eligible_objects", value.get("eligible_count")))
+            removed = value.get("deleted", value.get("deleted_count", value.get("removed")))
+            if eligible is not None or removed is not None:
+                rows.append((label, f"{eligible if eligible is not None else '—'} eligible · {removed if removed is not None else 0} removed"))
+                continue
+            counts = [
+                f"{name} {count}"
+                for name, count in value.items()
+                if isinstance(count, int) and not isinstance(count, bool)
+            ]
+            if counts:
+                rows.append((label, " · ".join(counts)))
+        return rows
+
+    render_key_value_table("Shared cleanup", summary_rows(), console)
     return result
 
 
