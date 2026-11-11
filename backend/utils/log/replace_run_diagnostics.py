@@ -110,7 +110,8 @@ def replace(store, *, run_id, target, apply=False, expected_source_rows=179,
         "source_rows": len(rows), "replacement_records": len(replacements),
         "source_identity_sha256": _hash(canonical(rows)),
         "source_text_bytes": sum(len(r["text_content"].encode()) for r in rows),
-        "compact_matching_bytes": compact_bytes, "deleted_rows": 0, "delete_writes": 0}
+        "compact_matching_bytes": compact_bytes, "deleted_rows": 0, "delete_writes": 0,
+        "replacement_d1_writes": 0}
     if not apply:
         return result
     journal = write_recovery_envelope("diagnostic_replacements", identity, {
@@ -121,12 +122,13 @@ def replace(store, *, run_id, target, apply=False, expected_source_rows=179,
         if "document" in item:
             pointer = store.save_matching_summary(item["document"], name=item["name"],
                 created_at=item["created_at"], identity_namespace=namespace)
+            result["replacement_d1_writes"] += getattr(store, "_last_matching_summary_rows_written", 0)
             if store.resolve_matching_pointer(pointer) != item["document"]:
                 raise CloudflareStorageError("Replacement summary download differs")
             body, metadata = canonical(pointer), {"version": 2}
         else:
             body, metadata = item["text"], item["metadata"]
-            store.save_text_artifact(run_id=run_id, artifact_type=item["kind"], name=item["name"],
+            result["replacement_d1_writes"] += store.save_text_artifact(run_id=run_id, artifact_type=item["kind"], name=item["name"],
                 text=body, metadata=metadata, created_at=item["created_at"], identity_namespace=namespace)
         diagnostic_id = _hash(f"{run_id}:{item['kind']}:{item['name']}:{namespace}:{_hash(body)}")
         actual = store.d1.execute(

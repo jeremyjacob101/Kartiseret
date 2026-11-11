@@ -36,6 +36,7 @@ class MatchingSummaryStorage:
         existing = self.d1.execute(
             "SELECT artifact_id, run_id, object_key, metadata_json FROM artifacts WHERE artifact_id = ?",
             (artifact_id,)).rows
+        catalog_rows_written = 0
         if existing:
             if json.loads(existing[0]["metadata_json"]).get("content_sha256") != digest:
                 raise CloudflareStorageError("Matching summary identity conflicts with existing content")
@@ -47,7 +48,7 @@ class MatchingSummaryStorage:
             catalog = {"artifact_id": artifact_id, "run_id": run_id,
                        "object_key": key, "metadata_json": canonical(metadata)}
             self.read_matching_summary(catalog)
-            self._insert_artifact_row(artifact_id=artifact_id, run_id=run_id,
+            catalog_rows_written = self._insert_artifact_row(artifact_id=artifact_id, run_id=run_id,
                 artifact_type=MATCHING_SUMMARY_TYPE, name=name, object_key=key,
                 content_type="application/gzip", text_content="", metadata=metadata, created_at=timestamp)
         registered = self.d1.execute(
@@ -55,9 +56,10 @@ class MatchingSummaryStorage:
             (artifact_id,)).rows
         if len(registered) != 1 or json.loads(registered[0]["metadata_json"]).get("content_sha256") != digest:
             raise CloudflareStorageError("Matching summary catalog registration was not confirmed")
-        self.save_text_artifact(run_id=run_id, artifact_type="tmdb_matching_evidence", name=name,
+        pointer_rows_written = self.save_text_artifact(run_id=run_id, artifact_type="tmdb_matching_evidence", name=name,
             text=canonical(pointer), metadata={"version": 2}, created_at=timestamp,
             identity_namespace=identity_namespace)
+        self._last_matching_summary_rows_written = catalog_rows_written + pointer_rows_written
         remove_recovery_envelope(recovery)
         return pointer
 

@@ -42,13 +42,29 @@ class CompactMatchingTests(TestCase):
         self.assertEqual(build_tmdb_matching_report(original["groups"]), build_tmdb_matching_report(compact["groups"]))
         self.assertEqual(build_tmdb_matching_report(original["groups"] + compact["groups"]), build_tmdb_matching_report(compact["groups"]))
 
+    def test_matching_equivalence_merges_providers_and_preserves_report_totals(self):
+        original = self.document()
+        group = original["groups"][0]
+        source = dict(group["source_rows"][0], title="Arrival?", source="Cinema B", row_id="row-other")
+        group["source_rows"].append(source)
+        for values in group["candidates"][0]["comparisons"].values():
+            values.append(dict(values[0], source_row_id="row-other"))
+        compact = compact_document(original)
+        profile = compact["groups"][0]["source_rows"]
+        self.assertEqual(len(profile), 1)
+        self.assertEqual(profile[0]["row_count"], 2)
+        self.assertEqual(profile[0]["source_providers"], ["Cinema A", "Cinema B"])
+        self.assertEqual(build_tmdb_matching_report(original["groups"]),
+                         build_tmdb_matching_report(compact["groups"]))
+
     def test_thousands_of_showtimes_do_not_expand_candidate_comparisons(self):
         flow = NowPlayingsTmdb.__new__(NowPlayingsTmdb)
         flow.run_id = 693
         flow.init_dataflow_summary_state()
         flow.initDataflowRequests(DataflowRequestContext())
         self.addCleanup(flow.closeDataflowRequests)
-        rows = [{"id": f"unique-showtime-{i}", "english_title": "Arrival", "cinema": "Cinema", "release_year": 2016} for i in range(10000)]
+        rows = [{"id": f"unique-showtime-{i}", "english_title": "Arrival", "cinema": f"Cinema {i % 3}",
+                 "_checkpoint_source": f"Provider {i % 2}", "release_year": 2016} for i in range(10000)]
         flow.beginTmdbMatchEvidence("arrival", rows, input_fingerprint="stable")
         self.assertEqual(len(flow._tmdb_current_match_evidence["source_rows"]), 1)
         flow.candidates = [11]
@@ -56,6 +72,9 @@ class CompactMatchingTests(TestCase):
         flow.finishTmdbMatchEvidence("title_first_match", "mapped", 11)
         summary = flow.summaryTmdbEvidence[0]
         self.assertEqual(summary["source_row_count"], 10000)
+        self.assertEqual(summary["distinct_matching_inputs"], 1)
+        self.assertEqual(summary["source_rows"][0]["source_providers"], ["Provider 0", "Provider 1"])
+        self.assertEqual(summary["source_rows"][0]["source_cinemas"], ["Cinema 0", "Cinema 1", "Cinema 2"])
         self.assertEqual(summary["selected_comparisons"]["title"], [{"signal": "agree", "weight": 10000}])
         self.assertNotIn("unique-showtime", canonical(summary))
         self.assertLess(len(canonical(summary).encode()), 8000)

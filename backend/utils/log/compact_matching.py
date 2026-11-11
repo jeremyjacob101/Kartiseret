@@ -2,6 +2,8 @@
 from collections import Counter
 from copy import deepcopy
 import json
+import re
+import unicodedata
 
 VERSION = 2
 SIGNALS = ("title", "year", "director", "runtime")
@@ -11,19 +13,51 @@ def canonical(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
+def _normalize_title(value):
+    if not isinstance(value, str):
+        return ""
+    value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii").lower()
+    value = re.sub(r"[-–—:?!&]+", " ", value)
+    value = re.sub(r"[^a-z0-9 ]+", "", value)
+    return re.sub(r"\s+", " ", value).strip()
+
+
 def compact_sources(rows):
     profiles = {}
     for source in rows:
-        profile = {k: v for k, v in source.items()
-                   if k not in {"row_id", "snapshot_id", "source_run_id", "row_count", "comparison_weight"}}
-        if profile.get("cinema") == profile.get("source"):
-            profile.pop("cinema", None)
-        profile = {k: v for k, v in profile.items() if v is not None and v != ""}
-        key = canonical(profile)
+        title = source.get("title") or source.get("normalized_title") or ""
+        normalized_title = source.get("normalized_title") or _normalize_title(title)
+        director = source.get("director") or ""
+        key = canonical({
+            "normalized_title": normalized_title,
+            "release_year": source.get("release_year"),
+            "normalized_director": _normalize_title(director),
+            "runtime": source.get("runtime"),
+        })
         if key not in profiles:
-            profiles[key] = {**profile, "row_count": 0, "comparison_weight": 0}
-        profiles[key]["row_count"] += int(source.get("row_count", 1))
-        profiles[key]["comparison_weight"] += int(source.get("comparison_weight", 1))
+            profiles[key] = {
+                "title": title,
+                "normalized_title": normalized_title,
+                "release_year": source.get("release_year"),
+                "director": director,
+                "runtime": source.get("runtime"),
+                "source_providers": [],
+                "source_cinemas": [],
+                "row_count": 0,
+                "comparison_weight": 0,
+            }
+        profile = profiles[key]
+        represented_rows = int(source.get("row_count", 1))
+        profile["row_count"] += represented_rows
+        profile["comparison_weight"] += int(source.get("comparison_weight", represented_rows))
+        providers = source.get("source_providers") or source.get("providers")
+        if not isinstance(providers, list):
+            providers = [source.get("source") or source.get("cinema") or "unknown"]
+        cinemas = source.get("source_cinemas") or source.get("cinemas")
+        if not isinstance(cinemas, list):
+            cinemas = [source.get("cinema")] if source.get("cinema") else []
+        profile["source_providers"] = sorted(set(profile["source_providers"]).union(str(v) for v in providers if v))
+        profile["source_cinemas"] = sorted(set(profile["source_cinemas"]).union(str(v) for v in cinemas if v))
     return list(profiles.values())
 
 

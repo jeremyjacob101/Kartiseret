@@ -162,7 +162,11 @@ def build_tmdb_matching_report(groups: list[dict], *, current_year: int | None =
                 "evaluations": 0, "chosen_tmdb_ids": set(),
             })
             entry["categories"].add(group.get("category") or "unknown")
-            entry["sources"].add(source.get("source") or source.get("cinema") or "unknown")
+            providers = source.get("source_providers")
+            if isinstance(providers, list):
+                entry["sources"].update(str(value) for value in providers if value)
+            else:
+                entry["sources"].add(source.get("source") or source.get("cinema") or "unknown")
             if source.get("release_year") is not None:
                 entry["years"].add(int(source["release_year"]))
             entry["evaluations"] += int(source.get("comparison_weight", 1))
