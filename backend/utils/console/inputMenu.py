@@ -8,7 +8,6 @@ from rich.align import Align
 from rich.panel import Panel
 from rich.theme import Theme
 from rich.live import Live
-from rich.prompt import Prompt
 from rich.text import Text
 
 from backend.utils.console.utils.readchar import read_key, is_back, is_enter, is_left, is_quit, is_right, is_space
@@ -55,7 +54,7 @@ def _render_hmenu(items: List[_MenuItem], idx: int, *, selected_values: Optional
         )
 
         prefix = ""
-        if show_checks and it.value != _ALL_VALUE:
+        if show_checks:
             prefix = "[x] " if is_checked else "[ ] "
 
         label = prefix + it.label
@@ -66,6 +65,8 @@ def _render_hmenu(items: List[_MenuItem], idx: int, *, selected_values: Optional
             style = "white"
 
         if show_checks and it.value == _ALL_VALUE and is_checked and is_enabled:
+            style = "bold green"
+        elif show_checks and it.value == _NONE_VALUE and is_checked and is_enabled:
             style = "bold green"
 
         if is_cursor:
@@ -181,111 +182,58 @@ def _plan_header(plan: List[Tuple[str, str, Optional[List[type]]]]) -> Panel:
 
 def _select_mode_and_groups(console: Console) -> Tuple[str, Set[str]]:
     top = [
-        _MenuItem("Everything", "everything"),
-        _MenuItem("All", _ALL_VALUE),
+        _MenuItem("Everything", _ALL_VALUE),
+        _MenuItem("None", _NONE_VALUE),
         _MenuItem("Scrape", "scrape"),
         _MenuItem("Dataflow", "dataflow"),
         _MenuItem("Alerts", "alerts"),
     ]
-    groups_all_or_scrape = [
-        _MenuItem("All", _ALL_VALUE),
-        _MenuItem("None", _NONE_VALUE),
-        _MenuItem("Soons", "Soons"),
-        _MenuItem("Theques", "Theques"),
-        _MenuItem("Showtimes", "Showtimes"),
-    ]
-    groups_dataflow = list(groups_all_or_scrape)
-
-    stage: str = "top"
-    idx: int = 0
-    mode: str = "all"
-    selected_groups = set()
-
-    def current_items() -> List[_MenuItem]:
-        if stage == "groups_dataflow":
-            return groups_dataflow
-        return groups_all_or_scrape
+    selected: Set[str] = set()
+    idx = 0
 
     def render() -> Panel:
-        if stage == "top":
-            body = _render_hmenu(top, idx)
-            return _panel("Select Mode", body)
-
-        items = current_items()
-        title = "All" if mode == "all" else ("Scrape" if mode == "scrape" else "Dataflow")
-        body = _render_hmenu(items, idx, selected_values=selected_groups, show_checks=True)
-        return _panel(title, body)
+        body = Group(
+            _render_hmenu(top, idx, selected_values=selected, show_checks=True),
+            Align.center(Text("←/→ move   Space select   Enter continue   Esc back   Q quit", style="dim")),
+        )
+        return _panel("Select Pipeline", body)
 
     with Live(render(), console=console, refresh_per_second=30) as live:
         while True:
             live.update(render())
-            k = read_key()
-
-            if is_quit(k):
+            key = read_key()
+            if is_quit(key):
                 raise KeyboardInterrupt
-
-            if is_back(k):
-                if stage != "top":
-                    stage = "top"
-                    idx = 0
+            if is_back(key):
+                selected.clear()
                 continue
-
-            if stage == "top":
-                if is_left(k):
-                    idx = _move_index(top, idx, -1)
-                elif is_right(k):
-                    idx = _move_index(top, idx, +1)
-                elif is_enter(k):
-                    mode = top[idx].value
-                    if mode == "everything":
-                        return "everything", set()
-                    if mode == "alerts":
-                        return "alerts", set()
-
-                    idx, selected_groups = 0, set()
-                    if mode == "dataflow":
-                        stage = "groups_dataflow"
-                    else:
-                        stage = "groups_all"
+            if is_left(key):
+                idx = _move_index(top, idx, -1)
                 continue
-
-            items = current_items()
-
-            if is_left(k):
-                idx = _move_index(items, idx, -1)
+            if is_right(key):
+                idx = _move_index(top, idx, 1)
                 continue
-            if is_right(k):
-                idx = _move_index(items, idx, +1)
-                continue
-
-            if is_space(k):
-                it = items[idx]
-                if not it.enabled:
-                    continue
-
-                sel = set(selected_groups)
-
-                if it.value == _ALL_VALUE:
-                    selected_groups = _toggle_all(sel, items)
-                elif it.value == _NONE_VALUE:
-                    selected_groups = _toggle_none(sel)
+            if is_space(key):
+                value = top[idx].value
+                if value == _ALL_VALUE:
+                    all_modes = {"scrape", "dataflow", "alerts"}
+                    selected = set() if selected == all_modes else all_modes
+                elif value == _NONE_VALUE:
+                    selected.clear()
+                    selected.add(_NONE_VALUE)
                 else:
-                    sel.discard(_NONE_VALUE)
-                    if it.value in sel:
-                        sel.remove(it.value)
+                    selected.discard(_NONE_VALUE)
+                    if value in selected:
+                        selected.remove(value)
                     else:
-                        sel.add(it.value)
-                    selected_groups = _normalize_selected(sel, items)
-
+                        selected.add(value)
                 continue
-
-            if is_enter(k):
-                hovered = items[idx]
-                if hovered.value == _ALL_VALUE:
-                    return mode, set(_enabled_selectable_values(items))
-                if hovered.value == _NONE_VALUE:
-                    return mode, set()
-                return mode, _normalize_selected(selected_groups, items)
+            if is_enter(key):
+                if selected == {"scrape", "dataflow", "alerts"}:
+                    return "everything", set()
+                if _NONE_VALUE in selected or not selected:
+                    return "none", set()
+                return "combined", set(selected)
 
 
 def _select_registry_items(console: Console, title: str, classes: List[type]) -> Tuple[Optional[List[type]], bool]:
@@ -300,7 +248,10 @@ def _select_registry_items(console: Console, title: str, classes: List[type]) ->
     selected: Set[str] = set()
 
     def render() -> Panel:
-        body = _render_hmenu(menu_items, idx, selected_values=selected, show_checks=True)
+        body = Group(
+            _render_hmenu(menu_items, idx, selected_values=selected, show_checks=True),
+            Align.center(Text("←/→ move   Space select   Enter confirm   Esc back   Q quit", style="dim")),
+        )
         return _panel(title, body)
 
     with Live(render(), console=console, refresh_per_second=30) as live:
@@ -356,12 +307,87 @@ def _select_registry_items(console: Console, title: str, classes: List[type]) ->
                 return picked, False
 
 
-def choose_environment_target() -> str:
-    """Prompt for the Supabase and R2 environment before selecting a run plan."""
-    return Prompt.ask(
-        "Select scraper target",
-        choices=["development", "production"],
-    )
+def _select_group_items(console: Console, title: str, groups: List[str]) -> Tuple[Set[str], bool]:
+    items = [_MenuItem("All", _ALL_VALUE), _MenuItem("None", _NONE_VALUE)] + [
+        _MenuItem(group, group) for group in groups
+    ]
+    idx = 0
+    selected: Set[str] = set()
+
+    def render() -> Panel:
+        body = Group(
+            _render_hmenu(items, idx, selected_values=selected, show_checks=True),
+            Align.center(Text("←/→ move   Space select   Enter confirm   Esc back   Q quit", style="dim")),
+        )
+        return _panel(title, body)
+
+    with Live(render(), console=console, refresh_per_second=30) as live:
+        while True:
+            live.update(render())
+            key = read_key()
+            if is_quit(key):
+                raise KeyboardInterrupt
+            if is_back(key):
+                return set(), True
+            if is_left(key):
+                idx = _move_index(items, idx, -1)
+                continue
+            if is_right(key):
+                idx = _move_index(items, idx, 1)
+                continue
+            if is_space(key):
+                value = items[idx].value
+                if value == _ALL_VALUE:
+                    selected = _toggle_all(selected, items)
+                elif value == _NONE_VALUE:
+                    selected = _toggle_none(selected)
+                else:
+                    selected.discard(_NONE_VALUE)
+                    selected.symmetric_difference_update({value})
+                continue
+            if is_enter(key):
+                value = items[idx].value
+                if value == _ALL_VALUE:
+                    return set(groups), False
+                if value == _NONE_VALUE or _is_none_selected(selected):
+                    return set(), False
+                return _normalize_selected(selected, items), False
+
+
+def choose_environment_target(console: Console | None = None) -> str:
+    """Select the Supabase and R2 environment with the same keyboard UI."""
+    console = console or Console(theme=Theme({"progress.elapsed": "bold #9c27f5"}))
+    items = [_MenuItem("Development", "development"), _MenuItem("Production", "production")]
+    selected: Set[str] = set()
+    idx = 0
+
+    def render() -> Panel:
+        body = Group(
+            _render_hmenu(items, idx, selected_values=selected, show_checks=True),
+            Align.center(Text("←/→ move   Space select   Enter confirm   Q quit", style="dim")),
+        )
+        return _panel("Select Scraper Target", body)
+
+    with Live(render(), console=console, refresh_per_second=30) as live:
+        while True:
+            live.update(render())
+            key = read_key()
+            if is_quit(key):
+                raise KeyboardInterrupt
+            if is_back(key):
+                selected.clear()
+                continue
+            if is_left(key):
+                idx = _move_index(items, idx, -1)
+                continue
+            if is_right(key):
+                idx = _move_index(items, idx, 1)
+                continue
+            if is_space(key):
+                selected = {items[idx].value}
+                continue
+            if is_enter(key):
+                return next(iter(selected), items[idx].value)
 
 
 def choose_run_plan() -> Tuple[List[Tuple], Panel]:
@@ -372,7 +398,7 @@ def choose_run_plan() -> Tuple[List[Tuple], Panel]:
     ORDER = ["Soons", "Showtimes", "Theques"]
 
     while True:
-        mode, groups = _select_mode_and_groups(console)
+        mode, selected_modes = _select_mode_and_groups(console)
 
         if mode == "everything":
             plan: List[Tuple[str, str, Optional[List[type]]]] = []
@@ -387,25 +413,18 @@ def choose_run_plan() -> Tuple[List[Tuple], Panel]:
                 if df_key:
                     plan.append(("dataflow", df_key, list(DATAFLOW_REGISTRY.get(df_key, []))))
 
-            return plan, _plan_header(plan)
-
-        if mode == "alerts":
             alert_items = registered_post_stage_dataflows()
-            picked, backed = _select_registry_items(
-                console,
-                "Alerts",
-                [cls for _key, cls in alert_items],
-            )
-            if backed:
-                continue
-            selected = set(picked or [])
-            selected_alerts = [cls for _key, cls in alert_items if cls in selected]
-            plan = [("dataflow", "alerts", selected_alerts)] if selected_alerts else []
+            if alert_items:
+                plan.append(("dataflow", "alerts", [cls for _key, cls in alert_items]))
+
             return plan, _plan_header(plan)
 
-        if not groups:
+        if mode == "none":
             plan: List[Tuple[str, str, Optional[List[type]]]] = []
             return plan, _plan_header(plan)
+
+        if mode == "combined":
+            selected_modes = selected_modes & {"scrape", "dataflow", "alerts"}
 
         plan: List[Tuple[str, str, Optional[List[type]]]] = []
         restart_selection = False
@@ -426,19 +445,41 @@ def choose_run_plan() -> Tuple[List[Tuple], Panel]:
 
             return True
 
-        for group in ORDER:
-            if group not in groups:
+        if "scrape" in selected_modes:
+            scrape_groups, backed = _select_group_items(console, "Scrape Groups", ORDER)
+            if backed:
                 continue
-
-            if mode in ("all", "scrape"):
+            for group in ORDER:
+                if group not in scrape_groups:
+                    continue
                 if not pick_for_group("cinema", group, SCRAPE_KEY_BY_GROUP, REGISTRY, "Scrape"):
                     restart_selection = True
                     break
-
-            if mode in ("all", "dataflow"):
+        if not restart_selection and "dataflow" in selected_modes:
+            dataflow_groups, backed = _select_group_items(console, "Dataflow Groups", ORDER)
+            if backed:
+                restart_selection = True
+            for group in (ORDER if not restart_selection else []):
+                if group not in dataflow_groups:
+                    continue
                 if not pick_for_group("dataflow", group, DATAFLOW_KEY_BY_GROUP, DATAFLOW_REGISTRY, "Dataflow"):
                     restart_selection = True
                     break
+
+        if not restart_selection and "alerts" in selected_modes:
+            alert_items = registered_post_stage_dataflows()
+            picked, backed = _select_registry_items(
+                console,
+                "Alerts",
+                [cls for _key, cls in alert_items],
+            )
+            if backed:
+                restart_selection = True
+            else:
+                selected = set(picked or [])
+                selected_alerts = [cls for _key, cls in alert_items if cls in selected]
+                if selected_alerts:
+                    plan.append(("dataflow", "alerts", selected_alerts))
 
         if restart_selection:
             continue

@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import time
 from tempfile import TemporaryDirectory
 from io import BytesIO
 import unittest
@@ -521,6 +522,75 @@ class SharedCleanupTests(unittest.TestCase):
         check.assert_called_once_with(lease_token="held")
         old_entries.assert_not_called()
 
+    def test_pipeline_preflight_renders_cleanup_counts_storage_and_skip_reason(self):
+        from io import StringIO
+        from rich.console import Console
+
+        output = StringIO()
+        console = Console(file=output, force_terminal=False)
+        guard = Mock()
+        guard.summary.return_value = {
+            "estimated_bytes": 1536000,
+            "high_bytes": 6000000000,
+            "low_bytes": 5000000000,
+            "blocked": None,
+        }
+        report = {
+            "target": "development",
+            "mode": "apply",
+            "d1_before": {"size": 79843328},
+            "d1_after": {"size": 75000000},
+            "supabase_old_entries": {"allShowtimes": 3, "finalShowtimes": 1},
+            "orphan_final_movies": 2,
+            "artwork": {"eligible": 3, "deleted": 2},
+        }
+        with patch.dict("os.environ", {"KARTISERET_TARGET": "development"}), patch.object(
+            shared_cleanup, "resolve_target_environment"
+        ), patch.object(shared_cleanup, "_cleanup_apply_from_environment", return_value=True), patch.object(
+            shared_cleanup, "run_shared_cleanup", return_value=report
+        ), patch(
+            "backend.utils.log.r2_storage_guard.initialize_storage_guard", return_value=guard
+        ), patch(
+            "rich.console.Console", return_value=console
+        ), patch(
+            "backend.utils.console.stage_progress.load_stage_estimate", return_value=1
+        ), patch(
+            "backend.utils.console.stage_progress.record_stage_duration"
+        ):
+            result = shared_cleanup.run_pipeline_preflight(self.store, lease_token="held")
+
+        self.assertEqual(result["artwork"]["deleted"], 2)
+        rendered = output.getvalue()
+        self.assertIn("Shared cleanup", rendered)
+        self.assertIn("development", rendered)
+        self.assertIn("apply", rendered)
+        self.assertIn("2 removed", rendered)
+        self.assertIn("allShowtimes 3", rendered)
+        self.assertIn("2 removed", rendered)
+        self.assertIn("79.8 MB", rendered)
+        self.assertIn("6.0 GB", rendered)
+
+        output.seek(0)
+        output.truncate(0)
+        guard.summary.return_value = {"estimated_bytes": 12, "high_bytes": 100, "low_bytes": 50, "blocked": None}
+        skipped = {"target": "development", "mode": "apply", "skipped": "already-cleaned-today"}
+        with patch.dict("os.environ", {"KARTISERET_TARGET": "development"}), patch.object(
+            shared_cleanup, "resolve_target_environment"
+        ), patch.object(shared_cleanup, "_cleanup_apply_from_environment", return_value=True), patch.object(
+            shared_cleanup, "run_shared_cleanup", return_value=skipped
+        ), patch(
+            "backend.utils.log.r2_storage_guard.initialize_storage_guard", return_value=guard
+        ), patch(
+            "rich.console.Console", return_value=console
+        ), patch(
+            "backend.utils.console.stage_progress.load_stage_estimate", return_value=1
+        ), patch(
+            "backend.utils.console.stage_progress.record_stage_duration"
+        ):
+            result = shared_cleanup.run_pipeline_preflight(self.store, lease_token="held")
+        self.assertEqual(result["skipped"], "already-cleaned-today")
+        self.assertIn("already-cleaned-today", output.getvalue())
+
     def test_complete_dry_run_records_only_dry_run_day_and_reports_all_categories(self):
         now = datetime(2026, 11, 5, 2, tzinfo=timezone.utc)
         order = []
@@ -654,6 +724,61 @@ class SharedCleanupTests(unittest.TestCase):
                 session.__exit__(None, None, None)
         self.assertEqual(timeline, ["finalize", "check", "finalize", "release"])
         self.assertEqual(session._storage.finalize_run.call_args.kwargs["error_type"], "storage_check_failed")
+
+    def test_finalization_renders_confirmed_status_storage_and_lease(self):
+        from io import StringIO
+        from rich.console import Console
+        from backend.utils.log.run_logging import RunLogSession
+        from backend.utils.log import job_lease
+
+        timeline = []
+
+        def save_timing(*_args):
+            job_lease.before_mutation()
+            timeline.append("timing")
+
+        def release(**_kwargs):
+            timeline.append("release")
+            job_lease._retired = True
+
+        output = StringIO()
+        console = Console(file=output, force_terminal=False)
+        session = RunLogSession()
+        session.run_id = 42
+        session._start_time = time.monotonic() - 1
+        session._storage = Mock()
+        session._storage.release_run_lease.side_effect = release
+        session._lease_token = "lease-token"
+        client = Mock()
+        client.table.return_value.update.return_value.eq.return_value.execute.return_value = SimpleNamespace(data=[{"run_id": 42}])
+        with patch.dict(
+            "os.environ",
+            {
+                "SUPABASE_URL": "https://example.test",
+                "SUPABASE_SERVICE_ROLE_KEY": "test-key",
+                "KARTISERET_TARGET": "development",
+            },
+        ), patch("backend.utils.log.run_logging.create_client", return_value=client), patch(
+            "backend.utils.log.r2_budget.R2Budget.from_environment", return_value=None
+        ), patch(
+            "rich.console.Console", return_value=console
+        ), patch(
+            "backend.utils.console.stage_progress.load_stage_estimate", return_value=20
+        ), patch(
+            "backend.utils.console.stage_progress.record_stage_duration", side_effect=save_timing
+        ), patch.object(job_lease, "_active", None), patch.object(job_lease, "_retired", False), patch.dict(
+            "os.environ", {job_lease.TOKEN_ENV: ""}
+        ):
+            session.__exit__(None, None, None)
+
+        self.assertEqual(timeline, ["timing", "release"])
+
+        rendered = output.getvalue()
+        self.assertIn("Run finalization", rendered)
+        self.assertIn("Successful", rendered)
+        self.assertIn("Confirmed in Supabase", rendered)
+        self.assertIn("Passed", rendered)
+        self.assertIn("Released", rendered)
 
     def test_r2_budget_failure_preserves_error_without_another_r2_cleanup_attempt(self):
         from backend.utils.log.r2_budget import R2BudgetExceeded

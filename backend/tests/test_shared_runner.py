@@ -2,15 +2,37 @@ from contextlib import redirect_stdout
 from io import StringIO
 from threading import Event, Lock
 from time import sleep
+from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
 from backend.config.registry import DATAFLOW_REGISTRY, REGISTRY, registered_post_stage_dataflows
 from backend.config.runners import runPlan, _run_shared_update_round, _run_shared_updates
 from backend.dataflow.utils.DataflowRequests import DataflowRequestContext
+from backend.notifications.movie_alerts import MovieNotificationSummary
+from backend.utils.console.progressBars import RunResult
 
 
 class SharedRunnerTests(TestCase):
+    def test_movie_notification_summary_is_presented_as_a_table(self):
+        from rich.console import Console
+        from backend.config.runners import _render_movie_notification_summary
+
+        output = StringIO()
+        result = RunResult(
+            "MovieNotificationDispatcher",
+            3.5,
+            True,
+            detail=MovieNotificationSummary(12, 1, 4, 9),
+        )
+        _render_movie_notification_summary(Console(file=output, width=100), result)
+
+        rendered = output.getvalue()
+        for label in ("Movie notifications", "Emails sent", "First-availability updates", "Sources synced", "Sources failed"):
+            self.assertIn(label, rendered)
+        for count in ("12", "1", "4", "9"):
+            self.assertIn(count, rendered)
+
     def test_alert_only_plan_runs_unique_dispatcher_without_catalog_stages(self):
         dispatchers = [cls for _key, cls in registered_post_stage_dataflows()]
         calls = []
@@ -41,6 +63,57 @@ class SharedRunnerTests(TestCase):
         scrape.assert_not_called()
         update.assert_not_called()
         run_group.assert_not_called()
+
+    def test_combined_modes_deduplicate_the_same_scraper(self):
+        scraper = REGISTRY["allSoons"][0]
+        calls = []
+        with patch(
+            "backend.config.runners._run_scheduled_scrapes",
+            side_effect=lambda items, *_args, **_kwargs: calls.extend(items) or True,
+        ), redirect_stdout(StringIO()):
+            self.assertTrue(
+                runPlan(
+                    1,
+                    [
+                        ("cinema", "allSoons", [scraper]),
+                        ("cinema", "allShowtimes", [scraper]),
+                    ],
+                )
+            )
+        self.assertEqual(calls, [("allSoons", scraper)])
+
+    def test_social_preview_summary_shows_skipped_and_partial_failure_results(self):
+        update = next(
+            cls for cls in DATAFLOW_REGISTRY["comingSoonsData"]
+            if cls.__name__ == "ComingSoonsUpdate"
+        )
+
+        for stats, expected in (
+            (None, ("Skipped or unavailable",)),
+            ({"scanned": 8, "updated": 3, "unchanged": 4, "failed": 1, "stale": 0, "pending": 0},
+             ("Completed with failures", "Scanned", "Updated", "Failed", "1")),
+        ):
+            with self.subTest(stats=stats):
+                output = StringIO()
+                publication = SimpleNamespace(commit=lambda: None)
+
+                def update_category(entries, _run_id, context, **_kwargs):
+                    context.publications["comingsoons"] = publication
+                    return {cls: True for _key, cls in entries}
+
+                with patch(
+                    "backend.config.runners._run_shared_updates", side_effect=update_category
+                ), patch(
+                    "backend.dataflow.social_previews.refresh_configured_social_previews",
+                    return_value=stats,
+                ), redirect_stdout(output):
+                    self.assertTrue(
+                        runPlan(1, [("dataflow", "comingSoonsData", [update])])
+                    )
+
+                rendered = output.getvalue()
+                for label in expected:
+                    self.assertIn(label, rendered)
 
     def test_cleaning_replacement_scope_requires_selected_mapping_stage(self):
         clean, mapper = DATAFLOW_REGISTRY["nowPlayingData"][:2]

@@ -845,7 +845,5 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
 
     def dataRun(self):
         result = self.dispatch()
-        print(
-            f"Movie notifications: {result.emails_sent} emails, {result.events_notified} first-availability updates; "
-            f"{result.sources_synced} sources synced, {result.sources_failed} sources failed."
-        )
+        self._notification_summary = result
+        return result
