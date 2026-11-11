@@ -9,6 +9,18 @@ from backend.utils.console import stage_progress
 
 
 class StageProgressTests(TestCase):
+    def test_excluded_runs_do_not_write_stage_history(self):
+        for flags in ({"GITHUB_ACTIONS": "true"}, {"SOLO_UPDATE_ONLY": "true"}):
+            with self.subTest(flags=flags), patch.dict("os.environ", flags), patch.object(
+                stage_progress, "append_recent_duration"
+            ) as append:
+                stage_progress.record_stage_duration("RunFinalization", 8.25)
+                append.assert_not_called()
+
+    def test_finished_stage_does_not_display_remaining_eta(self):
+        task = SimpleNamespace(elapsed=75.0, fields={"estimate": 60.0, "state": "success"})
+        self.assertEqual(stage_progress._EstimateColumn().render(task).plain, "Done")
+
     def test_historical_estimate_loads_for_current_machine_and_weekday(self):
         client = object()
         with patch.dict(

@@ -729,6 +729,17 @@ class SharedCleanupTests(unittest.TestCase):
         from io import StringIO
         from rich.console import Console
         from backend.utils.log.run_logging import RunLogSession
+        from backend.utils.log import job_lease
+
+        timeline = []
+
+        def save_timing(*_args):
+            job_lease.before_mutation()
+            timeline.append("timing")
+
+        def release(**_kwargs):
+            timeline.append("release")
+            job_lease._retired = True
 
         output = StringIO()
         console = Console(file=output, force_terminal=False)
@@ -736,6 +747,7 @@ class SharedCleanupTests(unittest.TestCase):
         session.run_id = 42
         session._start_time = time.monotonic() - 1
         session._storage = Mock()
+        session._storage.release_run_lease.side_effect = release
         session._lease_token = "lease-token"
         client = Mock()
         client.table.return_value.update.return_value.eq.return_value.execute.return_value = SimpleNamespace(data=[{"run_id": 42}])
@@ -753,9 +765,13 @@ class SharedCleanupTests(unittest.TestCase):
         ), patch(
             "backend.utils.console.stage_progress.load_stage_estimate", return_value=20
         ), patch(
-            "backend.utils.console.stage_progress.record_stage_duration"
+            "backend.utils.console.stage_progress.record_stage_duration", side_effect=save_timing
+        ), patch.object(job_lease, "_active", None), patch.object(job_lease, "_retired", False), patch.dict(
+            "os.environ", {job_lease.TOKEN_ENV: ""}
         ):
             session.__exit__(None, None, None)
+
+        self.assertEqual(timeline, ["timing", "release"])
 
         rendered = output.getvalue()
         self.assertIn("Run finalization", rendered)

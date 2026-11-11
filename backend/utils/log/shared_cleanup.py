@@ -618,7 +618,7 @@ def run_pipeline_preflight(store: RunArtifactStore, *, lease_token: str) -> dict
             value = result.get(key)
             label = key.replace("_", " ").title()
             if isinstance(value, int) and not isinstance(value, bool):
-                rows.append((label, f"{value} removed"))
+                rows.append((label, f"{value} {'removed' if apply else 'eligible (dry run)'}"))
                 continue
             if not isinstance(value, dict):
                 continue

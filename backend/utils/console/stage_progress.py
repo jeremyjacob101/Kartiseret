@@ -44,6 +44,8 @@ def load_stage_estimate(name: str) -> float:
 
 def record_stage_duration(name: str, duration: float, weekday: str | None = None) -> None:
     """Append a successful stage duration; history is best-effort."""
+    if os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("SOLO_UPDATE_ONLY", "").strip().lower() in {"1", "true", "yes", "on"}:
+        return
     machine = os.environ.get("RUNNER_MACHINE", "").strip()
     url = os.environ.get("SUPABASE_URL", "").strip()
     key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
@@ -73,6 +75,8 @@ class _ElapsedColumn(ProgressColumn):
 
 class _EstimateColumn(ProgressColumn):
     def render(self, task) -> Text:
+        if task.fields.get("state", "running") != "running":
+            return Text("Done" if task.fields["state"] == "success" else "Stopped", style="dim")
         estimate = float(task.fields.get("estimate", FALLBACK_SECONDS))
         elapsed = float(task.elapsed or 0.0)
         if elapsed >= estimate:

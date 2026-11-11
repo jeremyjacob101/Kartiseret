@@ -231,7 +231,7 @@ class RunLogSession:
             return False
 
         from rich.console import Console
-        from backend.utils.console.stage_progress import record_stage_duration, render_key_value_table
+        from backend.utils.console.stage_progress import render_key_value_table
         from backend.utils.console.stage_progress import TimedStageProgress
         from backend.utils.log.r2_budget import R2Budget
 
@@ -263,7 +263,6 @@ class RunLogSession:
             result = self._finalize_session(exc_type, exc, tb, progress, summary)
             elapsed = progress.finish("Confirmed")
             summary["Elapsed"] = f"{elapsed:.1f}s"
-            record_stage_duration("RunFinalization", elapsed, progress.weekday)
             return result
         except BaseException:
             if progress.state == "running":
@@ -389,6 +388,16 @@ class RunLogSession:
                     summary["Storage check"] = "Skipped (run artifact log failed)"
                 progress.advance(0.86, "Releasing target lease")
                 try:
+                    # Persist the confirmed log/storage phase while ownership is
+                    # still active. Lease release retires every guarded writer.
+                    if supabase_finalized and storage_error is None and post_storage_error is None and exc_type is None:
+                        from backend.utils.console.stage_progress import record_stage_duration
+
+                        record_stage_duration(
+                            "RunFinalization",
+                            max(0.0, time.monotonic() - progress.started_at),
+                            progress.weekday,
+                        )
                     if supabase_finalized:
                         storage.release_run_lease(token=self._lease_token)
                     else:
