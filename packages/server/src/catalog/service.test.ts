@@ -78,4 +78,36 @@ describe("catalog service ordering", () => {
 
     expect(movies.map((movie) => movie.tmdbId)).toEqual(["1", "2", "3"]);
   });
+
+  it("applies the poor-ratings reduction in the legacy now-playing catalog", async () => {
+    const repository: CatalogRepository = {
+      findNowPlayingRows: async () =>
+        Array.from({ length: 10 }, (_, index) => {
+          const tmdbId = index + 1;
+          return {
+            ...row(tmdbId, tmdbId),
+            upcomingShowtimeCount: tmdbId,
+            localReleaseDate: "2024-01-01",
+            imdbRating: tmdbId === 10 ? 5.9 : 7,
+            rtCriticRating: tmdbId === 10 ? 59 : 80,
+          };
+        }),
+      findMovieCodes: async () => new Map(),
+    };
+
+    const movies = await getNowPlayingMovies(repository);
+
+    expect(movies.map((movie) => movie.tmdbId)).toEqual([
+      "9",
+      "10",
+      "8",
+      "7",
+      "6",
+      "5",
+      "4",
+      "3",
+      "2",
+      "1",
+    ]);
+  });
 });

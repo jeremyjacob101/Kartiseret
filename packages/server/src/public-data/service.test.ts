@@ -154,6 +154,42 @@ describe("public movie catalog service", () => {
     ]);
   });
 
+  it("applies the poor-ratings reduction in the public now-playing catalog", async () => {
+    const repository = createRepository({
+      findNowPlayingRows: vi.fn(async () =>
+        Array.from({ length: 10 }, (_, index) => {
+          const tmdbId = 9_100_001 + index;
+          const topMovie = index === 9;
+          return {
+            ...nowPlaying,
+            tmdbId,
+            popularity: index + 1,
+            upcomingShowtimeCount: index + 1,
+            localReleaseDate: "2024-01-01",
+            imdbRating: topMovie ? 5.9 : 7,
+            rtCriticRating: topMovie ? 59 : 80,
+          };
+        }),
+      ),
+      findMovieCodes: vi.fn(async () => new Map()),
+    });
+
+    const result = await getMovieCatalog(repository, "nowPlaying");
+
+    expect(result.movies.map((movie) => movie.tmdbId)).toEqual([
+      "9100009",
+      "9100010",
+      "9100008",
+      "9100007",
+      "9100006",
+      "9100005",
+      "9100004",
+      "9100003",
+      "9100002",
+      "9100001",
+    ]);
+  });
+
   it("keeps a usable catalog and reports code lookup failure as a settled status", async () => {
     const lookupError = new Error("private database details");
     const onFailure = vi.fn();
