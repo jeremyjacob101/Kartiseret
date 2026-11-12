@@ -1,5 +1,10 @@
 # Safe reduction of raw cleaning work
 
+The measurements below describe the original cleaning optimization. Publication
+now uses compact [input revision guards](publication-input-versions.md), with the
+same cleaning/retention policy. See that document for current staging sizes,
+performance results and required migration order.
+
 The cleaners retain pending work unless there is positive evidence that it belongs
 to an explicitly failed source attempt which has already been replaced. Row age,
 an earlier `run_id`, or `added=false` is not sufficient evidence.
@@ -31,8 +36,8 @@ replacement can. The decision uses manifest identity/order even if a previous
 cleaner stamped a row with a later run ID.
 
 This optimization does not delete rows or mark them cleaned/added. Existing
-retention and dedupe still run under their original rules. Full input guards
-remain in the publication, including the manifests used to justify excluding
+retention and dedupe still run under their original rules. Input revision guards
+remain in the publication, including for the manifests used to justify excluding
 failed attempts. Historical rows remain available to cross-cinema title evidence;
 manual fix precedence is unchanged. No `_checkpoint_source` annotation is added
 to cleaning payloads.
@@ -67,7 +72,8 @@ The fixture stages approximately 101 MB across 599 parts and published in about
 4.5 seconds on the local PostgreSQL 17 investigation machine. It verifies that
 29,057 failed-attempt rows remain uncleaned/unadded, all 2,673 pending legacy rows
 still receive their intended cleaning updates, and movie/screening/checkpoint/
-source-count invariants hold. The existing 737-small-part test remains separate;
+source-count invariants hold. The small-part test remains separate (408 parts
+after replacing baseline copies with version guards);
 part count alone is not a production workload model.
 
 Local performance is not proof of a sub-minute hosted commit. Recheck on

@@ -116,6 +116,8 @@ class RpcQuery:
 
     def execute(self):
         tables = self.database.tables
+        if self.function_name == "get_publication_input_revision":
+            return SimpleNamespace(data="0")
         if self.function_name == "claim_pipeline_publication_checkpoint":
             category = self.params["p_category"]
             snapshot_id = self.params["p_snapshot_id"]

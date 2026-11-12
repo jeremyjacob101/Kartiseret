@@ -7,6 +7,7 @@ import uuid
 
 from dataflow_database import DB
 from backend.dataflow.utils.DataflowRequests import DataflowRequestError
+from backend.dataflow.utils.TmdbMovieDetailsCache import TmdbMovieDetailsCache
 from backend.dataflow.utils.InitializeBaseDataflow import InitializeBaseDataflow
 from backend.scraping.BaseCinema import BaseCinema
 from backend.scraping.utils.FormatAndAppend import formatAndUpload
@@ -29,6 +30,9 @@ class PublicationTests(TestCase):
         cls = getattr(module, path.split(".")[-1])
         flow = cls.__new__(cls)
         InitializeBaseDataflow.__init__(flow)
+        # This fixture replaces providers and catalog storage; keep the
+        # independent persistent details cache off real Supabase as well.
+        flow._request_context.tmdb_movie_details_cache = TmdbMovieDetailsCache(client=DB({}))
         self.addCleanup(flow.closeDataflowRequests)
         flow.run_id, flow.solo_update_only, flow.TMDB_API_KEY = 10, False, "fixture"
         tables = {flow.MAIN_TABLE_NAME: rows, flow.MOVING_TO_TABLE_NAME: [], flow.HELPER_TABLE_NAME: [], flow.HELPER_TABLE_NAME_2: []}

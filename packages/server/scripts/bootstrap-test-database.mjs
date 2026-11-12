@@ -127,13 +127,20 @@ try {
           VALUES ('00000000-0000-4000-8000-0000000000e1',9300005,'Date fixture',now(),'2027-01-01');
       `);
     }
-    if (migration.endsWith("_postgres_atomic_publication.sql")) {
+    if (
+      migration.endsWith("_postgres_atomic_publication.sql") ||
+      migration.endsWith("_publication_input_versions.sql")
+    ) {
       const administrator = (await client.query("SELECT current_user AS name"))
         .rows[0].name;
       const quotedAdministrator =
         '"' + administrator.replaceAll('"', '""') + '"';
       await client.query(`
-        CREATE ROLE kartiseret_test_migration_admin NOLOGIN NOSUPERUSER CREATEROLE INHERIT;
+        DO $role$ BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='kartiseret_test_migration_admin') THEN
+            CREATE ROLE kartiseret_test_migration_admin NOLOGIN NOSUPERUSER CREATEROLE INHERIT;
+          END IF;
+        END $role$;
         GRANT ${quotedAdministrator} TO kartiseret_test_migration_admin WITH INHERIT TRUE, SET FALSE;
         SET ROLE kartiseret_test_migration_admin;
       `);

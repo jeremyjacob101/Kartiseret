@@ -5,6 +5,11 @@ session. It bulk-stages the same canonical parts used by the REST path, then run
 the existing category publication algorithm in one bounded transaction. The
 normal REST entrypoint remains available during rollout.
 
+Input guards now contain revision tokens rather than full baseline row copies.
+Apply the input-version migration before updating the producer; legacy prepared
+payloads must be rebuilt. See [publication input versions](publication-input-versions.md)
+for concurrency guarantees, deployment order, rollback, and performance results.
+
 ## Provision after the additive migration
 
 Apply the migration before configuring the runner secrets. It creates two

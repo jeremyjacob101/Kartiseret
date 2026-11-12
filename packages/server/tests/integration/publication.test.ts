@@ -136,13 +136,13 @@ async function revision() {
   ).rows[0].revision as string;
 }
 async function guard(table: string, category = "nowplayings") {
-  const rows = (
-    await pool.query("select pipeline_internal.publication_rows($1,$2) rows", [
-      table,
-      category,
-    ])
-  ).rows[0].rows;
-  return { kind: "guard", table, rows };
+  const revision = (
+    await pool.query(
+      "select public.get_publication_input_revision($1,$2) revision",
+      [table, category],
+    )
+  ).rows[0].revision;
+  return { kind: "guard", table, revision, rows: [] };
 }
 async function stage(parts: Row[], category = "nowplayings") {
   const payloads = parts.map(canonical);

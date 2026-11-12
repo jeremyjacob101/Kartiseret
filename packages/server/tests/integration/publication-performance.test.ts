@@ -44,6 +44,92 @@ function canonical(value: unknown): string {
 }
 
 describe("publication SQL performance and parity", () => {
+  it("publishes a compact token against 150,000 historical rows at the production work_mem limit", async () => {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SET LOCAL work_mem = '2184kB'");
+      await client.query(`
+        INSERT INTO public."allShowtimes"(id,cinema,english_title,english_href,run_id)
+        SELECT md5('version history '||g)::uuid,'__version_history__',
+          'Historical film '||g||repeat('x',200),
+          'https://cinema.invalid/events/'||md5(g::text),998002
+        FROM generate_series(1,150000) g
+      `);
+      const revision = (
+        await client.query(
+          "SELECT public.get_publication_input_revision('allShowtimes','nowplayings') revision",
+        )
+      ).rows[0].revision;
+      const parts = [
+        canonical({ kind: "guard", table: "allShowtimes", revision, rows: [] }),
+        canonical({
+          kind: "changes",
+          rows: [
+            {
+              table: "finalMovies",
+              before: null,
+              after: {
+                tmdb_id: 2109800008,
+                english_title: "Small publication",
+              },
+            },
+          ],
+        }),
+      ];
+      expect(Buffer.byteLength(parts[0])).toBeLessThan(150);
+      const publication = randomUUID();
+      const fingerprint = digest(
+        parts.map((payload, i) => `${i}:${digest(payload)}`).join("\n"),
+      );
+      await client.query(
+        "INSERT INTO public.pipeline_publications(publication_id,category,run_id,fingerprint,part_count) VALUES($1,'nowplayings',998002,$2,$3)",
+        [publication, fingerprint, parts.length],
+      );
+      for (const [i, payload] of parts.entries())
+        await client.query(
+          "INSERT INTO public.pipeline_publication_parts VALUES($1,$2,$3)",
+          [publication, i, payload],
+        );
+      const started = performance.now();
+      await client.query("SET LOCAL ROLE service_role");
+      const result = (
+        await client.query(
+          "SELECT public.commit_category_publication($1,$2) receipt",
+          [publication, fingerprint],
+        )
+      ).rows[0].receipt;
+      const elapsedMs = performance.now() - started;
+      expect(result.status).toBe("applied");
+      expect(elapsedMs).toBeLessThan(2000);
+      await client.query("RESET ROLE");
+      expect(
+        Number(
+          (
+            await client.query(
+              "SELECT count(*) FROM public.\"allShowtimes\" WHERE cinema='__version_history__' AND added IS NULL",
+            )
+          ).rows[0].count,
+        ),
+      ).toBe(150000);
+      expect(
+        (
+          await client.query(
+            'SELECT english_title FROM public."finalMovies" WHERE tmdb_id=2109800008',
+          )
+        ).rows[0].english_title,
+      ).toBe("Small publication");
+      console.info("Publication input-token history measurement", {
+        historicalRows: 150000,
+        guardBytes: Buffer.byteLength(parts[0]),
+        elapsedMs,
+      });
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+  }, 30_000);
+
   it("matches the original function for successful and rejected publications", async () => {
     const original = readFileSync(
       new URL(
@@ -74,7 +160,7 @@ describe("publication SQL performance and parity", () => {
     }
   }, 30_000);
 
-  it("publishes 737 small parts with exact row values and atomic finalization", async () => {
+  it("publishes 408 small parts with exact row values and atomic finalization", async () => {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -87,7 +173,7 @@ describe("publication SQL performance and parity", () => {
       }
       expect(measured).toBeDefined();
       if (!measured) throw new Error("Missing scale measurement");
-      expect(Number(measured.parts)).toBe(737);
+      expect(Number(measured.parts)).toBe(408);
       expect(Number(measured.bytes)).toBeLessThan(20_000_000);
       expect(Number(measured.seconds)).toBeLessThan(5);
       expect(Number(measured.updated)).toBe(7_500);
@@ -117,8 +203,8 @@ describe("publication SQL performance and parity", () => {
       expect(measured).toBeDefined();
       if (!measured) throw new Error("Missing backlog measurement");
       expect(Number(measured.changes)).toBe(46_244);
-      expect(Number(measured.bytes)).toBeGreaterThan(90_000_000);
-      expect(Number(measured.bytes)).toBeLessThan(120_000_000);
+      expect(Number(measured.bytes)).toBeGreaterThan(40_000_000);
+      expect(Number(measured.bytes)).toBeLessThan(90_000_000);
       expect(Number(measured.seconds)).toBeLessThan(30);
       expect(Number(measured.retained_failed)).toBe(29_057);
       expect(Number(measured.pending_legacy)).toBe(2_673);
@@ -158,10 +244,16 @@ describe("publication SQL performance and parity", () => {
             rows: unknown[];
             [key: string]: unknown;
           };
-          if (remainingSplits > 0 && part.rows.length > 1) {
-            parts.push(canonical({ ...part, rows: part.rows.slice(0, 1) }));
-            parts.push(canonical({ ...part, rows: part.rows.slice(1) }));
-            remainingSplits -= 1;
+          if (
+            remainingSplits > 0 &&
+            part.kind === "changes" &&
+            part.rows.length > 1
+          ) {
+            const splits = Math.min(remainingSplits, part.rows.length - 1);
+            for (const row of part.rows.slice(0, splits))
+              parts.push(canonical({ ...part, rows: [row] }));
+            parts.push(canonical({ ...part, rows: part.rows.slice(splits) }));
+            remainingSplits -= splits;
           } else {
             parts.push(canonical(part));
           }
@@ -189,8 +281,8 @@ describe("publication SQL performance and parity", () => {
           (total: number, part: string) => total + Buffer.byteLength(part),
           0,
         );
-        expect(payloadBytes).toBeGreaterThan(90_000_000);
-        expect(payloadBytes).toBeLessThan(120_000_000);
+        expect(payloadBytes).toBeGreaterThan(40_000_000);
+        expect(payloadBytes).toBeLessThan(90_000_000);
         await client.query("COMMIT");
         setupCommitted = true;
 

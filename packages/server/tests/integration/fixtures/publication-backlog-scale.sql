@@ -57,15 +57,8 @@ SELECT 'pipeline_publication_checkpoints',jsonb_build_object('table','pipeline_p
 -- step
 CREATE TEMP TABLE backlog_parts(part bigint GENERATED ALWAYS AS IDENTITY(MINVALUE 0 START WITH 0),payload text);
 INSERT INTO backlog_parts(payload)
-SELECT jsonb_build_object('kind','guard','table','allShowtimes','rows',jsonb_agg(body ORDER BY id))::text FROM (SELECT t.id,to_jsonb(t) body,(row_number() OVER(ORDER BY id)-1)/200 bucket FROM public."allShowtimes" t) x GROUP BY bucket ORDER BY bucket;
-INSERT INTO backlog_parts(payload)
-SELECT jsonb_build_object('kind','guard','table','finalMovies','rows',jsonb_agg(body ORDER BY tmdb_id))::text FROM (SELECT t.tmdb_id,to_jsonb(t) body,(row_number() OVER(ORDER BY tmdb_id)-1)/50 bucket FROM public."finalMovies" t) x GROUP BY bucket ORDER BY bucket;
-INSERT INTO backlog_parts(payload)
-SELECT jsonb_build_object('kind','guard','table','finalShowtimes','rows',jsonb_agg(body ORDER BY id))::text FROM (SELECT t.id,to_jsonb(t) body,(row_number() OVER(ORDER BY id)-1)/200 bucket FROM public."finalShowtimes" t) x GROUP BY bucket ORDER BY bucket;
-INSERT INTO backlog_parts(payload) SELECT jsonb_build_object('kind','guard','table','pipeline_scrape_snapshots','rows',coalesce(jsonb_agg(to_jsonb(t)),'[]'))::text FROM public.pipeline_scrape_snapshots t WHERE table_name='allShowtimes';
-INSERT INTO backlog_parts(payload) SELECT jsonb_build_object('kind','guard','table','pipeline_publication_checkpoints','rows',coalesce(jsonb_agg(to_jsonb(t)),'[]'))::text FROM public.pipeline_publication_checkpoints t WHERE category='nowplayings';
-INSERT INTO backlog_parts(payload) SELECT jsonb_build_object('kind','guard','table','tableFixes','rows',coalesce(jsonb_agg(to_jsonb(t)),'[]'))::text FROM public."tableFixes" t;
-INSERT INTO backlog_parts(payload) SELECT jsonb_build_object('kind','guard','table','tableSkips','rows',coalesce(jsonb_agg(to_jsonb(t)),'[]'))::text FROM public."tableSkips" t;
+SELECT jsonb_build_object('kind','guard','table',relation,'revision',public.get_publication_input_revision(relation,'nowplayings'),'rows','[]'::jsonb)::text
+FROM unnest(ARRAY['allShowtimes','finalMovies','finalShowtimes','pipeline_scrape_snapshots','pipeline_publication_checkpoints','tableFixes','tableSkips']) relation;
 INSERT INTO backlog_parts(payload)
 SELECT jsonb_build_object('kind','changes','rows',jsonb_agg(body ORDER BY seq))::text FROM (SELECT *, (row_number() OVER(PARTITION BY relation ORDER BY seq)-1)/CASE WHEN relation='finalMovies' THEN 40 ELSE 200 END bucket FROM backlog_changes) x GROUP BY relation,bucket ORDER BY relation,bucket;
 INSERT INTO backlog_parts(payload) SELECT jsonb_build_object('kind','claims','rows',jsonb_agg(jsonb_build_object('snapshot_id',snapshot_id,'cinema',cinema)))::text FROM public.pipeline_scrape_snapshots WHERE run_id=990004;
