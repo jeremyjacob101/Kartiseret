@@ -810,22 +810,16 @@ class SharedCleanupTests(unittest.TestCase):
         from backend.utils.supabase import clear_old_entries
 
         client = Mock()
-        query = Mock()
-        query.select.return_value = query
-        query.lte.return_value = query
-        query.order.return_value = query
-        query.range.return_value = query
-        query.execute.return_value = SimpleNamespace(data=[])
-        client.table.return_value = query
+        client.rpc.side_effect = lambda _name, args: SimpleNamespace(
+            execute=lambda: SimpleNamespace(data={"table": args["p_table"], "eligible": 3,
+                                                  "deleted": 0, "has_more": False}))
         guard = Mock()
-        with patch.object(clear_old_entries, "create_client", return_value=client), patch(
-            "backend.utils.supabase.clear_old_entries.maintenance_publication",
-            side_effect=lambda _category: nullcontext(),
-        ):
+        with patch.object(clear_old_entries, "create_client", return_value=client):
             counts = clear_old_entries.clear_old_entries(apply=False, lease_guard=guard)
         self.assertEqual(set(counts), {"allShowtimes", "finalShowtimes", "allSoons", "finalSoons", "allTheques", "finalTheques"})
-        self.assertEqual(guard.call_count, 6)
-        query.delete.assert_not_called()
+        self.assertEqual(set(counts.values()), {3})
+        self.assertEqual(guard.verify.call_count, 6)
+        client.table.assert_not_called()
 
     def test_orphan_movie_dry_run_reports_candidates_without_deleting(self):
         from backend.utils.supabase import clear_orphan_final_movies

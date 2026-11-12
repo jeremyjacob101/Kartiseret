@@ -5,6 +5,8 @@ load_dotenv()
 from datetime import date, timedelta
 import argparse
 import json
+import time
+from inspect import signature
 from backend.dataflow.utils.PublicationWorkspace import create_client, maintenance_publication
 import os
 from backend.config.target_environment import PROFILE_KEYS, resolve_target_environment
@@ -84,20 +86,80 @@ def _clear_old_entries(category=None, showtimes_days_ago=ALL_SHOWTIMES_CUTOFF_DA
     return counts
 
 
+_CLEANUP_SIGNATURE = signature(_clear_old_entries)
+
+
+def _retire_table(sb, table, cutoff, *, apply, lease_guard):
+    from backend.utils.log.shared_cleanup import verify_lease
+    from backend.utils.log.cloudflare_storage import redact_secrets
+    total = 0
+    batch = 0
+    while True:
+        verify_lease(lease_guard)
+        batch += 1
+        started = time.monotonic()
+        print("cleanup_metric=" + json.dumps({"event": "retention_batch_start", "table": table,
+              "cutoff": cutoff, "apply": apply, "batch": batch}), flush=True)
+        try:
+            result = sb.rpc("retire_expired_rows", {"p_table": table, "p_cutoff": cutoff,
+                            "p_apply": apply, "p_batch_size": DELETE_CHUNK_SIZE}).execute().data
+            if (not isinstance(result, dict) or result.get("table") != table
+                    or type(result.get("eligible")) is not int or result["eligible"] < 0
+                    or type(result.get("deleted")) is not int
+                    or not 0 <= result["deleted"] <= DELETE_CHUNK_SIZE
+                    or type(result.get("has_more")) is not bool
+                    or (not apply and (result["deleted"] or result["has_more"]))
+                    or (apply and result["has_more"] != (result["deleted"] == DELETE_CHUNK_SIZE))):
+                raise RuntimeError("Retention RPC returned an invalid result; outcome must be reconciled")
+        except Exception as error:
+            print("cleanup_metric=" + json.dumps({"event": "retention_batch_failed", "table": table,
+                  "batch": batch, "seconds": round(time.monotonic()-started, 3),
+                  "error_type": type(error).__name__, "error": redact_secrets(str(error))[:1000],
+                  "outcome": "unknown" if apply else "read_failed"}), flush=True)
+            raise
+        total += result["deleted"] if apply else result["eligible"]
+        print("cleanup_metric=" + json.dumps({"event": "retention_batch_complete", "table": table,
+              "batch": batch, "seconds": round(time.monotonic()-started, 3),
+              "deleted": result["deleted"], "eligible": result["eligible"], "total": total}), flush=True)
+        if not result["has_more"]:
+            return total
+
+
 def clear_old_entries(*args, apply=True, lease_guard=None, **kwargs):
-    from inspect import signature
-    arguments = signature(_clear_old_entries).bind(*args, **kwargs).arguments
-    selected = arguments.pop("category", None)
-    arguments.pop("apply", None)
-    arguments.pop("lease_guard", None)
+    from backend.dataflow.utils.PublicationWorkspace import _active
+    bound = _CLEANUP_SIGNATURE.bind(*args, **kwargs)
+    bound.apply_defaults()
+    arguments = bound.arguments
+    selected = arguments.pop("category")
+    arguments.pop("apply")
+    arguments.pop("lease_guard")
     categories = {"nowplayings": "nowplayings", "soons": "comingsoons", "cinematheques": "cinematheques"}
     if selected is not None and selected not in categories:
         raise ValueError("Unsupported cleanup category")
     counts = {}
-    for name, category in categories.items():
-        if selected is None or selected == name:
-            with maintenance_publication(category):
-                counts.update(_clear_old_entries(category=name, apply=apply, lease_guard=lease_guard, **arguments))
+    if _active.get() is not None:
+        # Inside a scrape publication, keep changes in its existing transaction.
+        for name, category in categories.items():
+            if selected is None or selected == name:
+                with maintenance_publication(category):
+                    counts.update(_clear_old_entries(category=name, apply=apply, lease_guard=lease_guard, **arguments))
+        return counts
+    sb = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY"))
+    scopes = {
+        "nowplayings": (("allShowtimes", "showtimes_days_ago"), ("finalShowtimes", "final_showtimes_days_ago")),
+        "soons": (("allSoons", "soons_days_ago"), ("finalSoons", "final_soons_days_ago")),
+        "cinematheques": (("allTheques", "theques_days_ago"), ("finalTheques", "final_theques_days_ago")),
+    }
+    today = date.today()
+    for name, tables in scopes.items():
+        if selected is not None and selected != name:
+            continue
+        for table, age_key in tables:
+            age = arguments[age_key]
+            if type(age) is not int or age < 0:
+                raise ValueError("Retention ages must be non-negative integer days")
+            cutoff = (today-timedelta(days=age)).isoformat()
+            counts[table] = _retire_table(sb, table, cutoff, apply=apply, lease_guard=lease_guard)
     return counts
 
 

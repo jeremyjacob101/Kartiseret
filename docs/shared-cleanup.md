@@ -6,6 +6,14 @@ The separate `weekly_publication_cleanup.yml` GitHub Actions workflow runs every
 
 Apply the `weekly_publication_cleanup` Supabase migration to development and production before merging the new workflow; merging then enables the Sunday schedule automatically. The standalone workflow can also be dispatched manually for a selected target, with the same dry-run/apply choice. Its `--publications-only` path uses the target lease but does not consult or update the daily cleanup marker.
 
+## Bounded expired-row cleanup
+
+Standalone daily/preflight retention uses the service-role-only `retire_expired_rows` RPC. It sends a table name, an inclusive date cutoff, and a batch bound (200 rows from Python, maximum 1,000). It does not download full tables or stage publication JSON. The existing raw/final retention ages are unchanged.
+
+Each applied batch locks the category source and scrape manifests in publication order, deletes only eligible rows, and repairs affected completed-snapshot counts in the same transaction. Final-table revision triggers remain active; empty batches do not issue a DELETE. Lock contention fails after five seconds. A later batch failure leaves earlier committed batches intact and safe to resume; no RPC failure is automatically retried because its commit acknowledgement may be uncertain. Dry runs count eligible rows without mutations or publication staging. Cleanup already inside a publication continues to use that publication workspace.
+
+`cleanup_metric` console records show each table, cutoff, batch start, elapsed time, deleted/eligible totals, and any failure with an explicit unknown-outcome marker. Apply the `bounded_retention_cleanup` migration before deploying the Python writer. Development SQL rollback fixtures live at `backend/tests/sql/retention_cleanup.sql`.
+
 ## Safety and coordination
 
 - Each target uses its own D1 lease. A confirmed heartbeat every 10 seconds gives it another 120 seconds. D1 server time decides expiry; an expired token cannot renew or release its replacement. This covers pipeline preflight, publication, finalization, daily cleanup, and standalone commands.
