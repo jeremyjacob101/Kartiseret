@@ -667,6 +667,21 @@ class SharedCleanupTests(unittest.TestCase):
             [{"Key": orphan}],
         )
 
+    def test_snapshot_orphan_scan_reuses_completion_times_without_per_object_queries(self):
+        old = datetime.now(timezone.utc) - timedelta(days=31)
+        self.d1.execute("INSERT INTO run_logs(run_id,target,run_from,status,started_at,created_at,finished_at) VALUES(1,'dev','test','failed','2025','2025',?)", (old.isoformat(),))
+        r2 = Mock()
+        r2.get_paginator.return_value.paginate.return_value = [{"Contents": [
+            {"Key": f"runs/2025-01-01/1/scraped_snapshots/test-{i}.json.gz", "LastModified": old}
+            for i in range(100)
+        ]}]
+        self.store.r2 = r2
+        with TemporaryDirectory() as recovery, patch.object(shared_cleanup, "recovery_root", return_value=Path(recovery)), patch.object(self.d1, "execute", wraps=self.d1.execute) as query:
+            result = shared_cleanup.cleanup_orphan_run_artifacts(self.store, apply=False)
+        self.assertEqual(result["eligible_objects"], 100)
+        self.assertEqual(query.call_count, 2)  # one run page, one reference page
+        self.assertIn("finished_at", query.call_args_list[0].args[0])
+
     def test_bad_d1_artifact_reference_aborts_before_r2_listing(self):
         self.d1.connection.execute(
             "INSERT INTO run_logs (run_id,target,run_from,status,started_at,created_at) VALUES (1,'dev','test','successful','2025','2025')"

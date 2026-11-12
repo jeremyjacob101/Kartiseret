@@ -182,14 +182,14 @@ def _strict_d1_rows(result, description: str) -> list[dict]:
     return raw_rows
 
 
-def _scan_run_states(store: RunArtifactStore, *, lease_guard=None) -> dict[int, str]:
+def _scan_run_states(store: RunArtifactStore, *, lease_guard=None, completion_times=None) -> dict[int, str]:
     states: dict[int, str] = {}
     cursor = 0
     while True:
         if lease_guard:
             lease_guard()
         result = store.d1.execute(
-            "SELECT run_id, status FROM run_logs WHERE run_id > ? ORDER BY run_id LIMIT 500",
+            "SELECT run_id, status, finished_at FROM run_logs WHERE run_id > ? ORDER BY run_id LIMIT 500",
             (cursor,),
         )
         rows = _strict_d1_rows(result, "run-state")
@@ -204,6 +204,8 @@ def _scan_run_states(store: RunArtifactStore, *, lease_guard=None) -> dict[int, 
             if run_id <= cursor or status not in {"running", "successful", "failed", "unconfirmed"}:
                 raise CloudflareStorageError("D1 run-state scan is incomplete or malformed")
             states[run_id] = status
+            if completion_times is not None:
+                completion_times[run_id] = row.get("finished_at")
             cursor = run_id
         if len(rows) < 500:
             return states
@@ -296,7 +298,8 @@ def cleanup_orphan_run_artifacts(
     """Delete only old, unreferenced objects belonging to confirmed successful runs."""
     if grace_days < 0 or max_deletes < 1:
         raise ValueError("Artifact grace period and deletion bound must be non-negative/positive")
-    states = _scan_run_states(store, lease_guard=lease_guard)
+    completion_times = {}
+    states = _scan_run_states(store, lease_guard=lease_guard, completion_times=completion_times)
     referenced = _scan_artifact_references(store, lease_guard=lease_guard)
     recoverable = _recoverable_run_ids()
     client = store.r2
@@ -327,17 +330,16 @@ def cleanup_orphan_run_artifacts(
                 modified = modified.replace(tzinfo=timezone.utc)
             snapshot_object = "/scraped_snapshots/" in key or "/matching_summaries/" in key
             if snapshot_object:
-                completion = store.d1.execute(
-                    "SELECT finished_at FROM run_logs WHERE run_id = ? AND status IN ('successful','failed')",
-                    (int(match.group(2)),),
-                ).rows
-                if len(completion) != 1 or not completion[0].get("finished_at"):
+                if states.get(int(match.group(2))) not in {"successful", "failed"}:
+                    continue
+                completion = completion_times.get(int(match.group(2)))
+                if not completion:
                     continue
                 try:
-                    archived = datetime.fromisoformat(completion[0]["finished_at"])
+                    archived = datetime.fromisoformat(completion)
                     if archived.tzinfo is None:
                         archived = archived.replace(tzinfo=timezone.utc)
-                except ValueError as error:
+                except (TypeError, ValueError) as error:
                     raise CloudflareStorageError("Scrape snapshot owner has an invalid completion time") from error
                 if archived > cutoff:
                     continue
