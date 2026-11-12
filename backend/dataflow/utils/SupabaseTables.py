@@ -33,6 +33,12 @@ class SupabaseTables:
         if not table:
             return []
 
+        # A private workspace already fetched/captured the entire input. Do not
+        # sort and filter that in-memory table again for every 200-row slice.
+        from backend.dataflow.utils.PublicationWorkspace import PublicationWorkspace
+        if isinstance(self.supabase, PublicationWorkspace):
+            return self.supabase.table(table).select(select).order(self.primaryKeyForTable(table)).execute().data
+
         all_rows: list[dict] = []
         start = 0
         order_col = self.primaryKeyForTable(table)

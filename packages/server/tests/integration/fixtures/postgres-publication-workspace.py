@@ -24,7 +24,7 @@ if parsed.hostname not in {"localhost", "127.0.0.1", "::1"} or parsed.path != "/
 
 class ReadQuery:
     def __init__(self, table):
-        self.table, self.orders, self.bounds, self.filters = table, [], None, []
+        self.table, self.orders, self.maximum, self.filters = table, [], None, []
 
     def select(self, _columns):
         return self
@@ -34,21 +34,24 @@ class ReadQuery:
         return self
 
     def eq(self, column, value):
-        self.filters.append((column, value))
+        self.filters.append((column, value, "="))
         return self
 
-    def range(self, start, end):
-        self.bounds = start, end
+    def gt(self, column, value):
+        self.filters.append((column, value, ">"))
+        return self
+
+    def limit(self, maximum):
+        self.maximum = maximum
         return self
 
     def execute(self):
-        start, end = self.bounds
-        predicate = sql.SQL(" AND ").join(sql.SQL("{} = %s").format(sql.Identifier(column)) for column, _ in self.filters) if self.filters else sql.SQL("true")
-        query = sql.SQL("SELECT to_jsonb(t) AS row FROM (SELECT * FROM public.{} WHERE {} ORDER BY {} OFFSET %s LIMIT %s) t").format(
+        predicate = sql.SQL(" AND ").join(sql.SQL("{} {} %s").format(sql.Identifier(column), sql.SQL(operator)) for column, _, operator in self.filters) if self.filters else sql.SQL("true")
+        query = sql.SQL("SELECT to_jsonb(t) AS row FROM (SELECT * FROM public.{} WHERE {} ORDER BY {} LIMIT %s) t").format(
             sql.Identifier(self.table), predicate, sql.SQL(",").join(map(sql.Identifier, self.orders)))
         with psycopg.connect(url, row_factory=dict_row) as connection:
             connection.execute("SET LOCAL ROLE service_role")
-            rows = connection.execute(query, (*[value for _, value in self.filters], start, end-start+1)).fetchall()
+            rows = connection.execute(query, (*[value for _, value, _ in self.filters], self.maximum)).fetchall()
         return SimpleNamespace(data=[row["row"] for row in rows])
 
 

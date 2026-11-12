@@ -129,7 +129,8 @@ try {
     }
     if (
       migration.endsWith("_postgres_atomic_publication.sql") ||
-      migration.endsWith("_publication_input_versions.sql")
+      migration.endsWith("_publication_input_versions.sql") ||
+      migration.endsWith("_concurrent_publication_revisions.sql")
     ) {
       const administrator = (await client.query("SELECT current_user AS name"))
         .rows[0].name;

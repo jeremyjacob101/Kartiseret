@@ -106,7 +106,10 @@ class PublicationWorkspace:
         with self.lock:
             if table not in self.tables:
                 revision = self._input_revision(table) if table != "movieCodes" else None
-                rows, start = [], 0
+                rows, cursor = [], None
+                # Checkpoints are already category-filtered, so their remaining
+                # unique key is snapshot_id. Other inputs have one primary key.
+                cursor_column = "snapshot_id" if table == "pipeline_publication_checkpoints" else KEYS.get(table, ("id",))[0]
                 while True:
                     query = self.client.table(table).select("*")
                     # Scope the scan itself, not just its serialized output.
@@ -116,9 +119,10 @@ class PublicationWorkspace:
                         query = query.eq("table_name", CATEGORY_TABLES[self.category][0])
                     elif table == "pipeline_publication_checkpoints":
                         query = query.eq("category", self.category)
-                    for column in KEYS.get(table, ("id",)):
-                        query = query.order(column)
-                    page = query.range(start, start + 499).execute().data
+                    query = query.order(cursor_column)
+                    if cursor is not None:
+                        query = query.gt(cursor_column, cursor)
+                    page = query.limit(500).execute().data
                     if not isinstance(page, list) or any(not isinstance(row, dict) for row in page):
                         raise RuntimeError(f"Incomplete or malformed publication scan for {table}; publication refused")
                     from backend.utils.log.r2_storage_guard import pin_catalog_rows
@@ -126,7 +130,10 @@ class PublicationWorkspace:
                     rows.extend(page)
                     if len(page) < 500:
                         break
-                    start += 500
+                    next_cursor = page[-1].get(cursor_column)
+                    if next_cursor is None or next_cursor == cursor:
+                        raise RuntimeError(f"Incomplete or malformed publication cursor for {table}; publication refused")
+                    cursor = next_cursor
                 if revision is not None:
                     if self._input_revision(table) != revision:
                         raise RuntimeError(f"Publication input changed while reading {table}; preparation must restart")

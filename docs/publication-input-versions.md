@@ -7,17 +7,20 @@ Each read table instead contributes one compact revision guard.
 
 ## Correctness and concurrency
 
-- `PublicationWorkspace` reads a revision before and after its paginated table
-  scan. If they differ, it discards that scan and refuses preparation. RPC errors
+- `PublicationWorkspace` reads a revision before and after its primary-key cursor
+  scan (500 rows per request, without OFFSET). If they differ, it discards that scan and refuses preparation. RPC errors
   or malformed/missing revisions fail closed; there is no row-copy fallback.
 - Statement triggers on raw tables, final tables, and manual matching evidence
-  advance transactional counters for INSERT, UPDATE, DELETE and TRUNCATE. Even
-  a same-value update advances the counter. Rolled-back writes roll the counter
-  back too. Counters are private and cannot be reset by service/API/publisher
-  roles.
+  record INSERT, UPDATE, DELETE and TRUNCATE increments in transaction-private
+  `xid8` slots. Independent writers never update a shared counter row. The token
+  is the base plus committed increments; even a same-value update advances it.
+  Rollback removes the increment with the write. Slots and base values are
+  private and cannot be forged by service/API/publisher roles. Successful
+  publication folds the slots into the base under its existing writer fences,
+  atomically preserving the token and bounding retained bookkeeping.
 - Shared scrape manifests and publication checkpoints use category-scoped
-  counters and category-filtered pagination, so unrelated inserts cannot shift
-  offsets unnoticed. Their small metadata tables use row triggers to invalidate the old
+  tokens and category-filtered cursor scans, so unrelated inserts cannot
+  invalidate or shift a category scan. Their small metadata tables use row triggers to invalidate the old
   and new categories when a row changes scope; TRUNCATE invalidates all three.
   Independently prepared categories can therefore publish sequentially without
   invalidating one another's unrelated metadata guards.
@@ -46,8 +49,10 @@ holds no database transaction or table lock across external provider requests.
 ## Deployment and rollback
 
 1. Pause starting new pipeline publications and let active publications finish.
-2. Apply `20261112120834_publication_input_versions.sql` to each intended
-   environment before running the updated Python producer. No Vercel or
+2. Apply `20261112120834_publication_input_versions.sql`, then
+   `20261112192203_concurrent_publication_revisions.sql`, to each intended
+   environment before running the updated Python producer. The latter preserves
+   every existing token while removing the shared-row writer queue. No Vercel or
    Cloudflare configuration change is needed.
 3. Run the updated producer and verify its applied receipt before resuming normal
    schedules. Old prepared row-copy payloads must be rebuilt, not replayed.
@@ -60,8 +65,18 @@ roll back only the producer. To restore the old protocol, quiesce publications,
 restore the previous commit implementation, and deploy its matching producer.
 The additive counters and triggers may remain installed during that rollback.
 
-This PR does not apply the migration to a hosted database, deploy application
-code, change hosting settings, or change logging.
+Raw scraper uploads use at most 200 rows and 256 KiB of compact UTF-8 JSON per
+request, with minimal responses. A manifest remains running until every batch
+succeeds; a failed partial attempt cannot authorize public replacement or stale
+row deletion. The full attempted payload remains available to recovery logging.
+Private workspace queries evaluate the captured input once rather than sorting
+it repeatedly for each outer page. These changes preserve public catalog output
+and source completeness rules.
+
+Do not restore the original shared-counter trigger on its own: outstanding
+transaction slots must first be folded into the base under writer fences, with
+publications quiesced. Otherwise the token would go backwards. The new schema
+remains compatible with the previous integer-token producer during rollout.
 
 ## Validation
 
@@ -72,7 +87,11 @@ scope changes; multiple scrapes; stale/legacy/malformed guards; empty-input
 insertions; manual corrections; committed and rolled-back concurrent writers;
 a writer arriving after validation; ordinary reads during publication; role
 permissions; receipt idempotency; and the real Python workspace and restricted
-PostgreSQL publisher.
+PostgreSQL publisher. Concurrent-writer regression tests keep one raw or
+metadata transaction open while other writes finish with the production
+eight-second timeout. They also cover compaction, rollback, role permissions,
+prepared-token stability and stale rejection. Upload tests cover the four
+incident sizes, UTF-8 byte limits and failure in a later batch.
 
 Synthetic local measurements on 12 November 2026 with `work_mem = 2184kB`:
 
