@@ -11,6 +11,7 @@ from rich.table import Column
 from rich.text import Text
 from rich.theme import Theme
 from rich.live import Live
+from backend.utils.console.stage_progress import _WorkColumn
 
 
 @dataclass
@@ -44,14 +45,15 @@ class PerTaskBarColumn(ProgressColumn):
 
 class TransportColumn(ProgressColumn):
     def __init__(self):
-        super().__init__(Column(width=4, no_wrap=True))
+        super().__init__(Column(width=3, no_wrap=True))
 
     def render(self, task):
         transport = task.fields.get("transport", "")
+        color = task.fields.get("transport_color")
         if transport == "requests":
-            return Text("·R·", style="bold #66d6f2")
+            return Text("·R·", style=f"bold {color or '#66d6f2'}")
         if transport in {"selenium", "requests_selenium_fallback"}:
-            return Text("·S·", style="bold yellow")
+            return Text("·S·", style=f"bold {color or 'yellow'}")
         return Text("")
 
 
@@ -77,7 +79,7 @@ def _finalize_overall_bar(overall: Progress, overall_task_id: int, ok: bool, com
 
 def _update_task_status(status: Progress, task_id: int, name: str, attempt: int, estimated_secs: float, result: RunResult):
     color = "green" if result.ok else "red"
-    status.update(task_id, description=f"[{color}]{_label(attempt, name)}[/{color}]", time=f"[{color}]{_hms(result.secs)}[/{color}]", completed=estimated_secs, bar_color=color, **({} if result.ok else {"failed": True}))
+    status.update(task_id, description=f"[{color}]{_label(attempt, name)}[/{color}]", time=f"[{color}]{_hms(result.secs)}[/{color}]", completed=estimated_secs, bar_color=color, transport_color=color, **({} if result.ok else {"failed": True}))
 
 
 def _update_overall(overall: Progress, task_id: int, now: float, started_at: float, completed: float, done: int, eta_secs_override: Optional[float] = None):
@@ -119,6 +121,7 @@ class RichRunUI:
             PerTaskBarColumn(bar_width=20, default_bar="#f266e0"),
             *([TransportColumn()] if self.show_transport else []),
             TextColumn("{task.description}"),
+            _WorkColumn(),
             console=self.console,
             refresh_per_second=refresh_per_second,
         )
@@ -172,7 +175,7 @@ class RichRunUI:
         self.status.start_task(task_id)
         name = self.spec.get_item_name(item)
 
-        self.status.update(task_id, description=f"[yellow]{_label(attempt, name)}[/yellow]", completed=0.0, time=f"[yellow]       [/yellow]", bar_color="#f266e0", failed=False, attempt=attempt, transport="")
+        self.status.update(task_id, description=f"[yellow]{_label(attempt, name)}[/yellow]", completed=0.0, time=f"[yellow]       [/yellow]", bar_color="#f266e0", failed=False, attempt=attempt, transport="", transport_color=None, work_counts="")
         self.tick(now=started_at)
 
     def retry_item(self, item: Any, attempt: int, started_at: Optional[float] = None) -> None:
@@ -191,12 +194,15 @@ class RichRunUI:
         self.status.start_task(task_id)
         name = self.spec.get_item_name(item)
 
-        self.status.update(task_id, description=f"[yellow]{_label(attempt, name)}[/yellow]", completed=0.0, time=f"[yellow]       [/yellow]", bar_color="#f266e0", failed=False, attempt=attempt, transport="")
+        self.status.update(task_id, description=f"[yellow]{_label(attempt, name)}[/yellow]", completed=0.0, time=f"[yellow]       [/yellow]", bar_color="#f266e0", failed=False, attempt=attempt, transport="", transport_color=None, work_counts="")
         self.tick(now=started_at)
 
     def set_item_estimate(self, item: Any, seconds: float) -> None:
         self.est_by_item[item] = float(seconds)
         self.status.update(self.status_task_id_by_item[item], total=float(seconds))
+
+    def set_item_work(self, item: Any, completed: int, total: int, unit: str) -> None:
+        self.status.update(self.status_task_id_by_item[item], work_counts=f"{completed}/{total} {unit}")
 
     def set_item_transport(self, item: Any, transport: str) -> None:
         selected = str(transport or "")

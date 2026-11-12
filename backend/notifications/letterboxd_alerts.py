@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from backend.utils.console.stage_progress import progress_items
+
 from dataclasses import dataclass
 from datetime import date, datetime
 from html import escape
@@ -833,7 +835,7 @@ class LetterboxdSourceDispatcher:
     def _sync_sources(self, sources: list[dict[str, Any]], now: datetime) -> tuple[int, int]:
         synced = failed = 0
         candidates = self.repository.load_local_movie_candidates() if sources else []
-        for source in sources:
+        for source in progress_items(sources, "sources synced"):
             source_id = _text(source.get("id"))
             self.repository.mark_source_attempt(source_id, now)
             try:
@@ -943,7 +945,7 @@ class LetterboxdSourceDispatcher:
         batches = retries + self._new_batches(pending, retry_users)
         emails_sent = events_notified = 0
         failures: list[str] = []
-        for batch in batches:
+        for batch in progress_items(batches, "delivery batches"):
             try:
                 self.repository.record_attempt(batch.user_id, batch.delivery_id)
                 movie_ids = sorted(

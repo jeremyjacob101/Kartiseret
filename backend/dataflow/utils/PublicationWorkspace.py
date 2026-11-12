@@ -6,6 +6,8 @@ Unsupported operations fail closed rather than touching a live publication.
 """
 from __future__ import annotations
 
+from backend.utils.console.stage_progress import report_work
+
 from contextlib import contextmanager
 from contextvars import ContextVar
 from copy import deepcopy
@@ -223,11 +225,14 @@ class PublicationWorkspace:
 
     def commit(self):
         if self._result is not None:
+            report_work(0, 0, "parts + commit")
             return self._result
         if not self.claims and all(self.tables[table] == rows for table, rows in self.baseline.items()):
+            report_work(0, 0, "parts + commit")
             self._result = {"status": "unchanged"}
             return self._result
         parts = self.parts()
+        report_work(0, len(parts) + 1, "parts + commit")
         digests = [hashlib.sha256(part.encode()).hexdigest() for part in parts]
         fingerprint = hashlib.sha256("\n".join(f"{i}:{digest}" for i, digest in enumerate(digests)).encode()).hexdigest()
         identity = {"publication_id": self.publication_id, "category": self.category, "run_id": self.run_id, "fingerprint": fingerprint, "part_count": len(parts)}
@@ -249,6 +254,7 @@ class PublicationWorkspace:
             result = publisher.publish(identity, parts)
             if not isinstance(result, dict) or result.get("status") != "applied":
                 raise RuntimeError("PostgreSQL did not confirm an applied publication")
+            report_work(len(parts) + 1, len(parts) + 1, "parts + commit")
             self._result = result
             return result
 
@@ -257,12 +263,14 @@ class PublicationWorkspace:
             if existing[0]["fingerprint"] != fingerprint:
                 raise RuntimeError("Publication identity reused with different content")
             if existing[0]["status"] == "applied":
+                report_work(len(parts) + 1, len(parts) + 1, "parts + commit")
                 self._result = existing[0]
                 return self._result
         else:
             self.client.table("pipeline_publications").insert(identity).execute()
         for index, part in enumerate(parts):
             self.client.table("pipeline_publication_parts").upsert({"publication_id": self.publication_id, "part": index, "payload": part}).execute()
+            report_work(index + 1, len(parts) + 1, "parts + commit")
         try:
             result = self.client.rpc("commit_category_publication", {"p_publication_id": self.publication_id, "p_fingerprint": fingerprint}).execute().data
         except Exception:
@@ -274,6 +282,7 @@ class PublicationWorkspace:
         if not isinstance(result, dict) or result.get("status") != "applied":
             status = result.get("status") if isinstance(result, dict) else None
             raise RuntimeError(f"Publication commit was not applied (status={status!r})")
+        report_work(len(parts) + 1, len(parts) + 1, "parts + commit")
         self._result = result
         return result
 

@@ -15,6 +15,7 @@ from backend.dataflow.cinematheques.CinemathequesTmdb import CinemathequesTmdb
 from backend.dataflow.utils.InitializeBaseDataflow import InitializeBaseDataflow
 from backend.dataflow.utils.MovieCodes import MovieCodes
 from backend.dataflow.utils.PublicationWorkspace import PublicationWorkspace, create_client
+from backend.utils.console.stage_progress import work_progress
 
 
 class CategoryPublicationTests(TestCase):
@@ -158,12 +159,15 @@ class CategoryPublicationTests(TestCase):
                 raise ConnectionError("commit acknowledgement lost")
             return SimpleNamespace(execute=execute)
         live.rpc = rpc
-        with patch("backend.utils.log.run_storage.RunArtifactStore") as storage:
+        progress = []
+        with patch("backend.utils.log.run_storage.RunArtifactStore") as storage, work_progress(lambda *args: progress.append(args)):
             receipt = workspace.commit()
             self.assertEqual(receipt["status"], "applied")
             self.assertEqual(workspace.commit(), receipt)
             storage.return_value.save_text_artifact.assert_called_once()
         self.assertEqual(calls, ["commit_category_publication"])
+        total = len(workspace.parts()) + 1
+        self.assertEqual(progress, [(index, total, "parts + commit") for index in range(total + 1)] + [(0, 0, "parts + commit")])
 
     def test_non_applied_commit_receipt_fails(self):
         workspace, live = self.workspace()
@@ -172,21 +176,26 @@ class CategoryPublicationTests(TestCase):
             execute=lambda: SimpleNamespace(data={"status": "prepared"})
         )
 
-        with patch("backend.utils.log.run_storage.RunArtifactStore"):
+        progress = []
+        with patch("backend.utils.log.run_storage.RunArtifactStore"), work_progress(lambda *args: progress.append(args)):
             with self.assertRaisesRegex(RuntimeError, "was not applied"):
                 workspace.commit()
+        self.assertEqual(progress[-1], (len(workspace.parts()), len(workspace.parts()) + 1, "parts + commit"))
 
     def test_configured_postgres_publisher_replaces_only_the_commit_transport(self):
         workspace, live = self.workspace()
         workspace.table("finalMovies").insert({"tmdb_id": 1, "english_title": "Ready"}).execute()
         publisher = SimpleNamespace(publish=Mock(return_value={"status": "applied", "revision": "8"}))
+        progress = []
         with patch("backend.utils.log.run_storage.RunArtifactStore"), patch(
             "backend.dataflow.utils.PublicationWorkspace.PostgresPublicationPublisher.from_environment",
             return_value=publisher,
-        ):
+        ), work_progress(lambda *args: progress.append(args)):
             self.assertEqual(workspace.commit(), {"status": "applied", "revision": "8"})
         publisher.publish.assert_called_once()
         self.assertFalse(live.actions)
+        total = len(workspace.parts()) + 1
+        self.assertEqual(progress, [(0, total, "parts + commit"), (total, total, "parts + commit")])
 
     def test_invalid_configured_postgres_publisher_never_falls_back_to_rest(self):
         workspace, live = self.workspace()

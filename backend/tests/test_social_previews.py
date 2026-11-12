@@ -203,6 +203,7 @@ class SocialPreviewTests(unittest.TestCase):
             )
 
         self.assertEqual(result["updated"], 1)
+        self.assertEqual(result["pending"], 0)
         self.assertEqual(ordered, ["upload", "pointer"])
         upload = r2.objects[f"social/v1/{FINGERPRINT}/card.jpg"]
         self.assertEqual(upload["Body"], JPEG)
@@ -217,6 +218,7 @@ class SocialPreviewTests(unittest.TestCase):
         result2 = self.refresh(client2, r2_existing, worker2, row=unchanged_row)
         self.assertEqual(result2["unchanged"], 1)
         self.assertEqual(result2["updated"], 0)
+        self.assertEqual(result2["pending"], 0)
         client2.table.return_value.update.assert_not_called()
 
     def test_r2_budget_failure_is_not_swallowed_by_best_effort_refresh(self):
@@ -251,6 +253,7 @@ class SocialPreviewTests(unittest.TestCase):
         first = self.refresh(client, r2, FakeWorker(), row=row)
 
         self.assertEqual(first["failed"], 1)
+        self.assertEqual(first["pending"], 1)
         client.table.return_value.update.assert_not_called()
 
         retry_client = self.make_client(row)
@@ -258,6 +261,7 @@ class SocialPreviewTests(unittest.TestCase):
         retried = self.refresh(retry_client, retry_r2, FakeWorker(), row=row)
 
         self.assertEqual(retried["updated"], 1)
+        self.assertEqual(retried["pending"], 0)
         self.assertEqual(
             retry_client.table.return_value.update.call_args.args[0],
             {"social_preview_fingerprint": FINGERPRINT},
@@ -302,6 +306,7 @@ class SocialPreviewTests(unittest.TestCase):
             )
 
         self.assertEqual(result["updated"], 2)
+        self.assertEqual(result["pending"], 0)
         self.assertEqual(len(r2.put_calls), 1)
         self.assertIn(f"social/v1/{FINGERPRINT}/card.jpg", r2.objects)
 
@@ -313,6 +318,7 @@ class SocialPreviewTests(unittest.TestCase):
         result = self.refresh(client, r2, worker)
 
         self.assertEqual(result["stale"], 1)
+        self.assertEqual(result["pending"], 1)
         client.table.return_value.update.assert_not_called()
         self.assertIn(f"social/v1/{FINGERPRINT}/card.jpg", r2.objects)
 

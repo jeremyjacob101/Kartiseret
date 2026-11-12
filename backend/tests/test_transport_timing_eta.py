@@ -10,7 +10,7 @@ from rich.console import Console
 from backend.config import runners
 from backend.scraping.BaseCinema import BaseCinema
 from backend.scraping.nowplayings.MovieLand import MovieLand
-from backend.utils.console.progressBars import RichRunUI, RunResult
+from backend.utils.console.progressBars import RichRunUI, RunResult, TransportColumn
 
 
 class TransportTimingEtaTests(TestCase):
@@ -63,7 +63,18 @@ class TransportTimingEtaTests(TestCase):
                 output.truncate(0)
                 ui.set_item_transport(MovieLand, transport)
                 ui.console.print(ui.renderable)
-                self.assertRegex(output.getvalue(), re.escape(marker) + r'\s+\(1\) MovieLand')
+                self.assertIn(marker + ' (1) MovieLand', output.getvalue())
+
+    def test_finished_transport_uses_outcome_color(self):
+        for transport in ('requests', 'selenium', 'requests_selenium_fallback'):
+            for ok, color in ((True, 'green'), (False, 'red')):
+                spec = SimpleNamespace(total_strategy='max', count_label='Scrapers', overall_task_name='Scrape', show_transport=True, get_item_name=lambda cls: cls.__name__)
+                ui = RichRunUI(spec, 'test', [MovieLand], lambda cls: 5, use_live=False, console=Console(file=StringIO()))
+                ui.start_item(MovieLand)
+                ui.set_item_transport(MovieLand, transport)
+                ui.finish_item(MovieLand, RunResult('MovieLand', 3, ok))
+                task = ui.status.tasks[ui.status_task_id_by_item[MovieLand]]
+                self.assertEqual(TransportColumn().render(task).style, f'bold {color}')
 
     def test_dataflow_rows_do_not_show_transport_markers(self):
         spec = SimpleNamespace(total_strategy='sum', count_label='Dataflows', overall_task_name='Dataflow', get_item_name=lambda cls: cls.__name__)

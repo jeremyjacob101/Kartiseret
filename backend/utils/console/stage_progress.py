@@ -4,6 +4,8 @@ from __future__ import annotations
 import logging
 import os
 import time
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any, Callable
 
 from rich.console import Console
@@ -21,6 +23,37 @@ from backend.utils.util_avg_time_history import (
 
 LOGGER = logging.getLogger(__name__)
 FALLBACK_SECONDS = 60.0
+_work_callback = ContextVar("stage_work_callback", default=None)
+
+
+@contextmanager
+def work_progress(callback):
+    """Scope work updates to this operation, including worker-thread operations."""
+    token = _work_callback.set(callback)
+    try:
+        yield
+    finally:
+        _work_callback.reset(token)
+
+
+def report_work(completed: int, total: int, unit: str) -> None:
+    callback = _work_callback.get()
+    if callback is not None:
+        callback(completed, total, unit)
+
+
+def progress_items(items, unit: str):
+    """Count processed items; an escaping exception preserves the last count."""
+    report_work(0, len(items), unit)
+    for index, item in enumerate(items, 1):
+        yield item
+        report_work(index, len(items), unit)
+
+
+class _WorkColumn(ProgressColumn):
+    def render(self, task) -> Text:
+        counts = task.fields.get("work_counts")
+        return Text(counts or "", style="bold " + task.fields.get("bar_color", "cyan"))
 
 
 def load_stage_estimate(name: str) -> float:
@@ -70,7 +103,8 @@ def _hms(seconds: float) -> str:
 
 class _ElapsedColumn(ProgressColumn):
     def render(self, task) -> Text:
-        return Text(_hms(task.elapsed or 0.0), style="bold #9c27f5")
+        color = {"success": "green", "failed": "red"}.get(task.fields.get("state"), "#9c27f5")
+        return Text(_hms(task.elapsed or 0.0), style=f"bold {color}")
 
 
 class _EstimateColumn(ProgressColumn):
@@ -133,6 +167,7 @@ class TimedStageProgress:
         self.progress = Progress(
             _ElapsedColumn(),
             _StageBarColumn(),
+            _WorkColumn(),
             _EstimateColumn(),
             "{task.description}",
             console=console,
@@ -143,6 +178,7 @@ class TimedStageProgress:
             total=100,
             estimate=self.estimate,
             state=self.state,
+            bar_color="cyan",
         )
         scheduled = any(
             os.environ.get(name) == "true"
@@ -172,6 +208,7 @@ class TimedStageProgress:
             description=f"[{('green' if successful else 'red')}]{self.label}: {outcome}[/{('green' if successful else 'red')}]",
             completed=100 if successful else min(94, elapsed / self.estimate * 100),
             state=self.state,
+            bar_color="green" if successful else "red",
         )
         self.progress.stop_task(self.task_id)
         return elapsed
@@ -183,6 +220,9 @@ class TimedStageProgress:
             description=f"[bold #66d6f2]{label}[/bold #66d6f2]",
             completed=min(94.0, max(0.0, float(fraction) * 100)),
         )
+
+    def update_work(self, completed: int, total: int, unit: str) -> None:
+        self.progress.update(self.task_id, work_counts=f"{completed}/{total} {unit}")
 
     def close(self) -> None:
         if self.interactive:
@@ -210,7 +250,8 @@ def run_timed_stage(
     elapsed = 0.0
     try:
         progress.__enter__()
-        value = operation()
+        with work_progress(progress.update_work):
+            value = operation()
         should_record = record_when(value) if record_when else True
         outcome = outcome_for(value) if outcome_for else "Complete"
         elapsed = progress.finish(outcome, successful=True)

@@ -9,6 +9,35 @@ from backend.utils.console import stage_progress
 
 
 class StageProgressTests(TestCase):
+    def test_work_counts_update_during_operation_and_scope_is_restored(self):
+        seen = []
+        outer = []
+        def operation():
+            for _ in stage_progress.progress_items([1, 2, 3], "rows"):
+                pass
+            return "ok"
+        with stage_progress.work_progress(lambda *args: outer.append(args)), patch.object(
+            stage_progress.TimedStageProgress, "update_work", side_effect=lambda *args: seen.append(args)
+        ), patch.object(stage_progress, "record_stage_duration"):
+            stage_progress.run_timed_stage("test", "Test", operation, Console(file=StringIO()))
+            stage_progress.report_work(1, 1, "outer")
+        self.assertEqual(seen, [(0, 3, "rows"), (1, 3, "rows"), (2, 3, "rows"), (3, 3, "rows")])
+        self.assertEqual(outer, [(1, 1, "outer")])
+
+    def test_completed_timer_uses_outcome_color(self):
+        for state, color in (("success", "green"), ("failed", "red")):
+            task = SimpleNamespace(elapsed=10, fields={"state": state})
+            self.assertEqual(stage_progress._ElapsedColumn().render(task).style, f"bold {color}")
+
+    def test_zero_work_and_failed_iteration_never_fabricate_completion(self):
+        seen = []
+        with stage_progress.work_progress(lambda *args: seen.append(args)):
+            list(stage_progress.progress_items([], "recipients"))
+            with self.assertRaises(RuntimeError):
+                for _ in stage_progress.progress_items([1, 2], "recipients"):
+                    raise RuntimeError("failed")
+        self.assertEqual(seen, [(0, 0, "recipients"), (0, 2, "recipients")])
+
     def test_excluded_runs_do_not_write_stage_history(self):
         for flags in ({"GITHUB_ACTIONS": "true"}, {"SOLO_UPDATE_ONLY": "true"}):
             with self.subTest(flags=flags), patch.dict("os.environ", flags), patch.object(

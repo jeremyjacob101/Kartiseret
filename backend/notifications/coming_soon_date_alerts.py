@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from backend.utils.console.stage_progress import progress_items
+
 from dataclasses import dataclass
 from datetime import date, datetime
 from html import escape
@@ -434,7 +436,7 @@ class ComingSoonDateAlertDispatcher:
         movies_notified = 0
         failures: list[str] = []
 
-        for batch in batches:
+        for batch in progress_items(batches, "delivery batches"):
             try:
                 self.repository.record_attempt(batch.user_id, batch.delivery_id)
                 if not batch.items:

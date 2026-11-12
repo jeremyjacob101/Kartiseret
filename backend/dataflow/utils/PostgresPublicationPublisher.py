@@ -7,6 +7,8 @@ bounded transaction through a publisher-only SQL entry point.
 
 from __future__ import annotations
 
+from backend.utils.console.stage_progress import report_work
+
 from contextlib import contextmanager
 import json
 import logging
@@ -228,6 +230,7 @@ class PostgresPublicationPublisher:
                 ) as copy:
                     for part_number, payload in enumerate(parts):
                         copy.write_row((part_number, payload))
+                        report_work(part_number + 1, len(parts) + 1, "parts + commit")
 
                 cursor.execute(
                     """SELECT existing.part
