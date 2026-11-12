@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
+import re
 from threading import RLock
 from types import SimpleNamespace
 import uuid
@@ -83,7 +84,7 @@ class PublicationWorkspace:
         self.client = client or live_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
         self.reserved_movie_codes = reserved_movie_codes if reserved_movie_codes is not None else set()
         self.publication_id = str(uuid.uuid4())
-        self.tables, self.baseline, self.claims = {}, {}, {}
+        self.tables, self.baseline, self.claims, self.input_revisions = {}, {}, {}, {}
         self.lock = RLock()
         self.allowed = set(CATEGORY_TABLES[category]) | {"movieCodes", "tableFixes", "tableSkips", "pipeline_scrape_snapshots", "pipeline_publication_checkpoints"}
         self._parts = None
@@ -104,9 +105,17 @@ class PublicationWorkspace:
     def _load(self, table):
         with self.lock:
             if table not in self.tables:
+                revision = self._input_revision(table) if table != "movieCodes" else None
                 rows, start = [], 0
                 while True:
                     query = self.client.table(table).select("*")
+                    # Scope the scan itself, not just its serialized output.
+                    # Unrelated-category writes must not shift OFFSET pages
+                    # while leaving this category's revision unchanged.
+                    if table == "pipeline_scrape_snapshots":
+                        query = query.eq("table_name", CATEGORY_TABLES[self.category][0])
+                    elif table == "pipeline_publication_checkpoints":
+                        query = query.eq("category", self.category)
                     for column in KEYS.get(table, ("id",)):
                         query = query.order(column)
                     page = query.range(start, start + 499).execute().data
@@ -118,9 +127,21 @@ class PublicationWorkspace:
                     if len(page) < 500:
                         break
                     start += 500
+                if revision is not None:
+                    if self._input_revision(table) != revision:
+                        raise RuntimeError(f"Publication input changed while reading {table}; preparation must restart")
+                    self.input_revisions[table] = revision
                 self.baseline[table] = deepcopy(rows)
                 self.tables[table] = deepcopy(rows)
             return self.tables[table]
+
+    def _input_revision(self, table):
+        revision = self.client.rpc("get_publication_input_revision", {
+            "p_table": table, "p_category": self.category,
+        }).execute().data
+        if not isinstance(revision, str) or not re.fullmatch(r"0|[1-9][0-9]{0,18}", revision) or int(revision) > 9223372036854775807:
+            raise RuntimeError(f"Missing or invalid publication input revision for {table}; publication refused")
+        return revision
 
     def table(self, name):
         if name == "utilAvgTime":
@@ -186,10 +207,10 @@ class PublicationWorkspace:
             before = {key_for(table, r): r for r in self._owned_rows(table, self.baseline[table])}
             after = {key_for(table, r): r for r in self._owned_rows(table, self.tables[table])}
             if table != "movieCodes":
-                rows = sorted(before.values(), key=lambda r: tuple(str(v) for v in key_for(table, r)))
-                # Guard every read input, including absence/new rows, rather
-                # than only rows that happen to be updated by this preparation.
-                parts.append({"kind": "guard", "table": table, "rows": rows})
+                # A database-maintained token protects every read, including
+                # absence/new rows, without uploading the original table copy.
+                parts.append({"kind": "guard", "table": table,
+                              "revision": self.input_revisions[table], "rows": []})
             if table in {"tableFixes", "tableSkips"}:
                 if before != after:
                     raise ValueError("Matching evidence is read-only during preparation")
@@ -198,8 +219,7 @@ class PublicationWorkspace:
                 old, new = before.get(key), after.get(key)
                 if old != new:
                     changes.append({"table": table, "before": old, "after": new})
-        # Split guards as well as mutations; no request carries a whole cinema
-        # or a full catalog. Empty guards still prove the table was empty.
+        # Only mutations carry rows. Each input guard is one small token.
         chunks = []
         for part in parts:
             for start in range(0, max(1, len(part["rows"])), 200):

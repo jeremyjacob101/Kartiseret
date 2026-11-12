@@ -184,7 +184,7 @@ class RawCleaningScopeTests(TestCase):
                 self.assertTrue(stored[rows[0]["id"]]["added"])
                 self.assertTrue(flow.supabase.tables[mapper.MOVING_TO_TABLE_NAME])
 
-    def test_private_stage_keeps_failed_rows_and_complete_before_guards(self):
+    def test_private_stage_keeps_failed_rows_and_input_revision_guards(self):
         old, new = str(uuid.uuid4()), str(uuid.uuid4())
         old_row, new_row = raw(old), raw(new, run_id=10)
         db = DB({"allShowtimes": [old_row, new_row], "pipeline_scrape_snapshots": [
@@ -198,9 +198,13 @@ class RawCleaningScopeTests(TestCase):
         changes = [r for part in parts if part["kind"] == "changes" for r in part["rows"]]
         self.assertEqual([c["after"]["id"] for c in changes], [new_row["id"]])
         guarded = [r for p in parts if p["kind"] == "guard" and p["table"] == "allShowtimes" for r in p["rows"]]
-        self.assertCountEqual(guarded, [old_row, new_row])
+        self.assertEqual(guarded, [])
+        self.assertEqual([p for p in parts if p["kind"] == "guard" and p["table"] == "allShowtimes"],
+                         [{"kind": "guard", "table": "allShowtimes", "revision": "0", "rows": []}])
+        self.assertCountEqual(workspace.baseline["allShowtimes"], [old_row, new_row])
         guarded_manifests = [r for p in parts if p["kind"] == "guard" and p["table"] == "pipeline_scrape_snapshots" for r in p["rows"]]
-        self.assertCountEqual(guarded_manifests, db.tables["pipeline_scrape_snapshots"])
+        self.assertEqual(guarded_manifests, [])
+        self.assertCountEqual(workspace.baseline["pipeline_scrape_snapshots"], db.tables["pipeline_scrape_snapshots"])
 
     def test_manual_fix_and_historical_cross_cinema_title_evidence_are_preserved(self):
         old, new, rav = [str(uuid.uuid4()) for _ in range(3)]
@@ -235,21 +239,24 @@ class RawCleaningScopeTests(TestCase):
             })
         workspace = PublicationWorkspace("nowplayings", 10, DB({}))
         # Bypass paginated network loading; exercise the real cleaner and diff
-        # serializer at production cardinality, with its complete before guard.
+        # serializer at production cardinality, with captured input revisions.
         workspace.tables["allShowtimes"] = deepcopy(rows)
         workspace.baseline["allShowtimes"] = deepcopy(rows)
+        workspace.input_revisions["allShowtimes"] = "0"
         manifests = [
             manifest("allShowtimes", failed),
             manifest("allShowtimes", current, run_id=10, status="complete", count=10_519),
         ]
         workspace.tables["pipeline_scrape_snapshots"] = deepcopy(manifests)
         workspace.baseline["pipeline_scrape_snapshots"] = deepcopy(manifests)
+        workspace.input_revisions["pipeline_scrape_snapshots"] = "0"
         flow = self.build(*CLEANERS[0], [], [], database=workspace)
         flow.logic()
         parts = [json.loads(part) for part in workspace.parts()]
         changes = [r for p in parts if p["kind"] == "changes" for r in p["rows"]]
         guarded = [r for p in parts if p["kind"] == "guard" and p["table"] == "allShowtimes" for r in p["rows"]]
-        self.assertEqual(len(guarded), 59_416)
+        self.assertEqual(guarded, [])
+        self.assertEqual(len([p for p in parts if p["kind"] == "guard" and p["table"] == "allShowtimes"]), 1)
         self.assertEqual(len(changes), 10_519 + 3_105)
         self.assertTrue(all(c["before"]["snapshot_id"] != failed for c in changes))
         self.assertTrue(all(c["after"]["cleaned"] and not c["after"]["added"] for c in changes))

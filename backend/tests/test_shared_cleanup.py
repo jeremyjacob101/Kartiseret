@@ -427,6 +427,7 @@ class SharedCleanupTests(unittest.TestCase):
     def test_publication_reference_source_rejects_missing_pages(self):
         from backend.dataflow.utils.PublicationWorkspace import PublicationWorkspace
         client = Mock()
+        client.rpc.return_value.execute.return_value.data = "0"
         client.table.return_value.select.return_value.order.return_value.range.return_value.execute.return_value.data = None
         workspace = PublicationWorkspace("nowplayings", client=client)
         with self.assertRaisesRegex(RuntimeError, "Incomplete or malformed"):

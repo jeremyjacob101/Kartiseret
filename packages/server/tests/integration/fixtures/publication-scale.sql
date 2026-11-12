@@ -10,9 +10,8 @@ SELECT md5('scale raw '||g)::uuid,'00000000-0000-4000-8000-0000000000d1','__publ
 -- step
 CREATE TEMP TABLE scale_parts(part integer PRIMARY KEY,payload text);
 -- step
-INSERT INTO scale_parts
-SELECT bucket-1,jsonb_build_object('kind','guard','table','allShowtimes','rows',jsonb_agg(row ORDER BY id))::text FROM
- (SELECT id,to_jsonb(t) row,ntile(330) OVER(ORDER BY id) bucket FROM public."allShowtimes" t) rows GROUP BY bucket;
+CREATE TEMP TABLE scale_baseline AS SELECT to_jsonb(t) body FROM public."allShowtimes" t;
+INSERT INTO scale_parts VALUES(0,jsonb_build_object('kind','guard','table','allShowtimes','revision',public.get_publication_input_revision('allShowtimes','nowplayings'),'rows','[]'::jsonb)::text);
 -- step
 CREATE TEMP TABLE scale_changes(seq bigint GENERATED ALWAYS AS IDENTITY, body jsonb);
 -- step
@@ -28,10 +27,10 @@ SELECT jsonb_build_object('table','finalShowtimes','before',NULL,'after',jsonb_b
 INSERT INTO scale_changes(body) VALUES(jsonb_build_object('table','pipeline_publication_checkpoints','before',NULL,'after',jsonb_build_object('category','nowplayings','snapshot_id','00000000-0000-4000-8000-0000000000d1','input_fingerprint','scale','phase','published')));
 -- step
 INSERT INTO scale_parts
-SELECT 329+bucket,jsonb_build_object('kind','changes','rows',jsonb_agg(body ORDER BY seq))::text FROM
+SELECT bucket,jsonb_build_object('kind','changes','rows',jsonb_agg(body ORDER BY seq))::text FROM
  (SELECT seq,body,ntile(406) OVER(ORDER BY seq) bucket FROM scale_changes) rows GROUP BY bucket;
 -- step
-INSERT INTO scale_parts VALUES(736,'{"kind":"claims","rows":[{"snapshot_id":"00000000-0000-4000-8000-0000000000d1","cinema":"__publication_scale__"}]}');
+INSERT INTO scale_parts VALUES(407,'{"kind":"claims","rows":[{"snapshot_id":"00000000-0000-4000-8000-0000000000d1","cinema":"__publication_scale__"}]}');
 -- step
 INSERT INTO public.pipeline_publications(publication_id,category,run_id,fingerprint,part_count)
 SELECT '00000000-0000-4000-8000-0000000000d2','nowplayings',990002,
@@ -63,8 +62,8 @@ BEGIN
  IF EXISTS (
    WITH expected AS (
      SELECT r.value AS body,row_number() OVER(ORDER BY r.value->>'id') AS ordinal
-     FROM scale_parts p CROSS JOIN LATERAL jsonb_array_elements(p.payload::jsonb->'rows') r(value)
-     WHERE p.part<330 AND r.value->>'snapshot_id'='00000000-0000-4000-8000-0000000000d1'
+     FROM scale_baseline p CROSS JOIN LATERAL (SELECT p.body AS value) r
+     WHERE r.value->>'snapshot_id'='00000000-0000-4000-8000-0000000000d1'
    )
    SELECT 1 FROM expected e LEFT JOIN public."allShowtimes" t ON t.id=(e.body->>'id')::uuid
    WHERE to_jsonb(t) IS DISTINCT FROM e.body || jsonb_build_object('added',e.ordinal<=7500)

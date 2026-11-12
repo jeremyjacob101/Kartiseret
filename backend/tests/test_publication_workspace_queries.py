@@ -58,7 +58,7 @@ class PublicationWorkspaceQueryTests(TestCase):
             ("cinematheques", "finalThequeMovies", {"tmdb_id": 1}, {"tmdb_id": 2}),
             ("nowplayings", "movieCodes", {"tmdb_id": 1}, {"tmdb_id": 2}),
             ("comingsoons", "finalSoons", {"id": "a", "tmdb_id": 1}, {"id": "b", "tmdb_id": 1}),
-            ("nowplayings", "pipeline_scrape_snapshots", {"snapshot_id": "a"}, {"snapshot_id": "b"}),
+            ("nowplayings", "pipeline_scrape_snapshots", {"snapshot_id": "a", "table_name": "allShowtimes"}, {"snapshot_id": "b", "table_name": "allShowtimes"}),
             ("nowplayings", "pipeline_publication_checkpoints",
              {"category": "nowplayings", "snapshot_id": "a"},
              {"category": "comingsoons", "snapshot_id": "a"}),
@@ -68,12 +68,17 @@ class PublicationWorkspaceQueryTests(TestCase):
         ]
         for category, table, first, second in cases:
             with self.subTest(table=table):
-                workspace, _ = self.workspace(table, [{**first, "value": 1}, {**second, "value": 2}], category)
+                workspace, live = self.workspace(table, [{**first, "value": 1}, {**second, "value": 2}], category)
                 workspace.table(table).upsert({**first, "value": 3}).execute()
+                self.assertNotEqual(key_for(table, first), key_for(table, second))
+                expected = {key_for(table, first): 3}
+                if table != "pipeline_publication_checkpoints" or second["category"] == category:
+                    expected[key_for(table, second)] = 2
                 self.assertEqual(
                     {key_for(table, row): row["value"] for row in workspace.tables[table]},
-                    {key_for(table, first): 3, key_for(table, second): 2},
+                    expected,
                 )
+                self.assertEqual(live.tables[table], [{**first, "value": 1}, {**second, "value": 2}])
 
     def test_generated_ids_and_missing_non_id_keys_keep_existing_behavior(self):
         workspace, _ = self.workspace()
