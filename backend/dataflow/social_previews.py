@@ -23,6 +23,7 @@ from urllib.parse import urlsplit
 from backend.dataflow.backfill_catalog_artwork import each_row
 from backend.dataflow.utils.ArtworkStorage import ArtworkStorage
 from backend.config.target_environment import PROFILE_KEYS, resolve_target_environment
+from backend.utils.console.stage_progress import progress_items
 
 LOGGER = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parents[2]
@@ -290,112 +291,115 @@ def refresh_social_previews(
     worker = worker or SocialPreviewWorker.start()
     completed_work = 0
     try:
+        catalog = []
         for table, primary_key, _coming_soon, columns in TABLES:
             rows = each_row(client, table, columns, lease_guard=lease_guard) if lease_guard else each_row(client, table, columns)
-            for row in rows:
-                stats["scanned"] += 1
-                if row.get("solo_update") is True:
+            catalog.extend((table, primary_key, columns, row) for row in rows)
+        for table, primary_key, columns, row in progress_items(catalog, "rows checked"):
+            stats["scanned"] += 1
+            if row.get("solo_update") is True:
+                stats["unchanged"] += 1
+                continue
+            try:
+                hashed = worker.request(
+                    {"op": "fingerprint", "table": table, "record": row}
+                )
+                fingerprint = hashed.get("fingerprint")
+                data = hashed.get("data")
+                if not isinstance(fingerprint, str) or not FINGERPRINT_RE.fullmatch(fingerprint) or not isinstance(data, dict):
+                    raise RuntimeError("Renderer returned an invalid card fingerprint")
+
+                key = f"social/v1/{fingerprint}/card.jpg"
+                exists = _social_object_exists(storage, key)
+                if row.get("social_preview_fingerprint") == fingerprint and exists:
                     stats["unchanged"] += 1
                     continue
-                try:
-                    hashed = worker.request(
-                        {"op": "fingerprint", "table": table, "record": row}
-                    )
-                    fingerprint = hashed.get("fingerprint")
-                    data = hashed.get("data")
-                    if not isinstance(fingerprint, str) or not FINGERPRINT_RE.fullmatch(fingerprint) or not isinstance(data, dict):
-                        raise RuntimeError("Renderer returned an invalid card fingerprint")
+                if limit is not None and completed_work >= limit:
+                    return stats
+                stats["pending"] += 1
+                if dry_run:
+                    completed_work += 1
+                    continue
 
-                    key = f"social/v1/{fingerprint}/card.jpg"
-                    exists = _social_object_exists(storage, key)
-                    if row.get("social_preview_fingerprint") == fingerprint and exists:
-                        stats["unchanged"] += 1
-                        continue
-                    if limit is not None and completed_work >= limit:
-                        return stats
-                    stats["pending"] += 1
-                    if dry_run:
-                        completed_work += 1
-                        continue
-
-                    if not exists:
-                        if lease_guard:
-                            lease_guard()
-                        poster, backdrop = _card_sources(storage, data)
-                        rendered = worker.request(
-                            {
-                                "op": "render",
-                                "data": data,
-                                "posterSource": base64.b64encode(poster).decode("ascii") if poster is not None else None,
-                                "backdropSource": base64.b64encode(backdrop).decode("ascii") if backdrop is not None else None,
-                            }
-                        )
-                        # The JSON-lines bridge uses base64, not hex. Keep the
-                        # encoded fields bounded before passing bytes to Sharp.
-                        jpeg_base64 = rendered.get("jpeg")
-                        if not isinstance(jpeg_base64, str):
-                            raise RuntimeError("Renderer returned malformed image data")
-                        try:
-                            jpeg = base64.b64decode(jpeg_base64, validate=True)
-                        except ValueError as error:
-                            raise RuntimeError("Renderer returned malformed image data") from error
-                        if not jpeg.startswith(b"\xff\xd8\xff") or len(jpeg) > MAX_CARD_BYTES:
-                            raise RuntimeError("Renderer returned an invalid JPEG")
-                        if lease_guard:
-                            lease_guard()
-                        storage.client.put_object(
-                            Bucket=storage.bucket,
-                            Key=key,
-                            Body=jpeg,
-                            ContentType="image/jpeg",
-                            CacheControl="public, max-age=31536000, immutable",
-                        )
-                        if not _social_object_exists(storage, key):
-                            raise RuntimeError("Uploaded social card did not verify in R2")
-
-                    if not _verify_current_source(
-                        client,
-                        worker,
-                        table,
-                        primary_key,
-                        row[primary_key],
-                        columns,
-                        fingerprint,
-                    ):
-                        stats["stale"] += 1
-                        completed_work += 1
-                        continue
-
+                if not exists:
                     if lease_guard:
                         lease_guard()
-                    update = client.table(table).update(
-                        {"social_preview_fingerprint": fingerprint}
-                    ).eq(primary_key, row[primary_key])
-                    previous = row.get("social_preview_fingerprint")
-                    if previous is None:
-                        update = update.is_("social_preview_fingerprint", "null")
-                    else:
-                        update = update.eq("social_preview_fingerprint", previous)
-                    saved = update.execute().data or []
-                    if len(saved) != 1:
-                        stats["stale"] += 1
-                    else:
-                        stats["updated"] += 1
-                    completed_work += 1
-                except Exception as error:
-                    from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
-                    from backend.utils.log.cloudflare_storage import LeaseLostError
-
-                    if isinstance(error, (R2BudgetError, R2BudgetExceeded, LeaseLostError)):
-                        raise
-                    stats["failed"] += 1
-                    completed_work += 1
-                    LOGGER.warning(
-                        "Social preview refresh failed for %s key=%s (%s)",
-                        table,
-                        row.get(primary_key),
-                        type(error).__name__,
+                    poster, backdrop = _card_sources(storage, data)
+                    rendered = worker.request(
+                        {
+                            "op": "render",
+                            "data": data,
+                            "posterSource": base64.b64encode(poster).decode("ascii") if poster is not None else None,
+                            "backdropSource": base64.b64encode(backdrop).decode("ascii") if backdrop is not None else None,
+                        }
                     )
+                    # The JSON-lines bridge uses base64, not hex. Keep the
+                    # encoded fields bounded before passing bytes to Sharp.
+                    jpeg_base64 = rendered.get("jpeg")
+                    if not isinstance(jpeg_base64, str):
+                        raise RuntimeError("Renderer returned malformed image data")
+                    try:
+                        jpeg = base64.b64decode(jpeg_base64, validate=True)
+                    except ValueError as error:
+                        raise RuntimeError("Renderer returned malformed image data") from error
+                    if not jpeg.startswith(b"\xff\xd8\xff") or len(jpeg) > MAX_CARD_BYTES:
+                        raise RuntimeError("Renderer returned an invalid JPEG")
+                    if lease_guard:
+                        lease_guard()
+                    storage.client.put_object(
+                        Bucket=storage.bucket,
+                        Key=key,
+                        Body=jpeg,
+                        ContentType="image/jpeg",
+                        CacheControl="public, max-age=31536000, immutable",
+                    )
+                    if not _social_object_exists(storage, key):
+                        raise RuntimeError("Uploaded social card did not verify in R2")
+
+                if not _verify_current_source(
+                    client,
+                    worker,
+                    table,
+                    primary_key,
+                    row[primary_key],
+                    columns,
+                    fingerprint,
+                ):
+                    stats["stale"] += 1
+                    completed_work += 1
+                    continue
+
+                if lease_guard:
+                    lease_guard()
+                update = client.table(table).update(
+                    {"social_preview_fingerprint": fingerprint}
+                ).eq(primary_key, row[primary_key])
+                previous = row.get("social_preview_fingerprint")
+                if previous is None:
+                    update = update.is_("social_preview_fingerprint", "null")
+                else:
+                    update = update.eq("social_preview_fingerprint", previous)
+                saved = update.execute().data or []
+                if len(saved) != 1:
+                    stats["stale"] += 1
+                else:
+                    stats["updated"] += 1
+                    stats["pending"] -= 1
+                completed_work += 1
+            except Exception as error:
+                from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
+                from backend.utils.log.cloudflare_storage import LeaseLostError
+
+                if isinstance(error, (R2BudgetError, R2BudgetExceeded, LeaseLostError)):
+                    raise
+                stats["failed"] += 1
+                completed_work += 1
+                LOGGER.warning(
+                    "Social preview refresh failed for %s key=%s (%s)",
+                    table,
+                    row.get(primary_key),
+                    type(error).__name__,
+                )
         return stats
     finally:
         if owns_worker:

@@ -1,3 +1,4 @@
+from backend.utils.console.stage_progress import work_progress
 from copy import deepcopy
 from datetime import datetime
 from unittest import TestCase
@@ -241,7 +242,11 @@ class MovieNotificationTests(TestCase):
         self.watch(repo)
         http = FakeLetterboxdAndResend()
 
-        self.dispatcher(repo, http).dispatch()
+        updates = []
+        with work_progress(lambda *args: updates.append(args)):
+            self.dispatcher(repo, http).dispatch()
+        self.assertIn((0, 1, "recipients"), updates)
+        self.assertEqual(updates[-1], (1, 1, "recipients"))
 
         self.assertIn(
             'src="https://image.tmdb.org/t/p/w342/wild-horse.jpg"',

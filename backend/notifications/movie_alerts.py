@@ -6,6 +6,8 @@ claims; delivery snapshots stay unchanged across Resend retries.
 
 from __future__ import annotations
 
+from backend.utils.console.stage_progress import progress_items
+
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
@@ -755,7 +757,7 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
         )
         sent = notified = 0
         failures = []
-        for user in self.repository.pending_users():
+        for user in progress_items(self.repository.pending_users(), "recipients"):
             batch = self.repository.claim(user, str(self.delivery_id_factory()))
             if batch is None:
                 continue

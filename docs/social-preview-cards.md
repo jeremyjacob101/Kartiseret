@@ -96,7 +96,10 @@ continues from the remaining catalog.
 ## Monitoring and recovery
 
 After a refresh, logs report scanned, updated, unchanged, failed, stale, and
-pending counts. Individual failures include the table/key and error class but
+pending counts. Updated cards have been uploaded, verified, and published; they
+are removed from the pending count. Pending counts discovered cards still needing
+work (including dry-run candidates, failed uploads, and raced updates). The live
+counter reports catalog rows checked, including unchanged rows. Individual failures include the table/key and error class but
 not URLs, source bytes, or credentials. A failed refresh keeps the current
 fingerprint unchanged. A source change during rendering leaves the uploaded
 object unreferenced and does not publish its pointer; the next scan retries

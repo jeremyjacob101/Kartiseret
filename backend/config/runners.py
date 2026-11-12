@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED, as_completed
 from backend.utils.log.job_lease import create_client
 from types import SimpleNamespace
-import logging, time, os, queue
+import json, logging, time, os, queue
 
 from rich.console import Console, Group, RenderableType
 from rich.panel import Panel
@@ -22,7 +22,7 @@ from backend.dataflow.utils.PublicationWorkspace import CATEGORY_KEYS, publicati
 from backend.dataflow.utils.InitializeBaseDataflow import logSuccessfulRun
 from backend.utils.util_avg_time_history import current_weekday, load_recent_averages
 from backend.utils.console.stage_progress import record_stage_duration
-from backend.utils.console.stage_progress import render_key_value_table, run_timed_stage
+from backend.utils.console.stage_progress import render_key_value_table, run_timed_stage, work_progress
 
 DEFAULT_PLAN: list[tuple[str, str]] = [("cinema", "allSoons"), ("cinema", "allShowtimes"), ("cinema", "allTheques"), ("dataflow", "comingSoonsData"), ("dataflow", "nowPlayingData"), ("dataflow", "cinemathequeData")]
 RUNNING_NON_INTERACTIVE = os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("JJ_INTEL_MAC_DAILY_RUN") == "true" or os.environ.get("JJ_INTEL_MAC_WEEKLY_RUN") == "true"
@@ -42,11 +42,13 @@ def _run_attempt(spec, cls: type, key: str, run_id: int, attempt: int, request_c
         instance = spec.make_instance(cls, key, run_id, request_context)
         instance._artifact_item_name = cls.__name__
         instance._artifact_attempt = attempt
-        callback = getattr(spec, 'on_transport_change', None)
-        if callback:
+        transport_callback = getattr(spec, 'on_transport_change', None)
+        if transport_callback:
             start_weekday = getattr(instance, '_timing_weekday', None) or current_weekday()
-            instance._timing_transport_callback = lambda transport, elapsed: callback(cls, transport, elapsed, start_weekday)
-        spec.run_instance(instance)
+            instance._timing_transport_callback = lambda transport, elapsed: transport_callback(cls, transport, elapsed, start_weekday)
+        callback = getattr(spec, "on_work_progress", None)
+        with work_progress((lambda done, total, unit: callback(cls, done, total, unit)) if callback else None):
+            spec.run_instance(instance)
         ok = True
     except Exception as error:
         if _is_r2_budget_error(error):
@@ -95,7 +97,7 @@ def _render_movie_notification_summary(console: Console, result: RunResult) -> N
 
 
 def _commit_publication_with_progress(publication, key: str, console: Console) -> None:
-    """Keep publisher metrics intact and print them after the live progress bar."""
+    """Render publisher metrics as muted tables after the live progress bar."""
     logger = logging.getLogger("backend.dataflow.utils.PostgresPublicationPublisher")
     records: list[logging.LogRecord] = []
 
@@ -121,8 +123,27 @@ def _commit_publication_with_progress(publication, key: str, console: Console) -
         logger.setLevel(old_level)
         logger.propagate = old_propagate
         for record in records:
+            message = record.getMessage()
+            if message.startswith("publication_metric="):
+                try:
+                    metric = json.loads(message.removeprefix("publication_metric="))
+                except (ValueError, TypeError):
+                    metric = None
+                if isinstance(metric, dict):
+                    event = str(metric.get("event", "metrics")).removeprefix("publication_").replace("_", " ")
+                    table = Table(
+                        title=f"Publication · {event}", min_width=min(70, console.width),
+                        style="dim", title_style="dim", header_style="dim bold", border_style="grey37",
+                    )
+                    table.add_column("Measure")
+                    table.add_column("Value", overflow="fold")
+                    for field, value in metric.items():
+                        if field != "event":
+                            table.add_row(Text(field.replace("_", " ").capitalize()), Text(str(value)))
+                    console.print(table)
+                    continue
             style = "yellow" if record.levelno >= logging.WARNING else "dim"
-            console.print(record.getMessage(), style=style)
+            console.print(Text(message, style=style))
 
 
 def _preferred_timing_transport(cls: type) -> str:
@@ -537,6 +558,7 @@ def runGroup(kind: str, key: str, run_id: int, *, classes_override: list[type] |
         return {} if return_results else True
 
     attempt_events: "queue.SimpleQueue[tuple]" = queue.SimpleQueue()
+    spec.on_work_progress = lambda cls, done, total, unit: attempt_events.put(("work", cls, done, total, unit))
     transport_cache = {}
     if kind == 'cinema':
         spec.on_transport_change = lambda cls, selected, elapsed, weekday=None: attempt_events.put(('transport', cls, selected, elapsed, weekday))
@@ -566,6 +588,9 @@ def runGroup(kind: str, key: str, run_id: int, *, classes_override: list[type] |
                 return
 
             evt_type, item, attempt, started_at = evt[:4]
+            if evt_type == "work":
+                ui.set_item_work(item, attempt, started_at, evt[4])
+                continue
             if evt_type == 'transport':
                 ui.set_item_transport(item, attempt)
                 estimate = _transport_estimate(item, attempt, started_at, avg_by_name, transport_cache, weekday=evt[4], preferred_weekday=history_weekday)
