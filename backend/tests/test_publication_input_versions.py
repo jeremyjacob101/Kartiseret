@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from dataflow_database import DB
 from backend.dataflow.utils.PublicationWorkspace import PublicationWorkspace
+from backend.dataflow.utils.SupabaseTables import SupabaseTables
 
 
 class PublicationInputVersionTests(TestCase):
@@ -60,6 +61,60 @@ class PublicationInputVersionTests(TestCase):
             self.assertEqual(len(result), 600)
             self.assertTrue(all(row[column] == ours for row in result))
             self.assertEqual(workspace.baseline[table], result)
+
+    def test_keyset_pages_use_the_last_primary_key_without_offset(self):
+        workspace, db = self.workspace(1201)
+        queries = []
+        original = db.table
+        def table(name):
+            query = original(name)
+            query.range = Mock(side_effect=AssertionError("OFFSET must not be used"))
+            query.gt = Mock(wraps=query.gt)
+            query.limit = Mock(wraps=query.limit)
+            queries.append(query)
+            return query
+        from unittest.mock import Mock
+        with patch.object(db, "table", side_effect=table):
+            rows = workspace.table("allShowtimes").select().execute().data
+        self.assertEqual(len(rows), 1201)
+        self.assertEqual(len(queries), 3)
+        queries[0].gt.assert_not_called()
+        expected = sorted(db.tables["allShowtimes"], key=lambda r: r["id"])
+        queries[1].gt.assert_called_once_with("id", expected[499]["id"])
+        queries[2].gt.assert_called_once_with("id", expected[999]["id"])
+        for query in queries:
+            query.limit.assert_called_once_with(500)
+
+    def test_composite_checkpoint_cursor_stays_within_its_category(self):
+        workspace, db = self.workspace()
+        db.tables["pipeline_publication_checkpoints"] = [
+            {"category": category, "snapshot_id": str(i)}
+            for category in ("comingsoons", "nowplayings") for i in range(1201)]
+        rows = workspace.table("pipeline_publication_checkpoints").select().execute().data
+        self.assertEqual(len(rows), 1201)
+        self.assertEqual({r["category"] for r in rows}, {"nowplayings"})
+        self.assertEqual(len({r["snapshot_id"] for r in rows}), 1201)
+
+    def test_private_select_all_does_not_repeatedly_sort_and_page_the_memory_copy(self):
+        workspace, _ = self.workspace(1201)
+        flow = SupabaseTables()
+        flow.supabase = workspace
+        with patch.object(workspace, "table", wraps=workspace.table) as table:
+            rows = flow.selectAll("allShowtimes")
+        self.assertEqual(len(rows), 1201)
+        table.assert_called_once_with("allShowtimes")
+
+    def test_repeated_full_page_cursor_fails_closed(self):
+        workspace, db = self.workspace(500)
+        original = db.table
+        def table(name):
+            query = original(name)
+            query.gt = lambda *_args: query
+            return query
+        with patch.object(db, "table", side_effect=table):
+            with self.assertRaisesRegex(RuntimeError, "publication cursor"):
+                workspace.table("allShowtimes").select().execute()
+        self.assertEqual(workspace.baseline, {})
 
     def test_missing_malformed_and_overflowing_revisions_fail_closed(self):
         for revision in (None, 0, True, {}, [], "", "-1", "01", "1.0", "1\n", "9223372036854775808"):

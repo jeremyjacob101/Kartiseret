@@ -1,6 +1,26 @@
 import json
 from datetime import date
 
+SCRAPE_INSERT_MAX_ROWS = 200
+SCRAPE_INSERT_MAX_BYTES = 256 * 1024
+
+
+def _upload_batches(rows):
+    """Bound SQL/JSON work per request, including UTF-8 multibyte titles."""
+    batch, size = [], 2
+    for row in rows:
+        row_bytes = len(json.dumps(row, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8"))
+        if row_bytes + 2 > SCRAPE_INSERT_MAX_BYTES:
+            raise ValueError("A scraped row exceeds the upload request limit")
+        extra = row_bytes + bool(batch)
+        if batch and (len(batch) >= SCRAPE_INSERT_MAX_ROWS or size + extra > SCRAPE_INSERT_MAX_BYTES):
+            yield batch
+            batch, size = [], 2
+        size += row_bytes + bool(batch)
+        batch.append(row)
+    if batch:
+        yield batch
+
 
 def _format_rows_from_gathering_info(self):
     info = getattr(self, "gathering_info", {})
@@ -73,6 +93,7 @@ def formatAndWriteCsv(self, successful: bool):
 
 def formatAndUpload(self):
     self._uploaded_scrape_rows = None
+    self._snapshot_row_count = 0
     rows, _columns = _format_rows_from_gathering_info(self)
     if not rows:
         if not getattr(self, "_empty_snapshot_evidence", None):
@@ -98,7 +119,11 @@ def formatAndUpload(self):
     # Save a copy before the request so failed upload attempts retain the
     # same snapshot identity in D1 recovery/logging too.
     self._uploaded_scrape_rows = [dict(row) for row in rows]
-    result = self.supabase.table(self.supabase_table_name).insert(rows).execute()
+    result = None
+    for batch in _upload_batches(rows):
+        # The manifest stays running until every batch is acknowledged. Failed
+        # partial attempts cannot authorize matching or stale-screening deletion.
+        result = self.supabase.table(self.supabase_table_name).insert(batch, returning="minimal").execute()
     self._snapshot_row_count = len(rows)
     return result
 

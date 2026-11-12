@@ -32,7 +32,7 @@ class Query:
         self.operation, self.payload = "update", copy.deepcopy(payload)
         return self
 
-    def insert(self, payload):
+    def insert(self, payload, **_kwargs):
         self.operation, self.payload = "insert", copy.deepcopy(payload)
         return self
 
@@ -62,7 +62,7 @@ class Query:
         rows = self.database.tables.setdefault(self.table, [])
         selected = [row for row in rows if all(predicate(row) for predicate in self.predicates)]
         for column, desc in reversed(self.order_columns):
-            selected.sort(key=lambda row: str(row.get(column) or ""), reverse=desc)
+            selected.sort(key=lambda row: (row.get(column) is None, row.get(column) if row.get(column) is not None else ""), reverse=desc)
         if self.bounds:
             selected = selected[self.bounds[0] : self.bounds[1] + 1]
         if self.limit_count is not None:
