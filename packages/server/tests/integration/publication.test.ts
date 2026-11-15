@@ -365,6 +365,14 @@ describe("atomic category publication and supported readers", () => {
       has_function_privilege('service_role','public.prune_abandoned_publications(boolean)','EXECUTE') service_role,
       has_function_privilege('anon','public.prune_abandoned_publications(boolean)','EXECUTE') anon`);
     expect(access.rows[0]).toEqual({ service_role: true, anon: false });
+    const configuration = await pool.query(
+      `select p.proconfig
+       from pg_proc p
+       join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'public' and p.proname = 'prune_abandoned_publications'`,
+    );
+    expect(configuration.rows).toHaveLength(1);
+    expect(configuration.rows[0].proconfig).toContain("statement_timeout=90s");
   });
 
   it("deletes publications in 100-row batches and cascades their parts", async () => {
