@@ -122,6 +122,19 @@ describe("MovieDetailsContent", () => {
     expect(onPreferredShowtimeDateChange).toHaveBeenCalledWith("2026-09-16");
   });
 
+  it("paints fallback theater tickets with the themed background variable", () => {
+    renderDetails({ preferredShowtimeDate: "2026-09-17" });
+
+    const pill = screen
+      .getByText("22:15")
+      .closest<HTMLElement>(".details-time-pill");
+
+    expect(
+      pill?.style.getPropertyValue("--details-showtime-pill-background"),
+    ).toContain("linear-gradient");
+    expect(pill?.style.background).toBe("");
+  });
+
   it("links a verified screening venue to its stable cinema short URL", () => {
     const cinema = CINEMA_IDENTITIES.find(
       (identity) => identity.displayName === "Cinema City Jerusalem",
