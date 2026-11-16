@@ -9,7 +9,9 @@ if (
   !["127.0.0.1", "localhost", "::1"].includes(target.hostname) ||
   target.pathname !== "/kartiseret_test"
 )
-  throw new Error("Storage-guard tests require disposable local kartiseret_test");
+  throw new Error(
+    "Storage-guard tests require disposable local kartiseret_test",
+  );
 
 const pool = new Pool({ connectionString: url, max: 2 });
 afterAll(async () => pool.end());
@@ -60,11 +62,41 @@ describe.sequential("Supabase storage guard migration", () => {
       incomplete: randomUUID(),
     };
     const cases = [
-      { key: "eligible", added: true, status: "complete", phase: "published", unresolved: false },
-      { key: "unresolved", added: true, status: "complete", phase: "published", unresolved: true },
-      { key: "active", added: true, status: "complete", phase: "published", unresolved: false },
-      { key: "pending", added: false, status: "complete", phase: "in_progress", unresolved: false },
-      { key: "incomplete", added: true, status: "running", phase: null, unresolved: false },
+      {
+        key: "eligible",
+        added: true,
+        status: "complete",
+        phase: "published",
+        unresolved: false,
+      },
+      {
+        key: "unresolved",
+        added: true,
+        status: "complete",
+        phase: "published",
+        unresolved: true,
+      },
+      {
+        key: "active",
+        added: true,
+        status: "complete",
+        phase: "published",
+        unresolved: false,
+      },
+      {
+        key: "pending",
+        added: false,
+        status: "complete",
+        phase: "in_progress",
+        unresolved: false,
+      },
+      {
+        key: "incomplete",
+        added: true,
+        status: "running",
+        phase: null,
+        unresolved: false,
+      },
     ] as const;
 
     try {
@@ -98,12 +130,16 @@ describe.sequential("Supabase storage guard migration", () => {
         [baseRunId + 2],
       );
 
-      const dryRun = await client.query<{ result: { eligible: number; deleted: number } }>(
+      const dryRun = await client.query<{
+        result: { eligible: number; deleted: number };
+      }>(
         "SELECT public.retire_expired_rows('allShowtimes','1900-01-01',false,10) AS result",
       );
       expect(dryRun.rows[0].result).toMatchObject({ eligible: 1, deleted: 0 });
 
-      const applied = await client.query<{ result: { eligible: number; deleted: number } }>(
+      const applied = await client.query<{
+        result: { eligible: number; deleted: number };
+      }>(
         "SELECT public.retire_expired_rows('allShowtimes','1900-01-01',true,10) AS result",
       );
       expect(applied.rows[0].result).toMatchObject({ eligible: 1, deleted: 1 });
