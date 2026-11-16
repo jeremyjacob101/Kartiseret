@@ -24,7 +24,7 @@ export const SHOWTIME_PREFETCH_TRIGGER_DAY_COUNT = 10;
 
 const THEATER_SORT_ORDER = [
   "MovieLand",
-  "Yes Planet",
+  "Planet Cinema",
   "Cinema City",
   "Lev Cinema",
   "Rav Hen",

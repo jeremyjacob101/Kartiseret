@@ -624,7 +624,7 @@ class MovieNotificationTests(TestCase):
                         "screening_city": "Jerusalem",
                         "date_of_showing": "2026-11-05",
                         "showtime": "17:00",
-                        "cinema": "Yes Planet",
+                        "cinema": "Planet Cinema",
                         "ticket_href": "https://tickets.example.test/showtime/101",
                     },
                 }
@@ -639,7 +639,7 @@ class MovieNotificationTests(TestCase):
         self.assertNotIn("tickets.example.test", email.html)
         self.assertIn("View showtimes:", email.text)
         self.assertNotIn("tickets.example.test", email.text)
-        self.assertIn("Jerusalem · November 5, 2026 at 17:00 · Yes Planet", email.text)
+        self.assertIn("Jerusalem · November 5, 2026 at 17:00 · Planet Cinema", email.text)
 
     def test_digest_omits_unsafe_poster_urls_and_keeps_a_fallback_tile(self):
         event = {

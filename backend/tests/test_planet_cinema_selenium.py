@@ -1,13 +1,13 @@
 from unittest import TestCase
 from unittest.mock import Mock
 
-from backend.scraping.nowplayings.YesPlanet import YesPlanet
+from backend.scraping.nowplayings.PlanetCinema import PlanetCinema
 from backend.scraping.utils.QuickbookHelpers import _is_non_screening_card
 
 
-class YesPlanetSeleniumCardTests(TestCase):
+class PlanetCinemaSeleniumCardTests(TestCase):
     def test_movie_filter_is_cleared_before_atomic_ticket_read(self):
-        scraper = YesPlanet.__new__(YesPlanet)
+        scraper = PlanetCinema.__new__(PlanetCinema)
         events = []
         scraper.clearQuickbookMovieFilter = Mock(side_effect=lambda: events.append('clear_movie_filter'))
         scraper.driver = Mock()
@@ -16,7 +16,7 @@ class YesPlanetSeleniumCardTests(TestCase):
         self.assertEqual(events, ['clear_movie_filter', 'read_tickets'])
 
     def test_changed_movie_filter_waits_for_route_and_tickets(self):
-        scraper = YesPlanet.__new__(YesPlanet)
+        scraper = PlanetCinema.__new__(PlanetCinema)
         scraper.driver = Mock()
         scraper.driver.execute_script.side_effect = [True, False, True]
         scraper.waitForQuickbook = Mock()
@@ -30,7 +30,7 @@ class YesPlanetSeleniumCardTests(TestCase):
         scraper.waitForQuickbook.assert_called_once()
 
     def test_unfiltered_or_single_movie_needs_no_route_change(self):
-        scraper = YesPlanet.__new__(YesPlanet)
+        scraper = PlanetCinema.__new__(PlanetCinema)
         scraper.driver = Mock()
         scraper.driver.execute_script.return_value = False
         scraper.waitUntil = Mock()
@@ -40,7 +40,7 @@ class YesPlanetSeleniumCardTests(TestCase):
         scraper.waitForQuickbook.assert_not_called()
 
     def test_date_change_waits_for_its_response_before_reading_tickets(self):
-        scraper = YesPlanet.__new__(YesPlanet)
+        scraper = PlanetCinema.__new__(PlanetCinema)
         scraper.current_year = '2026'
         scraper.current_month = '11'
         button = Mock(text='16')
@@ -75,7 +75,7 @@ class YesPlanetSeleniumCardTests(TestCase):
         self.assertEqual(events, ['clicked', 'old_ticket_removed', 'response_checked', 'response_checked', 'read_tickets'])
 
     def test_selecting_current_date_does_not_require_a_new_request(self):
-        scraper = YesPlanet.__new__(YesPlanet)
+        scraper = PlanetCinema.__new__(PlanetCinema)
         scraper.current_year = '2026'
         scraper.current_month = '11'
         scraper.waitForVisible = Mock(return_value=Mock(text='16'))
@@ -91,7 +91,7 @@ class YesPlanetSeleniumCardTests(TestCase):
         scraper.waitForQuickbook.assert_called_once()
 
     def test_verified_requests_collector_is_preferred_with_browser_fallback(self):
-        self.assertEqual(YesPlanet.DEFAULT_SCRAPE_MODE, "auto")
+        self.assertEqual(PlanetCinema.DEFAULT_SCRAPE_MODE, "auto")
 
     def test_titled_schedule_card_is_processed(self):
         self.assertFalse(_is_non_screening_card("Film", has_ticket_links=True))

@@ -196,7 +196,7 @@ export type SecondaryCityMarkerState = {
 };
 
 export const THEATER_DOT_COLORS: Record<string, string> = {
-  "Yes Planet": "#d9710f",
+  "Planet Cinema": "#d9710f",
   "Cinema City": "#186bdf",
   "Lev Cinema": "#b50519",
   "Rav Hen": "#ab5306",

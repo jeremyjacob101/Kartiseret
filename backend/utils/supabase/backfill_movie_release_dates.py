@@ -26,8 +26,8 @@ if not __package__:
 
 
 DEFAULT_ARTIFACT_ROOT = Path("backend/utils/log/logger_artifacts")
-SOON_SOURCES = {"CCsoon", "HCsoon", "LCsoon", "MLsoon", "YPsoon"}
-CSV_NAME = re.compile(r"(?P<source>CCsoon|HCsoon|LCsoon|MLsoon|YPsoon)-(?P<attempt>\d+)\.csv\Z")
+SOON_SOURCES = {"CCsoon", "HCsoon", "LCsoon", "MLsoon", "PCsoon", "YPsoon"}
+CSV_NAME = re.compile(r"(?P<source>CCsoon|HCsoon|LCsoon|MLsoon|PCsoon|YPsoon)-(?P<attempt>\d+)\.csv\Z")
 SUMMARY_LINE = re.compile(r"^- \[(?P<status>[^\]]+)\] (?P<stage>[^|]+) \| title=(?P<tail>.*)\Z")
 
 
@@ -319,6 +319,8 @@ def _materialize_d1_inputs(
         scraper = str(row.get("scraper") or "")
         if run_id is None or scraper not in SOON_SOURCES:
             continue
+        # Pre-rename archived timing/export rows use the former source name.
+        scraper = "PCsoon" if scraper == "YPsoon" else scraper
         try:
             attempt = max(1, int(row.get("attempt") or 1))
         except (TypeError, ValueError):
@@ -460,7 +462,7 @@ def build_report(
                 match = CSV_NAME.fullmatch(path.name)
                 if not match:
                     continue
-                source = match.group("source")
+                source = "PCsoon" if match.group("source") == "YPsoon" else match.group("source")
                 attempt = int(match.group("attempt"))
                 if source not in selected_files or attempt > selected_files[source][0]:
                     selected_files[source] = (attempt, path)

@@ -6,6 +6,7 @@ from backend.utils.supabase.dedupe_all_showtimes import dedupe_all_showtimes
 from backend.dataflow.utils.PipelineCheckpoints import PreparedPublication
 from collections import defaultdict
 from datetime import date
+from backend.cinema_names import canonical_cinema_name
 
 
 class NowPlayingsTmdb(BaseDataflow):
@@ -51,7 +52,7 @@ class NowPlayingsTmdb(BaseDataflow):
 
         # CURRENT FINALSHOWTIMES IDS PER CINEMA
         for row in self.moving_to_table_rows:
-            cinema = self.clean_str(row.get("cinema")).strip()
+            cinema = canonical_cinema_name(row.get("cinema"))
             self.existing_final_rows_by_cinema[cinema].append(row)
 
         # GROUP RAW ROWS FROM EACH CINEMA'S LATEST SNAPSHOT
@@ -338,7 +339,7 @@ class NowPlayingsTmdb(BaseDataflow):
                 self.updates.append(new_row)
 
         for row in self.updates:
-            cinema = self.clean_str(row.get("cinema")).strip()
+            cinema = canonical_cinema_name(row.get("cinema"))
             self.updates_by_cinema[cinema].append(row)
 
         # Prepare one replayable publication plan per complete source snapshot.
@@ -351,10 +352,12 @@ class NowPlayingsTmdb(BaseDataflow):
             if self.clean_str(manifest.get("snapshot_id")).strip() in claimed_snapshot_ids
         }
         publication_cinemas = claimed_cinemas | legacy_cinemas
-        for cinema in publication_cinemas:
+        for source_cinema in publication_cinemas:
+            cinema = canonical_cinema_name(source_cinema)
             self.updates_by_cinema.setdefault(cinema, [])
 
-        for cinema in sorted(publication_cinemas):
+        for source_cinema in sorted(publication_cinemas):
+            cinema = canonical_cinema_name(source_cinema)
             cinema_rows = self.updates_by_cinema[cinema]
             new_keys = {self._showtime_key(row) for row in cinema_rows}
             retained_ids = set()
@@ -368,20 +371,20 @@ class NowPlayingsTmdb(BaseDataflow):
                 else:
                     stale_ids.add(existing_id)
 
-            if cinema in claimed_cinemas:
-                stale_final_ids_to_delete_by_cinema[cinema] = stale_ids
-                retained_final_ids_by_cinema[cinema] = retained_ids
+            if source_cinema in claimed_cinemas:
+                stale_final_ids_to_delete_by_cinema[source_cinema] = stale_ids
+                retained_final_ids_by_cinema[source_cinema] = retained_ids
 
-            raw_snapshot_rows = self.latest_rows_by_cinema.get(cinema, [])
+            raw_snapshot_rows = self.latest_rows_by_cinema.get(source_cinema, [])
             raw_snapshot_ids = sorted(
                 self.clean_str(row.get("id"))
                 for row in raw_snapshot_rows
                 if row.get("id") not in self.unresolved_snapshot_ids and self.clean_str(row.get("id")).strip()
             )
             if raw_snapshot_ids:
-                raw_snapshot_ids_to_mark_by_cinema[cinema] = raw_snapshot_ids
+                raw_snapshot_ids_to_mark_by_cinema[source_cinema] = raw_snapshot_ids
 
-            snapshot_id = self.latest_snapshot_ids_by_cinema.get(cinema)
+            snapshot_id = self.latest_snapshot_ids_by_cinema.get(source_cinema)
             if snapshot_id and snapshot_id in self._publication_claims:
                 movie_ids = {self.clean_int(row.get("tmdb_id")) for row in cinema_rows}
                 prepared_movies = []
@@ -422,8 +425,9 @@ class NowPlayingsTmdb(BaseDataflow):
 
         # Publish the prepared screening rows. A failed write leaves the source
         # checkpoint unfinished so the next run replays these idempotent upserts.
-        for cinema in sorted(publication_cinemas):
-            snapshot_id = self.latest_snapshot_ids_by_cinema.get(cinema)
+        for source_cinema in sorted(publication_cinemas):
+            cinema = canonical_cinema_name(source_cinema)
+            snapshot_id = self.latest_snapshot_ids_by_cinema.get(source_cinema)
             if snapshot_id and self.snapshotPublicationReached(snapshot_id, "screenings_written"):
                 continue
             cinema_rows = self.updates_by_cinema[cinema]
@@ -466,25 +470,25 @@ class NowPlayingsTmdb(BaseDataflow):
             self.advanceSnapshotPublication(snapshot_id, "movies_written")
 
         # Retain old screenings until their replacement movies also succeeded.
-        for cinema, stale_final_ids in stale_final_ids_to_delete_by_cinema.items():
-            snapshot_id = self.latest_snapshot_ids_by_cinema.get(cinema)
+        for source_cinema, stale_final_ids in stale_final_ids_to_delete_by_cinema.items():
+            snapshot_id = self.latest_snapshot_ids_by_cinema.get(source_cinema)
             if snapshot_id and self.snapshotPublicationReached(snapshot_id, "stale_rows_deleted"):
                 continue
             if not stale_final_ids:
                 continue
             self.delete_these.extend(sorted(stale_final_ids))
             self.deleteTheseRows(self.MOVING_TO_TABLE_NAME, refresh=False)
-            self.trace_write_action(f"delete_stale({self.MOVING_TO_TABLE_NAME}) cinema={cinema} rows={len(stale_final_ids)}")
+            self.trace_write_action(f"delete_stale({self.MOVING_TO_TABLE_NAME}) cinema={canonical_cinema_name(source_cinema)} rows={len(stale_final_ids)}")
         for snapshot_id in claimed_snapshot_ids:
             self.advanceSnapshotPublication(snapshot_id, "stale_rows_deleted")
 
         # Only mark raw snapshots complete after both final tables succeeded.
-        for cinema, raw_snapshot_ids in raw_snapshot_ids_to_mark_by_cinema.items():
-            snapshot_id = self.latest_snapshot_ids_by_cinema.get(cinema)
+        for source_cinema, raw_snapshot_ids in raw_snapshot_ids_to_mark_by_cinema.items():
+            snapshot_id = self.latest_snapshot_ids_by_cinema.get(source_cinema)
             for i in range(0, len(raw_snapshot_ids), 200):
                 self.supabase.table(self.MAIN_TABLE_NAME).update({"added": True}).in_("id", raw_snapshot_ids[i : i + 200]).execute()
-            self.trace_event("write", "mapped", "marked_added", key=cinema, payload={"key": cinema, "row_count": len(raw_snapshot_ids), "representative_title": "", "parsed_year": None, "candidate_count": 0, "chosen_tmdb": "", "chosen_path": "publish_after_final_movies"})
-            self.trace_write_action(f"mark_added({self.MAIN_TABLE_NAME}) cinema={cinema} rows={len(raw_snapshot_ids)}")
+            self.trace_event("write", "mapped", "marked_added", key=canonical_cinema_name(source_cinema), payload={"key": canonical_cinema_name(source_cinema), "row_count": len(raw_snapshot_ids), "representative_title": "", "parsed_year": None, "candidate_count": 0, "chosen_tmdb": "", "chosen_path": "publish_after_final_movies"})
+            self.trace_write_action(f"mark_added({self.MAIN_TABLE_NAME}) cinema={canonical_cinema_name(source_cinema)} rows={len(raw_snapshot_ids)}")
 
         for snapshot_id in claimed_snapshot_ids:
             unresolved = bool(self.unresolved_identity_keys_by_snapshot.get(snapshot_id))

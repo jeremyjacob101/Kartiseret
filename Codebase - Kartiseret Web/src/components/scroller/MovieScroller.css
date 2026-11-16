@@ -1712,7 +1712,7 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
-.movie-scroller-detail-card .details-time-pill--yes-planet {
+.movie-scroller-detail-card .details-time-pill--planet-cinema {
   --details-showtime-pill-background: linear-gradient(to left, #d9710f, #b05806);
 }
 

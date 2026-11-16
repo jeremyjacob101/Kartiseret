@@ -1525,9 +1525,9 @@ describe("PostgreSQL 17 integration", () => {
         englishTitle: title,
         screeningCity: "Jerusalem",
         dateOfShowing: date!,
-        cinema: "Yes Planet Jerusalem",
+        cinema: "Planet Cinema Jerusalem",
         showtime: "19:00:00",
-        englishHref: "https://tickets.example/yes-planet",
+        englishHref: "https://tickets.example/planet-cinema",
         screeningTech: "2D",
         screeningType: "Regular",
       },
@@ -1567,7 +1567,7 @@ describe("PostgreSQL 17 integration", () => {
       response.body.data.showtimes.map((row: { cinema: string }) => row.cinema),
     ).toEqual([
       "Cinema City Jerusalem",
-      "Yes Planet Jerusalem",
+      "Planet Cinema Jerusalem",
       "Jerusalem Cinematheque",
       "Sam Spiegel Cinema",
     ]);

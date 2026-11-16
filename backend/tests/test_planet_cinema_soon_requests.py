@@ -1,13 +1,13 @@
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
-from backend.scraping.comingsoons.YPsoon import YPsoon
+from backend.scraping.comingsoons.PCsoon import PCsoon
 from backend.scraping.utils.InitializeBaseCinema import InitializeBaseCinema
 
 
-class YesPlanetSoonRequestsTests(TestCase):
+class PlanetCinemaSoonRequestsTests(TestCase):
     def setUp(self):
-        self.scraper = YPsoon.__new__(YPsoon)
+        self.scraper = PCsoon.__new__(PCsoon)
         InitializeBaseCinema.__init__(self.scraper)
         self.scraper.run_id = 1
         self.film = {'id': '123s2r', 'name': 'Film', 'releaseYear': '2026',
@@ -29,7 +29,7 @@ class YesPlanetSoonRequestsTests(TestCase):
     def run_collector(self):
         session = Mock()
         session.get.side_effect = self.response
-        with patch('backend.scraping.utils.YesPlanetSoonRequests.requests.Session') as factory:
+        with patch('backend.scraping.utils.PlanetCinemaSoonRequests.requests.Session') as factory:
             factory.return_value.__enter__.return_value = session
             self.scraper.requests_logic()
         return session
@@ -44,7 +44,7 @@ class YesPlanetSoonRequestsTests(TestCase):
 
     def test_unknown_language_fails_closed(self):
         self.film['languages'] = {'original': ['unknown']}
-        with self.assertRaisesRegex(ValueError, 'Unknown Yes Planet language'):
+        with self.assertRaisesRegex(ValueError, 'Unknown Planet Cinema language'):
             self.run_collector()
 
     def test_invalid_release_date_fails_closed(self):

@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock
 
-from backend.scraping.nowplayings.YesPlanet import YesPlanet
+from backend.scraping.nowplayings.PlanetCinema import PlanetCinema
 from backend.scraping.utils.InitializeBaseCinema import InitializeBaseCinema
 
 
@@ -10,9 +10,9 @@ def screening(title="DUNE 1", time="18:00", tech="2D", language="ENGLISH", event
             "href": f"https://tickets5.planetcinema.co.il/api/order/{event_id}?lang=en"}
 
 
-class YesPlanetShowtimeTests(unittest.TestCase):
+class PlanetCinemaShowtimeTests(unittest.TestCase):
     def scraper(self, *screenings):
-        scraper = YesPlanet.__new__(YesPlanet)
+        scraper = PlanetCinema.__new__(PlanetCinema)
         InitializeBaseCinema.__init__(scraper)
         scraper.run_id = 1
         scraper.screening_city = "Haifa"

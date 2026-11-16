@@ -4,6 +4,8 @@ from datetime import datetime
 from math import isfinite
 from zoneinfo import ZoneInfo
 
+from backend.cinema_names import LEGACY_SCRAPE_SOURCE_NAMES, canonical_scrape_source
+
 
 JERUSALEM_TIMEZONE = ZoneInfo("Asia/Jerusalem")
 WEEKDAY_ORDER = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
@@ -60,22 +62,31 @@ def load_recent_averages(
     if not names or not runner_machine or weekday not in WEEKDAYS:
         return {}
 
+    query_names = list(dict.fromkeys(
+        [*names, *(LEGACY_SCRAPE_SOURCE_NAMES.get(name) for name in names if LEGACY_SCRAPE_SOURCE_NAMES.get(name))]
+    ))
     response = (
         supabase.table(HISTORY_TABLE)
         .select("name,recent_times")
         .eq("runner_machine", runner_machine)
         .eq("weekday", weekday)
         .eq('transport', transport)
-        .in_("name", names)
+        .in_("name", query_names)
         .execute()
     )
 
     averages = {}
+    current_name_averages = {}
     for row in response.data or []:
-        name = row.get("name")
+        stored_name = row.get("name")
+        name = canonical_scrape_source(stored_name)
         average = average_recent_times(row.get("recent_times"))
         if name and average is not None:
-            averages[name] = average
+            # Prefer history recorded under the new class name when both rows
+            # exist; old rows remain available as a one-way compatibility fallback.
+            target = current_name_averages if stored_name == name else averages
+            target[name] = average
+    averages.update(current_name_averages)
     return averages
 
 

@@ -117,6 +117,43 @@ class RawCleaningScopeTests(TestCase):
         ])
         self.assertCountEqual(flow.rawRowsForCleaning("allShowtimes", flow.main_table_rows), rows)
 
+    def test_new_planet_cinema_snapshot_replaces_failed_legacy_name_attempt(self):
+        old, new = str(uuid.uuid4()), str(uuid.uuid4())
+        rows = [
+            raw(old, cinema="Yes Planet"),
+            raw(new, cinema="Planet Cinema", run_id=10),
+        ]
+        flow = self.build(*CLEANERS[0], rows, [
+            manifest("allShowtimes", old, cinema="Yes Planet", source="YesPlanet"),
+            manifest("allShowtimes", new, run_id=10, cinema="Planet Cinema",
+                     source="PlanetCinema", status="complete", count=1),
+        ])
+
+        self.assertEqual(
+            flow.loadLatestScrapeSnapshots("allShowtimes")["Planet Cinema"]["snapshot_id"],
+            new,
+        )
+        self.assertEqual(
+            [row["snapshot_id"] for row in flow.rawRowsForCleaning("allShowtimes", rows)],
+            [new],
+        )
+
+    def test_newer_failed_planet_cinema_alias_fences_older_legacy_success(self):
+        old, new = str(uuid.uuid4()), str(uuid.uuid4())
+        rows = [raw(old, cinema="Yes Planet"), raw(new, cinema="Planet Cinema", run_id=10)]
+        flow = self.build(*CLEANERS[0], rows, [
+            manifest("allShowtimes", old, cinema="Yes Planet", source="YesPlanet",
+                     status="complete", count=1),
+            manifest("allShowtimes", new, run_id=10, cinema="Planet Cinema",
+                     source="PlanetCinema", status="failed", count=1),
+        ])
+
+        selected = flow.loadLatestScrapeSnapshots("allShowtimes")
+        self.assertEqual(list(selected), ["Planet Cinema"])
+        self.assertEqual(selected["Planet Cinema"]["status"], "failed")
+        rows_by_cinema, *_ = flow.selectLatestRawSnapshots("allShowtimes", rows)
+        self.assertEqual(rows_by_cinema, {})
+
     def test_complete_empty_replacement_and_same_run_retry_use_attempt_order(self):
         old, new = str(uuid.uuid4()), str(uuid.uuid4())
         rows = [raw(old)]
@@ -208,12 +245,12 @@ class RawCleaningScopeTests(TestCase):
 
     def test_manual_fix_and_historical_cross_cinema_title_evidence_are_preserved(self):
         old, new, rav = [str(uuid.uuid4()) for _ in range(3)]
-        failed = raw(old, cinema="Yes Planet", english_title="Alpha", hebrew_title="סרט")
+        failed = raw(old, cinema="Planet Cinema", english_title="Alpha", hebrew_title="סרט")
         current = raw(rav, cinema="Rav Hen", english_title="סרט")
         fixed = raw(rav, cinema="Rav Hen", english_title="Manual--Title")
         db = DB({"allShowtimes": [failed, current, fixed], "pipeline_scrape_snapshots": [
-            manifest("allShowtimes", old, cinema="Yes Planet"),
-            manifest("allShowtimes", new, cinema="Yes Planet", run_id=10, status="complete", count=0),
+            manifest("allShowtimes", old, cinema="Planet Cinema"),
+            manifest("allShowtimes", new, cinema="Planet Cinema", run_id=10, status="complete", count=0),
             manifest("allShowtimes", rav, cinema="Rav Hen", run_id=10, status="complete", count=2),
         ], "tableFixes": [{"title_fix": "Manual--Title", "tmdb_id": 101}]})
         flow = self.build(*CLEANERS[0], [], [], database=db)

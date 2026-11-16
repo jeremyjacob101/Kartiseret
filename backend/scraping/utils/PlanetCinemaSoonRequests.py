@@ -1,4 +1,4 @@
-"""Independent requests collector for Yes Planet's coming-soon feed."""
+"""Independent requests collector for Planet Cinema's coming-soon feed."""
 
 from datetime import datetime
 
@@ -8,7 +8,7 @@ from backend.scraping.utils.InitializeBaseCinema import CHROME_USER_AGENT
 from backend.scraping.utils.ScrapeRequests import configure_scrape_session
 
 
-def collect_yes_planet_soon(scraper):
+def collect_planet_cinema_soon(scraper):
     base = 'https://www.planetcinema.co.il/il/data-api-service/v1'
     scraper._coverage = {'posters_expected': 0, 'posters_completed': 0}
     languages = {'en': 'English', 'he': 'Hebrew', 'fr': 'French', 'de': 'German', 'ja': 'Japanese', 'it': 'Italian', 'es': 'Spanish', 'am': 'Amharic', 'zh': 'Chinese', 'cs': 'Czech', 'ko': 'Korean', 'da': 'Danish', 'ru': 'Russian', 'hi': 'Hindi'}
@@ -21,17 +21,17 @@ def collect_yes_planet_soon(scraper):
             response.raise_for_status()
             value = response.json()
             if not isinstance(value, dict) or not isinstance(value.get('body'), dict):
-                raise ValueError(f'Unexpected Yes Planet response: {path}')
+                raise ValueError(f'Unexpected Planet Cinema response: {path}')
             return value['body']
 
         posters = body('/feed/10100/byName/coming-soon', lang='en_GB').get('posters')
         if not isinstance(posters, list) or not posters:
-            raise ValueError('Yes Planet coming-soon feed is empty or missing')
+            raise ValueError('Planet Cinema coming-soon feed is empty or missing')
         scraper._coverage['posters_expected'] = len(posters)
         for poster in posters:
             fid = poster.get('code')
             if not fid:
-                raise ValueError('Yes Planet poster has no film ID')
+                raise ValueError('Planet Cinema poster has no film ID')
             if fid.endswith('s2r2'):
                 scraper._coverage['posters_completed'] += 1
                 continue
@@ -39,7 +39,7 @@ def collect_yes_planet_soon(scraper):
             for language in ('he_IL', 'en_GB'):
                 film = body('/10100/films/byDistributorCode/' + fid, lang=language).get('filmDetails')
                 if not isinstance(film, dict) or not film.get('name') or film.get('id') != fid:
-                    raise ValueError(f'Yes Planet film details are missing or inconsistent: {fid}')
+                    raise ValueError(f'Planet Cinema film details are missing or inconsistent: {fid}')
                 details[language] = film
             he, en = details['he_IL'], details['en_GB']
             if 'gaming live' in he['name'].lower():
@@ -47,13 +47,13 @@ def collect_yes_planet_soon(scraper):
                 continue
             original = en.get('languages', {}).get('original') or ['he']
             if any(value not in languages for value in original):
-                raise ValueError(f'Unknown Yes Planet language for {fid}')
+                raise ValueError(f'Unknown Planet Cinema language for {fid}')
             restriction = en.get('ageRestrictionName')
             if restriction not in (None, 'other', 'all', '9-plus', '12-plus', '14-plus', '16-plus', '18-plus'):
-                raise ValueError(f'Unknown Yes Planet age restriction for {fid}')
+                raise ValueError(f'Unknown Planet Cinema age restriction for {fid}')
             release = en.get('dateStarted')
             if not isinstance(release, str):
-                raise ValueError(f'Yes Planet release date is missing for {fid}')
+                raise ValueError(f'Planet Cinema release date is missing for {fid}')
             scraper.release_date = datetime.fromisoformat(release).date().isoformat()
             scraper.english_title = en['name']
             scraper.hebrew_title = he['name']

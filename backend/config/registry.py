@@ -1,5 +1,5 @@
 from backend.scraping.nowplayings.CinemaCity import CinemaCity
-from backend.scraping.nowplayings.YesPlanet import YesPlanet
+from backend.scraping.nowplayings.PlanetCinema import PlanetCinema
 from backend.scraping.nowplayings.LevCinema import LevCinema
 from backend.scraping.nowplayings.RavHen import RavHen
 from backend.scraping.nowplayings.MovieLand import MovieLand
@@ -17,7 +17,7 @@ from backend.scraping.comingsoons.CCsoon import CCsoon
 from backend.scraping.comingsoons.HCsoon import HCsoon
 from backend.scraping.comingsoons.LCsoon import LCsoon
 from backend.scraping.comingsoons.MLsoon import MLsoon
-from backend.scraping.comingsoons.YPsoon import YPsoon
+from backend.scraping.comingsoons.PCsoon import PCsoon
 
 from backend.dataflow.comingsoons.ComingSoonsClean import ComingSoonsClean
 from backend.dataflow.comingsoons.ComingSoonsTmdb import ComingSoonsTmdb
@@ -47,7 +47,7 @@ REGISTRY = {
         RavHen,
         MovieLand,
         HotCinema,
-        YesPlanet,
+        PlanetCinema,
         CinemaCity,
     ],
     "allTheques": [
@@ -63,7 +63,7 @@ REGISTRY = {
     ],
     "allSoons": [
         LCsoon,
-        YPsoon,
+        PCsoon,
         CCsoon,
         HCsoon,
         MLsoon,

@@ -29,7 +29,7 @@ class ScrapedFixesTests(unittest.TestCase):
 
                 self.assertEqual(scraper.screening_city, city)
 
-    def test_yes_planet_infinity_vision_labels_normalize_type_and_tech(self):
+    def test_planet_cinema_infinity_vision_labels_normalize_type_and_tech(self):
         formats = {
             "INFINITY VISION2D": "2D Infinity Vision",
             "INFINITY VISIONSCREENX2D": "2D ScreenX Infinity Vision",

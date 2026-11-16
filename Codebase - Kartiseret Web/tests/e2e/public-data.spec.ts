@@ -267,7 +267,7 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
     );
 
     const commercialShowtimes = [
-      ["Yes Planet", "10:00", "https://tickets.example/yes-planet"],
+      ["Planet Cinema", "10:00", "https://tickets.example/planet-cinema"],
       ["Cinema City", "11:30", "https://tickets.example/cinema-city"],
       ["Lev Cinema", "14:00", "https://tickets.example/lev-cinema"],
     ];
@@ -384,7 +384,7 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
       ".details-theater-name > span:last-child",
     );
     await expect(venueNames).toHaveText([
-      "Yes Planet",
+      "Planet Cinema",
       "Cinema City",
       "Lev Cinema",
       "Jerusalem Cinematheque",
@@ -431,14 +431,14 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
     await expect(filmFilter).toBeVisible();
     await filmFilter.click();
     await expect(venueNames).toHaveText([
-      "Yes Planet",
+      "Planet Cinema",
       "Cinema City",
       "Lev Cinema",
       "Jerusalem Cinematheque",
     ]);
     await filmFilter.click();
     await expect(venueNames).toHaveText([
-      "Yes Planet",
+      "Planet Cinema",
       "Cinema City",
       "Lev Cinema",
       "Jerusalem Cinematheque",
@@ -466,7 +466,7 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
       ".details-theater-name > span:last-child",
     );
     await expect(detailVenueNames).toHaveText([
-      "Yes Planet",
+      "Planet Cinema",
       "Cinema City",
       "Lev Cinema",
       "Jerusalem Cinematheque",

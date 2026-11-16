@@ -2,9 +2,9 @@ import "./AttributionPage.css";
 
 const theaterChainSources = [
   {
-    name: "Yes Planet",
+    name: "Planet Cinema",
     href: "https://www.planetcinema.co.il/",
-    logoSrc: "/logos/theaters/yes-planet.png",
+    logoSrc: "/logos/theaters/planet-cinema.png",
   },
   {
     name: "Cinema City",

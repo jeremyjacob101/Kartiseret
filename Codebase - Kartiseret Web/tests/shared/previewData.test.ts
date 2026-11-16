@@ -164,7 +164,7 @@ describe("social preview route and data handling", () => {
             dub_language: null,
           },
           {
-            cinema: "Yes Planet",
+            cinema: "Planet Cinema",
             showtime: "21:00",
             screening_tech: "3D IMAX",
             screening_type: "VIP",
@@ -193,7 +193,7 @@ describe("social preview route and data handling", () => {
     });
     expect(data?.theaters).toEqual([
       { theater: "Cinema City", showtimes: ["20:00"] },
-      { theater: "Yes Planet", showtimes: ["21:00"] },
+      { theater: "Planet Cinema", showtimes: ["21:00"] },
     ]);
   });
 
@@ -234,7 +234,7 @@ describe("social preview route and data handling", () => {
             dub_language: "Hebrew",
           },
           {
-            cinema: "Yes Planet",
+            cinema: "Planet Cinema",
             showtime: "18:00",
             screening_tech: "2D",
             screening_type: "Regular",
