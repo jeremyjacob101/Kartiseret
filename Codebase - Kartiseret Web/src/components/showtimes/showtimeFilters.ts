@@ -1,5 +1,4 @@
 import { cloneUncheckedGroups, type ShowtimeFilterState } from "@kartiseret/contracts/showtime-filters";
-import { migrateShowtimeFilterJson } from "@kartiseret/contracts/showtime-links";
 import { create } from "zustand";
 
 export {
@@ -18,8 +17,6 @@ export type {
   ShowtimeFilterState,
 } from "@kartiseret/contracts/showtime-filters";
 
-const SHOWTIME_FILTERS_STORAGE_KEY = "showtime_filters_v1";
-
 function copyFilterState(
   filterState: ShowtimeFilterState,
 ): ShowtimeFilterState {
@@ -27,24 +24,6 @@ function copyFilterState(
     version: 3,
     unchecked: cloneUncheckedGroups(filterState.unchecked),
   };
-}
-
-function readFilterStateFromStorage(): ShowtimeFilterState | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(SHOWTIME_FILTERS_STORAGE_KEY);
-
-    if (!raw) {
-      return null;
-    }
-
-    return migrateShowtimeFilterJson(raw);
-  } catch {
-    return null;
-  }
 }
 
 type ShowtimeFiltersStoreState = {
@@ -55,24 +34,10 @@ type ShowtimeFiltersStoreState = {
 export const useShowtimeFiltersStore = create<ShowtimeFiltersStoreState>()((
   set,
 ) => ({
-  filters: readFilterStateFromStorage(),
+  filters: null,
   saveFilters: (nextState) => {
     const filters = copyFilterState(nextState);
-
     set({ filters });
-
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    try {
-      window.localStorage.setItem(
-        SHOWTIME_FILTERS_STORAGE_KEY,
-        JSON.stringify(filters),
-      );
-    } catch {
-      // The in-memory Zustand state remains authoritative for this session.
-    }
   },
 }));
 
@@ -86,22 +51,4 @@ export function saveShowtimeFilters(nextState: ShowtimeFilterState): void {
 
 export function getShowtimeFiltersSnapshot(): ShowtimeFilterState | null {
   return useShowtimeFiltersStore.getState().filters;
-}
-
-function handleShowtimeFilterStorage(event: StorageEvent): void {
-  if (event.key && event.key !== SHOWTIME_FILTERS_STORAGE_KEY) {
-    return;
-  }
-
-  useShowtimeFiltersStore.setState({ filters: readFilterStateFromStorage() });
-}
-
-if (typeof window !== "undefined") {
-  window.addEventListener("storage", handleShowtimeFilterStorage);
-}
-
-if (import.meta.hot) {
-  import.meta.hot.dispose(() => {
-    window.removeEventListener("storage", handleShowtimeFilterStorage);
-  });
 }

@@ -5,6 +5,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router";
 import userEvent from "@testing-library/user-event";
 
+const { deleteUser } = vi.hoisted(() => ({ deleteUser: vi.fn() }));
+vi.mock("../../src/lib/authClient", () => ({
+  getAuthClient: () => ({ deleteUser }),
+}));
+
 function CurrentPath() {
   const location = useLocation();
   return (
@@ -15,6 +20,8 @@ function CurrentPath() {
 }
 
 beforeEach(() => {
+  deleteUser.mockReset();
+  deleteUser.mockResolvedValue({ data: { success: true }, error: null });
   useUserPreferencesStore.setState({
     user: { id: "user-a", email: "user@example.com" } as never,
     loading: false,
@@ -53,17 +60,16 @@ describe("DeleteAccountConfirmationPage", () => {
       screen.getByText(/Opening this page did not delete anything/),
     ).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(deleteUser).not.toHaveBeenCalled();
     await user.click(
       screen.getByRole("button", { name: "Confirm and delete account" }),
     );
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
-    const requestedUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
-    expect(requestedUrl.pathname).toBe("/api/auth/delete-user/callback");
-    expect(requestedUrl.searchParams.get("token")).toBe("delete-confirm-token");
-    expect(requestedUrl.searchParams.get("callbackURL")).toBe(
-      `${window.location.origin}/?accountDeleted=1`,
-    );
+    await waitFor(() =>
+      expect(deleteUser).toHaveBeenCalledExactlyOnceWith({
+        token: "delete-confirm-token",
+      }));
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(await screen.findByLabelText("Current path")).toHaveTextContent(
       "/?accountDeleted=1",
     );

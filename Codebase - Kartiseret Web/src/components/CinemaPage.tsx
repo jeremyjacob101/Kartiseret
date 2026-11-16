@@ -1,10 +1,16 @@
+import { isCanonicalShowtimeFilterMatch, SHOWTIME_FILTER_OPTIONS, type ShowtimeFilterGroup } from "@kartiseret/contracts/showtime-links";
+import { buildShowtimeFilterSelections, updateShowtimeFilterState } from "@kartiseret/contracts/showtime-filters";
+import { useShowtimeViewPreferences } from "./showtimes/useShowtimeViewPreferences";
 import { publicCinemaPageResponseSchema } from "@kartiseret/contracts/public-data";
+import { getCanonicalShowtimeMeta } from "@kartiseret/contracts/showtime-filters";
 import { getCinemaIdentityById } from "@kartiseret/contracts/cinema-identities";
+import { ShowtimeFilterMenu } from "./showtimes/ShowtimeFilterMenu";
 import { setSeoMetadata } from "../routing/seoMetadata";
 import { getApiResponse } from "../data/apiClient";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
+import "./CinemaPage.css";
 
 function useCinemaPage(cinemaId: string | undefined) {
   return useQuery({
@@ -27,6 +33,72 @@ export function CinemaPage() {
   const identity = cinemaId ? getCinemaIdentityById(cinemaId) : null;
   const cinemaQuery = useCinemaPage(identity?.id);
   const cinema = cinemaQuery.data;
+  const viewPreferences = useShowtimeViewPreferences(
+    `cinema:${identity?.id ?? cinemaId ?? "unknown"}`,
+  );
+  const showtimeSelections = useMemo(
+    () =>
+      buildShowtimeFilterSelections(
+        SHOWTIME_FILTER_OPTIONS,
+        viewPreferences.screeningFilters,
+      ),
+    [viewPreferences.screeningFilters],
+  );
+  const filteredScreenings = useMemo(
+    () =>
+      (cinema?.screenings ?? []).filter(({ screening }) => {
+        const meta = getCanonicalShowtimeMeta({
+          time: screening.showtime,
+          screeningTech: screening.screeningTech,
+          screeningType: screening.screeningType,
+          dubLanguage: screening.dubLanguage,
+        });
+        return isCanonicalShowtimeFilterMatch(meta, showtimeSelections);
+      }),
+    [cinema?.screenings, showtimeSelections],
+  );
+
+  const handleShowtimeFilterToggle = (
+    group: ShowtimeFilterGroup,
+    value: string,
+  ) => {
+    const nextSelections: Record<ShowtimeFilterGroup, Set<string>> = {
+      showType: new Set(showtimeSelections.showType),
+      screenFormat: new Set(showtimeSelections.screenFormat),
+      screeningTech: new Set(showtimeSelections.screeningTech),
+      dubLanguage: new Set(showtimeSelections.dubLanguage),
+    };
+    const selected = nextSelections[group];
+    if (selected.has(value)) selected.delete(value);
+    else selected.add(value);
+    viewPreferences.setScreeningFilters(
+      updateShowtimeFilterState(
+        viewPreferences.screeningFilters,
+        SHOWTIME_FILTER_OPTIONS,
+        nextSelections,
+      ),
+    );
+  };
+
+  const handleShowtimeFilterGroupToggle = (group: ShowtimeFilterGroup) => {
+    const groupValues = SHOWTIME_FILTER_OPTIONS[group];
+    const allSelected = groupValues.every((value) =>
+      showtimeSelections[group].has(value));
+    const nextSelections: Record<ShowtimeFilterGroup, Set<string>> = {
+      showType: new Set(showtimeSelections.showType),
+      screenFormat: new Set(showtimeSelections.screenFormat),
+      screeningTech: new Set(showtimeSelections.screeningTech),
+      dubLanguage: new Set(showtimeSelections.dubLanguage),
+    };
+    nextSelections[group] = allSelected ? new Set() : new Set(groupValues);
+    viewPreferences.setScreeningFilters(
+      updateShowtimeFilterState(
+        viewPreferences.screeningFilters,
+        SHOWTIME_FILTER_OPTIONS,
+        nextSelections,
+      ),
+    );
+  };
 
   useEffect(() => {
     if (!identity) {
@@ -93,6 +165,27 @@ export function CinemaPage() {
     );
   }
 
+  if (!viewPreferences.ready) {
+    return (
+      <section
+        className="page-panel"
+        aria-labelledby={`cinema-title-${identity.id}`}
+      >
+        <h1 id={`cinema-title-${identity.id}`}>{identity.displayName}</h1>
+        <p role={viewPreferences.loadError ? "alert" : "status"}>
+          {viewPreferences.loadError
+            ? "Your showtime preferences could not be loaded."
+            : "Loading your showtime preferences…"}
+        </p>
+        {viewPreferences.loadError ? (
+          <button type="button" onClick={viewPreferences.retry}>
+            Retry
+          </button>
+        ) : null}
+      </section>
+    );
+  }
+
   return (
     <section className="page-panel">
       <article>
@@ -105,9 +198,23 @@ export function CinemaPage() {
           </a>
         </p>
         <h2>Upcoming movie showtimes</h2>
-        {cinema.screenings.length ? (
+        <div className="cinema-page-filter-row">
+          <p>
+            Screening preferences are applied. This cinema is included while
+            you’re on its page.
+          </p>
+          <ShowtimeFilterMenu
+            options={SHOWTIME_FILTER_OPTIONS}
+            selections={showtimeSelections}
+            onToggleOption={handleShowtimeFilterToggle}
+            onToggleGroup={handleShowtimeFilterGroupToggle}
+            onShowEverything={viewPreferences.showEverything}
+            onRestoreDefaults={viewPreferences.restoreDefaults}
+          />
+        </div>
+        {filteredScreenings.length ? (
           <ul>
-            {cinema.screenings.map(({ movie, screening }, index) => (
+            {filteredScreenings.map(({ movie, screening }, index) => (
               <li
                 key={`${screening.tmdbId}-${screening.dateOfShowing}-${screening.showtime}-${index}`}
               >
@@ -135,6 +242,18 @@ export function CinemaPage() {
               </li>
             ))}
           </ul>
+        ) : cinema.screenings.length > 0 ? (
+          <div className="details-empty-state">
+            <div className="details-empty-state-panel">
+              <p className="details-empty-state-title">
+                No showtimes match your screening preferences.
+              </p>
+              <button type="button" onClick={viewPreferences.showEverything}>
+                Show everything
+              </button>
+              <Link to="/user">Change saved preferences</Link>
+            </div>
+          </div>
         ) : (
           <p>No upcoming showtimes are currently listed.</p>
         )}

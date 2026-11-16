@@ -1,6 +1,7 @@
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { Link, useLocation, useNavigate } from "react-router";
 import { OPEN_AUTH_MENU_EVENT } from "../lib/authMenu";
+import { getAuthClient } from "../lib/authClient";
 import { useState } from "react";
 import "./DeleteAccountConfirmationPage.css";
 
@@ -19,20 +20,10 @@ export function DeleteAccountConfirmationPage() {
     setPending(true);
     setError(null);
     try {
-      const callbackURL = new URL("/?accountDeleted=1", window.location.origin);
-      const endpoint = new URL(
-        "/api/auth/delete-user/callback",
-        window.location.origin,
-      );
-      endpoint.searchParams.set("token", token);
-      endpoint.searchParams.set("callbackURL", callbackURL.href);
-      const response = await fetch(endpoint.href, {
-        credentials: "same-origin",
-        cache: "no-store",
-      });
-      if (!response.ok || !response.redirected) {
+      const result = await getAuthClient().deleteUser({ token });
+      if (result.error) {
         setError(
-          response.status === 404
+          result.error.status === 404
             ? "This link may have expired, or you need to sign in to the account that requested deletion before confirming."
             : "The account could not be deleted. Please sign in and try again.",
         );

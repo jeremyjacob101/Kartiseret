@@ -10,6 +10,14 @@
       "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
     },
     {
+      "source": "/confirm-account-deletion",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
       "source": "/attribution",
       "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
     },
@@ -81,6 +89,10 @@
     },
     {
       "source": "/user",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/confirm-account-deletion",
       "destination": "/index.html"
     },
     {

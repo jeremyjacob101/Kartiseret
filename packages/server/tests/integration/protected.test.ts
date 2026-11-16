@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
+import { DEFAULT_SHOWTIME_PREFERENCES } from "@kartiseret/contracts/showtime-preferences";
 import { createDatabase } from "../../src/db/client.js";
 import { DrizzleCatalogRepository } from "../../src/catalog/drizzle-repository.js";
 import { ProtectedWorkflows } from "../../src/protected/service.js";
@@ -233,6 +234,7 @@ describe.sequential(
       const first = await workflows.preferences(alice);
       expect(first).toEqual({
         location: "Haifa",
+        showtimePreferences: DEFAULT_SHOWTIME_PREFERENCES,
         ratingSources: [],
         siteColor: "#a66ae3",
         hideReReleases: false,
@@ -257,6 +259,7 @@ describe.sequential(
       ]);
       expect(await workflows.preferences(bob)).toEqual({
         location: "Raanana",
+        showtimePreferences: DEFAULT_SHOWTIME_PREFERENCES,
         siteColor: "#123456",
         ratingSources: ["lbRating"],
         hideReReleases: true,
@@ -265,6 +268,38 @@ describe.sequential(
         (await workflows.preferences({ ...bob, signupLocation: "Haifa" }))
           .location,
       ).toBe("Raanana");
+    });
+    it("persists showtime defaults across clients without changing another account", async () => {
+      const defaults = {
+        screeningFilters: {
+          version: 3,
+          unchecked: {
+            showType: [],
+            screenFormat: ["3D"],
+            screeningTech: [],
+            dubLanguage: ["Hebrew"],
+          },
+        },
+        excludedCinemaIds: ["aK90TvH244M7"],
+      };
+      const beforeBob = (await workflows.preferences(bob)).showtimePreferences;
+      const patched = await request(app)
+        .patch("/api/v1/preferences")
+        .set("Cookie", "alice")
+        .set("Origin", "http://localhost")
+        .send({ showtimePreferences: defaults });
+      expect(patched.status).toBe(200);
+      const read = await request(app)
+        .get("/api/v1/preferences")
+        .set("Cookie", "alice");
+      expect(read.status).toBe(200);
+      expect(read.body.data.showtimePreferences).toEqual(defaults);
+      expect((await workflows.preferences(bob)).showtimePreferences).toEqual(
+        beforeBob,
+      );
+      await workflows.patchPreferences(alice, {
+        showtimePreferences: DEFAULT_SHOWTIME_PREFERENCES,
+      });
     });
     it("persists account defaults and sparse title overrides through owner-scoped API routes", async () => {
       expect(await workflows.ticketAlertPreferences(alice)).toEqual(

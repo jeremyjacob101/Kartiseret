@@ -627,6 +627,123 @@ a.prefs-alert-title:focus-visible {
   gap: 8px;
 }
 
+.prefs-showtime-setting > .prefs-setting-content--static {
+  display: grid;
+  gap: 18px;
+  padding: 16px;
+}
+
+.prefs-showtime-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.prefs-showtime-heading > div {
+  min-width: 0;
+}
+
+.prefs-showtime-reset,
+.prefs-showtime-city-toggle,
+.prefs-showtime-filter-groups legend button {
+  flex: none;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 36%, transparent);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #f3ebff;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.prefs-showtime-reset:disabled,
+.prefs-showtime-city-toggle:disabled,
+.prefs-showtime-filter-groups legend button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.prefs-showtime-cinema-groups {
+  display: grid;
+  gap: 7px;
+}
+
+.prefs-showtime-city {
+  position: relative;
+  display: block;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 15%, transparent);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.prefs-showtime-city > summary {
+  padding: 7px 132px 7px 4px;
+  color: #f3ebff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.prefs-showtime-city-toggle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.prefs-showtime-city .prefs-setting-options {
+  width: 100%;
+  box-sizing: border-box;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  padding-top: 4px;
+}
+
+.prefs-showtime-filter-groups {
+  display: grid;
+  gap: 12px;
+}
+
+.prefs-showtime-filter-groups fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 15%, transparent);
+  border-radius: 12px;
+}
+
+.prefs-showtime-filter-groups legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 0 4px;
+  color: #f3ebff;
+  font-weight: 700;
+}
+
+.prefs-showtime-filter-groups .prefs-setting-options {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+@media (max-width: 520px) {
+  .prefs-showtime-heading {
+    align-items: flex-start;
+  }
+
+  .prefs-showtime-filter-groups .prefs-setting-options {
+    grid-template-columns: 1fr;
+  }
+
+  .prefs-showtime-city .prefs-setting-options {
+    grid-template-columns: 1fr;
+  }
+}
+
 .prefs-setting-option {
   display: flex;
   align-items: center;

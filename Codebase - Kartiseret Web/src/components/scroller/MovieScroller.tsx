@@ -774,6 +774,7 @@ function MovieScrollerContent({
                 dubLanguage: [],
               },
             ),
+            excludedCinemaIds: [...selection.excludedCinemaIds],
           })
         : new URL("/showtimes", window.location.origin).toString();
 

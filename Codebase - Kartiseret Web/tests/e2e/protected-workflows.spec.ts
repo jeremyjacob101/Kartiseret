@@ -315,3 +315,48 @@ test("real signup verification, current-password change and signed-out one-time 
     await db.end();
   }
 });
+
+test("saved showtime defaults survive reload while temporary filters reset on leaving", async ({
+  page,
+}) => {
+  await login(page);
+  const hebrewDefault = page.getByRole("checkbox", {
+    name: "Hebrew",
+    exact: true,
+  });
+  const saved = page.waitForResponse(
+    (response) =>
+      response.request().method() === "PATCH" &&
+      response.url().endsWith("/api/v1/preferences"),
+  );
+  await hebrewDefault.uncheck();
+  expect((await saved).status()).toBe(200);
+  await page.reload();
+  await expect(hebrewDefault).not.toBeChecked();
+  let preferenceWrites = 0;
+  page.on("request", (request) => {
+    if (
+      request.method() === "PATCH" &&
+      request.url().endsWith("/api/v1/preferences")
+    )
+      preferenceWrites += 1;
+  });
+  await page
+    .getByRole("button", { name: "All Showtimes", exact: true })
+    .click();
+  await page.getByRole("button", { name: /^Filter showtimes/ }).click();
+  const filters = page.getByRole("dialog", { name: "Showtime filters" });
+  await filters
+    .getByRole("region", { name: "dubLanguage filters", exact: true })
+    .getByRole("button", { name: "Show everything", exact: true })
+    .click();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Now Playing", exact: true }).click();
+  await page
+    .getByRole("button", { name: "All Showtimes", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: /^Filter showtimes, 1 active/ }),
+  ).toBeVisible();
+  expect(preferenceWrites).toBe(0);
+});

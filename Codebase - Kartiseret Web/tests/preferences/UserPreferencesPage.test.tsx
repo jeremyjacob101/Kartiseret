@@ -70,4 +70,52 @@ describe("UserPreferencesPage", () => {
     expect(saveHideReReleases).toHaveBeenCalledWith(true);
     expect(checkbox).toBeChecked();
   });
+
+  it("saves default showtime filters and excluded cinemas", async () => {
+    const user = userEvent.setup();
+    const state = useUserPreferencesStore.getState();
+    const saveShowtimePreferences = vi.fn(async (showtimePreferences) => {
+      useUserPreferencesStore.setState((current) => ({
+        preferences: { ...current.preferences, showtimePreferences },
+      }));
+      return true;
+    });
+    useUserPreferencesStore.setState({
+      user: {
+        id: "00000000-0000-4000-8000-000000000001",
+        email: "qa@example.test",
+      },
+      preferences: { ...state.preferences },
+      loading: false,
+      syncing: false,
+      saveShowtimePreferences,
+    });
+
+    render(
+      <MemoryRouter>
+        <UserPreferencesPage />
+      </MemoryRouter>,
+    );
+
+    const hebrew = screen.getByRole("checkbox", { name: "Hebrew" });
+    expect(hebrew).toBeChecked();
+    await user.click(hebrew);
+
+    expect(saveShowtimePreferences).toHaveBeenCalledWith(
+      expect.objectContaining({
+        screeningFilters: expect.objectContaining({
+          unchecked: expect.objectContaining({ dubLanguage: ["Hebrew"] }),
+        }),
+      }),
+    );
+    expect(hebrew).not.toBeChecked();
+
+    const jerusalemCinema = screen.getByRole("checkbox", {
+      name: "Cinema City Jerusalem",
+    });
+    await user.click(jerusalemCinema);
+    expect(saveShowtimePreferences).toHaveBeenLastCalledWith(
+      expect.objectContaining({ excludedCinemaIds: ["aK90TvH244M7"] }),
+    );
+  });
 });

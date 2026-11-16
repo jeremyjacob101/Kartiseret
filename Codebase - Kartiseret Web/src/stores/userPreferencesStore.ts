@@ -4,6 +4,7 @@ import { preferencesResponseSchema, applicationIdentitySchema, type ApplicationI
 import { createContext, createElement, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { ratingSourcesPreferenceDefinition, type RatingSource } from "../prefs/definitions/ratingSources";
 import { hideReReleasesPreferenceDefinition } from "../prefs/definitions/hideReReleases";
+import { showtimePreferencesDefinition } from "../prefs/definitions/showtimePreferences";
 import { privateApiResponse, privateIdentityChanged } from "../data/privateApi";
 import type { UserPreferenceDefinition } from "../prefs/definitions/shared";
 import { shouldRollbackOptimisticSave } from "./preferenceSavePolicy";
@@ -19,6 +20,7 @@ const preferenceDefinitions = {
   location: locationPreferenceDefinition,
   siteColor: siteColorPreferenceDefinition,
   hideReReleases: hideReReleasesPreferenceDefinition,
+  showtimePreferences: showtimePreferencesDefinition,
 } as const;
 
 type PreferenceDefinitions = typeof preferenceDefinitions;
@@ -62,6 +64,7 @@ export type UserPreferencesStoreState = {
   allSiteColors: readonly SiteColorOption[];
   defaultSiteColor: SiteColor;
   loading: boolean;
+  loadError: boolean;
   syncing: boolean;
   error: string | null;
   savePreference: SavePreference;
@@ -69,8 +72,12 @@ export type UserPreferencesStoreState = {
   saveLocation: (location: AppLocation) => Promise<boolean>;
   saveSiteColor: (siteColor: SiteColor) => Promise<boolean>;
   saveHideReReleases: (hide: boolean) => Promise<boolean>;
+  saveShowtimePreferences: (
+    preferences: UserPreferences["showtimePreferences"],
+  ) => Promise<boolean>;
   resetSiteColor: () => Promise<boolean>;
   setLocationPreference: (location: AppLocation) => Promise<boolean>;
+  retryPreferenceLoad: () => void;
 };
 
 const preferenceKeys = Object.keys(preferenceDefinitions) as PreferenceKey[];
@@ -168,14 +175,7 @@ function arePreferenceValuesEqual<Key extends PreferenceKey>(
   const leftCopy = copyPreferenceValue(key, left);
   const rightCopy = copyPreferenceValue(key, right);
 
-  if (Array.isArray(leftCopy) && Array.isArray(rightCopy)) {
-    return (
-      leftCopy.length === rightCopy.length &&
-      leftCopy.every((entry, index) => entry === rightCopy[index])
-    );
-  }
-
-  return Object.is(leftCopy, rightCopy);
+  return JSON.stringify(leftCopy) === JSON.stringify(rightCopy);
 }
 
 function getBootstrappedPreferences(): UserPreferences {
@@ -403,6 +403,7 @@ const userPreferencesStore = create<UserPreferencesStoreState>()(() => ({
   allSiteColors: preferenceOptions.siteColor ?? [],
   defaultSiteColor: DEFAULT_SITE_COLOR,
   loading: true,
+  loadError: false,
   syncing: false,
   error: null,
   savePreference: savePreferenceValue as SavePreference,
@@ -410,9 +411,14 @@ const userPreferencesStore = create<UserPreferencesStoreState>()(() => ({
   saveLocation: (location) => savePreferenceValue("location", location),
   saveSiteColor: (siteColor) => savePreferenceValue("siteColor", siteColor),
   saveHideReReleases: (hide) => savePreferenceValue("hideReReleases", hide),
+  saveShowtimePreferences: (preferences) =>
+    savePreferenceValue("showtimePreferences", preferences),
   resetSiteColor: () => savePreferenceValue("siteColor", DEFAULT_SITE_COLOR),
   setLocationPreference: (location) =>
     savePreferenceValue("location", location),
+  retryPreferenceLoad: () => {
+    void syncPreferencesWithUser(activeUserId);
+  },
 }));
 
 const publicPreferenceSnapshotContext =
@@ -473,6 +479,7 @@ export function preparePublicPagePreferenceState(): UserPreferencesStoreState {
     allSiteColors: preferenceOptions.siteColor ?? [],
     defaultSiteColor: DEFAULT_SITE_COLOR,
     loading: false,
+    loadError: false,
     syncing: false,
     error: null,
   };
@@ -488,14 +495,22 @@ function isCurrentPreferenceSync(
 async function syncPreferencesWithUser(userId: string | null): Promise<void> {
   const generation = ++preferenceSyncGeneration;
 
-  useUserPreferencesStore.setState({ error: null, loading: true });
+  useUserPreferencesStore.setState({
+    error: null,
+    loading: true,
+    loadError: false,
+  });
 
   if (!userId) {
     clearCachedPreferences();
     const guestPreferences = getGuestPreferences();
     confirmedPreferences = guestPreferences;
     commitPreferences(guestPreferences);
-    useUserPreferencesStore.setState({ syncing: false, loading: false });
+    useUserPreferencesStore.setState({
+      syncing: false,
+      loading: false,
+      loadError: false,
+    });
     return;
   }
 
@@ -515,7 +530,11 @@ async function syncPreferencesWithUser(userId: string | null): Promise<void> {
     saveCachedPreferences(normalizedPreferences);
     confirmedPreferences = normalizedPreferences;
     commitPreferences(normalizedPreferences);
-    useUserPreferencesStore.setState({ syncing: false, loading: false });
+    useUserPreferencesStore.setState({
+      syncing: false,
+      loading: false,
+      loadError: false,
+    });
   } catch (error) {
     if (!isCurrentPreferenceSync(generation, userId)) return;
     useUserPreferencesStore.setState({
@@ -523,6 +542,7 @@ async function syncPreferencesWithUser(userId: string | null): Promise<void> {
         error instanceof Error ? error.message : "Could not load preferences.",
       syncing: false,
       loading: false,
+      loadError: true,
     });
   }
 }
@@ -581,6 +601,7 @@ export function initializeUserPreferencesStore(): void {
       useUserPreferencesStore.setState({
         error: error.message,
         loading: false,
+        loadError: true,
       });
       return;
     }

@@ -1,4 +1,4 @@
-import { addCalendarDays, buildMovieShowtimeShareUrl, decodeBase62, decodeDateCode, decodeFilterMask, encodeBase62Fixed, encodeDateCode, encodeFilterMask, encodeMovieRouteCode, filterMaskFromUnchecked, getTargetedShowtimePrefetchRange, isCanonicalShowtimeFilterMatch, isDateInShowtimeLinkWindow, migrateShowtimeFilterState, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask } from "@kartiseret/contracts/showtime-links";
+import { addCalendarDays, buildMovieShowtimeShareUrl, decodeBase62, decodeDateCode, decodeFilterMask, encodeBase62Fixed, encodeDateCode, encodeFilterMask, encodeMovieRouteCode, filterMaskFromUnchecked, getTargetedShowtimePrefetchRange, isCanonicalShowtimeFilterMatch, isDateInShowtimeLinkWindow, migrateShowtimeFilterState, parseExcludedCinemaIds, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask } from "@kartiseret/contracts/showtime-links";
 import { describe, expect, it } from "vitest";
 
 describe("showtime share-link codec", () => {
@@ -117,6 +117,39 @@ describe("showtime share-link codec", () => {
     expect(resolveCityCode("c", "Jerusalem")).toBe("Bat Yam");
     expect(resolveCityCode("i", "Haifa")).toBe("Jerusalem");
     expect(resolveCityCode("?", "Haifa")).toBeNull();
+  });
+
+  it("includes known excluded cinemas in shared showtime links", () => {
+    const url = buildMovieShowtimeShareUrl(
+      {
+        movieCode: "Ab1",
+        city: "Jerusalem",
+        date: "2026-09-16",
+        filterMask: 0,
+        excludedCinemaIds: ["aK90TvH244M7"],
+      },
+      "https://example.test",
+    );
+
+    expect(url).not.toBeNull();
+    expect(parseExcludedCinemaIds(new URL(url!).search)).toEqual([
+      "aK90TvH244M7",
+    ]);
+    expect(
+      parseExcludedCinemaIds("?excludeCinemas=unknown,aK90TvH244M7"),
+    ).toEqual(["aK90TvH244M7"]);
+    expect(
+      buildMovieShowtimeShareUrl(
+        {
+          movieCode: "Ab1",
+          city: "Jerusalem",
+          date: "2026-09-16",
+          filterMask: 0,
+          excludedCinemaIds: ["unknown"],
+        },
+        "https://example.test",
+      ),
+    ).toBeNull();
   });
 
   it("migrates legacy filter states and prefetches only near uncovered edges", () => {

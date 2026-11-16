@@ -55,6 +55,7 @@ describe("deployment performance boundaries", () => {
       "/soons",
       "/cinematheques",
       "/reset-password",
+      "/confirm-account-deletion",
       "/unsubscribe/letterboxd",
     ]) {
       expect(indexOf(source), `${source} rewrite`).toBeGreaterThanOrEqual(0);
@@ -108,6 +109,7 @@ describe("deployment performance boundaries", () => {
     for (const path of [
       "/user",
       "/reset-password",
+      "/confirm-account-deletion",
       "/attribution",
       "/unsubscribe/letterboxd",
     ]) {
@@ -128,4 +130,13 @@ describe("deployment performance boundaries", () => {
       value: "no-store",
     });
   });
+});
+
+it("serves the emailed deletion confirmation as an application route", () => {
+  expect(
+    config.rewrites.find(
+      (rewrite: { source: string; destination: string }) =>
+        rewrite.source === "/confirm-account-deletion",
+    )?.destination,
+  ).toBe("/index.html");
 });
