@@ -60,6 +60,25 @@ class BoundedScrapeUploadTests(TestCase):
         self.assertEqual(len(store.return_value.save_scraped_rows.call_args.kwargs["rows"]), 450)
         self.assertFalse(store.return_value.save_scraped_rows.call_args.kwargs["successful"])
 
+    def test_storage_guard_runs_before_each_raw_upload_batch(self):
+        scraper = self.scraper(450)
+        timeline = []
+        scraper.supabase.table.side_effect = lambda _name: (
+            timeline.append("insert") or scraper.supabase.table.return_value
+        )
+        with patch(
+            "backend.utils.log.shared_cleanup.current_run_lease_guard",
+            return_value=object(),
+        ), patch(
+            "backend.utils.log.shared_cleanup._cleanup_apply_from_environment",
+            return_value=True,
+        ), patch(
+            "backend.utils.supabase.storage_guard.ensure_scrape_upload_allowed",
+            side_effect=lambda *_args, **_kwargs: timeline.append("guard"),
+        ):
+            formatAndUpload(scraper)
+        self.assertEqual(timeline, ["guard", "insert", "guard", "insert", "guard", "insert"])
+
     def test_empty_confirmed_scrape_makes_no_insert(self):
         scraper = self.scraper(0)
         scraper._empty_snapshot_evidence = "Source explicitly empty"

@@ -258,6 +258,16 @@ class PublicationWorkspace:
             report_work(0, 0, "parts + commit")
             self._result = {"status": "unchanged"}
             return self._result
+        from backend.utils.log.shared_cleanup import current_run_lease_guard
+        from backend.utils.supabase.storage_guard import ensure_publication_allowed
+
+        # The workspace already holds prepared publication inputs. If capacity
+        # is exhausted, fail this run without pruning any data it may need to
+        # retry; the next run starts after shared cleanup has had a chance to
+        # recover space.
+        ensure_publication_allowed(
+            self.client, lease_guard=current_run_lease_guard()
+        )
         parts = self.parts()
         report_work(0, len(parts) + 1, "parts + commit")
         digests = [hashlib.sha256(part.encode()).hexdigest() for part in parts]

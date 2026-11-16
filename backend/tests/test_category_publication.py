@@ -182,6 +182,23 @@ class CategoryPublicationTests(TestCase):
                 workspace.commit()
         self.assertEqual(progress[-1], (len(workspace.parts()), len(workspace.parts()) + 1, "parts + commit"))
 
+    def test_supabase_pressure_blocks_prepared_publication_before_receipt_or_commit(self):
+        from backend.utils.supabase.storage_guard import SupabaseStorageGuardError
+
+        workspace, live = self.workspace()
+        workspace.table("finalMovies").insert({"tmdb_id": 1, "english_title": "Ready"}).execute()
+        with patch(
+            "backend.utils.log.shared_cleanup.current_run_lease_guard",
+            return_value=object(),
+        ), patch(
+            "backend.utils.supabase.storage_guard.ensure_publication_allowed",
+            side_effect=SupabaseStorageGuardError("database limit reached"),
+        ), patch("backend.utils.log.run_storage.RunArtifactStore") as storage:
+            with self.assertRaisesRegex(SupabaseStorageGuardError, "database limit reached"):
+                workspace.commit()
+        storage.return_value.save_text_artifact.assert_not_called()
+        self.assertFalse(live.actions)
+
     def test_configured_postgres_publisher_replaces_only_the_commit_transport(self):
         workspace, live = self.workspace()
         workspace.table("finalMovies").insert({"tmdb_id": 1, "english_title": "Ready"}).execute()

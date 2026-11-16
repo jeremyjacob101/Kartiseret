@@ -121,6 +121,17 @@ def formatAndUpload(self):
     self._uploaded_scrape_rows = [dict(row) for row in rows]
     result = None
     for batch in _upload_batches(rows):
+        from backend.utils.log.shared_cleanup import (
+            _cleanup_apply_from_environment,
+            current_run_lease_guard,
+        )
+        from backend.utils.supabase.storage_guard import ensure_scrape_upload_allowed
+
+        ensure_scrape_upload_allowed(
+            self.supabase,
+            lease_guard=current_run_lease_guard(),
+            apply=_cleanup_apply_from_environment(),
+        )
         # The manifest stays running until every batch is acknowledged. Failed
         # partial attempts cannot authorize matching or stale-screening deletion.
         result = self.supabase.table(self.supabase_table_name).insert(batch, returning="minimal").execute()

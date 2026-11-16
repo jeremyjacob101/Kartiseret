@@ -56,6 +56,10 @@ class Query:
         self.predicates.append(lambda row: row.get(column) is not None and row.get(column) > value)
         return self
 
+    def lte(self, column, value):
+        self.predicates.append(lambda row: row.get(column) is not None and row.get(column) <= value)
+        return self
+
     def execute(self):
         if self.operation == "upsert" and self.table == "finalSoons" and any(row.get("release_date") is None for row in self.payload):
             raise ValueError('null value in column "release_date" of relation "finalSoons" violates not-null constraint')

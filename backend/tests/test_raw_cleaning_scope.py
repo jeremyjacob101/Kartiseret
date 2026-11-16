@@ -8,7 +8,8 @@ import uuid
 from dataflow_database import DB
 import test_tmdb_publication as fixtures
 from backend.dataflow.utils.InitializeBaseDataflow import InitializeBaseDataflow
-from backend.dataflow.utils.PublicationWorkspace import PublicationWorkspace
+from backend.dataflow.utils.PublicationWorkspace import PublicationWorkspace, publication_scope
+from backend.utils.supabase.clear_old_entries import delete_entries_on_or_before
 
 
 CLEANERS = (
@@ -50,6 +51,55 @@ class RawCleaningScopeTests(TestCase):
         })
         flow.refreshAllTables()
         return flow
+
+    def test_publication_cleanup_only_stages_safe_processed_raw_rows(self):
+        eligible, unresolved, prepared, current = [str(uuid.uuid4()) for _ in range(4)]
+        rows = [
+            raw(eligible, run_id=1, cleaned=True, added=True, date_of_showing="1900-01-01"),
+            raw(unresolved, run_id=2, cleaned=True, added=True, date_of_showing="1900-01-01"),
+            raw(prepared, run_id=3, cleaned=True, added=True, date_of_showing="1900-01-01"),
+            raw(current, run_id=10, cleaned=True, added=True, date_of_showing="1900-01-01"),
+            raw(None, run_id=1, cleaned=True, added=False, date_of_showing="1900-01-01"),
+        ]
+        manifests = [
+            manifest("allShowtimes", eligible, run_id=1, status="complete", count=1),
+            manifest("allShowtimes", unresolved, run_id=2, status="complete", count=1),
+            manifest("allShowtimes", prepared, run_id=3, status="complete", count=1),
+            manifest("allShowtimes", current, run_id=10, status="complete", count=1),
+        ]
+        checkpoints = [
+            {"category": "nowplayings", "snapshot_id": eligible, "phase": "published", "has_unresolved": False},
+            {"category": "nowplayings", "snapshot_id": unresolved, "phase": "published", "has_unresolved": True},
+            {"category": "nowplayings", "snapshot_id": prepared, "phase": "prepared", "has_unresolved": False},
+            {"category": "nowplayings", "snapshot_id": current, "phase": "published", "has_unresolved": False},
+        ]
+        live = DB({
+            "allShowtimes": rows,
+            "pipeline_scrape_snapshots": manifests,
+            "pipeline_publication_checkpoints": checkpoints,
+            "tableFixes": [],
+            "tableSkips": [],
+        })
+        workspace = PublicationWorkspace("nowplayings", 10, live)
+
+        with publication_scope(workspace):
+            deleted = delete_entries_on_or_before(
+                workspace,
+                "allShowtimes",
+                "date_of_showing",
+                "1900-01-01",
+                apply=True,
+                lease_guard=SimpleNamespace(verify=lambda: None),
+            )
+
+        self.assertEqual(deleted, 1)
+        remaining = workspace.table("allShowtimes").select().execute().data
+        self.assertEqual({row["id"] for row in remaining}, {row["id"] for row in rows[1:]})
+        repaired = workspace.table("pipeline_scrape_snapshots").select().eq(
+            "snapshot_id", eligible
+        ).execute().data
+        self.assertEqual(repaired[0]["row_count"], 0)
+        self.assertEqual(live.actions, [])
 
     def test_only_replaced_failed_attempts_are_excluded_without_mutating_rows(self):
         for path, table in CLEANERS:
