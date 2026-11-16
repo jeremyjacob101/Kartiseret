@@ -456,6 +456,17 @@ export function getCinemaIdentityById(id: string): CinemaIdentity | null {
   return CINEMA_IDENTITIES.find((identity) => identity.id === id) ?? null;
 }
 
+export function getCinemaIdentitiesForCity(city: string): CinemaIdentity[] {
+  const normalizedCity = normalizeCinemaKey(city);
+  return CINEMA_IDENTITIES.filter(
+    (identity) =>
+      normalizeCinemaKey(identity.city) === normalizedCity ||
+      identity.screeningCityKeys.some(
+        (screeningCity) => normalizeCinemaKey(screeningCity) === normalizedCity,
+      ),
+  );
+}
+
 export function getCinemaIdentityByLocation(
   location: string,
 ): CinemaIdentity | null {

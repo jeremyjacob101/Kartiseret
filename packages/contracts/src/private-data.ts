@@ -17,6 +17,7 @@ import {
   getCanonicalShowtimeMeta,
   type FilterableShowtime,
 } from "./showtime-filters.js";
+import { persistedShowtimePreferencesSchema } from "./showtime-preferences.js";
 
 const envelope = <Schema extends z.ZodType>(data: Schema) =>
   z.object({ data, error: z.null() });
@@ -40,6 +41,7 @@ export const preferencesSchema = z
     location: appLocationSchema.pipe(z.string().max(200)),
     siteColor: siteColorSchema,
     hideReReleases: hideReReleasesSchema,
+    showtimePreferences: persistedShowtimePreferencesSchema,
   })
   .strict();
 export const preferencePatchSchema = preferencesSchema

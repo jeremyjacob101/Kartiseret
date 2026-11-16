@@ -9,6 +9,10 @@ import {
   normalizeRatingSources,
   normalizeSiteColor,
 } from "@kartiseret/contracts/preferences";
+import {
+  DEFAULT_SHOWTIME_PREFERENCES,
+  normalizeShowtimePreferences,
+} from "@kartiseret/contracts/showtime-preferences";
 import type {
   Correction,
   MovieDisplayPreference,
@@ -205,6 +209,7 @@ export class ProtectedWorkflows {
         location: initialLocation,
         siteColor: DEFAULT_SITE_COLOR,
         hideReReleases: DEFAULT_HIDE_RE_RELEASES,
+        showtimePreferences: DEFAULT_SHOWTIME_PREFERENCES,
         signupInitialized: true,
       })
       .onConflictDoNothing({ target: userPreferences.userId });
@@ -226,6 +231,9 @@ export class ProtectedWorkflows {
       ),
       siteColor: normalizeSiteColor(row.siteColor),
       hideReReleases: normalizeHideReReleases(row.hideReReleases),
+      showtimePreferences: normalizeShowtimePreferences(
+        row.showtimePreferences,
+      ),
     };
     const repair =
       !row.signupInitialized || !row.location?.trim() || !row.siteColor?.trim();

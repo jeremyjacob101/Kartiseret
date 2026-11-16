@@ -1,6 +1,5 @@
-import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "@kartiseret/contracts/showtime-links";
+import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, parseExcludedCinemaIds, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "@kartiseret/contracts/showtime-links";
 import { findMovieByCode, isMovieShowtimeDateCovered, isValidMovieCode, loadShowtimesAroundDate, mergeMovieShowtimeRangeResult, showtimeCityQueryOptions, showtimeRangeQueryOptions, type ShowtimeRange } from "../data/movieCatalog";
-import { getShowtimeFiltersSnapshot, saveShowtimeFilters, type ShowtimeFilterState } from "./showtimes/showtimeFilters";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
 import { applyMovieDisplayPreference } from "../data/movieDisplayPreferences";
@@ -8,6 +7,7 @@ import { socialPreviewImageUrl } from "@kartiseret/contracts/social-preview";
 import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { type ShowtimeFilterState } from "./showtimes/showtimeFilters";
 import { usePublicRenderClock } from "../contexts/PublicRenderClock";
 import { MovieDetailsContent } from "./scroller/MovieDetailsContent";
 import { isoDateStringSchema } from "@kartiseret/contracts/runtime";
@@ -39,6 +39,7 @@ type MoviePageQueryState = {
   date: string;
   filterMask: number;
   filterState: ShowtimeFilterState;
+  excludedCinemaIds: string[];
   mode: MovieRouteMode;
 };
 
@@ -110,6 +111,10 @@ function areQueryStatesEqual(
     left.location === right.location &&
     left.date === right.date &&
     left.filterMask === right.filterMask &&
+    left.excludedCinemaIds.length === right.excludedCinemaIds.length &&
+    left.excludedCinemaIds.every(
+      (id, index) => id === right.excludedCinemaIds[index],
+    ) &&
     left.mode === right.mode,
   );
 }
@@ -125,7 +130,12 @@ function createInitialEncodedQueryState(
   search: string,
 ): MoviePageQueryState | null {
   const parsedRoute = parseMovieRouteCode(routeCode);
-  if (!parsedRoute || parsedRoute.kind !== "encoded") return null;
+  if (
+    !parsedRoute ||
+    parsedRoute.kind !== "encoded" ||
+    parsedRoute.mode !== "share"
+  )
+    return null;
   const requestedDate = isoDateStringSchema.safeParse(
     new URLSearchParams(search).get("date"),
   );
@@ -147,6 +157,7 @@ function createInitialEncodedQueryState(
     date,
     filterMask: parsedRoute.filterMask,
     filterState,
+    excludedCinemaIds: parseExcludedCinemaIds(search),
     mode: parsedRoute.mode,
   };
 }
@@ -165,12 +176,12 @@ export function MoviePage({
   const {
     loading: preferencesLoading,
     location: preferenceLocation,
-    setLocationPreference,
+    showtimePreferences,
   } = useUserPreferencesStore(
     useShallow((state) => ({
       loading: state.loading,
       location: state.preferences.location,
-      setLocationPreference: state.setLocationPreference,
+      showtimePreferences: state.preferences.showtimePreferences,
     })),
   );
   const today = useJerusalemToday();
@@ -277,9 +288,16 @@ export function MoviePage({
         mode: state.mode,
       });
 
-      const nextLocation = nextRouteCode
-        ? `/${nextRouteCode}?date=${encodeURIComponent(state.date)}`
-        : null;
+      const query = new URLSearchParams({ date: state.date });
+      if (state.excludedCinemaIds.length > 0) {
+        query.set(
+          "excludeCinemas",
+          [...new Set(state.excludedCinemaIds)]
+            .sort((left, right) => left.localeCompare(right))
+            .join(","),
+        );
+      }
+      const nextLocation = nextRouteCode ? `/${nextRouteCode}?${query}` : null;
       if (
         nextLocation &&
         nextLocation !== `${routeLocation.pathname}${routeLocation.search}`
@@ -334,9 +352,7 @@ export function MoviePage({
     const currentToday = todayRef.current;
 
     if (parsedRoute.kind === "plain") {
-      const filterState = copyFilterState(
-        getShowtimeFiltersSnapshot() ?? createDefaultFilterState(),
-      );
+      const filterState = copyFilterState(showtimePreferences.screeningFilters);
       const nextState: MoviePageQueryState = {
         movieCode: candidateMovieCode,
         cityCode: CURRENT_CITY_CODE,
@@ -344,6 +360,7 @@ export function MoviePage({
         date: currentToday,
         filterMask: filterMaskFromUnchecked(filterState.unchecked),
         filterState,
+        excludedCinemaIds: [...showtimePreferences.excludedCinemaIds],
         mode: "edit",
       };
 
@@ -363,22 +380,57 @@ export function MoviePage({
       parsedRoute.cityCode,
       preferenceLocation || DEFAULT_LOCATION,
     );
-    const filterState = createFilterStateFromMask(parsedRoute.filterMask);
-
-    if (!decodedDate || !decodedLocation || !filterState) {
+    if (!decodedDate || !decodedLocation) {
       navigate(`/${candidateMovieCode}`, { replace: true });
       return;
     }
 
-    const nextState: MoviePageQueryState = {
-      movieCode: candidateMovieCode,
-      cityCode: parsedRoute.cityCode,
-      location: decodedLocation,
-      date: decodedDate,
-      filterMask: parsedRoute.filterMask,
-      filterState,
-      mode: parsedRoute.mode,
-    };
+    let nextState: MoviePageQueryState;
+    if (parsedRoute.mode === "share") {
+      const filterState = createFilterStateFromMask(parsedRoute.filterMask);
+      if (!filterState) {
+        navigate(`/${candidateMovieCode}`, { replace: true });
+        return;
+      }
+      nextState = {
+        movieCode: candidateMovieCode,
+        cityCode: parsedRoute.cityCode,
+        location: decodedLocation,
+        date: decodedDate,
+        filterMask: parsedRoute.filterMask,
+        filterState,
+        excludedCinemaIds: parseExcludedCinemaIds(routeLocation.search),
+        mode: "share",
+      };
+    } else {
+      const existingState = queryStateRef.current;
+      if (
+        existingState?.movieCode === candidateMovieCode &&
+        existingState.mode === "edit"
+      ) {
+        nextState = {
+          ...existingState,
+          cityCode: parsedRoute.cityCode,
+          location: decodedLocation,
+          date: decodedDate,
+        };
+      } else {
+        const filterState = copyFilterState(
+          showtimePreferences.screeningFilters,
+        );
+        const location = preferenceLocation || DEFAULT_LOCATION;
+        nextState = {
+          movieCode: candidateMovieCode,
+          cityCode: getExplicitCityCode(location) ?? CURRENT_CITY_CODE,
+          location,
+          date: currentToday,
+          filterMask: filterMaskFromUnchecked(filterState.unchecked),
+          filterState,
+          excludedCinemaIds: [...showtimePreferences.excludedCinemaIds],
+          mode: "edit",
+        };
+      }
+    }
 
     if (areQueryStatesEqual(queryStateRef.current, nextState)) return;
 
@@ -392,6 +444,7 @@ export function MoviePage({
     navigate,
     movieCodesReady,
     preferenceLocation,
+    showtimePreferences,
     preferencesLoading,
     routeCode,
     routeLocation.search,
@@ -544,18 +597,9 @@ export function MoviePage({
         location,
       };
       commitQueryState(nextState);
-
-      if (currentState.mode !== "edit") {
-        return true;
-      }
-
-      try {
-        return await setLocationPreference(location);
-      } catch {
-        return false;
-      }
+      return true;
     },
-    [commitQueryState, setLocationPreference],
+    [commitQueryState],
   );
 
   const handleShowtimeFilterStateChange = useCallback(
@@ -573,13 +617,49 @@ export function MoviePage({
         filterState: copiedFilterState,
       };
       commitQueryState(nextState);
-
-      if (currentState.mode === "edit") {
-        saveShowtimeFilters(copiedFilterState);
-      }
     },
     [commitQueryState],
   );
+
+  const handleExcludedCinemaIdsChange = useCallback(
+    (excludedCinemaIds: readonly string[]) => {
+      const currentState = queryStateRef.current;
+      if (!currentState) return;
+      commitQueryState({
+        ...currentState,
+        excludedCinemaIds: [...new Set(excludedCinemaIds)].sort((a, b) =>
+          a.localeCompare(b)),
+      });
+    },
+    [commitQueryState],
+  );
+
+  const handleShowEverything = useCallback(() => {
+    const currentState = queryStateRef.current;
+    if (!currentState) return;
+    const filterState = createDefaultFilterState();
+    commitQueryState({
+      ...currentState,
+      filterMask: 0,
+      filterState,
+      excludedCinemaIds: [],
+    });
+  }, [commitQueryState]);
+
+  const handleRestoreShowtimeDefaults = useCallback(() => {
+    const currentState = queryStateRef.current;
+    if (!currentState) return;
+    const filterState = copyFilterState(showtimePreferences.screeningFilters);
+    const location = preferenceLocation || DEFAULT_LOCATION;
+    commitQueryState({
+      ...currentState,
+      cityCode: getExplicitCityCode(location) ?? CURRENT_CITY_CODE,
+      location,
+      filterMask: filterMaskFromUnchecked(filterState.unchecked),
+      filterState,
+      excludedCinemaIds: [...showtimePreferences.excludedCinemaIds],
+    });
+  }, [commitQueryState, preferenceLocation, showtimePreferences]);
 
   const handleShowtimeDatePreviewChange = (date: string) => {
     const currentState = queryStateRef.current;
@@ -614,6 +694,7 @@ export function MoviePage({
       city: currentState.location,
       date: currentState.date,
       filterMask: currentState.filterMask,
+      excludedCinemaIds: currentState.excludedCinemaIds,
     });
 
     if (!url) {
@@ -719,6 +800,16 @@ export function MoviePage({
             showtimeFilterStateOverride={activeQueryState?.filterState}
             onShowtimeFilterStateOverrideChange={
               activeQueryState ? handleShowtimeFilterStateChange : undefined
+            }
+            excludedCinemaIdsOverride={activeQueryState?.excludedCinemaIds}
+            onExcludedCinemaIdsOverrideChange={
+              activeQueryState ? handleExcludedCinemaIdsChange : undefined
+            }
+            onShowEverything={
+              activeQueryState ? handleShowEverything : undefined
+            }
+            onRestoreShowtimeDefaults={
+              activeQueryState ? handleRestoreShowtimeDefaults : undefined
             }
             showtimeDateLoading={
               Boolean(activeShowtimeRange) &&

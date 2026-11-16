@@ -98,6 +98,30 @@ describe("showtime filter normalization", () => {
     ).toEqual([{ theater: "Cinema A", times: ["20:00"] }]);
   });
 
+  it("excludes a selected cinema branch from its matching city showtimes", () => {
+    const showtime = {
+      time: "20:00",
+      screeningTech: "2D",
+      screeningType: "Regular",
+      dubLanguage: "Original",
+    };
+    const theaters = [
+      { theater: "Cinema City", showtimes: [showtime] },
+      { theater: "Jerusalem Cinematheque", showtimes: [showtime] },
+    ];
+    const selections = buildShowtimeFilterSelections(
+      getShowtimeFilterOptions(theaters),
+      null,
+    );
+
+    expect(
+      filterTheatersBySelections(theaters, selections, {
+        screeningCity: "Jerusalem",
+        excludedCinemaIds: ["aK90TvH244M7"],
+      }).map(({ theater }) => theater),
+    ).toEqual(["Jerusalem Cinematheque"]);
+  });
+
   it("updates only known options and preserves unknown persisted values", () => {
     const options = {
       showType: ["Regular", "VIP"],

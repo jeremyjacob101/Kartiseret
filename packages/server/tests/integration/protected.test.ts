@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
+import { DEFAULT_SHOWTIME_PREFERENCES } from "@kartiseret/contracts/showtime-preferences";
 import { createDatabase } from "../../src/db/client.js";
 import { DrizzleCatalogRepository } from "../../src/catalog/drizzle-repository.js";
 import { ProtectedWorkflows } from "../../src/protected/service.js";
@@ -233,6 +234,7 @@ describe.sequential(
       const first = await workflows.preferences(alice);
       expect(first).toEqual({
         location: "Haifa",
+        showtimePreferences: DEFAULT_SHOWTIME_PREFERENCES,
         ratingSources: [],
         siteColor: "#a66ae3",
         hideReReleases: false,
@@ -257,6 +259,7 @@ describe.sequential(
       ]);
       expect(await workflows.preferences(bob)).toEqual({
         location: "Raanana",
+        showtimePreferences: DEFAULT_SHOWTIME_PREFERENCES,
         siteColor: "#123456",
         ratingSources: ["lbRating"],
         hideReReleases: true,

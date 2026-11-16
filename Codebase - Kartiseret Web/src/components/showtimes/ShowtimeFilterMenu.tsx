@@ -1,5 +1,5 @@
 import { type ShowtimeFilterOptions, type ShowtimeFilterSelections } from "./showtimeFilters";
-import { Armchair, Glasses, Languages, ListFilter, TvMinimal } from "lucide-react";
+import { Armchair, Building2, Glasses, Languages, ListFilter, TvMinimal } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./ShowtimeFilterMenu.css";
@@ -12,6 +12,12 @@ type ShowtimeFilterMenuProps = {
   selections: ShowtimeFilterSelections;
   onToggleOption: (group: FilterGroup, value: string) => void;
   onToggleGroup: (group: FilterGroup) => void;
+  cinemas?: readonly { id: string; displayName: string }[];
+  excludedCinemaIds?: ReadonlySet<string>;
+  onToggleCinema?: (cinemaId: string) => void;
+  onToggleCinemaGroup?: () => void;
+  onShowEverything?: () => void;
+  onRestoreDefaults?: () => void;
 };
 
 const FILTER_GROUP_COPY: Array<{
@@ -30,6 +36,12 @@ export function ShowtimeFilterMenu({
   selections,
   onToggleOption,
   onToggleGroup,
+  cinemas = [],
+  excludedCinemaIds = new Set<string>(),
+  onToggleCinema,
+  onToggleCinemaGroup,
+  onShowEverything,
+  onRestoreDefaults,
 }: ShowtimeFilterMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [panelStyle, setPanelStyle] = useState<{
@@ -41,6 +53,17 @@ export function ShowtimeFilterMenu({
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const panelId = useId();
+  const inactiveScreeningOptionCount = (
+    Object.keys(options) as FilterGroup[]
+  ).reduce(
+    (total, group) =>
+      total +
+      options[group].filter((value) => !selections[group].has(value)).length,
+    0,
+  );
+  const activeFilterCount =
+    cinemas.filter(({ id }) => excludedCinemaIds.has(id)).length +
+    inactiveScreeningOptionCount;
 
   useLayoutEffect(() => {
     if (!isOpen) {
@@ -132,7 +155,7 @@ export function ShowtimeFilterMenu({
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         aria-controls={panelId}
-        aria-label="Filter showtimes"
+        aria-label={`Filter showtimes${activeFilterCount ? `, ${activeFilterCount} active` : ""}`}
         onClick={() => {
           setIsOpen((open) => !open);
         }}
@@ -144,6 +167,11 @@ export function ShowtimeFilterMenu({
             className="app-accent-icon"
           />
         </span>
+        {activeFilterCount > 0 ? (
+          <span className="showtime-filter-count" aria-hidden="true">
+            {activeFilterCount}
+          </span>
+        ) : null}
       </button>
 
       {isOpen && panelStyle && typeof document !== "undefined"
@@ -160,6 +188,43 @@ export function ShowtimeFilterMenu({
                 width: `${panelStyle.width}px`,
               }}
             >
+              {cinemas.length > 0 ? (
+                <section
+                  className="showtime-filter-group"
+                  aria-label="Cinema filters"
+                >
+                  <div className="showtime-filter-section-header">
+                    <span>
+                      <Building2 size={16} /> Cinemas
+                    </span>
+                    <button
+                      type="button"
+                      className="showtime-filter-select-all"
+                      onClick={onToggleCinemaGroup}
+                    >
+                      {cinemas.every(({ id }) => !excludedCinemaIds.has(id))
+                        ? "Exclude all"
+                        : "Include all"}
+                    </button>
+                  </div>
+                  <div className="showtime-filter-options">
+                    {cinemas.map(({ id, displayName }) => {
+                      const included = !excludedCinemaIds.has(id);
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          className={`showtime-filter-option${included ? " is-selected" : ""}`}
+                          aria-pressed={included}
+                          onClick={() => onToggleCinema?.(id)}
+                        >
+                          <span>{displayName}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : null}
               {FILTER_GROUP_COPY.map(({ group, icon: GroupIcon }) => {
                 const groupOptions = options[group];
                 const selectedValues = selections[group];
@@ -210,6 +275,20 @@ export function ShowtimeFilterMenu({
                           </button>
                         );
                       })}
+                      {onShowEverything || onRestoreDefaults ? (
+                        <div className="showtime-filter-actions">
+                          {onShowEverything ? (
+                            <button type="button" onClick={onShowEverything}>
+                              Show everything
+                            </button>
+                          ) : null}
+                          {onRestoreDefaults ? (
+                            <button type="button" onClick={onRestoreDefaults}>
+                              Restore my defaults
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                   </section>
                 );

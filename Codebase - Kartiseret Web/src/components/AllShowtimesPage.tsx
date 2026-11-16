@@ -1,8 +1,9 @@
 import { getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, movieCollectionQueryOptions, selectBroadMovieShowtimeDays, selectMovies, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, type Movie, type ShowtimeCityData, type TheaterShowtimes } from "../data/movieCatalog";
-import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, saveShowtimeFilters, updateShowtimeFilterState, useShowtimeFiltersStore, type ShowtimeFilterOptions, type ShowtimeFilterSelections } from "./showtimes/showtimeFilters";
+import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, updateShowtimeFilterState, type ShowtimeFilterOptions, type ShowtimeFilterSelections } from "./showtimes/showtimeFilters";
 import { filterMoviesByReleaseCategory, MOVIE_RELEASE_CATEGORY_LABELS, type MovieReleaseCategory } from "../domain/movieRelease";
 import { getShowtimeDateLabel, getShowtimeTargetDate, getTrailerEmbedUrl } from "./showtimes/showtimeUtils";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
+import { ALL_LOCATIONS, type AppLocation } from "../prefs/definitions/locations";
 import { applyMovieDisplayPreferences } from "../data/movieDisplayPreferences";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePublicationRevision } from "../hooks/usePublicationRevision";
@@ -14,11 +15,12 @@ import { ReleaseCategorySwitcher } from "./ReleaseCategorySwitcher";
 import { ShowtimesMovieRow } from "./showtimes/ShowtimesMovieRow";
 import { ShowtimeDayPicker } from "./showtimes/ShowtimeDayPicker";
 import { MovieTrailerModal } from "./showtimes/ShowtimeShared";
-import { ALL_LOCATIONS } from "../prefs/definitions/locations";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { TheaterMapDialog } from "./maps/TheaterMapDialog";
 import { useShallow } from "zustand/react/shallow";
 import "./AllShowtimesPage.css";
+import { getCinemaIdentitiesForCity } from "@kartiseret/contracts/cinema-identities";
+import { useShowtimeViewPreferences } from "./showtimes/useShowtimeViewPreferences";
 import { MapPin } from "lucide-react";
 import { Link } from "react-router";
 
@@ -38,15 +40,25 @@ export function AllShowtimesPage() {
   const { cinemaDate } = usePublicRenderClock();
   const publicationRevision = usePublicationRevision();
   const displayPreferences = useMovieDisplayPreferences();
-  const { location, sources, hideReReleases, setLocationPreference } =
-    useUserPreferencesStore(
-      useShallow((state) => ({
-        location: state.preferences.location,
-        sources: state.preferences.ratingSources,
-        hideReReleases: state.preferences.hideReReleases,
-        setLocationPreference: state.setLocationPreference,
-      })),
-    );
+  const { sources, hideReReleases } = useUserPreferencesStore(
+    useShallow((state) => ({
+      sources: state.preferences.ratingSources,
+      hideReReleases: state.preferences.hideReReleases,
+    })),
+  );
+  const {
+    location,
+    screeningFilters: showtimeFilterState,
+    excludedCinemaIds: showtimeExcludedCinemaIds,
+    ready: showtimePreferencesReady,
+    loadError: showtimePreferencesLoadError,
+    retry: retryShowtimePreferences,
+    setScreeningFilters,
+    setExcludedCinemaIds,
+    setLocation,
+    showEverything,
+    restoreDefaults,
+  } = useShowtimeViewPreferences("all-showtimes");
   const { data: rawNowPlayingMovies = [] } = useQuery({
     ...movieCollectionQueryOptions("nowPlaying"),
     select: selectMovies,
@@ -109,9 +121,6 @@ export function AllShowtimesPage() {
   const [openTrailerMovieId, setOpenTrailerMovieId] = useState<string | null>(
     null,
   );
-  const [pendingNearbyCity, setPendingNearbyCity] = useState<string | null>(
-    null,
-  );
   const previousShowtimeLocationRef = useRef(location);
   const requestedShowtimePrefetchRef = useRef<string | null>(null);
   const handleReleaseCategoryChange = useCallback((
@@ -156,7 +165,10 @@ export function AllShowtimesPage() {
       null,
     [dayPanels, resolvedShowtimeDate],
   );
-  const showtimeFilterState = useShowtimeFiltersStore((state) => state.filters);
+  const excludedCinemaIds = useMemo(
+    () => new Set(showtimeExcludedCinemaIds),
+    [showtimeExcludedCinemaIds],
+  );
   const allLoadedTheaters = useMemo(
     () =>
       dayPanels.flatMap((day) =>
@@ -181,6 +193,10 @@ export function AllShowtimesPage() {
               const filteredTheaters = filterTheatersBySelections(
                 theaters,
                 showtimeFilterSelections,
+                {
+                  screeningCity: location,
+                  excludedCinemaIds: showtimeExcludedCinemaIds,
+                },
               );
 
               return filteredTheaters.length > 0
@@ -189,7 +205,12 @@ export function AllShowtimesPage() {
             }),
           }
         : null,
-    [selectedDayPanel, showtimeFilterSelections],
+    [
+      selectedDayPanel,
+      showtimeFilterSelections,
+      location,
+      showtimeExcludedCinemaIds,
+    ],
   );
   const hasFilteredOutAllSelectedDayMovies =
     selectedDayPanel !== null &&
@@ -218,9 +239,14 @@ export function AllShowtimesPage() {
         showtimeFilterOptions,
         nextSelections,
       );
-      saveShowtimeFilters(nextState);
+      setScreeningFilters(nextState);
     },
-    [showtimeFilterOptions, showtimeFilterSelections, showtimeFilterState],
+    [
+      showtimeFilterOptions,
+      showtimeFilterSelections,
+      showtimeFilterState,
+      setScreeningFilters,
+    ],
   );
   const handleShowtimeFilterGroupToggle = useCallback(
     (group: keyof ShowtimeFilterOptions) => {
@@ -245,9 +271,45 @@ export function AllShowtimesPage() {
         showtimeFilterOptions,
         nextSelections,
       );
-      saveShowtimeFilters(nextState);
+      setScreeningFilters(nextState);
     },
-    [showtimeFilterOptions, showtimeFilterSelections, showtimeFilterState],
+    [
+      showtimeFilterOptions,
+      showtimeFilterSelections,
+      showtimeFilterState,
+      setScreeningFilters,
+    ],
+  );
+  const handleCinemaToggle = useCallback(
+    (cinemaId: string) => {
+      const next = excludedCinemaIds.has(cinemaId)
+        ? showtimeExcludedCinemaIds.filter((id) => id !== cinemaId)
+        : [...showtimeExcludedCinemaIds, cinemaId];
+      setExcludedCinemaIds(next);
+    },
+    [excludedCinemaIds, showtimeExcludedCinemaIds, setExcludedCinemaIds],
+  );
+  const handleCinemaGroupToggle = useCallback(() => {
+    const cityCinemaIds = getCinemaIdentitiesForCity(location).map(
+      ({ id }) => id,
+    );
+    const allIncluded = cityCinemaIds.every((id) => !excludedCinemaIds.has(id));
+    const next = allIncluded
+      ? [...new Set([...showtimeExcludedCinemaIds, ...cityCinemaIds])]
+      : showtimeExcludedCinemaIds.filter((id) => !cityCinemaIds.includes(id));
+    setExcludedCinemaIds(next);
+  }, [
+    excludedCinemaIds,
+    location,
+    showtimeExcludedCinemaIds,
+    setExcludedCinemaIds,
+  ]);
+  const handleLocationOverrideChange = useCallback(
+    async (nextLocation: AppLocation) => {
+      setLocation(nextLocation);
+      return true;
+    },
+    [setLocation],
   );
   const effectiveSelectedDayPanel =
     filteredSelectedDayPanel ?? selectedDayPanel;
@@ -307,17 +369,10 @@ export function AllShowtimesPage() {
   ]);
 
   const handleNearbyCityClick = useCallback(
-    async (cityName: string) => {
-      setPendingNearbyCity(cityName);
-
-      try {
-        await setLocationPreference(cityName);
-      } finally {
-        setPendingNearbyCity((current) =>
-          current === cityName ? null : current);
-      }
+    (cityName: string) => {
+      setLocation(cityName);
     },
-    [setLocationPreference],
+    [setLocation],
   );
 
   const handleShowtimePreviewDateChange = useCallback(
@@ -417,6 +472,23 @@ export function AllShowtimesPage() {
     };
   }, [dayPanels.length, location]);
 
+  if (!showtimePreferencesReady) {
+    return (
+      <section className="all-showtimes-page" aria-label="All Showtimes">
+        <p role={showtimePreferencesLoadError ? "alert" : "status"}>
+          {showtimePreferencesLoadError
+            ? "Your showtime preferences could not be loaded."
+            : "Loading your showtime preferences…"}
+        </p>
+        {showtimePreferencesLoadError ? (
+          <button type="button" onClick={retryShowtimePreferences}>
+            Retry
+          </button>
+        ) : null}
+      </section>
+    );
+  }
+
   return (
     <section className="all-showtimes-page" aria-label="All Showtimes">
       <div className="catalog-page-header all-showtimes-page-header">
@@ -444,6 +516,8 @@ export function AllShowtimesPage() {
             <TheaterMapDialog
               className="all-showtimes-page-city city-map-trigger"
               triggerLabel={location}
+              locationOverride={location}
+              onLocationOverrideChange={handleLocationOverrideChange}
             />
             <ShowtimeDayPicker
               className="all-showtimes-day-picker-scroll"
@@ -468,6 +542,12 @@ export function AllShowtimesPage() {
               selections={showtimeFilterSelections}
               onToggleOption={handleShowtimeFilterToggle}
               onToggleGroup={handleShowtimeFilterGroupToggle}
+              cinemas={getCinemaIdentitiesForCity(location)}
+              excludedCinemaIds={excludedCinemaIds}
+              onToggleCinema={handleCinemaToggle}
+              onToggleCinemaGroup={handleCinemaGroupToggle}
+              onShowEverything={showEverything}
+              onRestoreDefaults={restoreDefaults}
             />
           </div>
 
@@ -497,10 +577,24 @@ export function AllShowtimesPage() {
                       </p>
 
                       <div className="details-empty-actions all-showtimes-empty-actions">
-                        <div
-                          className="details-empty-nearby all-showtimes-empty-nearby"
-                          aria-busy={pendingNearbyCity ? "true" : undefined}
-                        >
+                        {hasFilteredOutAllSelectedDayMovies ? (
+                          <div className="details-empty-nearby">
+                            <button
+                              type="button"
+                              className="details-empty-city-button"
+                              onClick={showEverything}
+                            >
+                              Show everything
+                            </button>
+                            <Link
+                              to="/user"
+                              className="details-empty-city-button"
+                            >
+                              Change saved preferences
+                            </Link>
+                          </div>
+                        ) : null}
+                        <div className="details-empty-nearby all-showtimes-empty-nearby">
                           <p className="details-empty-link-heading">
                             {hasFilteredOutAllSelectedDayMovies
                               ? "Try nearby city showtimes"
@@ -517,9 +611,8 @@ export function AllShowtimesPage() {
                                   key={city.name}
                                   type="button"
                                   className="details-empty-city-button"
-                                  disabled={pendingNearbyCity !== null}
                                   onClick={() => {
-                                    void handleNearbyCityClick(city.name);
+                                    handleNearbyCityClick(city.name);
                                   }}
                                 >
                                   <MapPin
@@ -528,11 +621,7 @@ export function AllShowtimesPage() {
                                     className="details-empty-city-icon"
                                     aria-hidden="true"
                                   />
-                                  <span>
-                                    {pendingNearbyCity === city.name
-                                      ? `Switching to ${city.name}...`
-                                      : city.name}
-                                  </span>
+                                  <span>{city.name}</span>
                                 </button>
                               ))}
                             </div>

@@ -4,6 +4,7 @@
 }
 
 .showtime-filter-trigger {
+  position: relative;
   display: grid;
   place-items: center;
   width: 42px;
@@ -18,6 +19,23 @@
     box-shadow 140ms ease,
     border-color 160ms ease,
     background-color 160ms ease;
+}
+
+.showtime-filter-count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 19px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+  background: var(--main-app-color);
+  color: #120d1d;
+  font-size: 0.68rem;
+  font-weight: 800;
 }
 
 .showtime-filter-trigger:hover,
@@ -56,8 +74,46 @@
   gap: 8px;
 }
 
+.showtime-filter-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  color: #f3ebff;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.showtime-filter-section-header > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.showtime-filter-select-all,
+.showtime-filter-actions button {
+  border: 0;
+  background: transparent;
+  color: var(--main-app-color);
+  font: inherit;
+  font-size: 0.77rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.showtime-filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-top: 1px solid
+    color-mix(in srgb, var(--main-app-color) 16%, transparent);
+  padding-top: 10px;
+}
+
 .showtime-filter-group + .showtime-filter-group {
-  border-top: 1px solid color-mix(in srgb, var(--main-app-color) 16%, transparent);
+  border-top: 1px solid
+    color-mix(in srgb, var(--main-app-color) 16%, transparent);
   padding-top: 12px;
 }
 
@@ -107,7 +163,10 @@
   cursor: pointer;
   text-align: center;
   white-space: nowrap;
-  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease;
 }
 
 .showtime-filter-option:hover {

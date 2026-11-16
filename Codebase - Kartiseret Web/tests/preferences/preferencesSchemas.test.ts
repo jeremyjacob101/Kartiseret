@@ -1,4 +1,5 @@
 import { ALL_LOCATIONS, DEFAULT_LOCATION, DEFAULT_RATING_SOURCES, DEFAULT_SITE_COLOR, normalizeLocation, normalizeRatingSources, normalizeSiteColor, ratingSourceSchema, siteColorSchema } from "@kartiseret/contracts/preferences";
+import { normalizeShowtimePreferences, persistedShowtimePreferencesSchema } from "@kartiseret/contracts/showtime-preferences";
 import { loadInitialPreferenceLocation } from "../../src/prefs/definitions/locations.js";
 import { ticketAlertCriteriaSchema } from "@kartiseret/contracts/private-data";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -75,5 +76,37 @@ describe("preference schemas", () => {
       false,
     );
     expect(normalizeSiteColor(null)).toBe(DEFAULT_SITE_COLOR);
+  });
+
+  it("migrates saved showtime filters and keeps only known cinema exclusions", () => {
+    const preferences = normalizeShowtimePreferences({
+      screeningFilters: {
+        version: 1,
+        unchecked: { screeningTech: ["3D", "IMAX"] },
+      },
+      excludedCinemaIds: ["aK90TvH244M7", "unknown", "aK90TvH244M7", 5],
+    });
+
+    expect(preferences).toEqual({
+      screeningFilters: {
+        version: 3,
+        unchecked: {
+          showType: [],
+          screenFormat: ["3D"],
+          screeningTech: ["IMAX"],
+          dubLanguage: [],
+        },
+      },
+      excludedCinemaIds: ["aK90TvH244M7"],
+    });
+    expect(
+      persistedShowtimePreferencesSchema.safeParse(preferences).success,
+    ).toBe(true);
+    expect(
+      persistedShowtimePreferencesSchema.safeParse({
+        ...preferences,
+        excludedCinemaIds: ["unknown"],
+      }).success,
+    ).toBe(false);
   });
 });
