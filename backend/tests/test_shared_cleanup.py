@@ -40,6 +40,10 @@ class SQLiteD1:
 class SharedCleanupTests(unittest.TestCase):
     def setUp(self):
         self.enterContext(patch("backend.utils.log.job_lease.activate"))
+        self.enterContext(patch(
+            "backend.utils.supabase.storage_guard.measure_database_size_bytes",
+            return_value=10,
+        ))
         self.d1 = SQLiteD1(f"cleanup-test-{id(self)}")
         self.addCleanup(self.d1.connection.close)
         _schema_ready.discard(self.d1.database_id)
@@ -520,8 +524,57 @@ class SharedCleanupTests(unittest.TestCase):
                 self.store, lease_token="held", target="development", apply=True, now=now,
             )
         self.assertEqual(result["skipped"], "already-cleaned-today")
+        self.assertEqual(result["supabase_storage"]["before_bytes"], 10)
         check.assert_called_once_with(lease_token="held")
         old_entries.assert_not_called()
+
+    def test_size_pressure_bypasses_daily_marker_and_runs_escalating_retention(self):
+        from backend.utils.supabase.storage_guard import DATABASE_HIGH_WATER_BYTES
+
+        now = datetime(2026, 11, 5, 2, tzinfo=timezone.utc)
+        self.d1.connection.execute(
+            "UPDATE cleanup_state SET last_successful_cleanup_day=? WHERE id=1",
+            (now.date().isoformat(),),
+        )
+        size_check = self.enterContext(patch(
+            "backend.utils.supabase.storage_guard.measure_database_size_bytes",
+            side_effect=[
+                DATABASE_HIGH_WATER_BYTES,
+                DATABASE_HIGH_WATER_BYTES,
+                DATABASE_HIGH_WATER_BYTES,
+                DATABASE_HIGH_WATER_BYTES - 1,
+            ],
+        ))
+        with patch.object(self.store, "check_storage", return_value={"size": 10}), patch.object(
+            self.store, "renew_run_lease"
+        ), patch.object(self.store, "mark_cleanup_attempt") as mark, patch(
+            "backend.utils.supabase.clear_old_entries.clear_old_entries", return_value={}
+        ), patch(
+            "backend.utils.supabase.clear_old_entries.clear_processed_raw_entries",
+            return_value={"allShowtimes": 4, "allSoons": 5, "allTheques": 6},
+        ) as pressure, patch(
+            "backend.utils.supabase.clear_orphan_final_movies.clear_orphan_final_movies", return_value=0
+        ), patch(
+            "backend.utils.supabase.clear_orphan_final_theque_movies.clear_orphan_final_theque_movies", return_value=0
+        ), patch(
+            "backend.dataflow.utils.ArtworkStorage.ArtworkStorage.from_environment", return_value=object()
+        ), patch.object(
+            shared_cleanup, "cleanup_r2_storage", return_value={}
+        ), patch.object(
+            shared_cleanup, "_supabase_client", return_value=object()
+        ):
+            result = shared_cleanup.run_shared_cleanup(
+                self.store, lease_token="held", target="development", apply=True, now=now,
+            )
+
+        self.assertNotIn("skipped", result)
+        self.assertFalse(result["supabase_storage"]["blocked"])
+        self.assertEqual(result["supabase_storage"]["after_bytes"], DATABASE_HIGH_WATER_BYTES - 1)
+        self.assertEqual(len(result["supabase_storage"]["stages"]), 1)
+        pressure.assert_called_once()
+        self.assertEqual(pressure.call_args.kwargs["showtimes_days_ago"], 2)
+        mark.assert_called_once_with(now.date().isoformat(), successful=True)
+        self.assertEqual(size_check.call_count, 4)
 
     def test_pipeline_preflight_renders_cleanup_counts_storage_and_skip_reason(self):
         from io import StringIO

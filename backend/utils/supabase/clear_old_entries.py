@@ -23,6 +23,67 @@ SNAPSHOT_TABLES = {"allShowtimes", "allSoons", "allTheques"}
 
 
 def delete_entries_on_or_before(sb, table_name, date_column, cutoff, *, apply=True, lease_guard=None):
+    if table_name in SNAPSHOT_TABLES:
+        from backend.dataflow.utils.PublicationWorkspace import _active
+
+        workspace = _active.get()
+        if workspace is not None and sb is workspace:
+            manifests = {
+                str(row.get("snapshot_id")): row
+                for row in workspace.table("pipeline_scrape_snapshots")
+                .select("snapshot_id,table_name,status,run_id")
+                .execute().data
+                if row.get("snapshot_id")
+            }
+            checkpoints = {
+                str(row.get("snapshot_id")): row
+                for row in workspace.table("pipeline_publication_checkpoints")
+                .select("snapshot_id,phase,has_unresolved")
+                .execute().data
+                if row.get("snapshot_id")
+            }
+            current_run_id = int(workspace.run_id)
+            rows = workspace.table(table_name).select(
+                "id,snapshot_id,run_id,cleaned,added"
+            ).lte(date_column, cutoff).order("id").execute().data or []
+            safe_ids = []
+            affected_snapshots = set()
+            for row in rows:
+                if row.get("cleaned") is not True or row.get("added") is not True:
+                    continue
+                row_run_id = row.get("run_id")
+                if row_run_id is not None and int(row_run_id) == current_run_id:
+                    continue
+                snapshot_id = row.get("snapshot_id")
+                if snapshot_id:
+                    key = str(snapshot_id)
+                    manifest = manifests.get(key)
+                    checkpoint = checkpoints.get(key)
+                    if not manifest or manifest.get("table_name") != table_name or manifest.get("status") != "complete":
+                        continue
+                    if checkpoint and (
+                        checkpoint.get("phase") != "published"
+                        or checkpoint.get("has_unresolved") is True
+                    ):
+                        continue
+                    affected_snapshots.add(key)
+                if row.get("id"):
+                    safe_ids.append(row["id"])
+
+            if not apply:
+                return len(safe_ids)
+
+            from backend.utils.log.shared_cleanup import verify_lease
+
+            deleted_count = 0
+            for start in range(0, len(safe_ids), DELETE_CHUNK_SIZE):
+                verify_lease(lease_guard)
+                ids = safe_ids[start:start + DELETE_CHUNK_SIZE]
+                response = workspace.table(table_name).delete().in_("id", ids).execute()
+                deleted_count += len(response.data or [])
+            reconcile_snapshot_row_counts(workspace, table_name, affected_snapshots)
+            return deleted_count
+
     deleted_count = 0
     affected_snapshots = set()
     select_columns = "id,snapshot_id" if table_name in SNAPSHOT_TABLES else "id"
@@ -160,6 +221,43 @@ def clear_old_entries(*args, apply=True, lease_guard=None, **kwargs):
                 raise ValueError("Retention ages must be non-negative integer days")
             cutoff = (today-timedelta(days=age)).isoformat()
             counts[table] = _retire_table(sb, table, cutoff, apply=apply, lease_guard=lease_guard)
+    return counts
+
+
+def clear_processed_raw_entries(
+    *,
+    showtimes_days_ago: int,
+    soons_days_ago: int,
+    theques_days_ago: int,
+    apply: bool = True,
+    lease_guard=None,
+    client=None,
+) -> dict[str, int]:
+    """Retire only processed raw scrape rows at the supplied age cutoffs.
+
+    The database RPC additionally fences active runs, incomplete snapshots, and
+    publication checkpoints that still need raw input. Keeping the RPC as the
+    deletion boundary preserves its row-count repair transaction.
+    """
+    ages = {
+        "allShowtimes": showtimes_days_ago,
+        "allSoons": soons_days_ago,
+        "allTheques": theques_days_ago,
+    }
+    for age in (showtimes_days_ago, soons_days_ago, theques_days_ago):
+        if type(age) is not int or age < 0:
+            raise ValueError("Retention ages must be non-negative integer days")
+
+    sb = client if client is not None else create_client(
+        os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    )
+    today = date.today()
+    counts = {}
+    for table, age in ages.items():
+        cutoff = (today - timedelta(days=age)).isoformat()
+        counts[table] = _retire_table(
+            sb, table, cutoff, apply=apply, lease_guard=lease_guard
+        )
     return counts
 
 

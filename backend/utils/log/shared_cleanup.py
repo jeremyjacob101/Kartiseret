@@ -549,7 +549,20 @@ def run_shared_cleanup(
     # Preserve the existing D1 350/300 MB retention checks before and after.
     report["d1_before"] = store.check_storage(lease_token=lease_token)
     renew()
-    if not force:
+    from backend.utils.supabase.storage_guard import (
+        DATABASE_HIGH_WATER_BYTES,
+        enforce_database_size_limit,
+        measure_database_size_bytes,
+    )
+
+    supabase_size = measure_database_size_bytes()
+    report["supabase_storage"] = {
+        "before_bytes": supabase_size,
+        "after_bytes": supabase_size,
+        "limit_bytes": DATABASE_HIGH_WATER_BYTES,
+        "blocked": supabase_size >= DATABASE_HIGH_WATER_BYTES,
+    }
+    if not force and supabase_size < DATABASE_HIGH_WATER_BYTES:
         if state.get("last_successful_cleanup_day") == day:
             report["skipped"] = "already-cleaned-today"
             return report
@@ -569,8 +582,16 @@ def run_shared_cleanup(
     renew()
 
     report.update(cleanup_r2_storage(store, apply=apply, lease_guard=renew, artwork=artwork))
+    if supabase_size >= DATABASE_HIGH_WATER_BYTES:
+        report["supabase_storage"] = enforce_database_size_limit(
+            _supabase_client(),
+            apply=apply,
+            lease_guard=renew,
+            existing_cleanup_done=True,
+        )
     report["d1_after"] = store.check_storage(lease_token=lease_token)
-    store.mark_cleanup_attempt(day, successful=apply)
+    supabase_blocked = bool(report["supabase_storage"].get("blocked"))
+    store.mark_cleanup_attempt(day, successful=apply and not supabase_blocked)
     return report
 
 
@@ -592,6 +613,13 @@ def run_pipeline_preflight(store: RunArtifactStore, *, lease_token: str) -> dict
 
     def preflight() -> dict:
         result = run_shared_cleanup(store, lease_token=lease_token, target=target, apply=apply)
+        supabase = result.get("supabase_storage")
+        if isinstance(supabase, dict) and supabase.get("blocked"):
+            from backend.utils.supabase.storage_guard import SupabaseStorageGuardError
+
+            raise SupabaseStorageGuardError(str(supabase.get("reason") or (
+                f"Supabase database size remains at or above {supabase.get('limit_bytes')} bytes."
+            )))
         from backend.utils.log.r2_storage_guard import initialize_storage_guard
 
         guard = initialize_storage_guard(store)
@@ -616,6 +644,14 @@ def run_pipeline_preflight(store: RunArtifactStore, *, lease_token: str) -> dict
             ("Mode", result.get("mode", "—")),
             ("Status", f"Skipped: {result['skipped']}" if result.get("skipped") else "Complete"),
         ]
+        supabase = result.get("supabase_storage")
+        if isinstance(supabase, dict):
+            rows.append((
+                "Supabase database",
+                f"{format_bytes(supabase.get('after_bytes'))} / {format_bytes(supabase.get('limit_bytes'))} high-water",
+            ))
+            if supabase.get("blocked"):
+                rows.append(("Supabase guard status", str(supabase.get("reason") or "Blocked")))
         for label, key in (("D1 before", "d1_before"), ("D1 after", "d1_after")):
             d1 = result.get(key)
             if isinstance(d1, dict) and "size" in d1:
@@ -696,13 +732,25 @@ def main(argv: list[str] | None = None) -> int:
             raise RuntimeError("Selected D1 database did not confirm the validation query")
         client = _supabase_client()
         client.table("utilRunLogs").select("run_id").limit(1).execute()
+        from backend.utils.supabase.storage_guard import (
+            DATABASE_HIGH_WATER_BYTES,
+            measure_database_size_bytes,
+        )
+
+        database_bytes = measure_database_size_bytes(client)
         publication_cleanup = None
         if args.publications_only:
             publication_cleanup = cleanup_abandoned_publications(client, apply=False)
         artwork.client.list_objects_v2(Bucket=artwork.bucket, MaxKeys=1)
         run_client = _r2_client()
         run_client.list_objects_v2(Bucket=store.bucket, MaxKeys=1)
-        result = {"target": args.target, "validated": True, "mode": "apply" if apply else "dry-run"}
+        result = {
+            "target": args.target,
+            "validated": True,
+            "mode": "apply" if apply else "dry-run",
+            "supabase_database_bytes": database_bytes,
+            "supabase_database_limit_bytes": DATABASE_HIGH_WATER_BYTES,
+        }
         if publication_cleanup is not None:
             result["publications"] = publication_cleanup
         print(json.dumps(result, sort_keys=True))
@@ -736,6 +784,8 @@ def main(argv: list[str] | None = None) -> int:
             store, lease_token=token, target=args.target, apply=apply, force=args.force,
         )
         print(json.dumps(report, sort_keys=True, default=str))
+        if report.get("supabase_storage", {}).get("blocked"):
+            return 1
     return 0
 
 
