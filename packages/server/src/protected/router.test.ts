@@ -8,6 +8,7 @@ import {
   DEFAULT_TICKET_ALERT_CRITERIA,
   type TicketAlertCriteria,
 } from "@kartiseret/contracts/private-data";
+import { DEFAULT_SHOWTIME_PREFERENCES } from "@kartiseret/contracts/showtime-preferences";
 const id = "00000000-0000-4000-8000-000000000001";
 const sourceId = "00000000-0000-4000-8000-000000000099";
 const preferences = {
@@ -15,6 +16,7 @@ const preferences = {
   location: "Haifa",
   siteColor: "#123456",
   hideReReleases: false,
+  showtimePreferences: DEFAULT_SHOWTIME_PREFERENCES,
 };
 function setup(protectedRateLimit?: ProtectedRateLimitOptions) {
   const user = { id, email: "qa@example.test" };
@@ -290,6 +292,20 @@ describe("protected HTTP contracts", () => {
     {},
     { siteColor: "bad" },
     { isAdmin: true },
+    {
+      showtimePreferences: {
+        screeningFilters: {
+          version: 3,
+          unchecked: {
+            showType: [],
+            screenFormat: [],
+            screeningTech: [],
+            dubLanguage: [],
+          },
+        },
+        excludedCinemaIds: ["unknown-cinema"],
+      },
+    },
   ])("rejects invalid or mass-assigned preference bodies", async (body) => {
     const { app, workflows } = setup();
     const result = await request(app)
@@ -312,6 +328,32 @@ describe("protected HTTP contracts", () => {
     expect(workflows.patchPreferences).toHaveBeenCalledWith(
       { id, email: "qa@example.test" },
       { hideReReleases: true },
+    );
+  });
+  it("accepts account-scoped showtime defaults", async () => {
+    const { app, workflows } = setup();
+    const showtimePreferences = {
+      screeningFilters: {
+        version: 3,
+        unchecked: {
+          showType: [],
+          screenFormat: [],
+          screeningTech: ["IMAX"],
+          dubLanguage: ["Hebrew"],
+        },
+      },
+      excludedCinemaIds: ["aK90TvH244M7"],
+    };
+    const result = await request(app)
+      .patch("/api/v1/preferences")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({ showtimePreferences });
+
+    expect(result.status).toBe(200);
+    expect(workflows.patchPreferences).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      { showtimePreferences },
     );
   });
   it("rejects server-owned subscription fields and non-admin corrections", async () => {

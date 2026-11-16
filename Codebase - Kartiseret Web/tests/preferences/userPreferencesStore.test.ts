@@ -1,3 +1,4 @@
+import { DEFAULT_SHOWTIME_PREFERENCES } from "@kartiseret/contracts/showtime-preferences";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getAuthClient } from "../../src/lib/authClient";
 
@@ -38,6 +39,7 @@ beforeEach(async () => {
     location: "Jerusalem",
     site_color: "#a66ae3",
     hide_re_releases: false,
+    showtime_preferences: DEFAULT_SHOWTIME_PREFERENCES,
   };
   vi.stubGlobal("fetch", async (
     _input: RequestInfo | URL,
@@ -59,6 +61,8 @@ beforeEach(async () => {
           location: row?.location ?? "Haifa",
           siteColor: row?.site_color ?? "#a66ae3",
           hideReReleases: row?.hide_re_releases ?? false,
+          showtimePreferences:
+            row?.showtime_preferences ?? DEFAULT_SHOWTIME_PREFERENCES,
         },
         error: null,
       });
@@ -71,6 +75,7 @@ beforeEach(async () => {
           rating_sources: ["imdbRating", "rtAudienceRating", "rtCriticRating"],
           site_color: "#a66ae3",
           hide_re_releases: false,
+          showtime_preferences: DEFAULT_SHOWTIME_PREFERENCES,
         };
       return output();
     }
@@ -85,6 +90,7 @@ beforeEach(async () => {
                 siteColor: "site_color",
                 location: "location",
                 hideReReleases: "hide_re_releases",
+                showtimePreferences: "showtime_preferences",
               }[key] ?? key]: value,
             };
         resolve(
@@ -199,6 +205,34 @@ describe("preference synchronization protocol", () => {
       storeModule.useUserPreferencesStore.getState().preferences.hideReReleases,
     ).toBe(true);
     expect(writes[0]?.body).toEqual({ hideReReleases: true });
+  });
+
+  it("persists showtime defaults as an account preference", async () => {
+    await initialize();
+    const nextPreferences = {
+      screeningFilters: {
+        version: 3 as const,
+        unchecked: {
+          showType: [],
+          screenFormat: [],
+          screeningTech: [],
+          dubLanguage: ["Hebrew"],
+        },
+      },
+      excludedCinemaIds: ["aK90TvH244M7"],
+    };
+
+    await storeModule.useUserPreferencesStore
+      .getState()
+      .saveShowtimePreferences(nextPreferences);
+
+    await vi.waitFor(() =>
+      expect(row?.showtime_preferences).toEqual(nextPreferences));
+    expect(writes[0]?.body).toEqual({ showtimePreferences: nextPreferences });
+    expect(
+      storeModule.useUserPreferencesStore.getState().preferences
+        .showtimePreferences,
+    ).toEqual(nextPreferences);
   });
 
   it("keeps a pending preference save alive across session refresh", async () => {

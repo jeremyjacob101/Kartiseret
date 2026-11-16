@@ -1,3 +1,4 @@
+import { useUserPreferencesStore } from "../../src/stores/userPreferencesStore";
 import { sampleMovie, sampleShowtimeDays, sampleShowtimes } from "../fixtures";
 import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -73,6 +74,15 @@ function renderDetails(
 beforeEach(() => {
   queryClient.clear();
   seedData();
+  useUserPreferencesStore.setState(
+    {
+      ...useUserPreferencesStore.getInitialState(),
+      loading: false,
+      loadError: false,
+      user: null,
+    },
+    true,
+  );
 });
 
 describe("MovieDetailsContent", () => {
@@ -102,7 +112,16 @@ describe("MovieDetailsContent", () => {
     expect(onShareShowtimes).toHaveBeenCalledWith({
       date: "2026-09-17",
       location: "Jerusalem",
-      filterState: null,
+      filterState: {
+        version: 3,
+        unchecked: {
+          showType: [],
+          screenFormat: [],
+          screeningTech: [],
+          dubLanguage: [],
+        },
+      },
+      excludedCinemaIds: [],
     });
 
     await user.click(

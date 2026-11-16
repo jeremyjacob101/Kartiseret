@@ -32,7 +32,7 @@ describe("ShowtimeFilterMenu", () => {
       />,
     );
 
-    const trigger = screen.getByRole("button", { name: "Filter showtimes" });
+    const trigger = screen.getByRole("button", { name: /Filter showtimes/ });
     await user.click(trigger);
     const panel = await screen.findByRole("dialog", {
       name: "Showtime filters",

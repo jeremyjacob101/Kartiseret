@@ -23,6 +23,7 @@ import type {
   TicketAlertCriteria,
   TicketAlertCriteriaOverride,
 } from "@kartiseret/contracts/private-data";
+import type { ShowtimePreferences } from "@kartiseret/contracts/showtime-preferences";
 
 type JsonValue =
   string | number | boolean | null | { [key: string]: JsonValue } | JsonValue[];
@@ -536,6 +537,21 @@ export const userPreferences = pgTable("userPreferences", {
   location: text("location"),
   siteColor: text("site_color"),
   hideReReleases: boolean("hide_re_releases").notNull().default(false),
+  showtimePreferences: jsonb("showtime_preferences")
+    .$type<ShowtimePreferences>()
+    .notNull()
+    .default({
+      screeningFilters: {
+        version: 3,
+        unchecked: {
+          showType: [],
+          screenFormat: [],
+          screeningTech: [],
+          dubLanguage: [],
+        },
+      },
+      excludedCinemaIds: [],
+    }),
 });
 
 export const utilAvgTime = pgTable("utilAvgTime", {

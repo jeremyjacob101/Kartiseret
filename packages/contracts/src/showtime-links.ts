@@ -6,6 +6,7 @@ import {
   safeParseJson,
 } from "./runtime.js";
 import { getCinemaDayDate, SHOWTIME_TIME_ZONE } from "./showtime-day.js";
+import { CINEMA_IDENTITIES } from "./cinema-identities.js";
 import { z } from "zod";
 
 export const URL_ALPHABET =
@@ -171,6 +172,14 @@ const movieShowtimeShareStateSchema = z.object({
   city: nonEmptyTrimmedStringSchema,
   date: isoDateStringSchema,
   filterMask: supportedFilterMaskSchema,
+  excludedCinemaIds: z
+    .array(
+      z
+        .string()
+        .refine((id) => CINEMA_IDENTITIES.some((cinema) => cinema.id === id)),
+    )
+    .max(CINEMA_IDENTITIES.length)
+    .optional(),
 });
 const filterValueSchema = z.string();
 const movieRouteCodeInputSchema = z.string().max(10);
@@ -740,9 +749,28 @@ function buildValidatedMovieShowtimeSharePath(
     mode: "share",
   });
 
-  return routeCode
-    ? `/${routeCode}?date=${encodeURIComponent(parsedState.date)}`
-    : null;
+  if (!routeCode) return null;
+
+  const query = new URLSearchParams({ date: parsedState.date });
+  const excludedCinemaIds = [
+    ...new Set(parsedState.excludedCinemaIds ?? []),
+  ].sort((left, right) => left.localeCompare(right));
+  if (excludedCinemaIds.length > 0) {
+    query.set("excludeCinemas", excludedCinemaIds.join(","));
+  }
+  return `/${routeCode}?${query.toString()}`;
+}
+
+export function parseExcludedCinemaIds(search: string): string[] {
+  const raw = new URLSearchParams(search).get("excludeCinemas");
+  if (!raw || raw.length > 2_000) return [];
+  return [
+    ...new Set(
+      raw
+        .split(",")
+        .filter((id) => CINEMA_IDENTITIES.some((cinema) => cinema.id === id)),
+    ),
+  ].sort((left, right) => left.localeCompare(right));
 }
 
 export function buildMovieShowtimeSharePath(

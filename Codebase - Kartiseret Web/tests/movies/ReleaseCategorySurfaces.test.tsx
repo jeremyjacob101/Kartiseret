@@ -2,8 +2,8 @@ import { useUserPreferencesStore } from "../../src/stores/userPreferencesStore";
 import { filterMoviesByReleaseCategory } from "../../src/domain/movieRelease";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AllShowtimesPage } from "../../src/components/AllShowtimesPage";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
 import * as movieCatalog from "../../src/data/movieCatalog";
 import { sampleMovie, sampleShowtimes } from "../fixtures";
 import type { Movie } from "../../src/data/movieCatalog";
@@ -124,6 +124,18 @@ const emptyAdminSave = async () => {};
 const emptyRefresh = async () => {};
 
 describe("release category surfaces", () => {
+  beforeEach(() => {
+    useUserPreferencesStore.setState(
+      {
+        ...useUserPreferencesStore.getInitialState(),
+        loading: false,
+        loadError: false,
+        user: null,
+      },
+      true,
+    );
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     useUserPreferencesStore.setState((state) => ({

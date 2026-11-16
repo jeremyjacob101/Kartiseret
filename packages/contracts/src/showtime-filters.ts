@@ -4,6 +4,7 @@ import {
   type PersistedShowtimeFilterState,
   type ShowtimeFilterGroup,
 } from "./showtime-links.js";
+import { findCinemaIdentityForScreening } from "./cinema-identities.js";
 
 const COLLAPSE_WHITESPACE = /\s+/g;
 const WARNED_UNSUPPORTED_SHOW_TYPES = new Set<string>();
@@ -50,7 +51,13 @@ export type FilterableShowtime = {
 
 export type FilterableTheater<Showtime extends FilterableShowtime> = {
   theater: string;
+  cinemaId?: string | null;
   showtimes: readonly Showtime[];
+};
+
+export type ShowtimeCinemaExclusions = {
+  screeningCity?: string;
+  excludedCinemaIds?: readonly string[];
 };
 
 function normalizeText(value: string | null | undefined): string {
@@ -244,8 +251,22 @@ export function buildShowtimeFilterSelections(
 export function filterTheatersBySelections<Showtime extends FilterableShowtime>(
   theaters: readonly FilterableTheater<Showtime>[],
   selections: ShowtimeFilterSelections,
+  cinemaOptions: ShowtimeCinemaExclusions = {},
 ): Array<{ theater: string; showtimes: Showtime[] }> {
+  const excludedCinemaIds = new Set(cinemaOptions.excludedCinemaIds ?? []);
+
   return theaters.flatMap((theater) => {
+    const cinemaId =
+      theater.cinemaId ??
+      (cinemaOptions.screeningCity
+        ? findCinemaIdentityForScreening(
+            cinemaOptions.screeningCity,
+            theater.theater,
+          )?.id
+        : undefined);
+
+    if (cinemaId && excludedCinemaIds.has(cinemaId)) return [];
+
     const showtimes = theater.showtimes.filter((showtime) =>
       isCanonicalShowtimeFilterMatch(
         getCanonicalShowtimeMeta(showtime),

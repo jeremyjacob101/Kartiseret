@@ -8,6 +8,7 @@ import { UserMovieDisplayPreferences } from "./UserMovieDisplayPreferences";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { loadCityLocationPicker } from "./maps/loadCityLocationPicker";
 import { type RatingSource } from "../prefs/definitions/ratingSources";
+import { UserShowtimePreferences } from "./UserShowtimePreferences";
 import { type AppLocation } from "../prefs/definitions/locations";
 import { PasswordSecurityForm } from "./PasswordSecurityForm";
 import { DeleteAccountSection } from "./DeleteAccountSection";
@@ -162,7 +163,7 @@ export function UserPreferencesPage() {
         <section className="prefs-location-card">
           <div className="prefs-location-header">
             <div>
-              <p className="prefs-setting-label">Location</p>
+              <p className="prefs-setting-label">Default city</p>
               <h2 className="prefs-location-title">{location}</h2>
             </div>
           </div>
@@ -178,6 +179,7 @@ export function UserPreferencesPage() {
         </section>
 
         <div className="prefs-page-settings">
+          <UserShowtimePreferences />
           <section className="prefs-setting prefs-setting--static">
             <div className="prefs-setting-content prefs-setting-content--static">
               <div className="prefs-color-setting">

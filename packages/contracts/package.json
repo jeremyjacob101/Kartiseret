@@ -38,6 +38,11 @@
       "import": "./dist/preferences.js",
       "default": "./dist/preferences.js"
     },
+    "./showtime-preferences": {
+      "types": "./dist/showtime-preferences.d.ts",
+      "import": "./dist/showtime-preferences.js",
+      "default": "./dist/showtime-preferences.js"
+    },
     "./public-data": {
       "types": "./dist/public-data.d.ts",
       "import": "./dist/public-data.js",
