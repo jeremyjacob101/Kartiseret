@@ -1,7 +1,7 @@
 export interface AuthEmail {
   to: string;
   url: string;
-  kind: "verification" | "reset";
+  kind: "verification" | "reset" | "deletion";
 }
 export type AuthMailer = (email: AuthEmail) => Promise<void>;
 
@@ -24,15 +24,28 @@ function escapeHtml(value: string): string {
 
 function renderAccountEmail(kind: AuthEmail["kind"], url: string): string {
   const isVerification = kind === "verification";
-  const heading = isVerification ? "One quick step" : "Reset your password";
-  const action = isVerification ? "Verify your email" : "Reset password";
+  const isDeletion = kind === "deletion";
+  const heading = isVerification
+    ? "One quick step"
+    : isDeletion
+      ? "Review account deletion"
+      : "Reset your password";
+  const action = isVerification
+    ? "Verify your email"
+    : isDeletion
+      ? "Review deletion request"
+      : "Reset password";
   const description = isVerification
     ? "Confirm your email address to finish setting up your Kartiseret account."
-    : "We received a request to reset your Kartiseret password. Use the button below to choose a new one.";
+    : isDeletion
+      ? "A request was made to delete your Kartiseret account. Open the secure page and confirm the deletion there. Your account will not be deleted just by opening this email link."
+      : "We received a request to reset your Kartiseret password. Use the button below to choose a new one.";
   const safeUrl = escapeHtml(url);
   const preheader = isVerification
     ? "Confirm your email and start planning your next cinema trip."
-    : "Use this secure link to reset your Kartiseret password.";
+    : isDeletion
+      ? "Review and confirm your Kartiseret account deletion request."
+      : "Use this secure link to reset your Kartiseret password.";
 
   return [
     '<!doctype html><html lang="en"><head><meta charset="utf-8">',
@@ -80,7 +93,9 @@ export function createResendAuthMailer(options: {
     const action =
       kind === "verification"
         ? "Verify your Kartiseret email"
-        : "Reset your Kartiseret password";
+        : kind === "deletion"
+          ? "Review your Kartiseret account deletion"
+          : "Reset your Kartiseret password";
     const response = await (options.transport ?? fetch)(
       "https://api.resend.com/emails",
       {

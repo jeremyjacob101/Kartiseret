@@ -1,4 +1,5 @@
 import { accountPasswordSchema, PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH } from "@kartiseret/contracts/private-data";
+import { getPasswordResetRedirectUrl } from "../lib/authRoutes";
 import { getAuthClient } from "../lib/authClient";
 import { useState, type FormEvent } from "react";
 import { z } from "zod";
@@ -7,6 +8,7 @@ import "./PasswordSecurityForm.css";
 type PasswordSecurityFormProps = {
   description?: string;
   resetToken?: string;
+  setupEmail?: string;
   requireCurrentPassword?: boolean;
   submitLabel?: string;
   successMessage?: string;
@@ -36,6 +38,7 @@ export function PasswordSecurityForm({
   description = "Choose a new password for your account.",
   requireCurrentPassword = true,
   resetToken,
+  setupEmail,
   submitLabel = "Update password",
   successMessage = "Password updated.",
   title = "Change password",
@@ -47,6 +50,27 @@ export function PasswordSecurityForm({
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function sendPasswordSetupLink() {
+    if (!setupEmail) return;
+    setPending(true);
+    setError(null);
+    setMessage(null);
+    const result = await authClient.requestPasswordReset({
+      email: setupEmail,
+      redirectTo: getPasswordResetRedirectUrl(),
+    });
+    setPending(false);
+    if (result.error) {
+      setError(
+        result.error.message ?? "The email could not be sent. Try again.",
+      );
+      return;
+    }
+    setMessage(
+      "If this account can receive email, a secure setup link is on its way.",
+    );
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -105,7 +129,17 @@ export function PasswordSecurityForm({
       </div>
 
       <form className="password-security-form" onSubmit={handleSubmit}>
-        {requireCurrentPassword ? (
+        {setupEmail ? (
+          <button
+            type="button"
+            className="password-security-submit"
+            disabled={pending}
+            onClick={() => void sendPasswordSetupLink()}
+          >
+            {pending ? "Sending…" : submitLabel}
+          </button>
+        ) : null}
+        {!setupEmail && requireCurrentPassword ? (
           <label className="password-security-field">
             <span>Current password</span>
             <input
@@ -120,43 +154,49 @@ export function PasswordSecurityForm({
           </label>
         ) : null}
 
-        <label className="password-security-field">
-          <span>New password</span>
-          <input
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(event) => {
-              setPassword(event.target.value);
-            }}
-            minLength={PASSWORD_MIN_LENGTH}
-            maxLength={PASSWORD_MAX_LENGTH}
-            required
-          />
-        </label>
+        {!setupEmail ? (
+          <label className="password-security-field">
+            <span>New password</span>
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(event) => {
+                setPassword(event.target.value);
+              }}
+              minLength={PASSWORD_MIN_LENGTH}
+              maxLength={PASSWORD_MAX_LENGTH}
+              required
+            />
+          </label>
+        ) : null}
 
-        <label className="password-security-field">
-          <span>Confirm new password</span>
-          <input
-            type="password"
-            autoComplete="new-password"
-            value={confirmPassword}
-            onChange={(event) => {
-              setConfirmPassword(event.target.value);
-            }}
-            minLength={PASSWORD_MIN_LENGTH}
-            maxLength={PASSWORD_MAX_LENGTH}
-            required
-          />
-        </label>
+        {!setupEmail ? (
+          <label className="password-security-field">
+            <span>Confirm new password</span>
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(event) => {
+                setConfirmPassword(event.target.value);
+              }}
+              minLength={PASSWORD_MIN_LENGTH}
+              maxLength={PASSWORD_MAX_LENGTH}
+              required
+            />
+          </label>
+        ) : null}
 
-        <button
-          type="submit"
-          className="password-security-submit"
-          disabled={pending}
-        >
-          {pending ? "Updating..." : submitLabel}
-        </button>
+        {!setupEmail ? (
+          <button
+            type="submit"
+            className="password-security-submit"
+            disabled={pending}
+          >
+            {pending ? "Updating..." : submitLabel}
+          </button>
+        ) : null}
       </form>
 
       {message ? (

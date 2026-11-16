@@ -8,6 +8,7 @@ import { MemoryRouter } from "react-router";
 vi.mock("../../src/lib/authClient", () => ({
   getAuthClient: () => ({
     getSession: async () => ({ data: { user: null }, error: null }),
+    listAccounts: async () => ({ data: [], error: null }),
     useSession: { subscribe: () => () => {} },
   }),
 }));

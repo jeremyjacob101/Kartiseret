@@ -8,7 +8,7 @@ import userEvent from "@testing-library/user-event";
 
 const { authMock } = vi.hoisted(() => ({
   authMock: {
-    signIn: { email: vi.fn() },
+    signIn: { email: vi.fn(), social: vi.fn() },
     signUp: { email: vi.fn() },
     requestPasswordReset: vi.fn(),
     signOut: vi.fn(),
@@ -45,12 +45,20 @@ beforeEach(() => {
     },
   });
   authMock.signIn.email.mockResolvedValue({ error: null });
+  authMock.signIn.social.mockResolvedValue({ error: null });
   authMock.signUp.email.mockResolvedValue({
     data: { session: null, user: null },
     error: null,
   });
   authMock.requestPasswordReset.mockResolvedValue({ error: null });
   authMock.signOut.mockResolvedValue({ error: null });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ data: { providers: [] }, error: null }),
+    })),
+  );
   useUserPreferencesStore.setState({
     user: null,
     loading: false,
@@ -60,6 +68,7 @@ beforeEach(() => {
 
 afterEach(() => {
   useUserPreferencesStore.setState({ user: null, loading: true });
+  vi.unstubAllGlobals();
 });
 
 describe("UserMenu", () => {
@@ -69,28 +78,31 @@ describe("UserMenu", () => {
 
     await user.click(screen.getByRole("button", { name: "Sign up or log in" }));
     expect(
-      screen.getByRole("menu", { name: "User account menu" }),
+      screen.getByRole("dialog", { name: /welcome back/i }),
     ).toBeInTheDocument();
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Sign up or log in" }));
     const form = document.querySelector("form.user-menu-auth-form");
     expect(form).not.toBeNull();
-    await user.type(screen.getByLabelText("Email"), "user@example.com");
+    await user.type(screen.getByLabelText("Email address"), "user@example.com");
     fireEvent.submit(form!);
     expect(
       screen.getByText("Enter both email and password."),
     ).toBeInTheDocument();
-    fireEvent.pointerDown(document.body);
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    fireEvent.pointerDown(screen.getByRole("dialog").parentElement!);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("normalizes login credentials and surfaces authentication failures", async () => {
     const user = userEvent.setup();
     renderMenu();
     await user.click(screen.getByRole("button", { name: "Sign up or log in" }));
-    await user.type(screen.getByLabelText("Email"), "  USER@Example.COM ");
+    await user.type(
+      screen.getByLabelText("Email address"),
+      "  USER@Example.COM ",
+    );
     await user.type(screen.getByLabelText("Password"), "secret123");
     await user.click(screen.getByRole("button", { name: "Log in" }));
 
@@ -115,12 +127,12 @@ describe("UserMenu", () => {
     saveGuestLocation("Haifa");
     renderMenu();
     await user.click(screen.getByRole("button", { name: "Sign up or log in" }));
-    await user.click(screen.getByRole("tab", { name: "Sign up" }));
+    await user.click(screen.getByRole("tab", { name: "Create account" }));
     expect(screen.getByLabelText("Password")).toHaveAttribute(
       "autocomplete",
       "new-password",
     );
-    await user.type(screen.getByLabelText("Email"), "new@example.com");
+    await user.type(screen.getByLabelText("Email address"), "new@example.com");
     await user.type(screen.getByLabelText("Password"), "secret123");
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
@@ -147,7 +159,10 @@ describe("UserMenu", () => {
     await user.click(screen.getByRole("button", { name: "Forgot password?" }));
     expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("Email"), " USER@Example.COM ");
+    await user.type(
+      screen.getByLabelText("Email address"),
+      " USER@Example.COM ",
+    );
     await user.click(screen.getByRole("button", { name: "Send reset link" }));
 
     await waitFor(() =>
@@ -187,5 +202,33 @@ describe("UserMenu", () => {
     await user.click(screen.getByRole("button", { name: "Sign out" }));
     expect(await screen.findByText("Session expired")).toBeInTheDocument();
     expect(screen.getByRole("menu")).toBeInTheDocument();
+  });
+
+  it("shows only configured providers and starts Apple sign-in with a safe return URL", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ data: { providers: ["apple"] }, error: null }),
+      })),
+    );
+    renderMenu();
+
+    await user.click(screen.getByRole("button", { name: "Sign up or log in" }));
+    const appleButton = await screen.findByRole("button", {
+      name: "Continue with Apple",
+    });
+    expect(
+      screen.queryByRole("button", { name: "Continue with Google" }),
+    ).not.toBeInTheDocument();
+    await user.click(appleButton);
+
+    await waitFor(() =>
+      expect(authMock.signIn.social).toHaveBeenCalledWith({
+        provider: "apple",
+        callbackURL: `${window.location.origin}/`,
+        errorCallbackURL: `${window.location.origin}/?authError=1`,
+      }));
   });
 });

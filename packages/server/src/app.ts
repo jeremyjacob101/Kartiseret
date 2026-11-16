@@ -43,6 +43,7 @@ import {
   searchTmdbTitles,
   type TmdbSearchProvider,
 } from "./public-data/tmdb-search.js";
+import type { SocialProviderId } from "./auth/env.js";
 
 const emptyQuerySchema = z.object({}).strict();
 
@@ -60,6 +61,7 @@ export interface AppDependencies {
   recipientRouter?: Router;
   notificationUnsubscribeRouter?: Router;
   trustedOrigins?: readonly string[];
+  socialProviderIds?: readonly SocialProviderId[];
   tmdbSearch?: TmdbSearchProvider;
   protectedRateLimit?: ProtectedRateLimitOptions;
   artworkStore?: R2ImageStore | null;
@@ -106,6 +108,7 @@ export function createApp({
   recipientRouter,
   notificationUnsubscribeRouter,
   trustedOrigins = [],
+  socialProviderIds = [],
   tmdbSearch,
   protectedRateLimit,
   artworkStore,
@@ -118,6 +121,7 @@ export function createApp({
       "/api/internal",
       "/api/v1/unsubscribe",
       "/api/v1/account",
+      "/api/v1/auth",
       "/api/v1/preferences",
       "/api/v1/ticket-alerts",
       "/api/v1/coming-soon-watches",
@@ -134,6 +138,9 @@ export function createApp({
   );
   if (authHandler) app.all("/api/auth/{*path}", authHandler);
   app.use(express.json({ limit: "100kb" }));
+  app.get("/api/v1/auth/providers", (_request, response) => {
+    response.json({ data: { providers: [...socialProviderIds] }, error: null });
+  });
   const imageStore =
     artworkStore === undefined ? createR2ImageStore() : artworkStore;
   app.get(

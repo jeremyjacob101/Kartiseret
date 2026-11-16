@@ -1,0 +1,87 @@
+.delete-confirmation-page {
+  width: min(100%, 560px);
+  margin: 8px 16px 0;
+}
+
+.delete-confirmation-card {
+  display: grid;
+  gap: 14px;
+  padding: 24px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 32%, transparent);
+  border-radius: 20px;
+  background:
+    radial-gradient(
+      circle at top right,
+      color-mix(in srgb, var(--main-app-color) 14%, transparent),
+      transparent 44%
+    ),
+    rgba(255, 255, 255, 0.05);
+}
+
+.delete-confirmation-card .section-kicker,
+.delete-confirmation-title,
+.delete-confirmation-copy,
+.delete-confirmation-account {
+  margin: 0;
+}
+
+.delete-confirmation-title {
+  color: #f4ebff;
+  font-size: clamp(1.4rem, 4vw, 1.8rem);
+  line-height: 1.15;
+}
+
+.delete-confirmation-copy,
+.delete-confirmation-account {
+  color: rgba(233, 218, 255, 0.76);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.delete-confirmation-account strong {
+  color: #fff;
+}
+
+.delete-confirmation-submit,
+.delete-confirmation-secondary {
+  width: fit-content;
+  border: 1px solid #c52f50;
+  border-radius: 999px;
+  background: #a91f3e;
+  color: #fff;
+  padding: 11px 16px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.delete-confirmation-secondary {
+  border-color: color-mix(in srgb, var(--main-app-color) 55%, transparent);
+  background: color-mix(in srgb, var(--main-app-color) 18%, transparent);
+}
+
+.delete-confirmation-submit:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.delete-confirmation-error {
+  margin: 0;
+  color: #ffb7c3;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.delete-confirmation-link {
+  width: fit-content;
+  color: #e9daff;
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.delete-confirmation-link:hover,
+.delete-confirmation-link:focus-visible {
+  text-decoration: underline;
+}

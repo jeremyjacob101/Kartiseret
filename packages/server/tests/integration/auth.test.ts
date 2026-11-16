@@ -51,6 +51,7 @@ const app = createApp({
   protectedWorkflows: new ProtectedWorkflows(runtime.db, repository),
   recipientRouter: createRecipientRouter(runtime.pool, internalSecret),
   trustedOrigins: [origin],
+  socialProviderIds: ["google", "apple"],
 });
 const email = "pr5-auth@example.test",
   password = "first-password-123";
@@ -215,6 +216,12 @@ describe.sequential(
         .get("/api/v1/preferences")
         .set("Cookie", cookie);
       expect(preference.body.data.location).toBe("Haifa");
+      const socialOptions = await request(app).get("/api/v1/auth/providers");
+      expect(socialOptions.body).toEqual({
+        data: { providers: ["google", "apple"] },
+        error: null,
+      });
+      expect(socialOptions.headers["cache-control"]).toBe("no-store");
     });
     it("refreshes an active session inside its configured update window", async () => {
       const session = (
@@ -594,6 +601,26 @@ describe.sequential(
         deleteCookie,
       );
       expect(deleted.status).toBe(200);
+      const email = latest("deletion", deleteEmail);
+      const token = new URLSearchParams(email.hash.slice(1)).get("token");
+      expect(token).toBeTruthy();
+      expect(
+        (
+          await admin.pool.query(
+            "SELECT count(*)::int AS count FROM app_auth.users WHERE id=$1",
+            [deleteUserId],
+          )
+        ).rows[0].count,
+      ).toBe(1);
+      const callbackURL = `${origin}/?accountDeleted=1`;
+      const confirmed = await request(app)
+        .get(
+          `/api/auth/delete-user/callback?token=${encodeURIComponent(token!)}&callbackURL=${encodeURIComponent(callbackURL)}`,
+        )
+        .set("Origin", origin)
+        .set("Cookie", deleteCookie);
+      expect(confirmed.status).toBe(302);
+      expect(confirmed.headers.location).toBe(callbackURL);
       for (const [table, userColumn] of [
         ["app_auth.users", "id"],
         ["app_auth.accounts", "user_id"],
@@ -617,6 +644,74 @@ describe.sequential(
         (await request(app).get("/api/v1/account").set("Cookie", deleteCookie))
           .status,
       ).toBe(401);
+    });
+    it("lets a social-only user create a password and delete with an email confirmation", async () => {
+      const socialEmail = "pr5-social@example.test";
+      const socialUserId = "00000000-0000-4000-8000-0000000000c2";
+      await admin.pool.query(
+        `INSERT INTO app_auth.users (id, name, email, email_verified)
+         VALUES ($1, 'Social member', $2, true)`,
+        [socialUserId, socialEmail],
+      );
+      await admin.pool.query(
+        `INSERT INTO app_auth.accounts (user_id, account_id, provider_id)
+         VALUES ($1, 'google-subject', 'google')`,
+        [socialUserId],
+      );
+
+      const reset = await post("/api/auth/request-password-reset", {
+        email: socialEmail,
+        redirectTo: `${origin}/reset-password`,
+      });
+      expect(reset.status).toBe(200);
+      const resetToken = latest("reset", socialEmail)
+        .pathname.split("/")
+        .at(-1)!;
+      expect(
+        (
+          await post("/api/auth/reset-password", {
+            token: resetToken,
+            newPassword: password,
+          })
+        ).status,
+      ).toBe(200);
+      const credentialAccount = (
+        await admin.pool.query(
+          "SELECT password FROM app_auth.accounts WHERE user_id=$1 AND provider_id='credential'",
+          [socialUserId],
+        )
+      ).rows[0];
+      expect(credentialAccount?.password).toBeTruthy();
+
+      const socialCookie = await login(socialEmail, password);
+      expect(socialCookie).toContain("integration.session_token=");
+      const deletionRequest = await post(
+        "/api/auth/delete-user",
+        {},
+        socialCookie,
+      );
+      expect(deletionRequest.status).toBe(200);
+      const deletionEmail = latest("deletion", socialEmail);
+      const deletionToken = new URLSearchParams(
+        deletionEmail.hash.slice(1),
+      ).get("token");
+      expect(deletionToken).toBeTruthy();
+
+      const confirmed = await request(app)
+        .get(
+          `/api/auth/delete-user/callback?token=${encodeURIComponent(deletionToken!)}&callbackURL=${encodeURIComponent(`${origin}/?accountDeleted=1`)}`,
+        )
+        .set("Origin", origin)
+        .set("Cookie", socialCookie);
+      expect(confirmed.status).toBe(302);
+      expect(
+        (
+          await admin.pool.query(
+            "SELECT count(*)::int AS count FROM app_auth.users WHERE id=$1",
+            [socialUserId],
+          )
+        ).rows[0].count,
+      ).toBe(0);
     });
     it("establishes credentials for a migrated identity through the library reset flow", async () => {
       const to = "legacy@example.test";

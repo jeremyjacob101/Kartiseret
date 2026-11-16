@@ -3,6 +3,7 @@ import { filterMoviesByReleaseCategory, getMovieReleaseCategory, MOVIE_RELEASE_C
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { getCinemathequeDateRange, nationwideCinemathequeQueryOptions } from "./data/cinemathequeCatalog";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
+import { DeleteAccountConfirmationPage } from "./components/DeleteAccountConfirmationPage";
 import { useMovieDisplayPreferences } from "./contexts/MovieDisplayPreferencesContext";
 import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
 import { getCurrentRobotsDirectives, setSeoMetadata } from "./routing/seoMetadata";
@@ -45,6 +46,7 @@ const FIXED_APP_PATHS = new Set([
   "/user",
   "/attribution",
   PASSWORD_RESET_PATH,
+  "/confirm-account-deletion",
   "/unsubscribe/letterboxd",
 ]);
 const loadCinemaPage = () => import("./components/CinemaPage");
@@ -1170,6 +1172,14 @@ function MainApplication() {
             element={
               <section className="page-panel">
                 <PasswordResetPage />
+              </section>
+            }
+          />
+          <Route
+            path="/confirm-account-deletion"
+            element={
+              <section className="page-panel">
+                <DeleteAccountConfirmationPage />
               </section>
             }
           />
