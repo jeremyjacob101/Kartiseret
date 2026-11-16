@@ -79,6 +79,16 @@ class ReleaseDateBackfillTests(TestCase):
         self.assertEqual(normalize_english("The Cat-in-the-Hat: Part 2!"), "the cat in the hat part 2")
         self.assertEqual(normalize_hebrew("אוֹתוֹ שֵׁם"), normalize_hebrew("אותו שם"))
 
+    def test_archived_ypsoon_csv_remains_a_valid_backfill_source(self):
+        self.add_run(11, "2026-10-01 12:00:00", [
+            {"english_title": "Alpha", "hebrew_title": "", "release_date": "2031-06-21"},
+        ], source="YPsoon")
+
+        report = self.report()
+
+        self.assertEqual(self.movie(report, 101)["status"], "ready_to_insert")
+        self.assertEqual(self.movie(report, 101)["proposed_date"], "2031-06-21")
+
     def test_includes_d1_rows_alongside_legacy_csv_artifacts(self):
         report = build_report(
             self.snapshot,
@@ -155,7 +165,7 @@ class ReleaseDateBackfillTests(TestCase):
 
     def test_skips_same_run_cinema_conflicts(self):
         self.add_run(10, "2026-10-01 12:00:00", [{"english_title": "Alpha", "hebrew_title": "", "release_date": "2031-06-20"}], source="CCsoon")
-        self.add_run(10, "2026-10-01 12:00:00", [{"english_title": "Alpha", "hebrew_title": "", "release_date": "2031-06-21"}], source="YPsoon")
+        self.add_run(10, "2026-10-01 12:00:00", [{"english_title": "Alpha", "hebrew_title": "", "release_date": "2031-06-21"}], source="PCsoon")
 
         report = self.report()
 

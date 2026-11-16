@@ -1,11 +1,13 @@
 from datetime import datetime
 
+from backend.cinema_names import canonical_cinema_name
+
 
 class NowPlayingsHelpers:
-    def applyYesPlanetHebrewToRavHenEnglish(self):
+    def applyPlanetCinemaHebrewToRavHenEnglish(self):
         yes_map = {}
         for row in self.main_table_rows:
-            if row.get("cinema") == "Yes Planet":
+            if canonical_cinema_name(row.get("cinema")) == "Planet Cinema":
                 hebrew = (row.get("hebrew_title") or "").strip()
                 english = (row.get("english_title") or "").strip()
                 if hebrew and english and hebrew not in yes_map:

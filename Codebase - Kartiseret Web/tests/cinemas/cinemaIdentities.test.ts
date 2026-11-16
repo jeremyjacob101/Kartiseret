@@ -64,6 +64,16 @@ describe("cinema URL identities", () => {
     );
   });
 
+  it("resolves legacy Planet Cinema venue labels to the same permanent ids", () => {
+    const current = findCinemaIdentityForScreening(
+      "Jerusalem",
+      "Planet Cinema",
+    );
+    const legacy = findCinemaIdentityForScreening("Jerusalem", "Yes Planet");
+    expect(current?.displayName).toBe("Planet Cinema Jerusalem");
+    expect(legacy?.id).toBe(current?.id);
+  });
+
   it("maps the Jaffa screening-city alias to its verified Tel Aviv theater", () => {
     const jaffa = CINEMA_IDENTITIES.find(
       (entry) => entry.displayName === "Jaffa Cinema",

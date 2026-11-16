@@ -7,6 +7,7 @@ claims; delivery snapshots stay unchanged across Resend retries.
 from __future__ import annotations
 
 from backend.utils.console.stage_progress import progress_items
+from backend.cinema_names import canonical_cinema_name
 
 from collections import defaultdict
 from dataclasses import dataclass
@@ -273,7 +274,7 @@ def render_movie_notification_email(
                         )
                     detail = (
                         f"{payload['screening_city']} · {_friendly_date(payload['date_of_showing'])} "
-                        f"at {payload['showtime']} · {payload['cinema']}"
+                        f"at {payload['showtime']} · {canonical_cinema_name(payload['cinema'])}"
                     )
                     filter_mask = payload.get("filter_mask", 0)
                     movie_path = build_movie_showtime_path(

@@ -43,9 +43,9 @@ describe("theater data API query", () => {
                   zoomLayer: 10,
                   neighboringCities: ["Mevaseret Zion"],
                 },
-                chain: "Yes Planet",
+                chain: "Planet Cinema",
                 address: "1 Cinema Road",
-                theaterName: "Yes Planet Jerusalem",
+                theaterName: "Planet Cinema Jerusalem",
                 location: "https://example.test/theater",
                 lat: 31.78,
                 lng: 35.2,
@@ -61,7 +61,7 @@ describe("theater data API query", () => {
     const data = await queryClient.fetchQuery(theaterDataQueryOptions());
 
     expect(data.cities[0]?.altSpellings).toEqual(["Jerusalem", "Yerushalayim"]);
-    expect(data.theaters[0]?.chain).toBe("Yes Planet");
+    expect(data.theaters[0]?.chain).toBe("Planet Cinema");
     expect(data.theaters[0]?.city.neighboringCities).toEqual([
       "Mevaseret Zion",
     ]);

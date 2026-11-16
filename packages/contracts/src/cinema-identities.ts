@@ -52,10 +52,15 @@ export const CINEMA_IDENTITIES: readonly CinemaIdentity[] = [
   },
   {
     id: "zj5prOYm_yxg",
-    displayName: "Yes Planet Ayalon",
+    displayName: "Planet Cinema Ayalon",
     city: "Ayalon",
     locationKeys: ["https://maps.app.goo.gl/E2xot6XNKWXpR4kv6"],
-    cinemaNameKeys: ["Yes Planet", "Yes Planet Ayalon"],
+    cinemaNameKeys: [
+      "Planet Cinema",
+      "Planet Cinema Ayalon",
+      "Yes Planet",
+      "Yes Planet Ayalon",
+    ],
     screeningCityKeys: ["Ayalon"],
   },
   {
@@ -78,10 +83,15 @@ export const CINEMA_IDENTITIES: readonly CinemaIdentity[] = [
   },
   {
     id: "uzUWx8uJ1tCP",
-    displayName: "Yes Planet Beer Sheva",
+    displayName: "Planet Cinema Beer Sheva",
     city: "Beer Sheva",
     locationKeys: ["https://maps.app.goo.gl/uKL8zeEdRGocmNXHA"],
-    cinemaNameKeys: ["Yes Planet", "Yes Planet Beer Sheva"],
+    cinemaNameKeys: [
+      "Planet Cinema",
+      "Planet Cinema Beer Sheva",
+      "Yes Planet",
+      "Yes Planet Beer Sheva",
+    ],
     screeningCityKeys: ["Beer Sheva"],
   },
   {
@@ -166,10 +176,15 @@ export const CINEMA_IDENTITIES: readonly CinemaIdentity[] = [
   },
   {
     id: "_dmXnVsxLDU3",
-    displayName: "Yes Planet Haifa",
+    displayName: "Planet Cinema Haifa",
     city: "Haifa",
     locationKeys: ["https://maps.app.goo.gl/PEFKwqcpQA3ZwUUb9"],
-    cinemaNameKeys: ["Yes Planet", "Yes Planet Haifa"],
+    cinemaNameKeys: [
+      "Planet Cinema",
+      "Planet Cinema Haifa",
+      "Yes Planet",
+      "Yes Planet Haifa",
+    ],
     screeningCityKeys: ["Haifa"],
   },
   {
@@ -238,10 +253,15 @@ export const CINEMA_IDENTITIES: readonly CinemaIdentity[] = [
   },
   {
     id: "GlBNYtNRhpA6",
-    displayName: "Yes Planet Jerusalem",
+    displayName: "Planet Cinema Jerusalem",
     city: "Jerusalem",
     locationKeys: ["https://maps.app.goo.gl/E5MNtJ5xPEFyyDPk7"],
-    cinemaNameKeys: ["Yes Planet", "Yes Planet Jerusalem"],
+    cinemaNameKeys: [
+      "Planet Cinema",
+      "Planet Cinema Jerusalem",
+      "Yes Planet",
+      "Yes Planet Jerusalem",
+    ],
     screeningCityKeys: ["Jerusalem"],
   },
   {
@@ -358,10 +378,15 @@ export const CINEMA_IDENTITIES: readonly CinemaIdentity[] = [
   },
   {
     id: "8bV46WOz9LrX",
-    displayName: "Yes Planet Rishon Letzion",
+    displayName: "Planet Cinema Rishon Letzion",
     city: "Rishon Letzion",
     locationKeys: ["https://maps.app.goo.gl/LCtTHFzkRyWAVTHx9"],
-    cinemaNameKeys: ["Yes Planet", "Yes Planet Rishon Letzion"],
+    cinemaNameKeys: [
+      "Planet Cinema",
+      "Planet Cinema Rishon Letzion",
+      "Yes Planet",
+      "Yes Planet Rishon Letzion",
+    ],
     screeningCityKeys: ["Rishon Letzion"],
   },
   {
@@ -398,10 +423,15 @@ export const CINEMA_IDENTITIES: readonly CinemaIdentity[] = [
   },
   {
     id: "vDDsjAP8cIuf",
-    displayName: "Yes Planet Zichron Yaakov",
+    displayName: "Planet Cinema Zichron Yaakov",
     city: "Zichron Yaakov",
     locationKeys: ["https://maps.app.goo.gl/j5adcdmcn3r7TQL76"],
-    cinemaNameKeys: ["Yes Planet", "Yes Planet Zichron Yaakov"],
+    cinemaNameKeys: [
+      "Planet Cinema",
+      "Planet Cinema Zichron Yaakov",
+      "Yes Planet",
+      "Yes Planet Zichron Yaakov",
+    ],
     screeningCityKeys: ["Zichron Yaakov"],
   },
 ];
@@ -412,6 +442,14 @@ function normalizeCinemaKey(value: string): string {
     .trim()
     .replace(/\s+/g, " ")
     .toLocaleLowerCase("en");
+}
+
+export function canonicalCinemaName(value: string): string {
+  const normalized = value.normalize("NFKC").trim().replace(/\s+/g, " ");
+  if (/^Yes Planet(?:\s|$)/i.test(normalized)) {
+    return normalized.replace(/^Yes Planet/i, "Planet Cinema");
+  }
+  return normalized;
 }
 
 export function getCinemaIdentityById(id: string): CinemaIdentity | null {

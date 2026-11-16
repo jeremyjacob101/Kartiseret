@@ -6,14 +6,14 @@ from datetime import datetime
 import re
 
 
-class YesPlanet(QuickbookHelpers, BaseCinema):
-    CINEMA_NAME = "Yes Planet"
+class PlanetCinema(QuickbookHelpers, BaseCinema):
+    CINEMA_NAME = "Planet Cinema"
     URL = "https://www.planetcinema.co.il/?lang=en_gb#/"
     DEFAULT_SCRAPE_MODE = "auto"
 
     def requests_logic(self):
-        from backend.scraping.utils.YesPlanetRequests import collect_yes_planet
-        return collect_yes_planet(self)
+        from backend.scraping.utils.PlanetCinemaRequests import collect_planet_cinema
+        return collect_planet_cinema(self)
 
     month_mapping = {"January": "01", "February": "02", "March": "03", "April": "04", "May": "05", "June": "06", "July": "07", "August": "08", "September": "09", "October": "10", "November": "11", "December": "12"}
 
@@ -139,7 +139,7 @@ class YesPlanet(QuickbookHelpers, BaseCinema):
         """)
         for screening in screenings:
             if not screening["title"]:
-                raise ValueError("Yes Planet ticket row is missing its movie title")
+                raise ValueError("Planet Cinema ticket row is missing its movie title")
             checking_film = name_to_idx.get(screening["title"].strip().lower())
             if checking_film is None:
                 continue

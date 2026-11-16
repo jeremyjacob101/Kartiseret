@@ -41,6 +41,7 @@ import { PublicDataIntegrityError } from "./errors.js";
 import {
   findCinemaIdentityForScreening,
   findTheaterByCinemaId,
+  canonicalCinemaName,
   getCinemaIdentityById,
 } from "@kartiseret/contracts/cinema-identities";
 import { addCalendarDays } from "@kartiseret/contracts/showtime-links";
@@ -250,7 +251,9 @@ function mapDatabaseShowtime(value: unknown): PublicShowtime {
     tmdbId: row.data.tmdbId,
     screeningCity: row.data.screeningCity?.trim(),
     dateOfShowing: row.data.dateOfShowing,
-    cinema: row.data.cinema?.trim(),
+    cinema: row.data.cinema
+      ? canonicalCinemaName(row.data.cinema)
+      : row.data.cinema,
     showtime: normalizeLocalTime(row.data.showtime),
     englishHref: normalizeHttpUrl(row.data.englishHref),
     hebrewHref: normalizeHttpUrl(row.data.hebrewHref),
@@ -672,9 +675,13 @@ function mapTheaterCityRows(rows: readonly unknown[]): PublicTheaterData {
 
     const theaterResult = theaterSchema.safeParse({
       city: cityResult.data,
-      chain: row.data.chain,
+      chain: row.data.chain
+        ? canonicalCinemaName(row.data.chain)
+        : row.data.chain,
       address: row.data.address,
-      theaterName: row.data.theaterName,
+      theaterName: row.data.theaterName
+        ? canonicalCinemaName(row.data.theaterName)
+        : row.data.theaterName,
       location: row.data.location,
       lat: row.data.theaterLatitude,
       lng: row.data.theaterLongitude,

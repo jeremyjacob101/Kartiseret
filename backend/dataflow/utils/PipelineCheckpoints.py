@@ -6,6 +6,8 @@ from dataclasses import dataclass
 import hashlib
 import json
 
+from backend.cinema_names import canonical_cinema_name, canonical_scrape_source
+
 
 MATCHING_POLICY_VERSION = 2
 
@@ -103,7 +105,16 @@ class PipelineCheckpoints:
         otherwise replaying that old snapshot could delete screenings using stale
         source data.
         """
-        return self._latestScrapeSnapshots(table_name, self.selectAll("pipeline_scrape_snapshots"))
+        exact_latest = self._latestScrapeSnapshots(table_name, self.selectAll("pipeline_scrape_snapshots"))
+        logical_latest = {}
+        for cinema, manifest in exact_latest.items():
+            logical_key = canonical_cinema_name(cinema).casefold()
+            current = logical_latest.get(logical_key)
+            if current is None or self._scrapeSnapshotOrder(manifest) > self._scrapeSnapshotOrder(current[1]):
+                logical_latest[logical_key] = (cinema, manifest)
+        # Keep the manifest's original cinema key for the publication RPC. Only
+        # one alias can be authoritative for a logical source at a time.
+        return {cinema: manifest for cinema, manifest in logical_latest.values()}
 
     def _scrapeSnapshotOrder(self, manifest: dict) -> tuple:
         return (
@@ -142,7 +153,10 @@ class PipelineCheckpoints:
             return rows
 
         manifests = self.selectAll("pipeline_scrape_snapshots")
-        latest = self._latestScrapeSnapshots(table_name, manifests)
+        # Treat the old and renamed scraper/label as one logical source. A new
+        # complete Planet Cinema run can replace a failed Yes Planet attempt,
+        # while a newer failed alias still fences off every older success.
+        latest = self.loadLatestScrapeSnapshots(table_name)
         known = {
             self.clean_str(manifest.get("snapshot_id")).strip(): manifest
             for manifest in manifests
@@ -168,19 +182,19 @@ class PipelineCheckpoints:
                 and expected == len(snapshot_rows)
                 and all(self.clean_str(row.get("cinema")).strip() == cinema for row in snapshot_rows)
             ):
-                replacements[cinema] = manifest
+                replacements[canonical_cinema_name(cinema).casefold()] = manifest
 
         # Prove replacement once per attempt, rather than repeating manifest
         # comparisons for every raw row in a large failed scrape backlog.
         replaced_failed = {}
         for snapshot_id, original in known.items():
             cinema = self.clean_str(original.get("cinema")).strip()
-            replacement = replacements.get(cinema)
+            replacement = replacements.get(canonical_cinema_name(cinema).casefold())
             if (
                 replacement is not None
                 and original.get("status") == "failed"
-                and self.clean_str(original.get("source_name")).strip()
-                == self.clean_str(replacement.get("source_name")).strip()
+                and canonical_scrape_source(original.get("source_name"))
+                == canonical_scrape_source(replacement.get("source_name"))
                 and self._scrapeSnapshotOrder(original) < self._scrapeSnapshotOrder(replacement)
             ):
                 replaced_failed[snapshot_id] = cinema
@@ -198,7 +212,7 @@ class PipelineCheckpoints:
     def selectLatestRawSnapshots(self, table_name: str, rows: list[dict]):
         """Use only completed, isolated attempts; legacy data stays non-authoritative."""
         latest_manifests = self.loadLatestScrapeSnapshots(table_name)
-        manifest_scopes = set(latest_manifests)
+        manifest_scopes = {canonical_cinema_name(cinema).casefold() for cinema in latest_manifests}
         rows_by_snapshot = {}
         legacy_by_cinema = {}
         for row in rows:
@@ -218,14 +232,17 @@ class PipelineCheckpoints:
         snapshot_ids_by_cinema = {}
         legacy_cinemas = set()
         usable_manifests = {}
-        for cinema, manifest in latest_manifests.items():
+        for _manifest_key, manifest in latest_manifests.items():
+            cinema = self.clean_str(manifest.get("cinema")).strip()
             if manifest.get("status") != "complete":
                 self.trace_note(f"snapshot_not_complete | cinema={cinema} | status={manifest.get('status')}")
                 continue
             snapshot_id = self.clean_str(manifest.get("snapshot_id")).strip()
             snapshot_rows = rows_by_snapshot.get(snapshot_id, [])
             expected_count = self.clean_int(manifest.get("row_count")) or 0
-            if expected_count != len(snapshot_rows):
+            if expected_count != len(snapshot_rows) or any(
+                self.clean_str(row.get("cinema")).strip() != cinema for row in snapshot_rows
+            ):
                 self.trace_note(f"snapshot_manifest_mismatch | cinema={cinema} | snapshot_id={snapshot_id}")
                 continue
             usable_manifests[cinema] = manifest
@@ -234,14 +251,16 @@ class PipelineCheckpoints:
             source = self.clean_str(manifest.get("source_name")).strip() or cinema
             for row in snapshot_rows:
                 row["_checkpoint_source"] = source
+                row["cinema"] = canonical_cinema_name(row.get("cinema"))
 
         for cinema, (_run_id, snapshot_rows) in legacy_by_cinema.items():
-            if cinema in manifest_scopes or all(row.get("added") is True for row in snapshot_rows):
+            if canonical_cinema_name(cinema).casefold() in manifest_scopes or all(row.get("added") is True for row in snapshot_rows):
                 continue
             rows_by_cinema[cinema] = snapshot_rows
             legacy_cinemas.add(cinema)
             for row in snapshot_rows:
                 row["_checkpoint_source"] = f"legacy:{cinema}"
+                row["cinema"] = canonical_cinema_name(row.get("cinema"))
 
         manifests = usable_manifests
         self.latest_snapshot_manifests_by_cinema = manifests

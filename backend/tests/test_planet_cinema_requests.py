@@ -2,13 +2,13 @@ from datetime import datetime
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
-from backend.scraping.nowplayings.YesPlanet import YesPlanet
+from backend.scraping.nowplayings.PlanetCinema import PlanetCinema
 from backend.scraping.utils.InitializeBaseCinema import InitializeBaseCinema
 
 
-class YesPlanetRequestsTests(TestCase):
+class PlanetCinemaRequestsTests(TestCase):
     def setUp(self):
-        self.scraper = YesPlanet.__new__(YesPlanet)
+        self.scraper = PlanetCinema.__new__(PlanetCinema)
         InitializeBaseCinema.__init__(self.scraper)
         self.scraper.today_date = datetime(2026, 11, 2, 12)
         self.scraper.run_id = 1
@@ -44,7 +44,7 @@ class YesPlanetRequestsTests(TestCase):
     def run_collector(self):
         session = Mock()
         session.get.side_effect = self.response
-        with patch('backend.scraping.utils.YesPlanetRequests.requests.Session') as factory:
+        with patch('backend.scraping.utils.PlanetCinemaRequests.requests.Session') as factory:
             factory.return_value.__enter__.return_value = session
             self.scraper.requests_logic()
 

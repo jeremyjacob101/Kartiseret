@@ -529,6 +529,43 @@ describe("public showtime service", () => {
       tmdbId: "9100001",
     });
   });
+
+  it("normalizes legacy Planet Cinema labels at the public API boundary", async () => {
+    const repository = createRepository({
+      findShowtimeRows: vi.fn(async () => [
+        { ...databaseShowtime, cinema: "Yes Planet" },
+      ]),
+      findTheaterCityRows: vi.fn(async () => [
+        {
+          chain: "Yes Planet",
+          address: "1 Road",
+          location: "https://tickets.example/planet-cinema",
+          theaterName: "Yes Planet Jerusalem",
+          theaterLatitude: 31.77,
+          theaterLongitude: 35.21,
+          cityName: "Jerusalem",
+          altSpellings: [],
+          cityLatitude: 31.7683,
+          cityLongitude: 35.2137,
+          zoomLayer: 10,
+          neighboringCities: [],
+        },
+      ]),
+    });
+
+    const showtimes = await getShowtimeRange(repository, {
+      city: "Jerusalem",
+      startDate: "2026-10-20",
+      endDate: "2026-10-20",
+    });
+    const theaters = await getPublicTheaterData(repository);
+
+    expect(showtimes[0]?.cinema).toBe("Planet Cinema");
+    expect(theaters.theaters[0]).toMatchObject({
+      chain: "Planet Cinema",
+      theaterName: "Planet Cinema Jerusalem",
+    });
+  });
 });
 
 describe("public theater service", () => {

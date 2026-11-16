@@ -10,11 +10,11 @@ export type TheaterTheme = {
 };
 
 const theaterThemes: Record<string, TheaterTheme> = {
-  "Yes Planet": {
+  "Planet Cinema": {
     accent: "#d9710f",
     surface: "rgba(255, 154, 61, 0.12)",
     glow: "rgba(217, 113, 15, 0.28)",
-    pillClassName: "details-time-pill--yes-planet",
+    pillClassName: "details-time-pill--planet-cinema",
   },
   "Cinema City": {
     accent: "#186bdf",

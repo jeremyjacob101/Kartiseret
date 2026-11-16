@@ -1,4 +1,4 @@
-"""Yes Planet showtimes from public catalog and Quickbook APIs."""
+"""Planet Cinema showtimes from public catalog and Quickbook APIs."""
 
 from datetime import date, timedelta
 import json
@@ -10,7 +10,7 @@ from backend.scraping.utils.InitializeBaseCinema import CHROME_USER_AGENT
 from backend.scraping.utils.ScrapeRequests import configure_scrape_session
 
 
-def collect_yes_planet(scraper):
+def collect_planet_cinema(scraper):
     base = 'https://www.planetcinema.co.il/il/data-api-service/v1'
     scraper._coverage = {'catalog_films_completed': 0, 'cinemas_completed': 0, 'dates_completed': 0, 'unlisted_films_skipped': 0, 'russian_screenings_skipped': 0}
     languages = {'en': 'English', 'he': 'Hebrew', 'fr': 'French', 'de': 'German', 'ja': 'Japanese', 'it': 'Italian', 'es': 'Spanish', 'am': 'Amharic', 'zh': 'Chinese', 'cs': 'Czech', 'ko': 'Korean', 'da': 'Danish', 'ru': 'Russian', 'hi': 'Hindi'}
@@ -27,16 +27,16 @@ def collect_yes_planet(scraper):
         def body(path, **params):
             value = get(base + path, **params).json()
             if not isinstance(value, dict) or not isinstance(value.get('body'), dict):
-                raise ValueError(f'Unexpected Yes Planet API response: {path}')
+                raise ValueError(f'Unexpected Planet Cinema API response: {path}')
             return value['body']
 
         home = get('https://www.planetcinema.co.il/', lang='en_gb').text
         match = re.search(r'apiSitesList\s*=\s*(\[.*?\])\s*,\s*', home, re.S)
         if not match:
-            raise ValueError('Yes Planet cinema list is missing')
+            raise ValueError('Planet Cinema cinema list is missing')
         cinemas = json.loads(match.group(1))
         if not isinstance(cinemas, list) or not cinemas:
-            raise ValueError('Yes Planet cinema list is empty')
+            raise ValueError('Planet Cinema cinema list is empty')
         scraper._coverage['cinemas_expected'] = len(cinemas)
 
         # The Selenium collector keys film metadata by the displayed English
@@ -45,18 +45,18 @@ def collect_yes_planet(scraper):
         for feed in ('now-playing', 'coming-soon'):
             posters = body(f'/feed/10100/byName/{feed}', lang='en_GB').get('posters')
             if not isinstance(posters, list) or not posters:
-                raise ValueError(f'Yes Planet {feed} catalog is empty or missing')
+                raise ValueError(f'Planet Cinema {feed} catalog is empty or missing')
             for poster in posters:
                 fid, title = poster.get('code'), poster.get('featureTitle')
                 if not fid or not isinstance(title, str) or not title:
-                    raise ValueError('Yes Planet catalog film is missing its ID or title')
+                    raise ValueError('Planet Cinema catalog film is missing its ID or title')
                 if fid.endswith(('s2r2', 'd2r1')):
                     continue
                 metadata = {}
                 for language in ('he_IL', 'en_GB'):
                     value = body('/10100/films/byDistributorCode/' + fid, lang=language).get('filmDetails')
                     if not isinstance(value, dict) or value.get('id') != fid or not value.get('name'):
-                        raise ValueError(f'Yes Planet film details are missing or inconsistent: {fid}')
+                        raise ValueError(f'Planet Cinema film details are missing or inconsistent: {fid}')
                     metadata[language] = value
                 catalog[title.lower()] = (title, metadata)
                 scraper._coverage['catalog_films_completed'] += 1
@@ -68,10 +68,10 @@ def collect_yes_planet(scraper):
             cid, name = cinema.get('externalCode'), cinema.get('name')
             city = 'SCREENINGS FOR ' + name.upper() if isinstance(name, str) else ''
             if not cid or city not in valid_cities:
-                raise ValueError(f'Unknown Yes Planet cinema: {name}')
+                raise ValueError(f'Unknown Planet Cinema cinema: {name}')
             dates = body(f'/quickbook/10100/dates/in-cinema/{cid}/until/{deadline}', attr='', lang='en_GB').get('dates')
             if not isinstance(dates, list):
-                raise ValueError('Yes Planet available dates are missing')
+                raise ValueError('Planet Cinema available dates are missing')
             for day in dates:
                 parsed = date.fromisoformat(day)
                 if (parsed.year, parsed.month) not in months:
@@ -79,22 +79,22 @@ def collect_yes_planet(scraper):
                 result = body(f'/quickbook/10100/film-events/in-cinema/{cid}/at-date/{day}', attr='', lang='en_GB')
                 films, events = result.get('films'), result.get('events')
                 if not isinstance(films, list) or not isinstance(events, list):
-                    raise ValueError('Yes Planet date response is missing films or events')
+                    raise ValueError('Planet Cinema date response is missing films or events')
                 names = {}
                 for film in films:
                     if not film.get('id') or not isinstance(film.get('name'), str):
-                        raise ValueError('Yes Planet date film is missing its ID or name')
+                        raise ValueError('Planet Cinema date film is missing its ID or name')
                     names[film['id']] = film['name']
                 for event in events:
                     if event.get('cinemaId') != cid or event.get('businessDay') != day or event.get('filmId') not in names:
-                        raise ValueError('Yes Planet event does not belong to the requested cinema/date/film')
+                        raise ValueError('Planet Cinema event does not belong to the requested cinema/date/film')
                     found = catalog.get(names[event['filmId']].lower())
                     if not found:
                         scraper._coverage['unlisted_films_skipped'] += 1
                         continue
                     attr = event.get('attributeIds')
                     if not isinstance(attr, list) or not ({'2d', '3d'} & set(attr)):
-                        raise ValueError('Yes Planet screening format is missing')
+                        raise ValueError('Planet Cinema screening format is missing')
                     event_languages = event.get('languages') or {}
                     if any('ru' in (event_languages.get(key) or []) for key in ('dubbed', 'voiceover', 'subtitles')):
                         scraper._coverage['russian_screenings_skipped'] += 1
@@ -108,20 +108,20 @@ def collect_yes_planet(scraper):
                     }
                     infinity_label = infinity_formats.get(frozenset(present)) if 'infinity-vision' in present else None
                     if 'infinity-vision' in present and infinity_label is None:
-                        raise ValueError('Yes Planet has an unhandled Infinity Vision combination')
+                        raise ValueError('Planet Cinema has an unhandled Infinity Vision combination')
                     if 'infinity-vision' not in present and len(present) > 1:
-                        raise ValueError('Yes Planet screening has combined unhandled formats')
+                        raise ValueError('Planet Cinema screening has combined unhandled formats')
                     dub = event_languages.get('dubbed') or []
                     if dub and dub != ['he']:
-                        raise ValueError('Yes Planet screening has an unhandled dub language')
+                        raise ValueError('Planet Cinema screening has an unhandled dub language')
                     title, metadata = found
                     he, en = metadata['he_IL'], metadata['en_GB']
                     original = en.get('languages', {}).get('original') or ['he']
                     if any(language not in languages for language in original):
-                        raise ValueError('Yes Planet film has an unknown original language')
+                        raise ValueError('Planet Cinema film has an unknown original language')
                     restriction = en.get('ageRestrictionName')
                     if restriction not in (None, 'other', 'all', '9-plus', '12-plus', '14-plus', '16-plus', '18-plus'):
-                        raise ValueError('Yes Planet film has an unknown age restriction')
+                        raise ValueError('Planet Cinema film has an unknown age restriction')
                     year = en.get('releaseYear')
                     scraper.english_title = title
                     scraper.hebrew_title = he['name']
@@ -137,7 +137,7 @@ def collect_yes_planet(scraper):
                     scraper.screening_tech = infinity_display or tech + (' IMAX' if 'imax' in attr else ' 4DX' if '4dx' in attr else ' ScreenX' if 'screenx' in attr else '')
                     timestamp, ticket = event.get('eventDateTime'), event.get('bookingLink')
                     if not event.get('id') or not isinstance(timestamp, str) or len(timestamp) < 16 or not ticket:
-                        raise ValueError('Yes Planet screening is missing a time or ticket')
+                        raise ValueError('Planet Cinema screening is missing a time or ticket')
                     scraper.showtime = timestamp[11:16]
                     scraper.date_of_showing = day
                     scraper.english_href = ticket.replace('/api', '')

@@ -124,6 +124,26 @@ class UtilAvgTimeHistoryTests(TestCase):
         self.assertEqual(load_recent_averages(client, ['Cinema'], 'm5_mac', 'monday', transport='requests'), {'Cinema': 4})
         query.eq.assert_any_call('transport', 'requests')
 
+    def test_renamed_scrapers_reuse_legacy_timing_and_prefer_new_history(self):
+        query = Mock()
+        query.select.return_value = query
+        query.eq.return_value = query
+        query.in_.return_value = query
+        query.execute.return_value.data = [
+            {'name': 'YesPlanet', 'recent_times': [10, 20]},
+            {'name': 'PlanetCinema', 'recent_times': [30, 50]},
+            {'name': 'YPsoon', 'recent_times': [4, 8]},
+        ]
+        client = Mock()
+        client.table.return_value = query
+
+        averages = load_recent_averages(
+            client, ['PlanetCinema', 'PCsoon'], 'm5_mac', 'monday'
+        )
+
+        self.assertEqual(averages, {'PlanetCinema': 40, 'PCsoon': 6})
+        query.in_.assert_called_once_with('name', ['PlanetCinema', 'PCsoon', 'YesPlanet', 'YPsoon'])
+
     def test_unknown_transport_cannot_read_or_write_history(self):
         client = Mock()
         with self.assertRaisesRegex(ValueError, 'transport'):
