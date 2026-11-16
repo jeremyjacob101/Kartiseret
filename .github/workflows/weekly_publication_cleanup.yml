@@ -43,9 +43,9 @@ jobs:
       KARTISERET_SHARED_CLEANUP_APPLY: ${{ (github.event_name == 'schedule' && vars.KARTISERET_SHARED_CLEANUP_APPLY == 'true') || (github.event_name == 'workflow_dispatch' && inputs.apply) }}
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
         with:
           python-version: "3.14.2"

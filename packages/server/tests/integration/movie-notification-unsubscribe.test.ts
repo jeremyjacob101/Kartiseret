@@ -107,7 +107,9 @@ async function addHistoricalToken(
   return addToken(deliveryId, purpose);
 }
 
-describe.sequential("movie notification unsubscribe database behavior", () => {
+const suiteName = "movie notification unsubscribe database behavior";
+
+describe(suiteName, { concurrent: false }, () => {
   beforeAll(async () => {
     await admin.pool.query(
       `insert into app_auth.users(id,name,email,email_verified) values

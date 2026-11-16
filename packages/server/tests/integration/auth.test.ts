@@ -96,8 +96,9 @@ async function login(to = email, value = password) {
   return cookies(response);
 }
 
-describe.sequential(
+describe(
   "real Better Auth, Drizzle and restricted PostgreSQL",
+  { concurrent: false },
   () => {
     beforeAll(async () => {
       await runtime.pool.query("SELECT 1");

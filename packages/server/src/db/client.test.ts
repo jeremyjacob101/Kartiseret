@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { Client } from "pg";
+import { describe, expect, it, vi } from "vitest";
 import { createDatabase } from "./client.js";
+import { TimingClient } from "./timing-pool.js";
 
 describe("PostgreSQL database factory", () => {
   const supabaseCaCertificate =
@@ -37,5 +39,37 @@ describe("PostgreSQL database factory", () => {
         "postgresql://app:secret@db.example.test:5432/kartiseret?sslmode=require",
       ),
     ).toThrow("Remote PostgreSQL URLs must use verified TLS");
+  });
+
+  it("preserves pg client results from both connect APIs", async () => {
+    const baseConnect = vi.spyOn(Client.prototype, "connect");
+    baseConnect.mockImplementation(function (
+      this: Client,
+      callback?: Parameters<Client["connect"]>[0],
+    ) {
+      if (callback) {
+        const forwardCallback = callback as (
+          error: Error | null,
+          client: Client,
+        ) => void;
+        forwardCallback(null, this);
+        return;
+      }
+      return Promise.resolve(this);
+    } as typeof Client.prototype.connect);
+
+    try {
+      const client = new TimingClient();
+      await expect(client.connect()).resolves.toBe(client);
+
+      const callback = vi.fn((error: null, connectedClient: Client) => {
+        expect(error).toBeNull();
+        expect(connectedClient).toBe(client);
+      });
+      client.connect(callback);
+      expect(callback).toHaveBeenCalledWith(null, client);
+    } finally {
+      baseConnect.mockRestore();
+    }
   });
 });

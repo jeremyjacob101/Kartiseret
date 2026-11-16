@@ -62,7 +62,9 @@ const events = async () =>
     )
   ).rows;
 
-describe.sequential("shared first availability notifications", () => {
+const suiteName = "shared first availability notifications";
+
+describe(suiteName, { concurrent: false }, () => {
   beforeAll(async () => {
     await admin.pool.query(
       "insert into app_auth.users(id,name,email,email_verified) values($1,'Notifications',$2,true)",

@@ -338,12 +338,14 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
     ).toBeVisible();
     await page.getByRole("dialog", { name: "Search movies" }).screenshot({
       path: testInfo.outputPath("separate-search-desktop.png"),
+      animations: "disabled",
     });
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(regularResult).toBeVisible();
     await expect(cinemathequeResult).toBeVisible();
     await page.getByRole("dialog", { name: "Search movies" }).screenshot({
       path: testInfo.outputPath("separate-search-mobile.png"),
+      animations: "disabled",
     });
     await cinemathequeResult.click();
     await expect(page).toHaveURL(/\/cinematheques$/);
@@ -410,6 +412,7 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
     await movieRow.scrollIntoViewIfNeeded();
     await movieRow.screenshot({
       path: testInfo.outputPath("combined-showtimes-desktop.png"),
+      animations: "disabled",
     });
 
     await page.setViewportSize({ width: 390, height: 844 });
@@ -420,6 +423,7 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
     expect(mobileWidth.document).toBeLessThanOrEqual(mobileWidth.viewport + 1);
     await movieRow.screenshot({
       path: testInfo.outputPath("combined-showtimes-mobile.png"),
+      animations: "disabled",
     });
 
     await page.getByRole("button", { name: "Filter showtimes" }).click();
@@ -482,6 +486,7 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
     ).toHaveAttribute("href", "https://tickets.example/sam-spiegel");
     await page.locator(".movie-page-card").screenshot({
       path: testInfo.outputPath("movie-detail-showtimes-desktop.png"),
+      animations: "disabled",
     });
   } finally {
     await database.query(

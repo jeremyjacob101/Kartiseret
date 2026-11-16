@@ -91,8 +91,9 @@ async function soon(id: number) {
   );
 }
 
-describe.sequential(
+describe(
   "protected workflows through the restricted runtime role",
+  { concurrent: false },
   () => {
     beforeAll(async () => {
       for (const user of [alice, bob, owner])

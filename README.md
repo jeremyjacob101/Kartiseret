@@ -9,9 +9,9 @@
 </p>
 
 <p align="center">
-  <img alt="React 19.2.7" src="https://img.shields.io/badge/React-19.2.7-0F172A?style=for-the-badge&logo=react&logoColor=61DAFB">
+  <img alt="React 19.3.1" src="https://img.shields.io/badge/React-19.3.1-0F172A?style=for-the-badge&logo=react&logoColor=61DAFB">
   <img alt="TypeScript 6.0.3" src="https://img.shields.io/badge/TypeScript-6.0.3-1D4ED8?style=for-the-badge&logo=typescript&logoColor=white">
-  <img alt="Vite 8.1.4" src="https://img.shields.io/badge/Vite-8.1.4-111827?style=for-the-badge&logo=vite&logoColor=FBBF24">
+  <img alt="Vite 8.3.8" src="https://img.shields.io/badge/Vite-8.3.8-111827?style=for-the-badge&logo=vite&logoColor=FBBF24">
   <img alt="Zustand 5" src="https://img.shields.io/badge/Zustand-5-433E38?style=for-the-badge">
   <img alt="TanStack Query 5" src="https://img.shields.io/badge/TanStack_Query-5-EF4444?style=for-the-badge">
   <img alt="Python 3.14+" src="https://img.shields.io/badge/Python-3.14%2B-166534?style=for-the-badge&logo=python&logoColor=white">
@@ -72,7 +72,7 @@ Kartiseret currently spans two connected layers:
 
 ### Frontend Experience
 
-- Built as a client-side React 19.2.7 + TypeScript 6.0.3 SPA with Vite 8.1.4.
+- Built as a client-side React 19.3.1 + TypeScript 6.0.3 SPA with Vite 8.3.8.
 - Uses React Router for browser navigation and standalone movie/share routes.
 - Uses Zustand for shared synchronous client state, TanStack Query for remote server state, and focused React state for component-local interactions.
 - Styles are global CSS-driven, accent-color-driven, and motion-heavy rather than Tailwind-based.

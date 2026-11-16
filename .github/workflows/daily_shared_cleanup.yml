@@ -41,9 +41,9 @@ jobs:
           - target: production
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && vars.KARTISERET_SHARED_CLEANUP_ENABLED == 'true')
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
         with:
           python-version: "3.14.2"
@@ -116,9 +116,9 @@ jobs:
       FORCE_CLEANUP: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == matrix.target
         with:
           python-version: "3.14.2"

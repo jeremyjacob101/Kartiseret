@@ -43,7 +43,11 @@
     "db:test:bootstrap": "npm run db:test:bootstrap --workspace=@kartiseret/server"
   },
   "devDependencies": {
-    "embedded-postgres": "17.10.0-beta.17"
+    "@types/node": "24.19.2",
+    "embedded-postgres": "17.10.0-beta.17",
+    "prettier": "^3.10.1",
+    "tsx": "4.23.15",
+    "typescript": "~6.0.3"
   },
   "allowScripts": {
     "embedded-postgres@17.10.0-beta.17": true,
@@ -55,7 +59,7 @@
     "@embedded-postgres/linux-ppc64@17.10.0-beta.17": true,
     "@embedded-postgres/linux-x64@17.10.0-beta.17": true,
     "@embedded-postgres/windows-x64@17.10.0-beta.17": true,
-    "esbuild@0.27.2": true,
+    "esbuild@0.28.2": true,
     "esbuild@0.25.12": true
   },
   "overrides": {

@@ -16,7 +16,7 @@ if (
 const pool = new Pool({ connectionString: url, max: 2 });
 afterAll(async () => pool.end());
 
-describe.sequential("Supabase storage guard migration", () => {
+describe("Supabase storage guard migration", { concurrent: false }, () => {
   it("exposes the size RPC to service_role only", async () => {
     const client = await pool.connect();
     try {

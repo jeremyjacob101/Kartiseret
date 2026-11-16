@@ -5,17 +5,22 @@ const connections = new WeakMap<object, { started: number; ms: number }>();
 
 /** Keep driver callbacks, errors, release behavior and pool settings intact. */
 export class TimingClient extends Client {
-  override connect(): Promise<void>;
-  override connect(callback: (error: Error) => void): void;
-  override connect(callback?: (error: Error) => void): void | Promise<void> {
+  override connect(): Promise<Client>;
+  override connect(callback: ClientConnectCallback): void;
+  override connect(callback?: ClientConnectCallback): void | Promise<Client> {
     const started = performance.now();
     const finish = () =>
       connections.set(this, { started, ms: performance.now() - started });
-    if (callback)
-      return super.connect((error) => {
+    if (callback) {
+      const forwardCallback = callback as (
+        error: Error | null,
+        client: Client,
+      ) => void;
+      return super.connect((error: Error | null, client: Client) => {
         finish();
-        callback(error);
+        forwardCallback(error, client);
       });
+    }
     return super.connect().finally(finish);
   }
 }
@@ -44,3 +49,4 @@ export class TimingPool extends Pool {
 }
 
 type PoolCallback = Parameters<Pool["connect"]>[0];
+type ClientConnectCallback = Parameters<Client["connect"]>[0];
