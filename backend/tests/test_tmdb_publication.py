@@ -25,6 +25,27 @@ def raw_row(row_id, title):
 
 class PublicationTests(TestCase):
 
+    def test_planet_cinema_cutover_publishes_new_label_and_preserves_raw_history(self):
+        for source_label in ("Yes Planet", "Planet Cinema"):
+            with self.subTest(source_label=source_label):
+                incoming = {**raw_row("planet-new", "Alpha"), "cinema": source_label}
+                flow = self.build_flow(FLOWS[1], [incoming])
+                flow.supabase.tables["finalShowtimes"] = [
+                    {**raw_row("planet-old", "Beta"), "cinema": "Yes Planet", "tmdb_id": 102},
+                ]
+                snapshot_id = self.install_snapshot(flow, [incoming], cinema=source_label)
+
+                flow.logic()
+
+                published = flow.supabase.tables["finalShowtimes"]
+                self.assertEqual([(row["id"], row["cinema"]) for row in published],
+                                 [("planet-new", "Planet Cinema")])
+                self.assertEqual(flow.supabase.tables["allShowtimes"][0]["cinema"], source_label)
+                self.assertEqual(flow.supabase.tables["pipeline_scrape_snapshots"][0]["cinema"], source_label)
+                checkpoint = next(row for row in flow.supabase.tables["pipeline_publication_checkpoints"]
+                                  if row["snapshot_id"] == snapshot_id)
+                self.assertEqual(checkpoint["phase"], "published")
+
     def build_flow(self, path, rows, fault=None, database=None):
         module = import_module("backend.dataflow." + path)
         cls = getattr(module, path.split(".")[-1])
