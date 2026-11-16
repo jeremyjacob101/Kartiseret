@@ -9,7 +9,7 @@ async function login(page: Page, email = "browser@example.test") {
   await page
     .getByRole("button", { name: "Sign up or log in", exact: true })
     .click();
-  await page.getByLabel("Email", { exact: true }).fill(email);
+  await page.getByLabel("Email address", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill("local-fixture-only");
   const signedIn = page.waitForResponse((response) =>
     response.url().endsWith("/api/auth/sign-in/email"));
@@ -210,8 +210,10 @@ test("real signup verification, current-password change and signed-out one-time 
     await page
       .getByRole("button", { name: "Sign up or log in", exact: true })
       .click();
-    await page.getByRole("tab", { name: "Sign up", exact: true }).click();
-    await page.getByLabel("Email", { exact: true }).fill(email);
+    await page
+      .getByRole("tab", { name: "Create account", exact: true })
+      .click();
+    await page.getByLabel("Email address", { exact: true }).fill(email);
     await page
       .getByLabel("Password", { exact: true })
       .fill("browser-password-123");
@@ -225,7 +227,7 @@ test("real signup verification, current-password change and signed-out one-time 
     await expect(
       page.getByText("Email confirmed. You can now log in."),
     ).toBeVisible();
-    await page.getByLabel("Email", { exact: true }).fill(email);
+    await page.getByLabel("Email address", { exact: true }).fill(email);
     await page
       .getByLabel("Password", { exact: true })
       .fill("browser-password-123");
@@ -267,7 +269,7 @@ test("real signup verification, current-password change and signed-out one-time 
     await page
       .getByRole("button", { name: "Forgot password?", exact: true })
       .click();
-    await page.getByLabel("Email", { exact: true }).fill(email);
+    await page.getByLabel("Email address", { exact: true }).fill(email);
     await page
       .getByRole("button", { name: "Send reset link", exact: true })
       .click();

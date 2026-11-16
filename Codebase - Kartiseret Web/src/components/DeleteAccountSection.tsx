@@ -1,46 +1,45 @@
 import { getAuthClient } from "../lib/authClient";
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router";
 import "./DeleteAccountSection.css";
 
 const authClient = getAuthClient();
 
 export function DeleteAccountSection() {
-  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [confirmation, setConfirmation] = useState("");
-  const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setMessage(null);
 
     if (confirmation !== "DELETE") {
       setError('Type "DELETE" to confirm account deletion.');
       return;
     }
 
-    if (!password) {
-      setError("Enter your current password to continue.");
-      return;
-    }
-
     setPending(true);
     try {
-      const result = await authClient.deleteUser({ password });
+      const result = await authClient.deleteUser();
       if (result.error) {
-        setError(result.error.message ?? "Account deletion failed.");
+        setError(
+          result.error.code === "SESSION_EXPIRED"
+            ? "For security, sign out and sign back in with your usual method, then request deletion again. Google and Apple work here; you do not need a Kartiseret password."
+            : (result.error.message ?? "Account deletion failed."),
+        );
         return;
       }
 
-      navigate("/", { replace: true });
+      setIsOpen(false);
+      setConfirmation("");
+      setMessage("Check your email for a link to review and confirm deletion.");
     } catch {
-      setError("Account deletion failed. Please try again.");
+      setError("The confirmation email could not be sent. Please try again.");
     } finally {
       setPending(false);
-      setPassword("");
     }
   }
 
@@ -56,15 +55,24 @@ export function DeleteAccountSection() {
       </div>
 
       {!isOpen ? (
-        <button
-          type="button"
-          className="delete-account-open"
-          onClick={() => {
-            setIsOpen(true);
-          }}
-        >
-          Delete account
-        </button>
+        <>
+          <button
+            type="button"
+            className="delete-account-open"
+            onClick={() => {
+              setMessage(null);
+              setError(null);
+              setIsOpen(true);
+            }}
+          >
+            Delete account
+          </button>
+          {message ? (
+            <p className="delete-account-feedback" role="status">
+              {message}
+            </p>
+          ) : null}
+        </>
       ) : (
         <form className="delete-account-form" onSubmit={handleSubmit}>
           <label className="delete-account-field">
@@ -79,18 +87,6 @@ export function DeleteAccountSection() {
               required
             />
           </label>
-          <label className="delete-account-field">
-            <span>Current password</span>
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => {
-                setPassword(event.target.value);
-              }}
-              required
-            />
-          </label>
           <div className="delete-account-actions">
             <button
               type="button"
@@ -99,7 +95,6 @@ export function DeleteAccountSection() {
               onClick={() => {
                 setIsOpen(false);
                 setConfirmation("");
-                setPassword("");
                 setError(null);
               }}
             >
@@ -108,9 +103,9 @@ export function DeleteAccountSection() {
             <button
               type="submit"
               className="delete-account-submit"
-              disabled={pending || confirmation !== "DELETE" || !password}
+              disabled={pending || confirmation !== "DELETE"}
             >
-              {pending ? "Deleting..." : "Permanently delete account"}
+              {pending ? "Sending email…" : "Email me a confirmation link"}
             </button>
           </div>
         </form>

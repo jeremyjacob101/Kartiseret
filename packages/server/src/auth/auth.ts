@@ -11,6 +11,8 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import { authSchema } from "./schema.js";
 import type { AuthMailer } from "./mail.js";
+import { createAppleClientSecret } from "./apple.js";
+import type { SocialProviderEnvironment } from "./env.js";
 
 export interface ApplicationAuthOptions {
   baseURL: string;
@@ -18,6 +20,7 @@ export interface ApplicationAuthOptions {
   trustedOrigins: string[];
   cookiePrefix: string;
   mailer: AuthMailer;
+  socialProviders?: SocialProviderEnvironment;
   backgroundTask?: (promise: Promise<unknown>) => void;
 }
 
@@ -30,7 +33,10 @@ function createApplicationAuthOptions(
     baseURL: options.baseURL,
     basePath: "/api/auth",
     secret: options.secret,
-    trustedOrigins: options.trustedOrigins,
+    trustedOrigins: [
+      ...options.trustedOrigins,
+      ...(options.socialProviders?.apple ? ["https://appleid.apple.com"] : []),
+    ],
     database: drizzleAdapter(database, {
       provider: "pg",
       schema: authSchema,
@@ -48,8 +54,27 @@ function createApplicationAuthOptions(
         ? { backgroundTasks: { handler: options.backgroundTask } }
         : {}),
     },
+    account: {
+      encryptOAuthTokens: true,
+      accountLinking: {
+        enabled: true,
+        allowDifferentEmails: true,
+        allowUnlinkingAll: false,
+      },
+    },
     user: {
-      deleteUser: { enabled: true },
+      deleteUser: {
+        enabled: true,
+        sendDeleteAccountVerification: async ({ user, token }) => {
+          const url = new URL("/confirm-account-deletion", options.baseURL);
+          url.hash = new URLSearchParams({ token }).toString();
+          await options.mailer({
+            to: user.email,
+            url: url.href,
+            kind: "deletion",
+          });
+        },
+      },
       additionalFields: {
         signupLocation: {
           type: "string",
@@ -81,6 +106,33 @@ function createApplicationAuthOptions(
       cookieCache: { enabled: false },
     },
     rateLimit: { enabled: true, storage: "database", window: 60, max: 100 },
+    ...(options.socialProviders &&
+    (options.socialProviders.google || options.socialProviders.apple)
+      ? {
+          socialProviders: {
+            ...(options.socialProviders.google
+              ? {
+                  google: {
+                    clientId: options.socialProviders.google.clientId,
+                    clientSecret: options.socialProviders.google.clientSecret,
+                    requireEmailVerification: true,
+                  },
+                }
+              : {}),
+            ...(options.socialProviders.apple
+              ? {
+                  apple: async () => ({
+                    clientId: options.socialProviders!.apple!.clientId,
+                    clientSecret: await createAppleClientSecret(
+                      options.socialProviders!.apple!,
+                    ),
+                    requireEmailVerification: true,
+                  }),
+                }
+              : {}),
+          },
+        }
+      : {}),
     logger: { disabled: true },
   } satisfies BetterAuthOptions;
 }

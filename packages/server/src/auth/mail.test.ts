@@ -48,6 +48,23 @@ describe("account mail transport", () => {
     );
     expect(request.html).toContain("Reset password");
   });
+  it("clearly asks users to review deletion before confirming it", async () => {
+    const transport = vi.fn<typeof fetch>(async () => new Response("{}"));
+    const mailer = createResendAuthMailer({
+      apiKey: "test",
+      from: "test@example.test",
+      transport,
+    });
+    await mailer({
+      to: "recipient@example.test",
+      url: "https://seret.site/confirm-account-deletion#token=abc",
+      kind: "deletion",
+    });
+    const request = JSON.parse(String(transport.mock.calls[0][1]?.body));
+    expect(request.subject).toBe("Review your Kartiseret account deletion");
+    expect(request.html).toContain("Your account will not be deleted");
+    expect(request.html).toContain("Review deletion request");
+  });
   it("does not expose provider response details", async () => {
     const mailer = createResendAuthMailer({
       apiKey: "test",
