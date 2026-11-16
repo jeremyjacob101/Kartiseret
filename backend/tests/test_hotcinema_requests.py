@@ -78,6 +78,61 @@ class HotCinemaRequestsTests(TestCase):
         self.assertEqual(self.scraper._coverage['dates_completed'], 32)
         self.assertEqual(self.scraper._coverage['explicit_empty_dates'], 31)
 
+    def test_double_space_infinity_vision_title_keeps_showtimes_and_atmos(self):
+        title = 'הנוקמים: עלייתו של ד"ר דום  - Infinity Vision'
+        original = self.response
+
+        def respond(url, **kwargs):
+            response = original(url, **kwargs)
+            if '/movie/' in url:
+                response.text = FILM.replace('סרט', title).replace(
+                    '<h2>Film</h2>', '<h2>Avengers: Doomsday Infinity Vision</h2>'
+                )
+            return response
+
+        self.response = respond
+        self.events_by_date['01/01/2027'][0]['MovieName'] = title
+
+        self.run_collector()
+
+        data = self.scraper.gathering_info
+        self.assertEqual(data['showtime'], ['18:30'] * 2)
+        self.assertEqual(data['screening_tech'], ['2D Atmos Infinity Vision'] * 2)
+        self.assertEqual(data['screening_type'], ['Premium'] * 2)
+        self.assertIn('1197-7', data['english_href'][0])
+        self.assertEqual(self.scraper._coverage['unlisted_films_skipped'], 0)
+
+    def test_whitespace_normalization_keeps_distinct_title_variants_separate(self):
+        original = self.response
+
+        def respond(url, **kwargs):
+            response = original(url, **kwargs)
+            if url.endswith('/ShowingNow'):
+                response.text = HOME.replace(
+                    '<a href="/movie/1">Film</a>',
+                    '<a href="/movie/1">Film</a><a href="/movie/2">3D Film</a>',
+                )
+            elif url.endswith('/movie/2'):
+                response.text = FILM.replace('סרט', 'סרט תלת-ממד')
+            return response
+
+        self.response = respond
+        self.events_by_date['01/01/2027'] = [
+            {'MovieName': '  סרט\t ', 'Dates': [self.event]},
+            {
+                'MovieName': 'סרט  תלת-ממד',
+                'Dates': [dict(self.event, EventId='8', IsAtmos=False)],
+            },
+        ]
+
+        self.run_collector()
+
+        data = self.scraper.gathering_info
+        self.assertEqual(data['screening_tech'], ['2D Atmos', '3D'])
+        self.assertIn('1197-7', data['english_href'][0])
+        self.assertIn('1197-8', data['english_href'][1])
+        self.assertEqual(self.scraper._coverage['unlisted_films_skipped'], 0)
+
     def test_finds_scheduled_day_omitted_by_the_date_filter(self):
         self.events_by_date['02/01/2027'] = [
             {

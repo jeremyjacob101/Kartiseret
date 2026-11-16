@@ -123,7 +123,7 @@ def collect_hot_cinema(scraper):
                     raw_name = movie.get('MovieName')
                     if not isinstance(raw_name, str):
                         raise ValueError('Hot Cinema event has no film name')
-                    name = raw_name.strip()
+                    name = ' '.join(raw_name.split())
                     if name not in metadata:
                         scraper._coverage['unlisted_films_skipped'] += 1
                         continue
