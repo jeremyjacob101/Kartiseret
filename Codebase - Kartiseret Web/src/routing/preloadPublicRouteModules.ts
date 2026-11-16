@@ -11,6 +11,7 @@ const FIXED_APP_PATHS = new Set([
   "/attribution",
   "/unsubscribe/letterboxd",
   PASSWORD_RESET_PATH,
+  "/confirm-account-deletion",
 ]);
 
 function isPotentialStandaloneMoviePath(pathname: string): boolean {

@@ -7,6 +7,7 @@ const { authMock } = vi.hoisted(() => ({
   authMock: {
     resetPassword: vi.fn(),
     changePassword: vi.fn(),
+    requestPasswordReset: vi.fn(),
   },
 }));
 
@@ -18,6 +19,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   authMock.resetPassword.mockResolvedValue({ error: null });
   authMock.changePassword.mockResolvedValue({ error: null });
+  authMock.requestPasswordReset.mockResolvedValue({ error: null });
 });
 
 describe("PasswordSecurityForm", () => {
@@ -84,5 +86,30 @@ describe("PasswordSecurityForm", () => {
         newPassword: "secret123",
         revokeOtherSessions: true,
       }));
+  });
+
+  it("lets a social-only user request a password setup link by email", async () => {
+    const user = userEvent.setup();
+    render(
+      <PasswordSecurityForm
+        setupEmail="social@example.com"
+        requireCurrentPassword={false}
+        submitLabel="Email me a setup link"
+        title="Add a password"
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Email me a setup link" }),
+    );
+    await waitFor(() =>
+      expect(authMock.requestPasswordReset).toHaveBeenCalledWith({
+        email: "social@example.com",
+        redirectTo: `${window.location.origin}/reset-password`,
+      }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "a secure setup link is on its way",
+    );
+    expect(screen.queryByLabelText("Current password")).not.toBeInTheDocument();
   });
 });

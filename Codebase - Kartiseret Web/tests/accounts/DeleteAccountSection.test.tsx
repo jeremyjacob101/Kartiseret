@@ -1,7 +1,6 @@
 import { DeleteAccountSection } from "../../src/components/DeleteAccountSection";
-import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter, useLocation } from "react-router";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const { authMock } = vi.hoisted(() => ({
@@ -12,69 +11,56 @@ vi.mock("../../src/lib/authClient", () => ({
   getAuthClient: vi.fn(() => authMock),
 }));
 
-function CurrentPath() {
-  return <output aria-label="Current path">{useLocation().pathname}</output>;
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
   authMock.deleteUser.mockResolvedValue({ error: null });
 });
 
 describe("DeleteAccountSection", () => {
-  it("requires the exact confirmation phrase and current password", async () => {
+  it("requires the exact confirmation phrase before requesting the email", async () => {
     const user = userEvent.setup();
-    render(
-      <MemoryRouter initialEntries={["/preferences"]}>
-        <DeleteAccountSection />
-      </MemoryRouter>,
-    );
+    render(<DeleteAccountSection />);
 
     await user.click(screen.getByRole("button", { name: "Delete account" }));
     const submit = screen.getByRole("button", {
-      name: "Permanently delete account",
+      name: "Email me a confirmation link",
     });
     expect(submit).toBeDisabled();
 
     await user.type(screen.getByLabelText("Type DELETE to confirm"), "delete");
-    await user.type(screen.getByLabelText("Current password"), "secret123");
     expect(submit).toBeDisabled();
     expect(authMock.deleteUser).not.toHaveBeenCalled();
+
+    await user.clear(screen.getByLabelText("Type DELETE to confirm"));
+    await user.type(screen.getByLabelText("Type DELETE to confirm"), "DELETE");
+    expect(submit).toBeEnabled();
+    await user.click(submit);
+
+    expect(authMock.deleteUser).toHaveBeenCalledOnce();
+    expect(authMock.deleteUser).toHaveBeenCalledWith();
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Check your email for a link to review and confirm deletion.",
+    );
   });
 
-  it("submits with the password, reports errors, and returns home after success", async () => {
+  it("explains when a stale session must sign in again before requesting deletion", async () => {
     const user = userEvent.setup();
-    render(
-      <MemoryRouter initialEntries={["/preferences"]}>
-        <DeleteAccountSection />
-        <CurrentPath />
-      </MemoryRouter>,
-    );
+    authMock.deleteUser.mockResolvedValueOnce({
+      error: { code: "SESSION_EXPIRED", message: "Session expired" },
+    });
+    render(<DeleteAccountSection />);
 
     await user.click(screen.getByRole("button", { name: "Delete account" }));
     await user.type(screen.getByLabelText("Type DELETE to confirm"), "DELETE");
-    await user.type(screen.getByLabelText("Current password"), "secret123");
-    authMock.deleteUser.mockResolvedValueOnce({
-      error: { message: "The password is incorrect." },
-    });
     await user.click(
-      screen.getByRole("button", { name: "Permanently delete account" }),
+      screen.getByRole("button", { name: "Email me a confirmation link" }),
     );
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "The password is incorrect.",
-    );
-    expect(authMock.deleteUser).toHaveBeenLastCalledWith({
-      password: "secret123",
-    });
 
-    await user.type(screen.getByLabelText("Current password"), "secret123");
-    await user.click(
-      screen.getByRole("button", { name: "Permanently delete account" }),
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "sign out and sign back in with your usual method",
     );
-    await waitFor(() =>
-      expect(screen.getByLabelText("Current path")).toHaveTextContent("/"));
-    expect(authMock.deleteUser).toHaveBeenLastCalledWith({
-      password: "secret123",
-    });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "you do not need a Kartiseret password",
+    );
   });
 });

@@ -8,8 +8,8 @@ import { UserMovieDisplayPreferences } from "./UserMovieDisplayPreferences";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { loadCityLocationPicker } from "./maps/loadCityLocationPicker";
 import { type RatingSource } from "../prefs/definitions/ratingSources";
+import { AccountSecuritySettings } from "./AccountSecuritySettings";
 import { type AppLocation } from "../prefs/definitions/locations";
-import { PasswordSecurityForm } from "./PasswordSecurityForm";
 import { DeleteAccountSection } from "./DeleteAccountSection";
 import { UserTicketAlerts } from "./UserTicketAlerts";
 
@@ -324,12 +324,7 @@ export function UserPreferencesPage() {
 
           {user ? (
             <>
-              <PasswordSecurityForm
-                description="Update the password used to sign in to Kartiseret."
-                requireCurrentPassword
-                submitLabel="Change password"
-                title="Change password"
-              />
+              <AccountSecuritySettings email={user.email} />
               <DeleteAccountSection />
             </>
           ) : null}

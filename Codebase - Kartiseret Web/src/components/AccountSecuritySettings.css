@@ -1,0 +1,111 @@
+.account-security-section {
+  display: grid;
+  gap: 14px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 24%, transparent);
+  border-radius: 14px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.account-security-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.account-security-title {
+  margin: 0;
+  color: #f4ebff;
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.account-security-description,
+.account-security-note {
+  margin: 5px 0 0;
+  color: rgba(233, 218, 255, 0.72);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.account-security-list {
+  display: grid;
+  border-top: 1px solid rgba(233, 218, 255, 0.1);
+}
+
+.account-security-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  border-bottom: 1px solid rgba(233, 218, 255, 0.1);
+}
+
+.account-security-method {
+  color: #f4ebff;
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+.account-security-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.account-security-status {
+  color: rgba(233, 218, 255, 0.64);
+  font-size: 0.8rem;
+}
+
+.account-security-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 48%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--main-app-color) 14%, transparent);
+  color: #f4ebff;
+  padding: 7px 11px;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.account-security-action:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--main-app-color) 24%, transparent);
+}
+
+.account-security-action:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.account-security-feedback {
+  margin: 0;
+  color: #a9e5b1;
+  font-size: 0.84rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.account-security-feedback--error {
+  color: #ffb7c3;
+}
+
+@media (max-width: 480px) {
+  .account-security-row {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 12px 0;
+  }
+
+  .account-security-actions {
+    justify-content: space-between;
+    width: 100%;
+  }
+}

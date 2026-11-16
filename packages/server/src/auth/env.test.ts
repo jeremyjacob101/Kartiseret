@@ -54,6 +54,48 @@ describe("auth deployment configuration", () => {
     ]);
     expect(config.baseURL).toBe("https://seret.site");
     expect(config.mail.from).toBe("Kartiseret <notifications@seret.site>");
+    expect(config.socialProviderIds).toEqual([]);
+    expect(config.socialProviders).toEqual({});
+  });
+  it("loads complete Google and Apple credentials without exposing values in the public provider list", () => {
+    const config = parseAuthEnvironment({
+      ...secrets,
+      VERCEL_ENV: "production",
+      GOOGLE_CLIENT_ID: "google-client-id",
+      GOOGLE_CLIENT_SECRET: "google-client-secret",
+      APPLE_CLIENT_ID: "com.jj.kartiseret.web",
+      APPLE_TEAM_ID: "TEAM123456",
+      APPLE_KEY_ID: "KEY1234567",
+      APPLE_PRIVATE_KEY:
+        "-----BEGIN PRIVATE KEY-----\\nprivate-key-data\\n-----END PRIVATE KEY-----",
+    });
+
+    expect(config.socialProviderIds).toEqual(["google", "apple"]);
+    expect(config.socialProviders.google).toEqual({
+      clientId: "google-client-id",
+      clientSecret: "google-client-secret",
+    });
+    expect(config.socialProviders.apple).toEqual({
+      clientId: "com.jj.kartiseret.web",
+      teamId: "TEAM123456",
+      keyId: "KEY1234567",
+      privateKey:
+        "-----BEGIN PRIVATE KEY-----\nprivate-key-data\n-----END PRIVATE KEY-----",
+    });
+  });
+  it.each([
+    { GOOGLE_CLIENT_ID: "google-client-id" },
+    { GOOGLE_CLIENT_SECRET: "google-client-secret" },
+    { APPLE_CLIENT_ID: "com.jj.kartiseret.web" },
+    {
+      APPLE_CLIENT_ID: "com.jj.kartiseret.web",
+      APPLE_TEAM_ID: "TEAM123456",
+      APPLE_KEY_ID: "KEY1234567",
+    },
+  ])("rejects incomplete social provider credentials", (providerEnv) => {
+    expect(() => parseAuthEnvironment({ ...secrets, ...providerEnv })).toThrow(
+      /requires/,
+    );
   });
   it("uses localhost for development and requires the Preview deployment URL", () => {
     expect(parseAuthEnvironment(secrets).baseURL).toBe("http://localhost:5173");

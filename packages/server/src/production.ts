@@ -72,6 +72,7 @@ function createProductionRuntime(
     identityVerifier: new BetterAuthIdentityVerifier(auth),
     authHandler: toNodeHandler(auth),
     trustedOrigins: authConfig.trustedOrigins,
+    socialProviderIds: authConfig.socialProviderIds,
     protectedRateLimit,
     recipientRouter: createRecipientRouter(
       database.pool,
@@ -127,6 +128,7 @@ export function createProductionApp(
     protectedWorkflows: runtime.workflows,
     authHandler: runtime.authHandler,
     trustedOrigins: runtime.trustedOrigins,
+    socialProviderIds: runtime.socialProviderIds,
     protectedRateLimit: runtime.protectedRateLimit,
     recipientRouter: runtime.recipientRouter,
     notificationUnsubscribeRouter: runtime.notificationUnsubscribeRouter,
