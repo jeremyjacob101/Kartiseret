@@ -58,6 +58,42 @@ class RetentionCleanupTests(TestCase):
         self.assertEqual(calls[0].args[1]['p_cutoff'], (date.today()-timedelta(days=20)).isoformat())
         self.assertEqual(calls[1].args[1]['p_cutoff'], date.today().isoformat())
 
+    def test_processed_raw_cleanup_uses_selected_tier_and_never_touches_catalog_tables(self):
+        client = Mock()
+        client.rpc.side_effect = lambda _name, args: SimpleNamespace(execute=lambda: SimpleNamespace(
+            data={"table": args["p_table"], "eligible": 2, "deleted": 2, "has_more": False}))
+        with redirect_stdout(StringIO()):
+            counts = cleanup.clear_processed_raw_entries(
+                showtimes_days_ago=2,
+                soons_days_ago=14,
+                theques_days_ago=5,
+                apply=True,
+                lease_guard=Mock(),
+                client=client,
+            )
+        self.assertEqual(counts, {"allShowtimes": 2, "allSoons": 2, "allTheques": 2})
+        calls = client.rpc.call_args_list
+        self.assertEqual([call.args[1]["p_table"] for call in calls], ["allShowtimes", "allSoons", "allTheques"])
+        self.assertEqual(
+            [call.args[1]["p_cutoff"] for call in calls],
+            [
+                (date.today() - timedelta(days=2)).isoformat(),
+                (date.today() - timedelta(days=14)).isoformat(),
+                (date.today() - timedelta(days=5)).isoformat(),
+            ],
+        )
+
+    def test_processed_raw_cleanup_rejects_invalid_retention_ages_before_rpc(self):
+        client = Mock()
+        with self.assertRaises(ValueError):
+            cleanup.clear_processed_raw_entries(
+                showtimes_days_ago=True,
+                soons_days_ago=14,
+                theques_days_ago=5,
+                client=client,
+            )
+        client.rpc.assert_not_called()
+
     def test_existing_publication_retains_staged_cleanup(self):
         active = SimpleNamespace(category='nowplayings')
         with publication_scope(active), patch.object(cleanup, '_clear_old_entries', return_value={'allShowtimes':2}) as staged, patch.object(cleanup, '_retire_table') as native:

@@ -26,7 +26,7 @@ BEGIN
     FOR i IN 1..4 LOOP
       day := CASE i WHEN 1 THEN cutoff-1 WHEN 2 THEN cutoff WHEN 3 THEN cutoff+1 ELSE NULL END;
       IF source THEN
-        EXECUTE format('INSERT INTO public.%I(%I,snapshot_id) VALUES($1,$2)',relation,date_col) USING day,sid;
+        EXECUTE format('INSERT INTO public.%I(%I,snapshot_id,cleaned,added) VALUES($1,$2,true,true)',relation,date_col) USING day,sid;
       ELSIF relation='finalSoons' THEN
         IF day IS NOT NULL THEN
           INSERT INTO public."finalSoons"(english_title,hebrew_title,release_date,tmdb_id)
@@ -57,7 +57,7 @@ BEGIN
   sid := gen_random_uuid();
   INSERT INTO public.pipeline_scrape_snapshots(snapshot_id,run_id,table_name,source_name,cinema,status,row_count)
     VALUES(sid,0,'allShowtimes','retention-zero-fixture','retention-fixture','complete',1);
-  INSERT INTO public."allShowtimes"(date_of_showing,snapshot_id) VALUES(cutoff,sid);
+  INSERT INTO public."allShowtimes"(date_of_showing,snapshot_id,cleaned,added) VALUES(cutoff,sid,true,true);
   PERFORM public.retire_expired_rows('allShowtimes',cutoff,true,10);
   IF (SELECT row_count FROM public.pipeline_scrape_snapshots WHERE snapshot_id=sid)<>0 THEN
     RAISE EXCEPTION 'Empty snapshot count was not repaired';
@@ -88,7 +88,7 @@ DECLARE sid uuid; row_id uuid; failed boolean := false;
 BEGIN
   SELECT snapshot_id INTO sid FROM public.pipeline_scrape_snapshots
     WHERE source_name='retention-fixture' AND table_name='allShowtimes';
-  INSERT INTO public."allShowtimes"(date_of_showing,snapshot_id) VALUES('1900-01-01',sid) RETURNING id INTO row_id;
+  INSERT INTO public."allShowtimes"(date_of_showing,snapshot_id,cleaned,added) VALUES('1900-01-01',sid,true,true) RETURNING id INTO row_id;
   BEGIN
     PERFORM public.retire_expired_rows('allShowtimes','1900-01-01',true,10);
   EXCEPTION WHEN raise_exception THEN

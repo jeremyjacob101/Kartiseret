@@ -1,4 +1,4 @@
-# Shared pipeline and R2 cleanup
+# Shared pipeline and storage cleanup
 
 `backend.utils.log.shared_cleanup` is the one preflight and scheduled cleanup entry point. It runs the established Supabase old-entry sweep, final-movie orphan sweeps, 30-day artwork and social-card cleanup, the existing D1 screenshot retention check, and a conservative audit of old orphan run artifacts.
 
@@ -8,11 +8,19 @@ Apply the `weekly_publication_cleanup` Supabase migration to development and pro
 
 ## Bounded expired-row cleanup
 
-Standalone daily/preflight retention uses the service-role-only `retire_expired_rows` RPC. It sends a table name, an inclusive date cutoff, and a batch bound (200 rows from Python, maximum 1,000). It does not download full tables or stage publication JSON. The existing raw/final retention ages are unchanged.
+Standalone daily/preflight retention uses the service-role-only `retire_expired_rows` RPC. It sends a table name, an inclusive date cutoff, and a batch bound (200 rows from Python, maximum 1,000). It does not download full tables or stage publication JSON. The existing raw/final age cutoffs are unchanged. Raw rows are eligible only after `cleaned=true` and `added=true`, their scrape snapshot is complete, their run is inactive, and any checkpoint is published with no unresolved matches. Rows without snapshots are eligible only when already marked processed. Final-table retention remains age-based.
 
-Each applied batch locks the category source and scrape manifests in publication order, deletes only eligible rows, and repairs affected completed-snapshot counts in the same transaction. Final-table revision triggers remain active; empty batches do not issue a DELETE. Lock contention fails after five seconds. A later batch failure leaves earlier committed batches intact and safe to resume; no RPC failure is automatically retried because its commit acknowledgement may be uncertain. Dry runs count eligible rows without mutations or publication staging. The orphan-artifact sweep obtains completion timestamps in its existing paginated run-state scan, rather than making a D1 request for every R2 object. Cleanup already inside a publication continues to use that publication workspace.
+Each applied batch locks the category source, scrape manifests, and checkpoints in publication order, deletes only eligible rows, and repairs affected completed-snapshot counts in the same transaction. Final-table revision triggers remain active; empty batches do not issue a DELETE. Lock contention fails after five seconds. A later batch failure leaves earlier committed batches intact and safe to resume; no RPC failure is automatically retried because its commit acknowledgement may be uncertain. Dry runs count eligible rows without mutations or publication staging. The orphan-artifact sweep obtains completion timestamps in its existing paginated run-state scan, rather than making a D1 request for every R2 object. Cleanup already inside a publication continues to use that publication workspace.
 
-`cleanup_metric` console records show each table, cutoff, batch start, elapsed time, deleted/eligible totals, and any failure with an explicit unknown-outcome marker. Apply the `bounded_retention_cleanup` migration before deploying the Python writer. Development SQL rollback fixtures live at `backend/tests/sql/retention_cleanup.sql`.
+`cleanup_metric` console records show each table, cutoff, batch start, elapsed time, deleted/eligible totals, and any failure with an explicit unknown-outcome marker. Apply `bounded_retention_cleanup` and `supabase_database_size_guard` before deploying the Python writer. Development SQL rollback fixtures live at `backend/tests/sql/retention_cleanup.sql`.
+
+## Supabase database-size protection
+
+The daily GitHub validation and cleanup, every runner preflight, every raw scrape upload batch, and each category publication check the Supabase database size through the service-role-only `get_database_size_bytes` RPC. The shared high-water limit is 350,000,000 bytes (350 MB). A high reading bypasses the once-a-day cleanup marker so the guard can act again during a run.
+
+At or above the limit, cleanup runs in this order: the normal age and orphan sweeps, then processed raw rows older than 2/14/5 days for showtimes/coming-soon/cinematheque data, then 1/7/2 days if the first shorter-retention pass still leaves the database at or above the limit. Each pressure pass retains pending rows, incomplete or active snapshots, and snapshots with unresolved or unfinished publication work. Completed snapshot counts are repaired in the same database transaction as row deletion. The apply setting still controls deletion; dry-run mode reports eligible counts but blocks runner writes if the database remains at or above the limit.
+
+Before a prepared category is published, the runner measures size again. If it is still at or above 350,000,000 bytes, the publication stops and asks for a fresh run after cleanup; it does not delete the prepared run's input snapshots. A failed or malformed size check also blocks writes. PostgreSQL row deletion may leave the database's reported physical size unchanged because the freed pages can remain allocated for reuse. In that case the guard keeps new writes stopped until the reported size falls below the threshold. It does not run `VACUUM FULL` automatically.
 
 ## Safety and coordination
 
