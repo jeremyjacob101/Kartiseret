@@ -61,7 +61,7 @@ When either Google client ID is absent, the native Google button remains hidden.
 
 The app handles HTTPS links on `seret.site` for Discover, the movie catalogs, showtimes, the account tab, cinema details, and movie links. Movie showtime share links keep their city, date, filters, and excluded cinemas for that screen without changing saved account preferences. Password reset, account deletion, unsubscribe, attribution, API, and edit links remain website routes.
 
-Universal Links require the `Associated Domains` capability on the `com.jj.kartiseret` App ID and a signed build with `applinks:seret.site`. The website serves the Apple association document at `https://seret.site/.well-known/apple-app-site-association`; Vercel serves it from the web project's public asset. No App Store Connect field or environment variable is required. The `appIDs` value in that JSON must use the App ID Prefix shown for the app in Apple Developer, followed by `.com.jj.kartiseret`; this prefix can differ from the Team ID. The file currently uses `UZZYLA6V9D`, so confirm it against the app identifier in the developer account.
+Universal Links require the `Associated Domains` capability on the `com.jj.kartiseret` App ID and a signed build with `applinks:seret.site`. The website serves the Apple association document at `https://seret.site/.well-known/apple-app-site-association`; Vercel serves it from the web project's public asset. No App Store Connect field or environment variable is required. The `appIDs` value in that JSON must use the App ID Prefix shown for the app in Apple Developer, followed by `.com.jj.kartiseret`; this prefix can differ from the Team ID. The file uses the verified prefix `UZ7YLA6V9D`.
 
 Before public testing:
 

@@ -2,7 +2,7 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["UZZYLA6V9D.com.jj.kartiseret"],
+        "appIDs": ["UZ7YLA6V9D.com.jj.kartiseret"],
         "components": [
           {"#": "no_universal_links", "exclude": true, "comment": "Keep explicit website fallbacks in the browser."},
           {"/": "/", "comment": "Open Kartiseret Discover."},

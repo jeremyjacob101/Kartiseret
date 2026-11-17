@@ -13,7 +13,7 @@ const appleAssociation = JSON.parse(
 describe("deployment performance boundaries", () => {
   it("serves a scoped Apple Universal Links association for the native app", () => {
     const association = appleAssociation.applinks.details[0];
-    expect(association?.appIDs).toEqual(["UZZYLA6V9D.com.jj.kartiseret"]);
+    expect(association?.appIDs).toEqual(["UZ7YLA6V9D.com.jj.kartiseret"]);
     const components = association?.components ?? [];
     expect(components).toContainEqual(expect.objectContaining({ "#": "no_universal_links", exclude: true }));
     for (const path of ["/", "/movies", "/soons", "/showtimes", "/cinematheques", "/user", "/c/*", "/???", "/??????", "/?????????"]) {
