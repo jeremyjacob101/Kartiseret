@@ -21,6 +21,7 @@ import { CatalogDatabaseError } from "./errors.js";
 import type { CatalogRepository } from "./service.js";
 import type {
   PublicDataRepository,
+  PublicDataSnapshotMetadata,
   PublicShowtimeRange,
   PublicCinemathequeRange,
 } from "../public-data/repository.js";
@@ -133,6 +134,7 @@ export class DrizzleCatalogRepository
   private readonly snapshots = new AsyncLocalStorage<{
     db: ApplicationTransaction;
     revision: string;
+    rankingDate: string;
   }>();
 
   constructor(private readonly rootDb: ApplicationDatabase) {}
@@ -142,7 +144,10 @@ export class DrizzleCatalogRepository
   }
 
   async readSnapshot<T>(
-    read: (revision: string) => Promise<T>,
+    read: (
+      revision: string,
+      metadata: PublicDataSnapshotMetadata,
+    ) => Promise<T>,
     expected?: string,
   ): Promise<T> {
     const active = this.snapshots.getStore();
@@ -153,26 +158,31 @@ export class DrizzleCatalogRepository
           "publication_changed",
           "Published data changed. Reload the catalog.",
         );
-      return read(active.revision);
+      return read(active.revision, { rankingDate: active.rankingDate });
     }
     return timeCatalogStage("snapshot", () =>
       this.rootDb.transaction(
         async (tx) => {
           const result = await timeCatalogStage("revision_read", () =>
-            tx.execute<{ revision: string }>(
-              sql`select revision::text from public.pipeline_catalog_revision where singleton`,
+            tx.execute<{ revision: string; rankingDate: string }>(
+              sql`select revision::text, (now() at time zone 'Asia/Jerusalem')::date::text as "rankingDate" from public.pipeline_catalog_revision where singleton`,
             ),
           );
           const revision = result.rows[0]?.revision;
+          const rankingDate = result.rows[0]?.rankingDate;
           if (revision === undefined)
             throw new Error("Publication revision is unavailable.");
+          if (rankingDate === undefined)
+            throw new Error("Publication ranking date is unavailable.");
           if (expected !== undefined && expected !== revision)
             throw new HttpError(
               409,
               "publication_changed",
               "Published data changed. Reload the catalog.",
             );
-          return this.snapshots.run({ db: tx, revision }, () => read(revision));
+          return this.snapshots.run({ db: tx, revision, rankingDate }, () =>
+            read(revision, { rankingDate }),
+          );
         },
         { isolationLevel: "repeatable read", accessMode: "read only" },
       ),

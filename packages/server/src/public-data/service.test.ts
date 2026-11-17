@@ -13,6 +13,8 @@ import {
   getTicketAvailabilityShowtimes,
 } from "./service.js";
 import { PublicDataIntegrityError } from "./errors.js";
+import { withPublicationSnapshot } from "./snapshot.js";
+import type { PublicDataSnapshotMetadata } from "./repository.js";
 
 const nowPlaying = {
   tmdbId: 9100001,
@@ -85,6 +87,44 @@ function createRepository(
     findComingSoonMovieById: vi.fn(async () => comingSoon),
     ...overrides,
   };
+}
+
+function createSnapshotRepository(
+  overrides: Partial<PublicDataRepository> = {},
+) {
+  const repository = createRepository(overrides) as PublicDataRepository & {
+    revision: string;
+    rankingDate: string;
+    failCommit: boolean;
+    readSnapshot<T>(
+      read: (
+        revision: string,
+        metadata: PublicDataSnapshotMetadata,
+      ) => Promise<T>,
+      expected?: string,
+    ): Promise<T>;
+  };
+  Object.assign(repository, {
+    revision: "1",
+    rankingDate: "2026-11-17",
+    failCommit: false,
+    async readSnapshot<T>(
+      read: (
+        revision: string,
+        metadata: PublicDataSnapshotMetadata,
+      ) => Promise<T>,
+      expected?: string,
+    ) {
+      if (expected !== undefined && expected !== repository.revision)
+        throw new Error("publication_changed");
+      const result = await read(repository.revision, {
+        rankingDate: repository.rankingDate,
+      });
+      if (repository.failCommit) throw new Error("snapshot commit failed");
+      return result;
+    },
+  });
+  return repository;
 }
 
 describe("public movie catalog service", () => {
@@ -261,6 +301,154 @@ describe("public movie catalog service", () => {
     ).resolves.toBeNull();
     expect(repository.findNowPlayingMovieById).not.toHaveBeenCalled();
     expect(repository.findComingSoonMovieById).not.toHaveBeenCalled();
+  });
+});
+
+describe("public data preparation cache", () => {
+  it("reuses prepared catalogs only for the checked revision and database date", async () => {
+    let rows = [nowPlaying];
+    const findNowPlayingRows = vi.fn(async () => rows);
+    const repository = createSnapshotRepository({ findNowPlayingRows });
+
+    const first = await withPublicationSnapshot(repository, () =>
+      getMovieCatalog(repository, "nowPlaying"),
+    );
+    first.movies[0]!.title = "mutated by caller";
+    first.movies[0]!.genres.push("Unexpected");
+
+    const hit = await withPublicationSnapshot(repository, () =>
+      getMovieCatalog(repository, "nowPlaying"),
+    );
+    expect(hit.movies[0]?.title).toBe("Now Playing");
+    expect(hit.movies[0]?.genres).toEqual(["Drama"]);
+    expect(findNowPlayingRows).toHaveBeenCalledTimes(1);
+
+    rows = [{ ...nowPlaying, englishTitle: "New publication" }];
+    repository.revision = "2";
+    const afterPublication = await withPublicationSnapshot(repository, () =>
+      getMovieCatalog(repository, "nowPlaying"),
+    );
+    expect(afterPublication.movies[0]?.title).toBe("New publication");
+    expect(findNowPlayingRows).toHaveBeenCalledTimes(2);
+
+    repository.rankingDate = "2026-11-18";
+    await withPublicationSnapshot(repository, () =>
+      getMovieCatalog(repository, "nowPlaying"),
+    );
+    expect(findNowPlayingRows).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not retain data when the owning database snapshot fails to commit", async () => {
+    const findNowPlayingRows = vi.fn(async () => [nowPlaying]);
+    const repository = createSnapshotRepository({ findNowPlayingRows });
+    repository.failCommit = true;
+
+    await expect(
+      withPublicationSnapshot(repository, () =>
+        getMovieCatalog(repository, "nowPlaying"),
+      ),
+    ).rejects.toThrow("snapshot commit failed");
+
+    repository.failCommit = false;
+    await withPublicationSnapshot(repository, () =>
+      getMovieCatalog(repository, "nowPlaying"),
+    );
+    expect(findNowPlayingRows).toHaveBeenCalledTimes(2);
+  });
+
+  it("coalesces identical work across snapshots and isolates different ranges", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const findNowPlayingRows = vi.fn(async () => {
+      await gate;
+      return [nowPlaying];
+    });
+    const repository = createSnapshotRepository({ findNowPlayingRows });
+    const first = withPublicationSnapshot(repository, () =>
+      getMovieCatalog(repository, "nowPlaying"),
+    );
+    await vi.waitFor(() => expect(findNowPlayingRows).toHaveBeenCalledTimes(1));
+    const second = withPublicationSnapshot(repository, () =>
+      getMovieCatalog(repository, "nowPlaying"),
+    );
+    await Promise.resolve();
+    expect(findNowPlayingRows).toHaveBeenCalledTimes(1);
+    release();
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+    expect(firstResult).toEqual(secondResult);
+    expect(findNowPlayingRows).toHaveBeenCalledTimes(1);
+
+    const findShowtimeRows = vi.fn(async () => [databaseShowtime]);
+    const showtimeRepository = createSnapshotRepository({ findShowtimeRows });
+    const range = {
+      city: "Jerusalem",
+      startDate: "2026-11-17",
+      endDate: "2026-11-18",
+    };
+    await withPublicationSnapshot(showtimeRepository, () =>
+      getShowtimeRange(showtimeRepository, range),
+    );
+    await withPublicationSnapshot(showtimeRepository, () =>
+      getShowtimeRange(showtimeRepository, range),
+    );
+    await withPublicationSnapshot(showtimeRepository, () =>
+      getShowtimeRange(showtimeRepository, { ...range, city: "Tel Aviv" }),
+    );
+    expect(findShowtimeRows).toHaveBeenCalledTimes(2);
+  });
+
+  it("bounds retained preparations and evicts least recently used entries", async () => {
+    const findShowtimeRows = vi.fn(async () => [databaseShowtime]);
+    const repository = createSnapshotRepository({ findShowtimeRows });
+    const readCity = (city: string) =>
+      withPublicationSnapshot(repository, () =>
+        getShowtimeRange(repository, {
+          city,
+          startDate: "2026-11-17",
+          endDate: "2026-11-17",
+        }),
+      );
+
+    for (let index = 0; index < 129; index += 1)
+      await readCity(`City ${index}`);
+    await readCity("City 128");
+    expect(findShowtimeRows).toHaveBeenCalledTimes(129);
+
+    await readCity("City 0");
+    expect(findShowtimeRows).toHaveBeenCalledTimes(130);
+  });
+
+  it("checks expected revisions before cache lookup and does not cache degraded catalogs", async () => {
+    const findNowPlayingRows = vi.fn(async () => [nowPlaying]);
+    const findMovieCodes = vi.fn(async () => {
+      throw new Error("temporary code lookup failure");
+    });
+    const repository = createSnapshotRepository({
+      findNowPlayingRows,
+      findMovieCodes,
+    });
+
+    await expect(
+      withPublicationSnapshot(
+        repository,
+        () => getMovieCatalog(repository, "nowPlaying"),
+        "2",
+      ),
+    ).rejects.toThrow("publication_changed");
+    expect(findNowPlayingRows).not.toHaveBeenCalled();
+
+    const first = await withPublicationSnapshot(repository, () =>
+      getMovieCatalog(repository, "nowPlaying"),
+    );
+    const second = await withPublicationSnapshot(repository, () =>
+      getMovieCatalog(repository, "nowPlaying"),
+    );
+    expect(first.movieCodesStatus).toBe("failed");
+    expect(second.movieCodesStatus).toBe("failed");
+    expect(findNowPlayingRows).toHaveBeenCalledTimes(2);
+    expect(findMovieCodes).toHaveBeenCalledTimes(2);
   });
 });
 

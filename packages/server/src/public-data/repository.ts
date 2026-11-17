@@ -1,5 +1,9 @@
 import type { CatalogRepository } from "../catalog/service.js";
 
+export type PublicDataSnapshotMetadata = {
+  rankingDate: string;
+};
+
 export type PublicShowtimeRange = {
   city: string;
   startDate: string;

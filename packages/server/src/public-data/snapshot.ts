@@ -1,16 +1,24 @@
 import type { CatalogRepository } from "../catalog/service.js";
 import { HttpError } from "../http-errors.js";
+import {
+  createPublicDataPreparationSnapshot,
+  hasPublicDataPreparationSnapshot,
+} from "./preparation-cache.js";
+import type { PublicDataSnapshotMetadata } from "./repository.js";
 
 type SnapshotReader = {
   readSnapshot<T>(
-    read: (revision: string) => Promise<T>,
+    read: (
+      revision: string,
+      metadata: PublicDataSnapshotMetadata,
+    ) => Promise<T>,
     expected?: string,
   ): Promise<T>;
 };
 
 /** Immutable fixture repositories have one revision; database repositories must
  * supply a real repeatable-read snapshot. No live schema fallback is provided. */
-export function withPublicationSnapshot<T>(
+export async function withPublicationSnapshot<T>(
   repository: CatalogRepository,
   read: (revision: string) => Promise<T>,
   expected?: string,
@@ -24,11 +32,29 @@ export function withPublicationSnapshot<T>(
   if (
     "readSnapshot" in repository &&
     typeof repository.readSnapshot === "function"
-  )
-    return (repository as CatalogRepository & SnapshotReader).readSnapshot(
-      read,
-      expected,
-    );
+  ) {
+    const reader = repository as CatalogRepository & SnapshotReader;
+    if (hasPublicDataPreparationSnapshot(repository))
+      return reader.readSnapshot((revision) => read(revision), expected);
+
+    let preparationSnapshot:
+      ReturnType<typeof createPublicDataPreparationSnapshot> | undefined;
+    try {
+      const result = await reader.readSnapshot((revision, metadata) => {
+        preparationSnapshot = createPublicDataPreparationSnapshot(
+          repository,
+          revision,
+          metadata,
+        );
+        return preparationSnapshot.run(() => read(revision));
+      }, expected);
+      preparationSnapshot?.commit();
+      return result;
+    } catch (error) {
+      preparationSnapshot?.discard();
+      throw error;
+    }
+  }
   if (expected !== undefined && expected !== "0")
     throw new HttpError(
       409,

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -11,6 +11,8 @@ import { createApp } from "../../src/app.js";
 import { CatalogDatabaseError } from "../../src/catalog/errors.js";
 import { DrizzleCatalogRepository } from "../../src/catalog/drizzle-repository.js";
 import { createDatabase } from "../../src/db/client.js";
+import { getMovieCatalog } from "../../src/public-data/service.js";
+import { withPublicationSnapshot } from "../../src/public-data/snapshot.js";
 import * as schema from "../../src/db/schema.js";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -703,6 +705,60 @@ describe("PostgreSQL 17 integration", () => {
       genres: [],
     });
     expect(JSON.stringify(response.body)).not.toContain("BigInt");
+  });
+
+  it("reuses prepared catalog data only while the Postgres publication revision is unchanged", async () => {
+    const tmdbId = 9198877;
+    const movieCode = "Z99";
+    const findRows = vi.spyOn(runtimeRepository, "findNowPlayingRows");
+
+    try {
+      await adminDatabase.db.insert(schema.finalMovies).values({
+        tmdbId,
+        englishTitle: "Prepared Cache Before",
+      });
+      await adminDatabase.db.insert(schema.movieCodes).values({
+        tmdbId: BigInt(tmdbId),
+        movieCode,
+      });
+
+      const readCatalog = () =>
+        withPublicationSnapshot(runtimeRepository, () =>
+          getMovieCatalog(runtimeRepository, "nowPlaying"),
+        );
+      const first = await readCatalog();
+      const repeated = await readCatalog();
+      expect(
+        first.movies.find((movie) => movie.tmdbId === String(tmdbId)),
+      ).toMatchObject({
+        title: "Prepared Cache Before",
+        movieCode,
+      });
+      expect(repeated).toEqual(first);
+      expect(findRows).toHaveBeenCalledTimes(1);
+
+      await adminDatabase.db
+        .update(schema.finalMovies)
+        .set({ englishTitle: "Prepared Cache After" })
+        .where(eq(schema.finalMovies.tmdbId, tmdbId));
+
+      const updated = await readCatalog();
+      expect(
+        updated.movies.find((movie) => movie.tmdbId === String(tmdbId)),
+      ).toMatchObject({
+        title: "Prepared Cache After",
+        movieCode,
+      });
+      expect(findRows).toHaveBeenCalledTimes(2);
+    } finally {
+      findRows.mockRestore();
+      await adminDatabase.db
+        .delete(schema.movieCodes)
+        .where(eq(schema.movieCodes.tmdbId, BigInt(tmdbId)));
+      await adminDatabase.db
+        .delete(schema.finalMovies)
+        .where(eq(schema.finalMovies.tmdbId, tmdbId));
+    }
   });
 
   it("retains coming-soon release dates and updates them from later valid rows", async () => {

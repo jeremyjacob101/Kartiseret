@@ -2,6 +2,7 @@ import {
   dispatcherImportStartedAt,
   timeCatalogStageSync,
   withCatalogTiming,
+  withPublicPageTiming,
 } from "@kartiseret/server/catalog-timing";
 import type { ServerResponse } from "node:http";
 import { createProductionApp } from "@kartiseret/server/production";
@@ -25,6 +26,15 @@ const ogImageHandler = createLazyVercelHandler(
 const seoHandler = createLazyVercelHandler(
   () => import("../Codebase - Kartiseret Web/server/seo/handler.js"),
 );
+const timedSeoHandler: VercelDispatchHandler = (request, response) => {
+  const route =
+    request.url?.split("?", 1)[0]?.replace(/^\/api\//, "") ?? "unknown";
+  return withPublicPageTiming(
+    route,
+    response as unknown as ServerResponse,
+    () => seoHandler(request, response),
+  );
+};
 
 function getProductionApi(): VercelDispatchHandler {
   if (!productionApi) {
@@ -49,5 +59,5 @@ export default createVercelDispatchHandler({
   },
   og: ogHandler,
   ogImage: ogImageHandler,
-  seo: seoHandler,
+  seo: timedSeoHandler,
 });
