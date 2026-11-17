@@ -74,6 +74,21 @@ final class CoreAndAPITests: XCTestCase {
         ))
     }
 
+    @MainActor
+    func testMovieLinkResolutionPreservesCaseAndSavedSelection() async throws {
+        let body = #"{"data":{"mode":"nowPlaying","movies":[{"tmdbId":"1","title":"Uppercase","year":2026,"genres":[],"runtime":90,"movieCode":"Ab1"},{"tmdbId":"2","title":"Lowercase","year":2026,"genres":[],"runtime":90,"movieCode":"ab1"}],"movieCodesStatus":"ready"},"error":null}"#
+        let transport = StubTransport(responses: [httpResponse(body)])
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: UUID().uuidString))
+        let store = AppStore(api: URLSessionKartiseretAPI(baseURL: URL(string: "https://seret.site")!, transport: transport), defaults: defaults)
+        let originalCity = store.selectedCity
+        let originalDay = store.selectedDay
+        let resolution = await store.resolveMovieLink(UniversalMovieLink(routeCode: "ab1", explicitDate: nil, excludedCinemaIDs: nil), fallbackCity: "Tel Aviv")
+        guard case .route(let route) = resolution else { return XCTFail("Expected a movie route") }
+        XCTAssertEqual(route.movieID, "2")
+        XCTAssertEqual(store.selectedCity, originalCity)
+        XCTAssertEqual(store.selectedDay, originalDay)
+    }
+
     func testCinemaDayUsesJerusalemOneOhFiveCutoff() throws {
         let before = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-04T23:04:00Z"))
         let atCutoff = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-04T23:05:00Z"))

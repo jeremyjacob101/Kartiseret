@@ -31,6 +31,8 @@ actor URLSessionAPITransport: APITransport {
     func send(_ request: APIHTTPRequest) async throws -> APIHTTPResponse {
         var urlRequest = URLRequest(url: request.url)
         urlRequest.httpMethod = request.method
+        // Native authentication uses bearer tokens; never attach browser session cookies.
+        urlRequest.httpShouldHandleCookies = false
         urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
         request.headers.forEach { urlRequest.setValue($1, forHTTPHeaderField: $0) }
         urlRequest.httpBody = request.body

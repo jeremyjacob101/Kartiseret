@@ -56,8 +56,9 @@ final class AccountStore {
         do {
             try await loadIdentityAndPreferences(token: savedToken, fallbackLocation: fallbackLocation)
         } catch APIClientError.unauthorized {
-            clearAccountSession()
+            if token == savedToken { clearAccountSession() }
         } catch {
+            guard token == savedToken else { return }
             state = .unavailable(error.localizedDescription)
         }
     }
@@ -127,7 +128,7 @@ final class AccountStore {
         do {
             return try await api.requestPrivate(token: token, accountID: identity.id, path: path, method: method, body: body, as: type)
         } catch APIClientError.unauthorized {
-            expireSession()
+            if self.token == token { expireSession() }
             throw APIClientError.unauthorized
         }
     }
@@ -137,7 +138,7 @@ final class AccountStore {
         do {
             return try await api.requestPrivateRaw(token: token, accountID: identity.id, path: path, method: method, body: body)
         } catch APIClientError.unauthorized {
-            expireSession()
+            if self.token == token { expireSession() }
             throw APIClientError.unauthorized
         }
     }
@@ -163,7 +164,7 @@ final class AccountStore {
     }
 
     func refreshMovieDisplayRules() async {
-        guard state == .signedIn else { movieDisplayRules = [:]; return }
+        guard state == .signedIn, let sessionToken = token else { movieDisplayRules = [:]; return }
         do {
             var cursor: String?
             var seen = Set<String>()
@@ -180,6 +181,7 @@ final class AccountStore {
                 guard next != cursor, seen.insert(next).inserted else { throw APIClientError.invalidResponse }
                 cursor = next
             } while cursor != nil
+            guard token == sessionToken, state == .signedIn else { return }
             movieDisplayRules = Dictionary(all.map { ($0.tmdbId, $0) }, uniquingKeysWith: { _, new in new })
         } catch {
             // Movie display choices are an enhancement; public browsing stays available.
@@ -196,10 +198,10 @@ final class AccountStore {
         do {
             try await loadIdentityAndPreferences(token: value, fallbackLocation: fallbackLocation)
         } catch APIClientError.unauthorized {
-            clearAccountSession()
+            if token == value { clearAccountSession() }
             throw APIClientError.unauthorized
         } catch {
-            state = .unavailable(error.localizedDescription)
+            if token == value { state = .unavailable(error.localizedDescription) }
             throw error
         }
     }
@@ -207,6 +209,7 @@ final class AccountStore {
     private func loadIdentityAndPreferences(token: String, fallbackLocation: String) async throws {
         let account = try await api.loadAccount(token: token)
         let loadedPreferences = try await api.loadPreferences(token: token, accountID: account.id, fallbackLocation: fallbackLocation)
+        guard self.token == token else { throw CancellationError() }
         identity = account
         preferences = loadedPreferences
         confirmedPreferences = loadedPreferences
@@ -257,12 +260,13 @@ final class AccountStore {
             let object = try JSONSerialization.jsonObject(with: encoded)
             let patch = try JSONSerialization.data(withJSONObject: [key: object])
             _ = try await api.savePreferences(token: token, accountID: identity.id, patch: patch)
+            guard self.token == token else { return }
             if generation >= (confirmedSaveGenerations[key] ?? 0) {
                 apply(&confirmedPreferences)
                 confirmedSaveGenerations[key] = generation
             }
         } catch {
-            if saveGenerations[key] == generation {
+            if self.token == token, saveGenerations[key] == generation {
                 restorePreference(key, from: confirmedPreferences)
                 if key == "siteColor" { UserDefaults.standard.set(preferences.siteColor, forKey: Self.siteColorKey) }
                 feedback = "Couldn’t save this preference. Try again."

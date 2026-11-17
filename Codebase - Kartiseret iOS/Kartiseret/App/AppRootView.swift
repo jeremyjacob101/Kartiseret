@@ -15,6 +15,8 @@ struct AppRootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: AppTab = .discover
     @State private var discoverPath = NavigationPath()
+    @State private var showtimesPath = NavigationPath()
+    @State private var accountPath = NavigationPath()
     @State private var cinemathequesPath = NavigationPath()
     @State private var movieLinkTask: Task<Void, Never>?
     @State private var linkError: String?
@@ -40,7 +42,7 @@ struct AppRootView: View {
                 .tag(AppTab.discover)
                 .accessibilityIdentifier("tab.discover")
 
-                NavigationStack {
+                NavigationStack(path: $showtimesPath) {
                     ShowtimesView(isActive: selectedTab == .showtimes)
                         .navigationDestination(for: MovieRoute.self) { MovieDetailView(route: $0) }
                         .navigationDestination(for: CinemaRoute.self) { CinemaPageView(cinemaID: $0.cinemaID) }
@@ -58,7 +60,7 @@ struct AppRootView: View {
                 .tag(AppTab.cinematheques)
                 .accessibilityIdentifier("tab.cinematheques")
 
-                NavigationStack {
+                NavigationStack(path: $accountPath) {
                     YouView()
                 }
                 .tabItem { Label("You", systemImage: "person.crop.circle") }
@@ -142,11 +144,13 @@ struct AppRootView: View {
             discoverPath.append(mode)
         case .showtimes:
             selectedTab = .showtimes
+            showtimesPath = NavigationPath()
         case .cinematheques:
             selectedTab = .cinematheques
             cinemathequesPath = NavigationPath()
         case .account:
             selectedTab = .you
+            accountPath = NavigationPath()
         case .cinema(let id):
             selectedTab = .cinematheques
             cinemathequesPath = NavigationPath()

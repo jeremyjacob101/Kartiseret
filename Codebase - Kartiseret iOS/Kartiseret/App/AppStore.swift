@@ -142,7 +142,7 @@ final class AppStore {
         for mode in CatalogMode.allCases {
             await loadCatalog(mode)
             guard let movie = catalogs[mode]?.data.movies.first(where: {
-                $0.movieCode?.caseInsensitiveCompare(link.movieCode) == .orderedSame
+                $0.movieCode == link.movieCode
             }) else {
                 hadLoadFailure = hadLoadFailure || catalogErrors[mode] != nil
                 continue

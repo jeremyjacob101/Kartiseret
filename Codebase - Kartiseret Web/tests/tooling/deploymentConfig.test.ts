@@ -19,9 +19,11 @@ describe("deployment performance boundaries", () => {
     for (const path of ["/", "/movies", "/soons", "/showtimes", "/cinematheques", "/user", "/c/*", "/???", "/??????", "/?????????"]) {
       expect(components).toContainEqual(expect.objectContaining({ "/": path }));
     }
-    for (const path of ["/reset-password", "/confirm-account-deletion", "/unsubscribe/letterboxd", "/attribution", "/api/*"]) {
+    for (const path of ["/reset-password", "/confirm-account-deletion", "/unsubscribe/letterboxd", "/attribution"]) {
       expect(components).not.toContainEqual(expect.objectContaining({ "/": path }));
     }
+    expect(components).toContainEqual(expect.objectContaining({ "/": "/api", exclude: true }));
+    expect(components).toContainEqual(expect.objectContaining({ "/": "/api/*", exclude: true }));
     const rewriteIndex = config.rewrites.findIndex(
       (rewrite: { source: string }) => rewrite.source === "/.well-known/apple-app-site-association",
     );
