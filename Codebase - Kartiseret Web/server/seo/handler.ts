@@ -564,9 +564,12 @@ async function renderSitemap(response: VercelResponse): Promise<void> {
         { nowPlaying, comingSoon },
         instant,
       );
+      const cityPageEndDate = dayOffset(startDate, 6);
       const eligibleCityPaths = ALL_LOCATIONS.filter((city) =>
         hasIndexableCityShowtimes(
-          showtimeRowsByCity.get(city) ?? [],
+          (showtimeRowsByCity.get(city) ?? []).filter(
+            (row) => row.dateOfShowing <= cityPageEndDate,
+          ),
           nowPlaying,
           instant,
         )).map((city) => getShowtimesCityPath(city));

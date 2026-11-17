@@ -497,23 +497,25 @@ describe("SEO request handler", () => {
 
   it("builds a fixed-origin sitemap without request-host or encoded selection URLs", async () => {
     const date = addCalendarDays(getJerusalemCinemaDate(), 1)!;
-    mocks.getShowtimeRange.mockImplementation(async (_repository, range) =>
-      range.city === cinema.city
-        ? [
-            {
-              tmdbId: sampleMovie.tmdbId,
-              screeningCity: cinema.city,
-              dateOfShowing: date,
-              cinema: cinema.displayName,
-              showtime: "19:30",
-              englishHref: null,
-              hebrewHref: null,
-              screeningTech: "2D",
-              screeningType: "Regular",
-              dubLanguage: null,
-            },
-          ]
-        : []);
+    const laterDate = addCalendarDays(getJerusalemCinemaDate(), 20)!;
+    mocks.getShowtimeRange.mockImplementation(async (_repository, range) => {
+      const city = range.city;
+      if (city !== cinema.city && city !== "Tel Aviv") return [];
+      return [
+        {
+          tmdbId: sampleMovie.tmdbId,
+          screeningCity: city,
+          dateOfShowing: city === cinema.city ? date : laterDate,
+          cinema: cinema.displayName,
+          showtime: "19:30",
+          englishHref: null,
+          hebrewHref: null,
+          screeningTech: "2D",
+          screeningType: "Regular",
+          dubLanguage: null,
+        },
+      ];
+    });
     const response = createResponse();
     const request = createRequest("/api/sitemap", {});
     request.headers.host = "attacker.example";
@@ -527,6 +529,9 @@ describe("SEO request handler", () => {
     expect(response.headers.get("cache-control")).toContain("s-maxage=300");
     expect(response.body).toContain("https://seret.site/Ab1");
     expect(response.body).toContain("https://seret.site/showtimes/jerusalem");
+    expect(response.body).not.toContain(
+      "https://seret.site/showtimes/tel-aviv",
+    );
     expect(response.body).toContain(`https://seret.site/c/${cinema.id}`);
     expect(response.body).not.toContain("attacker.example");
     expect(response.body).not.toContain("?filter=");
