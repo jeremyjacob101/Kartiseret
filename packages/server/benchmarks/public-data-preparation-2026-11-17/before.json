@@ -1,0 +1,4202 @@
+{
+  "benchmark": "public-data-preparation-cache",
+  "generatedAt": "2026-11-17T09:36:54.632Z",
+  "gitCommit": "349992e6d2eb082502734c46e7d04a19f6f51a27",
+  "node": "v24.22.2",
+  "platform": "darwin-arm64",
+  "cpu": "Apple M5",
+  "logicalCpus": 10,
+  "methodology": {
+    "sampleCount": 15,
+    "warmSampleCount": 50,
+    "concurrency": 10,
+    "rowScales": [
+      100,
+      500,
+      1500
+    ],
+    "databaseDelaysMs": [
+      0,
+      5
+    ],
+    "note": "Deterministic service-level benchmark with an in-memory repository and simulated DB latency. Cold means a fresh repository/cache in this process, not a fresh Vercel instance. Query counts verify cache behavior; production CDN/Fluid startup is not simulated."
+  },
+  "results": [
+    {
+      "operation": "catalog-now-playing",
+      "rows": 100,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 0.89,
+        "p95Ms": 12.584,
+        "meanMs": 1.731,
+        "cpuMsPerOperation": 3.165,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 15,
+          "comingSoonRows": 0,
+          "movieCodes": 15,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 0.549,
+        "p95Ms": 0.73,
+        "meanMs": 0.593,
+        "cpuMsPerOperation": 1.009,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 50,
+          "comingSoonRows": 0,
+          "movieCodes": 50,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 0.58,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 1,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 0.488,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 1,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 5.281,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 10,
+          "comingSoonRows": 0,
+          "movieCodes": 10,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 9.558,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "catalog-coming-soon",
+      "rows": 100,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 0.661,
+        "p95Ms": 1.779,
+        "meanMs": 0.671,
+        "cpuMsPerOperation": 1.217,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 15,
+          "movieCodes": 15,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 0.434,
+        "p95Ms": 0.6,
+        "meanMs": 0.457,
+        "cpuMsPerOperation": 0.544,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 50,
+          "movieCodes": 50,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 0.442,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 1,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 0.435,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 1,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 4.656,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 10,
+          "movieCodes": 10,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 6.228,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "showtimes-1-day",
+      "rows": 100,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 0.535,
+        "p95Ms": 0.695,
+        "meanMs": 0.537,
+        "cpuMsPerOperation": 0.583,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 15,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 0.533,
+        "p95Ms": 0.636,
+        "meanMs": 0.548,
+        "cpuMsPerOperation": 0.785,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 50,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 0.562,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 0.513,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 5.268,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 5.405,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "showtimes-7-days",
+      "rows": 100,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 0.497,
+        "p95Ms": 0.543,
+        "meanMs": 0.504,
+        "cpuMsPerOperation": 0.64,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 15,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 0.481,
+        "p95Ms": 0.512,
+        "meanMs": 0.482,
+        "cpuMsPerOperation": 0.484,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 50,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 0.487,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 0.486,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 4.891,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 5.222,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "showtimes-30-days",
+      "rows": 100,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 0.483,
+        "p95Ms": 0.523,
+        "meanMs": 0.484,
+        "cpuMsPerOperation": 0.484,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 15,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 0.481,
+        "p95Ms": 0.547,
+        "meanMs": 0.491,
+        "cpuMsPerOperation": 0.615,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 50,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 0.49,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 0.5,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 4.962,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 5.004,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "movie-showtimes",
+      "rows": 100,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 0.21,
+        "p95Ms": 0.601,
+        "meanMs": 0.24,
+        "cpuMsPerOperation": 0.339,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 15,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 0.21,
+        "p95Ms": 0.218,
+        "meanMs": 0.213,
+        "cpuMsPerOperation": 0.217,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 50,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 0.211,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 0.211,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 2.193,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 10,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 4.886,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "ticket-availability",
+      "rows": 100,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 0.229,
+        "p95Ms": 0.678,
+        "meanMs": 0.247,
+        "cpuMsPerOperation": 0.327,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 15,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 0.191,
+        "p95Ms": 0.2,
+        "meanMs": 0.196,
+        "cpuMsPerOperation": 0.206,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 50,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 0.192,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 0.212,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 2.128,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 10,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 4.785,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "cinematheques",
+      "rows": 100,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 0.964,
+        "p95Ms": 1.319,
+        "meanMs": 0.999,
+        "cpuMsPerOperation": 1.32,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 15,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 0.872,
+        "p95Ms": 1.084,
+        "meanMs": 0.896,
+        "cpuMsPerOperation": 1.367,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 50,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 0.816,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 0.857,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 8.689,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 10,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 5.207,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "catalog-now-playing",
+      "rows": 500,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 2.684,
+        "p95Ms": 2.815,
+        "meanMs": 2.636,
+        "cpuMsPerOperation": 3.554,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 15,
+          "comingSoonRows": 0,
+          "movieCodes": 15,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 2,
+        "p95Ms": 2.799,
+        "meanMs": 2.132,
+        "cpuMsPerOperation": 2.422,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 50,
+          "comingSoonRows": 0,
+          "movieCodes": 50,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 1.882,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 1,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 2.365,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 1,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 20.47,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 10,
+          "comingSoonRows": 0,
+          "movieCodes": 10,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 25.473,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "catalog-coming-soon",
+      "rows": 500,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 2.065,
+        "p95Ms": 2.887,
+        "meanMs": 2.051,
+        "cpuMsPerOperation": 2.886,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 15,
+          "movieCodes": 15,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 1.685,
+        "p95Ms": 2.277,
+        "meanMs": 1.785,
+        "cpuMsPerOperation": 2.147,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 50,
+          "movieCodes": 50,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 2.195,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 1,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 1.716,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 1,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 18.223,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 10,
+          "movieCodes": 10,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 25.885,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "showtimes-1-day",
+      "rows": 500,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 2.556,
+        "p95Ms": 3.06,
+        "meanMs": 2.631,
+        "cpuMsPerOperation": 3.224,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 15,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 2.486,
+        "p95Ms": 2.596,
+        "meanMs": 2.485,
+        "cpuMsPerOperation": 2.495,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 50,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 2.591,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 2.642,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 25.617,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 25.044,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "showtimes-7-days",
+      "rows": 500,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 2.509,
+        "p95Ms": 2.85,
+        "meanMs": 2.541,
+        "cpuMsPerOperation": 2.62,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 15,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 2.471,
+        "p95Ms": 2.71,
+        "meanMs": 2.505,
+        "cpuMsPerOperation": 2.514,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 50,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 2.62,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 2.474,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 25.125,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 25.293,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "showtimes-30-days",
+      "rows": 500,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 2.495,
+        "p95Ms": 2.617,
+        "meanMs": 2.504,
+        "cpuMsPerOperation": 2.535,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 15,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 2.494,
+        "p95Ms": 2.699,
+        "meanMs": 2.513,
+        "cpuMsPerOperation": 2.524,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 50,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 2.538,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 2.524,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 25.744,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 25.833,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "movie-showtimes",
+      "rows": 500,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 1.071,
+        "p95Ms": 1.411,
+        "meanMs": 1.099,
+        "cpuMsPerOperation": 1.159,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 15,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 1.06,
+        "p95Ms": 1.147,
+        "meanMs": 1.069,
+        "cpuMsPerOperation": 1.098,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 50,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 1.061,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 1.08,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 10.949,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 10,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 25.478,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "ticket-availability",
+      "rows": 500,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 0.939,
+        "p95Ms": 1.357,
+        "meanMs": 0.984,
+        "cpuMsPerOperation": 1.268,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 15,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 0.915,
+        "p95Ms": 1.025,
+        "meanMs": 0.924,
+        "cpuMsPerOperation": 1.006,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 50,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 0.875,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 1.111,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 8.835,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 10,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 25.199,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "cinematheques",
+      "rows": 500,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 4.159,
+        "p95Ms": 4.817,
+        "meanMs": 4.248,
+        "cpuMsPerOperation": 4.769,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 15,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 4.118,
+        "p95Ms": 4.57,
+        "meanMs": 4.179,
+        "cpuMsPerOperation": 4.59,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 50,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 4.577,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 4.388,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 44.226,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 10,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 26.225,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "catalog-now-playing",
+      "rows": 1500,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 6.535,
+        "p95Ms": 7.123,
+        "meanMs": 6.571,
+        "cpuMsPerOperation": 8.091,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 15,
+          "comingSoonRows": 0,
+          "movieCodes": 15,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 6.119,
+        "p95Ms": 6.678,
+        "meanMs": 6.176,
+        "cpuMsPerOperation": 7.14,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 50,
+          "comingSoonRows": 0,
+          "movieCodes": 50,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 6.358,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 1,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 6.329,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 1,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 64.307,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 10,
+          "comingSoonRows": 0,
+          "movieCodes": 10,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 77.756,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "catalog-coming-soon",
+      "rows": 1500,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 5.85,
+        "p95Ms": 6.432,
+        "meanMs": 5.774,
+        "cpuMsPerOperation": 6.694,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 15,
+          "movieCodes": 15,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 5.526,
+        "p95Ms": 5.815,
+        "meanMs": 5.535,
+        "cpuMsPerOperation": 6.214,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 50,
+          "movieCodes": 50,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 6.325,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 1,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 6.168,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 1,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 57.419,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 10,
+          "movieCodes": 10,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 78.599,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "showtimes-1-day",
+      "rows": 1500,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 8.088,
+        "p95Ms": 8.825,
+        "meanMs": 8.126,
+        "cpuMsPerOperation": 8.547,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 15,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 7.866,
+        "p95Ms": 8.645,
+        "meanMs": 8.034,
+        "cpuMsPerOperation": 8.347,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 50,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 7.803,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 8.57,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 80.105,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 79.979,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "showtimes-7-days",
+      "rows": 1500,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 8.21,
+        "p95Ms": 8.652,
+        "meanMs": 8.254,
+        "cpuMsPerOperation": 8.631,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 15,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 7.615,
+        "p95Ms": 8.007,
+        "meanMs": 7.657,
+        "cpuMsPerOperation": 7.746,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 50,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 7.828,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 7.929,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 77.527,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 77.552,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "showtimes-30-days",
+      "rows": 1500,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 7.897,
+        "p95Ms": 8.159,
+        "meanMs": 7.893,
+        "cpuMsPerOperation": 8.225,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 15,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 7.547,
+        "p95Ms": 7.765,
+        "meanMs": 7.577,
+        "cpuMsPerOperation": 7.644,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 50,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 7.744,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 7.725,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 78.262,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 77.892,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "movie-showtimes",
+      "rows": 1500,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 3.255,
+        "p95Ms": 3.59,
+        "meanMs": 3.297,
+        "cpuMsPerOperation": 3.463,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 15,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 3.159,
+        "p95Ms": 3.438,
+        "meanMs": 3.188,
+        "cpuMsPerOperation": 3.215,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 50,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 3.348,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 3.302,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 32.801,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 10,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 76.665,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "ticket-availability",
+      "rows": 1500,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 2.859,
+        "p95Ms": 3.208,
+        "meanMs": 2.905,
+        "cpuMsPerOperation": 3.449,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 15,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 2.662,
+        "p95Ms": 2.836,
+        "meanMs": 2.689,
+        "cpuMsPerOperation": 2.711,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 50,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 2.771,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 2.683,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 28.162,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 10,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 76.925,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "cinematheques",
+      "rows": 1500,
+      "simulatedDatabaseDelayMs": 0,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 13.324,
+        "p95Ms": 14.594,
+        "meanMs": 13.449,
+        "cpuMsPerOperation": 15.644,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 15,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 12.823,
+        "p95Ms": 13.512,
+        "meanMs": 12.971,
+        "cpuMsPerOperation": 14.389,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 50,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 12.955,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 13.395,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 137.434,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 10,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 82.57,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "catalog-now-playing",
+      "rows": 100,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 17.651,
+        "p95Ms": 20.394,
+        "meanMs": 17.727,
+        "cpuMsPerOperation": 1.669,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 15,
+          "comingSoonRows": 0,
+          "movieCodes": 15,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 18.036,
+        "p95Ms": 20.79,
+        "meanMs": 18.779,
+        "cpuMsPerOperation": 2.124,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 50,
+          "comingSoonRows": 0,
+          "movieCodes": 50,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 20.664,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 1,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 19.176,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 1,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 31.737,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 10,
+          "comingSoonRows": 0,
+          "movieCodes": 10,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 20.925,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "catalog-coming-soon",
+      "rows": 100,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 19.033,
+        "p95Ms": 20.317,
+        "meanMs": 18.932,
+        "cpuMsPerOperation": 2.56,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 15,
+          "movieCodes": 15,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 18.547,
+        "p95Ms": 20.25,
+        "meanMs": 18.826,
+        "cpuMsPerOperation": 2.441,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 50,
+          "movieCodes": 50,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 18.559,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 1,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 18.553,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 1,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 29.419,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 10,
+          "movieCodes": 10,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 20.196,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "showtimes-1-day",
+      "rows": 100,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 12.487,
+        "p95Ms": 13.295,
+        "meanMs": 12.558,
+        "cpuMsPerOperation": 1.474,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 15,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 12.489,
+        "p95Ms": 15.789,
+        "meanMs": 13.024,
+        "cpuMsPerOperation": 1.95,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 50,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 12.938,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 13.512,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 26.15,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 22.066,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "showtimes-7-days",
+      "rows": 100,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 12.62,
+        "p95Ms": 13.576,
+        "meanMs": 12.731,
+        "cpuMsPerOperation": 1.478,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 15,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 12.506,
+        "p95Ms": 15.247,
+        "meanMs": 12.859,
+        "cpuMsPerOperation": 1.863,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 50,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 13.169,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 13.122,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 25.1,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 22.778,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "showtimes-30-days",
+      "rows": 100,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 12.416,
+        "p95Ms": 12.723,
+        "meanMs": 12.279,
+        "cpuMsPerOperation": 2.059,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 15,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 12.438,
+        "p95Ms": 13.016,
+        "meanMs": 12.439,
+        "cpuMsPerOperation": 1.237,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 50,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 12.315,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 12.474,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 20.763,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 18.48,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "movie-showtimes",
+      "rows": 100,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 11.783,
+        "p95Ms": 11.847,
+        "meanMs": 11.635,
+        "cpuMsPerOperation": 0.593,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 15,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 11.725,
+        "p95Ms": 12.123,
+        "meanMs": 11.647,
+        "cpuMsPerOperation": 0.575,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 50,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 11.609,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 12.041,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 18.611,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 10,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 25.31,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "ticket-availability",
+      "rows": 100,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 11.968,
+        "p95Ms": 13.06,
+        "meanMs": 11.972,
+        "cpuMsPerOperation": 0.825,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 15,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 12.041,
+        "p95Ms": 13.151,
+        "meanMs": 12.147,
+        "cpuMsPerOperation": 1.008,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 50,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 12.167,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 11.84,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 17.786,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 10,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 27.615,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "cinematheques",
+      "rows": 100,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 20.305,
+        "p95Ms": 23.407,
+        "meanMs": 20.473,
+        "cpuMsPerOperation": 4.161,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 15,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 19.826,
+        "p95Ms": 23.073,
+        "meanMs": 20.181,
+        "cpuMsPerOperation": 3.643,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 50,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 18.909,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 19.01,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 25.804,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 10,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 19.057,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "catalog-now-playing",
+      "rows": 500,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 20.337,
+        "p95Ms": 20.809,
+        "meanMs": 20.326,
+        "cpuMsPerOperation": 4.099,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 15,
+          "comingSoonRows": 0,
+          "movieCodes": 15,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 20.375,
+        "p95Ms": 21.316,
+        "meanMs": 20.345,
+        "cpuMsPerOperation": 4.264,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 50,
+          "comingSoonRows": 0,
+          "movieCodes": 50,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 20.806,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 1,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 20.61,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 1,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 46.441,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 10,
+          "comingSoonRows": 0,
+          "movieCodes": 10,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 43.596,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "catalog-coming-soon",
+      "rows": 500,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 19.562,
+        "p95Ms": 20.46,
+        "meanMs": 19.571,
+        "cpuMsPerOperation": 3.915,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 15,
+          "movieCodes": 15,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 20.373,
+        "p95Ms": 26.882,
+        "meanMs": 21.263,
+        "cpuMsPerOperation": 4.868,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 50,
+          "movieCodes": 50,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 24.475,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 1,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 27.172,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 1,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 40.999,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 10,
+          "movieCodes": 10,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 39.007,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "showtimes-1-day",
+      "rows": 500,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 13.899,
+        "p95Ms": 15.213,
+        "meanMs": 13.928,
+        "cpuMsPerOperation": 2.845,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 15,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 15.626,
+        "p95Ms": 17.078,
+        "meanMs": 15.734,
+        "cpuMsPerOperation": 4.732,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 50,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 14.833,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 15.113,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 43.232,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 40.572,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "showtimes-7-days",
+      "rows": 500,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 14.668,
+        "p95Ms": 15.344,
+        "meanMs": 14.577,
+        "cpuMsPerOperation": 3.523,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 15,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 15.239,
+        "p95Ms": 15.764,
+        "meanMs": 15.229,
+        "cpuMsPerOperation": 4.008,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 50,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 15.551,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 14.293,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 46.901,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 39.068,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "showtimes-30-days",
+      "rows": 500,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 14.591,
+        "p95Ms": 15.07,
+        "meanMs": 14.582,
+        "cpuMsPerOperation": 4.604,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 15,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 14.858,
+        "p95Ms": 15.696,
+        "meanMs": 14.889,
+        "cpuMsPerOperation": 3.861,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 50,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 14.797,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 15.335,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 45.031,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 39.571,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "movie-showtimes",
+      "rows": 500,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 12.769,
+        "p95Ms": 13.481,
+        "meanMs": 12.863,
+        "cpuMsPerOperation": 1.821,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 15,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 14.963,
+        "p95Ms": 18.061,
+        "meanMs": 15.195,
+        "cpuMsPerOperation": 3.916,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 50,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 21.15,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 15.035,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 34.555,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 10,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 39.619,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "ticket-availability",
+      "rows": 500,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 12.299,
+        "p95Ms": 12.428,
+        "meanMs": 12.256,
+        "cpuMsPerOperation": 1.974,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 15,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 14.275,
+        "p95Ms": 16.493,
+        "meanMs": 14.254,
+        "cpuMsPerOperation": 3.261,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 50,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 15.527,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 15.756,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 37.764,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 10,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 49.449,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "cinematheques",
+      "rows": 500,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 23.495,
+        "p95Ms": 25.336,
+        "meanMs": 23.664,
+        "cpuMsPerOperation": 7.319,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 15,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 23.518,
+        "p95Ms": 24.666,
+        "meanMs": 23.454,
+        "cpuMsPerOperation": 7.767,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 50,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 23.246,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 22.968,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 65.707,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 10,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 37.89,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "catalog-now-playing",
+      "rows": 1500,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 24.642,
+        "p95Ms": 25.636,
+        "meanMs": 24.705,
+        "cpuMsPerOperation": 10.301,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 15,
+          "comingSoonRows": 0,
+          "movieCodes": 15,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 25.311,
+        "p95Ms": 26.258,
+        "meanMs": 25.299,
+        "cpuMsPerOperation": 10.035,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 50,
+          "comingSoonRows": 0,
+          "movieCodes": 50,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 24.361,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 1,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 25.384,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 1,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 80.35,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 10,
+          "comingSoonRows": 0,
+          "movieCodes": 10,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 88.159,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "catalog-coming-soon",
+      "rows": 1500,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 23.211,
+        "p95Ms": 31.794,
+        "meanMs": 23.673,
+        "cpuMsPerOperation": 7.856,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 15,
+          "movieCodes": 15,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 23.061,
+        "p95Ms": 25.856,
+        "meanMs": 23.446,
+        "cpuMsPerOperation": 7.579,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 50,
+          "movieCodes": 50,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 24.485,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 1,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 25.731,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 1,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 91.35,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 10,
+          "movieCodes": 10,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 89.907,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "showtimes-1-day",
+      "rows": 1500,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 19.95,
+        "p95Ms": 20.589,
+        "meanMs": 19.791,
+        "cpuMsPerOperation": 9.338,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 15,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 20.128,
+        "p95Ms": 20.866,
+        "meanMs": 20.089,
+        "cpuMsPerOperation": 9.002,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 50,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 20.809,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 20.844,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 92.241,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 87.89,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "showtimes-7-days",
+      "rows": 1500,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 20.193,
+        "p95Ms": 20.852,
+        "meanMs": 20.06,
+        "cpuMsPerOperation": 9.366,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 15,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 20.217,
+        "p95Ms": 20.734,
+        "meanMs": 20.218,
+        "cpuMsPerOperation": 9.047,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 50,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 19.275,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 20.328,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 92.428,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 88.148,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "showtimes-30-days",
+      "rows": 1500,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 19.936,
+        "p95Ms": 21.986,
+        "meanMs": 19.981,
+        "cpuMsPerOperation": 8.917,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 15,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 19.294,
+        "p95Ms": 23.583,
+        "meanMs": 19.943,
+        "cpuMsPerOperation": 8.897,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 50,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 19.569,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 19.689,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 1,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 90.466,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 90.197,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "movie-showtimes",
+      "rows": 1500,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 15.559,
+        "p95Ms": 16.425,
+        "meanMs": 15.285,
+        "cpuMsPerOperation": 4.577,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 15,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 16.049,
+        "p95Ms": 17.119,
+        "meanMs": 16.156,
+        "cpuMsPerOperation": 5.031,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 50,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 16.354,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 15.994,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 50.52,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 10,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 92.697,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "ticket-availability",
+      "rows": 1500,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 14.781,
+        "p95Ms": 15.676,
+        "meanMs": 14.878,
+        "cpuMsPerOperation": 4.113,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 15,
+          "cinemathequeRows": 0
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 15.336,
+        "p95Ms": 16.267,
+        "meanMs": 15.455,
+        "cpuMsPerOperation": 4.325,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 50,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 14.883,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 15.335,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 1,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 39.984,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 10,
+          "cinemathequeRows": 0
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 90.098,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    },
+    {
+      "operation": "cinematheques",
+      "rows": 1500,
+      "simulatedDatabaseDelayMs": 5,
+      "cold": {
+        "samples": 15,
+        "p50Ms": 31.782,
+        "p95Ms": 32.568,
+        "meanMs": 31.72,
+        "cpuMsPerOperation": 17.293,
+        "queryCounts": {
+          "revisionReads": 15,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 15,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 15
+        }
+      },
+      "hot": {
+        "samples": 50,
+        "p50Ms": 30.743,
+        "p95Ms": 38.209,
+        "meanMs": 31.599,
+        "cpuMsPerOperation": 16.855,
+        "queryCounts": {
+          "revisionReads": 50,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 50,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 50
+        }
+      },
+      "afterPublicationChange": {
+        "latencyMs": 31.52,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "afterJerusalemDateChange": {
+        "latencyMs": 31.961,
+        "queryCounts": {
+          "revisionReads": 1,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 1,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 1
+        }
+      },
+      "concurrentIdentical": {
+        "requests": 10,
+        "elapsedMs": 159.888,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 10,
+          "showtimeRows": 0,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      },
+      "concurrentDistinct": {
+        "requests": 10,
+        "elapsedMs": 92.761,
+        "queryCounts": {
+          "revisionReads": 10,
+          "nowPlayingRows": 0,
+          "comingSoonRows": 0,
+          "movieCodes": 0,
+          "showtimeRows": 10,
+          "movieShowtimeRows": 0,
+          "cinemathequeRows": 10
+        }
+      }
+    }
+  ]
+}
