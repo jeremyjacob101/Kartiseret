@@ -7,6 +7,7 @@ struct MovieDetailView: View {
     @Environment(AccountStore.self) private var account
     @Environment(\.openURL) private var openURL
     @State private var showingFilters = false
+    @State private var usingSharedShowtimeContext = true
     @State private var actionMessage: String?
     @State private var actionError: String?
     @State private var ticketAlertSaved = false
@@ -18,8 +19,25 @@ struct MovieDetailView: View {
         return source.flatMap(account.displayedMovie)
     }
 
+    private var activeSharedShowtimeContext: SharedShowtimeLinkContext? {
+        usingSharedShowtimeContext ? route.sharedShowtimeContext : nil
+    }
+
     private var request: ShowtimeRequest {
-        store.makeShowtimeRequest(mode: route.mode, movieID: route.movieID)
+        store.makeShowtimeRequest(
+            mode: route.mode,
+            movieID: route.movieID,
+            city: activeSharedShowtimeContext?.city,
+            day: activeSharedShowtimeContext?.day
+        )
+    }
+
+    private var showtimePreferences: AccountPreferences.Showtime {
+        guard let context = activeSharedShowtimeContext else { return account.preferences.showtimePreferences }
+        var preferences = account.preferences.showtimePreferences
+        preferences.screeningFilters = context.filterState
+        preferences.excludedCinemaIds = context.excludedCinemaIDs
+        return preferences
     }
 
     private var rows: [Showtime]? { store.showtimes[request] }
@@ -29,7 +47,20 @@ struct MovieDetailView: View {
             VStack(alignment: .leading, spacing: 20) {
                 if let movie {
                     header(movie)
-                    SelectionControls()
+                    if let context = activeSharedShowtimeContext {
+                        sharedScreeningContext(context)
+                    } else {
+                        if route.sharedShowtimeContext != nil {
+                            Button("Use shared showtime selection") {
+                                usingSharedShowtimeContext = true
+                            }
+                            .font(.footnote.weight(.semibold))
+                            .buttonStyle(.bordered)
+                            .tint(BrandStyle.accent)
+                            .accessibilityIdentifier("movie.restoreSharedShowtimeContext")
+                        }
+                        SelectionControls()
+                    }
                     showtimeContent(movie)
                 } else if store.catalogLoading.contains(route.mode) {
                     LoadingState(message: "Loading movie…")
@@ -53,8 +84,10 @@ struct MovieDetailView: View {
                     }
                     .accessibilityLabel("Share \(movie.title)")
                 }
-                Button { showingFilters = true } label: { Image(systemName: "line.3.horizontal.decrease.circle") }
-                    .accessibilityLabel("Showtime filters")
+                if activeSharedShowtimeContext == nil {
+                    Button { showingFilters = true } label: { Image(systemName: "line.3.horizontal.decrease.circle") }
+                        .accessibilityLabel("Showtime filters")
+                }
             }
         }
         .sheet(isPresented: $showingFilters) {
@@ -69,7 +102,12 @@ struct MovieDetailView: View {
         }
         .refreshable {
             await store.loadCatalog(route.mode, forceRefresh: true)
-            let updatedRequest = store.makeShowtimeRequest(mode: route.mode, movieID: route.movieID)
+            let updatedRequest = store.makeShowtimeRequest(
+                mode: route.mode,
+                movieID: route.movieID,
+                city: activeSharedShowtimeContext?.city,
+                day: activeSharedShowtimeContext?.day
+            )
             await store.loadShowtimes(updatedRequest, forceRefresh: true)
         }
         .alert("Kartiseret", isPresented: Binding(
@@ -80,6 +118,33 @@ struct MovieDetailView: View {
         } message: {
             Text(actionError ?? actionMessage ?? "")
         }
+    }
+
+    private func sharedScreeningContext(_ context: SharedShowtimeLinkContext) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Label("Shared showtime link", systemImage: "link")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(BrandStyle.accent)
+            Text("\(context.city) · \(request.day.displayName)")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.white)
+            if context.wasDateAdjusted {
+                Text("The shared date is outside the available range. Showing \(request.day.displayName) instead.")
+                    .font(.footnote)
+                    .foregroundStyle(BrandStyle.secondary)
+                    .accessibilityIdentifier("movie.sharedDateAdjusted")
+            }
+            Button("Use my saved city, date and filters") {
+                usingSharedShowtimeContext = false
+            }
+            .font(.footnote.weight(.semibold))
+            .buttonStyle(.bordered)
+            .tint(BrandStyle.accent)
+            .accessibilityIdentifier("movie.useSavedShowtimePreferences")
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BrandStyle.surface, in: RoundedRectangle(cornerRadius: 14))
     }
 
     private func header(_ movie: Movie) -> some View {
@@ -168,15 +233,17 @@ struct MovieDetailView: View {
             HStack {
                 Text("Showtimes").font(.title3.weight(.bold)).foregroundStyle(.white)
                 Spacer()
-                Button { showingFilters = true } label: { Label("Filters", systemImage: "line.3.horizontal.decrease") }
-                    .font(.caption.weight(.semibold)).buttonStyle(.bordered).tint(BrandStyle.accent)
+                if activeSharedShowtimeContext == nil {
+                    Button { showingFilters = true } label: { Label("Filters", systemImage: "line.3.horizontal.decrease") }
+                        .font(.caption.weight(.semibold)).buttonStyle(.bordered).tint(BrandStyle.accent)
+                }
             }
             if let error = store.showtimeErrors[request], rows == nil {
                 ErrorState(message: error) { Task { await store.loadShowtimes(request, forceRefresh: true) } }
             } else if store.showtimeLoading.contains(request), rows == nil {
                 LoadingState(message: "Loading showtimes…")
             } else if let rows {
-                let groups = ShowtimeLogic.group(rows, movies: [movie], city: request.city, day: request.day, at: store.currentInstant, preferences: account.preferences.showtimePreferences)
+                let groups = ShowtimeLogic.group(rows, movies: [movie], city: request.city, day: request.day, at: store.currentInstant, preferences: showtimePreferences)
                 if let group = groups.first { ShowtimeSections(cinemas: group.cinemas, city: request.city) }
                 else { EmptyState(title: "No showtimes found", message: "Try another day or adjust your saved screening filters.") }
             } else {
@@ -192,10 +259,17 @@ struct MovieDetailView: View {
     }
 
     private func shareURL(for movie: Movie) -> URL? {
-        guard let code = movie.movieCode, !code.isEmpty else {
+        guard let code = movie.movieCode, UniversalMovieLink.isSupportedRouteCode(code) else {
             return URL(string: "https://www.themoviedb.org/movie/\(movie.tmdbId)")
         }
-        return URL(string: "https://seret.site/\(code)")
+        return UniversalMovieLink.shareURL(
+            movieCode: code,
+            city: request.city,
+            day: request.day,
+            today: store.today,
+            filterState: showtimePreferences.screeningFilters,
+            excludedCinemaIDs: showtimePreferences.excludedCinemaIds
+        ) ?? URL(string: "https://seret.site/\(code)")
     }
 
     private func saveTicketAlert(for movie: Movie) async {

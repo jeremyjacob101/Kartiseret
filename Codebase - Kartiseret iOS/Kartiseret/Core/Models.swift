@@ -181,6 +181,13 @@ struct MovieRoute: Hashable, Sendable {
     let mode: CatalogMode
     let movieID: String
     var movie: Movie? = nil
+    var sharedShowtimeContext: SharedShowtimeLinkContext? = nil
+}
+
+enum MovieLinkResolution: Sendable {
+    case route(MovieRoute)
+    case unavailable
+    case networkFailure
 }
 
 struct CinemaRoute: Hashable, Sendable {

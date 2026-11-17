@@ -2,8 +2,38 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
 const config = JSON.parse(readFileSync("../vercel.json", "utf8"));
+const appleAssociation = JSON.parse(
+  readFileSync("public/apple-app-site-association", "utf8"),
+) as {
+  applinks: {
+    details: { appIDs: string[]; components: Record<string, unknown>[] }[];
+  };
+};
 
 describe("deployment performance boundaries", () => {
+  it("serves a scoped Apple Universal Links association for the native app", () => {
+    const association = appleAssociation.applinks.details[0];
+    expect(association?.appIDs).toEqual(["UZZYLA6V9D.com.jj.kartiseret"]);
+    const components = association?.components ?? [];
+    expect(components).toContainEqual(expect.objectContaining({ "#": "no_universal_links", exclude: true }));
+    for (const path of ["/", "/movies", "/soons", "/showtimes", "/cinematheques", "/user", "/c/*", "/???", "/??????", "/?????????"]) {
+      expect(components).toContainEqual(expect.objectContaining({ "/": path }));
+    }
+    for (const path of ["/reset-password", "/confirm-account-deletion", "/unsubscribe/letterboxd", "/attribution", "/api/*"]) {
+      expect(components).not.toContainEqual(expect.objectContaining({ "/": path }));
+    }
+    const rewriteIndex = config.rewrites.findIndex(
+      (rewrite: { source: string }) => rewrite.source === "/.well-known/apple-app-site-association",
+    );
+    expect(rewriteIndex).toBeGreaterThanOrEqual(0);
+    expect(rewriteIndex).toBeLessThan(config.rewrites.length - 1);
+    expect(config.rewrites[rewriteIndex]?.destination).toBe("/apple-app-site-association");
+    const headers = config.headers.find(
+      (rule: { source: string }) => rule.source === "/.well-known/apple-app-site-association",
+    )?.headers;
+    expect(headers).toContainEqual({ key: "Content-Type", value: "application/json" });
+  });
+
   it("runs the existing API in Frankfurt", () => {
     expect(config.regions).toEqual(["fra1"]);
     expect(Object.keys(config.functions)).toEqual(["api/dispatch.ts"]);

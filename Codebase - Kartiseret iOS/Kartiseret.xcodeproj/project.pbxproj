@@ -14,6 +14,7 @@
 		11FA0AF5F74C844B3B3800BF /* FixtureAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0DDC4B4730724FE50911D7 /* FixtureAPIClient.swift */; };
 		20DF04B56F7DB7705B6F89BE /* YouView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91FF86DFE3A784100383DC5C /* YouView.swift */; };
 		2F683A1FC081B977C6C7D83A /* CoreAndAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F547CD5CBC9E944AB9A4126 /* CoreAndAPITests.swift */; };
+		3D54F044F81E7C76385CF657 /* UniversalLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A207DA322905989C91BDA194 /* UniversalLinkRouter.swift */; };
 		3D91503D8FD420AF51521A3D /* KartiseretUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7EB2FCC41A47E7B7B688012 /* KartiseretUITests.swift */; };
 		54FF2CDF72F10D6BC445929C /* CinemaDay.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF750FA9EBB7DFA4BEC7FD43 /* CinemaDay.swift */; };
 		7F2DB47E1276E42C204B7BD2 /* DiscoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C73A93CE14F5E8DCBCA87588 /* DiscoverView.swift */; };
@@ -83,6 +84,7 @@
 		91FF86DFE3A784100383DC5C /* YouView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouView.swift; sourceTree = "<group>"; };
 		93B4D8F82DBBBF05E8D01003 /* AccountFeatureViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountFeatureViews.swift; sourceTree = "<group>"; };
 		9A12C4B938EE67D0C05B748A /* KartiseretTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KartiseretTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A207DA322905989C91BDA194 /* UniversalLinkRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversalLinkRouter.swift; sourceTree = "<group>"; };
 		A3ED3793B6B30AA59A2E8EC9 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		BEC664883FECE9EC750651D1 /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedViews.swift; sourceTree = "<group>"; };
 		BF750FA9EBB7DFA4BEC7FD43 /* CinemaDay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CinemaDay.swift; sourceTree = "<group>"; };
@@ -210,6 +212,7 @@
 				F2F539EF226AE1DCEA021B73 /* AppRootView.swift */,
 				4AE6F58E5534A52514C8BD04 /* AppStore.swift */,
 				62058E6AF7CDE34704A0F575 /* KartiseretApp.swift */,
+				A207DA322905989C91BDA194 /* UniversalLinkRouter.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -357,6 +360,7 @@
 				8D5E1A85F791B4DB5F0E794A /* ShowtimeLogic.swift in Sources */,
 				BA54C14D01A8D3C040E3CF36 /* ShowtimeViews.swift in Sources */,
 				CD4E20612FA8762713A044C7 /* TicketAlertPreferencesView.swift in Sources */,
+				3D54F044F81E7C76385CF657 /* UniversalLinkRouter.swift in Sources */,
 				20DF04B56F7DB7705B6F89BE /* YouView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

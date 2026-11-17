@@ -39,7 +39,6 @@ struct KartiseretApp: App {
                     AppRootView().environment(store).environment(accountStore)
                 }
             }
-            .onOpenURL { _ = GIDSignIn.sharedInstance.handle($0) }
         }
     }
 }

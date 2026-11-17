@@ -57,6 +57,18 @@ The app queries `/api/v1/auth/providers` before displaying Apple or Google butto
 
 When either Google client ID is absent, the native Google button remains hidden. Apple and email sign-in continue to work. Account protection and session restoration use the same protected routes as the web app; no separate iOS preferences database or auth endpoint is introduced.
 
+## Universal Links
+
+The app handles HTTPS links on `seret.site` for Discover, the movie catalogs, showtimes, the account tab, cinema details, and movie links. Movie showtime share links keep their city, date, filters, and excluded cinemas for that screen without changing saved account preferences. Password reset, account deletion, unsubscribe, attribution, API, and edit links remain website routes.
+
+Universal Links require the `Associated Domains` capability on the `com.jj.kartiseret` App ID and a signed build with `applinks:seret.site`. The website serves the Apple association document at `https://seret.site/.well-known/apple-app-site-association`; Vercel serves it from the web project's public asset. No App Store Connect field or environment variable is required. The `appIDs` value in that JSON must use the App ID Prefix shown for the app in Apple Developer, followed by `.com.jj.kartiseret`; this prefix can differ from the Team ID. The file currently uses `UZZYLA6V9D`, so confirm it against the app identifier in the developer account.
+
+Before public testing:
+
+1. In Apple Developer > Certificates, Identifiers & Profiles > Identifiers, enable Associated Domains for the explicit `com.jj.kartiseret` App ID. Refresh a manually managed provisioning profile; automatic signing will refresh its profile as needed.
+2. Deploy the web change to the production Vercel deployment for `seret.site`. A preview deployment does not update the production domain's association file.
+3. Install a newly signed app build, then tap a supported HTTPS link in Messages or Notes. Typing the URL into Safari's address bar does not test Universal Link opening behavior. Apple caches association data; its CDN requests the file within 24 hours and devices check for updates about once per week.
+
 ## Data and behavior notes
 
 Public catalog and cinema data is fetched from the existing API. The selected cinema day follows the website’s `Asia/Jerusalem` cutoff rules. Cinema identity records are generated from the shared contract source so the iOS filter list and cinema detail routes use the same canonical IDs as the website.

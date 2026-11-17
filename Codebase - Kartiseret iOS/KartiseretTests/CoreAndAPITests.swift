@@ -3,6 +3,77 @@ import XCTest
 @testable import Kartiseret
 
 final class CoreAndAPITests: XCTestCase {
+    func testUniversalLinkParserRoutesSupportedWebsiteDestinations() throws {
+        XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/")!), .discover)
+        XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/movies")!), .catalog(.nowPlaying))
+        XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/soons/")!), .catalog(.comingSoon))
+        XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/showtimes")!), .showtimes)
+        XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/c/smBcm2HtRvQA")!), .cinema(id: "smBcm2HtRvQA"))
+        XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/Ab1")!), .movie(UniversalMovieLink(routeCode: "Ab1", explicitDate: nil, excludedCinemaIDs: nil)))
+        XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/reset-password?token=secret")!), nil)
+    }
+
+    func testUniversalLinkParserRejectsUntrustedOriginsAndMalformedMoviePaths() {
+        for value in [
+            "http://seret.site/Ab1",
+            "https://www.seret.site/Ab1",
+            "https://seret.site.attacker.example/Ab1",
+            "https://user@seret.site/Ab1",
+            "https://seret.site:8443/Ab1",
+            "https://seret.site/Ab12",
+            "https://seret.site/A7zlb1i",
+            "https://seret.site/Ab1?fallback=1#no_universal_links",
+            "https://seret.site/c/unknown-cinema",
+        ] {
+            XCTAssertNil(UniversalLinkDestination.parse(URL(string: value)! ), value)
+        }
+    }
+
+    func testSharedMovieShowtimeLinkPreservesItsContext() throws {
+        let link = try XCTUnwrap(UniversalLinkDestination.parse(URL(string: "https://seret.site/A7zlb1fHK?date=2027-01-15")!))
+        guard case .movie(let movieLink) = link else { return XCTFail("Expected a movie link") }
+        let today = try XCTUnwrap(CinemaDay(isoDate: "2027-01-15"))
+        let context = try XCTUnwrap(movieLink.sharedContext(fallbackCity: "Jerusalem", today: today))
+
+        XCTAssertEqual(movieLink.movieCode, "A7z")
+        XCTAssertEqual(context.city, "Tel Aviv")
+        XCTAssertEqual(context.day.isoDate, "2027-01-15")
+        XCTAssertEqual(context.filterMask, 45_120)
+        XCTAssertEqual(context.filterState.unchecked.showType, ["VIP"])
+        XCTAssertEqual(context.filterState.unchecked.screenFormat, ["3D"])
+        XCTAssertEqual(context.filterState.unchecked.screeningTech, ["IMAX"])
+        XCTAssertEqual(context.filterState.unchecked.dubLanguage, ["French"])
+
+        let routeOnlyLink = try XCTUnwrap(UniversalLinkDestination.parse(URL(string: "https://seret.site/A7zlb1fHK")!))
+        guard case .movie(let routeOnlyMovieLink) = routeOnlyLink else { return XCTFail("Expected a movie link") }
+        XCTAssertEqual(routeOnlyMovieLink.sharedContext(fallbackCity: "Jerusalem", today: today)?.day.isoDate, "2027-01-15")
+
+        let shareURL = try XCTUnwrap(UniversalMovieLink.shareURL(
+            movieCode: movieLink.movieCode,
+            city: context.city,
+            day: context.day,
+            today: today,
+            filterState: context.filterState,
+            excludedCinemaIDs: ["smBcm2HtRvQA"]
+        ))
+        let components = try XCTUnwrap(URLComponents(url: shareURL, resolvingAgainstBaseURL: false))
+        XCTAssertEqual(components.path, "/A7zlb1fHK")
+        XCTAssertEqual(components.queryItems?.first(where: { $0.name == "date" })?.value, "2027-01-15")
+        XCTAssertEqual(components.queryItems?.first(where: { $0.name == "excludeCinemas" })?.value, "smBcm2HtRvQA")
+        guard case .movie(let generatedMovieLink) = try XCTUnwrap(UniversalLinkDestination.parse(shareURL)) else {
+            return XCTFail("Expected the shared URL to parse as a movie link")
+        }
+        XCTAssertEqual(generatedMovieLink.sharedContext(fallbackCity: "Jerusalem", today: today)?.excludedCinemaIDs, ["smBcm2HtRvQA"])
+        XCTAssertNil(UniversalMovieLink.shareURL(
+            movieCode: movieLink.movieCode,
+            city: context.city,
+            day: today.addingDays(62),
+            today: today,
+            filterState: context.filterState,
+            excludedCinemaIDs: []
+        ))
+    }
+
     func testCinemaDayUsesJerusalemOneOhFiveCutoff() throws {
         let before = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-04T23:04:00Z"))
         let atCutoff = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-04T23:05:00Z"))
