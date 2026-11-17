@@ -1,5 +1,7 @@
 # Catalog artwork in Cloudflare R2
 
+For unexpected charges or runaway R2 usage, follow the [R2 emergency billing shutdown runbook](r2-emergency-billing-shutdown.md).
+
 This change mirrors catalog posters and backdrops from TMDB into a private R2 bucket. The app serves the generated WebP variants from `seret.site/api/images/...`; Vercel caches successful responses for one day. Browser `srcset` selection is used for poster cards and wide backdrops. Social preview generation uses the catalog poster and backdrop URLs, so it also reads the mirrored variants.
 
 ```mermaid

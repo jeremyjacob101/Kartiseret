@@ -1,5 +1,7 @@
 # Scraper run logs and artifacts in Cloudflare
 
+For unexpected charges or runaway R2 usage, follow the [R2 emergency billing shutdown runbook](r2-emergency-billing-shutdown.md).
+
 Scraper runs write structured movie/screening rows and text diagnostics to D1,
 and private screenshots to R2. Supabase `utilRunLogs` remains the source of
 truth for the run ID and status. Existing Git history remains available; runs do
