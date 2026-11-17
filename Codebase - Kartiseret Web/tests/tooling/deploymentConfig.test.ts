@@ -15,25 +15,56 @@ describe("deployment performance boundaries", () => {
     const association = appleAssociation.applinks.details[0];
     expect(association?.appIDs).toEqual(["UZ7YLA6V9D.com.jj.kartiseret"]);
     const components = association?.components ?? [];
-    expect(components).toContainEqual(expect.objectContaining({ "#": "no_universal_links", exclude: true }));
-    for (const path of ["/", "/movies", "/soons", "/showtimes", "/cinematheques", "/user", "/confirm-account-deletion", "/c/*", "/???", "/??????", "/?????????"]) {
+    expect(components).toContainEqual(
+      expect.objectContaining({ "#": "no_universal_links", exclude: true }),
+    );
+    for (const path of [
+      "/",
+      "/movies",
+      "/soons",
+      "/showtimes",
+      "/cinematheques",
+      "/user",
+      "/confirm-account-deletion",
+      "/c/*",
+      "/???",
+      "/??????",
+      "/?????????",
+    ]) {
       expect(components).toContainEqual(expect.objectContaining({ "/": path }));
     }
-    for (const path of ["/reset-password", "/unsubscribe/letterboxd", "/attribution"]) {
-      expect(components).not.toContainEqual(expect.objectContaining({ "/": path }));
+    for (const path of [
+      "/reset-password",
+      "/unsubscribe/letterboxd",
+      "/attribution",
+    ]) {
+      expect(components).not.toContainEqual(
+        expect.objectContaining({ "/": path }),
+      );
     }
-    expect(components).toContainEqual(expect.objectContaining({ "/": "/api", exclude: true }));
-    expect(components).toContainEqual(expect.objectContaining({ "/": "/api/*", exclude: true }));
+    expect(components).toContainEqual(
+      expect.objectContaining({ "/": "/api", exclude: true }),
+    );
+    expect(components).toContainEqual(
+      expect.objectContaining({ "/": "/api/*", exclude: true }),
+    );
     const rewriteIndex = config.rewrites.findIndex(
-      (rewrite: { source: string }) => rewrite.source === "/.well-known/apple-app-site-association",
+      (rewrite: { source: string }) =>
+        rewrite.source === "/.well-known/apple-app-site-association",
     );
     expect(rewriteIndex).toBeGreaterThanOrEqual(0);
     expect(rewriteIndex).toBeLessThan(config.rewrites.length - 1);
-    expect(config.rewrites[rewriteIndex]?.destination).toBe("/apple-app-site-association");
+    expect(config.rewrites[rewriteIndex]?.destination).toBe(
+      "/apple-app-site-association",
+    );
     const headers = config.headers.find(
-      (rule: { source: string }) => rule.source === "/.well-known/apple-app-site-association",
+      (rule: { source: string }) =>
+        rule.source === "/.well-known/apple-app-site-association",
     )?.headers;
-    expect(headers).toContainEqual({ key: "Content-Type", value: "application/json" });
+    expect(headers).toContainEqual({
+      key: "Content-Type",
+      value: "application/json",
+    });
   });
 
   it("runs the existing API in Frankfurt", () => {
