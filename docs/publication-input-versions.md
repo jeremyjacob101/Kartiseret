@@ -110,4 +110,4 @@ Run the normal integration suite with `npm run api:test:integration`. To include
 its optional full Python backlog replay, set
 `RUN_POSTGRES_PUBLISHER_BACKLOG_PERF=true` and select the Python interpreter with
 `PYTHON` if needed. Python unit coverage runs with
-`python -m unittest discover -s backend/tests -v`.
+`uv run --locked -m unittest discover -s backend/tests -v`.

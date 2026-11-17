@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -61,6 +61,31 @@ function run(command, args, environment) {
   });
 }
 
+function resolvePython() {
+  const uv = process.env.KARTISERET_UV || "uv";
+  const result = spawnSync(
+    uv,
+    ["run", "--locked", "python", "-c", "import sys; print(sys.executable)"],
+    {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(
+      `Could not resolve the uv-managed Python interpreter: ${result.stderr || result.stdout}`,
+    );
+  }
+
+  const executable = result.stdout.trim();
+  if (!executable) {
+    throw new Error("uv did not return a Python interpreter path.");
+  }
+  return executable;
+}
+
 const [separator, command, ...args] = process.argv.slice(2);
 if (separator !== "--" || !command) {
   throw new Error(
@@ -82,6 +107,7 @@ const environment = {
     port,
   ),
   PUBLICATION_DATABASE_TEST_MODE: "true",
+  PYTHON: resolvePython(),
 };
 
 const database = new EmbeddedPostgres({

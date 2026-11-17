@@ -47,7 +47,7 @@ The previously authorized transport-history migration had already been applied b
 ## Verification and evidence
 
 - 692 backend tests passed after the fixes, including atomic ticket extraction, filter reset, current-date selection, response readiness, and Lev empty-booking evidence.
-- The independent comparison command is `python -m backend.scraping.compare all --output DIR --capture-source-responses --workers 3`. Reversed pairs use `--first requests`.
+- The independent comparison command is `uv run --locked -m backend.scraping.compare all --output DIR --capture-source-responses --workers 3`. Reversed pairs use `--first requests`.
 - [Manifest](evidence/2026-11-09/full-retest/manifest.json) lists **every** complete pair, mismatch, timeout, row count, coverage summary, request count, and archive path. [Captured outputs and source responses](evidence/2026-11-09/full-retest/captures.tar.gz) include failed attempts as well as successful reruns, direct Cinema City browser proof, and Yes Planet diagnosis.
 - Runtime fallback remains Requests first, then a clean whole Selenium collection on observable collection/validation failure. It does not compare both outputs in production and cannot guarantee detection of all silent source changes.
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import os
 import pathlib
@@ -39,6 +40,23 @@ RUN_FROM_OVERRIDE_ENV_KEY = "RUN_FROM_OVERRIDE"
 REALTIME_GIT_SYNC = str(os.environ.get("REALTIME_GIT_SYNC", "true")).strip().lower() in {"1", "true", "yes", "on"}
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[3]
 REALTIME_GIT_SSH_KEY = os.environ.get("REALTIME_GIT_SSH_KEY", "").strip()
+DEPENDENCY_FILES = ("pyproject.toml", "uv.lock", ".python-version")
+
+
+def _dependency_fingerprint() -> str:
+    digest = hashlib.sha256()
+    for name in DEPENDENCY_FILES:
+        path = PROJECT_ROOT / name
+        digest.update(name.encode("utf-8") + b"\0")
+        try:
+            digest.update(path.read_bytes())
+        except FileNotFoundError:
+            digest.update(b"<missing>")
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+STARTUP_DEPENDENCY_FINGERPRINT = _dependency_fingerprint()
 
 
 def _configure_logging() -> None:
@@ -71,6 +89,16 @@ def _git_sync_before_update(logger: logging.Logger) -> bool:
     pull = _run_cmd(["git", "pull", "--ff-only", "origin", "main"], cwd=PROJECT_ROOT, logger=logger)
     if pull.returncode != 0:
         logger.error("Git fast-forward update failed before solo update: %s", (pull.stderr or pull.stdout).strip())
+        return False
+
+    expected_fingerprint = os.environ.get(
+        "KARTISERET_STARTUP_DEPENDENCY_FINGERPRINT",
+        STARTUP_DEPENDENCY_FINGERPRINT,
+    )
+    if _dependency_fingerprint() != expected_fingerprint:
+        logger.error(
+            "Python dependency files changed; skipping this solo update so the watcher can restart under uv."
+        )
         return False
 
     return True
@@ -115,12 +143,23 @@ def _run_single_update(table_name: str, *, cancel_event: threading.Event | None 
             [sys.executable, "-m", "backend.config.realtime.realtime_watcher", "--solo-update-worker", table_name],
             seconds=job_seconds(solo=True),
             grace_seconds=termination_grace_seconds(),
-            env={SOLO_UPDATE_ENV_KEY: "true", RUN_FROM_OVERRIDE_ENV_KEY: run_from_override},
+            env={
+                SOLO_UPDATE_ENV_KEY: "true",
+                RUN_FROM_OVERRIDE_ENV_KEY: run_from_override,
+                "KARTISERET_STARTUP_DEPENDENCY_FINGERPRINT": STARTUP_DEPENDENCY_FINGERPRINT,
+            },
             cwd=str(PROJECT_ROOT),
             cancel_event=cancel_event,
         )
     except ValueError as error:
         logger.error("Invalid solo Update execution configuration: %s", error)
+        return False
+    if _dependency_fingerprint() != STARTUP_DEPENDENCY_FINGERPRINT:
+        logger.error(
+            "Python dependency files changed; stopping the realtime watcher so uv can prepare the new environment."
+        )
+        if cancel_event is not None:
+            cancel_event.set()
         return False
     if outcome.reason:
         logger.error("Solo Update for %s ended with %s", table_name, outcome.reason)
@@ -265,8 +304,7 @@ def main() -> int:
     if len(sys.argv) == 3 and sys.argv[1] == "--solo-update-worker":
         artifact_logging.setup_logging()
         _configure_logging()
-        _run_single_update_worker(sys.argv[2])
-        return 0
+        return 0 if _run_single_update_worker(sys.argv[2]) else 1
 
     artifact_logging.setup_logging()
     _configure_logging()

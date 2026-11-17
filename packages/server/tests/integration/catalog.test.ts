@@ -961,7 +961,7 @@ describe("PostgreSQL 17 integration", () => {
       await writeFile(snapshotPath, JSON.stringify(snapshot));
 
       const generated = spawnSync(
-        "python3",
+        process.env.PYTHON ?? "python3",
         [
           backfillScript,
           "--snapshot",

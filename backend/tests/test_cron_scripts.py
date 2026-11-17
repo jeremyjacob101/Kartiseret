@@ -24,15 +24,17 @@ class CronScriptTests(TestCase):
         self.git("init", "-b", "main", cwd=root)
         self.git("config", "user.name", "Cron Test", cwd=root)
         self.git("config", "user.email", "cron@example.invalid", cwd=root)
-        runner = root / "runner_fixture"
+        runner = root / "uv_fixture"
         runner.write_text(
             "#!/bin/bash\n"
-            "if [[ \"$1\" == \"-m\" && \"$2\" == \"pip\" ]]; then\n"
-            "  printf 'pip\\n' >> \"$CRON_TEST_PYTHON_CALLS\"\n"
-            "  exit \"${CRON_TEST_PIP_STATUS:-0}\"\n"
+            "printf '%s\\n' \"$*\" >> \"$CRON_TEST_UV_CALLS\"\n"
+            "if [[ \"${CRON_TEST_UV_STATUS:-0}\" != 0 ]]; then exit \"$CRON_TEST_UV_STATUS\"; fi\n"
+            "if [[ \"$1\" == \"run\" && \"$2\" == \"--locked\" ]]; then\n"
+            "  shift 2\n"
+            "  if [[ \"$1\" == \"--no-sync\" ]]; then shift; fi\n"
             "fi\n"
-            "if [[ \"$1\" == \"-u\" ]]; then\n"
-            "  printf 'runner\\n' >> \"$CRON_TEST_PYTHON_CALLS\"\n"
+            "if [[ \"$1\" == \"-m\" && \"$2\" == \"backend.config.runner\" ]]; then\n"
+            "  printf 'runner\\n' >> \"$CRON_TEST_UV_CALLS\"\n"
             "  printf '42\\n' > \"$KARTISER_RUN_ID_FILE\"\n"
             "  echo runner-stdout\n"
             "  echo runner-stderr >&2\n"
@@ -49,7 +51,6 @@ class CronScriptTests(TestCase):
             "exit 99\n"
         )
         runner.chmod(0o755)
-        (root / "requirements.txt").write_text("# cron script fixture\n")
         self.git("add", ".", cwd=root)
         self.git("commit", "-m", "Initial fixture", cwd=root)
         self.git("remote", "add", "origin", str(remote), cwd=root)
@@ -61,9 +62,6 @@ class CronScriptTests(TestCase):
         source = source.replace(
             'PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"',
             f'PROJECT_ROOT="{root}"',
-        ).replace(
-            'PYTHON="${KARTISERET_PYTHON:-$PROJECT_ROOT/.venv/bin/python}"',
-            'PYTHON="$PROJECT_ROOT/runner_fixture"',
         )
         if failure == "sync":
             self.git("remote", "set-url", "origin", str(directory / "missing.git"), cwd=root)
@@ -87,7 +85,8 @@ class CronScriptTests(TestCase):
                 "HOME": str(directory),
                 "KARTISERET_RECOVERY_ROOT": str(recovery),
                 "CRON_TEST_STATUS": str(status),
-                "CRON_TEST_PYTHON_CALLS": str(directory / "python-calls.log"),
+                "KARTISERET_UV": str(runner),
+                "CRON_TEST_UV_CALLS": str(directory / "uv-calls.log"),
                 "CRON_TEST_UPLOADED_LOG": str(upload_copy),
                 "GIT_CONFIG_NOSYSTEM": "1",
                 "GIT_CONFIG_GLOBAL": os.devnull,
@@ -107,9 +106,18 @@ class CronScriptTests(TestCase):
                     self.assertEqual(self.git("rev-parse", "main", cwd=remote), initial)
                     self.assertEqual(self.git("rev-parse", "HEAD", cwd=root), initial)
                     self.assertEqual(self.git("status", "--porcelain", cwd=root), "")
+                    uv_calls = (Path(temp) / "uv-calls.log").read_text().splitlines()
                     self.assertEqual(
-                        (Path(temp) / "python-calls.log").read_text().splitlines(),
-                        ["runner"],
+                        uv_calls[:2],
+                        [
+                            "run --locked -m backend.config.runner argument with spaces",
+                            "runner",
+                        ],
+                    )
+                    self.assertTrue(
+                        uv_calls[2].startswith(
+                            "run --locked --no-sync -m backend.config.upload_cron_log "
+                        )
                     )
                     transcript = uploaded.read_text()
                     self.assertIn("runner-stdout", transcript)

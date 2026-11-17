@@ -27,7 +27,7 @@ variables. `R2_ACCOUNT_ID` is shared. See `.env.example` for exact names.
 Initialize the selected database after configuring its profile:
 
 ```sh
-python -m backend.utils.log.initialize_run_storage --target development
+uv run --locked -m backend.utils.log.initialize_run_storage --target development
 ```
 
 No Worker, Wrangler configuration, Worker secret, or scheduled Cloudflare

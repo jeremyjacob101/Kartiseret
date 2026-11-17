@@ -2,16 +2,26 @@
 set -euo pipefail
 
 export JJ_INTEL_MAC_WEEKLY_RUN="true"
-export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 export GIT_SSH_COMMAND="ssh -i /Users/jeremyjacob/.ssh/id_ed25519_kartiseret -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-PYTHON="${KARTISERET_PYTHON:-$PROJECT_ROOT/.venv/bin/python}"
-if [[ ! -x "$PYTHON" ]]; then
-  BASE_PYTHON="$(command -v python3)"
-  "$BASE_PYTHON" -m venv "$PROJECT_ROOT/.venv"
-  PYTHON="$PROJECT_ROOT/.venv/bin/python"
+if [[ -n "${KARTISERET_PYTHON:-}" ]]; then
+  echo "KARTISERET_PYTHON is retired; set KARTISERET_UV to the uv executable instead." >&2
+  exit 2
 fi
+if [[ -n "${KARTISERET_UV:-}" ]]; then
+  UV="$KARTISERET_UV"
+  if [[ "$UV" != */* ]]; then UV="$(command -v "$UV" 2>/dev/null || true)"; fi
+else
+  UV="$(command -v uv 2>/dev/null || true)"
+  if [[ -z "$UV" && -x "$HOME/.local/bin/uv" ]]; then UV="$HOME/.local/bin/uv"; fi
+fi
+if [[ -z "$UV" || ! -x "$UV" ]]; then
+  echo "uv is required. Install the pinned uv version from the project README or set KARTISERET_UV." >&2
+  exit 127
+fi
+export PYTHONUNBUFFERED=1
 
 TARGET="${KARTISERET_TARGET:-production}"
 ARGS=("$@")
@@ -49,7 +59,7 @@ sync_phase() {
 sync_phase 2>&1 | tee "$LOG_FILE"
 
 set +e
-"$PYTHON" -u -m backend.config.runner "${ARGS[@]}" 2>&1 | tee -a "$LOG_FILE"
+"$UV" run --locked -m backend.config.runner "${ARGS[@]}" 2>&1 | tee -a "$LOG_FILE"
 RUN_STATUSES=("${PIPESTATUS[@]}")
 set -e
 RUN_STATUS=${RUN_STATUSES[0]}
@@ -64,7 +74,7 @@ if [[ -s "$RUN_ID_FILE" ]]; then
     UPLOAD_ARGS+=(--mark-failed)
   fi
   set +e
-  "$PYTHON" -m backend.config.upload_cron_log "${UPLOAD_ARGS[@]}"
+  "$UV" run --locked --no-sync -m backend.config.upload_cron_log "${UPLOAD_ARGS[@]}"
   UPLOAD_STATUS=$?
   set -e
 else

@@ -7,9 +7,11 @@ import type { IdentityVerifier } from "./protected/identity.js";
 import type { ProtectedWorkflowService } from "./protected/service.js";
 import express, {
   type ErrorRequestHandler,
+  type Request,
   type RequestHandler,
   type Router,
 } from "express";
+import type { Logger } from "pino";
 import { z } from "zod";
 import {
   CatalogDataIntegrityError,
@@ -44,6 +46,14 @@ import {
   type TmdbSearchProvider,
 } from "./public-data/tmdb-search.js";
 import type { SocialProviderId } from "./auth/env.js";
+import {
+  createRequestLogContext,
+  getRequestLogContext,
+  logErrorSafely,
+  safeErrorSummary,
+  serverLogger,
+  withRequestLogContext,
+} from "./logging.js";
 
 const emptyQuerySchema = z.object({}).strict();
 
@@ -55,6 +65,7 @@ export interface AppDependencies {
   catalogRepository: CatalogRepository;
   publicDataRepository?: PublicDataRepository;
   logger?: AppLogger;
+  requestLogger?: Logger;
   identityVerifier?: IdentityVerifier;
   protectedWorkflows?: ProtectedWorkflowService;
   authHandler?: RequestHandler;
@@ -67,41 +78,70 @@ export interface AppDependencies {
   artworkStore?: R2ImageStore | null;
 }
 
-const silentLogger: AppLogger = {
-  error: () => undefined,
+const defaultAppLogger: AppLogger = {
+  error: (message, error) => {
+    logErrorSafely("api_error", error, message);
+  },
 };
 
-interface SafeErrorSummary {
-  name: string;
-  code?: string;
-  cause?: SafeErrorSummary;
+function routeTemplate(request: Request): string {
+  const routePath = request.route?.path;
+  if (typeof routePath !== "string") return "unmatched";
+  return routePath.startsWith("/")
+    ? routePath
+    : `${request.baseUrl}${routePath}`;
 }
 
-function safeErrorSummary(error: unknown, causeDepth = 0): SafeErrorSummary {
-  if (typeof error !== "object" || error === null) {
-    return { name: "UnknownError" };
-  }
+function createRequestLoggingMiddleware(rootLogger: Logger): RequestHandler {
+  return (request, response, next) => {
+    const context =
+      getRequestLogContext() ?? createRequestLogContext(rootLogger);
+    const startedAt = performance.now();
+    let completed = false;
 
-  const source = error as {
-    name?: unknown;
-    code?: unknown;
-    cause?: unknown;
-  };
-  return {
-    name: typeof source.name === "string" ? source.name : "Error",
-    ...(typeof source.code === "string" ? { code: source.code } : {}),
-    ...(causeDepth < 4 &&
-    typeof source.cause === "object" &&
-    source.cause !== null
-      ? { cause: safeErrorSummary(source.cause, causeDepth + 1) }
-      : {}),
+    const complete = (outcome: "finished" | "aborted") => {
+      if (completed) return;
+      completed = true;
+      const status = outcome === "aborted" ? 499 : response.statusCode;
+      const level =
+        outcome === "aborted"
+          ? "warn"
+          : status >= 500
+            ? "error"
+            : status >= 400
+              ? "warn"
+              : "info";
+      try {
+        context.logger[level](
+          {
+            event: "http_request_complete",
+            method: request.method,
+            route: routeTemplate(request),
+            status,
+            durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+            outcome,
+          },
+          "HTTP request completed.",
+        );
+      } catch {
+        // Diagnostics must never alter a response or interrupt shutdown.
+      }
+    };
+
+    response.once("finish", () => complete("finished"));
+    response.once("close", () => {
+      if (!response.writableFinished) complete("aborted");
+    });
+
+    return withRequestLogContext(next, rootLogger, context.requestId);
   };
 }
 
 export function createApp({
   catalogRepository,
   publicDataRepository,
-  logger = silentLogger,
+  logger = defaultAppLogger,
+  requestLogger = serverLogger,
   identityVerifier,
   protectedWorkflows,
   authHandler,
@@ -115,6 +155,7 @@ export function createApp({
 }: AppDependencies) {
   const app = express();
   app.disable("x-powered-by");
+  app.use(createRequestLoggingMiddleware(requestLogger));
   app.use(
     [
       "/api/auth",

@@ -1,6 +1,6 @@
 """Read-only report for TMDb matching evidence stored in run diagnostics.
 
-Run with ``python -m backend.utils.log.tmdb_matching_report --target development``.
+Run with ``uv run --locked -m backend.utils.log.tmdb_matching_report --target development``.
 The command reads Cloudflare D1 only and never imports or calls the TMDb client.
 """
 

@@ -22,6 +22,7 @@ import {
   createMovieNotificationUnsubscribeRouter,
   createPostgresMovieNotificationUnsubscribeService,
 } from "./notifications/unsubscribe.js";
+import { getRequestLogger, logErrorSafely } from "./logging.js";
 
 type ProductionRuntime = ReturnType<typeof createProductionRuntime>;
 
@@ -51,7 +52,14 @@ function createProductionRuntime(
     const now = Date.now();
     if (now - lastRateLimitDiagnosticAt < 60_000) return;
     lastRateLimitDiagnosticAt = now;
-    console.error("Protected API rate limiter degraded.", { kind });
+    try {
+      getRequestLogger().error(
+        { event: "protected_rate_limiter_degraded", kind },
+        "Protected API rate limiter degraded.",
+      );
+    } catch {
+      // Diagnostics must not break request handling.
+    }
   };
   const protectedRateLimit: ProtectedRateLimitOptions = {
     store: new PostgresProtectedRateLimitStore(
@@ -134,7 +142,13 @@ export function createProductionApp(
     notificationUnsubscribeRouter: runtime.notificationUnsubscribeRouter,
     artworkStore: runtime.artworkStore,
     logger: {
-      error: (message, error) => console.error(message, error),
+      error: (message, error) => {
+        try {
+          logErrorSafely("api_error", error, message);
+        } catch {
+          // Diagnostics must not break request handling.
+        }
+      },
     },
   });
 

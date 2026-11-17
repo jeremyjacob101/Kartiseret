@@ -12,6 +12,7 @@ RUN_LOCK_SLEEP_SECONDS="${RUN_LOCK_SLEEP_SECONDS:-600}"
 RUN_LOCK_MAX_WAIT_SECONDS="${RUN_LOCK_MAX_WAIT_SECONDS:-10800}"
 PIPELINE_TERMINATION_GRACE_SECONDS="${PIPELINE_TERMINATION_GRACE_SECONDS:-}"
 TARGET="${KARTISERET_TARGET:-production}"
+export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 
 if [[ "${1:-}" == "--target" ]]; then
   if (( $# < 2 )); then
@@ -28,18 +29,32 @@ fi
 
 cd "$PROJECT"
 
-if [[ -n "${PYTHON:-}" ]]; then
-  PYTHON_BIN="$PYTHON"
-elif [[ -x "$PROJECT/.venv/bin/python" ]]; then
-  PYTHON_BIN="$PROJECT/.venv/bin/python"
-elif [[ -x "$PROJECT/.venv/bin/python3" ]]; then
-  PYTHON_BIN="$PROJECT/.venv/bin/python3"
-else
-  PYTHON_BIN="python3"
-fi
-
 dotenv_value() {
-  "$PYTHON_BIN" "$SCRIPT_DIR/dotenv_value.py" "$1" "$PROJECT/.env"
+  if [[ ! -f "$PROJECT/.env" ]]; then return 0; fi
+  awk -v key="$1" '
+    {
+      line = $0
+      sub(/^[[:space:]]*/, "", line)
+      sub(/^export[[:space:]]+/, "", line)
+      separator = index(line, "=")
+      if (separator == 0) next
+      name = substr(line, 1, separator - 1)
+      gsub(/[[:space:]]/, "", name)
+      if (name == key) value = substr(line, separator + 1)
+    }
+    END {
+      sub(/^[[:space:]]*/, "", value)
+      sub(/[[:space:]]*$/, "", value)
+      first = substr(value, 1, 1)
+      last = substr(value, length(value), 1)
+      if ((first == "\"" || first == "\047") && last == first) {
+        value = substr(value, 2, length(value) - 2)
+      } else {
+        sub(/[[:space:]]+#.*/, "", value)
+      }
+      print value
+    }
+  ' "$PROJECT/.env"
 }
 
 if [[ -z "$PIPELINE_TERMINATION_GRACE_SECONDS" ]]; then
@@ -47,10 +62,9 @@ if [[ -z "$PIPELINE_TERMINATION_GRACE_SECONDS" ]]; then
 fi
 PIPELINE_TERMINATION_GRACE_SECONDS="${PIPELINE_TERMINATION_GRACE_SECONDS:-20}"
 
-export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 export PROJECT
-export PYTHON="$PYTHON_BIN"
 export PYTHONPATH="$PROJECT"
+export PYTHONUNBUFFERED=1
 export REALTIME_GIT_SSH_KEY
 export REALTIME_LOG_LEVEL
 export RUN_LOCK_MAX_WAIT_SECONDS
@@ -61,9 +75,32 @@ export KARTISERET_TARGET="$TARGET"
 LOG_FILE="$PROJECT/$REALTIME_LOG_DIR/realtime_watcher.log"
 PID_FILE="$PROJECT/$REALTIME_LOG_DIR/realtime_watcher.pid"
 
+resolve_uv() {
+  if [[ -n "${KARTISERET_PYTHON:-}" ]]; then
+    echo "KARTISERET_PYTHON is retired; set KARTISERET_UV to the uv executable instead." >&2
+    return 2
+  fi
+  if [[ -n "${KARTISERET_UV:-}" ]]; then
+    UV="$KARTISERET_UV"
+    if [[ "$UV" != */* ]]; then UV="$(command -v "$UV" 2>/dev/null || true)"; fi
+  else
+    UV="$(command -v uv 2>/dev/null || true)"
+    if [[ -z "$UV" && -x "$HOME/.local/bin/uv" ]]; then UV="$HOME/.local/bin/uv"; fi
+  fi
+  if [[ -z "$UV" || ! -x "$UV" ]]; then
+    echo "uv is required. Install the pinned uv version from the project README or set KARTISERET_UV." >&2
+    return 127
+  fi
+  export UV
+}
+
 check_runtime() {
-  "$PYTHON" -m backend.config.realtime.launch_realtime_watcher --target "$TARGET" --validate-only
-  "$PYTHON" "$SCRIPT_DIR/check_realtime_runtime.py"
+  resolve_uv
+  "$UV" sync --locked
+  PYTHON="$("$UV" run --locked --no-sync python -c 'import sys; print(sys.executable)')"
+  export PYTHON
+  "$UV" run --locked --no-sync -m backend.config.realtime.launch_realtime_watcher --target "$TARGET" --validate-only
+  "$UV" run --locked --no-sync "$SCRIPT_DIR/check_realtime_runtime.py"
 }
 
 status_watcher() {
@@ -137,7 +174,7 @@ run_supervisor() {
   trap on_stop_signal INT TERM
 
   echo "Starting realtime watcher supervisor from $PROJECT"
-  echo "Python: $PYTHON"
+  echo "uv: $UV"
   echo "Restart delay: ${RESTART_SLEEP_SECONDS}s (max ${RESTART_MAX_SLEEP_SECONDS}s)"
 
   while true; do
@@ -149,7 +186,7 @@ run_supervisor() {
     start_ts="$(date '+%Y-%m-%dT%H:%M:%S%z')"
     echo "[$start_ts] Launching realtime watcher process..."
 
-    "$PYTHON" -u -m backend.config.realtime.launch_realtime_watcher --target "$TARGET" --exec &
+    "$UV" run --locked -m backend.config.realtime.launch_realtime_watcher --target "$TARGET" --exec &
     child_pid="$!"
 
     set +e
@@ -179,7 +216,7 @@ run_supervisor() {
 }
 
 start_background() {
-  check_runtime
+  resolve_uv
 
   mkdir -p "$(dirname "$LOG_FILE")"
 
@@ -187,6 +224,7 @@ start_background() {
   status_watcher
 
   stop_watcher
+  check_runtime
 
   echo "Logging to: $LOG_FILE"
   nohup "$SCRIPT_DIR/start_realtime_watcher_background.sh" --foreground >> "$LOG_FILE" 2>&1 < /dev/null &

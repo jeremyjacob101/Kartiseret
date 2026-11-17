@@ -38,8 +38,8 @@ Use the bucket-scoped R2 token flow, select the named bucket in its permission p
 The root `.env` uses `DEV_` and `PROD_` profiles. The scraper prompts for the target before it displays the run-plan menu. You can skip the target prompt explicitly:
 
 ```sh
-python backend/config/runner.py --target development
-python backend/config/runner.py --target production
+uv run --locked -m backend.config.runner --target development
+uv run --locked -m backend.config.runner --target production
 ```
 
 `KARTISERET_TARGET=development` or `KARTISERET_TARGET=production` selects a target for scheduled and non-interactive runs. If a local scheduled job has no target, it defaults to production. Do not set `KARTISERET_TARGET` in `.env` if you want an interactive prompt for each scraper run. The selected profile maps to the generic variable names the existing Python code uses, then the supervisor passes only that selected profile to its worker. A Supabase project-ref or R2 bucket mismatch stops the run before a scraper stage begins.
@@ -80,20 +80,20 @@ The backfill scans `finalMovies`, `finalThequeMovies`, and `finalSoons`. It is i
 
 ```sh
 # Show which development rows would be migrated (no writes or uploads)
-python -m backend.dataflow.backfill_catalog_artwork --target development --backfill --limit 25
+uv run --locked -m backend.dataflow.backfill_catalog_artwork --target development --backfill --limit 25
 
 # Copy and publish a small development batch
-python -m backend.dataflow.backfill_catalog_artwork --target development --backfill --apply --limit 25
+uv run --locked -m backend.dataflow.backfill_catalog_artwork --target development --backfill --apply --limit 25
 
 # Resume the remaining development catalog
-python -m backend.dataflow.backfill_catalog_artwork --target development --backfill --apply
+uv run --locked -m backend.dataflow.backfill_catalog_artwork --target development --backfill --apply
 ```
 
 The shared cleanup applies a 30-day grace period to unreferenced artwork and social preview cards. It scans all catalog tables, retains shared variants and completion markers, and refuses deletion if reference data or object listings are incomplete or malformed. Cleanup and pipeline writers coordinate through one target-specific D1 lease; the lease is the cross-host lock. Daily automation starts in dry-run mode until the environment is explicitly enabled after candidate review:
 
 ```sh
-python -m backend.utils.log.shared_cleanup --target development --dry-run --force
-python -m backend.utils.log.shared_cleanup --target development --apply --force
+uv run --locked -m backend.utils.log.shared_cleanup --target development --dry-run --force
+uv run --locked -m backend.utils.log.shared_cleanup --target development --apply --force
 ```
 
 Shared cleanup acquires the D1 target lease, scans every catalog reference, and batches at most 500 old orphan deletions per category per run. See [shared cleanup](shared-cleanup.md) for the once-daily schedule, dry-run rollout, and target credentials.
@@ -113,8 +113,8 @@ The cleanup script will not infer that an object is unused from age alone. An ob
 2. Keep the app's R2 read credentials and endpoint deployed while restoring catalog URLs. The rollback reads the TMDB source paths saved in `provider_freshness.artwork` and changes only rows it can safely identify:
 
    ```sh
-   python -m backend.dataflow.backfill_catalog_artwork --target development --rollback
-   python -m backend.dataflow.backfill_catalog_artwork --target development --rollback --apply
+   uv run --locked -m backend.dataflow.backfill_catalog_artwork --target development --rollback
+   uv run --locked -m backend.dataflow.backfill_catalog_artwork --target development --rollback --apply
    ```
 
    For any future production rollback, the script requires an explicit `--allow-production` alongside `--apply`; that option was not used in this work.

@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import type { ServerResponse } from "node:http";
+import { getRequestId, getRequestLogger } from "./logging.js";
 
 // Imported first by the dispatcher. This excludes platform startup and the
 // evaluation of this small module; it is not a full Vercel cold-start duration.
@@ -83,7 +84,9 @@ export function withCatalogTiming<T>(
   response: Pick<ServerResponse, "once" | "statusCode" | "writableFinished">,
   metadata: { firstApiRequest: boolean; dispatcherImportMs: number },
   work: () => T,
-  write: (line: string) => void = (line) => console.info(line),
+  write: (line: string) => void = (line) => {
+    getRequestLogger().info(JSON.parse(line));
+  },
 ): T {
   const path = url?.split("?", 1)[0];
   if (
@@ -93,7 +96,7 @@ export function withCatalogTiming<T>(
     return work();
 
   const started = performance.now();
-  const requestId = randomUUID();
+  const requestId = getRequestId() ?? randomUUID();
   let logged = false;
   const context: TimingContext = {
     stages: {},

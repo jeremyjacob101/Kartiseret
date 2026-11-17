@@ -45,9 +45,9 @@ Independent live responses can change popularity, ratings and counts between run
 Run from the repository root:
 
 ```sh
-python -m pip install -r requirements.txt
-python -m unittest discover -s backend/tests -v
-python -m compileall -q backend
+uv sync --locked
+uv run --locked -m unittest discover -s backend/tests -v
+uv run --locked -m compileall -q backend
 git diff --check
 ```
 
