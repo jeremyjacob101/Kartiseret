@@ -553,9 +553,9 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				GOOGLE_IOS_CLIENT_ID = "";
-				GOOGLE_IOS_REVERSED_CLIENT_ID = com.googleusercontent.apps.placeholder;
-				GOOGLE_SERVER_CLIENT_ID = "";
+				GOOGLE_IOS_CLIENT_ID = "790310150231-ol12o39i6qe65sjc3g07dc2trabu0kb8.apps.googleusercontent.com";
+				GOOGLE_IOS_REVERSED_CLIENT_ID = "com.googleusercontent.apps.790310150231-ol12o39i6qe65sjc3g07dc2trabu0kb8";
+				GOOGLE_SERVER_CLIENT_ID = "790310150231-907tnl1rvudrpntqi367arr3s2vl5qr7.apps.googleusercontent.com";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -639,9 +639,9 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				GOOGLE_IOS_CLIENT_ID = "";
-				GOOGLE_IOS_REVERSED_CLIENT_ID = com.googleusercontent.apps.placeholder;
-				GOOGLE_SERVER_CLIENT_ID = "";
+				GOOGLE_IOS_CLIENT_ID = "790310150231-ol12o39i6qe65sjc3g07dc2trabu0kb8.apps.googleusercontent.com";
+				GOOGLE_IOS_REVERSED_CLIENT_ID = "com.googleusercontent.apps.790310150231-ol12o39i6qe65sjc3g07dc2trabu0kb8";
+				GOOGLE_SERVER_CLIENT_ID = "790310150231-907tnl1rvudrpntqi367arr3s2vl5qr7.apps.googleusercontent.com";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;

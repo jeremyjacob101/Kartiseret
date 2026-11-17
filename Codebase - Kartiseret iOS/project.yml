@@ -11,9 +11,9 @@ settings:
     SWIFT_STRICT_CONCURRENCY: complete
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED: YES
-    GOOGLE_IOS_CLIENT_ID: ""
-    GOOGLE_SERVER_CLIENT_ID: ""
-    GOOGLE_IOS_REVERSED_CLIENT_ID: com.googleusercontent.apps.placeholder
+    GOOGLE_IOS_CLIENT_ID: "790310150231-ol12o39i6qe65sjc3g07dc2trabu0kb8.apps.googleusercontent.com"
+    GOOGLE_SERVER_CLIENT_ID: "790310150231-907tnl1rvudrpntqi367arr3s2vl5qr7.apps.googleusercontent.com"
+    GOOGLE_IOS_REVERSED_CLIENT_ID: "com.googleusercontent.apps.790310150231-ol12o39i6qe65sjc3g07dc2trabu0kb8"
 packages:
   GoogleSignIn:
     url: https://github.com/google/GoogleSignIn-iOS.git
