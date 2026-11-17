@@ -8,6 +8,7 @@ type CacheContext = {
   revision: string;
   rankingDate: string;
   pending: Map<string, PendingCandidate>;
+  finished: boolean;
 };
 type CacheEntry = {
   value: CacheResult;
@@ -136,8 +137,17 @@ export function createPublicDataPreparationSnapshot(
     revision,
     rankingDate: metadata.rankingDate,
     pending: new Map(),
+    finished: false,
   };
-  let finished = false;
+  function finishFlights() {
+    const cache = getRepositoryCache(repository);
+    for (const [key, flight] of cache.flights) {
+      if (flight.owner !== context) continue;
+      cache.flights.delete(key);
+      flight.resolve(undefined);
+    }
+    context.pending.clear();
+  }
   return {
     run<T>(operation: () => Promise<T>): Promise<T> {
       return parent?.repository === repository
@@ -145,8 +155,8 @@ export function createPublicDataPreparationSnapshot(
         : snapshotContext.run(context, operation);
     },
     commit() {
-      if (finished) return;
-      finished = true;
+      if (context.finished) return;
+      context.finished = true;
       for (const candidate of context.pending.values()) {
         if (candidate.retain)
           remember(candidate.cache, candidate.key, {
@@ -158,12 +168,14 @@ export function createPublicDataPreparationSnapshot(
           candidate.retain ? candidate.value : undefined,
         );
       }
+      finishFlights();
     },
     discard() {
-      if (finished) return;
-      finished = true;
+      if (context.finished) return;
+      context.finished = true;
       for (const candidate of context.pending.values())
         resolveFlight(candidate, undefined);
+      finishFlights();
     },
   };
 }
@@ -176,7 +188,8 @@ export async function getPreparedPublicData<T extends CacheResult>(
   retainWhen: (value: T) => boolean = () => true,
 ): Promise<T> {
   const context = snapshotContext.getStore();
-  if (!context || context.repository !== repository) return prepare();
+  if (!context || context.finished || context.repository !== repository)
+    return prepare();
 
   const cache = getRepositoryCache(repository);
   const key = cacheKey(context, operation, arguments_);
@@ -203,7 +216,13 @@ export async function getPreparedPublicData<T extends CacheResult>(
   }
 
   const flight = cache.flights.get(key);
-  if (flight?.owner === context) {
+  // A snapshot already owning work must not wait for another snapshot's
+  // commit: opposite acquisition orders can create a circular wait.
+  if (
+    flight &&
+    (flight.owner === context ||
+      [...cache.flights.values()].some((active) => active.owner === context))
+  ) {
     const started = performance.now();
     const result = await prepare();
     recordPreparationCacheMetric(operation, "bypass", {
@@ -273,7 +292,12 @@ export async function getPreparedPublicData<T extends CacheResult>(
       }
     }
     recordPreparationCacheMetric(operation, "miss", { buildMs, copyMs });
-    if (!value || cache.flights.get(key) !== createdFlight) {
+    if (
+      !value ||
+      !retain ||
+      context.finished ||
+      cache.flights.get(key) !== createdFlight
+    ) {
       if (cache.flights.get(key) === createdFlight) cache.flights.delete(key);
       createdFlight.resolve(undefined);
       return result;
@@ -288,13 +312,6 @@ export async function getPreparedPublicData<T extends CacheResult>(
       bytes,
       retain,
     });
-    if (!retain) {
-      // Oversized or over-budget values still belong to this snapshot; they
-      // must not be shared with requests whose own snapshot has not committed.
-      cache.flights.delete(key);
-      createdFlight.resolve(undefined);
-      recordPreparationCacheMetric(operation, "bypass");
-    }
     return result;
   } catch (error) {
     if (cache.flights.get(key) === createdFlight) cache.flights.delete(key);

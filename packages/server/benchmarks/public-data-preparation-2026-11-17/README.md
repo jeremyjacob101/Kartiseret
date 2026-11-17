@@ -36,4 +36,11 @@ The cache avoided all preparation queries on warm hits in every configuration, w
 
 This is a service-level microbenchmark, not evidence that production page TTFB will fall by a particular amount. The result supports the intended tradeoff when a process serves repeat requests for the same revision: a sub-millisecond median miss cost in aggregate cases, followed by substantially lower repeated latency and CPU. Cold function startup and real database round trips remain outside this benchmark. The request timing added by this change logs data preparation, cache activity, SSR rendering, assembly, and response completion so those can be measured in Vercel after the PR deploys.
 
-Cache entries are process-local and bounded to 128 entries / 16 MiB per repository. The cache key includes the repeatable-read publication revision and the Jerusalem date. Entries become visible only after the owning database transaction commits; no existing response freshness window was changed.
+Cache entries are process-local and bounded to 128 entries / 16 MiB of serialized payload per repository; JavaScript object overhead and temporary copies consume additional heap. Pending retained payload has a separate 16 MiB budget. The cache key includes the repeatable-read publication revision and the Jerusalem date. Entries become visible only after the owning database transaction commits; no existing response freshness window was changed.
+
+
+## Follow-up review
+
+The measurements above describe implementation commit `f01c6ac5`. A subsequent correctness fix releases unfinished preparations when their owning snapshot aborts, prevents circular waits between snapshots acquiring different preparations in opposite orders, and stops retaining over-budget candidates until snapshot completion. The existing numbers have not been reclassified as measurements of that fix.
+
+The fixture repository returns the same row arrays for the 1/7/30-day range arguments, so these cases exercise different cache keys, not different SQL selectivity. Per-movie fixture data should also be checked against real repository filtering before extrapolating those figures. Real query plans, populated per-movie results, actual Vercel cold starts, preview HTML TTFB, and production hit rates remain unmeasured. These gaps prevent a claim that all requested performance scenarios have been verified.
