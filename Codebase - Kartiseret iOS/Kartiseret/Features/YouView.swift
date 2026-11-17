@@ -493,7 +493,7 @@ private struct DeleteAccountView: View {
             if sent {
                 Section {
                     Label("Check your email", systemImage: "envelope")
-                    Text("Open the confirmation link to review and finish deleting your account. You may need to sign in to the same account in your browser. Your account has not been deleted yet.")
+                    Text("Open the confirmation link in your email to return to Kartiseret and review deletion. Your account has not been deleted yet.")
                 }
             } else {
                 Section {
@@ -529,6 +529,61 @@ private struct DeleteAccountView: View {
             confirmation = ""
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+}
+
+struct ConfirmAccountDeletionView: View {
+    let token: String
+    @Environment(AccountStore.self) private var account
+    @Environment(\.dismiss) private var dismiss
+    @State private var pending = false
+    @State private var deleted = false
+    @State private var error: String?
+
+    var body: some View {
+        Form {
+            if deleted {
+                Section {
+                    Label("Account deleted", systemImage: "checkmark.circle")
+                    Text("Your account and account-linked data have been deleted.")
+                    Button("Done") { dismiss() }
+                }
+            } else {
+                Section {
+                    Text("This permanently deletes your Kartiseret account and account-linked data. This cannot be undone. Opening this link has not deleted anything.")
+                    if account.state == .signedIn {
+                        Text(account.identity?.email ?? "Kartiseret account")
+                        Button("Confirm and delete account", role: .destructive) {
+                            Task { await confirm() }
+                        }
+                        .disabled(pending)
+                        .accessibilityIdentifier("account.delete.finalConfirmation")
+                    } else {
+                        Text("Sign in to the account that requested deletion, then return to this screen to confirm.")
+                        NavigationLink("Sign in") { SignInView() }
+                    }
+                    if pending { ProgressView("Deleting account…") }
+                    if let error { Text(error).foregroundStyle(.red) }
+                }
+            }
+        }
+        .navigationTitle("Confirm deletion")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() }.disabled(pending) } }
+        .interactiveDismissDisabled(pending)
+    }
+
+    @MainActor private func confirm() async {
+        pending = true
+        error = nil
+        defer { pending = false }
+        do {
+            try await account.confirmAccountDeletion(confirmationToken: token)
+            GIDSignIn.sharedInstance.signOut()
+            deleted = true
+        } catch {
+            self.error = "Deletion could not be completed. Check that you’re signed in to the account that requested it. If the link expired, request a new one."
         }
     }
 }

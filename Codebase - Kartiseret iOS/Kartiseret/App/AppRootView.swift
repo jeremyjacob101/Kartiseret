@@ -19,6 +19,7 @@ struct AppRootView: View {
     @State private var accountPath = NavigationPath()
     @State private var cinemathequesPath = NavigationPath()
     @State private var movieLinkTask: Task<Void, Never>?
+    @State private var deletionToken: String?
     @State private var linkError: String?
     @State private var failedLinkURL: URL?
     @State private var isReadyForUniversalLinks = false
@@ -68,6 +69,11 @@ struct AppRootView: View {
                 .accessibilityIdentifier("tab.you")
             }
         .tint(Color(hexString: accountStore.preferences.siteColor) ?? BrandStyle.accent)
+        }
+        .sheet(isPresented: Binding(get: { deletionToken != nil }, set: { if !$0 { deletionToken = nil } })) {
+            if let deletionToken {
+                NavigationStack { ConfirmAccountDeletionView(token: deletionToken) }
+            }
         }
         .preferredColorScheme(.dark)
         .onOpenURL(perform: handleIncomingURL)
@@ -135,6 +141,10 @@ struct AppRootView: View {
         linkError = nil
         failedLinkURL = nil
         switch destination {
+        case .confirmAccountDeletion(let token):
+            selectedTab = .you
+            accountPath = NavigationPath()
+            deletionToken = token
         case .discover:
             selectedTab = .discover
             discoverPath = NavigationPath()

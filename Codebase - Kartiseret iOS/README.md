@@ -57,11 +57,11 @@ The app queries `/api/v1/auth/providers` before displaying Apple or Google butto
 
 When either Google client ID is absent, the native Google button remains hidden. Apple and email sign-in continue to work. Account protection and session restoration use the same protected routes as the web app; no separate iOS preferences database or auth endpoint is introduced.
 
-Signed-in users can request account deletion from You > Delete account. Typing `DELETE` enables the confirmation-email request. The email opens the existing website confirmation page, where the user may need to sign in to the same account before confirming. An expired fresh-session check asks the user to sign out and sign back in with their usual provider. Requesting the email does not delete the account.
+Signed-in users can request account deletion from You > Delete account. Typing `DELETE` enables the confirmation-email request. The email Universal Link opens a native review screen and requires an explicit final confirmation using the signed-in app session. Users without the app can finish on the website. An expired fresh-session check asks the user to sign out and sign back in with their usual provider. Requesting the email does not delete the account.
 
 ## Universal Links
 
-The app handles HTTPS links on `seret.site` for Discover, the movie catalogs, showtimes, the account tab, cinema details, and movie links. Movie showtime share links keep their city, date, filters, and excluded cinemas for that screen without changing saved account preferences. Password reset, account deletion, unsubscribe, attribution, API, and edit links remain website routes.
+The app handles HTTPS links on `seret.site` for Discover, the movie catalogs, showtimes, the account tab, cinema details, and movie links. Movie showtime share links keep their city, date, filters, and excluded cinemas for that screen without changing saved account preferences. Account-deletion email links open a native confirmation screen. Password reset, unsubscribe, attribution, API, and edit links remain website routes.
 
 Universal Links require the `Associated Domains` capability on the `com.jj.kartiseret` App ID and a signed build with `applinks:seret.site`. The website serves the Apple association document at `https://seret.site/.well-known/apple-app-site-association`; Vercel serves it from the web project's public asset. No App Store Connect field or environment variable is required. The `appIDs` value in that JSON must use the App ID Prefix shown for the app in Apple Developer, followed by `.com.jj.kartiseret`; this prefix can differ from the Team ID. The file uses the verified prefix `UZ7YLA6V9D`.
 

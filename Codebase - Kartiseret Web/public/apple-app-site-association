@@ -12,6 +12,7 @@
           {"/": "/soons", "comment": "Open the Coming Soon catalog."},
           {"/": "/showtimes", "comment": "Open showtimes."},
           {"/": "/cinematheques", "comment": "Open cinematheques."},
+          {"/": "/confirm-account-deletion", "comment": "Review email confirmation in the app; opening a link never deletes an account."},
           {"/": "/user", "comment": "Open the account tab."},
           {"/": "/c/*", "comment": "Open a cinema detail page."},
           {"/": "/???", "comment": "Open a three-character movie link."},

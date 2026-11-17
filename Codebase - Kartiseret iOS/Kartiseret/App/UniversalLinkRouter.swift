@@ -6,6 +6,7 @@ enum UniversalLinkDestination: Equatable, Sendable {
     case showtimes
     case cinematheques
     case account
+    case confirmAccountDeletion(token: String)
     case cinema(id: String)
     case movie(UniversalMovieLink)
 
@@ -17,6 +18,15 @@ enum UniversalLinkDestination: Equatable, Sendable {
               url.port == nil,
               url.fragment != "no_universal_links" else { return nil }
 
+        if url.path == "/confirm-account-deletion" {
+            guard let fragment = url.fragment,
+                  let fields = URLComponents(string: "https://seret.site/?" + fragment)?.queryItems,
+                  fields.filter({ $0.name == "token" }).count == 1,
+                  let token = fields.first(where: { $0.name == "token" })?.value,
+                  !token.isEmpty, token.utf8.count <= 4096,
+                  !token.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { return nil }
+            return .confirmAccountDeletion(token: token)
+        }
         let segments = url.path.split(separator: "/").map(String.init)
         if segments.isEmpty { return .discover }
         if segments.count == 2, segments[0] == "c", CinemaIdentity.byID(segments[1]) != nil {

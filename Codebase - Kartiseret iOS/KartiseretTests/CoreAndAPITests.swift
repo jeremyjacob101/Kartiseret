@@ -304,6 +304,25 @@ final class CoreAndAPITests: XCTestCase {
         XCTAssertEqual(idToken["accessToken"], "google-access-token")
     }
 
+    func testDeletionConfirmationLinkRequiresAValidFragmentToken() {
+        XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/confirm-account-deletion#token=abc123")!), .confirmAccountDeletion(token: "abc123"))
+        for url in ["https://seret.site/confirm-account-deletion", "https://seret.site/confirm-account-deletion#token=", "https://seret.site/confirm-account-deletion#token=a&token=b"] {
+            XCTAssertNil(UniversalLinkDestination.parse(URL(string: url)!))
+        }
+    }
+
+    func testNativeDeletionConfirmationSendsTokenWithSession() async throws {
+        let transport = StubTransport(responses: [httpResponse(#"{"success":true}"#)])
+        let api = NativeAccountAPI(baseURL: URL(string: "https://seret.site")!, transport: transport)
+        try await api.confirmAccountDeletion(sessionToken: "session-token", confirmationToken: "email-token")
+        let requests = await transport.capturedRequests()
+        let request = try XCTUnwrap(requests.first)
+        XCTAssertEqual(request.url.path, "/api/auth/delete-user")
+        XCTAssertEqual(request.headers["Authorization"], "Bearer session-token")
+        let payload = try XCTUnwrap(try JSONSerialization.jsonObject(with: request.body ?? Data()) as? [String: String])
+        XCTAssertEqual(payload, ["token": "email-token"])
+    }
+
     func testNativeDeletionRequestsConfirmationEmailWithBearerSession() async throws {
         let transport = StubTransport(responses: [httpResponse(#"{"success":true,"message":"Verification email sent"}"#)])
         let api = NativeAccountAPI(baseURL: URL(string: "https://seret.site")!, transport: transport)

@@ -184,6 +184,11 @@ actor NativeAccountAPI {
         return envelope.data?.titles ?? []
     }
 
+    func confirmAccountDeletion(sessionToken: String, confirmationToken: String) async throws {
+        let response = try await send(path: "/api/auth/delete-user", method: "POST", body: try jsonData(["token": confirmationToken]), token: sessionToken)
+        try check(response)
+    }
+
     func requestAccountDeletion(token: String) async throws {
         let response = try await send(path: "/api/auth/delete-user", method: "POST", body: try jsonData([String: String]()), token: token)
         if let error = try? JSONDecoder().decode(BetterAuthError.self, from: response.body), error.code == "SESSION_EXPIRED" {

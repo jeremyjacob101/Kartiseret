@@ -102,6 +102,12 @@ final class AccountStore {
         try await activate(session, fallbackLocation: fallbackLocation)
     }
 
+    func confirmAccountDeletion(confirmationToken: String) async throws {
+        guard state == .signedIn, let token else { throw APIClientError.unauthorized }
+        try await api.confirmAccountDeletion(sessionToken: token, confirmationToken: confirmationToken)
+        if self.token == token { clearAccountSession() }
+    }
+
     func requestAccountDeletion() async throws {
         guard state == .signedIn, let token else { throw APIClientError.unauthorized }
         do {

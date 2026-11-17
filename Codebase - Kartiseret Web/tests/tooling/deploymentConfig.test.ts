@@ -16,10 +16,10 @@ describe("deployment performance boundaries", () => {
     expect(association?.appIDs).toEqual(["UZ7YLA6V9D.com.jj.kartiseret"]);
     const components = association?.components ?? [];
     expect(components).toContainEqual(expect.objectContaining({ "#": "no_universal_links", exclude: true }));
-    for (const path of ["/", "/movies", "/soons", "/showtimes", "/cinematheques", "/user", "/c/*", "/???", "/??????", "/?????????"]) {
+    for (const path of ["/", "/movies", "/soons", "/showtimes", "/cinematheques", "/user", "/confirm-account-deletion", "/c/*", "/???", "/??????", "/?????????"]) {
       expect(components).toContainEqual(expect.objectContaining({ "/": path }));
     }
-    for (const path of ["/reset-password", "/confirm-account-deletion", "/unsubscribe/letterboxd", "/attribution"]) {
+    for (const path of ["/reset-password", "/unsubscribe/letterboxd", "/attribution"]) {
       expect(components).not.toContainEqual(expect.objectContaining({ "/": path }));
     }
     expect(components).toContainEqual(expect.objectContaining({ "/": "/api", exclude: true }));
