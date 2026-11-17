@@ -86,11 +86,16 @@ function setup(protectedRateLimit?: ProtectedRateLimitOptions) {
       );
     }),
   };
-  const verify = vi.fn(async (token: string) => {
-    if (token !== "valid")
-      throw new HttpError(401, "unauthorized", "Invalid session.");
-    return user;
-  });
+  const verify = vi.fn(
+    async (credentials: { cookie?: string; authorization?: string }) => {
+      const token =
+        credentials.cookie ??
+        credentials.authorization?.replace(/^Bearer /i, "");
+      if (token !== "valid")
+        throw new HttpError(401, "unauthorized", "Invalid session.");
+      return user;
+    },
+  );
   return {
     workflows,
     verify,
@@ -107,6 +112,32 @@ function setup(protectedRateLimit?: ProtectedRateLimitOptions) {
   };
 }
 describe("protected HTTP contracts", () => {
+  it("accepts native bearer requests for reads and mutations without a browser origin", async () => {
+    const { app, verify, workflows } = setup();
+    const account = await request(app)
+      .get("/api/v1/account")
+      .set("Authorization", "Bearer valid");
+    expect(account.status).toBe(200);
+    const saved = await request(app)
+      .patch("/api/v1/preferences")
+      .set("Authorization", "Bearer valid")
+      .send({ siteColor: "#a66ae3" });
+    expect(saved.status).toBe(200);
+    expect(verify).toHaveBeenCalledWith({ authorization: "Bearer valid" });
+    expect(workflows.patchPreferences).toHaveBeenCalled();
+  });
+
+  it("rejects requests that combine native bearer and browser cookie credentials", async () => {
+    const { app, verify } = setup();
+    const response = await request(app)
+      .get("/api/v1/account")
+      .set("Authorization", "Bearer valid")
+      .set("Cookie", "valid");
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("ambiguous_credentials");
+    expect(verify).not.toHaveBeenCalled();
+  });
+
   it("allows generous protected use, returns a retryable 429, and leaves public browsing available", async () => {
     const { app, verify, workflows } = setup({
       limit: 2,

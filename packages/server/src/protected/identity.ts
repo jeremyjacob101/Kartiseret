@@ -7,7 +7,10 @@ export type VerifiedIdentity = ApplicationIdentity & {
   signupLocation?: string;
 };
 export interface IdentityVerifier {
-  verify(cookie: string): Promise<VerifiedIdentity>;
+  verify(credentials: {
+    cookie?: string;
+    authorization?: string;
+  }): Promise<VerifiedIdentity>;
 }
 const identitySchema = z.object({
   id: z.string().uuid(),
@@ -18,10 +21,17 @@ const identitySchema = z.object({
 
 export class BetterAuthIdentityVerifier implements IdentityVerifier {
   constructor(private readonly auth: Pick<ApplicationAuth, "api">) {}
-  async verify(cookie: string): Promise<VerifiedIdentity> {
+  async verify(credentials: {
+    cookie?: string;
+    authorization?: string;
+  }): Promise<VerifiedIdentity> {
     try {
+      const headers = new Headers();
+      if (credentials.cookie) headers.set("cookie", credentials.cookie);
+      if (credentials.authorization)
+        headers.set("authorization", credentials.authorization);
       const session = await this.auth.api.getSession({
-        headers: new Headers({ cookie }),
+        headers,
         query: { disableCookieCache: true, disableRefresh: true },
       });
       const user = identitySchema.safeParse(session?.user);

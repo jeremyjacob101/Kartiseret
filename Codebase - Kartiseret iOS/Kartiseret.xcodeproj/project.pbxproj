@@ -9,24 +9,36 @@
 /* Begin PBXBuildFile section */
 		0552A6F7BA887A217BF6B328 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2F7978CA6D77B00CBA8294C /* Models.swift */; };
 		067C599694DF45BCE2F0FB03 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A3ED3793B6B30AA59A2E8EC9 /* PrivacyInfo.xcprivacy */; };
+		08B01D5477BA3BE2E94C5BEF /* AccountStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE76D1645AF08371C4B7B5C8 /* AccountStore.swift */; };
 		0E9B1D6CF76A2217F5FFA173 /* AppStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8375776D0C0EBEE746624E01 /* AppStoreTests.swift */; };
 		11FA0AF5F74C844B3B3800BF /* FixtureAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0DDC4B4730724FE50911D7 /* FixtureAPIClient.swift */; };
+		20DF04B56F7DB7705B6F89BE /* YouView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91FF86DFE3A784100383DC5C /* YouView.swift */; };
 		2F683A1FC081B977C6C7D83A /* CoreAndAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F547CD5CBC9E944AB9A4126 /* CoreAndAPITests.swift */; };
 		3D91503D8FD420AF51521A3D /* KartiseretUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7EB2FCC41A47E7B7B688012 /* KartiseretUITests.swift */; };
 		54FF2CDF72F10D6BC445929C /* CinemaDay.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF750FA9EBB7DFA4BEC7FD43 /* CinemaDay.swift */; };
+		7F2DB47E1276E42C204B7BD2 /* DiscoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C73A93CE14F5E8DCBCA87588 /* DiscoverView.swift */; };
 		8D5E1A85F791B4DB5F0E794A /* ShowtimeLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DF7946D67FFA8715F8F0BC2 /* ShowtimeLogic.swift */; };
 		96F6504DC71DC01C94166550 /* AppConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83F40144875624B0B760E3DA /* AppConfiguration.swift */; };
+		9902916CC10A256B85A28F97 /* CinemaIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E2C81285E812BD80E362C01 /* CinemaIdentity.swift */; };
+		A9E5AC034365D858E042359F /* AccountFeatureModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DFE5A57295ADFB6CF8E0AA6 /* AccountFeatureModels.swift */; };
+		AA364BE47BCF7D403539ADF1 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = D56D500CC142834D2BAB6D36 /* GoogleSignInSwift */; };
 		AACA71C72E2275A0CCB3E9E3 /* SelectionControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CFCB6CE55944C4EDBC82A9A /* SelectionControls.swift */; };
+		B1063FBBBEABF6A61F5CB11B /* SessionCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFD04BF73E859785F336CC42 /* SessionCredentialStore.swift */; };
 		BA54C14D01A8D3C040E3CF36 /* ShowtimeViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEA1F8EDD894C4196CCEC84B /* ShowtimeViews.swift */; };
 		C12100E02AC6AC7ED104B8C9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6BA90945760B3A2A832556F3 /* Assets.xcassets */; };
 		C179EF664358AFEA30630E2B /* KartiseretApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62058E6AF7CDE34704A0F575 /* KartiseretApp.swift */; };
+		C588D3748472F57E95043937 /* NativeAccountAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50787221B368D992B6BAFEBB /* NativeAccountAPI.swift */; };
 		C79A3887D6875A489FE0FF4E /* CatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 758B37A8485010ADE5C897E0 /* CatalogView.swift */; };
+		CD4E20612FA8762713A044C7 /* TicketAlertPreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DAA88784D71D71C9B2F58B2 /* TicketAlertPreferencesView.swift */; };
 		D629799D53F7FB04D56739EB /* MovieDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15A2D8FA6E8DA7A84D14074A /* MovieDetailView.swift */; };
 		D9D64A1A9F92FB6946B629A5 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2F539EF226AE1DCEA021B73 /* AppRootView.swift */; };
+		DAB7352C0E199705C47F6C86 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 86AB32671B8AFF4E652EFA7D /* GoogleSignIn */; };
 		DBD9257136432347C1844825 /* SharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEC664883FECE9EC750651D1 /* SharedViews.swift */; };
 		DF9505945DD5D79182D13306 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4745D53745F6ED2393B7331E /* APIClient.swift */; };
+		E7C349EAA9EC46029133D85C /* CinemathequesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AABF417D82DF6A02FD99CA1 /* CinemathequesView.swift */; };
 		EAD6509894AAEB355D290BC9 /* HelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0D7130B49EF63182E9FA69 /* HelpView.swift */; };
 		FB387444FFFE086E05E4CB6D /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE6F58E5534A52514C8BD04 /* AppStore.swift */; };
+		FC8E5C7B51CCFFA2FD0D02E2 /* AccountFeatureViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93B4D8F82DBBBF05E8D01003 /* AccountFeatureViews.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -49,28 +61,52 @@
 /* Begin PBXFileReference section */
 		15A2D8FA6E8DA7A84D14074A /* MovieDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovieDetailView.swift; sourceTree = "<group>"; };
 		1B0D7130B49EF63182E9FA69 /* HelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
-		27E204723A7007119BDF02D3 /* Kartiseret.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Kartiseret.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1CFE1C04C55375FE82522648 /* Kartiseret.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Kartiseret.entitlements; sourceTree = "<group>"; };
+		23FF2E5D8F2DFD12F85C4116 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		27E204723A7007119BDF02D3 /* Kartiseret.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Kartiseret.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2F547CD5CBC9E944AB9A4126 /* CoreAndAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreAndAPITests.swift; sourceTree = "<group>"; };
 		4745D53745F6ED2393B7331E /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		4AE6F58E5534A52514C8BD04 /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
+		50787221B368D992B6BAFEBB /* NativeAccountAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeAccountAPI.swift; sourceTree = "<group>"; };
 		5DF7946D67FFA8715F8F0BC2 /* ShowtimeLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowtimeLogic.swift; sourceTree = "<group>"; };
 		62058E6AF7CDE34704A0F575 /* KartiseretApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KartiseretApp.swift; sourceTree = "<group>"; };
 		6BA90945760B3A2A832556F3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		6DAA88784D71D71C9B2F58B2 /* TicketAlertPreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TicketAlertPreferencesView.swift; sourceTree = "<group>"; };
+		6E2C81285E812BD80E362C01 /* CinemaIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CinemaIdentity.swift; sourceTree = "<group>"; };
 		758B37A8485010ADE5C897E0 /* CatalogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogView.swift; sourceTree = "<group>"; };
+		7AABF417D82DF6A02FD99CA1 /* CinemathequesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CinemathequesView.swift; sourceTree = "<group>"; };
 		8375776D0C0EBEE746624E01 /* AppStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreTests.swift; sourceTree = "<group>"; };
 		83F40144875624B0B760E3DA /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
 		8C0DDC4B4730724FE50911D7 /* FixtureAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureAPIClient.swift; sourceTree = "<group>"; };
 		8CFCB6CE55944C4EDBC82A9A /* SelectionControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionControls.swift; sourceTree = "<group>"; };
-		9A12C4B938EE67D0C05B748A /* KartiseretTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KartiseretTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		A3ED3793B6B30AA59A2E8EC9 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		8DFE5A57295ADFB6CF8E0AA6 /* AccountFeatureModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountFeatureModels.swift; sourceTree = "<group>"; };
+		91FF86DFE3A784100383DC5C /* YouView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouView.swift; sourceTree = "<group>"; };
+		93B4D8F82DBBBF05E8D01003 /* AccountFeatureViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountFeatureViews.swift; sourceTree = "<group>"; };
+		9A12C4B938EE67D0C05B748A /* KartiseretTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KartiseretTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A3ED3793B6B30AA59A2E8EC9 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		BEC664883FECE9EC750651D1 /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedViews.swift; sourceTree = "<group>"; };
 		BF750FA9EBB7DFA4BEC7FD43 /* CinemaDay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CinemaDay.swift; sourceTree = "<group>"; };
-		E19714449C3D30C0EA30E31E /* KartiseretUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KartiseretUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C73A93CE14F5E8DCBCA87588 /* DiscoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoverView.swift; sourceTree = "<group>"; };
+		CE76D1645AF08371C4B7B5C8 /* AccountStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountStore.swift; sourceTree = "<group>"; };
+		E19714449C3D30C0EA30E31E /* KartiseretUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KartiseretUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2F7978CA6D77B00CBA8294C /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		E7EB2FCC41A47E7B7B688012 /* KartiseretUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KartiseretUITests.swift; sourceTree = "<group>"; };
 		EEA1F8EDD894C4196CCEC84B /* ShowtimeViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowtimeViews.swift; sourceTree = "<group>"; };
+		EFD04BF73E859785F336CC42 /* SessionCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionCredentialStore.swift; sourceTree = "<group>"; };
 		F2F539EF226AE1DCEA021B73 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A26C857B5F6954BD75AB7CED /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DAB7352C0E199705C47F6C86 /* GoogleSignIn in Frameworks */,
+				AA364BE47BCF7D403539ADF1 /* GoogleSignInSwift in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		40157537B8723DF9BDD31341 /* Kartiseret */ = {
@@ -81,6 +117,8 @@
 				F152F8BCDECDDE89BCDEF8D9 /* Data */,
 				59731FA93C8037FCDAAE557E /* Features */,
 				6BA90945760B3A2A832556F3 /* Assets.xcassets */,
+				23FF2E5D8F2DFD12F85C4116 /* Info.plist */,
+				1CFE1C04C55375FE82522648 /* Kartiseret.entitlements */,
 				A3ED3793B6B30AA59A2E8EC9 /* PrivacyInfo.xcprivacy */,
 			);
 			path = Kartiseret;
@@ -89,12 +127,17 @@
 		59731FA93C8037FCDAAE557E /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				93B4D8F82DBBBF05E8D01003 /* AccountFeatureViews.swift */,
 				758B37A8485010ADE5C897E0 /* CatalogView.swift */,
+				7AABF417D82DF6A02FD99CA1 /* CinemathequesView.swift */,
+				C73A93CE14F5E8DCBCA87588 /* DiscoverView.swift */,
 				1B0D7130B49EF63182E9FA69 /* HelpView.swift */,
 				15A2D8FA6E8DA7A84D14074A /* MovieDetailView.swift */,
 				8CFCB6CE55944C4EDBC82A9A /* SelectionControls.swift */,
 				BEC664883FECE9EC750651D1 /* SharedViews.swift */,
 				EEA1F8EDD894C4196CCEC84B /* ShowtimeViews.swift */,
+				6DAA88784D71D71C9B2F58B2 /* TicketAlertPreferencesView.swift */,
+				91FF86DFE3A784100383DC5C /* YouView.swift */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -139,7 +182,9 @@
 		EF724E4B06F6DCFD01568C01 /* Core */ = {
 			isa = PBXGroup;
 			children = (
+				8DFE5A57295ADFB6CF8E0AA6 /* AccountFeatureModels.swift */,
 				BF750FA9EBB7DFA4BEC7FD43 /* CinemaDay.swift */,
+				6E2C81285E812BD80E362C01 /* CinemaIdentity.swift */,
 				E2F7978CA6D77B00CBA8294C /* Models.swift */,
 				5DF7946D67FFA8715F8F0BC2 /* ShowtimeLogic.swift */,
 			);
@@ -151,6 +196,8 @@
 			children = (
 				4745D53745F6ED2393B7331E /* APIClient.swift */,
 				8C0DDC4B4730724FE50911D7 /* FixtureAPIClient.swift */,
+				50787221B368D992B6BAFEBB /* NativeAccountAPI.swift */,
+				EFD04BF73E859785F336CC42 /* SessionCredentialStore.swift */,
 			);
 			path = Data;
 			sourceTree = "<group>";
@@ -158,6 +205,7 @@
 		FFC3063B6D2A6A72EBF4C3BC /* App */ = {
 			isa = PBXGroup;
 			children = (
+				CE76D1645AF08371C4B7B5C8 /* AccountStore.swift */,
 				83F40144875624B0B760E3DA /* AppConfiguration.swift */,
 				F2F539EF226AE1DCEA021B73 /* AppRootView.swift */,
 				4AE6F58E5534A52514C8BD04 /* AppStore.swift */,
@@ -211,6 +259,7 @@
 			buildPhases = (
 				4EA1DAAC344D94D27042C5D4 /* Sources */,
 				F4A7BC501F81A1758279B5B1 /* Resources */,
+				A26C857B5F6954BD75AB7CED /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -218,6 +267,8 @@
 			);
 			name = Kartiseret;
 			packageProductDependencies = (
+				86AB32671B8AFF4E652EFA7D /* GoogleSignIn */,
+				D56D500CC142834D2BAB6D36 /* GoogleSignInSwift */,
 			);
 			productName = Kartiseret;
 			productReference = 27E204723A7007119BDF02D3 /* Kartiseret.app */;
@@ -230,12 +281,13 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2720;
+				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					2747609B17ABA76B8488BC01 = {
 						TestTargetID = 98989D6384B8DCB1D09EBE58;
 					};
 					98989D6384B8DCB1D09EBE58 = {
+						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -249,6 +301,9 @@
 			);
 			mainGroup = E2CD42A2AFE29D85BA04132D;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				7FC83F3487CA5C2A37D12A99 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 838895DB7E366747E1232D01 /* Products */;
 			projectDirPath = "";
@@ -279,20 +334,30 @@
 			buildActionMask = 2147483647;
 			files = (
 				DF9505945DD5D79182D13306 /* APIClient.swift in Sources */,
+				A9E5AC034365D858E042359F /* AccountFeatureModels.swift in Sources */,
+				FC8E5C7B51CCFFA2FD0D02E2 /* AccountFeatureViews.swift in Sources */,
+				08B01D5477BA3BE2E94C5BEF /* AccountStore.swift in Sources */,
 				96F6504DC71DC01C94166550 /* AppConfiguration.swift in Sources */,
 				D9D64A1A9F92FB6946B629A5 /* AppRootView.swift in Sources */,
 				FB387444FFFE086E05E4CB6D /* AppStore.swift in Sources */,
 				C79A3887D6875A489FE0FF4E /* CatalogView.swift in Sources */,
 				54FF2CDF72F10D6BC445929C /* CinemaDay.swift in Sources */,
+				9902916CC10A256B85A28F97 /* CinemaIdentity.swift in Sources */,
+				E7C349EAA9EC46029133D85C /* CinemathequesView.swift in Sources */,
+				7F2DB47E1276E42C204B7BD2 /* DiscoverView.swift in Sources */,
 				11FA0AF5F74C844B3B3800BF /* FixtureAPIClient.swift in Sources */,
 				EAD6509894AAEB355D290BC9 /* HelpView.swift in Sources */,
 				C179EF664358AFEA30630E2B /* KartiseretApp.swift in Sources */,
 				0552A6F7BA887A217BF6B328 /* Models.swift in Sources */,
 				D629799D53F7FB04D56739EB /* MovieDetailView.swift in Sources */,
+				C588D3748472F57E95043937 /* NativeAccountAPI.swift in Sources */,
 				AACA71C72E2275A0CCB3E9E3 /* SelectionControls.swift in Sources */,
+				B1063FBBBEABF6A61F5CB11B /* SessionCredentialStore.swift in Sources */,
 				DBD9257136432347C1844825 /* SharedViews.swift in Sources */,
 				8D5E1A85F791B4DB5F0E794A /* ShowtimeLogic.swift in Sources */,
 				BA54C14D01A8D3C040E3CF36 /* ShowtimeViews.swift in Sources */,
+				CD4E20612FA8762713A044C7 /* TicketAlertPreferencesView.swift in Sources */,
+				20DF04B56F7DB7705B6F89BE /* YouView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -369,18 +434,15 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Kartiseret/Kartiseret.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = UZ7YLA6V9D;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Kartiseret;
-				INFOPLIST_KEY_KARTISERET_API_BASE_URL = "https://seret.site";
+				INFOPLIST_FILE = Kartiseret/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -401,18 +463,15 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Kartiseret/Kartiseret.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = UZ7YLA6V9D;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Kartiseret;
-				INFOPLIST_KEY_KARTISERET_API_BASE_URL = "https://seret.site";
+				INFOPLIST_FILE = Kartiseret/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -494,12 +553,14 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				GOOGLE_IOS_CLIENT_ID = "";
+				GOOGLE_IOS_REVERSED_CLIENT_ID = com.googleusercontent.apps.placeholder;
+				GOOGLE_SERVER_CLIENT_ID = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -578,13 +639,15 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				GOOGLE_IOS_CLIENT_ID = "";
+				GOOGLE_IOS_REVERSED_CLIENT_ID = com.googleusercontent.apps.placeholder;
+				GOOGLE_SERVER_CLIENT_ID = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -632,6 +695,30 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		7FC83F3487CA5C2A37D12A99 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		86AB32671B8AFF4E652EFA7D /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7FC83F3487CA5C2A37D12A99 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		D56D500CC142834D2BAB6D36 /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7FC83F3487CA5C2A37D12A99 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 5B60796D7ACA59F40398ABF4 /* Project object */;
 }

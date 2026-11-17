@@ -67,6 +67,7 @@ struct SelectionControls: View {
 
 private struct CityPickerSheet: View {
     @Environment(AppStore.self) private var store
+    @Environment(AccountStore.self) private var account
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -92,6 +93,7 @@ private struct CityPickerSheet: View {
                         ForEach(store.cities) { city in
                             Button {
                                 store.selectCity(city.name)
+                                Task { await account.saveLocation(city.name) }
                                 dismiss()
                             } label: {
                                 HStack {

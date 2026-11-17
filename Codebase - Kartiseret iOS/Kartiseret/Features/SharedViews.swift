@@ -1,30 +1,118 @@
 import SwiftUI
 
 struct MovieArtwork: View {
+    var movie: Movie? = nil
     var width: CGFloat = 94
     var height: CGFloat = 138
 
     var body: some View {
         ZStack {
-            BrandStyle.accent
-            VStack(spacing: max(5, height * 0.08)) {
-                Image(systemName: "film")
-                    .font(.system(size: min(width, height) * 0.22, weight: .semibold))
-                Text("KARTISERET")
+            RoundedRectangle(cornerRadius: 11).fill(BrandStyle.raised)
+            if let url = AppConfiguration.imageURL(movie?.imageSrc) {
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image {
+                        image.resizable().scaledToFill()
+                    } else {
+                        fallback
+                    }
+                }
+                .frame(width: width, height: height)
+                .clipped()
+            } else {
+                fallback
+            }
+        }
+        .frame(width: width, height: height)
+        .clipShape(RoundedRectangle(cornerRadius: 11))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(movie?.title ?? "Kartiseret movie card")
+    }
+
+    private var fallback: some View {
+        ZStack {
+            LinearGradient(colors: [BrandStyle.accent, BrandStyle.raised], startPoint: .topLeading, endPoint: .bottomTrailing)
+            VStack(spacing: 8) {
+                Image(systemName: "film").font(.system(size: min(width, height) * 0.20, weight: .semibold))
+                Text(movie?.title ?? "KARTISERET")
                     .font(.system(size: min(width * 0.14, 12), weight: .bold, design: .rounded))
-                    .tracking(0.45)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.65)
+                    .multilineTextAlignment(.center).lineLimit(4).minimumScaleFactor(0.65)
             }
             .foregroundStyle(.white)
             .padding(.horizontal, max(4, width * 0.06))
         }
-        .frame(width: width, height: height)
-        .background(BrandStyle.accent)
-        .clipShape(RoundedRectangle(cornerRadius: 11))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Kartiseret movie card")
     }
+}
+
+struct MovieRatingsView: View {
+    let movie: Movie
+    let sources: [String]
+
+    private var ratings: [MovieRatingBadge] {
+        sources.compactMap { source in
+            switch source {
+            case "imdbRating":
+                guard let rating = movie.imdbRating else { return nil }
+                let id = movie.imdbId.map { $0.hasPrefix("http") ? $0 : "https://www.imdb.com/title/\($0)/" }
+                return MovieRatingBadge(key: source, label: "IMDb", value: String(format: "%.1f", rating), url: id.flatMap { URL(string: $0) })
+            case "rtAudienceRating":
+                guard let rating = movie.rtAudienceRating else { return nil }
+                let url = movie.rtId.flatMap { URL(string: $0.hasPrefix("http") ? $0 : "https://www.rottentomatoes.com\($0.hasPrefix("/") ? "" : "/")\($0)") }
+                return MovieRatingBadge(key: source, label: "RT audience", value: "\(Int(rating.rounded()))%", url: url)
+            case "rtCriticRating":
+                guard let rating = movie.rtCriticRating else { return nil }
+                let url = movie.rtId.flatMap { URL(string: $0.hasPrefix("http") ? $0 : "https://www.rottentomatoes.com\($0.hasPrefix("/") ? "" : "/")\($0)") }
+                return MovieRatingBadge(key: source, label: "RT critics", value: "\(Int(rating.rounded()))%", url: url)
+            case "lbRating":
+                guard let rating = movie.lbRating else { return nil }
+                let url = movie.lbId.flatMap { URL(string: $0.hasPrefix("http") ? $0 : "https://letterboxd.com/\($0.trimmingCharacters(in: CharacterSet(charactersIn: "/")))/") }
+                return MovieRatingBadge(key: source, label: "Letterboxd", value: String(format: "%.1f", rating), url: url)
+            case "tmdbRating":
+                guard let rating = movie.tmdbRating else { return nil }
+                return MovieRatingBadge(key: source, label: "TMDb", value: String(format: "%.1f", rating), url: URL(string: "https://www.themoviedb.org/movie/\(movie.tmdbId)"))
+            default:
+                return nil
+            }
+        }
+    }
+
+    var body: some View {
+        if !ratings.isEmpty {
+            ScrollView(.horizontal) {
+                HStack(spacing: 7) {
+                    ForEach(ratings) { rating in
+                        if let url = rating.url {
+                            Link(destination: url) { badge(rating) }
+                                .buttonStyle(.plain)
+                        } else {
+                            badge(rating)
+                        }
+                    }
+                }
+            }
+            .scrollIndicators(.hidden)
+            .accessibilityLabel("Movie ratings")
+        }
+    }
+
+    private func badge(_ rating: MovieRatingBadge) -> some View {
+        HStack(spacing: 5) {
+            Text(rating.label).foregroundStyle(BrandStyle.secondary)
+            Text(rating.value).foregroundStyle(.white).fontWeight(.semibold)
+        }
+        .font(.caption2)
+        .padding(.horizontal, 9).padding(.vertical, 6)
+        .background(BrandStyle.raised, in: Capsule())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(rating.label): \(rating.value)")
+    }
+}
+
+private struct MovieRatingBadge: Identifiable {
+    let key: String
+    let label: String
+    let value: String
+    let url: URL?
+    var id: String { key }
 }
 
 struct LoadingState: View {
