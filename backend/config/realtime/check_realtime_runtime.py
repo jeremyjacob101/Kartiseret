@@ -20,7 +20,7 @@ def main() -> int:
 
     if missing:
         print("Missing Python packages: " + ", ".join(missing), file=sys.stderr)
-        print(f"Install them with: {sys.executable} -m pip install -r requirements.txt", file=sys.stderr)
+        print("Install the locked project environment with: uv sync --locked", file=sys.stderr)
         return 1
 
     try:

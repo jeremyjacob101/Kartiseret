@@ -1,8 +1,12 @@
 import { createProductionApp } from "./production.js";
+import { getRequestLogger, safeErrorSummary } from "./logging.js";
 
 const { app, config, close } = createProductionApp();
 const server = app.listen(config.PORT, "0.0.0.0", () => {
-  console.log(`Kartiseret API listening on port ${config.PORT}.`);
+  getRequestLogger().info(
+    { event: "api_server_started", port: config.PORT },
+    "Kartiseret API listening.",
+  );
 });
 
 let shuttingDown = false;
@@ -12,11 +16,20 @@ async function shutdown(signal: string): Promise<void> {
     return;
   }
   shuttingDown = true;
-  console.log(`Received ${signal}; closing the API server.`);
+  getRequestLogger().info(
+    { event: "api_server_shutdown_started", signal },
+    "Received shutdown signal; closing the API server.",
+  );
 
   server.close(async (error) => {
     if (error) {
-      console.error("Could not close the API server cleanly.", error);
+      getRequestLogger().error(
+        {
+          event: "api_server_shutdown_failed",
+          error: safeErrorSummary(error),
+        },
+        "Could not close the API server cleanly.",
+      );
       process.exitCode = 1;
     }
     await close();

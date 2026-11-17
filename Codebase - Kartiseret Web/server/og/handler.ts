@@ -1,6 +1,7 @@
 import { NO_STORE_CACHE_CONTROL, PREVIEW_CACHE_CONTROL } from "./cacheControl.js";
 import { getPreviewData, resolvePreviewRouteSelection } from "./previewData.js";
 import type { VercelRequest, VercelResponse } from "./vercelTypes.js";
+import { logErrorSafely } from "@kartiseret/server/logging";
 import { getRequestOrigin } from "../seo/renderHtml.js";
 import { injectOpenGraphTags } from "./previewHtml.js";
 import { ogRequestQuerySchema } from "./schemas.js";
@@ -102,7 +103,7 @@ export default async function handler(
       .setHeader("Cache-Control", PREVIEW_CACHE_CONTROL)
       .send(ogHtml);
   } catch (error) {
-    console.error("OG handler error:", error);
+    logErrorSafely("og_handler_failed", error, "OG handler failed.");
 
     response
       .status(503)

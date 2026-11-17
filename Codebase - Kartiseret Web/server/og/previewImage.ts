@@ -1,6 +1,7 @@
 import type { SocialPreviewCardData } from "@kartiseret/contracts/social-preview";
 import { httpsUrlSchema } from "@kartiseret/contracts/runtime";
 import { formatPreviewReleaseDate } from "./previewFormat.js";
+import { logErrorSafely } from "@kartiseret/server/logging";
 import sharp, { type OverlayOptions } from "sharp";
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
@@ -363,7 +364,11 @@ async function createLogoLayer(): Promise<OverlayOptions | null> {
       top: LOGO_MARGIN_TOP,
     };
   } catch (error) {
-    console.error("Failed to create logo layer:", error);
+    logErrorSafely(
+      "og_logo_layer_failed",
+      error,
+      "Failed to create logo layer.",
+    );
     return null;
   }
 }

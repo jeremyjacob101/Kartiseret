@@ -1,0 +1,22 @@
+[project]
+name = "kartiseret-backend"
+version = "0.1.0"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "selenium",
+    "webdriver-manager",
+    "supabase",
+    "psycopg[binary]==3.3.6",
+    "requests",
+    "boto3",
+    "pillow>=9.1",
+    "pytz",
+    "rich",
+    "readchar",
+    "python-dotenv",
+    "beautifulsoup4>=4.12,<5",
+]
+
+[tool.uv]
+required-version = "==0.13.8"
+package = false

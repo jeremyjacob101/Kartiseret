@@ -124,7 +124,7 @@ Ashdod, Ashkelon, Ayalon, Beer Sheva, Carmiel, Chadera, Even Yehuda, Givataim, G
 
 ### Backend Pipeline
 
-- Written in Python and currently pinned only through `requirements.txt`, with GitHub Actions using Python `3.14.2`.
+- Written in Python with a committed uv lockfile and Python `3.14.2` pin. uv installs the selected interpreter and keeps the project environment aligned with the lock.
 - Prefers Requests-based HTML/API scraping, with Selenium + Chrome started only when needed for fallback.
 - Uploads data into Supabase using the service-role key.
 - Uses TMDb for movie matching and core metadata enrichment.
@@ -221,10 +221,9 @@ Environment variables:
 Setup and run:
 
 ```bash
-python -m venv .venv
-. .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+# Install uv 0.13.8 using the official installer, then from the repository root:
+curl -LsSf https://astral.sh/uv/0.13.8/install.sh | sh
+uv sync --locked
 
 export PYTHONPATH="$PWD"
 export SUPABASE_URL="https://your-project.supabase.co"
@@ -235,17 +234,17 @@ export RUNNER_MACHINE="local"
 export TICKET_ALERT_RECIPIENT_API_URL="https://your-dev-app.example"
 # Supply TICKET_ALERT_INTERNAL_API_SECRET privately before dispatching alerts.
 
-python -m backend.config.runner
+uv run --locked -m backend.config.runner
 ```
+
+Run these commands from the repository root. uv `0.13.8` reads the `3.14.2` pin, downloads that Python version when needed, creates or syncs `.venv`, and installs the exact versions in `uv.lock`. No manual activation or Python/pip version choice is needed. Add or remove Python packages with `uv add PACKAGE` and `uv remove PACKAGE`; upgrade a package deliberately with `uv lock --upgrade-package PACKAGE`, then run `uv sync --locked`. `uv run --locked` checks that project metadata and the lock agree before running a command.
 
 Local runs open an interactive Rich terminal menu, so you can choose a full run or a narrower subset of scrapers/dataflows. In GitHub Actions and weekly shell runs, the default plan runs headlessly.
 
 Cleanup expired data:
 
 ```bash
-. .venv/bin/activate
-export PYTHONPATH="$PWD"
-python backend/utils/supabase/clear_old_entries.py
+uv run --locked backend/utils/supabase/clear_old_entries.py
 ```
 
 ### Frontend
@@ -299,11 +298,11 @@ The coordinated Production auth transition is complete; its migration, account c
 ## Automation
 
 - `.github/workflows/full_checks.yml` runs the frontend lint, formatting, test, build, and bundle-budget suite, Python compile/tests, real PostgreSQL 17 migration/API integration, and Chromium browser acceptance on every push and pull request. Database-backed checks use the same disposable embedded PostgreSQL lifecycle as local commands and do not require a PostgreSQL service or hosted database credentials.
-- `.github/workflows/run_main.yml` runs the main backend pipeline manually in GitHub Actions and uploads run artifacts.
 - `.github/workflows/daily_shared_cleanup.yml` is scheduled for 02:00 UTC; scheduled jobs stay disabled until its rollout variable is enabled, and dry-run is the default. See [shared cleanup](docs/shared-cleanup.md).
-- `backend/config/runner.py` checks/installs the root `requirements.txt` with its own Python interpreter before loading pipeline packages on every manual or scheduled run. Already-satisfied packages are reused without forcing upgrades; installation failure stops the run before scraping starts.
-- `backend/config/cron/run_weekly.sh` and `backend/config/cron/run_daily.sh` are local shell runners that fetch and fast-forward `main`, then invoke the backend runner, which handles dependency installation in the project Python environment.
-- Both local cron runners upload the completed transcript to the selected Cloudflare environment instead of committing run output to Git. They upload it even when the Python runner fails, record its exit code in the log, and then exit with that code. Code-sync, dependency-install, log-writing, and transcript-upload errors remain fatal.
+- `pyproject.toml`, `.python-version`, and `uv.lock` define direct dependencies, Python `3.14.2`, and every resolved package version. The Python runner assumes uv prepared the environment and never installs packages itself.
+- `backend/config/cron/run_weekly.sh` and `backend/config/cron/run_daily.sh` fetch and fast-forward `main`, then invoke `uv run --locked`. Their existing transcript capture and upload behavior remains in place. Set `KARTISERET_UV` only when uv is installed outside PATH; `KARTISERET_PYTHON` is retired.
+- The realtime launcher uses uv for startup and restarts. When a synchronized change modifies `pyproject.toml`, `uv.lock`, or `.python-version`, it skips the current update and restarts before doing work with that changed dependency set.
+- The Express API and server-rendered handlers emit structured JSON through Pino to Vercel runtime logs. API completion events include a generated request ID, route template, status, and duration. Error records use safe error summaries and omit request bodies, credentials, and raw exception messages.
 - `backend/config/realtime/start_realtime_watcher_background.sh` starts/restarts a local realtime listener for `finalMovies`, `finalThequeMovies`, and `finalSoons`, loads Supabase credentials from the project-root `.env`, and writes logs to `backend/config/cron/run_realtime_logs/realtime_watcher.log`.
   - watcher-triggered update runs use `solo_update` mode (`SOLO_UPDATE_ONLY=true`) and process only rows where `solo_update = true`, then reset `solo_update` back to `false` on processed rows.
   - watcher-triggered runs write `utilRunLogs.run_from` as `np_solo_update` (for `finalMovies`), `theque_solo_update` (for `finalThequeMovies`), or `cs_solo_update` (for `finalSoons`).
@@ -335,10 +334,12 @@ The coordinated Production auth transition is complete; its migration, account c
 │   └── package.json
 ├── package.json                Root npm workspace and verification commands
 ├── package-lock.json           Single npm workspace lockfile
+├── pyproject.toml              Python dependency declarations and uv settings
+├── uv.lock                     Locked Python dependency versions
+├── .python-version             Pinned Python runtime
 ├── .env                        Shared environment variables (Supabase keys, etc.)
 ├── LICENSE.md
 ├── README.md
-└── requirements.txt
 ```
 
 </details>

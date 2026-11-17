@@ -58,13 +58,13 @@ back a successful catalog publication.
 3. Preview a controlled backfill first:
 
    ```sh
-   python -m backend.dataflow.social_previews --target development --limit 1
+   uv run --locked -m backend.dataflow.social_previews --target development --limit 1
    ```
 
    This is a dry run. To write one controlled development card, run:
 
    ```sh
-   python -m backend.dataflow.social_previews --target development --apply --limit 1
+   uv run --locked -m backend.dataflow.social_previews --target development --apply --limit 1
    ```
 
    The command resumes naturally: already published matching fingerprints and

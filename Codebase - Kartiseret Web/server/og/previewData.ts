@@ -8,6 +8,7 @@ import { getProductionPublicDataRepository } from "@kartiseret/server/production
 import type { PublicDataRepository } from "@kartiseret/server/public-data";
 import type { PublicShowtime } from "@kartiseret/contracts/public-data";
 import { DEFAULT_LOCATION } from "@kartiseret/contracts/preferences";
+import { logErrorSafely } from "@kartiseret/server/logging";
 
 export type {
   PreviewData,
@@ -201,12 +202,11 @@ async function readPreviewData(
         ));
       theaters = groupPreviewShowtimes(filteredRows);
     } catch (error) {
-      console.error("Failed to load public showtimes for movie preview.", {
-        name:
-          typeof error === "object" && error !== null && "name" in error
-            ? String(error.name)
-            : "Error",
-      });
+      logErrorSafely(
+        "og_public_showtimes_load_failed",
+        error,
+        "Failed to load public showtimes for movie preview.",
+      );
     }
   }
 

@@ -1,6 +1,6 @@
 """Compare complete live scraper output without publishing it.
 
-Run with ``python -m backend.scraping.compare SCRAPER --output DIR``.
+Run with ``uv run --locked -m backend.scraping.compare SCRAPER --output DIR``.
 The output directory contains both snapshots and an exact multiset comparison.
 Add ``--capture-source-responses`` to save compressed raw HTTP responses for diagnosis.
 """

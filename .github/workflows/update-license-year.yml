@@ -15,6 +15,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Set up uv and the pinned Python runtime
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.8"
+          python-version: "3.14.2"
+
       - name: Pick license file
         shell: bash
         run: |
@@ -37,7 +43,7 @@ jobs:
             exit 0
           fi
 
-          python3 - <<'PY'
+          uv run --no-project --python 3.14.2 python - <<'PY'
           import os, re
           from datetime import datetime
           from pathlib import Path
