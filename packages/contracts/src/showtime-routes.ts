@@ -1,11 +1,24 @@
 import { ALL_LOCATIONS, type AppLocation } from "./preferences.js";
 
 function slugifyCity(city: string): string {
-  return city
-    .normalize("NFKD")
-    .toLocaleLowerCase("en")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  const normalized = city.normalize("NFKD").toLocaleLowerCase("en");
+  let slug = "";
+  let separatorPending = false;
+
+  for (const character of normalized) {
+    const isAsciiLetter = character >= "a" && character <= "z";
+    const isAsciiDigit = character >= "0" && character <= "9";
+
+    if (isAsciiLetter || isAsciiDigit) {
+      if (separatorPending && slug.length > 0) slug += "-";
+      slug += character;
+      separatorPending = false;
+    } else if (slug.length > 0) {
+      separatorPending = true;
+    }
+  }
+
+  return slug;
 }
 
 const cityBySlug = new Map<string, AppLocation>(

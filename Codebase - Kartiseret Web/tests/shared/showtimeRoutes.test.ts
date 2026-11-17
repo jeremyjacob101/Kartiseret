@@ -19,4 +19,9 @@ describe("showtimes city routes", () => {
     expect(getShowtimesCityFromPath("/showtimes/not-a-city")).toBeNull();
     expect(getShowtimesCityFromPath("/showtimes/tel-aviv/extra")).toBeNull();
   });
+
+  it("collapses and trims any run of non-ASCII-alphanumeric separators", () => {
+    expect(getShowtimesCitySlug("---Tel---Aviv---")).toBe("tel-aviv");
+    expect(getShowtimesCitySlug("Cafe\u0301 & Haifa")).toBe("cafe-haifa");
+  });
 });
