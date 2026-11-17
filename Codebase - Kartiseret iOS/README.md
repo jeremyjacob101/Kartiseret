@@ -57,6 +57,8 @@ The app queries `/api/v1/auth/providers` before displaying Apple or Google butto
 
 When either Google client ID is absent, the native Google button remains hidden. Apple and email sign-in continue to work. Account protection and session restoration use the same protected routes as the web app; no separate iOS preferences database or auth endpoint is introduced.
 
+Signed-in users can request account deletion from You > Delete account. Typing `DELETE` enables the confirmation-email request. The email opens the existing website confirmation page, where the user may need to sign in to the same account before confirming. An expired fresh-session check asks the user to sign out and sign back in with their usual provider. Requesting the email does not delete the account.
+
 ## Universal Links
 
 The app handles HTTPS links on `seret.site` for Discover, the movie catalogs, showtimes, the account tab, cinema details, and movie links. Movie showtime share links keep their city, date, filters, and excluded cinemas for that screen without changing saved account preferences. Password reset, account deletion, unsubscribe, attribution, API, and edit links remain website routes.

@@ -304,6 +304,30 @@ final class CoreAndAPITests: XCTestCase {
         XCTAssertEqual(idToken["accessToken"], "google-access-token")
     }
 
+    func testNativeDeletionRequestsConfirmationEmailWithBearerSession() async throws {
+        let transport = StubTransport(responses: [httpResponse(#"{"success":true,"message":"Verification email sent"}"#)])
+        let api = NativeAccountAPI(baseURL: URL(string: "https://seret.site")!, transport: transport)
+        try await api.requestAccountDeletion(token: "session-token")
+        let requests = await transport.capturedRequests()
+        let request = try XCTUnwrap(requests.first)
+        XCTAssertEqual(request.url.path, "/api/auth/delete-user")
+        XCTAssertEqual(request.method, "POST")
+        XCTAssertEqual(request.headers["Authorization"], "Bearer session-token")
+        let payload = try XCTUnwrap(try JSONSerialization.jsonObject(with: request.body ?? Data()) as? [String: String])
+        XCTAssertTrue(payload.isEmpty, "Initiating deletion must not submit a confirmation token")
+    }
+
+    func testNativeDeletionExplainsFreshSignInRequirement() async throws {
+        let transport = StubTransport(responses: [httpResponse(#"{"code":"SESSION_EXPIRED","message":"Session expired"}"#, statusCode: 400)])
+        let api = NativeAccountAPI(baseURL: URL(string: "https://seret.site")!, transport: transport)
+        do {
+            try await api.requestAccountDeletion(token: "session-token")
+            XCTFail("Expected fresh sign-in requirement")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("Sign out and sign back in"))
+        }
+    }
+
     func testNativePrivateRequestsAttachBearerAndAccountIdentity() async throws {
         let body = ##"{"data":{"ratingSources":["imdbRating"],"location":"Tel Aviv","siteColor":"#ed4c57","hideReReleases":true,"showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":["VIP"],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":["cinema-1"]}},"error":null}"##
         let transport = StubTransport(responses: [httpResponse(body)])

@@ -184,6 +184,14 @@ actor NativeAccountAPI {
         return envelope.data?.titles ?? []
     }
 
+    func requestAccountDeletion(token: String) async throws {
+        let response = try await send(path: "/api/auth/delete-user", method: "POST", body: try jsonData([String: String]()), token: token)
+        if let error = try? JSONDecoder().decode(BetterAuthError.self, from: response.body), error.code == "SESSION_EXPIRED" {
+            throw APIClientError.remote(code: "SESSION_EXPIRED", message: "Sign out and sign back in with your usual method, then request deletion again. Apple and Google work too; no Kartiseret password is required.", statusCode: response.statusCode)
+        }
+        try check(response)
+    }
+
     func signOut(token: String) async {
         _ = try? await send(path: "/api/auth/sign-out", method: "POST", body: try? jsonData([String: String]()), token: token)
     }

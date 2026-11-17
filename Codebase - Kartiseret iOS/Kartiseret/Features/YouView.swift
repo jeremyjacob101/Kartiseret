@@ -39,6 +39,11 @@ struct YouView: View {
                         .accessibilityIdentifier("account.help")
                 }
                 Section {
+                    settingsLink("Delete account", systemImage: "person.crop.circle.badge.minus") {
+                        DeleteAccountView()
+                    }
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("account.delete")
                     Button("Sign Out", role: .destructive) {
                         GIDSignIn.sharedInstance.signOut()
                         Task { await account.signOut() }
@@ -467,5 +472,63 @@ extension Color {
         let value = hexString.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
         guard value.count == 6, let number = UInt(value, radix: 16) else { return nil }
         self.init(.sRGB, red: Double((number >> 16) & 0xff) / 255, green: Double((number >> 8) & 0xff) / 255, blue: Double(number & 0xff) / 255, opacity: 1)
+    }
+}
+
+private struct DeleteAccountView: View {
+    @Environment(AccountStore.self) private var account
+    @State private var confirmation = ""
+    @State private var pending = false
+    @State private var sent = false
+    @State private var error: String?
+
+    var body: some View {
+        Form {
+            Section {
+                Text("Permanently delete your account and account-linked data stored by Kartiseret. This cannot be undone. Backup copies may remain until those backups expire.")
+                if let email = account.identity?.email {
+                    Text(email).font(.subheadline).foregroundStyle(.secondary)
+                }
+            }
+            if sent {
+                Section {
+                    Label("Check your email", systemImage: "envelope")
+                    Text("Open the confirmation link to review and finish deleting your account. You may need to sign in to the same account in your browser. Your account has not been deleted yet.")
+                }
+            } else {
+                Section {
+                    TextField("Type DELETE to confirm", text: $confirmation)
+                        .textInputAutocapitalization(.characters)
+                        .autocorrectionDisabled()
+                        .accessibilityIdentifier("account.delete.confirmation")
+                    Button(role: .destructive) {
+                        Task { await requestDeletion() }
+                    } label: {
+                        if pending { ProgressView("Sending email…") }
+                        else { Text("Email me a confirmation link") }
+                    }
+                    .disabled(pending || confirmation != "DELETE" || account.state != .signedIn)
+                    .accessibilityIdentifier("account.delete.submit")
+                }
+            }
+            if let error { Section { Text(error).foregroundStyle(.red) } }
+        }
+        .scrollContentBackground(.hidden)
+        .background(BrandStyle.background)
+        .navigationTitle("Delete account")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    @MainActor private func requestDeletion() async {
+        pending = true
+        error = nil
+        defer { pending = false }
+        do {
+            try await account.requestAccountDeletion()
+            sent = true
+            confirmation = ""
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 }
