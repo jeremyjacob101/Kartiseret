@@ -50,7 +50,15 @@ vi.mock("../../src/components/showtimes/ShowtimeDayPicker", () => ({
 }));
 
 vi.mock("../../src/components/showtimes/ShowtimeFilterMenu", () => ({
-  ShowtimeFilterMenu: () => <div data-testid="showtime-filter-menu" />,
+  ShowtimeFilterMenu: ({
+    onRestoreDefaults,
+  }: {
+    onRestoreDefaults: () => void;
+  }) => (
+    <div data-testid="showtime-filter-menu">
+      <button onClick={onRestoreDefaults}>Restore defaults</button>
+    </div>
+  ),
 }));
 
 vi.mock("../../src/components/showtimes/ShowtimesMovieRow", () => ({
@@ -331,6 +339,26 @@ describe("release category surfaces", () => {
     expect(useUserPreferencesStore.getState().preferences.location).toBe(
       "Jerusalem",
     );
+  });
+
+  it("restores the saved city when resetting a city route to defaults", async () => {
+    installShowtimesQueryFixtures([
+      makeMovie("current", "Current release", new Date().getFullYear()),
+    ]);
+    const { queryClient } = renderAllShowtimes("/showtimes/tel-aviv");
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Restore defaults" }),
+    );
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      /^\/showtimes$/,
+    );
+    expect(
+      screen.getByRole("button", { name: "Jerusalem" }),
+    ).toBeInTheDocument();
+    expect(useUserPreferencesStore.getState().preferences.location).toBe(
+      "Jerusalem",
+    );
+    queryClient.clear();
   });
 
   it("hides Re-Releases from All Showtimes when the user preference is enabled", async () => {

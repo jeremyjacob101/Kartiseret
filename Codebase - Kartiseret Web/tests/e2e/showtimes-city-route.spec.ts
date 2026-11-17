@@ -39,3 +39,22 @@ test("city showtimes routes are shareable and work with browser history", async 
     "Movie showtimes in Tel Aviv — Now Playing | Kartiseret",
   );
 });
+
+test("general showtimes does not inherit account-page noindex metadata", async ({
+  page,
+}) => {
+  await page.goto("/attribution");
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+    "content",
+    "noindex, nofollow",
+  );
+  await page.getByRole("link", { name: "All Showtimes", exact: true }).click();
+  await expect(page).toHaveURL(/\/showtimes$/);
+  await expect(page).toHaveTitle(
+    "Movie showtimes in Israel — Now Playing | Kartiseret",
+  );
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+    "content",
+    "index, follow",
+  );
+});

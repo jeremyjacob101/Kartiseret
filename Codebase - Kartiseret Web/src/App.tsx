@@ -460,6 +460,11 @@ function MainApplication() {
       })),
     );
   const pathname = routeLocation.pathname;
+  const generalShowtimesRobots = useRef(
+    pathname === "/showtimes" && typeof document !== "undefined"
+      ? getCurrentRobotsDirectives()
+      : "index, follow",
+  );
   const routeShowtimesCity = getShowtimesCityFromPath(pathname);
   const isShowtimesPage =
     pathname === "/showtimes" || routeShowtimesCity !== null;
@@ -660,7 +665,7 @@ function MainApplication() {
               ? "index, follow"
               : "noindex, nofollow"
             : getCurrentRobotsDirectives()
-          : getCurrentRobotsDirectives(),
+          : generalShowtimesRobots.current,
       });
       return;
     }

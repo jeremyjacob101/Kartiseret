@@ -415,6 +415,12 @@ export function AllShowtimesPage({
     },
     [navigate, setLocation],
   );
+  const handleRestoreDefaults = useCallback(() => {
+    restoreDefaults();
+    if (!cinema && routeCity) {
+      navigate("/showtimes");
+    }
+  }, [cinema, navigate, restoreDefaults, routeCity]);
   const effectiveSelectedDayPanel =
     filteredSelectedDayPanel ?? selectedDayPanel;
   const openTrailerMovie = useMemo(
@@ -701,7 +707,7 @@ export function AllShowtimesPage({
               onToggleCinema={cinema ? undefined : handleCinemaToggle}
               onToggleCinemaGroup={cinema ? undefined : handleCinemaGroupToggle}
               onShowEverything={showEverything}
-              onRestoreDefaults={restoreDefaults}
+              onRestoreDefaults={handleRestoreDefaults}
             />
           </div>
 
