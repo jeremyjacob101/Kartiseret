@@ -1,6 +1,6 @@
+import { useEffect, useRef, useState, type MouseEventHandler } from "react";
 import { Clock8, Film, Settings } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { useLocation } from "react-router";
+import { Link, useLocation } from "react-router";
 import "./Navbar.css";
 import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "../MovieSearchMenu";
 import { TheaterMapDialog } from "../maps/TheaterMapDialog";
@@ -39,13 +39,12 @@ export type NavbarProps = {
   miniNavPortalTarget?: HTMLDivElement | null;
   searchCollections: readonly MovieSearchCollection[];
   settingsDisabled: boolean;
-  onAllShowtimesNavClick: () => void;
   onHomeClick: () => void;
-  onMoviesNavClick: () => void;
+  onMoviesNavClick: MouseEventHandler<HTMLAnchorElement>;
   onSearchOpen: () => void;
   onSelectResult: (result: MovieSearchResult) => void;
   onSettingsClick: () => void;
-  onSoonsNavClick: () => void;
+  onSoonsNavClick: MouseEventHandler<HTMLAnchorElement>;
 };
 
 function NavbarActions({
@@ -151,7 +150,6 @@ export function Navbar({
   miniNavPortalTarget,
   searchCollections,
   settingsDisabled,
-  onAllShowtimesNavClick,
   onHomeClick,
   onMoviesNavClick,
   onSearchOpen,
@@ -497,8 +495,8 @@ export function Navbar({
               <span className="visually-hidden">Kartiseret</span>
             </button>
             <nav className="topnav" aria-label="Primary">
-              <button
-                type="button"
+              <Link
+                to="/movies"
                 className={`topnav-link topnav-button${
                   currentPath === "/movies" ? " topnav-link--active" : ""
                 }`}
@@ -506,9 +504,9 @@ export function Navbar({
               >
                 <Film className="topnav-icon" aria-hidden="true" />
                 <span className="topnav-label">Now Playing</span>
-              </button>
-              <button
-                type="button"
+              </Link>
+              <Link
+                to="/soons"
                 className={`topnav-link topnav-button${
                   currentPath === "/soons" ? " topnav-link--active" : ""
                 }`}
@@ -519,17 +517,19 @@ export function Navbar({
                   aria-hidden="true"
                 />
                 <span className="topnav-label">Coming Soon</span>
-              </button>
-              <button
-                type="button"
+              </Link>
+              <Link
+                to="/showtimes"
                 className={`topnav-link topnav-button${
-                  currentPath === "/showtimes" ? " topnav-link--active" : ""
+                  currentPath === "/showtimes" ||
+                  currentPath.startsWith("/showtimes/")
+                    ? " topnav-link--active"
+                    : ""
                 }`}
-                onClick={onAllShowtimesNavClick}
               >
                 <Clock8 className="topnav-icon" aria-hidden="true" />
                 <span className="topnav-label">All Showtimes</span>
-              </button>
+              </Link>
             </nav>
             <NavbarActions
               catalogReady={catalogReady}

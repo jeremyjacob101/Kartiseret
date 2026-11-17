@@ -8,6 +8,59 @@
   padding: 0 20px;
 }
 
+.cinema-showtimes-page {
+  color: #f4efff;
+}
+
+.cinema-showtimes-context {
+  width: 100%;
+  padding: 0 20px;
+  color: #f4efff;
+}
+
+.cinema-showtimes-context .section-kicker {
+  margin-bottom: 8px;
+}
+
+.cinema-showtimes-context .section-title {
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: #f4efff;
+}
+
+.cinema-showtimes-context > p:not(.section-kicker) {
+  margin: 7px 0;
+  color: rgba(236, 229, 248, 0.8);
+}
+
+.cinema-showtimes-alias {
+  font-size: 0.93rem;
+}
+
+.cinema-showtimes-context-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.cinema-showtimes-context-links a {
+  color: #dfc6ff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.cinema-showtimes-city-label {
+  grid-column: 1;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 42px;
+  color: #e6d5fa;
+  font-weight: 650;
+}
+
 .all-showtimes-empty-category {
   min-height: 220px;
   display: grid;
@@ -98,6 +151,44 @@
   padding: 26px 0 36px;
 }
 
+.all-showtimes-local-links {
+  width: calc(100% - 40px);
+  margin: 0 auto;
+  display: grid;
+  gap: 8px;
+  color: rgba(236, 229, 248, 0.86);
+}
+
+.all-showtimes-local-links details {
+  border-top: 1px solid rgba(221, 194, 255, 0.16);
+  padding: 12px 0;
+}
+
+.all-showtimes-local-links summary {
+  width: fit-content;
+  cursor: pointer;
+  color: #e6d5fa;
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+.all-showtimes-city-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 18px;
+  margin: 12px 0 2px;
+  padding: 0;
+  list-style: none;
+}
+
+.all-showtimes-city-links a {
+  color: rgba(236, 229, 248, 0.84);
+  font-size: 0.9rem;
+  text-decoration: underline;
+  text-decoration-color: rgba(221, 194, 255, 0.35);
+  text-underline-offset: 3px;
+}
+
 .cinematheque-link-button {
   display: inline-flex;
   align-items: center;
@@ -177,6 +268,16 @@
   line-height: 1.02;
   color: #f4efff;
   letter-spacing: -0.02em;
+}
+
+.all-showtimes-title-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.all-showtimes-title-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
 }
 
 .all-showtimes-copy .details-subtitle {

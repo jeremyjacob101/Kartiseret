@@ -1,4 +1,5 @@
 import { addCalendarDays, buildMovieShowtimeShareUrl } from "@kartiseret/contracts/showtime-links";
+import { getShowtimesCityFromPath } from "@kartiseret/contracts/showtime-routes";
 import { publicPageBootstrapSchema } from "@kartiseret/contracts/public-render";
 import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
 import { getCinemaDayDate } from "@kartiseret/contracts/showtime-day";
@@ -30,7 +31,7 @@ const movie = {
   lbId: "/film/sample-movie/",
   title: "SSR Test Movie",
   year: 2026,
-  releaseDate: "2026-09-18",
+  releaseDate: today,
   genres: ["Drama", "Comedy"],
   imageSrc: "https://images.example.test/poster.jpg",
   backdropSrc: "https://images.example.test/backdrop.jpg",
@@ -98,6 +99,10 @@ const theaters = {
 };
 
 export function makeBootstrap(pathname) {
+  const showtimeCity =
+    pathname === "/showtimes"
+      ? DEFAULT_LOCATION
+      : getShowtimesCityFromPath(pathname);
   return publicPageBootstrapSchema.parse({
     version: 1,
     pathname,
@@ -118,13 +123,13 @@ export function makeBootstrap(pathname) {
       },
     },
     theaters,
-    ...(pathname === "/showtimes"
+    ...(showtimeCity
       ? {
           showtimeCity: {
-            city: DEFAULT_LOCATION,
+            city: showtimeCity,
             startDate: today,
             endDate: weekEnd,
-            showtimes: [screening],
+            showtimes: [{ ...screening, screeningCity: showtimeCity }],
           },
         }
       : {}),
@@ -173,6 +178,7 @@ export const cases = [
   ["/movies", "SSR Test Movie"],
   ["/soons", "SSR Coming Soon Movie"],
   ["/showtimes", "SSR Test Movie"],
+  ["/showtimes/jerusalem", "Movie showtimes in Jerusalem"],
   ["/cinematheques", "Cinematheque Showtimes"],
   ["/Ab1", "SSR Test Movie"],
   [`/c/${cinemaIdentity.id}`, cinemaIdentity.displayName],

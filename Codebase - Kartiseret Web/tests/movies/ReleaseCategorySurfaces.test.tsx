@@ -7,10 +7,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import * as movieCatalog from "../../src/data/movieCatalog";
 import { sampleMovie, sampleShowtimes } from "../fixtures";
 import type { Movie } from "../../src/data/movieCatalog";
+import { MemoryRouter, useLocation } from "react-router";
 import { CatalogRoute, HomeRoute } from "../../src/App";
 import userEvent from "@testing-library/user-event";
 import * as theaters from "../../src/data/theaters";
-import { MemoryRouter } from "react-router";
 
 vi.mock("../../src/components/scroller/MovieScroller", () => ({
   MovieScroller: ({
@@ -29,8 +29,19 @@ vi.mock("../../src/components/scroller/MovieScroller", () => ({
 }));
 
 vi.mock("../../src/components/maps/TheaterMapDialog", () => ({
-  TheaterMapDialog: ({ triggerLabel }: { triggerLabel: string }) => (
-    <button type="button">{triggerLabel}</button>
+  TheaterMapDialog: ({
+    triggerLabel,
+    onLocationOverrideChange,
+  }: {
+    triggerLabel: string;
+    onLocationOverrideChange?: (location: string) => Promise<boolean>;
+  }) => (
+    <button
+      type="button"
+      onClick={() => void onLocationOverrideChange?.("Tel Aviv")}
+    >
+      {triggerLabel}
+    </button>
   ),
 }));
 
@@ -104,7 +115,11 @@ function installShowtimesQueryFixtures(movies: readonly Movie[]) {
   } as never);
 }
 
-function renderAllShowtimes() {
+function CurrentRoutePath() {
+  return <output aria-label="Current route">{useLocation().pathname}</output>;
+}
+
+function renderAllShowtimes(initialEntry = "/showtimes") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -112,8 +127,9 @@ function renderAllShowtimes() {
     queryClient,
     ...render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter>
+        <MemoryRouter initialEntries={[initialEntry]}>
           <AllShowtimesPage />
+          <CurrentRoutePath />
         </MemoryRouter>
       </QueryClientProvider>,
     ),
@@ -295,6 +311,26 @@ describe("release category surfaces", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("showtime-day-picker")).toBeInTheDocument();
     queryClient.clear();
+  });
+
+  it("updates the city URL without changing the saved city preference", async () => {
+    const user = userEvent.setup();
+    const currentRelease = makeMovie(
+      "current",
+      "Current release",
+      new Date().getFullYear(),
+    );
+    installShowtimesQueryFixtures([currentRelease]);
+    renderAllShowtimes();
+
+    await user.click(await screen.findByRole("button", { name: "Jerusalem" }));
+
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      "/showtimes/tel-aviv",
+    );
+    expect(useUserPreferencesStore.getState().preferences.location).toBe(
+      "Jerusalem",
+    );
   });
 
   it("hides Re-Releases from All Showtimes when the user preference is enabled", async () => {

@@ -1,4 +1,5 @@
 import { cases, encodedPath, makeBootstrap, renderPublicApplication } from "./ssrBuiltOutput.mjs";
+import { getShowtimesCityFromPath } from "@kartiseret/contracts/showtime-routes";
 import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
 import { mkdir, readFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
@@ -28,13 +29,15 @@ function escapeAttribute(value) {
 }
 
 function pageTitle(pathname) {
+  const city = getShowtimesCityFromPath(pathname);
+  if (city) return `Movie showtimes in ${city} — Now Playing | Kartiseret`;
   if (pathname.startsWith("/c/")) {
     return `${cinemaIdentity.displayName} showtimes | Kartiseret`;
   }
   if (pathname === "/movies") return "Movies showing in Israel | Kartiseret";
   if (pathname === "/soons") return "Coming soon movies in Israel | Kartiseret";
   if (pathname === "/showtimes")
-    return "Movie showtimes in Jerusalem | Kartiseret";
+    return "Movie showtimes in Israel — Now Playing | Kartiseret";
   if (pathname === "/cinematheques")
     return "Cinematheque movie showtimes | Kartiseret";
   if (pathname.startsWith("/Ab1"))
@@ -817,6 +820,23 @@ try {
     "https://seret.site/Ab1",
   );
   await page.close();
+
+  const cityShowtimesPage = await browser.newPage({ javaScriptEnabled: false });
+  await cityShowtimesPage.goto(`${baseUrl}/showtimes/jerusalem`);
+  assert.equal(
+    await cityShowtimesPage
+      .getByRole("heading", { name: "New Releases in Jerusalem", exact: true })
+      .count(),
+    1,
+  );
+  assert.equal(
+    await cityShowtimesPage
+      .locator('link[rel="canonical"]')
+      .getAttribute("href"),
+    "https://seret.site/showtimes/jerusalem",
+  );
+  assert.equal(await cityShowtimesPage.locator('a[href="/Ab1"]').count(), 1);
+  await cityShowtimesPage.close();
 
   const cinemaPage = await browser.newPage({ javaScriptEnabled: false });
   await cinemaPage.goto(`${baseUrl}/c/${cinemaIdentity.id}`);
