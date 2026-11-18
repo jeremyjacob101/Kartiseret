@@ -5,7 +5,6 @@ import { publicPageBootstrapSchema, type PublicPageBootstrap } from "@kartiseret
 import { getShowtimesCityFromPath, getShowtimesCityPath } from "@kartiseret/contracts/showtime-routes";
 import { getCinemaDayDate, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
 import { filterShowtimeRows, resolvePreviewRouteSelection } from "../og/previewData.js";
-import { ALL_LOCATIONS, type AppLocation } from "@kartiseret/contracts/preferences";
 import { getProductionPublicDataRepository } from "@kartiseret/server/production";
 import { socialPreviewImageUrl } from "@kartiseret/contracts/social-preview";
 import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
@@ -13,6 +12,7 @@ import { parseMovieRouteCode } from "@kartiseret/contracts/showtime-links";
 import type { VercelRequest, VercelResponse } from "../og/vercelTypes.js";
 import type { PublicShowtime } from "@kartiseret/contracts/public-data";
 import { DEFAULT_LOCATION } from "@kartiseret/contracts/preferences";
+import { ALL_LOCATIONS } from "@kartiseret/contracts/preferences";
 import { renderBuiltPublicApplication } from "./renderer.js";
 import { logErrorSafely } from "@kartiseret/server/logging";
 import type { Movie } from "@kartiseret/contracts/movies";
@@ -314,23 +314,81 @@ async function getCinemaPage(cinemaId: string, instant = new Date()) {
   });
 }
 
-type ShowtimeRowsByCity = ReadonlyMap<AppLocation, PublicShowtime[]>;
+type ShowtimeEligibilityRepository = ReturnType<
+  typeof getProductionPublicDataRepository
+>;
 
-async function getShowtimeRowsByCity(
-  repository: ReturnType<typeof getProductionPublicDataRepository>,
-  startDate: string,
-  endDate: string,
-): Promise<Map<AppLocation, PublicShowtime[]>> {
-  const entries = await Promise.all(
-    ALL_LOCATIONS.map(
-      async (city) =>
-        [
-          city,
-          await getShowtimeRange(repository, { city, startDate, endDate }),
-        ] as const,
-    ),
+async function getShowtimeEligibility(
+  repository: ShowtimeEligibilityRepository,
+  catalog: Awaited<ReturnType<typeof getMovieCatalog>>,
+  instant: Date,
+  cinemaCatalog?: Awaited<ReturnType<typeof getMovieCatalog>>,
+) {
+  if (catalog.movieCodesStatus !== "ready") {
+    throw new Error("Movie code data is unavailable.");
+  }
+  const startDate = getCinemaDayDate(instant);
+  const cityEndDate = dayOffset(startDate, 6);
+  const supportedCities = new Set<string>(ALL_LOCATIONS);
+  const screeningCities = cinemaCatalog
+    ? [
+        ...new Set([
+          ...supportedCities,
+          ...CINEMA_IDENTITIES.flatMap(({ city, screeningCityKeys }) =>
+            screeningCityKeys.length ? screeningCityKeys : [city]),
+        ]),
+      ]
+    : [...supportedCities];
+  const candidates = await repository.findShowtimeEligibilityCandidates(
+    screeningCities,
+    startDate,
+    dayOffset(startDate, 29),
   );
-  return new Map<AppLocation, PublicShowtime[]>(entries);
+  const cityMovieIds = new Set(
+    catalog.movies
+      .filter((movie) => movie.movieCode)
+      .map((movie) => movie.tmdbId),
+  );
+  const cinemaMovieIds = cinemaCatalog
+    ? new Set(
+        [...catalog.movies, ...cinemaCatalog.movies].map(
+          (movie) => movie.tmdbId,
+        ),
+      )
+    : null;
+  const activeCities = new Set<string>();
+  const activeCinemaIds = new Set<string>();
+  let hasNationalShowtimes = false;
+  for (const row of candidates) {
+    const city = row.screeningCity?.trim();
+    if (
+      row.tmdbId === null ||
+      !city ||
+      !row.cinema?.trim() ||
+      !row.dateOfShowing ||
+      !row.showtime ||
+      !shouldIncludeShowtime(row.dateOfShowing, row.showtime, instant)
+    )
+      continue;
+    const movieId = String(row.tmdbId);
+    if (supportedCities.has(city) && cityMovieIds.has(movieId)) {
+      hasNationalShowtimes = true;
+      if (row.dateOfShowing <= cityEndDate) activeCities.add(city);
+    }
+    if (cinemaMovieIds && (row.isCinematheque || cinemaMovieIds.has(movieId))) {
+      const identity = findCinemaIdentityForScreening(city, row.cinema);
+      const aliases = identity?.screeningCityKeys.length
+        ? identity.screeningCityKeys
+        : [identity?.city];
+      if (
+        identity &&
+        aliases.some((name) => name?.toLowerCase() === city.toLowerCase())
+      ) {
+        activeCinemaIds.add(identity.id);
+      }
+    }
+  }
+  return { hasNationalShowtimes, activeCities, activeCinemaIds };
 }
 
 function hasIndexableCityShowtimes(
@@ -362,7 +420,6 @@ async function buildListingPage(
     comingSoon: Awaited<ReturnType<typeof getMovieCatalog>>;
   },
   instant = new Date(),
-  showtimeRowsByCity?: ShowtimeRowsByCity,
 ) {
   let title = "Kartiseret movie listings";
   let description =
@@ -438,30 +495,32 @@ async function buildListingPage(
     indexable = movies.length > 0;
   } else if (path === "/showtimes") {
     const startDate = getCinemaDayDate(instant);
-    const endDate = dayOffset(startDate, 29);
-    const [rowsByCity, catalog] = await Promise.all([
-      showtimeRowsByCity
-        ? Promise.resolve(showtimeRowsByCity)
-        : getShowtimeRowsByCity(repository, startDate, endDate),
-      catalogs?.nowPlaying ?? getMovieCatalog(repository, "nowPlaying"),
+    const catalog =
+      catalogs?.nowPlaying ?? (await getMovieCatalog(repository, "nowPlaying"));
+    const [rows, eligibility] = await Promise.all([
+      getShowtimeRange(repository, {
+        city: DEFAULT_LOCATION,
+        startDate,
+        endDate: dayOffset(startDate, 6),
+      }),
+      getShowtimeEligibility(repository, catalog, instant),
     ]);
-    showtimeRows = rowsByCity.get(DEFAULT_LOCATION) ?? [];
+    showtimeRows = rows;
     title = "Movie showtimes in Israel — Now Playing | Kartiseret";
     description =
       "Browse movies currently showing at cinemas across Israel, with showtimes and booking links.";
-    indexable = [...rowsByCity.values()].some((rows) =>
-      hasIndexableCityShowtimes(rows, catalog, instant));
+    indexable = eligibility.hasNationalShowtimes;
   } else {
     const city = getShowtimesCityFromPath(path);
     if (city) {
       const startDate = getCinemaDayDate(instant);
       const endDate = dayOffset(startDate, 6);
       const [rows, catalog] = await Promise.all([
-        showtimeRowsByCity?.get(city)
-          ? Promise.resolve(showtimeRowsByCity.get(city)!)
-          : getShowtimeRange(repository, { city, startDate, endDate }),
+        getShowtimeRange(repository, { city, startDate, endDate }),
         catalogs?.nowPlaying ?? getMovieCatalog(repository, "nowPlaying"),
       ]);
+      if (catalog.movieCodesStatus !== "ready")
+        throw new Error("Movie code data is unavailable.");
       showtimeRows = rows;
       title = `Movie showtimes in ${city} — Now Playing | Kartiseret`;
       description = `Browse movies currently showing in ${city}, with local cinema times and booking links.`;
@@ -534,15 +593,11 @@ async function renderSitemap(response: VercelResponse): Promise<void> {
     const repository = getProductionPublicDataRepository();
     const paths = await withPublicationSnapshot(repository, async () => {
       const instant = new Date();
-      const startDate = getCinemaDayDate(instant);
-      const endDate = dayOffset(startDate, 29);
-      const [nowPlaying, comingSoon, theaterData, showtimeRowsByCity] =
-        await Promise.all([
-          getMovieCatalog(repository, "nowPlaying"),
-          getMovieCatalog(repository, "comingSoon"),
-          getPublicTheaterData(repository),
-          getShowtimeRowsByCity(repository, startDate, endDate),
-        ]);
+      const [nowPlaying, comingSoon, theaterData] = await Promise.all([
+        getMovieCatalog(repository, "nowPlaying"),
+        getMovieCatalog(repository, "comingSoon"),
+        getPublicTheaterData(repository),
+      ]);
       if (
         nowPlaying.movieCodesStatus !== "ready" ||
         comingSoon.movieCodesStatus !== "ready"
@@ -552,55 +607,26 @@ async function renderSitemap(response: VercelResponse): Promise<void> {
       const moviePaths = [...nowPlaying.movies, ...comingSoon.movies]
         .filter((movie) => movie.movieCode)
         .map((movie) => `/${movie.movieCode}`);
-      const showtimesListing = await buildListingPage(
-        repository,
-        "/showtimes",
-        { nowPlaying, comingSoon },
-        instant,
-        showtimeRowsByCity,
-      );
-      const cinemathequesListing = await buildListingPage(
-        repository,
-        "/cinematheques",
-        { nowPlaying, comingSoon },
-        instant,
-      );
-      const cityPageEndDate = dayOffset(startDate, 6);
-      const eligibleCityPaths = ALL_LOCATIONS.filter((city) =>
-        hasIndexableCityShowtimes(
-          (showtimeRowsByCity.get(city) ?? []).filter(
-            (row) => row.dateOfShowing <= cityPageEndDate,
-          ),
-          nowPlaying,
+      const [eligibility, cinemathequesListing] = await Promise.all([
+        getShowtimeEligibility(repository, nowPlaying, instant, comingSoon),
+        buildListingPage(
+          repository,
+          "/cinematheques",
+          { nowPlaying, comingSoon },
           instant,
-        )).map((city) => getShowtimesCityPath(city));
+        ),
+      ]);
+      const eligibleCityPaths = ALL_LOCATIONS.filter((city) =>
+        eligibility.activeCities.has(city)).map(getShowtimesCityPath);
       const theaterCinemaIds = new Set(
         theaterData.theaters.flatMap((theater) => {
           const cinemaId = cinemaIdForLocation(theater.location);
           return cinemaId ? [cinemaId] : [];
         }),
       );
-      const activeCinemaIds = new Set<string>();
-      for (const rows of showtimeRowsByCity.values()) {
-        for (const row of rows) {
-          if (
-            !shouldIncludeShowtime(
-              row.dateOfShowing,
-              normalizeShowtime(row.showtime),
-              instant,
-            )
-          ) {
-            continue;
-          }
-          const identity = findCinemaIdentityForScreening(
-            row.screeningCity,
-            row.cinema,
-          );
-          if (identity) activeCinemaIds.add(identity.id);
-        }
-      }
       const cinemaPaths = CINEMA_IDENTITIES.filter(
-        ({ id }) => theaterCinemaIds.has(id) && activeCinemaIds.has(id),
+        ({ id }) =>
+          theaterCinemaIds.has(id) && eligibility.activeCinemaIds.has(id),
       ).map(({ id }) => `/c/${id}`);
       const listingPaths = [
         ...(nowPlaying.movies.some((movie) => movie.movieCode)
@@ -609,7 +635,7 @@ async function renderSitemap(response: VercelResponse): Promise<void> {
         ...(comingSoon.movies.some((movie) => movie.movieCode)
           ? ["/soons"]
           : []),
-        ...(showtimesListing.indexable ? ["/showtimes"] : []),
+        ...(eligibility.hasNationalShowtimes ? ["/showtimes"] : []),
         ...(cinemathequesListing.indexable ? ["/cinematheques"] : []),
       ];
       return [

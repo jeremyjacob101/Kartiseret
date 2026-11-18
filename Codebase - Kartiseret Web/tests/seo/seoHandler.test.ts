@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   getMovieShowtimes: vi.fn(),
   getPublicTheaterData: vi.fn(),
   getShowtimeRange: vi.fn(),
+  findShowtimeEligibilityCandidates: vi.fn(),
   getProductionPublicDataRepository: vi.fn(),
   withPublicationSnapshot: vi.fn(),
   renderBuiltPublicApplication: vi.fn(),
@@ -96,7 +97,10 @@ function theaterData() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.getProductionPublicDataRepository.mockReturnValue({});
+  mocks.getProductionPublicDataRepository.mockReset().mockReturnValue({
+    findShowtimeEligibilityCandidates: mocks.findShowtimeEligibilityCandidates,
+  });
+  mocks.findShowtimeEligibilityCandidates.mockReset().mockResolvedValue([]);
   mocks.withPublicationSnapshot.mockImplementation(async (
     _repository: unknown,
     callback: (revision: string) => unknown,
@@ -220,6 +224,33 @@ describe("SEO request handler", () => {
       pathname: "/showtimes",
       showtimeCity: { city: "Jerusalem" },
     });
+  });
+
+  it("checks national eligibility once without fetching other cities' display rows", async () => {
+    const date = addCalendarDays(getJerusalemCinemaDate(), 1)!;
+    mocks.findShowtimeEligibilityCandidates.mockResolvedValue([
+      {
+        tmdbId: Number(sampleMovie.tmdbId),
+        screeningCity: "Tel Aviv",
+        dateOfShowing: date,
+        cinema: "Cinema City",
+        showtime: "19:30",
+        isCinematheque: false,
+      },
+    ]);
+    const response = createResponse();
+
+    await seoHandler(
+      createRequest("/api/page", { path: "/showtimes" }),
+      response as never,
+    );
+
+    expect(response.headers.get("x-robots-tag")).toBe("index, follow");
+    expect(mocks.findShowtimeEligibilityCandidates).toHaveBeenCalledTimes(1);
+    expect(mocks.getShowtimeRange).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.objectContaining({ city: "Jerusalem" }),
+    );
   });
 
   it("serves city showtimes with local metadata, a self canonical, and seeded listings", async () => {
@@ -498,24 +529,16 @@ describe("SEO request handler", () => {
   it("builds a fixed-origin sitemap without request-host or encoded selection URLs", async () => {
     const date = addCalendarDays(getJerusalemCinemaDate(), 1)!;
     const laterDate = addCalendarDays(getJerusalemCinemaDate(), 20)!;
-    mocks.getShowtimeRange.mockImplementation(async (_repository, range) => {
-      const city = range.city;
-      if (city !== cinema.city && city !== "Tel Aviv") return [];
-      return [
-        {
-          tmdbId: sampleMovie.tmdbId,
-          screeningCity: city,
-          dateOfShowing: city === cinema.city ? date : laterDate,
-          cinema: cinema.displayName,
-          showtime: "19:30",
-          englishHref: null,
-          hebrewHref: null,
-          screeningTech: "2D",
-          screeningType: "Regular",
-          dubLanguage: null,
-        },
-      ];
-    });
+    mocks.findShowtimeEligibilityCandidates.mockResolvedValue(
+      [cinema.city, "Tel Aviv"].map((city) => ({
+        tmdbId: Number(sampleMovie.tmdbId),
+        screeningCity: city,
+        dateOfShowing: city === cinema.city ? date : laterDate,
+        cinema: cinema.displayName,
+        showtime: "19:30",
+        isCinematheque: false,
+      })),
+    );
     const response = createResponse();
     const request = createRequest("/api/sitemap", {});
     request.headers.host = "attacker.example";

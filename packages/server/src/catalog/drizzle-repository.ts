@@ -286,6 +286,55 @@ export class DrizzleCatalogRepository
     }
   }
 
+  async findShowtimeEligibilityCandidates(
+    cities: readonly string[],
+    startDate: string,
+    endDate: string,
+  ) {
+    if (cities.length === 0) return [];
+    const ordinary = await this.db
+      .selectDistinct({
+        tmdbId: finalShowtimes.tmdbId,
+        screeningCity: finalShowtimes.screeningCity,
+        dateOfShowing: finalShowtimes.dateOfShowing,
+        cinema: finalShowtimes.cinema,
+        showtime: finalShowtimes.showtime,
+      })
+      .from(finalShowtimes)
+      .where(
+        and(
+          inArray(finalShowtimes.screeningCity, cities),
+          gte(finalShowtimes.dateOfShowing, startDate),
+          lte(finalShowtimes.dateOfShowing, endDate),
+        ),
+      );
+    const cinematheque = await this.db
+      .selectDistinct({
+        tmdbId: finalTheques.tmdbId,
+        screeningCity: finalTheques.screeningCity,
+        dateOfShowing: finalTheques.dateOfShowing,
+        cinema: finalTheques.cinema,
+        showtime: finalTheques.showtime,
+      })
+      .from(finalTheques)
+      .innerJoin(
+        finalThequeMovies,
+        eq(finalTheques.tmdbId, finalThequeMovies.tmdbId),
+      )
+      .where(
+        and(
+          inArray(finalTheques.screeningCity, cities),
+          gte(finalTheques.dateOfShowing, startDate),
+          lte(finalTheques.dateOfShowing, endDate),
+          eq(finalThequeMovies.soloUpdate, false),
+        ),
+      );
+    return [
+      ...ordinary.map((row) => ({ ...row, isCinematheque: false })),
+      ...cinematheque.map((row) => ({ ...row, isCinematheque: true })),
+    ];
+  }
+
   async findShowtimeRows(
     range: PublicShowtimeRange,
   ): Promise<readonly unknown[]> {
