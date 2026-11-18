@@ -22,6 +22,15 @@ if (
 const base = new URL(origin);
 const runCurl = promisify(execFile);
 const protectedPreview = process.env.KARTISERET_MEASURE_VERCEL === "1";
+const previewMissWindow = process.env.KARTISERET_MEASURE_PREVIEW_MISS_WINDOW;
+if (
+  previewMissWindow &&
+  (!protectedPreview || !base.hostname.endsWith(".vercel.app"))
+) {
+  throw new Error(
+    "Cache-miss query variants are only available for protected previews.",
+  );
+}
 const directory = await mkdtemp(
   join(tmpdir(), "kartiseret-public-measurement-"),
 );
@@ -45,12 +54,15 @@ try {
       const url = new URL(route, base);
       if (url.origin !== base.origin)
         throw new Error("Routes must stay on the requested origin.");
+      if (previewMissWindow)
+        url.searchParams.set("perf_probe", `${previewMissWindow}-${iteration}`);
       const record = {
         timestamp: new Date().toISOString(),
         label,
         iteration,
         origin: base.origin,
         route,
+        queryVariant: previewMissWindow ?? null,
       };
       try {
         const curlArgs = [
@@ -93,11 +105,32 @@ try {
         const canonical = html.match(
           /<link rel="canonical" href="([^"]*)"/i,
         )?.[1];
+        const bootstrapJson = html.match(
+          /<script\b[^>]*\bid="kartiseret-bootstrap"[^>]*>(.*?)<\/script>/s,
+        )?.[1];
+        const bootstrap = bootstrapJson ? JSON.parse(bootstrapJson) : null;
+        const expectedDocument =
+          timing.http_code === 200 &&
+          !!title &&
+          headers["content-type"]?.includes("text/html");
+        const accepted = expectedDocument
+          ? title !== "Deployment is building" && !!canonical && !!bootstrap
+          : timing.http_code === 404 ||
+            (timing.http_code === 200 &&
+              (route === "/robots.txt" || route === "/sitemap.xml"));
         const cache = headers["x-vercel-cache"];
         console.log(
           JSON.stringify({
             ...record,
             status: timing.http_code,
+            accepted,
+            publicationRevision: bootstrap?.publicationRevision,
+            catalogCounts: bootstrap
+              ? {
+                  nowPlaying: bootstrap.catalogs?.nowPlaying?.movies.length,
+                  comingSoon: bootstrap.catalogs?.comingSoon?.movies.length,
+                }
+              : undefined,
             cache: cache ?? null,
             invocationTemperature: "unknown",
             dnsMs: timing.time_namelookup * 1000,

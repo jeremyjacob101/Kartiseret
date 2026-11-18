@@ -523,6 +523,13 @@ export function isValidMovieCode(movieCode: string): boolean {
   return movieCodeSchema.safeParse(movieCode).success;
 }
 
+export function directMoviePageKey(
+  movieCode: string,
+  revision: string | undefined,
+) {
+  return ["directMoviePage", movieCode, revision] as const;
+}
+
 export function findMovieByCode(
   movieCode: string,
   client: QueryClient = queryClient,
@@ -545,7 +552,9 @@ export function findMovieByCode(
 
   return comingSoonMovie
     ? { movie: comingSoonMovie, mode: "comingSoon" }
-    : null;
+    : (client.getQueryData<MovieRouteMatch>(
+        directMoviePageKey(movieCode, currentPublicationRevision(client)),
+      ) ?? null);
 }
 
 async function fetchShowtimeRowsForDateRange(

@@ -196,6 +196,13 @@ describe("SEO request handler", () => {
     expect(response.headers.get("content-type")).toBe(
       "text/html; charset=utf-8",
     );
+    expect(mocks.getMovieCatalog).not.toHaveBeenCalled();
+    expect(mocks.renderBuiltPublicApplication.mock.calls[0]?.[0]).toMatchObject(
+      {
+        catalogs: { nowPlaying: undefined, comingSoon: undefined },
+        movieDetail: { movie: sampleMovie, mode: "nowPlaying" },
+      },
+    );
     expect(mocks.getMovieShowtimes).toHaveBeenCalledOnce();
     expect(mocks.getPublicTheaterData).toHaveBeenCalledOnce();
     expect(response.body).toContain('data-ssr="true"');

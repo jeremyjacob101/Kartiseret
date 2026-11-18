@@ -1,4 +1,4 @@
-import { adminMovieEditMutationOptions, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, movieCollectionQueryOptions, reloadComingSoonMovies, reloadNowPlayingMovies, showtimeCityQueryOptions, type Movie } from "./data/movieCatalog";
+import { directMoviePageKey, adminMovieEditMutationOptions, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, movieCollectionQueryOptions, reloadComingSoonMovies, reloadNowPlayingMovies, showtimeCityQueryOptions, type Movie } from "./data/movieCatalog";
 import { loadAllShowtimesPageModule, loadCinemaPageModule, loadCinemathequesPageModule, loadMoviePageModule, loadPosterGridPageModule, loadUserPreferencesPageModule } from "./routing/publicRouteModuleLoaders.js";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEventHandler, type ReactNode } from "react";
 import { filterMoviesByReleaseCategory, getMovieReleaseCategory, MOVIE_RELEASE_CATEGORY_LABELS, type MovieReleaseCategory } from "./domain/movieRelease";
@@ -15,6 +15,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router"
 import { ReleaseCategorySwitcher } from "./components/ReleaseCategorySwitcher";
 import type { ApplicationIdentity } from "@kartiseret/contracts/private-data";
 import { applyMovieDisplayPreferences } from "./data/movieDisplayPreferences";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { backdropPreloader } from "./components/scroller/backdropPreloader";
 import { useUserPreferencesStore } from "./stores/userPreferencesStore";
 import { usePublicationRevision } from "./hooks/usePublicationRevision";
@@ -22,7 +23,6 @@ import { type MovieSearchResult } from "./components/MovieSearchMenu";
 import { PasswordResetPage } from "./components/PasswordResetPage";
 import { movieCodeSchema } from "@kartiseret/contracts/runtime";
 import { AttributionPage } from "./components/AttributionPage";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { adminStatusQueryOptions } from "./data/adminStatus";
 import { BottomBar } from "./components/bars/BottomBar";
 import { useDeviceStore } from "./device/useDeviceType";
@@ -524,10 +524,17 @@ function MainApplication() {
     ...adminStatusQueryOptions(user?.id ?? null),
     enabled: Boolean(user),
   });
+  const queryClient = useQueryClient();
+  const directMovieReady =
+    isPotentialStandaloneMoviePath(pathname) &&
+    queryClient.getQueryData(
+      directMoviePageKey(pathname.slice(1, 4), publicationRevision),
+    ) !== undefined;
   const shouldLoadCatalog =
     pathname !== "/user" &&
     pathname !== "/attribution" &&
-    pathname !== PASSWORD_RESET_PATH;
+    pathname !== PASSWORD_RESET_PATH &&
+    (!directMovieReady || cinemathequeSearchEnabled);
   const nowPlayingQuery = useQuery({
     ...movieCollectionQueryOptions("nowPlaying"),
     enabled:
@@ -1300,8 +1307,8 @@ function MainApplication() {
               <Suspense fallback={null}>
                 <MoviePage
                   catalogError={catalogError}
-                  catalogReady={catalogReady}
-                  movieCodesReady={movieCodesReady}
+                  catalogReady={directMovieReady || catalogReady}
+                  movieCodesReady={directMovieReady || movieCodesReady}
                 />
               </Suspense>
             }

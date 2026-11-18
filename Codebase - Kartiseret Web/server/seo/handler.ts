@@ -178,11 +178,7 @@ async function getMoviePage(
         ));
       rows.sort(compareShowtimes);
     }
-    const [theaters, nowPlayingCatalog, comingSoonCatalog] = await Promise.all([
-      getPublicTheaterData(repository),
-      getMovieCatalog(repository, "nowPlaying"),
-      getMovieCatalog(repository, "comingSoon"),
-    ]);
+    const theaters = await getPublicTheaterData(repository);
     const posterUrl = safeHttpUrl(movie.imageSrc);
     const isEncodedSelection = parsedRoute?.kind === "encoded";
     const selectedShowtimes = rows
@@ -209,9 +205,13 @@ async function getMoviePage(
         : `/${routeCode}`,
       publicationRevision,
       instant,
-      { nowPlaying: nowPlayingCatalog, comingSoon: comingSoonCatalog },
+      {},
       {
         theaters,
+        movieDetail: {
+          movie,
+          mode: isComingSoon ? "comingSoon" : "nowPlaying",
+        },
         ...(!isComingSoon || parsedRoute?.kind === "encoded"
           ? {
               targetedMovieShowtimes: {

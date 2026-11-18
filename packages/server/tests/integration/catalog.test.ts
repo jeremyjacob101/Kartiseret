@@ -1202,6 +1202,37 @@ describe("PostgreSQL 17 integration", () => {
     ).toBe(false);
   });
 
+  it("reads only compact showtime eligibility candidates for the requested cities and dates", async () => {
+    const { rows } = await adminDatabase.pool.query<{ date: string }>(
+      "SELECT (CURRENT_DATE + 14)::text AS date",
+    );
+    const date = rows[0]!.date;
+    const candidates = await runtimeRepository.readSnapshot(() =>
+      runtimeRepository.findShowtimeEligibilityCandidates(
+        ["Tel Aviv"],
+        date,
+        date,
+      ),
+    );
+
+    expect(candidates).toContainEqual({
+      tmdbId: 9100001,
+      screeningCity: "Tel Aviv",
+      dateOfShowing: date,
+      cinema: "Development Cinema Tel Aviv",
+      showtime: expect.stringMatching(/^19:30/),
+      isCinematheque: false,
+    });
+    expect(
+      candidates.every(
+        (row) => row.screeningCity === "Tel Aviv" && row.dateOfShowing === date,
+      ),
+    ).toBe(true);
+    expect(
+      candidates.some((row) => "englishHref" in row || "screeningTech" in row),
+    ).toBe(false);
+  });
+
   it("uses full date bounds, optional movie filtering, and preserves local showtime strings", async () => {
     const { rows } = await adminDatabase.pool.query<{ date: string }>(
       "SELECT (CURRENT_DATE + 14)::text AS date",

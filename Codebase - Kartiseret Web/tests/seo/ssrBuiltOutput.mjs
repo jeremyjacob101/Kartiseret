@@ -108,21 +108,26 @@ export function makeBootstrap(pathname) {
     pathname,
     renderedAt,
     publicationRevision: "7",
-    catalogs: {
-      nowPlaying: {
-        mode: "nowPlaying",
-        movies: [movie],
-        movieCodesStatus: "ready",
-        publicationRevision: "7",
-      },
-      comingSoon: {
-        mode: "comingSoon",
-        movies: [comingSoonMovie],
-        movieCodesStatus: "ready",
-        publicationRevision: "7",
-      },
-    },
+    catalogs: pathname.startsWith("/Ab1")
+      ? {}
+      : {
+          nowPlaying: {
+            mode: "nowPlaying",
+            movies: [movie],
+            movieCodesStatus: "ready",
+            publicationRevision: "7",
+          },
+          comingSoon: {
+            mode: "comingSoon",
+            movies: [comingSoonMovie],
+            movieCodesStatus: "ready",
+            publicationRevision: "7",
+          },
+        },
     theaters,
+    ...(pathname.startsWith("/Ab1")
+      ? { movieDetail: { movie, mode: "nowPlaying" } }
+      : {}),
     ...(showtimeCity
       ? {
           showtimeCity: {

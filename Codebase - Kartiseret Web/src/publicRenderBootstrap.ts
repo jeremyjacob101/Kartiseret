@@ -1,7 +1,8 @@
-import { createEmptyShowtimeCityData, mergeShowtimeCityData, movieCatalogQueryKeys, SHOWTIME_WINDOW_DAY_COUNT, showtimeRangeQueryOptions, type MovieCollectionData } from "./data/movieCatalog.js";
+import { directMoviePageKey, createEmptyShowtimeCityData, mergeShowtimeCityData, movieCatalogQueryKeys, SHOWTIME_WINDOW_DAY_COUNT, showtimeRangeQueryOptions, type MovieCollectionData } from "./data/movieCatalog.js";
 import { publicPageBootstrapSchema, type PublicPageBootstrap } from "@kartiseret/contracts/public-render";
 import { cinemathequeQueryOptions, type CinemathequeData } from "./data/cinemathequeCatalog.js";
 import { getCinemaDayDate, SHOWTIME_TIME_ZONE } from "@kartiseret/contracts/showtime-day";
+import { publicPagePublicationKey } from "./data/publicationRevision.js";
 import { addCalendarDays } from "@kartiseret/contracts/showtime-links";
 import { theaterDataQueryOptions } from "./data/theaters.js";
 import type { QueryClient } from "@tanstack/react-query";
@@ -51,6 +52,22 @@ export function seedPublicPageQueries(
       comingSoon,
       { updatedAt },
     );
+  queryClient.setQueryData(
+    publicPagePublicationKey,
+    bootstrap.publicationRevision,
+    { updatedAt },
+  );
+  const movieDetail = bootstrap.movieDetail;
+  if (movieDetail?.movie.movieCode) {
+    queryClient.setQueryData(
+      directMoviePageKey(
+        movieDetail.movie.movieCode,
+        bootstrap.publicationRevision,
+      ),
+      movieDetail,
+      { updatedAt },
+    );
+  }
   const movies = [...(nowPlaying?.movies ?? []), ...(comingSoon?.movies ?? [])];
 
   if (bootstrap.theaters) {
