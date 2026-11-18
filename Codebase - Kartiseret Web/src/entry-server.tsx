@@ -1,14 +1,13 @@
 import { preparePublicPagePreferenceState, PublicPreferencesSnapshotProvider } from "./stores/userPreferencesStore.js";
 import { MovieDisplayPreferencesProvider } from "./contexts/MovieDisplayPreferencesProvider.js";
 import { PublicRouteComponentsProvider } from "./routing/PublicRouteComponentsProvider.js";
+import type { PublicRouteComponents } from "./routing/PublicRouteComponentsContext.js";
 import { preloadPublicRouteModules } from "./routing/preloadPublicRouteModules.js";
 import type { PublicPageBootstrap } from "@kartiseret/contracts/public-render";
 import { PublicRenderClockProvider } from "./contexts/PublicRenderClock.js";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { AllShowtimesPage } from "./components/AllShowtimesPage.js";
 import { seedPublicPageQueries } from "./publicRenderBootstrap.js";
 import { renderToPipeableStream } from "react-dom/server";
-import { CinemaPage } from "./components/CinemaPage.js";
 import { StaticRouter } from "react-router";
 import { PassThrough } from "node:stream";
 import { App } from "./App.js";
@@ -45,6 +44,7 @@ function createApplication(
   renderedAt: string,
   queryClient: QueryClient,
   preferenceSnapshot: ReturnType<typeof preparePublicPagePreferenceState>,
+  routeComponents: PublicRouteComponents,
 ) {
   return (
     <PublicRenderClockProvider initialInstant={renderedAt}>
@@ -52,12 +52,7 @@ function createApplication(
         <QueryClientProvider client={queryClient}>
           <StaticRouter location={pathname}>
             <MovieDisplayPreferencesProvider>
-              <PublicRouteComponentsProvider
-                components={{
-                  allShowtimesPage: AllShowtimesPage,
-                  cinemaPage: CinemaPage,
-                }}
-              >
+              <PublicRouteComponentsProvider components={routeComponents}>
                 <App />
               </PublicRouteComponentsProvider>
             </MovieDisplayPreferencesProvider>
@@ -73,7 +68,10 @@ export async function renderPublicApplication(
   timeoutMs = 12_000,
 ): Promise<string> {
   const startedAt = Date.now();
-  await withTimeout(preloadPublicRouteModules(bootstrap.pathname), timeoutMs);
+  const routeComponents = await withTimeout(
+    preloadPublicRouteModules(bootstrap.pathname),
+    timeoutMs,
+  );
   const remainingTimeoutMs = timeoutMs - (Date.now() - startedAt);
   if (remainingTimeoutMs <= 0) {
     throw new Error("Public page rendering exceeded its deadline.");
@@ -87,6 +85,7 @@ export async function renderPublicApplication(
     bootstrap.renderedAt,
     queryClient,
     preferenceSnapshot,
+    routeComponents,
   );
 
   return new Promise((resolve, reject) => {

@@ -71,7 +71,9 @@ function showReloadControl(): void {
 async function startClientApplication() {
   if (canHydrate && bootstrap) {
     try {
-      await preloadPublicRouteModules(window.location.pathname);
+      const publicRouteComponents = await preloadPublicRouteModules(
+        window.location.pathname,
+      );
       const publicPreferenceSnapshot = preparePublicPagePreferenceState();
       seedPublicPageQueries(queryClient, bootstrap);
       hydrateRoot(
@@ -79,6 +81,7 @@ async function startClientApplication() {
         <EntryApplication
           publicPreferenceSnapshot={publicPreferenceSnapshot}
           renderedAt={bootstrap.renderedAt}
+          publicRouteComponents={publicRouteComponents}
         />,
       );
     } catch {

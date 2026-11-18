@@ -848,6 +848,52 @@ try {
   );
   assert.equal(await cinemaPage.locator('a[href="/Ab1"]').count(), 1);
   await cinemaPage.close();
+
+  const hydratedPublicRouteCases = [
+    ["/showtimes", "SSR Test Movie"],
+    ["/showtimes/jerusalem", "SSR Test Movie"],
+    [`/c/${cinemaIdentity.id}`, cinemaIdentity.displayName],
+  ];
+  for (const [pathname, expectedContent] of hydratedPublicRouteCases) {
+    const hydratedPage = await browser.newPage();
+    const routeHydrationErrors = [];
+    hydratedPage.on("pageerror", (error) =>
+      routeHydrationErrors.push(error.message));
+    hydratedPage.on("console", (message) => {
+      if (/hydration|did not match|server rendered/i.test(message.text())) {
+        routeHydrationErrors.push(message.text());
+      }
+    });
+    await hydratedPage.route("**/*", async (route) => {
+      const url = new URL(route.request().url());
+      if (url.hostname === "images.example.test") {
+        await route.fulfill({
+          status: 200,
+          contentType: "image/svg+xml",
+          body: posterFixture,
+        });
+        return;
+      }
+      await route.continue();
+    });
+    await hydratedPage.goto(`${baseUrl}${pathname}`, { waitUntil: "load" });
+    await hydratedPage
+      .getByText(expectedContent, { exact: true })
+      .first()
+      .waitFor({ state: "visible" });
+    await hydratedPage.waitForTimeout(100);
+    assert.equal(
+      await hydratedPage.locator('a[href="/Ab1"]').count(),
+      1,
+      `${pathname} retains its server-rendered movie link after hydration`,
+    );
+    assert.deepEqual(
+      routeHydrationErrors,
+      [],
+      `${pathname} hydrates from the same public route component tree`,
+    );
+    await hydratedPage.close();
+  }
 } finally {
   await browser.close();
   await new Promise((resolveClose, rejectClose) =>
