@@ -121,7 +121,8 @@ export function seedPublicPageQueries(
       todayDate: renderedDate,
       renderInstant,
       dates: [date],
-      movies,
+      movies:
+        movieDetail?.movie.tmdbId === tmdbId ? [movieDetail.movie] : movies,
       rows: showtimes,
       scope: { tmdbId },
       publicationRevision: bootstrap.publicationRevision,

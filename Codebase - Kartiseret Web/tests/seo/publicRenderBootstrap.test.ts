@@ -39,6 +39,37 @@ function movieBootstrap(date = today): PublicPageBootstrap {
 }
 
 describe("public route bootstrap showtime coverage", () => {
+  it("renders targeted screenings from a standalone movie with no catalog", () => {
+    const queryClient = new QueryClient();
+    const bootstrap = movieBootstrap();
+    bootstrap.catalogs = {};
+    bootstrap.movieDetail = { movie: sampleMovie, mode: "nowPlaying" };
+    bootstrap.targetedMovieShowtimes!.showtimes = [
+      {
+        tmdbId: sampleMovie.tmdbId,
+        screeningCity: "Jerusalem",
+        dateOfShowing: today,
+        cinema: "Cinema City Jerusalem",
+        showtime: "18:00",
+        englishHref: "https://tickets.example.test/booking",
+        hebrewHref: null,
+        screeningTech: "2D",
+        screeningType: "Regular",
+        dubLanguage: null,
+      },
+    ];
+
+    seedPublicPageQueries(queryClient, bootstrap);
+
+    const targeted = queryClient.getQueryData<
+      ReturnType<typeof createEmptyShowtimeCityData>
+    >(movieCatalogQueryKeys.showtimeCity("Jerusalem", "7"));
+    expect(
+      targeted?.movieShowtimesByTmdbId[sampleMovie.tmdbId]?.[0]?.theaters,
+    ).toHaveLength(1);
+    queryClient.clear();
+  });
+
   it("keeps movie-targeted rows separate from broad city coverage", () => {
     const queryClient = new QueryClient();
     const bootstrap = movieBootstrap();
