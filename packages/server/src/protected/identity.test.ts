@@ -23,7 +23,7 @@ describe("Better Auth verified identity", () => {
       user: { ...user, isAdmin: true },
       session: { id: "session" },
     });
-    expect(await verifier.verify("signed-cookie")).toEqual({
+    expect(await verifier.verify({ cookie: "signed-cookie" })).toEqual({
       id: user.id,
       email: user.email,
       signupLocation: "Haifa",
@@ -41,15 +41,23 @@ describe("Better Auth verified identity", () => {
     { user: { ...user, id: "bad" } },
   ])("rejects absent, unverified and malformed identities", async (value) => {
     await expect(
-      setup(value).verifier.verify("invalid-cookie"),
+      setup(value).verifier.verify({ cookie: "invalid-cookie" }),
     ).rejects.toMatchObject({ status: 401 });
   });
   it("maps persistence failures to a safe availability error", async () => {
     const { verifier, getSession } = setup(null);
     getSession.mockRejectedValue(new Error("private SQL details"));
-    await expect(verifier.verify("cookie")).rejects.toMatchObject({
+    await expect(verifier.verify({ cookie: "cookie" })).rejects.toMatchObject({
       status: 503,
       code: "auth_unavailable",
     });
+  });
+
+  it("passes native bearer credentials to Better Auth without treating them as cookies", async () => {
+    const { verifier, getSession } = setup({ user, session: { id: "native" } });
+    await verifier.verify({ authorization: "Bearer native-session" });
+    const options = getSession.mock.calls[0]?.[0] as { headers: Headers };
+    expect(options.headers.get("authorization")).toBe("Bearer native-session");
+    expect(options.headers.get("cookie")).toBeNull();
   });
 });

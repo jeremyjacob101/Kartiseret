@@ -80,4 +80,39 @@ actor FixtureAPIClient: KartiseretAPI {
         }
         return ShowtimesSnapshot(showtimes: rows, publicationRevision: publicationRevision ?? "fixture-1")
     }
+
+    func loadCinematheques(
+        city: String,
+        startDate: String,
+        endDate: String,
+        publicationRevision: String?
+    ) async throws -> CinemathequeSnapshot {
+        let movies = nowPlaying.movies
+        let screenings: [Showtime] = city == "Jerusalem" ? [
+            Showtime(tmdbId: "9100001", screeningCity: city, dateOfShowing: startDate, cinema: "Jerusalem Cinematheque", showtime: "19:00", englishHref: "https://tickets.example/cinematheque", hebrewHref: nil, screeningTech: "35mm", screeningType: "Film", dubLanguage: nil)
+        ] : []
+        return CinemathequeSnapshot(
+            data: CinemathequeData(movies: movies, movieCodesStatus: "ready", showtimes: screenings),
+            publicationRevision: publicationRevision ?? "fixture-1"
+        )
+    }
+
+    func loadCinemaPage(id: String, publicationRevision: String?) async throws -> CinemaPageSnapshot {
+        guard id == "smBcm2HtRvQA" else { throw APIClientError.http(statusCode: 404) }
+        let movie = nowPlaying.movies[0]
+        let screening = Showtime(tmdbId: movie.tmdbId, screeningCity: "Jerusalem", dateOfShowing: CinemaDay.current(at: Self.referenceInstant).isoDate, cinema: "Jerusalem Cinematheque", showtime: "19:00", englishHref: "https://tickets.example/cinematheque", hebrewHref: nil, screeningTech: "35mm", screeningType: "Film", dubLanguage: nil)
+        return CinemaPageSnapshot(
+            data: CinemaPageData(
+                id: id,
+                displayName: "Jerusalem Cinematheque",
+                city: "Jerusalem",
+                address: "11 Hebron Road, Jerusalem",
+                mapUrl: URL(string: "https://maps.app.goo.gl/jDuGeP2hZhQiWYbG7")!,
+                latitude: 31.7683,
+                longitude: 35.2137,
+                screenings: [CinemaScreening(movie: movie, screening: screening)]
+            ),
+            publicationRevision: publicationRevision ?? "fixture-1"
+        )
+    }
 }

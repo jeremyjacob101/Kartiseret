@@ -122,6 +122,41 @@ final class AppStore {
         )
     }
 
+    func makeShowtimeRequest(
+        mode: CatalogMode,
+        movieID: String?,
+        city: String?,
+        day: CinemaDay?
+    ) -> ShowtimeRequest {
+        ShowtimeRequest(
+            mode: mode,
+            city: city ?? selectedCity,
+            day: day ?? selectedDay,
+            movieID: movieID,
+            publicationRevision: catalogs[mode]?.publicationRevision
+        )
+    }
+
+    func resolveMovieLink(_ link: UniversalMovieLink, fallbackCity: String) async -> MovieLinkResolution {
+        var hadLoadFailure = false
+        for mode in CatalogMode.allCases {
+            await loadCatalog(mode)
+            guard let movie = catalogs[mode]?.data.movies.first(where: {
+                $0.movieCode == link.movieCode
+            }) else {
+                hadLoadFailure = hadLoadFailure || catalogErrors[mode] != nil
+                continue
+            }
+            return .route(MovieRoute(
+                mode: mode,
+                movieID: movie.tmdbId,
+                movie: movie,
+                sharedShowtimeContext: link.sharedContext(fallbackCity: fallbackCity, today: today)
+            ))
+        }
+        return hadLoadFailure ? .networkFailure : .unavailable
+    }
+
     func loadShowtimes(_ request: ShowtimeRequest, forceRefresh: Bool = false) async {
         guard forceRefresh || showtimes[request] == nil else { return }
         let generation = (showtimeGenerations[request] ?? 0) + 1

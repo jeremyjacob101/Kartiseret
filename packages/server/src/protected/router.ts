@@ -113,8 +113,23 @@ export function createProtectedRouter(
     async (request, response, next) => {
       response.setHeader("Cache-Control", "no-store");
       response.vary("Cookie");
+      response.vary("Authorization");
       const cookie = request.headers.cookie;
-      if (!cookie) {
+      const authorization = request.get("authorization");
+      const hasBearer = Boolean(
+        authorization?.toLowerCase().startsWith("bearer "),
+      );
+      if (cookie && hasBearer) {
+        next(
+          new HttpError(
+            400,
+            "ambiguous_credentials",
+            "Send either a session cookie or a bearer token.",
+          ),
+        );
+        return;
+      }
+      if (!cookie && !hasBearer) {
         next(
           new HttpError(
             401,
@@ -126,6 +141,7 @@ export function createProtectedRouter(
       }
       if (
         !["GET", "HEAD", "OPTIONS"].includes(request.method) &&
+        !hasBearer &&
         !trustedOrigins.includes(request.headers.origin ?? "")
       ) {
         next(
@@ -138,7 +154,10 @@ export function createProtectedRouter(
         return;
       }
       try {
-        const verified = await verifier.verify(cookie);
+        const verified = await verifier.verify({
+          ...(cookie ? { cookie } : {}),
+          ...(hasBearer && authorization ? { authorization } : {}),
+        });
         const expectedAccount = request.get(EXPECTED_ACCOUNT_HEADER);
         if (expectedAccount && expectedAccount !== verified.id) {
           throw new HttpError(

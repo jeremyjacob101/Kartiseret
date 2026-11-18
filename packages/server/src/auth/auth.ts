@@ -13,6 +13,7 @@ import { authSchema } from "./schema.js";
 import type { AuthMailer } from "./mail.js";
 import { createAppleClientSecret } from "./apple.js";
 import type { SocialProviderEnvironment } from "./env.js";
+import { bearer } from "better-auth/plugins";
 
 export interface ApplicationAuthOptions {
   baseURL: string;
@@ -33,6 +34,7 @@ function createApplicationAuthOptions(
     baseURL: options.baseURL,
     basePath: "/api/auth",
     secret: options.secret,
+    plugins: [bearer()],
     trustedOrigins: [
       ...options.trustedOrigins,
       ...(options.socialProviders?.apple ? ["https://appleid.apple.com"] : []),
@@ -113,7 +115,12 @@ function createApplicationAuthOptions(
             ...(options.socialProviders.google
               ? {
                   google: {
-                    clientId: options.socialProviders.google.clientId,
+                    clientId: options.socialProviders.google.iosClientId
+                      ? [
+                          options.socialProviders.google.clientId,
+                          options.socialProviders.google.iosClientId,
+                        ]
+                      : options.socialProviders.google.clientId,
                     clientSecret: options.socialProviders.google.clientSecret,
                     requireEmailVerification: true,
                   },
@@ -126,6 +133,12 @@ function createApplicationAuthOptions(
                     clientSecret: await createAppleClientSecret(
                       options.socialProviders!.apple!,
                     ),
+                    ...(options.socialProviders!.apple!.appBundleIdentifier
+                      ? {
+                          appBundleIdentifier:
+                            options.socialProviders!.apple!.appBundleIdentifier,
+                        }
+                      : {}),
                     requireEmailVerification: true,
                   }),
                 }

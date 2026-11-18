@@ -18,7 +18,7 @@ final class KartiseretUITests: XCTestCase {
 
     func testComingSoonMovieOpensDetailWithCityAndDayControls() {
         let app = launchFixture()
-        app.tabBars.buttons["Coming Soon"].tap()
+        app.buttons["discover.comingSoon"].tap()
         let movie = app.buttons["movie.9100101"]
         XCTAssertTrue(movie.waitForExistence(timeout: 5))
         movie.tap()
@@ -63,7 +63,8 @@ final class KartiseretUITests: XCTestCase {
 
     func testHelpTabShowsPrivacyAndSupportLinks() {
         let app = launchFixture()
-        app.tabBars.buttons["Help"].tap()
+        app.tabBars.buttons["You"].tap()
+        app.buttons["account.help"].tap()
 
         let supportLink = app.descendants(matching: .any)["help.support"].firstMatch
         let privacyLink = app.descendants(matching: .any)["help.privacyPolicy"].firstMatch
@@ -71,6 +72,30 @@ final class KartiseretUITests: XCTestCase {
         XCTAssertTrue(privacyLink.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Support"].exists)
         XCTAssertTrue(app.staticTexts["Privacy Policy"].exists)
+    }
+
+    func testCinemathequesShowsUpcomingProgrammeAndCinemaPage() {
+        let app = launchFixture()
+        app.tabBars.buttons["Cinematheques"].tap()
+
+        let cinema = app.buttons["cinematheques.cinema.smBcm2HtRvQA"]
+        XCTAssertTrue(cinema.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Fixture Feature"].exists)
+        cinema.tap()
+        XCTAssertTrue(app.staticTexts["Upcoming showtimes"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["View on map"].exists)
+    }
+
+    func testShowtimeFilterSheetProvidesSavedFilterGroups() {
+        let app = launchFixture()
+        app.tabBars.buttons["Showtimes"].tap()
+        app.buttons["showtimes.filters"].tap()
+
+        XCTAssertTrue(app.staticTexts["Showtime filters"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Show type"].exists)
+        app.swipeUp()
+        XCTAssertTrue(app.staticTexts["Jerusalem cinemas"].exists)
+        app.buttons["Done"].tap()
     }
 
     private func launchFixture() -> XCUIApplication {

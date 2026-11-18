@@ -1,0 +1,25 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["UZ7YLA6V9D.com.jj.kartiseret"],
+        "components": [
+          {"#": "no_universal_links", "exclude": true, "comment": "Keep explicit website fallbacks in the browser."},
+          {"/": "/api", "exclude": true},
+          {"/": "/api/*", "exclude": true},
+          {"/": "/", "comment": "Open Kartiseret Discover."},
+          {"/": "/movies", "comment": "Open the Now Playing catalog."},
+          {"/": "/soons", "comment": "Open the Coming Soon catalog."},
+          {"/": "/showtimes", "comment": "Open showtimes."},
+          {"/": "/cinematheques", "comment": "Open cinematheques."},
+          {"/": "/confirm-account-deletion", "comment": "Review email confirmation in the app; opening a link never deletes an account."},
+          {"/": "/user", "comment": "Open the account tab."},
+          {"/": "/c/*", "comment": "Open a cinema detail page."},
+          {"/": "/???", "comment": "Open a three-character movie link."},
+          {"/": "/??????", "comment": "Open a six-character shared movie showtime link."},
+          {"/": "/?????????", "comment": "Open a nine-character shared movie showtime link."}
+        ]
+      }
+    ]
+  }
+}

@@ -62,8 +62,10 @@ describe("auth deployment configuration", () => {
       ...secrets,
       VERCEL_ENV: "production",
       GOOGLE_CLIENT_ID: "google-client-id",
+      GOOGLE_IOS_CLIENT_ID: "google-ios-client-id",
       GOOGLE_CLIENT_SECRET: "google-client-secret",
       APPLE_CLIENT_ID: "com.jj.kartiseret.web",
+      APPLE_APP_BUNDLE_IDENTIFIER: "com.jj.kartiseret",
       APPLE_TEAM_ID: "TEAM123456",
       APPLE_KEY_ID: "KEY1234567",
       APPLE_PRIVATE_KEY:
@@ -73,10 +75,12 @@ describe("auth deployment configuration", () => {
     expect(config.socialProviderIds).toEqual(["google", "apple"]);
     expect(config.socialProviders.google).toEqual({
       clientId: "google-client-id",
+      iosClientId: "google-ios-client-id",
       clientSecret: "google-client-secret",
     });
     expect(config.socialProviders.apple).toEqual({
       clientId: "com.jj.kartiseret.web",
+      appBundleIdentifier: "com.jj.kartiseret",
       teamId: "TEAM123456",
       keyId: "KEY1234567",
       privateKey:
@@ -86,6 +90,7 @@ describe("auth deployment configuration", () => {
   it.each([
     { GOOGLE_CLIENT_ID: "google-client-id" },
     { GOOGLE_CLIENT_SECRET: "google-client-secret" },
+    { GOOGLE_IOS_CLIENT_ID: "google-ios-client-id" },
     { APPLE_CLIENT_ID: "com.jj.kartiseret.web" },
     {
       APPLE_CLIENT_ID: "com.jj.kartiseret.web",

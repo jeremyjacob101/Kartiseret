@@ -28,12 +28,31 @@ struct Movie: Decodable, Hashable, Identifiable, Sendable {
     let releaseDate: String?
     let genres: [String]
     let runtime: Int
+    var movieCode: String? = nil
+    var imageSrc: String? = nil
+    var imageSrcSet: String? = nil
+    var backdropSrc: String? = nil
+    var backdropSrcSet: String? = nil
+    var trailerKey: String? = nil
+    var imdbRating: Double? = nil
+    var rtAudienceRating: Double? = nil
+    var rtCriticRating: Double? = nil
+    var lbRating: Double? = nil
+    var tmdbRating: Double? = nil
+    var imdbId: String? = nil
+    var rtId: String? = nil
+    var lbId: String? = nil
 
     var id: String { tmdbId }
 }
 
 struct City: Decodable, Hashable, Identifiable, Sendable {
     let name: String
+    var altSpellings: [String]? = nil
+    var latitude: Double? = nil
+    var longitude: Double? = nil
+    var zoomLayer: Double? = nil
+    var neighboringCities: [String]? = nil
 
     var id: String { name }
 }
@@ -46,6 +65,41 @@ struct MovieCatalogData: Decodable, Sendable {
 
 struct TheaterData: Decodable, Sendable {
     let cities: [City]
+    var theaters: [Theater]? = nil
+}
+
+struct Theater: Decodable, Hashable, Identifiable, Sendable {
+    var city: City? = nil
+    var chain: String? = nil
+    var address: String? = nil
+    var theaterName: String? = nil
+    var location: String? = nil
+    var lat: Double? = nil
+    var lng: Double? = nil
+
+    var id: String { [city?.name, chain, theaterName, location].compactMap { $0 }.joined(separator: "|") }
+}
+
+struct CinemathequeData: Decodable, Sendable {
+    let movies: [Movie]
+    let movieCodesStatus: String
+    let showtimes: [Showtime]
+}
+
+struct CinemaPageData: Decodable, Sendable {
+    let id: String
+    let displayName: String
+    let city: String
+    let address: String
+    let mapUrl: URL
+    let latitude: Double
+    let longitude: Double
+    let screenings: [CinemaScreening]
+}
+
+struct CinemaScreening: Decodable, Sendable {
+    let movie: Movie
+    let screening: Showtime
 }
 
 struct Showtime: Decodable, Hashable, Identifiable, Sendable {
@@ -113,9 +167,31 @@ struct ShowtimesSnapshot: Sendable {
     let publicationRevision: String?
 }
 
+struct CinemathequeSnapshot: Sendable {
+    let data: CinemathequeData
+    let publicationRevision: String?
+}
+
+struct CinemaPageSnapshot: Sendable {
+    let data: CinemaPageData
+    let publicationRevision: String?
+}
+
 struct MovieRoute: Hashable, Sendable {
     let mode: CatalogMode
     let movieID: String
+    var movie: Movie? = nil
+    var sharedShowtimeContext: SharedShowtimeLinkContext? = nil
+}
+
+enum MovieLinkResolution: Sendable {
+    case route(MovieRoute)
+    case unavailable
+    case networkFailure
+}
+
+struct CinemaRoute: Hashable, Sendable {
+    let cinemaID: String
 }
 
 struct ShowtimeRequest: Hashable, Sendable {

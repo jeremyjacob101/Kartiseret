@@ -3,6 +3,8 @@ import Foundation
 struct APIHTTPRequest: Sendable {
     let url: URL
     let headers: [String: String]
+    var method: String = "GET"
+    var body: Data? = nil
 }
 
 struct APIHTTPResponse: Sendable {
@@ -28,9 +30,12 @@ actor URLSessionAPITransport: APITransport {
 
     func send(_ request: APIHTTPRequest) async throws -> APIHTTPResponse {
         var urlRequest = URLRequest(url: request.url)
-        urlRequest.httpMethod = "GET"
+        urlRequest.httpMethod = request.method
+        // Native authentication uses bearer tokens; never attach browser session cookies.
+        urlRequest.httpShouldHandleCookies = false
         urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
         request.headers.forEach { urlRequest.setValue($1, forHTTPHeaderField: $0) }
+        urlRequest.httpBody = request.body
 
         do {
             let (data, response) = try await session.data(for: urlRequest)
@@ -61,6 +66,28 @@ protocol KartiseretAPI: Sendable {
         movieID: String?,
         publicationRevision: String?
     ) async throws -> ShowtimesSnapshot
+    func loadCinematheques(
+        city: String,
+        startDate: String,
+        endDate: String,
+        publicationRevision: String?
+    ) async throws -> CinemathequeSnapshot
+    func loadCinemaPage(id: String, publicationRevision: String?) async throws -> CinemaPageSnapshot
+}
+
+extension KartiseretAPI {
+    func loadCinematheques(
+        city: String,
+        startDate: String,
+        endDate: String,
+        publicationRevision: String?
+    ) async throws -> CinemathequeSnapshot {
+        throw APIClientError.unsupported
+    }
+
+    func loadCinemaPage(id: String, publicationRevision: String?) async throws -> CinemaPageSnapshot {
+        throw APIClientError.unsupported
+    }
 }
 
 struct URLSessionKartiseretAPI: KartiseretAPI {
@@ -96,6 +123,40 @@ struct URLSessionKartiseretAPI: KartiseretAPI {
         }
         let (data, response) = try await get(ShowtimesData.self, url: url, headers: headers)
         return ShowtimesSnapshot(showtimes: data.showtimes, publicationRevision: response.header("X-Kartiseret-Publication"))
+    }
+
+    func loadCinematheques(
+        city: String,
+        startDate: String,
+        endDate: String,
+        publicationRevision: String?
+    ) async throws -> CinemathequeSnapshot {
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            throw APIClientError.invalidURL
+        }
+        components.path = "/api/v1/cinematheques"
+        components.queryItems = [
+            URLQueryItem(name: "city", value: city),
+            URLQueryItem(name: "startDate", value: startDate),
+            URLQueryItem(name: "endDate", value: endDate),
+        ]
+        guard let url = components.url else { throw APIClientError.invalidURL }
+        var headers: [String: String] = [:]
+        if let publicationRevision { headers["X-Kartiseret-Publication"] = publicationRevision }
+        let (data, response) = try await get(CinemathequeData.self, url: url, headers: headers)
+        return CinemathequeSnapshot(data: data, publicationRevision: response.header("X-Kartiseret-Publication"))
+    }
+
+    func loadCinemaPage(id: String, publicationRevision: String?) async throws -> CinemaPageSnapshot {
+        guard CinemaIdentity.byID(id) != nil,
+              let escapedID = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = URL(string: "/api/v1/cinemas/\(escapedID)", relativeTo: baseURL)?.absoluteURL else {
+            throw APIClientError.invalidURL
+        }
+        var headers: [String: String] = [:]
+        if let publicationRevision { headers["X-Kartiseret-Publication"] = publicationRevision }
+        let (data, response) = try await get(CinemaPageData.self, url: url, headers: headers)
+        return CinemaPageSnapshot(data: data, publicationRevision: response.header("X-Kartiseret-Publication"))
     }
 
     static func showtimesURL(baseURL: URL, city: String, day: CinemaDay, movieID: String?) throws -> URL {
@@ -169,6 +230,9 @@ enum APIClientError: Error, LocalizedError, Sendable {
     case http(statusCode: Int)
     case remote(code: String, message: String, statusCode: Int)
     case transport(String)
+    case unauthorized
+    case invalidCredentials
+    case unsupported
 
     var code: String? {
         if case let .remote(code, _, _) = self { return code }
@@ -185,6 +249,12 @@ enum APIClientError: Error, LocalizedError, Sendable {
             message
         case let .transport(message):
             message.isEmpty ? "Could not connect. Check your connection and try again." : message
+        case .unauthorized:
+            "Your session has expired. Sign in again to continue."
+        case .invalidCredentials:
+            "The email or password is incorrect. Check your details and try again."
+        case .unsupported:
+            "This feature is unavailable in the current data source."
         }
     }
 }

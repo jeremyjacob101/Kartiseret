@@ -53,19 +53,26 @@ const workflows = new ProtectedWorkflows(
   () => new Date("2026-10-19T12:00:00Z"),
 );
 const identities = { alice, bob, admin: owner };
+async function verifyIdentity(credentials: {
+  cookie?: string;
+  authorization?: string;
+}) {
+  const token =
+    credentials.cookie?.split(";", 1)[0] ??
+    credentials.authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+  const identity =
+    token && Object.prototype.hasOwnProperty.call(identities, token)
+      ? identities[token as keyof typeof identities]
+      : undefined;
+  if (!identity) throw new HttpError(401, "unauthorized", "Invalid session.");
+  return identity;
+}
 const app = createApp({
   catalogRepository: publicRepository,
   publicDataRepository: publicRepository,
   protectedWorkflows: workflows,
   trustedOrigins: ["http://localhost"],
-  identityVerifier: {
-    async verify(token) {
-      const identity = identities[token as keyof typeof identities];
-      if (!identity)
-        throw new HttpError(401, "unauthorized", "Invalid session.");
-      return identity;
-    },
-  },
+  identityVerifier: { verify: verifyIdentity },
 });
 const correction = (
   mode: "nowPlaying" | "comingSoon",
@@ -104,6 +111,17 @@ describe.sequential(
         "INSERT INTO public.admin_users (user_id) VALUES ($1)",
         [owner.id],
       );
+    });
+    it("accepts native bearer authentication without a browser origin", async () => {
+      const response = await request(app)
+        .get("/api/v1/account")
+        .set("Authorization", "Bearer alice");
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.user).toMatchObject({
+        id: alice.id,
+        email: alice.email,
+      });
     });
     afterAll(async () => {
       await admin.pool.query("DELETE FROM app_auth.protected_rate_limits");
@@ -164,14 +182,7 @@ describe.sequential(
           publicDataRepository: publicRepository,
           protectedWorkflows: workflows,
           trustedOrigins: ["http://localhost"],
-          identityVerifier: {
-            async verify(cookie) {
-              const identity = identities[cookie as keyof typeof identities];
-              if (!identity)
-                throw new HttpError(401, "unauthorized", "Invalid session.");
-              return identity;
-            },
-          },
+          identityVerifier: { verify: verifyIdentity },
           protectedRateLimit: {
             store,
             limit: 2,

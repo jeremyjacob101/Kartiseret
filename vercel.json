@@ -2,6 +2,13 @@
   "regions": ["fra1"],
   "headers": [
     {
+      "source": "/.well-known/apple-app-site-association",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" },
+        { "key": "Cache-Control", "value": "public, max-age=3600" }
+      ]
+    },
+    {
       "source": "/user",
       "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
     },
@@ -55,6 +62,10 @@
     }
   ],
   "rewrites": [
+    {
+      "source": "/.well-known/apple-app-site-association",
+      "destination": "/apple-app-site-association"
+    },
     {
       "source": "/",
       "destination": "/api/dispatch?__vercel_route=page&path=/"

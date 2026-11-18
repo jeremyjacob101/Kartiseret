@@ -4,9 +4,10 @@ import { ServerConfigurationError } from "../env.js";
 export type SocialProviderId = "google" | "apple";
 
 export interface SocialProviderEnvironment {
-  google?: { clientId: string; clientSecret: string };
+  google?: { clientId: string; iosClientId?: string; clientSecret: string };
   apple?: {
     clientId: string;
+    appBundleIdentifier?: string;
     teamId: string;
     keyId: string;
     privateKey: string;
@@ -58,6 +59,7 @@ export function parseAuthEnvironment(env: Record<string, string | undefined>) {
   const googleValues = [env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET].map(
     (value) => value?.trim() || undefined,
   );
+  const googleIOSClientId = env.GOOGLE_IOS_CLIENT_ID?.trim() || undefined;
   const appleValues = [
     env.APPLE_CLIENT_ID,
     env.APPLE_TEAM_ID,
@@ -69,6 +71,11 @@ export function parseAuthEnvironment(env: Record<string, string | undefined>) {
   if (hasGoogle && googleValues.some((value) => !value)) {
     throw new ServerConfigurationError(
       "Google sign-in requires both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
+    );
+  }
+  if (googleIOSClientId && (!googleValues[0] || !googleValues[1])) {
+    throw new ServerConfigurationError(
+      "Google iOS sign-in requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET as well as GOOGLE_IOS_CLIENT_ID.",
     );
   }
   if (hasApple && appleValues.some((value) => !value)) {
@@ -118,6 +125,7 @@ export function parseAuthEnvironment(env: Record<string, string | undefined>) {
         ? {
             google: {
               clientId: googleValues[0],
+              ...(googleIOSClientId ? { iosClientId: googleIOSClientId } : {}),
               clientSecret: googleValues[1],
             },
           }
@@ -126,6 +134,11 @@ export function parseAuthEnvironment(env: Record<string, string | undefined>) {
         ? {
             apple: {
               clientId: appleValues[0],
+              ...(env.APPLE_APP_BUNDLE_IDENTIFIER?.trim()
+                ? {
+                    appBundleIdentifier: env.APPLE_APP_BUNDLE_IDENTIFIER.trim(),
+                  }
+                : {}),
               teamId: appleValues[1],
               keyId: appleValues[2],
               privateKey: applePrivateKey,

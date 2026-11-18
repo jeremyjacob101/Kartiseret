@@ -1,9 +1,11 @@
 import SwiftUI
+import GoogleSignIn
 
 @main
 @MainActor
 struct KartiseretApp: App {
     @State private var store: AppStore
+    @State private var accountStore: AccountStore
 
     init() {
         let fixtureMode = AppConfiguration.fixtureMode
@@ -16,19 +18,26 @@ struct KartiseretApp: App {
             fixtureMode: fixtureMode,
             resetPreferences: AppConfiguration.resetPreferences
         ))
+        _accountStore = State(initialValue: AccountStore(
+            api: NativeAccountAPI(baseURL: AppConfiguration.apiBaseURL),
+            credentials: KeychainSessionCredentialStore(apiOrigin: AppConfiguration.apiOrigin)
+        ))
     }
 
     var body: some Scene {
         WindowGroup {
-            if store.fixtureMode {
-                AppRootView()
-                    .environment(store)
-                    .environment(\.openURL, OpenURLAction { url in
-                        store.captureFixtureBookingURL(url)
-                        return .handled
-                    })
-            } else {
-                AppRootView().environment(store)
+            Group {
+                if store.fixtureMode {
+                    AppRootView()
+                        .environment(store)
+                        .environment(accountStore)
+                        .environment(\.openURL, OpenURLAction { url in
+                            store.captureFixtureBookingURL(url)
+                            return .handled
+                        })
+                } else {
+                    AppRootView().environment(store).environment(accountStore)
+                }
             }
         }
     }
