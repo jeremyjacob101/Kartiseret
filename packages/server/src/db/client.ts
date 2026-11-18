@@ -7,6 +7,7 @@ import {
 import { type Pool, TypeOverrides, types } from "pg";
 import { TimingClient, TimingPool } from "./timing-pool.js";
 import * as schema from "./schema.js";
+import { getRequestLogger, safeErrorSummary } from "../logging.js";
 
 export type ApplicationDatabase = NodePgDatabase<
   typeof schema.applicationTables
@@ -72,16 +73,17 @@ export function createDatabase(
     sslCaCertificate,
     connectionOptions,
     onPoolError = (error) => {
-      const safeError =
-        typeof error === "object" && error !== null
-          ? (error as { name?: unknown; code?: unknown })
-          : undefined;
-      console.error("Unexpected idle PostgreSQL connection error.", {
-        name: typeof safeError?.name === "string" ? safeError.name : "Error",
-        ...(typeof safeError?.code === "string"
-          ? { code: safeError.code }
-          : {}),
-      });
+      try {
+        getRequestLogger().error(
+          {
+            event: "postgres_idle_connection_error",
+            error: safeErrorSummary(error),
+          },
+          "Unexpected idle PostgreSQL connection error.",
+        );
+      } catch {
+        // Diagnostics must not affect the pool error callback.
+      }
     },
   }: DatabaseFactoryOptions = {},
 ): DatabaseConnection {

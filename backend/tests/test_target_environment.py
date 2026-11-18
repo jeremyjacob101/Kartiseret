@@ -275,9 +275,6 @@ class TargetEnvironmentTests(TestCase):
 
 class RunnerTargetSelectionTests(TestCase):
     def setUp(self) -> None:
-        installer = patch.object(runner, "_install_requirements", return_value=0)
-        installer.start()
-        self.addCleanup(installer.stop)
         self.profiles = {
             **_profile("DEV_", "development"),
             **_profile("PROD_", "production"),

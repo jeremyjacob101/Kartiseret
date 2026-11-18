@@ -11,6 +11,7 @@ import type { VercelRequest, VercelResponse } from "../og/vercelTypes.js";
 import type { PublicShowtime } from "@kartiseret/contracts/public-data";
 import { DEFAULT_LOCATION } from "@kartiseret/contracts/preferences";
 import { renderBuiltPublicApplication } from "./renderer.js";
+import { logErrorSafely } from "@kartiseret/server/logging";
 import type { Movie } from "@kartiseret/contracts/movies";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -537,9 +538,11 @@ async function renderSitemap(response: VercelResponse): Promise<void> {
       .setHeader("Cache-Control", SITEMAP_CACHE)
       .send(xml);
   } catch (error) {
-    console.error("Could not build public sitemap.", {
-      name: error instanceof Error ? error.name : "Error",
-    });
+    logErrorSafely(
+      "public_sitemap_build_failed",
+      error,
+      "Could not build public sitemap.",
+    );
     response
       .status(503)
       .setHeader("Content-Type", "text/plain; charset=utf-8")
@@ -671,9 +674,11 @@ export default async function handler(
       )
       .send(output);
   } catch (error) {
-    console.error("Could not render public SEO page.", {
-      name: error instanceof Error ? error.name : "Error",
-    });
+    logErrorSafely(
+      "public_seo_render_failed",
+      error,
+      "Could not render public SEO page.",
+    );
     response
       .status(503)
       .setHeader("Content-Type", "text/plain; charset=utf-8")

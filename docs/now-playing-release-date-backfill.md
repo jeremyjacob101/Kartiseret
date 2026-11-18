@@ -19,7 +19,7 @@ release dates, coming-soon dates, and run logs.
 Run the importer from the repository root:
 
 ```sh
-python3 backend/utils/supabase/backfill_movie_release_dates.py \
+uv run --locked backend/utils/supabase/backfill_movie_release_dates.py \
   --snapshot /private/tmp/release-date-backfill-snapshot.json \
   --output-dir /private/tmp/release-date-backfill-report
 ```

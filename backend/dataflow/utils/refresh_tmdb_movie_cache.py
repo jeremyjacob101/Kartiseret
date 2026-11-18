@@ -1,6 +1,6 @@
 """Refresh one canonical TMDb movie response and repair its persistent cache.
 
-Run with ``python -m backend.dataflow.utils.refresh_tmdb_movie_cache --target development --tmdb-id 123``.
+Run with ``uv run --locked -m backend.dataflow.utils.refresh_tmdb_movie_cache --target development --tmdb-id 123``.
 This command changes only the backend cache row for the requested TMDb ID.
 """
 

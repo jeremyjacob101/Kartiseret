@@ -3,7 +3,7 @@
 The comparison command runs each collector without database writes, publication, notifications, or production timing-history updates:
 
 ```sh
-PYTHONPATH="$PWD" python3 -m backend.scraping.compare SCRAPER --output docs/scraping/evidence/2026-11-02
+uv run --locked -m backend.scraping.compare SCRAPER --output docs/scraping/evidence/2026-11-02
 ```
 
 Add `--first requests` to reverse collector order. Add `--capture-source-responses` when diagnosing a difference; raw public HTTP responses are stored in compressed JSONL with their request identity, status, content type, and SHA-256. Exact comparisons use duplicate-preserving multisets and retain every output value and type, ignoring only generated run/snapshot IDs.

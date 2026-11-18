@@ -39,9 +39,9 @@ Automatic deletion is off by default. Pipeline preflight reads `KARTISERET_SHARE
 Commands:
 
 ```bash
-python -m backend.utils.log.shared_cleanup --target development --dry-run --force
-python -m backend.utils.log.shared_cleanup --target development --apply --force
-python -m backend.utils.log.shared_cleanup --target production --dry-run --force
+uv run --locked -m backend.utils.log.shared_cleanup --target development --dry-run --force
+uv run --locked -m backend.utils.log.shared_cleanup --target development --apply --force
+uv run --locked -m backend.utils.log.shared_cleanup --target production --dry-run --force
 ```
 
 `--force` bypasses the once-per-day marker. Omit it for ordinary scheduled or pipeline use. A cleanup that cannot acquire the target lease exits successfully with a clear `skipped` report; a pipeline fails startup if safe preflight cannot complete. The report contains counts and object totals, never credentials or payloads.
@@ -57,7 +57,7 @@ The explicit recovery command below is only for operator recovery, including old
 Stop the old owner and all descendants on the scheduler host before recovering. Inspect `SELECT lease_token, run_id FROM run_locks WHERE id = 1` in the selected target's D1 console. Then run:
 
 ```bash
-python -m backend.utils.log.recover_run_lock --target development --expected-token THE_OBSERVED_TOKEN --confirm-owner-stopped
+uv run --locked -m backend.utils.log.recover_run_lock --target development --expected-token THE_OBSERVED_TOKEN --confirm-owner-stopped
 ```
 
 Use `--target production` only for the production lock. Recovery checks the exact token and refuses to clear a different owner. For a pipeline run, it requires Supabase failure confirmation and marks D1 unconfirmed before releasing; standalone locks have no run ID. Do not recover a lock merely because its owner is slow or temporarily offline. Update every scheduler host to the merged code before enabling automatic cleanup; stale code must not keep launching writers outside the shared lock.
@@ -104,10 +104,10 @@ The existing daily and pressure cleanup paths in the Python run preflight scan t
 Use `backend.utils.log.migrate_scraped_archives` to copy and later delete legacy per-row archives. Both phases default to read-only. Review the dry run first, apply copy, and begin deletion only after every copied snapshot has passed checksum, row count, and row-key verification:
 
 ```sh
-python -m backend.utils.log.migrate_scraped_archives --target production --phase copy
-python -m backend.utils.log.migrate_scraped_archives --target production --phase copy --apply
-python -m backend.utils.log.migrate_scraped_archives --target production --phase delete
-python -m backend.utils.log.migrate_scraped_archives --target production --phase delete --apply
+uv run --locked -m backend.utils.log.migrate_scraped_archives --target production --phase copy
+uv run --locked -m backend.utils.log.migrate_scraped_archives --target production --phase copy --apply
+uv run --locked -m backend.utils.log.migrate_scraped_archives --target production --phase delete
+uv run --locked -m backend.utils.log.migrate_scraped_archives --target production --phase delete --apply
 ```
 
 The same command accepts `development`. Migration writes reserve against one persistent account-wide ledger in production D1, capped at 60,000 conservative writes per UTC day. Deletion reserves three writes per legacy row plus batch overhead, and reservations are kept after uncertain outcomes. Catalog entries remain for the normal 30-day retention period after legacy row deletion. Do not run migration commands until the D1 daily allowance resets; all runner hosts must use the snapshot-writing version before production migration begins.

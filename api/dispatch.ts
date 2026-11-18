@@ -6,6 +6,10 @@ import {
 import type { ServerResponse } from "node:http";
 import { createProductionApp } from "@kartiseret/server/production";
 import {
+  getRequestLogger,
+  withRequestLogContext,
+} from "@kartiseret/server/logging";
+import {
   createLazyVercelHandler,
   createVercelDispatchHandler,
   type VercelDispatchHandler,
@@ -40,14 +44,26 @@ export default createVercelDispatchHandler({
   api: (request, response) => {
     const first = firstApiRequest;
     firstApiRequest = false;
-    return withCatalogTiming(
-      request.url,
-      response as unknown as ServerResponse,
-      { firstApiRequest: first, dispatcherImportMs },
-      () => getProductionApi()(request, response),
+    return withRequestLogContext(() =>
+      withCatalogTiming(
+        request.url,
+        response as unknown as ServerResponse,
+        { firstApiRequest: first, dispatcherImportMs },
+        () => getProductionApi()(request, response),
+        (line) => {
+          try {
+            getRequestLogger().info(JSON.parse(line));
+          } catch {
+            // Timing diagnostics must not affect an API response.
+          }
+        },
+      ),
     );
   },
-  og: ogHandler,
-  ogImage: ogImageHandler,
-  seo: seoHandler,
+  og: (request, response) =>
+    withRequestLogContext(() => ogHandler(request, response)),
+  ogImage: (request, response) =>
+    withRequestLogContext(() => ogImageHandler(request, response)),
+  seo: (request, response) =>
+    withRequestLogContext(() => seoHandler(request, response)),
 });
