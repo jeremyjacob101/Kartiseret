@@ -14,7 +14,7 @@ export function parsePublicPageBootstrap(
 }
 
 function asMovieCollectionData(
-  data: PublicPageBootstrap["catalogs"]["nowPlaying"],
+  data: NonNullable<PublicPageBootstrap["catalogs"]["nowPlaying"]>,
 ): MovieCollectionData {
   return {
     ...data,
@@ -32,19 +32,26 @@ export function seedPublicPageQueries(
   const updatedAt = new Date(bootstrap.renderedAt).getTime();
   const renderInstant = new Date(bootstrap.renderedAt);
   const renderedDate = getCinemaDayDate(renderInstant, SHOWTIME_TIME_ZONE);
-  const nowPlaying = asMovieCollectionData(bootstrap.catalogs.nowPlaying);
-  const comingSoon = asMovieCollectionData(bootstrap.catalogs.comingSoon);
+  const nowPlaying =
+    bootstrap.catalogs.nowPlaying &&
+    asMovieCollectionData(bootstrap.catalogs.nowPlaying);
+  const comingSoon =
+    bootstrap.catalogs.comingSoon &&
+    asMovieCollectionData(bootstrap.catalogs.comingSoon);
 
-  queryClient.setQueryData(
-    movieCatalogQueryKeys.collection("nowPlaying"),
-    nowPlaying,
-    { updatedAt },
-  );
-  queryClient.setQueryData(
-    movieCatalogQueryKeys.collection("comingSoon"),
-    comingSoon,
-    { updatedAt },
-  );
+  if (nowPlaying)
+    queryClient.setQueryData(
+      movieCatalogQueryKeys.collection("nowPlaying"),
+      nowPlaying,
+      { updatedAt },
+    );
+  if (comingSoon)
+    queryClient.setQueryData(
+      movieCatalogQueryKeys.collection("comingSoon"),
+      comingSoon,
+      { updatedAt },
+    );
+  const movies = [...(nowPlaying?.movies ?? []), ...(comingSoon?.movies ?? [])];
 
   if (bootstrap.theaters) {
     queryClient.setQueryData(
@@ -69,7 +76,7 @@ export function seedPublicPageQueries(
       todayDate: renderedDate,
       renderInstant,
       dates,
-      movies: [...nowPlaying.movies, ...comingSoon.movies],
+      movies,
       rows: showtimes,
       scope: "broad",
       publicationRevision: bootstrap.publicationRevision,
@@ -97,7 +104,7 @@ export function seedPublicPageQueries(
       todayDate: renderedDate,
       renderInstant,
       dates: [date],
-      movies: [...nowPlaying.movies, ...comingSoon.movies],
+      movies,
       rows: showtimes,
       scope: { tmdbId },
       publicationRevision: bootstrap.publicationRevision,

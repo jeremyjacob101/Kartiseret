@@ -108,8 +108,8 @@ function createPageBootstrap(
   publicationRevision: string,
   instant: Date,
   catalogs: {
-    nowPlaying: Awaited<ReturnType<typeof getMovieCatalog>>;
-    comingSoon: Awaited<ReturnType<typeof getMovieCatalog>>;
+    nowPlaying?: Awaited<ReturnType<typeof getMovieCatalog>>;
+    comingSoon?: Awaited<ReturnType<typeof getMovieCatalog>>;
   },
   extra: Partial<PublicPageBootstrap> = {},
 ): PublicPageBootstrap {
@@ -119,8 +119,12 @@ function createPageBootstrap(
     renderedAt: instant.toISOString(),
     publicationRevision,
     catalogs: {
-      nowPlaying: bootstrapCatalog(catalogs.nowPlaying, publicationRevision),
-      comingSoon: bootstrapCatalog(catalogs.comingSoon, publicationRevision),
+      nowPlaying:
+        catalogs.nowPlaying &&
+        bootstrapCatalog(catalogs.nowPlaying, publicationRevision),
+      comingSoon:
+        catalogs.comingSoon &&
+        bootstrapCatalog(catalogs.comingSoon, publicationRevision),
     },
     ...extra,
   });
@@ -410,8 +414,8 @@ async function buildListingPage(
   repository: ReturnType<typeof getProductionPublicDataRepository>,
   path: string,
   catalogs?: {
-    nowPlaying: Awaited<ReturnType<typeof getMovieCatalog>>;
-    comingSoon: Awaited<ReturnType<typeof getMovieCatalog>>;
+    nowPlaying?: Awaited<ReturnType<typeof getMovieCatalog>>;
+    comingSoon?: Awaited<ReturnType<typeof getMovieCatalog>>;
   },
   instant = new Date(),
 ) {
@@ -542,9 +546,13 @@ async function getListingPage(path: string, instant = new Date()) {
   return withPublicationSnapshot(repository, async (publicationRevision) => {
     const city = getShowtimesCityFromPath(path) ?? DEFAULT_LOCATION;
     const [nowPlaying, comingSoon, theaters] = await Promise.all([
-      getMovieCatalog(repository, "nowPlaying"),
-      getMovieCatalog(repository, "comingSoon"),
-      getPublicTheaterData(repository),
+      path === "/soons" ? undefined : getMovieCatalog(repository, "nowPlaying"),
+      path === "/movies"
+        ? undefined
+        : getMovieCatalog(repository, "comingSoon"),
+      ["/", "/movies", "/soons"].includes(path)
+        ? undefined
+        : getPublicTheaterData(repository),
     ]);
     const page = await buildListingPage(
       repository,

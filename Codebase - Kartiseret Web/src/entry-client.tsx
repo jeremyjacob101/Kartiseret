@@ -25,9 +25,17 @@ if (bootstrapElement?.textContent) {
   }
 }
 
+const initialUrl = new URL(window.location.href);
+const bootstrapUrl = bootstrap
+  ? new URL(bootstrap.pathname, initialUrl.origin)
+  : null;
+const requestedDate = initialUrl.searchParams.getAll("date").at(-1);
 const canHydrate =
   root.dataset.ssr === "true" &&
-  bootstrap?.pathname === window.location.pathname;
+  bootstrapUrl?.pathname === initialUrl.pathname &&
+  (!requestedDate ||
+    !bootstrapUrl.searchParams.has("date") ||
+    requestedDate === bootstrapUrl.searchParams.get("date"));
 
 document.documentElement.classList.remove(
   "no-js",

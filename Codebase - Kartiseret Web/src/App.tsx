@@ -530,11 +530,14 @@ function MainApplication() {
     pathname !== PASSWORD_RESET_PATH;
   const nowPlayingQuery = useQuery({
     ...movieCollectionQueryOptions("nowPlaying"),
-    enabled: shouldLoadCatalog,
+    enabled:
+      shouldLoadCatalog && (pathname !== "/soons" || cinemathequeSearchEnabled),
   });
   const comingSoonQuery = useQuery({
     ...movieCollectionQueryOptions("comingSoon"),
-    enabled: shouldLoadCatalog,
+    enabled:
+      shouldLoadCatalog &&
+      (pathname !== "/movies" || cinemathequeSearchEnabled),
   });
   const cinemathequeSearchQuery = useQuery({
     ...nationwideCinemathequeQueryOptions(
@@ -1157,7 +1160,7 @@ function MainApplication() {
             element={
               <section className="page-panel">
                 <CatalogErrorNote message={catalogError} />
-                {catalogReady &&
+                {nowPlayingReady &&
                 nowPlayingQuery.data?.movieCodesStatus === "ready" ? (
                   <CatalogRoute
                     catalogMovieJumpRequest={catalogMovieJumpRequest}
@@ -1183,7 +1186,7 @@ function MainApplication() {
                     showReleaseCategorySwitcher={!hideReReleases}
                     scrollerSlotMinHeight={scrollerSlotMinHeight}
                   />
-                ) : catalogReady ? (
+                ) : nowPlayingReady ? (
                   <p className="app-inline-note" role="status">
                     Movie links are temporarily unavailable.
                   </p>
@@ -1215,7 +1218,7 @@ function MainApplication() {
             element={
               <section className="page-panel">
                 <CatalogErrorNote message={catalogError} />
-                {catalogReady &&
+                {comingSoonReady &&
                 comingSoonQuery.data?.movieCodesStatus === "ready" ? (
                   <CatalogRoute
                     catalogMovieJumpRequest={catalogMovieJumpRequest}
@@ -1241,7 +1244,7 @@ function MainApplication() {
                     showReleaseCategorySwitcher={!hideReReleases}
                     scrollerSlotMinHeight={scrollerSlotMinHeight}
                   />
-                ) : catalogReady ? (
+                ) : comingSoonReady ? (
                   <p className="app-inline-note" role="status">
                     Movie links are temporarily unavailable.
                   </p>

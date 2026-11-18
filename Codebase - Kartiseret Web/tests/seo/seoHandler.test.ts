@@ -226,6 +226,28 @@ describe("SEO request handler", () => {
     });
   });
 
+  it.each([
+    ["/movies", "nowPlaying", "comingSoon"],
+    ["/soons", "comingSoon", "nowPlaying"],
+  ])("prepares only the requested catalog for %s", async (
+    path,
+    requested,
+    omitted,
+  ) => {
+    const response = createResponse();
+    await seoHandler(createRequest("/api/page", { path }), response as never);
+
+    expect(response.statusCode).toBe(200);
+    expect(mocks.getMovieCatalog).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      requested,
+    );
+    expect(mocks.getPublicTheaterData).not.toHaveBeenCalled();
+    const bootstrap = mocks.renderBuiltPublicApplication.mock.calls[0]?.[0];
+    expect(bootstrap.catalogs[requested]).toBeDefined();
+    expect(bootstrap.catalogs[omitted]).toBeUndefined();
+  });
+
   it("checks national eligibility once without fetching other cities' display rows", async () => {
     const date = addCalendarDays(getJerusalemCinemaDate(), 1)!;
     mocks.findShowtimeEligibilityCandidates.mockResolvedValue([

@@ -21,8 +21,8 @@ export const publicPageBootstrapSchema = z.object({
   renderedAt: z.string().datetime({ offset: true }),
   publicationRevision: publicationRevisionSchema,
   catalogs: z.object({
-    nowPlaying: movieCollectionBootstrapSchema,
-    comingSoon: movieCollectionBootstrapSchema,
+    nowPlaying: movieCollectionBootstrapSchema.optional(),
+    comingSoon: movieCollectionBootstrapSchema.optional(),
   }),
   showtimeCity: z
     .object({
