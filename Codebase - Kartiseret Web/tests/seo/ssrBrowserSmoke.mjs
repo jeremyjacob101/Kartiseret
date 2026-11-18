@@ -1,4 +1,5 @@
 import { cases, encodedPath, makeBootstrap, renderPublicApplication } from "./ssrBuiltOutput.mjs";
+import { getShowtimesCityFromPath } from "@kartiseret/contracts/showtime-routes";
 import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
 import { mkdir, readFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
@@ -28,13 +29,15 @@ function escapeAttribute(value) {
 }
 
 function pageTitle(pathname) {
+  const city = getShowtimesCityFromPath(pathname);
+  if (city) return `Movie showtimes in ${city} — Now Playing | Kartiseret`;
   if (pathname.startsWith("/c/")) {
     return `${cinemaIdentity.displayName} showtimes | Kartiseret`;
   }
   if (pathname === "/movies") return "Movies showing in Israel | Kartiseret";
   if (pathname === "/soons") return "Coming soon movies in Israel | Kartiseret";
   if (pathname === "/showtimes")
-    return "Movie showtimes in Jerusalem | Kartiseret";
+    return "Movie showtimes in Israel — Now Playing | Kartiseret";
   if (pathname === "/cinematheques")
     return "Cinematheque movie showtimes | Kartiseret";
   if (pathname.startsWith("/Ab1"))
@@ -818,6 +821,23 @@ try {
   );
   await page.close();
 
+  const cityShowtimesPage = await browser.newPage({ javaScriptEnabled: false });
+  await cityShowtimesPage.goto(`${baseUrl}/showtimes/jerusalem`);
+  assert.equal(
+    await cityShowtimesPage
+      .getByRole("heading", { name: "New Releases in Jerusalem", exact: true })
+      .count(),
+    1,
+  );
+  assert.equal(
+    await cityShowtimesPage
+      .locator('link[rel="canonical"]')
+      .getAttribute("href"),
+    "https://seret.site/showtimes/jerusalem",
+  );
+  assert.equal(await cityShowtimesPage.locator('a[href="/Ab1"]').count(), 1);
+  await cityShowtimesPage.close();
+
   const cinemaPage = await browser.newPage({ javaScriptEnabled: false });
   await cinemaPage.goto(`${baseUrl}/c/${cinemaIdentity.id}`);
   assert.equal(
@@ -828,6 +848,52 @@ try {
   );
   assert.equal(await cinemaPage.locator('a[href="/Ab1"]').count(), 1);
   await cinemaPage.close();
+
+  const hydratedPublicRouteCases = [
+    ["/showtimes", "SSR Test Movie"],
+    ["/showtimes/jerusalem", "SSR Test Movie"],
+    [`/c/${cinemaIdentity.id}`, cinemaIdentity.displayName],
+  ];
+  for (const [pathname, expectedContent] of hydratedPublicRouteCases) {
+    const hydratedPage = await browser.newPage();
+    const routeHydrationErrors = [];
+    hydratedPage.on("pageerror", (error) =>
+      routeHydrationErrors.push(error.message));
+    hydratedPage.on("console", (message) => {
+      if (/hydration|did not match|server rendered/i.test(message.text())) {
+        routeHydrationErrors.push(message.text());
+      }
+    });
+    await hydratedPage.route("**/*", async (route) => {
+      const url = new URL(route.request().url());
+      if (url.hostname === "images.example.test") {
+        await route.fulfill({
+          status: 200,
+          contentType: "image/svg+xml",
+          body: posterFixture,
+        });
+        return;
+      }
+      await route.continue();
+    });
+    await hydratedPage.goto(`${baseUrl}${pathname}`, { waitUntil: "load" });
+    await hydratedPage
+      .getByText(expectedContent, { exact: true })
+      .first()
+      .waitFor({ state: "visible" });
+    await hydratedPage.waitForTimeout(100);
+    assert.equal(
+      await hydratedPage.locator('a[href="/Ab1"]').count(),
+      1,
+      `${pathname} retains its server-rendered movie link after hydration`,
+    );
+    assert.deepEqual(
+      routeHydrationErrors,
+      [],
+      `${pathname} hydrates from the same public route component tree`,
+    );
+    await hydratedPage.close();
+  }
 } finally {
   await browser.close();
   await new Promise((resolveClose, rejectClose) =>

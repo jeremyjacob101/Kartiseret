@@ -6,6 +6,23 @@
   margin: 10px 0 14px;
 }
 
+.cinema-page-shell {
+  align-items: flex-start;
+  color: #f4efff;
+}
+
+.cinema-page-state {
+  width: min(100%, 1100px);
+  padding: 20px;
+  color: #f4efff;
+}
+
+.cinema-page-state h1,
+.cinema-page-state p,
+.cinema-page-state a {
+  color: inherit;
+}
+
 .cinema-page-filter-row p {
   margin: 0;
   color: rgba(233, 218, 255, 0.72);

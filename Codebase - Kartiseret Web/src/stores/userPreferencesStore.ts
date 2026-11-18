@@ -589,6 +589,8 @@ export function initializeUserPreferencesStore(): void {
   }
 
   initializationStarted = true;
+  confirmedPreferences = getGuestPreferences();
+  commitPreferences(confirmedPreferences);
 
   let receivedSession = false;
   disposeAuthSubscription = authClient.useSession.subscribe(({

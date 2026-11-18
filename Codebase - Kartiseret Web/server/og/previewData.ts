@@ -3,8 +3,8 @@ import { getCinemaDayDate, getShowtimeSortValue, shouldIncludeShowtime, SHOWTIME
 import { previewDataSchema, type PreviewData, type PreviewRouteSelection, type PreviewTheater } from "./schemas.js";
 import { getMovieByPermanentCode, getShowtimeRange, withPublicationSnapshot } from "@kartiseret/server/public-data";
 import { buildShowtimeFilterSelections, getCanonicalShowtimeMeta } from "@kartiseret/contracts/showtime-filters";
+import { getProductionPublicDataRepository } from "@kartiseret/server/public-production";
 import { isoDateStringSchema, parseBoundary } from "@kartiseret/contracts/runtime";
-import { getProductionPublicDataRepository } from "@kartiseret/server/production";
 import type { PublicDataRepository } from "@kartiseret/server/public-data";
 import type { PublicShowtime } from "@kartiseret/contracts/public-data";
 import { DEFAULT_LOCATION } from "@kartiseret/contracts/preferences";

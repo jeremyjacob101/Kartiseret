@@ -27,7 +27,6 @@ function renderNavbar(path = "/movies") {
         catalogReady
         searchCollections={[]}
         settingsDisabled={false}
-        onAllShowtimesNavClick={vi.fn()}
         onHomeClick={vi.fn()}
         onMoviesNavClick={vi.fn()}
         onSearchOpen={vi.fn()}
@@ -54,7 +53,6 @@ afterEach(() => {
 describe("Navbar", () => {
   it("marks the active catalog route and wires every primary action", () => {
     const callbacks = {
-      onAllShowtimesNavClick: vi.fn(),
       onHomeClick: vi.fn(),
       onMoviesNavClick: vi.fn(),
       onSearchOpen: vi.fn(),
@@ -73,22 +71,21 @@ describe("Navbar", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("button", { name: "Now Playing" })).toHaveClass(
+    expect(screen.getByRole("link", { name: "Now Playing" })).toHaveClass(
       "topnav-link--active",
     );
     fireEvent.click(
       screen.getByRole("button", { name: "Go to top of home page" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Now Playing" }));
-    fireEvent.click(screen.getByRole("button", { name: "Coming Soon" }));
-    fireEvent.click(screen.getByRole("button", { name: "All Showtimes" }));
+    fireEvent.click(screen.getByRole("link", { name: "Now Playing" }));
+    fireEvent.click(screen.getByRole("link", { name: "Coming Soon" }));
+    fireEvent.click(screen.getByRole("link", { name: "All Showtimes" }));
     fireEvent.click(screen.getByRole("button", { name: "Open search" }));
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
 
     expect(callbacks.onHomeClick).toHaveBeenCalledOnce();
     expect(callbacks.onMoviesNavClick).toHaveBeenCalledOnce();
     expect(callbacks.onSoonsNavClick).toHaveBeenCalledOnce();
-    expect(callbacks.onAllShowtimesNavClick).toHaveBeenCalledOnce();
     expect(callbacks.onSearchOpen).toHaveBeenCalledOnce();
     expect(callbacks.onSettingsClick).toHaveBeenCalledOnce();
   });
@@ -101,7 +98,6 @@ describe("Navbar", () => {
           catalogReady={false}
           searchCollections={[]}
           settingsDisabled
-          onAllShowtimesNavClick={vi.fn()}
           onHomeClick={vi.fn()}
           onMoviesNavClick={vi.fn()}
           onSearchOpen={vi.fn()}

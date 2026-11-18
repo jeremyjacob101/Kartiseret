@@ -1,6 +1,8 @@
-import { initializeUserPreferencesStore, preparePublicPagePreferenceState, PublicPreferencesSnapshotProvider } from "./stores/userPreferencesStore";
+import { preparePublicPagePreferenceState, PublicPreferencesSnapshotProvider } from "./stores/userPreferencesStore";
 import { applyBootstrappedDeviceTypeToDocument, initializeDeviceStore } from "./device/useDeviceType";
 import { MovieDisplayPreferencesProvider } from "./contexts/MovieDisplayPreferencesProvider";
+import { PublicRouteComponentsProvider } from "./routing/PublicRouteComponentsProvider";
+import type { PublicRouteComponents } from "./routing/PublicRouteComponentsContext";
 import { PublicRenderClockProvider } from "./contexts/PublicRenderClock";
 import { StrictMode, useEffect, useLayoutEffect } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -32,7 +34,6 @@ function ClientStartup() {
   }, []);
 
   useEffect(() => {
-    initializeUserPreferencesStore();
     initializeDeviceStore();
     applyBootstrappedDeviceTypeToDocument();
   }, []);
@@ -43,20 +44,24 @@ function ClientStartup() {
 export function EntryApplication({
   publicPreferenceSnapshot,
   renderedAt,
+  publicRouteComponents = {},
 }: {
   publicPreferenceSnapshot: ReturnType<
     typeof preparePublicPagePreferenceState
   > | null;
   renderedAt?: string;
+  publicRouteComponents?: PublicRouteComponents;
 }) {
   const app = (
     <PublicRenderClockProvider initialInstant={renderedAt}>
       <StrictMode>
-        <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
-            <ApplicationRoutes />
-          </BrowserRouter>
-        </QueryClientProvider>
+        <PublicRouteComponentsProvider components={publicRouteComponents}>
+          <QueryClientProvider client={queryClient}>
+            <BrowserRouter>
+              <ApplicationRoutes />
+            </BrowserRouter>
+          </QueryClientProvider>
+        </PublicRouteComponentsProvider>
       </StrictMode>
     </PublicRenderClockProvider>
   );

@@ -14,15 +14,30 @@ export function tagPublication<T extends object>(
 export function publicationOf(value: object): string | undefined {
   return revisions.get(value);
 }
+export const publicPagePublicationKey = ["publicPagePublication"] as const;
+
 export function currentPublicationRevision(
   queryClient: QueryClient = browserQueryClient,
 ): string | undefined {
-  return queryClient.getQueryData<{ publicationRevision?: string }>([
-    "movieCatalog",
-    "collections",
-    "nowPlaying",
-  ])?.publicationRevision;
+  return (
+    queryClient.getQueryData<{ publicationRevision?: string }>([
+      "movieCatalog",
+      "collections",
+      "nowPlaying",
+    ])?.publicationRevision ?? clientPublicationFallback(queryClient)
+  );
 }
+function clientPublicationFallback(queryClient: QueryClient) {
+  return (
+    queryClient.getQueryData<string>(publicPagePublicationKey) ??
+    queryClient.getQueryData<{ publicationRevision?: string }>([
+      "movieCatalog",
+      "collections",
+      "comingSoon",
+    ])?.publicationRevision
+  );
+}
+
 export function assertPublication(
   value: object,
   expected = currentPublicationRevision(),

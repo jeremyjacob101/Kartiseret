@@ -5,6 +5,7 @@ import {
   publicShowtimeSchema,
   publicTheaterDataSchema,
 } from "./public-data.js";
+import { movieSchema } from "./movies.js";
 import { appLocationSchema } from "./preferences.js";
 import { isoDateStringSchema } from "./runtime.js";
 import { z } from "zod";
@@ -21,9 +22,15 @@ export const publicPageBootstrapSchema = z.object({
   renderedAt: z.string().datetime({ offset: true }),
   publicationRevision: publicationRevisionSchema,
   catalogs: z.object({
-    nowPlaying: movieCollectionBootstrapSchema,
-    comingSoon: movieCollectionBootstrapSchema,
+    nowPlaying: movieCollectionBootstrapSchema.optional(),
+    comingSoon: movieCollectionBootstrapSchema.optional(),
   }),
+  movieDetail: z
+    .object({
+      movie: movieSchema,
+      mode: z.enum(["nowPlaying", "comingSoon"]),
+    })
+    .optional(),
   showtimeCity: z
     .object({
       city: appLocationSchema,

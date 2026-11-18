@@ -91,6 +91,10 @@
       "destination": "/api/dispatch?__vercel_route=page&path=/showtimes"
     },
     {
+      "source": "/showtimes/:citySlug",
+      "destination": "/api/dispatch?__vercel_route=page&path=/showtimes/:citySlug"
+    },
+    {
       "source": "/soons",
       "destination": "/api/dispatch?__vercel_route=page&path=/soons"
     },

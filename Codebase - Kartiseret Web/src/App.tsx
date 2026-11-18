@@ -1,17 +1,21 @@
-import { adminMovieEditMutationOptions, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, movieCollectionQueryOptions, reloadComingSoonMovies, reloadNowPlayingMovies, showtimeCityQueryOptions, type Movie } from "./data/movieCatalog";
+import { directMoviePageKey, adminMovieEditMutationOptions, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, movieCollectionQueryOptions, reloadComingSoonMovies, reloadNowPlayingMovies, showtimeCityQueryOptions, type Movie } from "./data/movieCatalog";
+import { loadAllShowtimesPageModule, loadCinemaPageModule, loadCinemathequesPageModule, loadMoviePageModule, loadPosterGridPageModule, loadUserPreferencesPageModule } from "./routing/publicRouteModuleLoaders.js";
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEventHandler, type ReactNode } from "react";
 import { filterMoviesByReleaseCategory, getMovieReleaseCategory, MOVIE_RELEASE_CATEGORY_LABELS, type MovieReleaseCategory } from "./domain/movieRelease";
-import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { getCinemathequeDateRange, nationwideCinemathequeQueryOptions } from "./data/cinemathequeCatalog";
+import { getShowtimesCityFromPath, getShowtimesCityPath } from "@kartiseret/contracts/showtime-routes";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
 import { DeleteAccountConfirmationPage } from "./components/DeleteAccountConfirmationPage";
 import { useMovieDisplayPreferences } from "./contexts/MovieDisplayPreferencesContext";
 import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
+import { usePublicRouteComponents } from "./routing/PublicRouteComponentsContext.js";
 import { getCurrentRobotsDirectives, setSeoMetadata } from "./routing/seoMetadata";
 import { LetterboxdUnsubscribePage } from "./components/LetterboxdUnsubscribePage";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { ReleaseCategorySwitcher } from "./components/ReleaseCategorySwitcher";
 import type { ApplicationIdentity } from "@kartiseret/contracts/private-data";
 import { applyMovieDisplayPreferences } from "./data/movieDisplayPreferences";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { backdropPreloader } from "./components/scroller/backdropPreloader";
 import { useUserPreferencesStore } from "./stores/userPreferencesStore";
 import { usePublicationRevision } from "./hooks/usePublicationRevision";
@@ -19,7 +23,6 @@ import { type MovieSearchResult } from "./components/MovieSearchMenu";
 import { PasswordResetPage } from "./components/PasswordResetPage";
 import { movieCodeSchema } from "@kartiseret/contracts/runtime";
 import { AttributionPage } from "./components/AttributionPage";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { adminStatusQueryOptions } from "./data/adminStatus";
 import { BottomBar } from "./components/bars/BottomBar";
 import { useDeviceStore } from "./device/useDeviceType";
@@ -49,41 +52,33 @@ const FIXED_APP_PATHS = new Set([
   "/confirm-account-deletion",
   "/unsubscribe/letterboxd",
 ]);
-const loadCinemaPage = () => import("./components/CinemaPage");
-const loadUserPreferencesPage = () =>
-  import("./components/UserPreferencesPage");
-const loadPosterGridPage = () => import("./components/PosterGridPage");
-const loadAllShowtimesPage = () => import("./components/AllShowtimesPage");
-const loadCinemathequesPage = () => import("./components/CinemathequesPage");
-const loadMoviePage = () => import("./components/MoviePage");
-
 const CinemaPage = lazy(async () => {
-  const module = await loadCinemaPage();
+  const module = await loadCinemaPageModule();
   return { default: module.CinemaPage };
 });
 
 const UserPreferencesPage = lazy(async () => {
-  const module = await loadUserPreferencesPage();
+  const module = await loadUserPreferencesPageModule();
   return { default: module.UserPreferencesPage };
 });
 
 const PosterGridPage = lazy(async () => {
-  const module = await loadPosterGridPage();
+  const module = await loadPosterGridPageModule();
   return { default: module.PosterGridPage };
 });
 
 const AllShowtimesPage = lazy(async () => {
-  const module = await loadAllShowtimesPage();
+  const module = await loadAllShowtimesPageModule();
   return { default: module.AllShowtimesPage };
 });
 
 const CinemathequesPage = lazy(async () => {
-  const module = await loadCinemathequesPage();
+  const module = await loadCinemathequesPageModule();
   return { default: module.CinemathequesPage };
 });
 
 const MoviePage = lazy(async () => {
-  const module = await loadMoviePage();
+  const module = await loadMoviePageModule();
   return { default: module.MoviePage };
 });
 
@@ -106,14 +101,20 @@ function getServerHydrationState() {
   return false;
 }
 
-function ClientMounted({ children }: { children: ReactNode }) {
+function ClientMounted({
+  children,
+  fallback = null,
+}: {
+  children: ReactNode;
+  fallback?: ReactNode;
+}) {
   const isMounted = useSyncExternalStore(
     subscribeToHydrationState,
     getClientHydrationState,
     getServerHydrationState,
   );
 
-  return isMounted ? children : null;
+  return isMounted ? children : fallback;
 }
 
 function isPotentialStandaloneMoviePath(pathname: string): boolean {
@@ -287,6 +288,50 @@ export function CatalogRoute({
   );
 }
 
+function HomePosterRow({
+  movies,
+  prioritize = false,
+}: {
+  movies: readonly Movie[];
+  prioritize?: boolean;
+}) {
+  return (
+    <ul className="home-poster-row">
+      {movies.map((movie, index) => {
+        const visible = prioritize && index < 4;
+        const card = (
+          <>
+            {movie.imageSrc ? (
+              <img
+                src={movie.imageSrc}
+                srcSet={movie.imageSrcSet}
+                sizes="(max-width: 699px) 160px, 220px"
+                width={220}
+                height={330}
+                alt=""
+                loading={visible ? "eager" : "lazy"}
+                fetchPriority={prioritize && index === 0 ? "high" : undefined}
+              />
+            ) : (
+              <span className="home-poster-placeholder" />
+            )}
+            <span className="home-poster-title">{movie.title}</span>
+          </>
+        );
+        return (
+          <li key={movie.tmdbId}>
+            {movie.movieCode ? (
+              <a href={`/${movie.movieCode}`}>{card}</a>
+            ) : (
+              card
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function HomeRoute({
   catalogError,
   cardHeight,
@@ -311,8 +356,11 @@ export function HomeRoute({
         style={{ minHeight: scrollerSlotMinHeight }}
       >
         {nowPlayingReady && nowPlayingMovies.length > 0 ? (
-          <ClientMounted>
+          <ClientMounted
+            fallback={<HomePosterRow movies={nowPlayingMovies} prioritize />}
+          >
             <MovieScroller
+              skipIntro
               mode="nowPlaying"
               movieItems={nowPlayingMovies}
               cardWidth={cardWidth}
@@ -336,8 +384,9 @@ export function HomeRoute({
         style={{ minHeight: scrollerSlotMinHeight }}
       >
         {comingSoonReady && comingSoonMovies.length > 0 ? (
-          <ClientMounted>
+          <ClientMounted fallback={<HomePosterRow movies={comingSoonMovies} />}>
             <MovieScroller
+              skipIntro
               mode="comingSoon"
               movieItems={comingSoonMovies}
               cardWidth={cardWidth}
@@ -361,8 +410,11 @@ export function HomeRoute({
         style={{ minHeight: scrollerSlotMinHeight }}
       >
         {nowPlayingReady && nowPlayingReReleaseMovies.length > 0 ? (
-          <ClientMounted>
+          <ClientMounted
+            fallback={<HomePosterRow movies={nowPlayingReReleaseMovies} />}
+          >
             <MovieScroller
+              skipIntro
               mode="nowPlaying"
               movieItems={nowPlayingReReleaseMovies}
               cardWidth={cardWidth}
@@ -381,21 +433,27 @@ export function HomeRoute({
   );
 }
 
-function ShowtimesRoute({
-  catalogError,
-  showtimesReady,
-}: {
-  catalogError: string | null;
-  showtimesReady: boolean;
-}) {
+function ShowtimesRoute({ catalogError }: { catalogError: string | null }) {
+  const routeLocation = useLocation();
+  const { allShowtimesPage: StaticAllShowtimesPage } =
+    usePublicRouteComponents();
+  if (
+    routeLocation.pathname.startsWith("/showtimes/") &&
+    !getShowtimesCityFromPath(routeLocation.pathname)
+  ) {
+    return <NotFoundRoute />;
+  }
+
   return (
     <section className="page-panel">
       <CatalogErrorNote message={catalogError} />
-      {showtimesReady ? (
+      {StaticAllShowtimesPage ? (
+        <StaticAllShowtimesPage />
+      ) : (
         <Suspense fallback={null}>
           <AllShowtimesPage />
         </Suspense>
-      ) : null}
+      )}
     </section>
   );
 }
@@ -435,6 +493,7 @@ export function App() {
 }
 
 function MainApplication() {
+  const { cinemaPage: StaticCinemaPage } = usePublicRouteComponents();
   const publicationRevision = usePublicationRevision();
   const displayPreferences = useMovieDisplayPreferences();
   const routeLocation = useLocation();
@@ -450,23 +509,42 @@ function MainApplication() {
       })),
     );
   const pathname = routeLocation.pathname;
+  const generalShowtimesRobots = useRef(
+    pathname === "/showtimes" && typeof document !== "undefined"
+      ? getCurrentRobotsDirectives()
+      : "index, follow",
+  );
+  const routeShowtimesCity = getShowtimesCityFromPath(pathname);
+  const isShowtimesPage =
+    pathname === "/showtimes" || routeShowtimesCity !== null;
+  const showtimesDataCity = routeShowtimesCity ?? selectedCity;
   const [cinemathequeSearchEnabled, setCinemathequeSearchEnabled] =
     useState(false);
   const { data: isAdmin = false } = useQuery({
     ...adminStatusQueryOptions(user?.id ?? null),
     enabled: Boolean(user),
   });
+  const queryClient = useQueryClient();
+  const directMovieReady =
+    isPotentialStandaloneMoviePath(pathname) &&
+    queryClient.getQueryData(
+      directMoviePageKey(pathname.slice(1, 4), publicationRevision),
+    ) !== undefined;
   const shouldLoadCatalog =
     pathname !== "/user" &&
     pathname !== "/attribution" &&
-    pathname !== PASSWORD_RESET_PATH;
+    pathname !== PASSWORD_RESET_PATH &&
+    (!directMovieReady || cinemathequeSearchEnabled);
   const nowPlayingQuery = useQuery({
     ...movieCollectionQueryOptions("nowPlaying"),
-    enabled: shouldLoadCatalog,
+    enabled:
+      shouldLoadCatalog && (pathname !== "/soons" || cinemathequeSearchEnabled),
   });
   const comingSoonQuery = useQuery({
     ...movieCollectionQueryOptions("comingSoon"),
-    enabled: shouldLoadCatalog,
+    enabled:
+      shouldLoadCatalog &&
+      (pathname !== "/movies" || cinemathequeSearchEnabled),
   });
   const cinemathequeSearchQuery = useQuery({
     ...nationwideCinemathequeQueryOptions(
@@ -476,8 +554,8 @@ function MainApplication() {
     enabled: cinemathequeSearchEnabled,
   });
   const showtimeCityQuery = useQuery({
-    ...showtimeCityQueryOptions(selectedCity, publicationRevision),
-    enabled: pathname === "/showtimes",
+    ...showtimeCityQueryOptions(showtimesDataCity, publicationRevision),
+    enabled: isShowtimesPage,
   });
   const { mutateAsync: saveAdminMovieEdit } = useMutation(
     adminMovieEditMutationOptions(),
@@ -525,7 +603,7 @@ function MainApplication() {
   const catalogQueryError =
     (nowPlayingQuery.data === undefined ? nowPlayingQuery.error : null) ??
     (comingSoonQuery.data === undefined ? comingSoonQuery.error : null) ??
-    (pathname === "/showtimes" && showtimeCityQuery.data === undefined
+    (isShowtimesPage && showtimeCityQuery.data === undefined
       ? showtimeCityQuery.error
       : null);
   const catalogError = catalogQueryError
@@ -621,7 +699,7 @@ function MainApplication() {
       });
       return;
     }
-    if (pathname === "/showtimes") {
+    if (isShowtimesPage) {
       const hasPublicShowtimes = Object.entries(
         showtimeCityQuery.data?.movieShowtimesByTmdbId ?? {},
       ).some(
@@ -631,14 +709,22 @@ function MainApplication() {
           ) && days.some((day) => day.theaters.length > 0),
       );
       setSeoMetadata({
-        title: `Movie showtimes in ${selectedCity} | Kartiseret`,
-        description: `Browse upcoming movie showtimes in ${selectedCity}.`,
-        canonicalPath: "/showtimes",
-        robots: showtimesReady
-          ? hasPublicShowtimes
-            ? "index, follow"
-            : "noindex, nofollow"
-          : getCurrentRobotsDirectives(),
+        title: routeShowtimesCity
+          ? `Movie showtimes in ${routeShowtimesCity} — Now Playing | Kartiseret`
+          : "Movie showtimes in Israel — Now Playing | Kartiseret",
+        description: routeShowtimesCity
+          ? `Browse movies currently showing in ${routeShowtimesCity}, with local cinema times and booking links.`
+          : "Browse movies currently showing at cinemas across Israel, with showtimes and booking links.",
+        canonicalPath: routeShowtimesCity
+          ? getShowtimesCityPath(routeShowtimesCity)
+          : "/showtimes",
+        robots: routeShowtimesCity
+          ? showtimesReady
+            ? hasPublicShowtimes
+              ? "index, follow"
+              : "noindex, nofollow"
+            : getCurrentRobotsDirectives()
+          : generalShowtimesRobots.current,
       });
       return;
     }
@@ -666,6 +752,9 @@ function MainApplication() {
     nowPlayingQuery.data?.movieCodesStatus,
     pathname,
     selectedCity,
+    isShowtimesPage,
+    routeLocation.pathname,
+    routeShowtimesCity,
     showtimeCityQuery.data,
     showtimesReady,
   ]);
@@ -695,8 +784,8 @@ function MainApplication() {
         nonCriticalPreloadStartedRef.current = true;
         preloadCityLocationPicker();
         void Promise.allSettled([
-          loadUserPreferencesPage(),
-          loadPosterGridPage(),
+          loadUserPreferencesPageModule(),
+          loadPosterGridPageModule(),
         ]);
       });
     };
@@ -731,7 +820,7 @@ function MainApplication() {
 
   useEffect(() => {
     if (
-      pathname === "/showtimes" ||
+      isShowtimesPage ||
       pathname === "/cinematheques" ||
       pathname === "/user" ||
       pathname === "/attribution" ||
@@ -754,7 +843,7 @@ function MainApplication() {
       ) => number;
     };
     const requestShowtimes = () => {
-      void loadShowtimes(selectedCity).catch(() => {});
+      void loadShowtimes(showtimesDataCity).catch(() => {});
     };
 
     if (typeof windowWithIdleCallbacks.requestIdleCallback === "function") {
@@ -787,6 +876,8 @@ function MainApplication() {
     nowPlayingReady,
     pathname,
     selectedCity,
+    showtimesDataCity,
+    isShowtimesPage,
     showtimesReady,
   ]);
 
@@ -807,7 +898,7 @@ function MainApplication() {
     };
     const runPreload = () => {
       cancelPosterWait = backdropPreloader.afterCriticalPosters(() => {
-        void loadAllShowtimesPage();
+        void loadAllShowtimesPageModule();
       });
     };
 
@@ -960,29 +1051,39 @@ function MainApplication() {
     [handleReleaseCategoryChange, navigate, openCatalogMovie, pathname],
   );
 
-  const handleMoviesNavClick = useCallback(() => {
-    if (pathname === "/movies") {
+  const handleMoviesNavClick = useCallback<
+    MouseEventHandler<HTMLAnchorElement>
+  >(
+    (event) => {
+      if (
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey ||
+        event.button !== 0
+      ) {
+        return;
+      }
       resetCatalogPage("nowPlaying");
-      return;
-    }
+    },
+    [resetCatalogPage],
+  );
 
-    resetCatalogPage("nowPlaying");
-    navigate("/movies");
-  }, [navigate, pathname, resetCatalogPage]);
-
-  const handleSoonsNavClick = useCallback(() => {
-    if (pathname === "/soons") {
+  const handleSoonsNavClick = useCallback<MouseEventHandler<HTMLAnchorElement>>(
+    (event) => {
+      if (
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey ||
+        event.button !== 0
+      ) {
+        return;
+      }
       resetCatalogPage("comingSoon");
-      return;
-    }
-
-    resetCatalogPage("comingSoon");
-    navigate("/soons");
-  }, [navigate, pathname, resetCatalogPage]);
-
-  const handleAllShowtimesNavClick = useCallback(() => {
-    navigate("/showtimes");
-  }, [navigate]);
+    },
+    [resetCatalogPage],
+  );
 
   const handleFloatingHomeClick = useCallback(() => {
     if (pathname !== "/") {
@@ -1030,7 +1131,6 @@ function MainApplication() {
         miniNavPortalTarget={miniNavPortalTarget}
         searchCollections={searchCollections}
         settingsDisabled={!user || loading}
-        onAllShowtimesNavClick={handleAllShowtimesNavClick}
         onHomeClick={handleFloatingHomeClick}
         onMoviesNavClick={handleMoviesNavClick}
         onSearchOpen={handleSearchOpen}
@@ -1040,10 +1140,7 @@ function MainApplication() {
       />
 
       <main
-        className={[
-          "app-main",
-          pathname === "/showtimes" ? "app-main--showtimes" : null,
-        ]
+        className={["app-main", isShowtimesPage ? "app-main--showtimes" : null]
           .filter(Boolean)
           .join(" ")}
       >
@@ -1070,7 +1167,7 @@ function MainApplication() {
             element={
               <section className="page-panel">
                 <CatalogErrorNote message={catalogError} />
-                {catalogReady &&
+                {nowPlayingReady &&
                 nowPlayingQuery.data?.movieCodesStatus === "ready" ? (
                   <CatalogRoute
                     catalogMovieJumpRequest={catalogMovieJumpRequest}
@@ -1096,7 +1193,7 @@ function MainApplication() {
                     showReleaseCategorySwitcher={!hideReReleases}
                     scrollerSlotMinHeight={scrollerSlotMinHeight}
                   />
-                ) : catalogReady ? (
+                ) : nowPlayingReady ? (
                   <p className="app-inline-note" role="status">
                     Movie links are temporarily unavailable.
                   </p>
@@ -1106,12 +1203,11 @@ function MainApplication() {
           />
           <Route
             path="/showtimes"
-            element={
-              <ShowtimesRoute
-                catalogError={catalogError}
-                showtimesReady={showtimesReady}
-              />
-            }
+            element={<ShowtimesRoute catalogError={catalogError} />}
+          />
+          <Route
+            path="/showtimes/:citySlug"
+            element={<ShowtimesRoute catalogError={catalogError} />}
           />
           <Route
             path="/cinematheques"
@@ -1129,7 +1225,7 @@ function MainApplication() {
             element={
               <section className="page-panel">
                 <CatalogErrorNote message={catalogError} />
-                {catalogReady &&
+                {comingSoonReady &&
                 comingSoonQuery.data?.movieCodesStatus === "ready" ? (
                   <CatalogRoute
                     catalogMovieJumpRequest={catalogMovieJumpRequest}
@@ -1155,7 +1251,7 @@ function MainApplication() {
                     showReleaseCategorySwitcher={!hideReReleases}
                     scrollerSlotMinHeight={scrollerSlotMinHeight}
                   />
-                ) : catalogReady ? (
+                ) : comingSoonReady ? (
                   <p className="app-inline-note" role="status">
                     Movie links are temporarily unavailable.
                   </p>
@@ -1194,11 +1290,15 @@ function MainApplication() {
           <Route
             path="/c/:cinemaId"
             element={
-              <Suspense
-                fallback={<section className="page-panel" aria-busy="true" />}
-              >
-                <CinemaPage />
-              </Suspense>
+              StaticCinemaPage ? (
+                <StaticCinemaPage />
+              ) : (
+                <Suspense
+                  fallback={<section className="page-panel" aria-busy="true" />}
+                >
+                  <CinemaPage />
+                </Suspense>
+              )
             }
           />
           <Route
@@ -1207,8 +1307,8 @@ function MainApplication() {
               <Suspense fallback={null}>
                 <MoviePage
                   catalogError={catalogError}
-                  catalogReady={catalogReady}
-                  movieCodesReady={movieCodesReady}
+                  catalogReady={directMovieReady || catalogReady}
+                  movieCodesReady={directMovieReady || movieCodesReady}
                 />
               </Suspense>
             }

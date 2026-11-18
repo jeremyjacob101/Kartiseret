@@ -11,13 +11,14 @@ const mocks = vi.hoisted(() => ({
   getMovieShowtimes: vi.fn(),
   getPublicTheaterData: vi.fn(),
   getShowtimeRange: vi.fn(),
+  findShowtimeEligibilityCandidates: vi.fn(),
   getProductionPublicDataRepository: vi.fn(),
   withPublicationSnapshot: vi.fn(),
   renderBuiltPublicApplication: vi.fn(),
 }));
 
 vi.mock("@kartiseret/server/public-data", () => mocks);
-vi.mock("@kartiseret/server/production", () => ({
+vi.mock("@kartiseret/server/public-production", () => ({
   getProductionPublicDataRepository: mocks.getProductionPublicDataRepository,
 }));
 vi.mock("node:fs", async (importOriginal) => ({
@@ -96,7 +97,10 @@ function theaterData() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.getProductionPublicDataRepository.mockReturnValue({});
+  mocks.getProductionPublicDataRepository.mockReset().mockReturnValue({
+    findShowtimeEligibilityCandidates: mocks.findShowtimeEligibilityCandidates,
+  });
+  mocks.findShowtimeEligibilityCandidates.mockReset().mockResolvedValue([]);
   mocks.withPublicationSnapshot.mockImplementation(async (
     _repository: unknown,
     callback: (revision: string) => unknown,
@@ -192,12 +196,159 @@ describe("SEO request handler", () => {
     expect(response.headers.get("content-type")).toBe(
       "text/html; charset=utf-8",
     );
+    expect(mocks.getMovieCatalog).not.toHaveBeenCalled();
+    expect(mocks.renderBuiltPublicApplication.mock.calls[0]?.[0]).toMatchObject(
+      {
+        catalogs: { nowPlaying: undefined, comingSoon: undefined },
+        movieDetail: { movie: sampleMovie, mode: "nowPlaying" },
+      },
+    );
     expect(mocks.getMovieShowtimes).toHaveBeenCalledOnce();
     expect(mocks.getPublicTheaterData).toHaveBeenCalledOnce();
     expect(response.body).toContain('data-ssr="true"');
     expect(response.body).toContain("Rendered application");
     expect(response.body).not.toContain("seo-content");
     expect(mocks.renderBuiltPublicApplication).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the general showtimes SEO Israel-wide while retaining the Jerusalem UI default", async () => {
+    const response = createResponse();
+
+    await seoHandler(
+      createRequest("/api/page?path=%2Fshowtimes", { path: "/showtimes" }),
+      response as never,
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain(
+      "<title>Movie showtimes in Israel — Now Playing | Kartiseret</title>",
+    );
+    expect(response.body).toContain(
+      '<link rel="canonical" href="https://seret.site/showtimes" />',
+    );
+    const bootstrap = mocks.renderBuiltPublicApplication.mock.calls[0]?.[0];
+    expect(bootstrap).toMatchObject({
+      pathname: "/showtimes",
+      showtimeCity: { city: "Jerusalem" },
+    });
+  });
+
+  it.each([
+    ["/movies", "nowPlaying", "comingSoon"],
+    ["/soons", "comingSoon", "nowPlaying"],
+  ])("prepares only the requested catalog for %s", async (
+    path,
+    requested,
+    omitted,
+  ) => {
+    const response = createResponse();
+    await seoHandler(createRequest("/api/page", { path }), response as never);
+
+    expect(response.statusCode).toBe(200);
+    expect(mocks.getMovieCatalog).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      requested,
+    );
+    expect(mocks.getPublicTheaterData).not.toHaveBeenCalled();
+    const bootstrap = mocks.renderBuiltPublicApplication.mock.calls[0]?.[0];
+    expect(bootstrap.catalogs[requested]).toBeDefined();
+    expect(bootstrap.catalogs[omitted]).toBeUndefined();
+  });
+
+  it("checks national eligibility once without fetching other cities' display rows", async () => {
+    const date = addCalendarDays(getJerusalemCinemaDate(), 1)!;
+    mocks.findShowtimeEligibilityCandidates.mockResolvedValue([
+      {
+        tmdbId: Number(sampleMovie.tmdbId),
+        screeningCity: "Tel Aviv",
+        dateOfShowing: date,
+        cinema: "Cinema City",
+        showtime: "19:30",
+        isCinematheque: false,
+      },
+    ]);
+    const response = createResponse();
+
+    await seoHandler(
+      createRequest("/api/page", { path: "/showtimes" }),
+      response as never,
+    );
+
+    expect(response.headers.get("x-robots-tag")).toBe("index, follow");
+    expect(mocks.findShowtimeEligibilityCandidates).toHaveBeenCalledTimes(1);
+    expect(mocks.getShowtimeRange).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.objectContaining({ city: "Jerusalem" }),
+    );
+  });
+
+  it("serves city showtimes with local metadata, a self canonical, and seeded listings", async () => {
+    const date = addCalendarDays(getJerusalemCinemaDate(), 1)!;
+    mocks.getShowtimeRange.mockImplementation(async (_repository, range) =>
+      range.city === "Tel Aviv"
+        ? [
+            {
+              tmdbId: sampleMovie.tmdbId,
+              screeningCity: "Tel Aviv",
+              dateOfShowing: date,
+              cinema: "Cinema City",
+              showtime: "19:30",
+              englishHref: null,
+              hebrewHref: null,
+              screeningTech: "2D",
+              screeningType: "Regular",
+              dubLanguage: null,
+            },
+          ]
+        : []);
+    const response = createResponse();
+
+    await seoHandler(
+      createRequest("/api/page?path=%2Fshowtimes%2Ftel-aviv", {
+        path: "/showtimes/tel-aviv",
+      }),
+      response as never,
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain(
+      "<title>Movie showtimes in Tel Aviv — Now Playing | Kartiseret</title>",
+    );
+    expect(response.body).toContain(
+      '<link rel="canonical" href="https://seret.site/showtimes/tel-aviv" />',
+    );
+    expect(response.headers.get("x-robots-tag")).toBe("index, follow");
+    expect(mocks.renderBuiltPublicApplication.mock.calls[0]?.[0]).toMatchObject(
+      {
+        pathname: "/showtimes/tel-aviv",
+        showtimeCity: {
+          city: "Tel Aviv",
+          showtimes: [{ screeningCity: "Tel Aviv" }],
+        },
+      },
+    );
+  });
+
+  it("returns valid but empty city views as noindex and rejects unknown city slugs", async () => {
+    const emptyResponse = createResponse();
+    await seoHandler(
+      createRequest("/api/page?path=%2Fshowtimes%2Fhaifa", {
+        path: "/showtimes/haifa",
+      }),
+      emptyResponse as never,
+    );
+
+    const invalidResponse = createResponse();
+    await seoHandler(
+      createRequest("/api/page?path=%2Fshowtimes%2Fnot-a-city", {
+        path: "/showtimes/not-a-city",
+      }),
+      invalidResponse as never,
+    );
+
+    expect(emptyResponse.statusCode).toBe(200);
+    expect(emptyResponse.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    expect(invalidResponse.statusCode).toBe(404);
   });
 
   it("renders published screenings without inventing booking links", async () => {
@@ -405,6 +556,18 @@ describe("SEO request handler", () => {
   });
 
   it("builds a fixed-origin sitemap without request-host or encoded selection URLs", async () => {
+    const date = addCalendarDays(getJerusalemCinemaDate(), 1)!;
+    const laterDate = addCalendarDays(getJerusalemCinemaDate(), 20)!;
+    mocks.findShowtimeEligibilityCandidates.mockResolvedValue(
+      [cinema.city, "Tel Aviv"].map((city) => ({
+        tmdbId: Number(sampleMovie.tmdbId),
+        screeningCity: city,
+        dateOfShowing: city === cinema.city ? date : laterDate,
+        cinema: cinema.displayName,
+        showtime: "19:30",
+        isCinematheque: false,
+      })),
+    );
     const response = createResponse();
     const request = createRequest("/api/sitemap", {});
     request.headers.host = "attacker.example";
@@ -417,6 +580,10 @@ describe("SEO request handler", () => {
     );
     expect(response.headers.get("cache-control")).toContain("s-maxage=300");
     expect(response.body).toContain("https://seret.site/Ab1");
+    expect(response.body).toContain("https://seret.site/showtimes/jerusalem");
+    expect(response.body).not.toContain(
+      "https://seret.site/showtimes/tel-aviv",
+    );
     expect(response.body).toContain(`https://seret.site/c/${cinema.id}`);
     expect(response.body).not.toContain("attacker.example");
     expect(response.body).not.toContain("?filter=");

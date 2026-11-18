@@ -1,4 +1,4 @@
-import { currentPublicationRevision } from "../data/publicationRevision.js";
+import { currentPublicationRevision, publicPagePublicationKey } from "../data/publicationRevision.js";
 import { useQueryClient } from "@tanstack/react-query";
 import { notifyManager } from "@tanstack/react-query";
 import { useSyncExternalStore } from "react";
@@ -14,9 +14,8 @@ export function usePublicationRevision() {
     return queryClient.getQueryCache().subscribe((event) => {
       const key = event.query.queryKey;
       if (
-        key[0] === "movieCatalog" &&
-        key[1] === "collections" &&
-        key[2] === "nowPlaying" &&
+        (key[0] === publicPagePublicationKey[0] ||
+          (key[0] === "movieCatalog" && key[1] === "collections")) &&
         (event.type === "removed" ||
           (event.type === "updated" && event.action.type === "success"))
       )

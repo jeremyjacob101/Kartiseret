@@ -11,6 +11,7 @@
     "./catalog-timing": "./dist/catalog-timing.js",
     "./logging": "./dist/logging.js",
     "./production": "./dist/production.js",
+    "./public-production": "./dist/public-production.js",
     "./catalog": "./dist/catalog/index.js",
     "./public-data": "./dist/public-data/index.js",
     "./vercel-dispatch": "./dist/vercel-dispatch.js",

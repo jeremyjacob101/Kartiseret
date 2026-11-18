@@ -1,9 +1,13 @@
+import { initializeUserPreferencesStore, preparePublicPagePreferenceState } from "./stores/userPreferencesStore";
 import { parsePublicPageBootstrap, seedPublicPageQueries } from "./publicRenderBootstrap";
-import { preparePublicPagePreferenceState } from "./stores/userPreferencesStore";
 import { preloadPublicRouteModules } from "./routing/preloadPublicRouteModules";
 import { hydrateRoot, createRoot } from "react-dom/client";
 import { EntryApplication } from "./entry-application";
 import { queryClient } from "./lib/queryClient";
+
+if (window.location.pathname !== "/unsubscribe/letterboxd") {
+  initializeUserPreferencesStore();
+}
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("The application root element is missing.");
@@ -21,9 +25,17 @@ if (bootstrapElement?.textContent) {
   }
 }
 
+const initialUrl = new URL(window.location.href);
+const bootstrapUrl = bootstrap
+  ? new URL(bootstrap.pathname, initialUrl.origin)
+  : null;
+const requestedDate = initialUrl.searchParams.getAll("date").at(-1);
 const canHydrate =
   root.dataset.ssr === "true" &&
-  bootstrap?.pathname === window.location.pathname;
+  bootstrapUrl?.pathname === initialUrl.pathname &&
+  (!requestedDate ||
+    !bootstrapUrl.searchParams.has("date") ||
+    requestedDate === bootstrapUrl.searchParams.get("date"));
 
 document.documentElement.classList.remove(
   "no-js",
@@ -59,7 +71,9 @@ function showReloadControl(): void {
 async function startClientApplication() {
   if (canHydrate && bootstrap) {
     try {
-      await preloadPublicRouteModules(window.location.pathname);
+      const publicRouteComponents = await preloadPublicRouteModules(
+        window.location.pathname,
+      );
       const publicPreferenceSnapshot = preparePublicPagePreferenceState();
       seedPublicPageQueries(queryClient, bootstrap);
       hydrateRoot(
@@ -67,6 +81,7 @@ async function startClientApplication() {
         <EntryApplication
           publicPreferenceSnapshot={publicPreferenceSnapshot}
           renderedAt={bootstrap.renderedAt}
+          publicRouteComponents={publicRouteComponents}
         />,
       );
     } catch {

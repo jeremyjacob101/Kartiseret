@@ -6,6 +6,7 @@ import {
   timeCatalogStage,
   timeCatalogStageSync,
   withCatalogTiming,
+  withPublicPageTiming,
 } from "./catalog-timing.js";
 
 function response() {
@@ -193,5 +194,28 @@ describe("catalog request timings", () => {
         },
       ),
     ).toBe(42);
+  });
+
+  it("supports lightweight response doubles without lifecycle events", async () => {
+    const write = vi.fn();
+    const res = { statusCode: 404 } as ServerResponse;
+    const result = await withPublicPageTiming(
+      "movie",
+      res,
+      async () => {
+        await timeCatalogStage("public_data", async () => undefined);
+        return "rendered";
+      },
+      write,
+    );
+
+    expect(result).toBe("rendered");
+    expect(JSON.parse(write.mock.calls[0]![0]!)).toMatchObject({
+      event: "public_page_timing",
+      route: "movie",
+      status: 404,
+      outcome: "finished",
+      stages: { public_data: { count: 1, errors: 0 } },
+    });
   });
 });

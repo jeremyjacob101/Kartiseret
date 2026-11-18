@@ -146,11 +146,10 @@ export function getEffectiveShowtimeDate(
     : cinemaDayDate;
 }
 
-export function shouldIncludeShowtime(
+function shouldIncludeShowtimeWithClock(
   cinemaDayDate: string,
   showtime: string,
-  instant: Date = new Date(),
-  timeZone = SHOWTIME_TIME_ZONE,
+  getClock: () => ZonedDateTimeParts,
 ): boolean {
   const showtimeMinutes = parseShowtimeMinutes(showtime);
   const effectiveDate = getEffectiveShowtimeDate(cinemaDayDate, showtime);
@@ -159,7 +158,7 @@ export function shouldIncludeShowtime(
     return false;
   }
 
-  const now = getZonedDateTimeParts(timeZone, instant);
+  const now = getClock();
 
   if (effectiveDate > now.date) {
     return true;
@@ -173,6 +172,27 @@ export function shouldIncludeShowtime(
     showtimeMinutes + SHOWTIME_GRACE_PERIOD_MINUTES >=
     now.hour * 60 + now.minute
   );
+}
+
+export function shouldIncludeShowtime(
+  cinemaDayDate: string,
+  showtime: string,
+  instant: Date = new Date(),
+  timeZone = SHOWTIME_TIME_ZONE,
+): boolean {
+  return shouldIncludeShowtimeWithClock(cinemaDayDate, showtime, () =>
+    getZonedDateTimeParts(timeZone, instant),
+  );
+}
+
+export function createShowtimeInclusionPredicate(
+  instant: Date,
+  timeZone = SHOWTIME_TIME_ZONE,
+) {
+  const now = getZonedDateTimeParts(timeZone, instant);
+  const getClock = () => now;
+  return (cinemaDayDate: string, showtime: string) =>
+    shouldIncludeShowtimeWithClock(cinemaDayDate, showtime, getClock);
 }
 
 export function getShowtimeSortValue(showtime: string): number {

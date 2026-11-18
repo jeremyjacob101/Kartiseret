@@ -1,4 +1,4 @@
-import { SHOWTIME_DAY_CUTOFF_MINUTES, SHOWTIME_GRACE_PERIOD_MINUTES, addShowtimeCalendarDays, getCinemaDayDate, getEffectiveShowtimeDate, getShowtimeSortValue, isPostMidnightCarryoverShowtime, parseShowtimeMinutes, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
+import { createShowtimeInclusionPredicate, SHOWTIME_DAY_CUTOFF_MINUTES, SHOWTIME_GRACE_PERIOD_MINUTES, addShowtimeCalendarDays, getCinemaDayDate, getEffectiveShowtimeDate, getShowtimeSortValue, isPostMidnightCarryoverShowtime, parseShowtimeMinutes, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
 import { describe, expect, it } from "vitest";
 
 describe("showtime calendar boundary invariants", () => {
@@ -82,6 +82,9 @@ describe("showtime calendar boundary invariants", () => {
     expect(shouldIncludeShowtime(cinemaDate, showtime, new Date(instant))).toBe(
       expected,
     );
+    expect(
+      createShowtimeInclusionPredicate(new Date(instant))(cinemaDate, showtime),
+    ).toBe(expected);
   });
 
   it("applies the documented grace period exactly once", () => {

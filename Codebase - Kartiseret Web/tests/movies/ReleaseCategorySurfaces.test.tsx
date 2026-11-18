@@ -3,14 +3,14 @@ import { filterMoviesByReleaseCategory } from "../../src/domain/movieRelease";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AllShowtimesPage } from "../../src/components/AllShowtimesPage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import * as movieCatalog from "../../src/data/movieCatalog";
 import { sampleMovie, sampleShowtimes } from "../fixtures";
 import type { Movie } from "../../src/data/movieCatalog";
+import { MemoryRouter, useLocation } from "react-router";
 import { CatalogRoute, HomeRoute } from "../../src/App";
 import userEvent from "@testing-library/user-event";
 import * as theaters from "../../src/data/theaters";
-import { MemoryRouter } from "react-router";
 
 vi.mock("../../src/components/scroller/MovieScroller", () => ({
   MovieScroller: ({
@@ -29,8 +29,19 @@ vi.mock("../../src/components/scroller/MovieScroller", () => ({
 }));
 
 vi.mock("../../src/components/maps/TheaterMapDialog", () => ({
-  TheaterMapDialog: ({ triggerLabel }: { triggerLabel: string }) => (
-    <button type="button">{triggerLabel}</button>
+  TheaterMapDialog: ({
+    triggerLabel,
+    onLocationOverrideChange,
+  }: {
+    triggerLabel: string;
+    onLocationOverrideChange?: (location: string) => Promise<boolean>;
+  }) => (
+    <button
+      type="button"
+      onClick={() => void onLocationOverrideChange?.("Tel Aviv")}
+    >
+      {triggerLabel}
+    </button>
   ),
 }));
 
@@ -39,7 +50,15 @@ vi.mock("../../src/components/showtimes/ShowtimeDayPicker", () => ({
 }));
 
 vi.mock("../../src/components/showtimes/ShowtimeFilterMenu", () => ({
-  ShowtimeFilterMenu: () => <div data-testid="showtime-filter-menu" />,
+  ShowtimeFilterMenu: ({
+    onRestoreDefaults,
+  }: {
+    onRestoreDefaults: () => void;
+  }) => (
+    <div data-testid="showtime-filter-menu">
+      <button onClick={onRestoreDefaults}>Restore defaults</button>
+    </div>
+  ),
 }));
 
 vi.mock("../../src/components/showtimes/ShowtimesMovieRow", () => ({
@@ -104,7 +123,11 @@ function installShowtimesQueryFixtures(movies: readonly Movie[]) {
   } as never);
 }
 
-function renderAllShowtimes() {
+function CurrentRoutePath() {
+  return <output aria-label="Current route">{useLocation().pathname}</output>;
+}
+
+function renderAllShowtimes(initialEntry = "/showtimes") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -112,8 +135,9 @@ function renderAllShowtimes() {
     queryClient,
     ...render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter>
+        <MemoryRouter initialEntries={[initialEntry]}>
           <AllShowtimesPage />
+          <CurrentRoutePath />
         </MemoryRouter>
       </QueryClientProvider>,
     ),
@@ -294,6 +318,72 @@ describe("release category surfaces", () => {
       screen.queryByText("New release in showtimes"),
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("showtime-day-picker")).toBeInTheDocument();
+    queryClient.clear();
+  });
+
+  it("keeps public showtimes visible while preferences load and after they fail", async () => {
+    const movie = makeMovie(
+      "public",
+      "Public screening",
+      new Date().getFullYear(),
+    );
+    installShowtimesQueryFixtures([movie]);
+    useUserPreferencesStore.setState({ loading: true });
+    const { queryClient } = renderAllShowtimes();
+
+    expect(await screen.findByText("Public screening")).toBeVisible();
+    expect(
+      screen.getByText("Loading your showtime preferences…"),
+    ).toBeVisible();
+
+    act(() =>
+      useUserPreferencesStore.setState({
+        loading: false,
+        loadError: true,
+        error: "Preferences unavailable",
+      }));
+    expect(screen.getByText("Public screening")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
+    queryClient.clear();
+  });
+
+  it("updates the city URL without changing the saved city preference", async () => {
+    const user = userEvent.setup();
+    const currentRelease = makeMovie(
+      "current",
+      "Current release",
+      new Date().getFullYear(),
+    );
+    installShowtimesQueryFixtures([currentRelease]);
+    renderAllShowtimes();
+
+    await user.click(await screen.findByRole("button", { name: "Jerusalem" }));
+
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      "/showtimes/tel-aviv",
+    );
+    expect(useUserPreferencesStore.getState().preferences.location).toBe(
+      "Jerusalem",
+    );
+  });
+
+  it("restores the saved city when resetting a city route to defaults", async () => {
+    installShowtimesQueryFixtures([
+      makeMovie("current", "Current release", new Date().getFullYear()),
+    ]);
+    const { queryClient } = renderAllShowtimes("/showtimes/tel-aviv");
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Restore defaults" }),
+    );
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      /^\/showtimes$/,
+    );
+    expect(
+      screen.getByRole("button", { name: "Jerusalem" }),
+    ).toBeInTheDocument();
+    expect(useUserPreferencesStore.getState().preferences.location).toBe(
+      "Jerusalem",
+    );
     queryClient.clear();
   });
 

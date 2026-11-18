@@ -3,6 +3,7 @@ import { type RatingSource } from "../../prefs/definitions/ratingSources";
 import type { Movie, TheaterShowtimes } from "../../data/movieCatalog";
 import { MovieMetricsRow, ShowtimeTheaters } from "./ShowtimeShared";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
+import { Link } from "react-router";
 
 export function ShowtimesMovieRow({
   movie,
@@ -43,7 +44,19 @@ export function ShowtimesMovieRow({
         </div>
 
         <div className="details-copy all-showtimes-copy">
-          <h3 className="details-title all-showtimes-title">{movie.title}</h3>
+          <h3 className="details-title all-showtimes-title">
+            {movie.movieCode ? (
+              <Link
+                to={`/${encodeURIComponent(movie.movieCode)}`}
+                title={`Open ${movie.title} movie page`}
+                className="all-showtimes-title-link"
+              >
+                {movie.title}
+              </Link>
+            ) : (
+              movie.title
+            )}
+          </h3>
 
           {metaParts.length > 0 ? (
             <div className="details-subtitle details-subtitle--meta-row">
