@@ -4,8 +4,9 @@ import { cinemaIdForLocation, findCinemaIdentityForScreening, getCinemaIdentityB
 import { publicPageBootstrapSchema, type PublicPageBootstrap } from "@kartiseret/contracts/public-render";
 import { getShowtimesCityFromPath, getShowtimesCityPath } from "@kartiseret/contracts/showtime-routes";
 import { getCinemaDayDate, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
+import { timeCatalogStage, timeCatalogStageSync } from "@kartiseret/server/catalog-timing";
+import { getProductionPublicDataRepository } from "@kartiseret/server/public-production";
 import { filterShowtimeRows, resolvePreviewRouteSelection } from "../og/previewData.js";
-import { getProductionPublicDataRepository } from "@kartiseret/server/production";
 import { socialPreviewImageUrl } from "@kartiseret/contracts/social-preview";
 import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
 import { parseMovieRouteCode } from "@kartiseret/contracts/showtime-links";
@@ -722,47 +723,52 @@ export default async function handler(
 
     const deadlineAt = Date.now() + PUBLIC_PAGE_DEADLINE_MS;
     const rendered = await withDeadline(async () => {
-      let result: {
-        page: Parameters<typeof injectSeoPage>[1];
-        bootstrap: PublicPageBootstrap;
-      } | null = null;
-      if (route === "movie") {
-        const routeCode = Array.isArray(request.query.routeCode)
-          ? (request.query.routeCode.at(-1) ?? "")
-          : (request.query.routeCode ?? "");
-        const requestedDate = Array.isArray(request.query.date)
-          ? (request.query.date.at(-1) ?? "")
-          : (request.query.date ?? "");
-        const movie = await getMoviePage(
-          routeCode,
-          new Date(),
-          getRequestOrigin(request.headers),
-          requestedDate,
-        );
-        result = movie
-          ? { page: movie.page, bootstrap: movie.bootstrap }
-          : null;
-      } else if (route === "cinema") {
-        result = await getCinemaPage(cinemaId);
-      } else if (route === "page") {
-        result = await getListingPage(path);
-      }
+      const result = await timeCatalogStage("public_data", async () => {
+        let pageResult: {
+          page: Parameters<typeof injectSeoPage>[1];
+          bootstrap: PublicPageBootstrap;
+        } | null = null;
+        if (route === "movie") {
+          const routeCode = Array.isArray(request.query.routeCode)
+            ? (request.query.routeCode.at(-1) ?? "")
+            : (request.query.routeCode ?? "");
+          const requestedDate = Array.isArray(request.query.date)
+            ? (request.query.date.at(-1) ?? "")
+            : (request.query.date ?? "");
+          const movie = await getMoviePage(
+            routeCode,
+            new Date(),
+            getRequestOrigin(request.headers),
+            requestedDate,
+          );
+          pageResult = movie
+            ? { page: movie.page, bootstrap: movie.bootstrap }
+            : null;
+        } else if (route === "cinema") {
+          pageResult = await getCinemaPage(cinemaId);
+        } else if (route === "page") {
+          pageResult = await getListingPage(path);
+        }
+        return pageResult;
+      });
       if (!result) return { result: null, output: "" };
       const metadataHtml = injectSeoPage(html, result.page);
       const remainingMs = deadlineAt - Date.now();
       if (remainingMs <= 0) {
         throw new Error("Public page request exceeded its deadline.");
       }
-      const markup = await renderBuiltPublicApplication(
-        result.bootstrap,
-        Math.min(SSR_RENDER_BUDGET_MS, remainingMs),
-      );
-      const output = injectRenderedApplication(
-        metadataHtml,
-        markup,
-        result.bootstrap,
-        getInitialPosterPreloadUrls(result.bootstrap),
-      );
+      const markup = await timeCatalogStage("html_render", () =>
+        renderBuiltPublicApplication(
+          result.bootstrap,
+          Math.min(SSR_RENDER_BUDGET_MS, remainingMs),
+        ));
+      const output = timeCatalogStageSync("html_assembly", () =>
+        injectRenderedApplication(
+          metadataHtml,
+          markup,
+          result.bootstrap,
+          getInitialPosterPreloadUrls(result.bootstrap),
+        ));
       return { result, output };
     }, PUBLIC_PAGE_DEADLINE_MS);
 

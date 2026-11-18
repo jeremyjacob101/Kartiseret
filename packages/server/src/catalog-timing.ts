@@ -17,10 +17,42 @@ type Stage =
   | "revision_read"
   | "movie_rows"
   | "movie_codes"
-  | "response_json";
+  | "response_json"
+  | "public_data"
+  | "html_render"
+  | "html_assembly";
+type CacheOutcome = "hit" | "miss" | "wait" | "bypass";
 interface TimingContext {
   stages: Partial<Record<Stage, { ms: number; count: number; errors: number }>>;
   active: Set<{ stage: Stage; started: number }>;
+  preparationCache: {
+    hits: number;
+    misses: number;
+    waits: number;
+    bypasses: number;
+    buildMs: number;
+    copyMs: number;
+    waitMs: number;
+    operations: Record<string, number>;
+  };
+}
+
+export function recordPreparationCacheMetric(
+  operation: string,
+  outcome: CacheOutcome,
+  duration: { buildMs?: number; copyMs?: number; waitMs?: number } = {},
+): void {
+  const context = requests.getStore();
+  if (!context) return;
+  const metrics = context.preparationCache;
+  if (outcome === "hit") metrics.hits++;
+  else if (outcome === "miss") metrics.misses++;
+  else if (outcome === "wait") metrics.waits++;
+  else metrics.bypasses++;
+  metrics.operations[operation] = (metrics.operations[operation] ?? 0) + 1;
+  metrics.buildMs += duration.buildMs ?? 0;
+  metrics.copyMs += duration.copyMs ?? 0;
+  metrics.waitMs += duration.waitMs ?? 0;
 }
 
 export function recordCatalogTiming(
@@ -101,6 +133,16 @@ export function withCatalogTiming<T>(
   const context: TimingContext = {
     stages: {},
     active: new Set(),
+    preparationCache: {
+      hits: 0,
+      misses: 0,
+      waits: 0,
+      bypasses: 0,
+      buildMs: 0,
+      copyMs: 0,
+      waitMs: 0,
+      operations: {},
+    },
   };
   const complete = (outcome: "finished" | "closed" | "threw") => {
     if (logged) return;
@@ -131,6 +173,7 @@ export function withCatalogTiming<T>(
           outcome,
           responseFinishedMs: completedAt - started,
           stages,
+          preparationCache: context.preparationCache,
         }),
       );
     } catch {
@@ -144,6 +187,83 @@ export function withCatalogTiming<T>(
   return requests.run(context, () => {
     try {
       return work();
+    } catch (error) {
+      complete("threw");
+      throw error;
+    }
+  });
+}
+
+export function withPublicPageTiming<T>(
+  route: string,
+  response: Pick<ServerResponse, "statusCode"> &
+    Partial<Pick<ServerResponse, "once" | "writableFinished">>,
+  work: () => T,
+  write: (line: string) => void = (line) => console.info(line),
+): Promise<Awaited<T>> {
+  const started = performance.now();
+  const requestId = randomUUID();
+  const context: TimingContext = {
+    stages: {},
+    active: new Set(),
+    preparationCache: {
+      hits: 0,
+      misses: 0,
+      waits: 0,
+      bypasses: 0,
+      buildMs: 0,
+      copyMs: 0,
+      waitMs: 0,
+      operations: {},
+    },
+  };
+  let logged = false;
+  const complete = (outcome: "finished" | "closed" | "threw") => {
+    if (logged) return;
+    logged = true;
+    const completedAt = performance.now();
+    try {
+      const stages = structuredClone(context.stages) as Partial<
+        Record<
+          Stage,
+          { ms: number; count: number; errors: number; inFlight?: number }
+        >
+      >;
+      for (const span of context.active) {
+        const entry = (stages[span.stage] ??= { ms: 0, count: 0, errors: 0 });
+        entry.ms += completedAt - span.started;
+        entry.count++;
+        entry.inFlight = (entry.inFlight ?? 0) + 1;
+      }
+      write(
+        JSON.stringify({
+          event: "public_page_timing",
+          requestId,
+          instanceId,
+          route,
+          status: outcome === "threw" ? null : response.statusCode,
+          outcome,
+          responseFinishedMs: completedAt - started,
+          stages,
+          preparationCache: context.preparationCache,
+        }),
+      );
+    } catch {
+      // Diagnostics must never change the response path.
+    }
+  };
+  const observesResponseLifecycle = typeof response.once === "function";
+  if (observesResponseLifecycle) {
+    response.once?.("finish", () => complete("finished"));
+    response.once?.("close", () =>
+      complete(response.writableFinished ? "finished" : "closed"),
+    );
+  }
+  return requests.run(context, async (): Promise<Awaited<T>> => {
+    try {
+      const result = await work();
+      if (!observesResponseLifecycle) complete("finished");
+      return result;
     } catch (error) {
       complete("threw");
       throw error;

@@ -1,3 +1,4 @@
+import { getProductionDataRuntime } from "./public-production.js";
 import { BetterAuthIdentityVerifier } from "./protected/identity.js";
 import { toNodeHandler } from "better-auth/node";
 import { waitUntil } from "@vercel/functions";
@@ -6,10 +7,7 @@ import { parseAuthEnvironment } from "./auth/env.js";
 import { createResendAuthMailer } from "./auth/mail.js";
 import { createRecipientRouter } from "./auth/recipients.js";
 import { ProtectedWorkflows } from "./protected/service.js";
-import { DrizzleCatalogRepository } from "./catalog/drizzle-repository.js";
 import { createApp } from "./app.js";
-import { createDatabase } from "./db/client.js";
-import { parseServerEnvironment } from "./env.js";
 import { createTmdbSearchProvider } from "./public-data/tmdb-search.js";
 import {
   PROTECTED_RATE_LIMIT_WINDOW_MS,
@@ -17,7 +15,6 @@ import {
 } from "./protected/router.js";
 import { PostgresProtectedRateLimitStore } from "./protected/rate-limit-store.js";
 import { createR2ImageStore } from "./artwork/s3.js";
-import { resolveRuntimeTargetEnvironment } from "./target-environment.js";
 import {
   createMovieNotificationUnsubscribeRouter,
   createPostgresMovieNotificationUnsubscribeService,
@@ -29,13 +26,8 @@ type ProductionRuntime = ReturnType<typeof createProductionRuntime>;
 function createProductionRuntime(
   environment: Record<string, string | undefined>,
 ) {
-  const selectedEnvironment = resolveRuntimeTargetEnvironment(environment);
-  const config = parseServerEnvironment(selectedEnvironment);
-  const database = createDatabase(config.DATABASE_URL, {
-    poolMax: config.DATABASE_POOL_MAX,
-    sslCaCertificate: config.DATABASE_SSL_CA_CERT,
-  });
-  const repository = new DrizzleCatalogRepository(database.db);
+  const { selectedEnvironment, config, database, repository } =
+    getProductionDataRuntime(environment);
   const authConfig = parseAuthEnvironment(selectedEnvironment);
   const auth = createApplicationAuth(database.pool, {
     ...authConfig,
@@ -120,9 +112,7 @@ function getProductionRuntime(
   return productionRuntime;
 }
 
-export function getProductionPublicDataRepository() {
-  return getProductionRuntime(process.env).repository;
-}
+export { getProductionPublicDataRepository } from "./public-production.js";
 
 export function createProductionApp(
   environment: Record<string, string | undefined> = process.env,

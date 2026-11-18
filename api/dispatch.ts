@@ -2,9 +2,9 @@ import {
   dispatcherImportStartedAt,
   timeCatalogStageSync,
   withCatalogTiming,
+  withPublicPageTiming,
 } from "@kartiseret/server/catalog-timing";
 import type { ServerResponse } from "node:http";
-import { createProductionApp } from "@kartiseret/server/production";
 import {
   getRequestLogger,
   withRequestLogContext,
@@ -18,8 +18,6 @@ import {
 const dispatcherImportMs = performance.now() - dispatcherImportStartedAt;
 let firstApiRequest = true;
 
-let productionApi: VercelDispatchHandler | null = null;
-
 const ogHandler = createLazyVercelHandler(
   () => import("../Codebase - Kartiseret Web/server/og/handler.js"),
 );
@@ -30,15 +28,11 @@ const seoHandler = createLazyVercelHandler(
   () => import("../Codebase - Kartiseret Web/server/seo/handler.js"),
 );
 
-function getProductionApi(): VercelDispatchHandler {
-  if (!productionApi) {
-    productionApi = timeCatalogStageSync("runtime_init", () =>
-      createProductionApp(),
-    ).app as unknown as VercelDispatchHandler;
-  }
-
-  return productionApi;
-}
+const productionApi = createLazyVercelHandler(async () => {
+  const { createProductionApp } = await import("@kartiseret/server/production");
+  const { app } = timeCatalogStageSync("runtime_init", createProductionApp);
+  return { default: app as unknown as VercelDispatchHandler };
+});
 
 export default createVercelDispatchHandler({
   api: (request, response) => {
@@ -49,7 +43,7 @@ export default createVercelDispatchHandler({
         request.url,
         response as unknown as ServerResponse,
         { firstApiRequest: first, dispatcherImportMs },
-        () => getProductionApi()(request, response),
+        () => productionApi(request, response),
         (line) => {
           try {
             getRequestLogger().info(JSON.parse(line));
@@ -65,5 +59,11 @@ export default createVercelDispatchHandler({
   ogImage: (request, response) =>
     withRequestLogContext(() => ogImageHandler(request, response)),
   seo: (request, response) =>
-    withRequestLogContext(() => seoHandler(request, response)),
+    withRequestLogContext(() =>
+      withPublicPageTiming(
+        request.url?.split("?", 1)[0]?.replace(/^\/api\//, "") ?? "unknown",
+        response as unknown as ServerResponse,
+        () => seoHandler(request, response),
+      ),
+    ),
 });

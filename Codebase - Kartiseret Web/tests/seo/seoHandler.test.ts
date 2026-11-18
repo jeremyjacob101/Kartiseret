@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@kartiseret/server/public-data", () => mocks);
-vi.mock("@kartiseret/server/production", () => ({
+vi.mock("@kartiseret/server/public-production", () => ({
   getProductionPublicDataRepository: mocks.getProductionPublicDataRepository,
 }));
 vi.mock("node:fs", async (importOriginal) => ({
