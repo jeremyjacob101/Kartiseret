@@ -207,6 +207,16 @@ if (
       markup.includes(expectedContent),
       `${pathname} has ${expectedContent}`,
     );
+    if (pathname === "/") {
+      assert.ok(
+        markup.includes('href="/Ab1"'),
+        "Home links directly to the movie before hydration",
+      );
+      assert.ok(
+        markup.includes("home-poster-row"),
+        "Home renders its poster row",
+      );
+    }
     assert.ok(
       !markup.includes("seo-content"),
       `${pathname} has no separate SEO fallback`,

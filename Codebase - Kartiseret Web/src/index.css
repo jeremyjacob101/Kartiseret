@@ -566,3 +566,39 @@ html[data-device-type="mobile"] .scroller-slot {
     transition: none;
   }
 }
+
+
+.home-poster-row {
+  display: flex;
+  gap: 22px;
+  max-width: min(1100px, 100%);
+  margin: 0 auto;
+  padding: 0 0 12px;
+  overflow-x: auto;
+  list-style: none;
+}
+
+.home-poster-row li {
+  flex: 0 0 220px;
+  min-width: 0;
+}
+
+.home-poster-row img,
+.home-poster-placeholder {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.home-poster-title {
+  display: block;
+  margin-top: 8px;
+}
+
+@media (max-width: 699px) {
+  .home-poster-row { gap: 18px; }
+  .home-poster-row li { flex-basis: 160px; }
+}

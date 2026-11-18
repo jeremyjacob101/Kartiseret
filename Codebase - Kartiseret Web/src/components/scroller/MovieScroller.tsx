@@ -570,6 +570,7 @@ export function MovieScroller({
 
 function MovieScrollerContent({
   movieItems,
+  skipIntro,
   detailVariant,
   detailEyebrow,
   jumpRequest,
@@ -2315,6 +2316,7 @@ function MovieScrollerContent({
       >
         <MovieScrollerBase
           movieItems={movieItems}
+          skipIntro={skipIntro}
           cardWidth={cardWidth}
           cardHeight={cardHeight}
           gap={gap}

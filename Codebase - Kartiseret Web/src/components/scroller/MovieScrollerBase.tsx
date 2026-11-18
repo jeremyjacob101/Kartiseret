@@ -18,6 +18,7 @@ export type MovieScrollerScrollRequest = {
 
 export type MovieScrollerBaseProps = {
   movieItems?: readonly Movie[];
+  skipIntro?: boolean;
   cardWidth?: number;
   cardHeight?: number;
   gap?: number;
@@ -157,6 +158,7 @@ function getCenteredScrollLeft(
 
 export function MovieScrollerBase({
   movieItems,
+  skipIntro = false,
   cardWidth = 240,
   cardHeight = 360,
   gap = 16,
@@ -225,7 +227,7 @@ export function MovieScrollerBase({
     clientWidth: 0,
   });
   const [introPhase, setIntroPhase] = useState<IntroPhase>(() =>
-    getInitialIntroPhase());
+    skipIntro ? "done" : getInitialIntroPhase());
   const shouldPlayIntroRef = useRef(introPhase !== "done");
   const introFallbackViewportWidth =
     typeof window === "undefined"

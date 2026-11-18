@@ -101,14 +101,20 @@ function getServerHydrationState() {
   return false;
 }
 
-function ClientMounted({ children }: { children: ReactNode }) {
+function ClientMounted({
+  children,
+  fallback = null,
+}: {
+  children: ReactNode;
+  fallback?: ReactNode;
+}) {
   const isMounted = useSyncExternalStore(
     subscribeToHydrationState,
     getClientHydrationState,
     getServerHydrationState,
   );
 
-  return isMounted ? children : null;
+  return isMounted ? children : fallback;
 }
 
 function isPotentialStandaloneMoviePath(pathname: string): boolean {
@@ -282,6 +288,50 @@ export function CatalogRoute({
   );
 }
 
+function HomePosterRow({
+  movies,
+  prioritize = false,
+}: {
+  movies: readonly Movie[];
+  prioritize?: boolean;
+}) {
+  return (
+    <ul className="home-poster-row">
+      {movies.map((movie, index) => {
+        const visible = prioritize && index < 4;
+        const card = (
+          <>
+            {movie.imageSrc ? (
+              <img
+                src={movie.imageSrc}
+                srcSet={movie.imageSrcSet}
+                sizes="(max-width: 699px) 160px, 220px"
+                width={220}
+                height={330}
+                alt=""
+                loading={visible ? "eager" : "lazy"}
+                fetchPriority={prioritize && index === 0 ? "high" : undefined}
+              />
+            ) : (
+              <span className="home-poster-placeholder" />
+            )}
+            <span className="home-poster-title">{movie.title}</span>
+          </>
+        );
+        return (
+          <li key={movie.tmdbId}>
+            {movie.movieCode ? (
+              <a href={`/${movie.movieCode}`}>{card}</a>
+            ) : (
+              card
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function HomeRoute({
   catalogError,
   cardHeight,
@@ -306,8 +356,11 @@ export function HomeRoute({
         style={{ minHeight: scrollerSlotMinHeight }}
       >
         {nowPlayingReady && nowPlayingMovies.length > 0 ? (
-          <ClientMounted>
+          <ClientMounted
+            fallback={<HomePosterRow movies={nowPlayingMovies} prioritize />}
+          >
             <MovieScroller
+              skipIntro
               mode="nowPlaying"
               movieItems={nowPlayingMovies}
               cardWidth={cardWidth}
@@ -331,8 +384,9 @@ export function HomeRoute({
         style={{ minHeight: scrollerSlotMinHeight }}
       >
         {comingSoonReady && comingSoonMovies.length > 0 ? (
-          <ClientMounted>
+          <ClientMounted fallback={<HomePosterRow movies={comingSoonMovies} />}>
             <MovieScroller
+              skipIntro
               mode="comingSoon"
               movieItems={comingSoonMovies}
               cardWidth={cardWidth}
@@ -356,8 +410,11 @@ export function HomeRoute({
         style={{ minHeight: scrollerSlotMinHeight }}
       >
         {nowPlayingReady && nowPlayingReReleaseMovies.length > 0 ? (
-          <ClientMounted>
+          <ClientMounted
+            fallback={<HomePosterRow movies={nowPlayingReReleaseMovies} />}
+          >
             <MovieScroller
+              skipIntro
               mode="nowPlaying"
               movieItems={nowPlayingReReleaseMovies}
               cardWidth={cardWidth}
@@ -376,13 +433,7 @@ export function HomeRoute({
   );
 }
 
-function ShowtimesRoute({
-  catalogError,
-  showtimesReady,
-}: {
-  catalogError: string | null;
-  showtimesReady: boolean;
-}) {
+function ShowtimesRoute({ catalogError }: { catalogError: string | null }) {
   const routeLocation = useLocation();
   const { allShowtimesPage: StaticAllShowtimesPage } =
     usePublicRouteComponents();
@@ -396,15 +447,13 @@ function ShowtimesRoute({
   return (
     <section className="page-panel">
       <CatalogErrorNote message={catalogError} />
-      {showtimesReady ? (
-        StaticAllShowtimesPage ? (
-          <StaticAllShowtimesPage />
-        ) : (
-          <Suspense fallback={null}>
-            <AllShowtimesPage />
-          </Suspense>
-        )
-      ) : null}
+      {StaticAllShowtimesPage ? (
+        <StaticAllShowtimesPage />
+      ) : (
+        <Suspense fallback={null}>
+          <AllShowtimesPage />
+        </Suspense>
+      )}
     </section>
   );
 }
@@ -1144,21 +1193,11 @@ function MainApplication() {
           />
           <Route
             path="/showtimes"
-            element={
-              <ShowtimesRoute
-                catalogError={catalogError}
-                showtimesReady={showtimesReady}
-              />
-            }
+            element={<ShowtimesRoute catalogError={catalogError} />}
           />
           <Route
             path="/showtimes/:citySlug"
-            element={
-              <ShowtimesRoute
-                catalogError={catalogError}
-                showtimesReady={showtimesReady}
-              />
-            }
+            element={<ShowtimesRoute catalogError={catalogError} />}
           />
           <Route
             path="/cinematheques"

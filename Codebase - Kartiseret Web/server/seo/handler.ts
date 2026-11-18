@@ -126,13 +126,6 @@ function createPageBootstrap(
   });
 }
 
-function getInitialPosterPreloadUrls(bootstrap: PublicPageBootstrap): string[] {
-  if (bootstrap.pathname !== "/") return [];
-  const movies = bootstrap.catalogs.nowPlaying.movies;
-  return [movies.at(-1), ...movies.slice(0, 4)].flatMap((movie) =>
-    movie?.imageSrc ? [movie.imageSrc] : []);
-}
-
 async function getMoviePage(
   routeCode: string,
   instant = new Date(),
@@ -763,12 +756,7 @@ export default async function handler(
           Math.min(SSR_RENDER_BUDGET_MS, remainingMs),
         ));
       const output = timeCatalogStageSync("html_assembly", () =>
-        injectRenderedApplication(
-          metadataHtml,
-          markup,
-          result.bootstrap,
-          getInitialPosterPreloadUrls(result.bootstrap),
-        ));
+        injectRenderedApplication(metadataHtml, markup, result.bootstrap));
       return { result, output };
     }, PUBLIC_PAGE_DEADLINE_MS);
 
