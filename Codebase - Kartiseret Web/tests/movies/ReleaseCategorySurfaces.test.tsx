@@ -3,7 +3,7 @@ import { filterMoviesByReleaseCategory } from "../../src/domain/movieRelease";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AllShowtimesPage } from "../../src/components/AllShowtimesPage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import * as movieCatalog from "../../src/data/movieCatalog";
 import { sampleMovie, sampleShowtimes } from "../fixtures";
 import type { Movie } from "../../src/data/movieCatalog";
@@ -318,6 +318,32 @@ describe("release category surfaces", () => {
       screen.queryByText("New release in showtimes"),
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("showtime-day-picker")).toBeInTheDocument();
+    queryClient.clear();
+  });
+
+  it("keeps public showtimes visible while preferences load and after they fail", async () => {
+    const movie = makeMovie(
+      "public",
+      "Public screening",
+      new Date().getFullYear(),
+    );
+    installShowtimesQueryFixtures([movie]);
+    useUserPreferencesStore.setState({ loading: true });
+    const { queryClient } = renderAllShowtimes();
+
+    expect(await screen.findByText("Public screening")).toBeVisible();
+    expect(
+      screen.getByText("Loading your showtime preferences…"),
+    ).toBeVisible();
+
+    act(() =>
+      useUserPreferencesStore.setState({
+        loading: false,
+        loadError: true,
+        error: "Preferences unavailable",
+      }));
+    expect(screen.getByText("Public screening")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
     queryClient.clear();
   });
 

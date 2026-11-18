@@ -1,9 +1,13 @@
+import { initializeUserPreferencesStore, preparePublicPagePreferenceState } from "./stores/userPreferencesStore";
 import { parsePublicPageBootstrap, seedPublicPageQueries } from "./publicRenderBootstrap";
-import { preparePublicPagePreferenceState } from "./stores/userPreferencesStore";
 import { preloadPublicRouteModules } from "./routing/preloadPublicRouteModules";
 import { hydrateRoot, createRoot } from "react-dom/client";
 import { EntryApplication } from "./entry-application";
 import { queryClient } from "./lib/queryClient";
+
+if (window.location.pathname !== "/unsubscribe/letterboxd") {
+  initializeUserPreferencesStore();
+}
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("The application root element is missing.");

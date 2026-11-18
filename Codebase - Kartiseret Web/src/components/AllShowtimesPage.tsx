@@ -72,7 +72,7 @@ export function AllShowtimesPage({
     showEverything,
     restoreDefaults,
   } = viewPreferences;
-  const location = cinema
+  const requestedLocation = cinema
     ? normalizeLocation(cinema.city)
     : (routeCity ?? viewPreferences.location);
   const { data: rawNowPlayingMovies = [] } = useQuery({
@@ -117,13 +117,14 @@ export function AllShowtimesPage({
     [displayFilteredNowPlayingMovies, displayReleaseCategory],
   );
   const showtimeCities = useMemo(
-    () => (cinema ? [] : [...new Set<string>([...ALL_LOCATIONS, location])]),
-    [cinema, location],
+    () =>
+      cinema ? [] : [...new Set<string>([...ALL_LOCATIONS, requestedLocation])],
+    [cinema, requestedLocation],
   );
   const showtimeCityQueries = useQueries({
     queries: showtimeCities.map((city) => ({
       ...showtimeCityQueryOptions(city, publicationRevision),
-      enabled: city === location,
+      enabled: city === requestedLocation,
     })),
   });
   const showtimeDataByCity = useMemo(
@@ -138,6 +139,19 @@ export function AllShowtimesPage({
       ),
     [showtimeCities, showtimeCityQueries],
   );
+  const [lastReadyLocation, setLastReadyLocation] = useState(requestedLocation);
+  const requestedCityReady =
+    showtimeDataByCity.get(requestedLocation)?.broadReady;
+  if (requestedCityReady && requestedLocation !== lastReadyLocation) {
+    setLastReadyLocation(requestedLocation);
+  }
+  const location =
+    !cinema &&
+    !routeCity &&
+    !requestedCityReady &&
+    showtimeDataByCity.get(lastReadyLocation)?.broadReady
+      ? lastReadyLocation
+      : requestedLocation;
   const selectedCityShowtimeData = showtimeDataByCity.get(location);
   const { data: theaterData } = useQuery(theaterDataQueryOptions());
   const cities = useMemo(
@@ -585,28 +599,26 @@ export function AllShowtimesPage({
     };
   }, [cinema, dayPanels.length, location]);
 
-  if (!showtimePreferencesReady) {
-    return (
-      <section className="all-showtimes-page" aria-label="All Showtimes">
-        <p role={showtimePreferencesLoadError ? "alert" : "status"}>
-          {showtimePreferencesLoadError
-            ? "Your showtime preferences could not be loaded."
-            : "Loading your showtime preferences…"}
-        </p>
-        {showtimePreferencesLoadError ? (
-          <button type="button" onClick={retryShowtimePreferences}>
-            Retry
-          </button>
-        ) : null}
-      </section>
-    );
-  }
-
   return (
     <section
       className={`all-showtimes-page${cinema ? " cinema-showtimes-page" : ""}`}
       aria-label={cinema ? `${cinema.displayName} showtimes` : "All Showtimes"}
     >
+      {!showtimePreferencesReady ? (
+        <p
+          className="app-inline-note"
+          role={showtimePreferencesLoadError ? "alert" : "status"}
+        >
+          {showtimePreferencesLoadError
+            ? "Your showtime preferences could not be loaded."
+            : "Loading your showtime preferences…"}
+          {showtimePreferencesLoadError ? (
+            <button type="button" onClick={retryShowtimePreferences}>
+              Retry
+            </button>
+          ) : null}
+        </p>
+      ) : null}
       {cinema ? (
         <header className="cinema-showtimes-context">
           <p className="section-kicker">Cinema · {cinema.city}</p>

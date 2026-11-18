@@ -1,4 +1,4 @@
-import { initializeUserPreferencesStore, preparePublicPagePreferenceState, PublicPreferencesSnapshotProvider } from "./stores/userPreferencesStore";
+import { preparePublicPagePreferenceState, PublicPreferencesSnapshotProvider } from "./stores/userPreferencesStore";
 import { applyBootstrappedDeviceTypeToDocument, initializeDeviceStore } from "./device/useDeviceType";
 import { MovieDisplayPreferencesProvider } from "./contexts/MovieDisplayPreferencesProvider";
 import { PublicRenderClockProvider } from "./contexts/PublicRenderClock";
@@ -32,7 +32,6 @@ function ClientStartup() {
   }, []);
 
   useEffect(() => {
-    initializeUserPreferencesStore();
     initializeDeviceStore();
     applyBootstrappedDeviceTypeToDocument();
   }, []);
