@@ -234,8 +234,10 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  color: inherit;
   font-size: 1.08rem;
   font-weight: 650;
+  text-decoration: none;
 }
 
 .topnav-label {

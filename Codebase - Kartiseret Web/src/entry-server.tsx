@@ -1,11 +1,14 @@
 import { preparePublicPagePreferenceState, PublicPreferencesSnapshotProvider } from "./stores/userPreferencesStore.js";
 import { MovieDisplayPreferencesProvider } from "./contexts/MovieDisplayPreferencesProvider.js";
+import { PublicRouteComponentsProvider } from "./routing/PublicRouteComponentsProvider.js";
 import { preloadPublicRouteModules } from "./routing/preloadPublicRouteModules.js";
 import type { PublicPageBootstrap } from "@kartiseret/contracts/public-render";
 import { PublicRenderClockProvider } from "./contexts/PublicRenderClock.js";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AllShowtimesPage } from "./components/AllShowtimesPage.js";
 import { seedPublicPageQueries } from "./publicRenderBootstrap.js";
 import { renderToPipeableStream } from "react-dom/server";
+import { CinemaPage } from "./components/CinemaPage.js";
 import { StaticRouter } from "react-router";
 import { PassThrough } from "node:stream";
 import { App } from "./App.js";
@@ -49,7 +52,14 @@ function createApplication(
         <QueryClientProvider client={queryClient}>
           <StaticRouter location={pathname}>
             <MovieDisplayPreferencesProvider>
-              <App />
+              <PublicRouteComponentsProvider
+                components={{
+                  allShowtimesPage: AllShowtimesPage,
+                  cinemaPage: CinemaPage,
+                }}
+              >
+                <App />
+              </PublicRouteComponentsProvider>
             </MovieDisplayPreferencesProvider>
           </StaticRouter>
         </QueryClientProvider>

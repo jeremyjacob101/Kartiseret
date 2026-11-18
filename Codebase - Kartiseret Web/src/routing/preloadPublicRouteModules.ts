@@ -1,3 +1,4 @@
+import { loadAllShowtimesPageModule, loadCinemaPageModule, loadCinemathequesPageModule, loadMoviePageModule, loadPosterGridPageModule, loadUserPreferencesPageModule } from "./publicRouteModuleLoaders.js";
 import { movieCodeSchema } from "@kartiseret/contracts/runtime";
 import { PASSWORD_RESET_PATH } from "../lib/authRoutes.js";
 
@@ -28,19 +29,22 @@ export async function preloadPublicRouteModules(
 ): Promise<void> {
   const loaders: Array<Promise<unknown>> = [];
   if (pathname === "/movies" || pathname === "/soons") {
-    loaders.push(import("../components/PosterGridPage.js"));
+    loaders.push(loadPosterGridPageModule());
   }
-  if (pathname === "/showtimes") {
-    loaders.push(import("../components/AllShowtimesPage.js"));
+  if (pathname === "/user") {
+    loaders.push(loadUserPreferencesPageModule());
+  }
+  if (pathname === "/showtimes" || pathname.startsWith("/showtimes/")) {
+    loaders.push(loadAllShowtimesPageModule());
   }
   if (pathname === "/cinematheques") {
-    loaders.push(import("../components/CinemathequesPage.js"));
+    loaders.push(loadCinemathequesPageModule());
   }
   if (pathname.startsWith("/c/")) {
-    loaders.push(import("../components/CinemaPage.js"));
+    loaders.push(loadCinemaPageModule());
   }
   if (isPotentialStandaloneMoviePath(pathname)) {
-    loaders.push(import("../components/MoviePage.js"));
+    loaders.push(loadMoviePageModule());
   }
   await Promise.all(loaders);
 }

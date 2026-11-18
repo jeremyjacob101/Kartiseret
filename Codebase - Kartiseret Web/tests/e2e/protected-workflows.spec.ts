@@ -341,9 +341,7 @@ test("saved showtime defaults survive reload while temporary filters reset on le
     )
       preferenceWrites += 1;
   });
-  await page
-    .getByRole("button", { name: "All Showtimes", exact: true })
-    .click();
+  await page.getByRole("link", { name: "All Showtimes", exact: true }).click();
   await page.getByRole("button", { name: /^Filter showtimes/ }).click();
   const filters = page.getByRole("dialog", { name: "Showtime filters" });
   await filters
@@ -351,10 +349,8 @@ test("saved showtime defaults survive reload while temporary filters reset on le
     .getByRole("button", { name: "Show everything", exact: true })
     .click();
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Now Playing", exact: true }).click();
-  await page
-    .getByRole("button", { name: "All Showtimes", exact: true })
-    .click();
+  await page.getByRole("link", { name: "Now Playing", exact: true }).click();
+  await page.getByRole("link", { name: "All Showtimes", exact: true }).click();
   await expect(
     page.getByRole("button", { name: /^Filter showtimes, 1 active/ }),
   ).toBeVisible();

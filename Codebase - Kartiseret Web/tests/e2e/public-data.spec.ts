@@ -1,4 +1,5 @@
 import { addCalendarDays, encodeDateCode, encodeMovieRouteCode, getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
+import { getCinemaIdentityById } from "@kartiseret/contracts/cinema-identities";
 import { test, expect, type Page } from "@playwright/test";
 import { Client } from "pg";
 
@@ -240,6 +241,10 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
   const tmdbId = 9201002;
   const movieCode = "Wh9";
   const title = "Wild Horse Nine";
+  const planetCinema = getCinemaIdentityById("GlBNYtNRhpA6");
+  if (!planetCinema)
+    throw new Error("Planet Cinema Jerusalem identity missing.");
+  let insertedPlanetTheater = false;
   await database.connect();
   try {
     const dateResult = await database.query<{ date: string }>(
@@ -483,6 +488,55 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
     await page.locator(".movie-page-card").screenshot({
       path: testInfo.outputPath("movie-detail-showtimes-desktop.png"),
     });
+
+    const planetTheaterResult = await database.query(
+      `INSERT INTO public.theaters
+        (location, chain, address, latitude, longitude, theater_name, city_name)
+       VALUES ($1, 'Planet Cinema', '1 Test Cinema Street', 31.78, 35.2, $2, 'Jerusalem')
+       ON CONFLICT (location) DO NOTHING
+       RETURNING location`,
+      [planetCinema.locationKeys[0], planetCinema.displayName],
+    );
+    insertedPlanetTheater = planetTheaterResult.rowCount === 1;
+
+    await page.goto("/showtimes/jerusalem");
+    await page
+      .getByText("Browse cinemas in Jerusalem", { exact: true })
+      .click();
+    const planetCinemaLink = page.getByRole("link", {
+      name: "Planet Cinema Jerusalem showtimes",
+      exact: true,
+    });
+    await expect(planetCinemaLink).toBeVisible();
+    await planetCinemaLink.click();
+    await expect(page).toHaveURL(`/c/${planetCinema.id}`);
+    await expect(
+      page.getByRole("heading", {
+        name: "Planet Cinema Jerusalem showtimes",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(page).toHaveTitle(
+      "Planet Cinema Jerusalem (Yes Planet Jerusalem) showtimes in Jerusalem | Kartiseret",
+    );
+    await expect(
+      page.getByText("Also known as Yes Planet Jerusalem", { exact: true }),
+    ).toBeVisible();
+    const cinemaDateButton = page.getByRole("radio", {
+      name: new RegExp(
+        escapeRegularExpression(dateCalendarLabel(showtimeDate)),
+      ),
+    });
+    await expect(cinemaDateButton).toBeVisible();
+    await cinemaDateButton.scrollIntoViewIfNeeded();
+    await cinemaDateButton.click();
+    const cinemaMovieRow = page.locator(".all-showtimes-movie-row").filter({
+      has: page.getByRole("heading", { name: title, exact: true }),
+    });
+    await expect(cinemaMovieRow).toBeVisible();
+    await expect(
+      cinemaMovieRow.locator(".details-theater-name > span:last-child"),
+    ).toHaveText(["Planet Cinema Jerusalem"]);
   } finally {
     await database.query(
       'DELETE FROM public."finalTheques" WHERE tmdb_id = $1',
@@ -503,6 +557,11 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
       'DELETE FROM public."finalMovies" WHERE tmdb_id = $1',
       [tmdbId],
     );
+    if (insertedPlanetTheater && planetCinema.locationKeys[0]) {
+      await database.query("DELETE FROM public.theaters WHERE location = $1", [
+        planetCinema.locationKeys[0],
+      ]);
+    }
     await database.end();
   }
 });
@@ -815,7 +874,7 @@ test("an open catalog refreshes coherently when publication changes before loadi
         response.status() === 409,
     );
     await page
-      .getByRole("button", { name: "All Showtimes", exact: true })
+      .getByRole("link", { name: "All Showtimes", exact: true })
       .click();
     await changed;
     const date = page.getByRole("radio", {

@@ -33,6 +33,11 @@
       "import": "./dist/showtime-links.js",
       "default": "./dist/showtime-links.js"
     },
+    "./showtime-routes": {
+      "types": "./dist/showtime-routes.d.ts",
+      "import": "./dist/showtime-routes.js",
+      "default": "./dist/showtime-routes.js"
+    },
     "./preferences": {
       "types": "./dist/preferences.d.ts",
       "import": "./dist/preferences.js",
