@@ -21,6 +21,7 @@ if (
 }
 const base = new URL(origin);
 const runCurl = promisify(execFile);
+const protectedPreview = process.env.KARTISERET_MEASURE_VERCEL === "1";
 const directory = await mkdtemp(
   join(tmpdir(), "kartiseret-public-measurement-"),
 );
@@ -52,7 +53,7 @@ try {
         route,
       };
       try {
-        const { stdout } = await runCurl("curl", [
+        const curlArgs = [
           "--silent",
           "--show-error",
           "--compressed",
@@ -64,8 +65,17 @@ try {
           bodyPath,
           "--write-out",
           "%{json}",
-          url.toString(),
-        ]);
+        ];
+        const { stdout } = protectedPreview
+          ? await runCurl("npx", [
+              "--yes",
+              "vercel",
+              "curl",
+              url.toString(),
+              "--",
+              ...curlArgs,
+            ])
+          : await runCurl("curl", [...curlArgs, url.toString()]);
         const timing = JSON.parse(stdout);
         const rawHeaders = await readFile(headersPath, "utf8");
         const headers = Object.fromEntries(
