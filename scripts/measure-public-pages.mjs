@@ -21,11 +21,13 @@ if (
 }
 const base = new URL(origin);
 const runCurl = promisify(execFile);
+const previewCookieFile = process.env.KARTISERET_MEASURE_COOKIE_FILE;
 const protectedPreview = process.env.KARTISERET_MEASURE_VERCEL === "1";
 const previewMissWindow = process.env.KARTISERET_MEASURE_PREVIEW_MISS_WINDOW;
 if (
   previewMissWindow &&
-  (!protectedPreview || !base.hostname.endsWith(".vercel.app"))
+  ((!protectedPreview && !previewCookieFile) ||
+    !base.hostname.endsWith(".vercel.app"))
 ) {
   throw new Error(
     "Cache-miss query variants are only available for protected previews.",
@@ -78,16 +80,21 @@ try {
           "--write-out",
           "%{json}",
         ];
-        const { stdout } = protectedPreview
-          ? await runCurl("npx", [
-              "--yes",
-              "vercel",
-              "curl",
-              url.toString(),
-              "--",
-              ...curlArgs,
-            ])
-          : await runCurl("curl", [...curlArgs, url.toString()]);
+        const { stdout } =
+          protectedPreview && !previewCookieFile
+            ? await runCurl("npx", [
+                "--yes",
+                "vercel",
+                "curl",
+                url.toString(),
+                "--",
+                ...curlArgs,
+              ])
+            : await runCurl("curl", [
+                ...curlArgs,
+                ...(previewCookieFile ? ["--cookie", previewCookieFile] : []),
+                url.toString(),
+              ]);
         const timing = JSON.parse(stdout);
         const rawHeaders = await readFile(headersPath, "utf8");
         const headers = Object.fromEntries(

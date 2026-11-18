@@ -1,9 +1,9 @@
 import { getMovieCatalog, getCinemathequeData, getCinemaPageData, getMovieByPermanentCode, getMovieShowtimes, getPublicTheaterData, getShowtimeRange, withPublicationSnapshot, type PublicCinemaPageContext } from "@kartiseret/server/public-data";
 import { injectRenderedApplication, injectSeoPage, SITE_ORIGIN, buildSitemapXml, safeHttpUrl, getRequestOrigin } from "./renderHtml.js";
+import { createShowtimeInclusionPredicate, getCinemaDayDate, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
 import { cinemaIdForLocation, findCinemaIdentityForScreening, getCinemaIdentityById } from "./identities.js";
 import { publicPageBootstrapSchema, type PublicPageBootstrap } from "@kartiseret/contracts/public-render";
 import { getShowtimesCityFromPath, getShowtimesCityPath } from "@kartiseret/contracts/showtime-routes";
-import { getCinemaDayDate, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
 import { timeCatalogStage, timeCatalogStageSync } from "@kartiseret/server/catalog-timing";
 import { getProductionPublicDataRepository } from "@kartiseret/server/public-production";
 import { filterShowtimeRows, resolvePreviewRouteSelection } from "../og/previewData.js";
@@ -357,6 +357,7 @@ async function getShowtimeEligibility(
   const activeCities = new Set<string>();
   const activeCinemaIds = new Set<string>();
   let hasNationalShowtimes = false;
+  const isUpcoming = createShowtimeInclusionPredicate(instant);
   for (const row of candidates) {
     const city = row.screeningCity?.trim();
     if (
@@ -364,16 +365,24 @@ async function getShowtimeEligibility(
       !city ||
       !row.cinema?.trim() ||
       !row.dateOfShowing ||
-      !row.showtime ||
-      !shouldIncludeShowtime(row.dateOfShowing, row.showtime, instant)
+      !row.showtime
     )
       continue;
     const movieId = String(row.tmdbId);
-    if (supportedCities.has(city) && cityMovieIds.has(movieId)) {
+    const eligibleCity = supportedCities.has(city) && cityMovieIds.has(movieId);
+    const eligibleCinema =
+      cinemaMovieIds && (row.isCinematheque || cinemaMovieIds.has(movieId));
+    if (
+      (!eligibleCity && !eligibleCinema) ||
+      !isUpcoming(row.dateOfShowing, row.showtime)
+    )
+      continue;
+    if (eligibleCity) {
       hasNationalShowtimes = true;
+      if (!cinemaCatalog) break;
       if (row.dateOfShowing <= cityEndDate) activeCities.add(city);
     }
-    if (cinemaMovieIds && (row.isCinematheque || cinemaMovieIds.has(movieId))) {
+    if (eligibleCinema) {
       const identity = findCinemaIdentityForScreening(city, row.cinema);
       const aliases = identity?.screeningCityKeys.length
         ? identity.screeningCityKeys

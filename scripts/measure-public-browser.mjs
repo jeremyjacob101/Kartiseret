@@ -83,7 +83,10 @@ try {
             const selector =
               location.pathname === "/"
                 ? ".home-poster-row a, .movie-scroller-card"
-                : "main a[href*='ticket'], main .showtimes-movie-row, main h1";
+                : location.pathname.startsWith("/showtimes") ||
+                    location.pathname.startsWith("/c/")
+                  ? ".all-showtimes-movie-row"
+                  : "main h1";
             for (const node of document.querySelectorAll(selector)) {
               const rect = node.getBoundingClientRect();
               const style = getComputedStyle(node);
