@@ -16,7 +16,7 @@ export const DATE_CODE_ALPHABET =
 export const SHOWTIME_LINK_TIME_ZONE = SHOWTIME_TIME_ZONE;
 export const SHOWTIME_LINK_DATE_COUNT = 62;
 export const SHOWTIME_FILTER_MASK_WIDTH = 4;
-export const SHOWTIME_FILTER_BIT_COUNT = 20;
+export const SHOWTIME_FILTER_BIT_COUNT = 21;
 export const SHOWTIME_FILTER_CAPACITY_BIT_COUNT = 23;
 export const CURRENT_CITY_CODE = "1";
 export const ALL_FILTERS_SHORTCUT = "j";
@@ -52,6 +52,7 @@ export const SHOWTIME_FILTER_OPTIONS = Object.freeze({
     "ONYX",
     "ScreenX",
     "4DX",
+    "Infinity Vision",
   ]),
   screenFormat: Object.freeze(["2D", "3D"]),
   dubLanguage: Object.freeze(["Original", "Hebrew", "French"]),
@@ -111,6 +112,7 @@ export const SHOWTIME_FILTER_BIT_ASSIGNMENTS: readonly FilterBitAssignment[] =
         { bit: 17, group: "screenFormat", value: "2D" },
         { bit: 18, group: "screeningTech", value: "Standard" },
         { bit: 19, group: "showType", value: "Regular" },
+        { bit: 20, group: "screeningTech", value: "Infinity Vision" },
       ] satisfies FilterBitAssignment[]
     ).map((assignment) => Object.freeze(assignment)),
   );

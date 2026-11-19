@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 describe("showtime share-link codec", () => {
   it("round-trips fixed-width base62 values and rejects unsafe input", () => {
-    for (const value of [0, 1, 61, 62, 12345, 2 ** 20 - 1]) {
+    for (const value of [0, 1, 61, 62, 12345, 2 ** 21 - 1]) {
       const encoded = encodeBase62Fixed(value, 4);
       expect(encoded).not.toBeNull();
       expect(decodeBase62(encoded!)).toBe(value);
@@ -35,7 +35,7 @@ describe("showtime share-link codec", () => {
   it("round-trips every supported filter bit and rejects overflow masks", () => {
     const unchecked = {
       showType: ["VIP", "Premium"],
-      screeningTech: ["IMAX", "4DX"],
+      screeningTech: ["IMAX", "4DX", "Infinity Vision"],
       screenFormat: ["3D"],
       dubLanguage: ["French"],
     } as const;
@@ -45,13 +45,13 @@ describe("showtime share-link codec", () => {
     expect(decodeFilterMask(encodeFilterMask(mask)!)).toBe(mask);
     expect(uncheckedFromFilterMask(mask)).toEqual({
       showType: ["Premium", "VIP"],
-      screeningTech: ["4DX", "IMAX"],
+      screeningTech: ["4DX", "IMAX", "Infinity Vision"],
       screenFormat: ["3D"],
       dubLanguage: ["French"],
     });
     expect(decodeFilterMask("1")).toBeNull();
-    expect(encodeFilterMask(2 ** 20)).toBeNull();
-    expect(uncheckedFromFilterMask(2 ** 20)).toBeNull();
+    expect(encodeFilterMask(2 ** 21)).toBeNull();
+    expect(uncheckedFromFilterMask(2 ** 21)).toBeNull();
   });
 
   it("supports plain, shared, and edit route forms", () => {

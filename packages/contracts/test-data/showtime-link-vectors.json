@@ -24,5 +24,18 @@
     },
     "filterMask": 0,
     "path": "/Ab1vLj?date=2026-12-20"
+  },
+  {
+    "movieCode": "A7z",
+    "city": "Tel Aviv",
+    "date": "2027-01-15",
+    "filterExclusions": {
+      "showType": [],
+      "screenFormat": [],
+      "screeningTech": ["Infinity Vision"],
+      "dubLanguage": []
+    },
+    "filterMask": 1048576,
+    "path": "/A7zlbI6Og?date=2027-01-15"
   }
 ]

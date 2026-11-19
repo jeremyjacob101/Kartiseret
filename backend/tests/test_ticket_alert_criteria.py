@@ -5,9 +5,12 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from backend.notifications.ticket_alerts import (
+    ALERT_FILTER_OPTIONS,
     TicketAlertConfig,
     TicketAlertDispatcher,
     DeliveryItem,
+    FILTER_BIT_ASSIGNMENTS,
+    _encode_filter_mask,
     build_movie_showtime_path,
     build_ticket_alert_path,
     delivery_item_from_snapshot,
@@ -215,6 +218,89 @@ class TicketAlertCriteriaTests(unittest.TestCase):
             "filters": {**DEFAULTS["filters"], "showType": ["Regular"]},
         }
         self.assertFalse(matches_ticket_alert_criteria(row, filtered))
+
+    def test_infinity_vision_is_excluded_as_its_own_screening_tech(self):
+        row = showtime(screening_tech="2D Infinity Vision")
+        criteria = {
+            **DEFAULTS,
+            "filters": {
+                **DEFAULTS["filters"],
+                "screeningTech": ["Infinity Vision"],
+            },
+        }
+
+        self.assertFalse(matches_ticket_alert_criteria(row, criteria))
+
+    def test_infinity_vision_combinations_preserve_their_other_tech_filters(self):
+        combinations = (
+            ("2D ScreenX Infinity Vision", "ScreenX"),
+            ("2D 4DX Infinity Vision", "4DX"),
+            ("2D Atmos Infinity Vision", "Atmos"),
+            ("3D 4DX Infinity Vision", "4DX"),
+        )
+
+        for screening_tech, other_tech in combinations:
+            with self.subTest(screening_tech=screening_tech):
+                row = showtime(screening_tech=screening_tech)
+                excluded_other_tech = {
+                    **DEFAULTS,
+                    "filters": {
+                        **DEFAULTS["filters"],
+                        "screeningTech": [other_tech],
+                    },
+                }
+                excluded_infinity_vision = {
+                    **DEFAULTS,
+                    "filters": {
+                        **DEFAULTS["filters"],
+                        "screeningTech": ["Infinity Vision"],
+                    },
+                }
+
+                self.assertTrue(
+                    matches_ticket_alert_criteria(row, excluded_other_tech)
+                )
+                self.assertTrue(
+                    matches_ticket_alert_criteria(row, excluded_infinity_vision)
+                )
+
+    def test_infinity_vision_share_links_match_the_shared_codec_vector(self):
+        self.assertIn("Infinity Vision", ALERT_FILTER_OPTIONS["screeningTech"])
+        self.assertIn(
+            (20, "screeningTech", "Infinity Vision"),
+            FILTER_BIT_ASSIGNMENTS,
+        )
+        self.assertEqual(_encode_filter_mask(2**20), "I6Og")
+        self.assertIsNone(_encode_filter_mask(2**21))
+
+        vector = {
+            "movieCode": "A7z",
+            "city": "Tel Aviv",
+            "date": "2027-01-15",
+            "filterExclusions": {
+                "showType": [],
+                "screenFormat": [],
+                "screeningTech": ["Infinity Vision"],
+                "dubLanguage": [],
+            },
+            "filterMask": 2**20,
+            "path": "/A7zlbI6Og?date=2027-01-15",
+        }
+
+        self.assertEqual(
+            filter_mask_from_exclusions(vector["filterExclusions"]),
+            vector["filterMask"],
+        )
+        self.assertEqual(
+            build_ticket_alert_path(
+                vector["movieCode"],
+                vector["city"],
+                vector["date"],
+                NOW.date(),
+                vector["filterExclusions"],
+            ),
+            vector["path"],
+        )
 
     def test_sparse_title_overrides_inherit_each_other_default(self):
         defaults = {
