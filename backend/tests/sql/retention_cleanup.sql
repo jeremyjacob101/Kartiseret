@@ -76,6 +76,43 @@ BEGIN
   EXCEPTION WHEN invalid_parameter_value THEN NULL; END;
 END;
 $$;
+DO $$
+DECLARE
+  today date := (now() AT TIME ZONE 'Asia/Jerusalem')::date;
+  sid uuid := gen_random_uuid();
+  expired uuid := gen_random_uuid();
+  pending uuid := gen_random_uuid();
+  unresolved uuid := gen_random_uuid();
+  processed uuid := gen_random_uuid();
+BEGIN
+  INSERT INTO public.pipeline_scrape_snapshots(snapshot_id,run_id,table_name,source_name,cinema,status,row_count)
+    VALUES(sid,0,'allShowtimes','retention-policy-fixture','retention-policy-fixture','complete',3);
+  INSERT INTO public.pipeline_publication_checkpoints(category,snapshot_id,input_fingerprint,phase,has_unresolved)
+    VALUES('nowplayings',sid,'retention-policy-fixture','published',true);
+  INSERT INTO public."allShowtimes"(id,date_of_showing,snapshot_id,cleaned,added)
+    VALUES(expired,today-5,sid,false,false),
+          (pending,today-2,sid,true,false),
+          (unresolved,today-2,sid,true,true),
+          (processed,today-2,NULL,true,true);
+
+  PERFORM public.retire_expired_rows('allShowtimes',today-5,false,1000);
+  IF NOT EXISTS(SELECT 1 FROM public."allShowtimes" WHERE id=expired) THEN
+    RAISE EXCEPTION 'Dry run deleted an expired row';
+  END IF;
+  PERFORM public.retire_expired_rows('allShowtimes',today-5,true,1000);
+  IF EXISTS(SELECT 1 FROM public."allShowtimes" WHERE id=expired)
+     OR (SELECT count(*) FROM public."allShowtimes" WHERE id IN (pending,unresolved,processed))<>3
+     OR (SELECT row_count FROM public.pipeline_scrape_snapshots WHERE snapshot_id=sid)<>2 THEN
+    RAISE EXCEPTION 'Daily sweep did not apply the date cutoff and repair the manifest';
+  END IF;
+  PERFORM public.retire_expired_rows('allShowtimes',today-2,true,1000);
+  PERFORM public.retire_expired_rows('allShowtimes',today-1,true,1000);
+  IF EXISTS(SELECT 1 FROM public."allShowtimes" WHERE id=processed)
+     OR (SELECT count(*) FROM public."allShowtimes" WHERE id IN (pending,unresolved))<>2 THEN
+    RAISE EXCEPTION 'Pressure sweep did not preserve unfinished publication inputs';
+  END IF;
+END;
+$$;
 RESET ROLE;
 -- Force manifest repair to fail after DELETE. The function's batch must roll back.
 CREATE FUNCTION pg_temp.retention_fixture_failure() RETURNS trigger LANGUAGE plpgsql AS $$
