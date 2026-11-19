@@ -51,7 +51,7 @@ describe.sequential("Supabase storage guard migration", () => {
     }
   });
 
-  it("deletes only published processed rows and repairs snapshot counts", async () => {
+  it("preserves unfinished rows and repairs snapshot counts during pressure cleanup", async () => {
     const client = await pool.connect();
     const baseRunId = randomInt(1_700_000_000, 1_900_000_000);
     const snapshots = {
@@ -102,6 +102,11 @@ describe.sequential("Supabase storage guard migration", () => {
     try {
       await client.query("BEGIN");
       await client.query("SET LOCAL ROLE service_role");
+      const {
+        rows: [{ cutoff }],
+      } = await client.query<{ cutoff: string }>(
+        "SELECT ((now() AT TIME ZONE 'Asia/Jerusalem')::date - 2)::text AS cutoff",
+      );
       for (const [index, item] of cases.entries()) {
         const runId = baseRunId + index;
         await client.query(
@@ -112,8 +117,8 @@ describe.sequential("Supabase storage guard migration", () => {
         );
         await client.query(
           `INSERT INTO public."allShowtimes" (date_of_showing,run_id,snapshot_id,cleaned,added)
-           VALUES ('1900-01-01',$1,$2,true,$3)`,
-          [runId, snapshots[item.key], item.added],
+           VALUES ($1::date,$2,$3,true,$4)`,
+          [cutoff, runId, snapshots[item.key], item.added],
         );
         if (item.phase) {
           await client.query(
@@ -133,14 +138,16 @@ describe.sequential("Supabase storage guard migration", () => {
       const dryRun = await client.query<{
         result: { eligible: number; deleted: number };
       }>(
-        "SELECT public.retire_expired_rows('allShowtimes','1900-01-01',false,10) AS result",
+        "SELECT public.retire_expired_rows('allShowtimes',$1::date,false,10) AS result",
+        [cutoff],
       );
       expect(dryRun.rows[0].result).toMatchObject({ eligible: 1, deleted: 0 });
 
       const applied = await client.query<{
         result: { eligible: number; deleted: number };
       }>(
-        "SELECT public.retire_expired_rows('allShowtimes','1900-01-01',true,10) AS result",
+        "SELECT public.retire_expired_rows('allShowtimes',$1::date,true,10) AS result",
+        [cutoff],
       );
       expect(applied.rows[0].result).toMatchObject({ eligible: 1, deleted: 1 });
 
