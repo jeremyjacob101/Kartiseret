@@ -18,32 +18,12 @@ struct YouView: View {
                     settingsLink("Preferences", systemImage: "slider.horizontal.3") {
                         PreferencesView()
                     }
-                    settingsLink("Showtime filters", systemImage: "line.3.horizontal.decrease.circle") {
-                        ShowtimePreferencesView()
-                    }
-                    settingsLink("Movie display", systemImage: "rectangle.on.rectangle") {
-                        MovieDisplayPreferencesView()
-                    }
-                    settingsLink("Ticket alerts", systemImage: "bell.badge") {
-                        TicketAlertsView()
-                    }
-                    settingsLink("Coming Soon watches", systemImage: "calendar.badge.clock") {
-                        ComingSoonWatchesView()
-                    }
-                    settingsLink("Letterboxd", systemImage: "film.stack") {
-                        LetterboxdSourcesView()
-                    }
                 }
                 Section("Support") {
                     settingsLink("Help and privacy", systemImage: "questionmark.circle") { HelpView() }
                         .accessibilityIdentifier("account.help")
                 }
                 Section {
-                    settingsLink("Delete account", systemImage: "person.crop.circle.badge.minus") {
-                        DeleteAccountView()
-                    }
-                    .foregroundStyle(.red)
-                    .accessibilityIdentifier("account.delete")
                     Button("Sign Out", role: .destructive) {
                         GIDSignIn.sharedInstance.signOut()
                         Task { await account.signOut() }
@@ -287,87 +267,6 @@ private struct SignInWithAppleControl: View {
     }
 }
 
-struct PreferencesView: View {
-    @Environment(AccountStore.self) private var account
-    @Environment(AppStore.self) private var app
-
-    var body: some View {
-        Form {
-            Section("Default city") {
-                Picker("City", selection: Binding(
-                    get: { account.preferences.location },
-                    set: { city in
-                        Task { await account.saveLocation(city); app.selectCity(city) }
-                    }
-                )) {
-                    ForEach(app.cities) { city in Text(city.name).tag(city.name) }
-                }
-            }
-            Section("Accent color") {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 54))], spacing: 14) {
-                    ForEach(AccountPreferences.colorOptions, id: \.1) { option in
-                        Button {
-                            Task { await account.saveSiteColor(option.1) }
-                        } label: {
-                            Circle()
-                                .fill(Color(hexString: option.1) ?? BrandStyle.accent)
-                                .frame(width: 38, height: 38)
-                                .overlay {
-                                    if account.preferences.siteColor.lowercased() == option.1 {
-                                        Image(systemName: "checkmark").fontWeight(.bold).foregroundStyle(.white)
-                                    }
-                                }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Use \(option.0) accent")
-                        .accessibilityAddTraits(account.preferences.siteColor.lowercased() == option.1 ? .isSelected : [])
-                    }
-                }
-                Button("Reset color") { Task { await account.saveSiteColor("#a66ae3") } }
-            }
-            Section("Ratings") {
-                ForEach(AccountPreferences.ratingSourceOptions, id: \.self) { source in
-                    Toggle(sourceLabel(source), isOn: Binding(
-                        get: { account.preferences.ratingSources.contains(source) },
-                        set: { selected in
-                            var values = account.preferences.ratingSources
-                            if selected { values.append(source) } else { values.removeAll { $0 == source } }
-                            Task { await account.saveRatingSources(values) }
-                        }
-                    ))
-                }
-            }
-            Section("Release categories") {
-                Toggle("Hide Re-Releases", isOn: Binding(
-                    get: { account.preferences.hideReReleases },
-                    set: { value in Task { await account.saveHideReReleases(value) } }
-                ))
-                Text("Hide older re-releases from movie and showtime browsing.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            if account.isSaving { Section { ProgressView("Saving…") } }
-            if let feedback = account.feedback { Section { Text(feedback).foregroundStyle(.orange) } }
-        }
-        .scrollContentBackground(.hidden)
-        .background(BrandStyle.background)
-        .navigationTitle("Preferences")
-        .navigationBarTitleDisplayMode(.inline)
-        .tint(Color(hexString: account.preferences.siteColor) ?? BrandStyle.accent)
-        .onAppear { app.selectCity(account.preferences.location) }
-    }
-
-    private func sourceLabel(_ source: String) -> String {
-        switch source {
-        case "imdbRating": "IMDb"
-        case "rtAudienceRating": "Rotten Tomatoes Audience"
-        case "rtCriticRating": "Rotten Tomatoes Critics"
-        case "lbRating": "Letterboxd"
-        default: "TMDb"
-        }
-    }
-}
-
 struct ShowtimePreferencesView: View {
     @Environment(AccountStore.self) private var account
     @Environment(AppStore.self) private var app
@@ -475,7 +374,7 @@ extension Color {
     }
 }
 
-private struct DeleteAccountView: View {
+struct DeleteAccountView: View {
     @Environment(AccountStore.self) private var account
     @State private var confirmation = ""
     @State private var pending = false

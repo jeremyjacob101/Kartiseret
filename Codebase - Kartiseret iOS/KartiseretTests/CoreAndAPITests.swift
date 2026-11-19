@@ -3,6 +3,15 @@ import XCTest
 @testable import Kartiseret
 
 final class CoreAndAPITests: XCTestCase {
+    func testUserPreferenceCategoriesMirrorTheWebsiteSections() {
+        XCTAssertEqual(
+            UserPreferenceCategory.allCases.map(\.title),
+            ["Showtimes", "Discovery", "Appearance", "Notifications", "Account"]
+        )
+        XCTAssertEqual(Set(UserPreferenceCategory.allCases.map(\.id)).count, 5)
+        XCTAssertTrue(UserPreferenceCategory.allCases.allSatisfy { !$0.summary.isEmpty && !$0.systemImage.isEmpty })
+    }
+
     func testUniversalLinkParserRoutesSupportedWebsiteDestinations() throws {
         XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/")!), .discover)
         XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/movies")!), .catalog(.nowPlaying))

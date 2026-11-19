@@ -1,5 +1,550 @@
 import SwiftUI
 
+enum UserPreferenceCategory: String, CaseIterable, Identifiable, Sendable {
+    case showtimes
+    case discovery
+    case appearance
+    case notifications
+    case account
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .showtimes: "Showtimes"
+        case .discovery: "Discovery"
+        case .appearance: "Appearance"
+        case .notifications: "Notifications"
+        case .account: "Account"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .showtimes: "ticket"
+        case .discovery: "sparkles.magnifyingglass"
+        case .appearance: "paintpalette"
+        case .notifications: "bell.badge"
+        case .account: "person.crop.circle"
+        }
+    }
+
+    var summary: String {
+        switch self {
+        case .showtimes: "Set the city, cinemas and formats you see first."
+        case .discovery: "Choose how ratings and titles appear while you browse."
+        case .appearance: "Make Kartiseret feel a little more like yours."
+        case .notifications: "Manage the films you want to hear about."
+        case .account: "Manage your account and connected services."
+        }
+    }
+}
+
+struct PreferencesView: View {
+    @Environment(AccountStore.self) private var account
+    @Environment(AppStore.self) private var app
+    @State private var activeCategory: UserPreferenceCategory = .showtimes
+    @State private var ratingSourcesExpanded = false
+
+    private var accent: Color {
+        Color(hexString: account.preferences.siteColor) ?? BrandStyle.accent
+    }
+
+    private var visibleColorOptions: [(String, String)] {
+        let selected = account.preferences.siteColor.lowercased()
+        guard AccountPreferences.colorOptions.contains(where: { $0.1.lowercased() == selected }) else {
+            return [("Current", account.preferences.siteColor)] + AccountPreferences.colorOptions
+        }
+        return AccountPreferences.colorOptions
+    }
+
+    private var ratingSummary: String {
+        let labels = AccountPreferences.ratingSourceOptions
+            .filter { account.preferences.ratingSources.contains($0) }
+            .map(ratingSourceLabel)
+        guard !labels.isEmpty else { return "No sources selected" }
+        guard labels.count > 2 else { return labels.joined(separator: ", ") }
+        return "\(labels[0]), \(labels[1]) +\(labels.count - 2) more"
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                pageHeader
+                categoryPicker
+
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(spacing: 12) {
+                        Image(systemName: activeCategory.systemImage)
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(accent)
+                            .frame(width: 42, height: 42)
+                            .background(accent.opacity(0.16), in: RoundedRectangle(cornerRadius: 14))
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(activeCategory.title)
+                                .font(.title3.weight(.bold))
+                                .foregroundStyle(.white)
+                            Text(activeCategory.summary)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    Rectangle()
+                        .fill(.white.opacity(0.08))
+                        .frame(height: 1)
+
+                    categoryContent
+                    saveStatus
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 24))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 24)
+                        .stroke(.white.opacity(0.075), lineWidth: 1)
+                }
+                .accessibilityIdentifier("preferences.categoryContent")
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 28)
+        }
+        .scrollIndicators(.hidden)
+        .background(BrandStyle.background.ignoresSafeArea())
+        .navigationTitle("Preferences")
+        .navigationBarTitleDisplayMode(.inline)
+        .tint(accent)
+        .onAppear { app.selectCity(account.preferences.location) }
+    }
+
+    private var pageHeader: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text("YOUR KARTISERET")
+                .font(.caption.weight(.bold))
+                .tracking(1.5)
+                .foregroundStyle(accent)
+
+            Text("Make it yours")
+                .font(.system(size: 30, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+
+            Text("Fine-tune showtimes, discovery and the details that shape your app.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityIdentifier("preferences.header")
+    }
+
+    private var categoryPicker: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 9) {
+                ForEach(UserPreferenceCategory.allCases) { category in
+                    let isSelected = activeCategory == category
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            activeCategory = category
+                        }
+                    } label: {
+                        Label(category.title, systemImage: category.systemImage)
+                            .font(.subheadline.weight(.semibold))
+                            .labelStyle(.titleAndIcon)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 11)
+                            .foregroundStyle(isSelected ? accent : Color.white.opacity(0.78))
+                            .background(
+                                isSelected ? accent.opacity(0.17) : Color.white.opacity(0.055),
+                                in: Capsule()
+                            )
+                            .overlay {
+                                Capsule().stroke(
+                                    isSelected ? accent.opacity(0.42) : Color.white.opacity(0.08),
+                                    lineWidth: 1
+                                )
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
+                    .accessibilityIdentifier("preferences.category.\(category.rawValue)")
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    @ViewBuilder
+    private var categoryContent: some View {
+        switch activeCategory {
+        case .showtimes:
+            showtimeSettings
+        case .discovery:
+            discoverySettings
+        case .appearance:
+            appearanceSettings
+        case .notifications:
+            notificationSettings
+        case .account:
+            accountSettings
+        }
+    }
+
+    private var showtimeSettings: some View {
+        VStack(spacing: 12) {
+            preferencePanel {
+                HStack(spacing: 12) {
+                    settingIcon("mappin.and.ellipse")
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Default city").font(.headline)
+                        Text("Used when you open showtimes and cinema pages.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 4)
+
+                    if app.cities.isEmpty {
+                        Text(account.preferences.location)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                    } else {
+                        Picker("Default city", selection: Binding(
+                            get: { account.preferences.location },
+                            set: { city in
+                                Task {
+                                    await account.saveLocation(city)
+                                    app.selectCity(city)
+                                }
+                            }
+                        )) {
+                            ForEach(app.cities) { city in
+                                Text(city.name).tag(city.name)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .accessibilityLabel("Default city")
+                        .accessibilityValue(account.preferences.location)
+                        .accessibilityIdentifier("preferences.city")
+                    }
+                }
+            }
+
+            preferenceLink(
+                "Showtime filters",
+                detail: "Choose cinemas, screening types and formats.",
+                systemImage: "slider.horizontal.3",
+                identifier: "preferences.showtimeFilters"
+            ) {
+                ShowtimePreferencesView()
+            }
+        }
+    }
+
+    private var discoverySettings: some View {
+        VStack(spacing: 12) {
+            preferencePanel {
+                DisclosureGroup(isExpanded: $ratingSourcesExpanded) {
+                    VStack(spacing: 0) {
+                        ForEach(AccountPreferences.ratingSourceOptions, id: \.self) { source in
+                            Toggle(ratingSourceLabel(source), isOn: ratingSelection(source))
+                                .padding(.vertical, 4)
+                                .accessibilityIdentifier("preferences.rating.\(source)")
+                        }
+                    }
+                    .padding(.top, 10)
+                } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Rating sources").font(.headline)
+                        Text(ratingSummary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .tint(accent)
+                .accessibilityIdentifier("preferences.ratingSources")
+            }
+
+            preferencePanel {
+                Toggle(isOn: Binding(
+                    get: { account.preferences.hideReReleases },
+                    set: { value in Task { await account.saveHideReReleases(value) } }
+                )) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Hide Re-Releases").font(.headline)
+                        Text("Remove re-releases from Now Playing, Coming Soon and All Showtimes.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .accessibilityIdentifier("preferences.hideReReleases")
+            }
+
+            preferenceLink(
+                "Movie display",
+                detail: "Choose title artwork or hide a movie from your views.",
+                systemImage: "rectangle.on.rectangle",
+                identifier: "preferences.movieDisplay"
+            ) {
+                MovieDisplayPreferencesView()
+            }
+        }
+    }
+
+    private var appearanceSettings: some View {
+        preferencePanel {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Site color").font(.headline)
+                    Text("Choose the accent used throughout Kartiseret.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
+                    ForEach(visibleColorOptions, id: \.1) { option in
+                        let isSelected = account.preferences.siteColor.lowercased() == option.1.lowercased()
+                        Button {
+                            Task { await account.saveSiteColor(option.1) }
+                        } label: {
+                            VStack(spacing: 8) {
+                                Circle()
+                                    .fill(Color(hexString: option.1) ?? accent)
+                                    .frame(width: 36, height: 36)
+                                    .overlay {
+                                        if isSelected {
+                                            Image(systemName: "checkmark")
+                                                .font(.system(size: 14, weight: .bold))
+                                                .foregroundStyle(.white)
+                                        }
+                                    }
+                                    .shadow(color: Color(hexString: option.1)?.opacity(0.26) ?? .clear, radius: 7)
+
+                                Text(option.0)
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(.white.opacity(0.86))
+                                    .lineLimit(1)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(
+                                isSelected ? accent.opacity(0.13) : Color.white.opacity(0.035),
+                                in: RoundedRectangle(cornerRadius: 16)
+                            )
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(isSelected ? accent.opacity(0.5) : Color.white.opacity(0.07), lineWidth: 1)
+                            }
+                            .overlay(alignment: .topTrailing) {
+                                if isSelected {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundStyle(accent)
+                                        .offset(x: -5, y: 5)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Use \(option.0) accent")
+                        .accessibilityValue(isSelected ? "Selected" : "")
+                        .accessibilityAddTraits(isSelected ? .isSelected : [])
+                        .accessibilityIdentifier("preferences.color.\(option.0.lowercased())")
+                    }
+                }
+
+                Button("Reset to default") {
+                    Task { await account.saveSiteColor(AccountPreferences().siteColor) }
+                }
+                .buttonStyle(.bordered)
+                .disabled(account.preferences.siteColor.lowercased() == AccountPreferences().siteColor.lowercased())
+                .accessibilityIdentifier("preferences.resetColor")
+            }
+        }
+    }
+
+    private var notificationSettings: some View {
+        VStack(spacing: 12) {
+            preferenceLink(
+                "Ticket alerts",
+                detail: "Follow films and choose how screening alerts work.",
+                systemImage: "bell.badge",
+                identifier: "preferences.ticketAlerts"
+            ) {
+                TicketAlertsView()
+            }
+
+            preferenceLink(
+                "Coming Soon watches",
+                detail: "Keep track of films awaiting a local release date.",
+                systemImage: "calendar.badge.clock",
+                identifier: "preferences.comingSoonWatches"
+            ) {
+                ComingSoonWatchesView()
+            }
+        }
+    }
+
+    private var accountSettings: some View {
+        VStack(spacing: 12) {
+            preferencePanel {
+                HStack(spacing: 12) {
+                    settingIcon("person.crop.circle.fill")
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Signed in").font(.headline)
+                        Text(account.identity?.email ?? "Kartiseret account")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+
+            preferenceLink(
+                "Letterboxd lists",
+                detail: "Manage the film lists connected to your account.",
+                systemImage: "film.stack",
+                identifier: "preferences.letterboxd"
+            ) {
+                LetterboxdSourcesView()
+            }
+
+            preferenceLink(
+                "Help and privacy",
+                detail: "Support, privacy policy and app information.",
+                systemImage: "questionmark.circle",
+                identifier: "preferences.help"
+            ) {
+                HelpView()
+            }
+
+            preferenceLink(
+                "Delete account",
+                detail: "Permanently remove your Kartiseret account.",
+                systemImage: "person.crop.circle.badge.minus",
+                tint: .red,
+                identifier: "preferences.deleteAccount"
+            ) {
+                DeleteAccountView()
+            }
+        }
+    }
+
+    private var saveStatus: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                if account.isSaving {
+                    ProgressView().controlSize(.small)
+                }
+                Text(account.isSaving ? "Saving your changes…" : "Changes save automatically")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            if let feedback = account.feedback {
+                Label(feedback, systemImage: "exclamationmark.circle.fill")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.orange)
+                    .accessibilityIdentifier("preferences.saveFeedback")
+            }
+        }
+        .padding(.top, 2)
+    }
+
+    private func preferencePanel<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 19))
+            .overlay {
+                RoundedRectangle(cornerRadius: 19)
+                    .stroke(.white.opacity(0.07), lineWidth: 1)
+            }
+    }
+
+    private func settingIcon(_ systemImage: String, tint: Color? = nil) -> some View {
+        let iconTint = tint ?? accent
+        return Image(systemName: systemImage)
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundStyle(iconTint)
+            .frame(width: 40, height: 40)
+            .background(iconTint.opacity(0.14), in: RoundedRectangle(cornerRadius: 13))
+    }
+
+    private func preferenceLink<Destination: View>(
+        _ title: String,
+        detail: String,
+        systemImage: String,
+        tint: Color? = nil,
+        identifier: String,
+        @ViewBuilder destination: () -> Destination
+    ) -> some View {
+        let rowTint = tint ?? accent
+        return NavigationLink(destination: destination()) {
+            HStack(spacing: 12) {
+                settingIcon(systemImage, tint: rowTint)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundStyle(tint == nil ? Color.white : rowTint)
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 2)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 19))
+            .overlay {
+                RoundedRectangle(cornerRadius: 19)
+                    .stroke(.white.opacity(0.07), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+    }
+
+    private func ratingSelection(_ source: String) -> Binding<Bool> {
+        Binding(
+            get: { account.preferences.ratingSources.contains(source) },
+            set: { selected in
+                var values = account.preferences.ratingSources
+                if selected {
+                    if !values.contains(source) { values.append(source) }
+                } else {
+                    values.removeAll { $0 == source }
+                }
+                Task { await account.saveRatingSources(values) }
+            }
+        )
+    }
+
+    private func ratingSourceLabel(_ source: String) -> String {
+        switch source {
+        case "imdbRating": "IMDb"
+        case "rtAudienceRating": "Rotten Tomatoes Audience"
+        case "rtCriticRating": "Rotten Tomatoes Critics"
+        case "lbRating": "Letterboxd"
+        default: "TMDB"
+        }
+    }
+}
+
 struct MovieDisplayPreferencesView: View {
     @Environment(AccountStore.self) private var account
     @State private var query = ""
