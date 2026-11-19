@@ -1,6 +1,6 @@
+import { ArrowLeft, Bell, CalendarDays, ChevronDown, MapPin, Monitor, Search, UserRound } from "lucide-react";
 import { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { ChevronDown } from "lucide-react";
 import { Link } from "react-router";
 import "./UserPreferencesPage.css";
 import { getSiteColorLabel, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
@@ -27,6 +27,25 @@ const sourceLabelMap: Record<RatingSource, string> = {
   lbRating: "Letterboxd",
   tmdbRating: "TMDB",
 };
+
+const preferenceCategories = [
+  { id: "showtimes", label: "Showtimes", icon: CalendarDays },
+  { id: "discovery", label: "Discovery", icon: Search },
+  { id: "appearance", label: "Appearance", icon: Monitor },
+  { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "account", label: "Account", icon: UserRound },
+] as const;
+
+type PreferenceCategory = (typeof preferenceCategories)[number]["id"];
+
+const categoryDescriptions: Record<PreferenceCategory, string> = {
+  showtimes: "Set the cities, cinemas and formats you'll see first.",
+  discovery: "Choose how ratings and titles appear while you browse.",
+  appearance: "Make the site feel more like yours.",
+  notifications: "Manage the films and lists you want to keep an eye on.",
+  account: "Manage how you sign in and your account details.",
+};
+
 function getSourcesSummary(sources: readonly RatingSource[]): string {
   if (sources.length === 0) {
     return "No sources selected";
@@ -69,6 +88,16 @@ function EmbeddedCityLocationPickerLoading() {
   );
 }
 
+function DisclosureChevron() {
+  return (
+    <ChevronDown
+      className="prefs-disclosure-chevron"
+      size={18}
+      aria-hidden="true"
+    />
+  );
+}
+
 export function UserPreferencesPage() {
   const {
     user,
@@ -105,7 +134,10 @@ export function UserPreferencesPage() {
       resetSiteColor: state.resetSiteColor,
     })),
   );
-  const [isSourcesOpen, setIsSourcesOpen] = useState(true);
+  const [activeCategory, setActiveCategory] =
+    useState<PreferenceCategory>("showtimes");
+  const [isCityPickerOpen, setIsCityPickerOpen] = useState(false);
+  const [isSourcesOpen, setIsSourcesOpen] = useState(false);
   const visibleSiteColors = useMemo(
     () => getVisibleSiteColors(siteColor, allSiteColors),
     [allSiteColors, siteColor],
@@ -147,6 +179,10 @@ export function UserPreferencesPage() {
     await resetSiteColor();
   }, [resetSiteColor]);
 
+  const categoryHeading =
+    preferenceCategories.find(({ id }) => id === activeCategory)?.label ??
+    "Showtimes";
+
   return (
     <section className="prefs-page" aria-label="User preferences">
       <div className="prefs-page-header">
@@ -155,45 +191,176 @@ export function UserPreferencesPage() {
           <h1 className="section-title">User Preferences</h1>
         </div>
         <Link className="prefs-page-back" to="/">
-          Back to Home
+          <ArrowLeft size={16} strokeWidth={2.1} aria-hidden="true" />
+          <span>Back to Home</span>
         </Link>
       </div>
 
-      <div className="prefs-page-card" aria-busy={syncing}>
-        <section className="prefs-location-card">
-          <div className="prefs-location-header">
-            <div>
-              <p className="prefs-setting-label">Default city</p>
-              <h2 className="prefs-location-title">{location}</h2>
-            </div>
-          </div>
+      <div className="prefs-page-workspace" aria-busy={syncing}>
+        <nav className="prefs-category-nav" aria-label="Preference categories">
+          {preferenceCategories.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              className={`prefs-category-button${activeCategory === id ? " is-active" : ""}`}
+              type="button"
+              aria-pressed={activeCategory === id}
+              onClick={() => setActiveCategory(id)}
+            >
+              <Icon size={19} strokeWidth={1.8} aria-hidden="true" />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
 
-          <Suspense fallback={<EmbeddedCityLocationPickerLoading />}>
-            <CityLocationPicker
-              className="theater-map-panel--embedded"
-              currentLocation={location}
-              onPickLocation={handleLocationPick}
-              syncing={syncing}
-            />
-          </Suspense>
-        </section>
+        <div className="prefs-page-card">
+          <header className="prefs-category-header">
+            <h2 aria-live="polite">{categoryHeading}</h2>
+            <p>{categoryDescriptions[activeCategory]}</p>
+          </header>
 
-        <div className="prefs-page-settings">
-          <UserShowtimePreferences />
-          <section className="prefs-setting prefs-setting--static">
-            <div className="prefs-setting-content prefs-setting-content--static">
-              <div className="prefs-color-setting">
+          <div className="prefs-category-content">
+            {activeCategory === "showtimes" ? (
+              <div className="prefs-settings-stack">
+                <section
+                  className="prefs-location-setting"
+                  aria-label="Default city"
+                >
+                  <div className="prefs-location-summary">
+                    <MapPin size={23} strokeWidth={1.8} aria-hidden="true" />
+                    <div className="prefs-location-copy">
+                      <span className="prefs-setting-label">Default city</span>
+                      <strong className="prefs-location-title">
+                        {location}
+                      </strong>
+                    </div>
+                    <button
+                      className="prefs-location-action"
+                      type="button"
+                      aria-expanded={isCityPickerOpen}
+                      aria-controls="prefs-city-picker"
+                      disabled={syncing}
+                      onClick={() => setIsCityPickerOpen((open) => !open)}
+                    >
+                      <span>
+                        {isCityPickerOpen ? "Close map" : "Change city"}
+                      </span>
+                      <DisclosureChevron />
+                    </button>
+                  </div>
+                  {isCityPickerOpen ? (
+                    <div className="prefs-location-map" id="prefs-city-picker">
+                      <Suspense
+                        fallback={<EmbeddedCityLocationPickerLoading />}
+                      >
+                        <CityLocationPicker
+                          className="theater-map-panel--embedded"
+                          currentLocation={location}
+                          onPickLocation={handleLocationPick}
+                          syncing={syncing}
+                        />
+                      </Suspense>
+                    </div>
+                  ) : null}
+                </section>
+
+                <UserShowtimePreferences key={location} />
+              </div>
+            ) : null}
+
+            {activeCategory === "discovery" ? (
+              <div className="prefs-settings-stack">
+                <section className="prefs-disclosure prefs-sources-setting">
+                  <button
+                    type="button"
+                    className="prefs-disclosure-summary"
+                    aria-expanded={isSourcesOpen}
+                    aria-controls="prefs-rating-sources"
+                    onClick={() => setIsSourcesOpen((open) => !open)}
+                  >
+                    <span className="prefs-disclosure-copy">
+                      <strong>Rating sources</strong>
+                      <span>{getSourcesSummary(sources)}</span>
+                    </span>
+                    <DisclosureChevron />
+                  </button>
+                  {isSourcesOpen ? (
+                    <div
+                      className="prefs-disclosure-content"
+                      id="prefs-rating-sources"
+                    >
+                      <div className="prefs-setting-options">
+                        {allSources.map((source) => {
+                          const checked = sources.includes(source);
+
+                          return (
+                            <label
+                              key={source}
+                              className={`prefs-setting-option${checked ? " is-selected" : ""}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={syncing}
+                                onChange={() => {
+                                  void handleSourceToggle(source);
+                                }}
+                              />
+                              <span>{sourceLabelMap[source]}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
+
+                <section
+                  className="prefs-release-setting"
+                  aria-label="Release categories"
+                >
+                  <label className="prefs-switch-row">
+                    <span className="prefs-switch-copy">
+                      <strong>Hide Re-Releases</strong>
+                      <span>
+                        Remove Re-Releases from Now Playing, Coming Soon and All
+                        Showtimes.
+                      </span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      checked={hideReReleases}
+                      disabled={syncing || !user}
+                      onChange={(event) => {
+                        void handleHideReReleasesChange(
+                          event.currentTarget.checked,
+                        );
+                      }}
+                    />
+                    <span className="prefs-switch-visual" aria-hidden="true" />
+                  </label>
+                </section>
+
+                {user ? <UserMovieDisplayPreferences userId={user.id} /> : null}
+              </div>
+            ) : null}
+
+            {activeCategory === "appearance" ? (
+              <section
+                className="prefs-color-setting"
+                aria-labelledby="prefs-color-heading"
+              >
                 <div className="prefs-color-copy">
-                  <span className="prefs-setting-label">Color</span>
-                  <span className="prefs-setting-summary">
-                    Site Color {getSiteColorLabel(siteColor)}
-                  </span>
+                  <h3 id="prefs-color-heading">Site color</h3>
+                  <p className="prefs-setting-summary">
+                    {getSiteColorLabel(siteColor)} accent
+                  </p>
                 </div>
 
                 <div className="prefs-color-controls">
                   <div
                     className="prefs-color-swatches"
-                    role="list"
+                    role="group"
                     aria-label="Site colors"
                   >
                     {visibleSiteColors.map((colorOption) => {
@@ -230,110 +397,66 @@ export function UserPreferencesPage() {
                     Reset
                   </button>
                 </div>
-              </div>
-            </div>
-          </section>
+              </section>
+            ) : null}
 
-          <section className="prefs-setting">
-            <button
-              type="button"
-              className="prefs-setting-toggle"
-              aria-expanded={isSourcesOpen}
-              onClick={() => {
-                setIsSourcesOpen((open) => !open);
-              }}
-            >
-              <span className="prefs-setting-copy">
-                <span className="prefs-setting-label">Rating Sources</span>
-                <span className="prefs-setting-summary">
-                  {getSourcesSummary(sources)}
-                </span>
-              </span>
-              <ChevronDown
-                size={16}
-                strokeWidth={2.2}
-                className={`prefs-setting-chevron${isSourcesOpen ? " is-open" : ""}`}
+            {activeCategory === "notifications" ? (
+              <UserTicketAlerts
+                key={user?.id ?? "guest"}
+                userId={user?.id ?? null}
               />
-            </button>
+            ) : null}
 
-            {isSourcesOpen ? (
-              <div className="prefs-setting-content">
-                <div className="prefs-setting-options">
-                  {allSources.map((source) => {
-                    const checked = sources.includes(source);
+            {activeCategory === "account" ? (
+              <div className="prefs-settings-stack prefs-account-stack">
+                {user ? (
+                  <>
+                    <details className="prefs-disclosure prefs-account-details">
+                      <summary className="prefs-disclosure-summary">
+                        <span className="prefs-disclosure-copy">
+                          <strong>Sign-in &amp; security</strong>
+                          <span>
+                            {user.email ?? "Manage your sign-in methods"}
+                          </span>
+                        </span>
+                        <DisclosureChevron />
+                      </summary>
+                      <div className="prefs-account-content">
+                        <AccountSecuritySettings email={user.email} />
+                      </div>
+                    </details>
 
-                    return (
-                      <label
-                        key={source}
-                        className={`prefs-setting-option${
-                          checked ? " is-selected" : ""
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          disabled={syncing}
-                          onChange={() => {
-                            void handleSourceToggle(source);
-                          }}
-                        />
-                        <span>{sourceLabelMap[source]}</span>
-                      </label>
-                    );
-                  })}
-                </div>
+                    <details className="prefs-disclosure prefs-danger-disclosure">
+                      <summary className="prefs-disclosure-summary">
+                        <span className="prefs-disclosure-copy">
+                          <strong>Delete account</strong>
+                          <span>
+                            Permanently remove your Kartiseret account
+                          </span>
+                        </span>
+                        <DisclosureChevron />
+                      </summary>
+                      <div className="prefs-danger-content">
+                        <DeleteAccountSection />
+                      </div>
+                    </details>
+                  </>
+                ) : null}
               </div>
             ) : null}
-          </section>
 
-          <section className="prefs-setting" aria-label="Release categories">
-            <div className="prefs-setting-content prefs-setting-content--static">
-              <p className="prefs-setting-label prefs-release-setting-title">
-                Release categories
-              </p>
-              <label
-                className={`prefs-setting-option${
-                  hideReReleases ? " is-selected" : ""
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={hideReReleases}
-                  disabled={syncing || !user}
-                  onChange={(event) => {
-                    void handleHideReReleasesChange(
-                      event.currentTarget.checked,
-                    );
-                  }}
-                />
-                <span className="prefs-release-visibility-copy">
-                  <strong>Hide Re-Releases</strong>
-                  <span className="prefs-release-visibility-description">
-                    Remove Re-Releases and their selector from Now Playing,
-                    Coming Soon, and All Showtimes.
-                  </span>
-                </span>
-              </label>
-            </div>
-          </section>
-
-          {user ? <UserMovieDisplayPreferences userId={user.id} /> : null}
-
-          <UserTicketAlerts
-            key={user?.id ?? "guest"}
-            userId={user?.id ?? null}
-          />
-
-          {user ? (
-            <>
-              <AccountSecuritySettings email={user.email} />
-              <DeleteAccountSection />
-            </>
-          ) : null}
+            <p className="prefs-autosave" role="status" aria-live="polite">
+              {syncing ? "Saving changes…" : "Changes save automatically"}
+            </p>
+          </div>
         </div>
       </div>
+
       {error ? (
-        <p className="prefs-page-feedback prefs-page-feedback--error">
+        <p
+          className="prefs-page-feedback prefs-page-feedback--error"
+          role="alert"
+        >
           {error}
         </p>
       ) : null}

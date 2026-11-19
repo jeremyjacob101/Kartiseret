@@ -3,7 +3,8 @@ import { updateShowtimeFilterState } from "@kartiseret/contracts/showtime-filter
 import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { useShallow } from "zustand/react/shallow";
-import { useMemo } from "react";
+import { ChevronDown } from "lucide-react";
+import { useMemo, useState } from "react";
 
 const FILTER_GROUP_LABELS: Record<ShowtimeFilterGroup, string> = {
   showType: "Screening type",
@@ -43,9 +44,24 @@ export function UserShowtimePreferences() {
       return left.localeCompare(right);
     });
   }, [defaultLocation]);
+  const [selectedCinemaCity, setSelectedCinemaCity] = useState(defaultLocation);
   const saveDisabled = !user || loading || syncing;
   const excludedCinemaIds = new Set(preferences.excludedCinemaIds);
-
+  const selectedCinemaGroup =
+    cinemaGroups.find(([city]) => city === selectedCinemaCity) ??
+    cinemaGroups[0];
+  const selectedCinemas = selectedCinemaGroup?.[1] ?? [];
+  const selectedCinemaIds = selectedCinemas.map(({ id }) => id);
+  const includedCinemaCount =
+    CINEMA_IDENTITIES.length - preferences.excludedCinemaIds.length;
+  const selectedCityIncludedCount = selectedCinemas.filter(
+    ({ id }) => !excludedCinemaIds.has(id),
+  ).length;
+  const selectedCityAllIncluded =
+    selectedCityIncludedCount === selectedCinemas.length;
+  const filterGroups = Object.keys(
+    SHOWTIME_FILTER_OPTIONS,
+  ) as ShowtimeFilterGroup[];
   const toggleCinema = (cinemaId: string) => {
     const next = excludedCinemaIds.has(cinemaId)
       ? preferences.excludedCinemaIds.filter((id) => id !== cinemaId)
@@ -68,6 +84,19 @@ export function UserShowtimePreferences() {
           !preferences.screeningFilters.unchecked[group].includes(option),
       ),
     );
+
+  const totalFilterCount = filterGroups.reduce(
+    (total, group) => total + SHOWTIME_FILTER_OPTIONS[group].length,
+    0,
+  );
+  const selectedFilterCount = filterGroups.reduce(
+    (total, group) => total + selectedValues(group).size,
+    0,
+  );
+  const filterSummary =
+    selectedFilterCount === totalFilterCount
+      ? "All screening options shown"
+      : `${selectedFilterCount} of ${totalFilterCount} screening options shown`;
 
   const toggleFilter = (group: ShowtimeFilterGroup, value: string) => {
     const selected = selectedValues(group);
@@ -125,149 +154,199 @@ export function UserShowtimePreferences() {
   };
 
   return (
-    <section className="prefs-setting prefs-showtime-setting">
-      <div className="prefs-setting-content prefs-setting-content--static">
-        <div className="prefs-setting-copy">
-          <span className="prefs-setting-label">Showtime defaults</span>
-          <span className="prefs-setting-summary">
-            Saved to your account and applied when you open showtimes.
-          </span>
-        </div>
+    <section className="prefs-showtime-setting" aria-label="Showtime defaults">
+      <div className="prefs-showtime-content">
         {!user ? (
           <p className="prefs-alerts-empty">
             Sign in to save cinema and screening defaults. You can still adjust
             filters temporarily while browsing.
           </p>
         ) : null}
-        <section aria-label="Default cinemas">
-          <div className="prefs-showtime-heading">
-            <div>
-              <span className="prefs-setting-label">My cinemas</span>
-              <span className="prefs-setting-summary">
-                {CINEMA_IDENTITIES.length -
-                  preferences.excludedCinemaIds.length}{" "}
-                of {CINEMA_IDENTITIES.length} included
+        <details
+          className="prefs-disclosure prefs-showtime-disclosure"
+          aria-label="Default cinemas"
+        >
+          <summary className="prefs-disclosure-summary">
+            <span className="prefs-disclosure-copy">
+              <strong>My cinemas</strong>
+              <span>
+                {includedCinemaCount} of {CINEMA_IDENTITIES.length} included
               </span>
+            </span>
+            <ChevronDown
+              className="prefs-disclosure-chevron"
+              size={18}
+              aria-hidden="true"
+            />
+          </summary>
+          <div className="prefs-disclosure-content prefs-showtime-disclosure-content">
+            <div className="prefs-showtime-heading">
+              <div>
+                <span className="prefs-setting-summary">
+                  Choose the cinemas included in your showtimes.
+                </span>
+              </div>
+              <button
+                type="button"
+                className="prefs-showtime-reset"
+                disabled={
+                  saveDisabled || preferences.excludedCinemaIds.length === 0
+                }
+                onClick={() =>
+                  void savePreferences({
+                    ...preferences,
+                    excludedCinemaIds: [],
+                  })
+                }
+              >
+                Include all
+              </button>
             </div>
-            <button
-              type="button"
-              className="prefs-showtime-reset"
-              disabled={
-                saveDisabled || preferences.excludedCinemaIds.length === 0
-              }
-              onClick={() =>
-                void savePreferences({ ...preferences, excludedCinemaIds: [] })
-              }
-            >
-              Include all
-            </button>
-          </div>
-          <div className="prefs-showtime-cinema-groups">
-            {cinemaGroups.map(([city, cinemas], index) => {
-              const cinemaIds = cinemas.map(({ id }) => id);
-              const allIncluded = cinemaIds.every(
-                (id) => !excludedCinemaIds.has(id),
-              );
-              return (
-                <details
-                  className="prefs-showtime-city"
-                  key={city}
-                  open={index === 0}
+            {selectedCinemaGroup ? (
+              <div className="prefs-showtime-cinema-picker">
+                <label htmlFor="prefs-cinema-city">City</label>
+                <select
+                  id="prefs-cinema-city"
+                  value={selectedCinemaGroup[0]}
+                  disabled={saveDisabled}
+                  onChange={(event) =>
+                    setSelectedCinemaCity(event.currentTarget.value)
+                  }
                 >
-                  <summary>{city}</summary>
+                  {cinemaGroups.map(([city]) => (
+                    <option key={city} value={city}>
+                      {city}
+                    </option>
+                  ))}
+                </select>
+                <div className="prefs-showtime-city-heading">
+                  <span className="prefs-setting-summary">
+                    {selectedCityIncludedCount} of {selectedCinemas.length}{" "}
+                    included
+                  </span>
                   <button
                     type="button"
                     className="prefs-showtime-city-toggle"
                     disabled={saveDisabled}
-                    onClick={() => toggleCinemaGroup(cinemaIds)}
+                    onClick={() => toggleCinemaGroup(selectedCinemaIds)}
                   >
-                    {allIncluded ? "Exclude all" : "Include all"}
+                    {selectedCityAllIncluded
+                      ? "Exclude all here"
+                      : "Include all here"}
                   </button>
-                  <div className="prefs-setting-options">
-                    {cinemas.map((cinema) => {
-                      const checked = !excludedCinemaIds.has(cinema.id);
-                      return (
-                        <label
-                          key={cinema.id}
-                          className={`prefs-setting-option${checked ? " is-selected" : ""}`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={saveDisabled}
-                            onChange={() => toggleCinema(cinema.id)}
-                          />
-                          <span>{cinema.displayName}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </details>
-              );
-            })}
+                </div>
+                <div className="prefs-setting-options">
+                  {selectedCinemas.map((cinema) => {
+                    const checked = !excludedCinemaIds.has(cinema.id);
+                    return (
+                      <label
+                        key={cinema.id}
+                        className={`prefs-setting-option${checked ? " is-selected" : ""}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={saveDisabled}
+                          onChange={() => toggleCinema(cinema.id)}
+                        />
+                        <span>{cinema.displayName}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
           </div>
-        </section>
+        </details>
 
-        <section aria-label="Default screening filters">
-          <div className="prefs-showtime-heading">
-            <div>
-              <span className="prefs-setting-label">My screening filters</span>
-              <span className="prefs-setting-summary">
-                Uncheck formats you usually want to hide.
-              </span>
+        <details
+          className="prefs-disclosure prefs-showtime-disclosure"
+          aria-label="Default screening filters"
+        >
+          <summary className="prefs-disclosure-summary">
+            <span className="prefs-disclosure-copy">
+              <strong>My screening filters</strong>
+              <span>{filterSummary}</span>
+            </span>
+            <ChevronDown
+              className="prefs-disclosure-chevron"
+              size={18}
+              aria-hidden="true"
+            />
+          </summary>
+          <div className="prefs-disclosure-content prefs-showtime-disclosure-content">
+            <div className="prefs-showtime-heading">
+              <div>
+                <span className="prefs-setting-summary">
+                  Choose the formats and languages you prefer to see.
+                </span>
+              </div>
+              <button
+                type="button"
+                className="prefs-showtime-reset"
+                disabled={saveDisabled}
+                onClick={resetAll}
+              >
+                Reset defaults
+              </button>
             </div>
-            <button
-              type="button"
-              className="prefs-showtime-reset"
-              disabled={saveDisabled}
-              onClick={resetAll}
-            >
-              Reset defaults
-            </button>
+            <div className="prefs-showtime-filter-groups">
+              {filterGroups.map((group) => {
+                const options = SHOWTIME_FILTER_OPTIONS[group];
+                const selected = selectedValues(group);
+                const allSelected = options.every((option) =>
+                  selected.has(option));
+                return (
+                  <details className="prefs-showtime-filter-group" key={group}>
+                    <summary>
+                      <span className="prefs-showtime-filter-name">
+                        {FILTER_GROUP_LABELS[group]}
+                      </span>
+                      <span className="prefs-showtime-filter-count">
+                        {allSelected
+                          ? "All shown"
+                          : `${selected.size} of ${options.length} shown`}
+                      </span>
+                      <ChevronDown
+                        className="prefs-disclosure-chevron"
+                        size={17}
+                        aria-hidden="true"
+                      />
+                    </summary>
+                    <div className="prefs-showtime-filter-content">
+                      <button
+                        type="button"
+                        disabled={saveDisabled}
+                        onClick={() => toggleFilterGroup(group)}
+                      >
+                        {allSelected ? "Hide all" : "Show all"}
+                      </button>
+                      <div className="prefs-setting-options">
+                        {options.map((option) => {
+                          const checked = selected.has(option);
+                          return (
+                            <label
+                              key={option}
+                              className={`prefs-setting-option${checked ? " is-selected" : ""}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={saveDisabled}
+                                onChange={() => toggleFilter(group, option)}
+                              />
+                              <span>{option}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
           </div>
-          <div className="prefs-showtime-filter-groups">
-            {(
-              Object.keys(SHOWTIME_FILTER_OPTIONS) as ShowtimeFilterGroup[]
-            ).map((group) => {
-              const options = SHOWTIME_FILTER_OPTIONS[group];
-              const selected = selectedValues(group);
-              const allSelected = options.every((option) =>
-                selected.has(option));
-              return (
-                <fieldset key={group} disabled={saveDisabled}>
-                  <legend>
-                    {FILTER_GROUP_LABELS[group]}
-                    <button
-                      type="button"
-                      disabled={saveDisabled}
-                      onClick={() => toggleFilterGroup(group)}
-                    >
-                      {allSelected ? "Hide all" : "Show all"}
-                    </button>
-                  </legend>
-                  <div className="prefs-setting-options">
-                    {options.map((option) => {
-                      const checked = selected.has(option);
-                      return (
-                        <label
-                          key={option}
-                          className={`prefs-setting-option${checked ? " is-selected" : ""}`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleFilter(group, option)}
-                          />
-                          <span>{option}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </fieldset>
-              );
-            })}
-          </div>
-        </section>
+        </details>
       </div>
     </section>
   );

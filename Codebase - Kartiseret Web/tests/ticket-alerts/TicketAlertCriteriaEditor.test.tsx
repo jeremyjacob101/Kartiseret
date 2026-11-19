@@ -29,6 +29,7 @@ describe("TicketAlertCriteriaEditor", () => {
       />,
     );
 
+    await user.click(screen.getByText("Choose cities"));
     await user.click(screen.getByRole("checkbox", { name: "Haifa" }));
     await user.click(screen.getByRole("checkbox", { name: "Premium" }));
     await user.click(screen.getByRole("button", { name: "Save criteria" }));
@@ -71,6 +72,7 @@ describe("TicketAlertCriteriaEditor", () => {
       name: "Use account default",
     });
     await user.click(inheritToggles[0]!);
+    await user.click(screen.getByText("Choose cities"));
     await user.click(screen.getByRole("checkbox", { name: "Haifa" }));
     await user.click(screen.getByRole("button", { name: "Save criteria" }));
 
@@ -95,6 +97,7 @@ describe("TicketAlertCriteriaEditor", () => {
     expect(
       screen.getByRole("checkbox", { name: "Jerusalem" }),
     ).not.toBeChecked();
+    await user.click(screen.getByText("Choose cities"));
     await user.click(
       screen.getByRole("radio", { name: /First in each selected city/ }),
     );
