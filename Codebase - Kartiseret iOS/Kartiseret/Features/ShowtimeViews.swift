@@ -5,31 +5,32 @@ struct ShowtimeSections: View {
     let city: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 18) {
             ForEach(cinemas) { cinema in
                 let theme = ShowtimeTheme.forCinema(cinema.name)
-                VStack(alignment: .leading, spacing: 8) {
-                    if let identity = CinemaIdentity.forScreening(city: city, cinema: cinema.name) {
-                        NavigationLink(value: CinemaRoute(cinemaID: identity.id)) {
-                            HStack {
-                                Text(identity.displayName).font(.subheadline.weight(.semibold)).foregroundStyle(Color(hex: theme.accentHex))
-                                Spacer()
-                                Image(systemName: "arrow.up.right").font(.caption.bold()).foregroundStyle(Color(hex: theme.accentHex))
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(Color(hex: theme.accentHex))
+                            .frame(width: 10, height: 10)
+                            .shadow(color: Color(hex: theme.accentHex).opacity(0.72), radius: 9)
+
+                        if let identity = CinemaIdentity.forScreening(city: city, cinema: cinema.name) {
+                            NavigationLink(value: CinemaRoute(cinemaID: identity.id)) {
+                                Text(identity.displayName)
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundStyle(.white)
                             }
+                            .buttonStyle(.plain)
+                        } else {
+                            Text(cinema.name)
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(.white)
                         }
-                        .buttonStyle(.plain)
-                    } else {
-                        Text(cinema.name).font(.subheadline.weight(.semibold)).foregroundStyle(Color(hex: theme.accentHex))
                     }
                     ShowtimeRow(showtimes: cinema.showtimes, cinemaName: cinema.name, theme: theme)
                 }
-                .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(hex: theme.accentHex).opacity(0.12), in: RoundedRectangle(cornerRadius: 13))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 13)
-                        .stroke(Color(hex: theme.accentHex).opacity(0.24), lineWidth: 1)
-                }
             }
         }
     }

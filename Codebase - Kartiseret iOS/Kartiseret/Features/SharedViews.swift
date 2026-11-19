@@ -129,7 +129,9 @@ struct ShowtimeTicket: View {
                 .foregroundStyle(.black.opacity(0.55))
 
             Text(time)
-                .font(.caption.weight(.bold).monospacedDigit())
+                .font(.system(size: 16, weight: .bold))
+                .tracking(-0.32)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .foregroundStyle(.white)
 
             if let flagName = ShowtimeLogic.dubFlagAssetName(dubLanguage),
@@ -142,7 +144,7 @@ struct ShowtimeTicket: View {
                     .background(.white, in: RoundedRectangle(cornerRadius: 2))
                     .overlay(RoundedRectangle(cornerRadius: 2).stroke(.black.opacity(0.85), lineWidth: 1))
                     .shadow(color: .black.opacity(0.22), radius: 3, y: 2)
-                    .offset(x: -26, y: -17)
+                    .offset(x: -30, y: -16)
                     .accessibilityHidden(true)
             }
 
@@ -154,7 +156,7 @@ struct ShowtimeTicket: View {
                     .background(Color(hex: 0x0C0B14).opacity(0.9), in: Capsule())
                     .overlay(Capsule().stroke(.black.opacity(0.85), lineWidth: 1))
                     .shadow(color: .black.opacity(0.22), radius: 3, y: 2)
-                    .offset(x: 26, y: -17)
+                    .offset(x: 30, y: -16)
                     .accessibilityHidden(true)
             }
         }
