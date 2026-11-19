@@ -503,14 +503,16 @@ def collect_cinema_city_coming_soon(scraper):
             raise ValueError(f"Cinema City feature catalog repeats feature id {feature_id}")
         seen_feature_ids.add(feature_id)
 
-        # Validate release dates for the entire discovered catalog before using
-        # them to decide which films are still coming soon.
-        release_date = _local_date(feature.get("dateStarted"), f"feature {feature_id} release date")
         if "closestPresentationDateTime" not in feature:
             raise ValueError(f"Cinema City feature {feature_id} is missing presentation-status evidence")
         closest_presentation = feature.get("closestPresentationDateTime")
         if closest_presentation is not None:
             _local_date(closest_presentation, f"feature {feature_id} closest presentation date")
+        release = feature.get("dateStarted")
+        if release is None and closest_presentation is not None:
+            scraper._coverage["features_skipped_with_presentations"] += 1
+            continue
+        release_date = _local_date(release, f"feature {feature_id} release date")
         if release_date < today:
             scraper._coverage["features_skipped_before_today"] += 1
             continue

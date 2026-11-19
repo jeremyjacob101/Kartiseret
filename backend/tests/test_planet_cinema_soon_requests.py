@@ -42,10 +42,15 @@ class PlanetCinemaSoonRequestsTests(TestCase):
         self.assertEqual(self.scraper.gathering_info['release_date'], ['2026-12-31'])
         self.assertEqual(self.scraper.gathering_info['rating'], ['12+'])
 
-    def test_unknown_language_fails_closed(self):
-        self.film['languages'] = {'original': ['unknown']}
-        with self.assertRaisesRegex(ValueError, 'Unknown Planet Cinema language'):
-            self.run_collector()
+    def test_norwegian_language(self):
+        self.film['languages'] = {'original': ['no']}
+        self.run_collector()
+        self.assertEqual(self.scraper.gathering_info['original_language'], ['Norwegian'])
+
+    def test_unknown_language_defaults_to_hebrew(self):
+        self.film['languages'] = {'original': ['en', 'unknown']}
+        self.run_collector()
+        self.assertEqual(self.scraper.gathering_info['original_language'], ['Hebrew'])
 
     def test_invalid_release_date_fails_closed(self):
         self.film['dateStarted'] = '2026-02-30T00:00:00'

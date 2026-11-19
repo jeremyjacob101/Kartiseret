@@ -119,6 +119,20 @@ class CinemaCityComingSoonRequestsTests(TestCase):
         self.assertEqual(self.scraper._coverage["features_skipped_by_title"], 4)
         self.assertEqual(self.scraper._coverage["collection_pages"], 2)
 
+    def test_skips_undated_film_with_a_scheduled_screening(self):
+        self.features[-1]["data"]["dateStarted"] = None
+
+        self.run_collector()
+
+        self.assertEqual(self.scraper.gathering_info["english_title"], ["Beware Boiúna", "Shrek (25 years)", "סרט"])
+        self.assertEqual(self.scraper._coverage["features_skipped_with_presentations"], 1)
+
+    def test_rejects_invalid_screening_date_for_undated_film(self):
+        self.features[-1]["data"].update(dateStarted=None, closestPresentationDateTime="not-a-date")
+
+        with self.assertRaisesRegex(ValueError, "closest presentation date is invalid"):
+            self.run_collector()
+
     def test_preserves_duplicate_output_rows_for_distinct_catalog_features(self):
         duplicate = self.feature(
             "7010", "Same Film", "Same Film", "2026-11-20", 95.0, "מותר לכל"

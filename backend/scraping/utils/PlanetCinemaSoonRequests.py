@@ -11,7 +11,7 @@ from backend.scraping.utils.ScrapeRequests import configure_scrape_session
 def collect_planet_cinema_soon(scraper):
     base = 'https://www.planetcinema.co.il/il/data-api-service/v1'
     scraper._coverage = {'posters_expected': 0, 'posters_completed': 0}
-    languages = {'en': 'English', 'he': 'Hebrew', 'fr': 'French', 'de': 'German', 'ja': 'Japanese', 'it': 'Italian', 'es': 'Spanish', 'am': 'Amharic', 'zh': 'Chinese', 'cs': 'Czech', 'ko': 'Korean', 'da': 'Danish', 'ru': 'Russian', 'hi': 'Hindi'}
+    languages = {'en': 'English', 'he': 'Hebrew', 'fr': 'French', 'de': 'German', 'ja': 'Japanese', 'it': 'Italian', 'es': 'Spanish', 'am': 'Amharic', 'zh': 'Chinese', 'cs': 'Czech', 'ko': 'Korean', 'da': 'Danish', 'no': 'Norwegian', 'ru': 'Russian', 'hi': 'Hindi'}
     with requests.Session() as session:
         configure_scrape_session(session, stats=getattr(scraper, '_http_stats', None))
         session.headers.update({'User-Agent': CHROME_USER_AGENT})
@@ -46,8 +46,7 @@ def collect_planet_cinema_soon(scraper):
                 scraper._coverage['posters_completed'] += 1
                 continue
             original = en.get('languages', {}).get('original') or ['he']
-            if any(value not in languages for value in original):
-                raise ValueError(f'Unknown Planet Cinema language for {fid}')
+            original_languages = [languages.get(code, 'Hebrew') for code in original]
             restriction = en.get('ageRestrictionName')
             if restriction not in (None, 'other', 'all', '9-plus', '12-plus', '14-plus', '16-plus', '18-plus'):
                 raise ValueError(f'Unknown Planet Cinema age restriction for {fid}')
@@ -60,7 +59,7 @@ def collect_planet_cinema_soon(scraper):
             year = en.get('releaseYear')
             scraper.release_year = int(year) if year and str(year).isdigit() else None
             scraper.directed_by = en.get('directors') or None
-            scraper.original_language = 'Hebrew' if 'he' in original else ', '.join(languages[value] for value in original)
+            scraper.original_language = 'Hebrew' if 'Hebrew' in original_languages else ', '.join(original_languages)
             scraper.rating = 'All' if restriction == 'all' else restriction.replace('-plus', '+') if restriction and restriction.endswith('-plus') else None
             runtime = en.get('length')
             scraper.runtime = int(runtime) if runtime else None
