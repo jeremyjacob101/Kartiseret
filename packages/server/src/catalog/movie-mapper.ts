@@ -5,6 +5,11 @@ import {
 } from "@kartiseret/contracts/movies";
 import { socialPreviewFingerprintSchema } from "@kartiseret/contracts/social-preview";
 import { tmdbIdSchema } from "@kartiseret/contracts/runtime";
+import {
+  artworkWidths,
+  isKartiseretArtworkOrigin,
+  resolveArtworkDeliveryOrigin,
+} from "../artwork/delivery.js";
 import { createSocialPreviewFingerprint } from "../social-preview.js";
 import { z } from "zod";
 import { CatalogDataIntegrityError } from "./errors.js";
@@ -168,28 +173,55 @@ function optionalId(value: string | null): string | undefined {
   return normalized || undefined;
 }
 
-function artworkSrcSet(value: string | null | undefined): string | undefined {
+function artworkDelivery(
+  value: string,
+  deliveryOrigin: string | undefined,
+  hasOwnSource: boolean,
+) {
   const match =
     /^(https?:\/\/[^/]+)?\/api\/images\/v1\/(poster|backdrop)\/([a-f0-9]{64})\/(\d+)\.webp$/.exec(
-      value?.trim() ?? "",
+      value,
     );
-  if (!match) return undefined;
-  const [, , kind, hash] = match;
-  const widths = kind === "poster" ? [185, 342, 780] : [780, 1280];
-  return widths
-    .map((width) => `/api/images/v1/${kind}/${hash}/${width}.webp ${width}w`)
-    .join(", ");
+  if (!match) return { src: value };
+
+  const [, storedOrigin, kind, hash, storedWidth] = match;
+  const widths =
+    kind === "poster" ? artworkWidths.poster : artworkWidths.backdrop;
+  const direct =
+    deliveryOrigin &&
+    isKartiseretArtworkOrigin(storedOrigin) &&
+    widths.some((width) => String(width) === storedWidth);
+  if (!direct && !hasOwnSource) return { src: value };
+  const prefix = direct ? `${deliveryOrigin}/artwork/v1` : "/api/images/v1";
+  return {
+    src: direct ? `${prefix}/${kind}/${hash}/${storedWidth}.webp` : value,
+    srcSet: widths
+      .map((width) => `${prefix}/${kind}/${hash}/${width}.webp ${width}w`)
+      .join(", "),
+  };
 }
 
-function mapSourceMovie(row: SourceMovie, movieCode?: string): Movie {
+function mapSourceMovie(
+  row: SourceMovie,
+  movieCode?: string,
+  deliveryOrigin?: string,
+): Movie {
   const title = normalizeText(row.englishTitle)
     .replace(/^"+|"+$/g, "")
     .trim();
   const imageSrc =
     normalizeText(row.enPoster ?? "") || normalizeText(row.backdrop ?? "");
   const backdropSrc = normalizeText(row.backdrop ?? "") || imageSrc;
-  const imageSrcSet = artworkSrcSet(row.enPoster);
-  const backdropSrcSet = artworkSrcSet(row.backdrop);
+  const image = artworkDelivery(
+    imageSrc,
+    deliveryOrigin,
+    Boolean(row.enPoster?.trim()),
+  );
+  const backdrop = artworkDelivery(
+    backdropSrc,
+    deliveryOrigin,
+    Boolean(row.backdrop?.trim()),
+  );
   const trailerKey = normalizeText(row.enTrailer ?? "");
   const genres = parseGenres(row.genres);
   const year = parseReleaseYear(row.releaseYear);
@@ -225,10 +257,10 @@ function mapSourceMovie(row: SourceMovie, movieCode?: string): Movie {
     title,
     year,
     genres,
-    imageSrc,
-    ...(imageSrcSet ? { imageSrcSet } : {}),
-    backdropSrc: backdropSrc || undefined,
-    ...(backdropSrcSet ? { backdropSrcSet } : {}),
+    imageSrc: image.src,
+    ...(image.srcSet ? { imageSrcSet: image.srcSet } : {}),
+    backdropSrc: backdrop.src || undefined,
+    ...(backdrop.srcSet ? { backdropSrcSet: backdrop.srcSet } : {}),
     trailerKey: trailerKey || undefined,
     imdbRating: parseOptionalNumber(row.imdbRating),
     lbId: optionalId(row.lbId),
@@ -309,6 +341,7 @@ function parseComingSoonAlternatives(value: unknown) {
 function mapSourceComingSoonMovie(
   row: z.infer<typeof sourceComingSoonMovieSchema>,
   movieCode?: string,
+  deliveryOrigin?: string,
 ): Movie {
   const title = normalizeText(row.englishTitle)
     .replace(/^"+|"+$/g, "")
@@ -316,8 +349,16 @@ function mapSourceComingSoonMovie(
   const imageSrc =
     normalizeText(row.enPoster ?? "") || normalizeText(row.backdrop ?? "");
   const backdropSrc = normalizeText(row.backdrop ?? "") || imageSrc;
-  const imageSrcSet = artworkSrcSet(row.enPoster);
-  const backdropSrcSet = artworkSrcSet(row.backdrop);
+  const image = artworkDelivery(
+    imageSrc,
+    deliveryOrigin,
+    Boolean(row.enPoster?.trim()),
+  );
+  const backdrop = artworkDelivery(
+    backdropSrc,
+    deliveryOrigin,
+    Boolean(row.backdrop?.trim()),
+  );
   const parsedYear =
     row.releaseYear !== null && row.releaseYear > 0 ? row.releaseYear : 0;
   const genres = parseGenres(row.genres);
@@ -351,10 +392,10 @@ function mapSourceComingSoonMovie(
     year: Number.isSafeInteger(parsedYear) && parsedYear > 0 ? parsedYear : 0,
     releaseDate: row.releaseDate,
     genres,
-    imageSrc,
-    ...(imageSrcSet ? { imageSrcSet } : {}),
-    backdropSrc: backdropSrc || undefined,
-    ...(backdropSrcSet ? { backdropSrcSet } : {}),
+    imageSrc: image.src,
+    ...(image.srcSet ? { imageSrcSet: image.srcSet } : {}),
+    backdropSrc: backdrop.src || undefined,
+    ...(backdrop.srcSet ? { backdropSrcSet: backdrop.srcSet } : {}),
     trailerKey: normalizeText(row.enTrailer ?? "") || undefined,
     imdbRating: null,
     lbRating: null,
@@ -372,7 +413,11 @@ function mapSourceComingSoonMovie(
   });
 }
 
-export function toNowPlayingMovie(value: unknown, movieCode?: string): Movie {
+export function toNowPlayingMovie(
+  value: unknown,
+  movieCode?: string,
+  environment = process.env,
+): Movie {
   const parsed = sourceMovieSchema.safeParse(value);
 
   if (!parsed.success) {
@@ -389,7 +434,11 @@ export function toNowPlayingMovie(value: unknown, movieCode?: string): Movie {
   }
 
   try {
-    return mapSourceMovie(parsed.data, movieCode);
+    return mapSourceMovie(
+      parsed.data,
+      movieCode,
+      resolveArtworkDeliveryOrigin(environment),
+    );
   } catch (error) {
     if (error instanceof CatalogDataIntegrityError) {
       throw error;
@@ -401,7 +450,11 @@ export function toNowPlayingMovie(value: unknown, movieCode?: string): Movie {
   }
 }
 
-export function toComingSoonMovie(value: unknown, movieCode?: string): Movie {
+export function toComingSoonMovie(
+  value: unknown,
+  movieCode?: string,
+  environment = process.env,
+): Movie {
   const parsed = sourceComingSoonMovieSchema.safeParse(value);
 
   if (!parsed.success) {
@@ -418,7 +471,11 @@ export function toComingSoonMovie(value: unknown, movieCode?: string): Movie {
   }
 
   try {
-    return mapSourceComingSoonMovie(parsed.data, movieCode);
+    return mapSourceComingSoonMovie(
+      parsed.data,
+      movieCode,
+      resolveArtworkDeliveryOrigin(environment),
+    );
   } catch (error) {
     if (error instanceof CatalogDataIntegrityError) {
       throw error;

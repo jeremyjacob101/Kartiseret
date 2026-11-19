@@ -1,12 +1,8 @@
 import type { RequestHandler } from "express";
+import { artworkWidths } from "./delivery.js";
 import type { R2ImageStore } from "./s3.js";
 
 const MAX_ARTWORK_BYTES = 4 * 1024 * 1024;
-
-const allowed = {
-  poster: new Set([185, 342, 780]),
-  backdrop: new Set([780, 1280]),
-} as const;
 
 export function createArtworkHandler(
   store: R2ImageStore | null,
@@ -22,9 +18,9 @@ export function createArtworkHandler(
     const numberWidth = width ? Number(width) : 0;
     const allowedWidths =
       kind === "poster"
-        ? allowed.poster
+        ? artworkWidths.poster
         : kind === "backdrop"
-          ? allowed.backdrop
+          ? artworkWidths.backdrop
           : undefined;
     if (
       version !== "v1" ||
@@ -32,7 +28,7 @@ export function createArtworkHandler(
       !/^[a-f0-9]{64}$/.test(hash ?? "") ||
       !numberWidth ||
       width !== String(numberWidth) ||
-      !allowedWidths.has(numberWidth)
+      !allowedWidths.includes(numberWidth)
     ) {
       response.setHeader("Cache-Control", "no-store").status(404).end();
       return;

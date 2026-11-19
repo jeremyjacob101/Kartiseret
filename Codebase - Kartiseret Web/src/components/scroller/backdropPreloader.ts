@@ -11,14 +11,17 @@ type QueuedImage = {
 
 export function setResponsiveImageSource(image: HTMLImageElement, src: string) {
   const match =
-    /^(https?:\/\/[^/]+)?\/api\/images\/v1\/(poster|backdrop)\/([a-f0-9]{64})\/\d+\.webp$/.exec(
+    /^(?:(?:https?:\/\/[^/]+)?(\/api\/images\/v1)|((?:https:\/\/img(?:-dev)?\.seret\.site)\/artwork\/v1))\/(poster|backdrop)\/([a-f0-9]{64})\/\d+\.webp$/.exec(
       src,
     );
   if (match) {
-    const [, , kind, hash] = match;
+    const [, legacyPrefix, directPrefix, kind, hash] = match;
     const widths = kind === "poster" ? [185, 342, 780] : [780, 1280];
     image.srcset = widths
-      .map((width) => `/api/images/v1/${kind}/${hash}/${width}.webp ${width}w`)
+      .map(
+        (width) =>
+          `${directPrefix ?? legacyPrefix}/${kind}/${hash}/${width}.webp ${width}w`,
+      )
       .join(", ");
     image.sizes =
       kind === "poster"

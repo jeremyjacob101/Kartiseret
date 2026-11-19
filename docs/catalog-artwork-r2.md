@@ -2,14 +2,16 @@
 
 For unexpected charges or runaway R2 usage, follow the [R2 emergency billing shutdown runbook](r2-emergency-billing-shutdown.md).
 
-This change mirrors catalog posters and backdrops from TMDB into a private R2 bucket. The app serves the generated WebP variants from `seret.site/api/images/...`; Vercel caches successful responses for one day. Browser `srcset` selection is used for poster cards and wide backdrops. Social preview generation uses the catalog poster and backdrop URLs, so it also reads the mirrored variants.
+The catalog mirrors TMDB posters and backdrops into R2 as responsive WebP variants. When direct delivery is enabled, the browser fetches those variants from the environment’s R2 custom domain. Stored catalog URLs and the `/api/images/...` endpoint remain available to legacy callers. Vercel caches successful proxy responses for one day.
 
 ```mermaid
 flowchart LR
   TMDB[TMDB image CDN] -->|new or changed source path| Flow[Catalog dataflow]
-  Flow -->|185 / 342 / 780 poster; 780 / 1280 backdrop| R2[(Private R2 bucket)]
+  Flow -->|185 / 342 / 780 poster; 780 / 1280 backdrop| R2[(R2 artwork bucket)]
   Flow -->|publish only after complete marker| DB[(Supabase catalog)]
-  Browser -->|responsive URL| API[seret.site /api/images]
+  Browser -->|responsive URL| CDN[R2 custom domain]
+  CDN --> R2
+  Browser -->|legacy URL| API[seret.site /api/images]
   API -->|read-only signed GET| R2
   API -->|one-day cached WebP| Browser
 ```
@@ -22,7 +24,7 @@ The database metadata records the TMDB source path, processing version, publishe
 
 ## Buckets, target selection, and credentials
 
-The separate buckets are `kartiseret-artwork-dev` and `kartiseret-artwork-prod`. Both are private R2 Standard buckets in EEUR, with public `r2.dev` access disabled. Keep each environment's credentials scoped to its own bucket:
+The R2 Standard buckets are `kartiseret-artwork-dev` and `kartiseret-artwork-prod` in EEUR. Objects are publicly readable through `img-dev.seret.site` and `img.seret.site`, respectively. The separate `r2.dev` endpoints stay disabled. Keep each environment's credentials scoped to its own bucket:
 
 | Credential           | Cloudflare token name              | Permission          | Bucket                    |
 | -------------------- | ---------------------------------- | ------------------- | ------------------------- |
@@ -64,6 +66,8 @@ For local artwork writing, set `DEV_R2_IMAGE_ORIGIN` to a stable development app
 The local Node server resolves the same `.env` profiles. Unless `NODE_ENV=production` is set, a local server defaults to the development profile. Select production explicitly with `KARTISERET_TARGET=production npm run server:dev`. Hosted Vercel environments keep their current generic environment-specific variable names and need no profile prefix.
 
 ### Vercel
+
+Set `ARTWORK_DELIVERY_ORIGIN=https://img-dev.seret.site` for Development and Preview, and `ARTWORK_DELIVERY_ORIGIN=https://img.seret.site` for Production. The same setting can be exported when starting a local Node server. The mapper uses the current Vercel environment or the local `KARTISERET_TARGET` to validate the origin. Leaving the setting empty restores proxy delivery on the next deploy. Keep `R2_IMAGE_ORIGIN` pointed at the legacy application origin for publishing and social preview generation.
 
 For Vercel **Development** and **Preview**, keep the dev `DATABASE_URL` and `DATABASE_SSL_CA_CERT`, and add the dev-only `R2_ACCOUNT_ID`, `R2_BUCKET=kartiseret-artwork-dev`, `R2_READ_ACCESS_KEY_ID`, and `R2_READ_SECRET_ACCESS_KEY`. For Vercel **Production**, keep the production database settings and add the prod bucket/read-only token values with `R2_BUCKET=kartiseret-artwork-prod`. The API endpoint needs only the read-only R2 key; the Supabase service-role key and R2 writer key stay in the dataflow runtime. These are server-only variables. Never put R2 credentials in browser-visible settings.
 

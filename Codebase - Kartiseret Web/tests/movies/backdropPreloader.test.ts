@@ -43,6 +43,20 @@ afterEach(() => {
 });
 
 describe("shared backdrop preload scheduling", () => {
+  it("selects responsive variants from the same direct R2 origin", () => {
+    const scheduler = createBackdropPreloader();
+    const poster = `https://img-dev.seret.site/artwork/v1/poster/${"a".repeat(64)}`;
+    const backdrop = `https://img.seret.site/artwork/v1/backdrop/${"b".repeat(64)}`;
+    scheduler.requestPosterNow(`${poster}/342.webp`);
+    scheduler.requestBackdropNow(`${backdrop}/1280.webp`);
+    expect(TestImage.instances[0].srcset).toBe(
+      `${poster}/185.webp 185w, ${poster}/342.webp 342w, ${poster}/780.webp 780w`,
+    );
+    expect(TestImage.instances[1].srcset).toBe(
+      `${backdrop}/780.webp 780w, ${backdrop}/1280.webp 1280w`,
+    );
+  });
+
   it("preloads the browser-selected R2 variant for poster and backdrop sizes", async () => {
     const scheduler = createBackdropPreloader();
     scheduler.requestPosterNow(

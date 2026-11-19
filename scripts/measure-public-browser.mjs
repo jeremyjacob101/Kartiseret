@@ -16,6 +16,7 @@ if (
   );
 }
 const base = new URL(origin);
+const posterPath = /\/poster\/|\/t\/p\//;
 const cookieFile = process.env.KARTISERET_MEASURE_COOKIE_FILE;
 const cookies = cookieFile
   ? (await readFile(cookieFile, "utf8")).split(/\r?\n/).flatMap((line) => {
@@ -59,6 +60,9 @@ try {
             lcp: null,
             layoutShift: 0,
             firstUsefulContent: null,
+            firstFivePostersMs: null,
+            scrollerIntroStartMs: null,
+            scrollerIntroEndMs: null,
           };
           window.kartiseretMeasurement = data;
           for (const type of [
@@ -108,10 +112,71 @@ try {
             if (performance.now() < 15_000) requestAnimationFrame(check);
           }
           requestAnimationFrame(check);
+          if (location.pathname === "/") {
+            let openingCards = [];
+            function checkScroller() {
+              const scroller = document.querySelector(
+                "[data-scroller-intro-phase]",
+              );
+              const phase = scroller?.getAttribute("data-scroller-intro-phase");
+              if (phase === "pre" || phase === "animating") {
+                openingCards = Array.from(
+                  scroller.querySelectorAll("[data-movie-scroller-item-index]"),
+                ).filter((card) =>
+                  /cubic-bezier\(0\.22,\s*0\.86,/.test(card.style.transition),
+                );
+              }
+              const images = openingCards.map((card) =>
+                card.querySelector("img"),
+              );
+              if (
+                data.firstFivePostersMs === null &&
+                images.length === 5 &&
+                images.every(
+                  (image) => image?.complete && image.naturalWidth > 0,
+                )
+              ) {
+                data.firstFivePostersMs = performance.now();
+              }
+              if (phase === "animating")
+                data.scrollerIntroStartMs ??= performance.now();
+              if (phase === "done")
+                data.scrollerIntroEndMs ??= performance.now();
+              if (
+                performance.now() < 15_000 &&
+                (data.firstFivePostersMs === null || phase !== "done")
+              )
+                requestAnimationFrame(checkScroller);
+            }
+            requestAnimationFrame(checkScroller);
+          }
         });
         const page = await context.newPage();
         let pageErrors = 0;
         let hydrationErrors = 0;
+        const posterResponses = [];
+        page.on("requestfinished", (request) => {
+          const url = new URL(request.url());
+          if (
+            request.resourceType() !== "image" ||
+            !posterPath.test(url.pathname)
+          )
+            return;
+          posterResponses.push(
+            (async () => {
+              const response = await request.response();
+              const headers = response?.headers() ?? {};
+              const sizes = await request.sizes().catch(() => null);
+              return {
+                host: url.hostname,
+                path: url.pathname,
+                status: response?.status(),
+                bodyBytes: sizes?.responseBodySize ?? null,
+                cache: headers["cf-cache-status"] ?? headers["x-vercel-cache"],
+              };
+            })(),
+          );
+        });
         page.on("pageerror", () => {
           pageErrors += 1;
         });
@@ -127,6 +192,13 @@ try {
           timeout: 25000,
         });
         await page.waitForTimeout(1200);
+        if (route === "/" && profile !== "no-js") {
+          await page
+            .locator('[data-scroller-intro-phase="done"]')
+            .first()
+            .waitFor({ timeout: 5000 })
+            .catch(() => {});
+        }
         const browserData = await page.evaluate(() => {
           const navigation = performance.getEntriesByType("navigation")[0];
           const resources = performance.getEntriesByType("resource");
@@ -147,6 +219,18 @@ try {
             ...window.kartiseretMeasurement,
             resources: resources.length,
             posterRequests: posterRequests.length,
+            visiblePosterSource: Array.from(
+              document.querySelectorAll(".movie-scroller-card img"),
+            ).find((image) => {
+              const bounds = image.getBoundingClientRect();
+              return (
+                image.naturalWidth > 0 &&
+                bounds.right > 0 &&
+                bounds.left < innerWidth &&
+                bounds.bottom > 0 &&
+                bounds.top < innerHeight
+              );
+            })?.currentSrc,
             firstPosterRequestMs: posterRequests.length
               ? Math.min(...posterRequests.map((entry) => entry.startTime))
               : null,
@@ -165,6 +249,7 @@ try {
             cache: response?.headers()["x-vercel-cache"],
             pageErrors,
             hydrationErrors,
+            posterResponses: await Promise.all(posterResponses),
             ...browserData,
           }),
         );
