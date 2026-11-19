@@ -41,7 +41,7 @@ struct CatalogView: View {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 112, maximum: 190), spacing: 14)], alignment: .leading, spacing: 20) {
                             ForEach(visibleMovies) { movie in
                                 NavigationLink(value: MovieRoute(mode: mode, movieID: movie.tmdbId)) {
-                                    MoviePosterTile(movie: movie, mode: mode, ratingSources: account.preferences.ratingSources)
+                                    MoviePosterTile(movie: movie, mode: mode)
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityIdentifier("movie.\(movie.tmdbId)")
@@ -73,7 +73,6 @@ struct CatalogView: View {
 private struct MoviePosterTile: View {
     let movie: Movie
     let mode: CatalogMode
-    let ratingSources: [String]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -93,13 +92,12 @@ private struct MoviePosterTile: View {
             Text(movie.title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
-                .lineLimit(2)
+                .lineLimit(2, reservesSpace: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("movie.title.\(movie.tmdbId)")
             Text(movie.year > 0 ? String(movie.year) : "")
                 .font(.caption)
                 .foregroundStyle(BrandStyle.secondary)
-            MovieRatingsView(movie: movie, sources: ratingSources, linksEnabled: false)
-                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .contentShape(Rectangle())
     }

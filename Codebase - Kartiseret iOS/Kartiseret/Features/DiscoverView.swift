@@ -121,7 +121,6 @@ private struct MovieShelf: View {
     let subtitle: String
     let movies: [Movie]
     let mode: CatalogMode
-    @Environment(AccountStore.self) private var account
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -151,8 +150,9 @@ private struct MovieShelf: View {
                                         }
                                     }
                                 Text(movie.title).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                                    .lineLimit(2).frame(width: 132, alignment: .leading)
-                                MovieRatingsView(movie: movie, sources: account.preferences.ratingSources, maxWidth: 132, linksEnabled: false)
+                                    .lineLimit(2, reservesSpace: true)
+                                    .frame(width: 132, alignment: .leading)
+                                    .accessibilityIdentifier("movie.title.\(movie.tmdbId)")
                             }
                             .contentShape(Rectangle())
                         }

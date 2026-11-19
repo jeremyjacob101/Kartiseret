@@ -10,6 +10,8 @@ final class KartiseretUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["movie.details.title"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any)["IMDb rating 8.1"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["booking.9100001.1830"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["movie.ticketAlert"].exists)
         assertHorizontallyContained(app.buttons["selectedCityButton"], in: app)
         assertHorizontallyContained(app.buttons["selectedDayButton"], in: app)
         assertHorizontallyContained(app.buttons["booking.9100001.1830"], in: app)
@@ -62,6 +64,21 @@ final class KartiseretUITests: XCTestCase {
         let movie = app.buttons["movie.9100001"]
         XCTAssertTrue(movie.waitForExistence(timeout: 5))
         assertHorizontallyContained(movie, in: app)
+        let title = app.staticTexts["movie.title.9100001"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(title.frame.height, 30, "Catalog titles should reserve a two-line title slot")
+        XCTAssertFalse(app.descendants(matching: .any)["IMDb rating 8.1"].exists)
+    }
+
+    func testHomeMovieShelvesReserveTwoLineTitlesWithoutRatings() {
+        let app = launchFixture()
+        let movie = app.buttons["movie.9100001"]
+        XCTAssertTrue(movie.waitForExistence(timeout: 5))
+
+        let title = app.staticTexts["movie.title.9100001"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(title.frame.height, 30, "Home shelf titles should reserve a two-line title slot")
+        XCTAssertFalse(app.descendants(matching: .any)["IMDb rating 8.1"].exists)
     }
 
     func testBookingActionOpensTheSelectedFixtureLink() {

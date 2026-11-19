@@ -42,6 +42,11 @@ struct MovieDetailView: View {
 
     private var rows: [Showtime]? { store.showtimes[request] }
 
+    private var shouldOfferTicketAlert: Bool {
+        guard let rows else { return store.showtimeErrors[request] != nil }
+        return rows.isEmpty
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -228,22 +233,26 @@ struct MovieDetailView: View {
                 Button { openURL(url) } label: { Label("Trailer", systemImage: "play.fill") }
                     .buttonStyle(.bordered).tint(BrandStyle.accent)
             }
-            if account.state == .signedIn {
-                Button { Task { await saveTicketAlert(for: movie) } } label: {
-                    Label(ticketAlertSaved ? "Watching tickets" : "Ticket alert", systemImage: ticketAlertSaved ? "bell.badge.fill" : "bell.badge")
-                }
-                .buttonStyle(.borderedProminent).tint(BrandStyle.accent)
-                .disabled(isSavingAction || ticketAlertSaved)
-                if route.mode == .comingSoon {
-                    Button { Task { await saveReleaseWatch(for: movie) } } label: {
-                        Label(releaseWatchSaved ? "Watching date" : "Watch release", systemImage: "calendar.badge.clock")
+            if shouldOfferTicketAlert {
+                if account.state == .signedIn {
+                    Button { Task { await saveTicketAlert(for: movie) } } label: {
+                        Label(ticketAlertSaved ? "Watching tickets" : "Ticket alert", systemImage: ticketAlertSaved ? "bell.badge.fill" : "bell.badge")
                     }
-                    .buttonStyle(.bordered).tint(BrandStyle.accent)
-                    .disabled(isSavingAction || releaseWatchSaved)
-                }
-            } else {
-                NavigationLink { SignInView() } label: { Label("Sign in for alerts", systemImage: "bell.badge") }
                     .buttonStyle(.borderedProminent).tint(BrandStyle.accent)
+                    .disabled(isSavingAction || ticketAlertSaved)
+                    .accessibilityIdentifier("movie.ticketAlert")
+                } else {
+                    NavigationLink { SignInView() } label: { Label("Sign in for alerts", systemImage: "bell.badge") }
+                        .buttonStyle(.borderedProminent).tint(BrandStyle.accent)
+                        .accessibilityIdentifier("movie.ticketAlert")
+                }
+            }
+            if account.state == .signedIn, route.mode == .comingSoon {
+                Button { Task { await saveReleaseWatch(for: movie) } } label: {
+                    Label(releaseWatchSaved ? "Watching date" : "Watch release", systemImage: "calendar.badge.clock")
+                }
+                .buttonStyle(.bordered).tint(BrandStyle.accent)
+                .disabled(isSavingAction || releaseWatchSaved)
             }
     }
 
