@@ -71,8 +71,8 @@ function cardDataForRow(row) {
   const isComingSoon = row.table === "finalSoons";
   const record = movieMapperRecord(row.record, isComingSoon);
   const movie = isComingSoon
-    ? toComingSoonMovie(record)
-    : toNowPlayingMovie(record);
+    ? toComingSoonMovie(record, undefined, {})
+    : toNowPlayingMovie(record, undefined, {});
   const data = socialPreviewCardDataSchema.parse({
     tmdbId: movie.tmdbId,
     title: movie.title,

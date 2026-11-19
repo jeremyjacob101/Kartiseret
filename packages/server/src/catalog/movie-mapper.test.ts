@@ -31,6 +31,14 @@ const record = {
   soloUpdate: false,
 };
 
+const posterPath = `/api/images/v1/poster/${"a".repeat(64)}/342.webp`;
+const backdropPath = `/api/images/v1/backdrop/${"b".repeat(64)}/1280.webp`;
+const productionDelivery = {
+  VERCEL_ENV: "production",
+  R2_BUCKET: "kartiseret-artwork-prod",
+  ARTWORK_DELIVERY_ORIGIN: "https://img.seret.site",
+};
+
 describe("toNowPlayingMovie", () => {
   it("normalizes the observed mixed row types into the shared DTO", () => {
     expect(toNowPlayingMovie(record, "Ab1")).toMatchObject({
@@ -74,6 +82,84 @@ describe("toNowPlayingMovie", () => {
     expect(movie.backdropSrcSet).toContain("/780.webp 780w");
     expect(movie.backdropSrcSet).toContain("/1280.webp 1280w");
     expect(toNowPlayingMovie(record).imageSrcSet).toBeUndefined();
+  });
+
+  it("uses the production R2 origin for the source and all responsive variants without invalidating social cards", () => {
+    const source = {
+      ...record,
+      enPoster: `https://seret.site${posterPath}`,
+      backdrop: backdropPath,
+    };
+    const fingerprint = createSocialPreviewFingerprint({
+      tmdbId: "9100001",
+      title: "Feature Film",
+      posterUrl: source.enPoster,
+      backdropUrl: source.backdrop,
+      isComingSoon: false,
+      year: 2024,
+      releaseDate: null,
+      runtime: 122,
+      genres: ["Drama"],
+      imdbRating: 7.5,
+      rtCriticRating: null,
+      rtCriticVotes: null,
+      rtAudienceRating: 93,
+      rtAudienceVotes: 18,
+      lbRating: 4,
+    });
+    const movie = toNowPlayingMovie(
+      { ...source, socialPreviewFingerprint: fingerprint },
+      "Ab1",
+      productionDelivery,
+    );
+    const origin = productionDelivery.ARTWORK_DELIVERY_ORIGIN;
+    const posterBase = `${origin}/artwork/v1/poster/${"a".repeat(64)}`;
+    const backdropBase = `${origin}/artwork/v1/backdrop/${"b".repeat(64)}`;
+    expect(movie).toMatchObject({
+      imageSrc: `${posterBase}/342.webp`,
+      imageSrcSet: `${posterBase}/185.webp 185w, ${posterBase}/342.webp 342w, ${posterBase}/780.webp 780w`,
+      backdropSrc: `${backdropBase}/1280.webp`,
+      backdropSrcSet: `${backdropBase}/780.webp 780w, ${backdropBase}/1280.webp 1280w`,
+      socialPreviewFingerprint: fingerprint,
+    });
+  });
+
+  it.each([
+    {},
+    { ...productionDelivery, VERCEL_ENV: "preview" },
+    { ...productionDelivery, R2_BUCKET: "kartiseret-artwork-dev" },
+    { ...productionDelivery, ARTWORK_DELIVERY_ORIGIN: "http://img.seret.site" },
+    {
+      ...productionDelivery,
+      ARTWORK_DELIVERY_ORIGIN: "https://img.seret.site/",
+    },
+  ])(
+    "keeps the legacy route if direct delivery is disabled or mismatched (%j)",
+    (environment) => {
+      const movie = toNowPlayingMovie(
+        { ...record, enPoster: posterPath },
+        undefined,
+        environment,
+      );
+      expect(movie.imageSrc).toBe(posterPath);
+      expect(movie.imageSrcSet).toContain(`${posterPath} 342w`);
+    },
+  );
+
+  it.each([
+    "https://image.tmdb.org/t/p/w342/source.jpg",
+    `https://external.example${posterPath}`,
+    posterPath.replace("342.webp", "0342.webp"),
+    posterPath.replace("342.webp", "800.webp"),
+    posterPath.replace("342.webp", "342.webp?modified=1"),
+  ])("does not rewrite an external or invalid source (%s)", (source) => {
+    const movie = toNowPlayingMovie(
+      { ...record, enPoster: source },
+      undefined,
+      productionDelivery,
+    );
+    expect(movie.imageSrc).toBe(source);
+    expect(movie.imageSrcSet ?? "").not.toContain("img.seret.site");
   });
 
   it("exposes a stored social card only when it matches the current rendered data", () => {
@@ -142,6 +228,25 @@ describe("toComingSoonMovie", () => {
     ],
     soloUpdate: false,
   };
+
+  it("uses the dev R2 origin for coming-soon sources in a Vercel preview", () => {
+    const movie = toComingSoonMovie(
+      {
+        ...comingSoonRecord,
+        enPoster: `https://kartiseret-dev.vercel.app${posterPath}`,
+      },
+      undefined,
+      {
+        VERCEL_ENV: "preview",
+        NODE_ENV: "production",
+        ARTWORK_DELIVERY_ORIGIN: "https://img-dev.seret.site",
+      },
+    );
+    const url = `https://img-dev.seret.site${posterPath.replace("/api/images/", "/artwork/")}`;
+    expect(movie.imageSrc).toBe(url);
+    expect(movie.imageSrcSet).toContain(`${url} 342w`);
+    expect(movie.backdropSrc).toBe(comingSoonRecord.backdrop);
+  });
 
   it("normalizes future movie data without inventing an original year", () => {
     expect(toComingSoonMovie(comingSoonRecord, "So1")).toMatchObject({
