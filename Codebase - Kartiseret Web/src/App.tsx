@@ -8,6 +8,7 @@ import { getCinemathequeDateRange, nationwideCinemathequeQueryOptions } from "./
 import { getShowtimesCityFromPath, getShowtimesCityPath } from "@kartiseret/contracts/showtime-routes";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
 import { DeleteAccountConfirmationPage } from "./components/DeleteAccountConfirmationPage";
+import type { HomepageFeaturedResponse } from "@kartiseret/contracts/homepage-featured";
 import { useMovieDisplayPreferences } from "./contexts/MovieDisplayPreferencesContext";
 import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
 import { usePublicRouteComponents } from "./routing/PublicRouteComponentsContext.js";
@@ -179,6 +180,7 @@ type HomeRouteProps = {
   scrollerSlotMinHeight: number;
   isAdmin?: boolean;
   userId?: string | null;
+  homepageFeaturedConfig?: HomepageFeaturedResponse["data"];
   homepageHighlights?: readonly HomepageMovieHighlight[];
   onAdminSaveHomepageHighlight?: (
     highlight: HomepageMovieHighlight,
@@ -373,11 +375,11 @@ export function HomeRoute({
   scrollerSlotMinHeight,
   isAdmin = false,
   userId = null,
+  homepageFeaturedConfig,
   homepageHighlights = [],
   onAdminSaveHomepageHighlight = async () => undefined,
   onAdminRemoveHomepageHighlight = async () => undefined,
 }: HomeRouteProps) {
-  const { data: featuredData } = useQuery(homepageFeaturedQueryOptions());
   const skipLateIntro =
     typeof document !== "undefined" &&
     document.documentElement.dataset.homeIntro === "fallback";
@@ -385,7 +387,7 @@ export function HomeRoute({
     <section className="scroller-panel" aria-label="Movie releases">
       <CatalogErrorNote message={catalogError} />
       <HomepageFeaturedCarousel
-        config={featuredData?.data}
+        config={homepageFeaturedConfig}
         nowPlayingMovies={nowPlayingMovies}
         comingSoonMovies={comingSoonMovies}
         isAdmin={isAdmin}
@@ -574,6 +576,10 @@ function MainApplication() {
   const { data: isAdmin = false } = useQuery({
     ...adminStatusQueryOptions(user?.id ?? null),
     enabled: Boolean(user),
+  });
+  const { data: homepageFeaturedResponse } = useQuery({
+    ...homepageFeaturedQueryOptions(),
+    enabled: pathname === "/",
   });
   const queryClient = useQueryClient();
   const adminHomepageQuery = useQuery({
@@ -1236,6 +1242,7 @@ function MainApplication() {
                 scrollerSlotMinHeight={scrollerSlotMinHeight}
                 isAdmin={isAdmin}
                 userId={user?.id ?? null}
+                homepageFeaturedConfig={homepageFeaturedResponse?.data}
                 homepageHighlights={homepageHighlights}
                 onAdminSaveHomepageHighlight={saveHomepageHighlightFromUi}
                 onAdminRemoveHomepageHighlight={removeHomepageHighlightFromUi}

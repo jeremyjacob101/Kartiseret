@@ -601,8 +601,11 @@ async function getListingPage(
     const city = getShowtimesCityFromPath(path) ?? preferredCity;
     const homepageFeatures =
       path === "/"
-        ? new HomepageFeaturedService(getProductionDataRuntime().database.db)
-            .readPublic(instant)
+        ? Promise.resolve()
+            .then(() =>
+              new HomepageFeaturedService(
+                getProductionDataRuntime().database.db,
+              ).readPublic(instant))
             .catch((error: unknown) => {
               logErrorSafely(
                 "homepage_featured_unavailable",
