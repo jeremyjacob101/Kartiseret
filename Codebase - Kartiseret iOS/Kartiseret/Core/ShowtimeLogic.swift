@@ -55,6 +55,64 @@ enum ShowtimeLogic {
         return minutes < 65 ? minutes + 1_440 : minutes
     }
 
+    static func technologyBadge(_ screeningTech: String) -> String? {
+        let normalizedValue = normalized(screeningTech)
+        let strippedValue = normalizedValue
+            .replacingOccurrences(
+                of: #"^2D\b[\s/-]*"#,
+                with: "",
+                options: [.regularExpression, .caseInsensitive]
+            )
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !strippedValue.isEmpty,
+              strippedValue.caseInsensitiveCompare("REGULAR") != .orderedSame else { return nil }
+        return strippedValue
+    }
+
+    static func screeningTypeBadge(_ screeningType: String) -> String? {
+        let normalizedValue = normalized(screeningType)
+        guard !normalizedValue.isEmpty,
+              normalizedValue.caseInsensitiveCompare("REGULAR") != .orderedSame else { return nil }
+        return normalizedValue
+    }
+
+    static func dubbingBadge(_ dubLanguage: String?) -> String? {
+        let normalizedValue = normalized(dubLanguage ?? "")
+        return normalizedValue.isEmpty ? nil : "\(normalizedValue) Dub"
+    }
+
+    static func dubFlagAssetName(_ dubLanguage: String?) -> String? {
+        switch normalized(dubLanguage ?? "").lowercased() {
+        case "hebrew": "ShowtimeFlagIsrael"
+        case "french": "ShowtimeFlagFrance"
+        default: nil
+        }
+    }
+
+    static func ticketAccessibilityLabel(
+        for showtime: Showtime,
+        cinemaName: String,
+        movieTitle: String? = nil,
+        isBookable: Bool
+    ) -> String {
+        let leadingLabel: String
+        if isBookable {
+            let movie = movieTitle.map { " \($0)" } ?? ""
+            leadingLabel = "Tickets for\(movie) at \(cinemaName), \(showtime.displayTime)"
+        } else {
+            leadingLabel = "Showtime at \(cinemaName), \(showtime.displayTime)"
+        }
+        return ([leadingLabel] + ticketMetadataLabels(for: showtime)).joined(separator: ", ")
+    }
+
+    static func ticketMetadataLabels(for showtime: Showtime) -> [String] {
+        [
+            technologyBadge(showtime.screeningTech),
+            screeningTypeBadge(showtime.screeningType),
+            dubbingBadge(showtime.dubLanguage),
+        ].compactMap { $0 }
+    }
+
     static func matchesSavedFilters(_ showtime: Showtime, state: AccountPreferences.Showtime.FilterState) -> Bool {
         let metadata = canonicalMetadata(showtime)
         let unchecked = state.unchecked

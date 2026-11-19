@@ -21,9 +21,7 @@ struct ShowtimeSections: View {
                     } else {
                         Text(cinema.name).font(.subheadline.weight(.semibold)).foregroundStyle(Color(hex: theme.accentHex))
                     }
-                    ForEach(cinema.showtimes) { showtime in
-                        ShowtimeRow(showtime: showtime, cinemaName: cinema.name, theme: theme)
-                    }
+                    ShowtimeRow(showtimes: cinema.showtimes, cinemaName: cinema.name, theme: theme)
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -38,39 +36,43 @@ struct ShowtimeSections: View {
 }
 
 private struct ShowtimeRow: View {
-    let showtime: Showtime
+    let showtimes: [Showtime]
     let cinemaName: String
     let theme: ShowtimeTheme
     @Environment(AppStore.self) private var store
     @Environment(\.openURL) private var openURL
 
+    private let columns = [GridItem(.adaptive(minimum: 74, maximum: 74), spacing: 7, alignment: .bottom)]
+
     var body: some View {
-        HStack(spacing: 9) {
-            if let url = showtime.bookingURL {
-                Button {
-                    openURL(url)
-                    store.captureFixtureBookingURL(url)
-                } label: {
-                    ShowtimeTicket(time: showtime.displayTime, theme: theme, isBookable: true)
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 7) {
+            ForEach(showtimes) { showtime in
+                if let url = showtime.bookingURL {
+                    Button {
+                        openURL(url)
+                        store.captureFixtureBookingURL(url)
+                    } label: {
+                        ShowtimeTicketCell(showtime: showtime, theme: theme)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(ShowtimeLogic.ticketAccessibilityLabel(
+                        for: showtime,
+                        cinemaName: cinemaName,
+                        isBookable: true
+                    ))
+                    .accessibilityIdentifier("booking.\(showtime.tmdbId).\(showtime.displayTime.replacingOccurrences(of: ":", with: ""))")
+                } else {
+                    ShowtimeTicketCell(showtime: showtime, theme: theme)
+                        .accessibilityLabel(ShowtimeLogic.ticketAccessibilityLabel(
+                            for: showtime,
+                            cinemaName: cinemaName,
+                            isBookable: false
+                        ))
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Tickets for \(showtime.displayTime) at \(cinemaName)")
-                .accessibilityIdentifier("booking.\(showtime.tmdbId)")
-            } else {
-                ShowtimeTicket(time: showtime.displayTime, theme: theme)
-                    .accessibilityLabel(showtime.displayTime)
             }
-            if !showtime.formatLabels.isEmpty {
-                Text(showtime.formatLabels.joined(separator: " · "))
-                    .font(.caption)
-                    .foregroundStyle(BrandStyle.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 2)
+        .padding(.top, 8)
     }
 }
 

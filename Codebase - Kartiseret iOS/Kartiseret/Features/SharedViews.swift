@@ -111,7 +111,8 @@ struct MovieRatingsView: View {
 struct ShowtimeTicket: View {
     let time: String
     let theme: ShowtimeTheme
-    var isBookable: Bool = false
+    var screeningType: String? = nil
+    var dubLanguage: String? = nil
 
     var body: some View {
         ZStack {
@@ -127,18 +128,74 @@ struct ShowtimeTicket: View {
                 .renderingMode(.template)
                 .foregroundStyle(.black.opacity(0.55))
 
-            HStack(spacing: 4) {
-                Text(time)
-                    .font(.caption.weight(.bold).monospacedDigit())
-                if isBookable {
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: 9, weight: .bold))
-                }
+            Text(time)
+                .font(.caption.weight(.bold).monospacedDigit())
+                .foregroundStyle(.white)
+
+            if let flagName = ShowtimeLogic.dubFlagAssetName(dubLanguage),
+               ShowtimeLogic.dubbingBadge(dubLanguage) != nil {
+                Image(flagName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 17, height: 13)
+                    .clipShape(RoundedRectangle(cornerRadius: 2))
+                    .background(.white, in: RoundedRectangle(cornerRadius: 2))
+                    .overlay(RoundedRectangle(cornerRadius: 2).stroke(.black.opacity(0.85), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.22), radius: 3, y: 2)
+                    .offset(x: -26, y: -17)
+                    .accessibilityHidden(true)
             }
-            .foregroundStyle(.white)
+
+            if ShowtimeLogic.screeningTypeBadge(screeningType ?? "") != nil {
+                Image(systemName: "star")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(BrandStyle.accent)
+                    .frame(width: 17, height: 13)
+                    .background(Color(hex: 0x0C0B14).opacity(0.9), in: Capsule())
+                    .overlay(Capsule().stroke(.black.opacity(0.85), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.22), radius: 3, y: 2)
+                    .offset(x: 26, y: -17)
+                    .accessibilityHidden(true)
+            }
         }
-        .frame(width: 78, height: 39)
+        .frame(width: 74, height: 39)
         .shadow(color: Color(hex: theme.accentHex).opacity(0.28), radius: 4, y: 2)
+        .accessibilityHidden(true)
+    }
+}
+
+struct ShowtimeTicketCell: View {
+    let showtime: Showtime
+    let theme: ShowtimeTheme
+
+    private var technology: String? { ShowtimeLogic.technologyBadge(showtime.screeningTech) }
+
+    var body: some View {
+        VStack(spacing: -4) {
+            if let technology {
+                Text(technology)
+                    .font(.system(size: 9, weight: .medium).italic())
+                    .tracking(-0.15)
+                    .foregroundStyle(Color(hex: 0xECE7EA))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.horizontal, 5)
+                    .padding(.top, 3)
+                    .frame(width: 70, height: 22, alignment: .top)
+                    .background(
+                        LinearGradient(colors: [Color(hex: 0x756F73), Color(hex: 0x6B6468)], startPoint: .top, endPoint: .bottom),
+                        in: UnevenRoundedRectangle(topLeadingRadius: 12, topTrailingRadius: 12)
+                    )
+                    .accessibilityHidden(true)
+            }
+            ShowtimeTicket(
+                time: showtime.displayTime,
+                theme: theme,
+                screeningType: showtime.screeningType,
+                dubLanguage: showtime.dubLanguage
+            )
+        }
+        .frame(width: 74, height: technology == nil ? 39 : 52, alignment: .bottom)
         .accessibilityHidden(true)
     }
 }

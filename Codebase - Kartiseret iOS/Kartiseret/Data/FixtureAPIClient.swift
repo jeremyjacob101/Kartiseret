@@ -73,11 +73,14 @@ actor FixtureAPIClient: KartiseretAPI {
         publicationRevision: String?
     ) async throws -> ShowtimesSnapshot {
         let selectedMovies = movieID.map { [$0] } ?? nowPlaying.movies.map(\.tmdbId)
-        let fixtures: [(String, String, String, String, String?)] = [
-            ("9100001", "Jerusalem", "Fixture Cinema", "18:30", "https://tickets.example/feature"),
-            ("9100001", "Tel Aviv", "Tel Aviv Screens", "20:15", "https://tickets.example/tel-aviv"),
-            ("9100002", "Jerusalem", "Downtown Cinema", "00:30", nil),
-            ("9100101", "Jerusalem", "Future Cinema", "17:30", "https://tickets.example/future"),
+        let fixtures: [(String, String, String, String, String?, String, String, String?)] = [
+            ("9100001", "Jerusalem", "Cinema City Jerusalem", "18:30", "https://tickets.example/feature", "IMAX", "Regular", nil),
+            ("9100001", "Jerusalem", "Cinema City Jerusalem", "19:15", "https://tickets.example/feature", "2D", "VIP Light", "Hebrew"),
+            ("9100001", "Jerusalem", "Cinema City Jerusalem", "20:45", "https://tickets.example/feature", "2D / 4DX", "Regular", "French"),
+            ("9100001", "Jerusalem", "Cinema City Jerusalem", "21:30", "https://tickets.example/feature", "2D", "Regular", nil),
+            ("9100001", "Tel Aviv", "Tel Aviv Screens", "20:15", "https://tickets.example/tel-aviv", "Standard", "Regular", nil),
+            ("9100002", "Jerusalem", "Downtown Cinema", "00:30", nil, "Standard", "Regular", nil),
+            ("9100101", "Jerusalem", "Future Cinema", "17:30", "https://tickets.example/future", "Standard", "Regular", nil),
         ]
         let rows = fixtures.compactMap { item -> Showtime? in
             guard item.1 == city, selectedMovies.contains(item.0) else { return nil }
@@ -89,9 +92,9 @@ actor FixtureAPIClient: KartiseretAPI {
                 showtime: item.3,
                 englishHref: item.4,
                 hebrewHref: nil,
-                screeningTech: item.0 == "9100001" ? "IMAX" : "Standard",
-                screeningType: "Regular",
-                dubLanguage: nil
+                screeningTech: item.5,
+                screeningType: item.6,
+                dubLanguage: item.7
             )
         }
         return ShowtimesSnapshot(showtimes: rows, publicationRevision: publicationRevision ?? "fixture-1")

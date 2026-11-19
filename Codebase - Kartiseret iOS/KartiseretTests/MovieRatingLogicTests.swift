@@ -62,4 +62,35 @@ final class MovieRatingLogicTests: XCTestCase {
         XCTAssertEqual(ShowtimeTheme.forCinema("Planet Cinema Rishon"), ShowtimeTheme(startHex: 0xD9710F, endHex: 0xB05806, accentHex: 0xD9710F))
         XCTAssertEqual(ShowtimeTheme.forCinema("Jerusalem Cinematheque"), .cinematheque)
     }
+
+    func testShowtimeTicketMetadataMatchesWebsiteBadgeRules() {
+        XCTAssertEqual(ShowtimeLogic.technologyBadge("2D IMAX"), "IMAX")
+        XCTAssertEqual(ShowtimeLogic.technologyBadge(" 2D / 4DX "), "4DX")
+        XCTAssertNil(ShowtimeLogic.technologyBadge("2D"))
+        XCTAssertNil(ShowtimeLogic.technologyBadge("REGULAR"))
+
+        XCTAssertNil(ShowtimeLogic.screeningTypeBadge("Regular"))
+        XCTAssertEqual(ShowtimeLogic.screeningTypeBadge(" VIP   Light "), "VIP Light")
+        XCTAssertEqual(ShowtimeLogic.dubbingBadge(" Hebrew "), "Hebrew Dub")
+        XCTAssertEqual(ShowtimeLogic.dubFlagAssetName("Hebrew"), "ShowtimeFlagIsrael")
+        XCTAssertEqual(ShowtimeLogic.dubFlagAssetName("French"), "ShowtimeFlagFrance")
+        XCTAssertNil(ShowtimeLogic.dubFlagAssetName("Arabic"))
+
+        let showtime = Showtime(
+            tmdbId: "123",
+            screeningCity: "Jerusalem",
+            dateOfShowing: "2026-11-19",
+            cinema: "Cinema City Jerusalem",
+            showtime: "18:30:00",
+            englishHref: "https://tickets.example/showtime",
+            hebrewHref: nil,
+            screeningTech: "2D IMAX",
+            screeningType: "VIP",
+            dubLanguage: "Hebrew"
+        )
+        XCTAssertEqual(
+            ShowtimeLogic.ticketAccessibilityLabel(for: showtime, cinemaName: showtime.cinema, movieTitle: "Dune", isBookable: true),
+            "Tickets for Dune at Cinema City Jerusalem, 18:30, IMAX, VIP, Hebrew Dub"
+        )
+    }
 }

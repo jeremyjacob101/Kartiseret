@@ -12,7 +12,7 @@ final class KartiseretUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["IMDb rating 8.1"].waitForExistence(timeout: 5))
         assertHorizontallyContained(app.buttons["selectedCityButton"], in: app)
         assertHorizontallyContained(app.buttons["selectedDayButton"], in: app)
-        assertHorizontallyContained(app.buttons["booking.9100001"], in: app)
+        assertHorizontallyContained(app.buttons["booking.9100001.1830"], in: app)
         app.buttons["selectedCityButton"].tap()
         app.buttons["city.tel-aviv"].tap()
         app.buttons["day.next"].tap()
@@ -67,7 +67,7 @@ final class KartiseretUITests: XCTestCase {
     func testBookingActionOpensTheSelectedFixtureLink() {
         let app = launchFixture()
         app.tabBars.buttons["Showtimes"].tap()
-        let booking = app.buttons["booking.9100001"]
+        let booking = app.buttons["booking.9100001.1830"]
         XCTAssertTrue(booking.waitForExistence(timeout: 5))
         booking.tap()
 
