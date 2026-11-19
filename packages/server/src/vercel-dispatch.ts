@@ -87,9 +87,17 @@ export function createVercelDispatchHandler({
       return ogImage(request, response);
     }
     if (
-      ["movie", "cinema", "page", "sitemap", "robots", "not-found"].includes(
-        dispatchPath ?? "",
-      )
+      [
+        "movie",
+        "cinema",
+        "page",
+        "private-movie",
+        "private-cinema",
+        "private-page",
+        "sitemap",
+        "robots",
+        "not-found",
+      ].includes(dispatchPath ?? "")
     ) {
       return seo(request, response);
     }

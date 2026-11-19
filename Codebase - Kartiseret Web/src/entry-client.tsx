@@ -1,13 +1,10 @@
 import { initializeUserPreferencesStore, preparePublicPagePreferenceState } from "./stores/userPreferencesStore";
+import { privatePageDisplaySchema, type PrivatePageDisplay } from "@kartiseret/contracts/public-render";
 import { parsePublicPageBootstrap, seedPublicPageQueries } from "./publicRenderBootstrap";
 import { preloadPublicRouteModules } from "./routing/preloadPublicRouteModules";
 import { hydrateRoot, createRoot } from "react-dom/client";
 import { EntryApplication } from "./entry-application";
 import { queryClient } from "./lib/queryClient";
-
-if (window.location.pathname !== "/unsubscribe/letterboxd") {
-  initializeUserPreferencesStore();
-}
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("The application root element is missing.");
@@ -36,6 +33,23 @@ const canHydrate =
   (!requestedDate ||
     !bootstrapUrl.searchParams.has("date") ||
     requestedDate === bootstrapUrl.searchParams.get("date"));
+
+let display: PrivatePageDisplay | undefined;
+const displayElement = document.getElementById("kartiseret-display");
+if (canHydrate && displayElement?.textContent) {
+  try {
+    const result = privatePageDisplaySchema.safeParse(
+      JSON.parse(displayElement.textContent),
+    );
+    if (result.success) display = result.data;
+  } catch {
+    // A malformed snapshot should not prevent the public application loading.
+  }
+  displayElement.remove();
+}
+if (initialUrl.pathname !== "/unsubscribe/letterboxd") {
+  initializeUserPreferencesStore(display);
+}
 
 document.documentElement.classList.remove(
   "no-js",
@@ -74,7 +88,8 @@ async function startClientApplication() {
       const publicRouteComponents = await preloadPublicRouteModules(
         window.location.pathname,
       );
-      const publicPreferenceSnapshot = preparePublicPagePreferenceState();
+      const publicPreferenceSnapshot =
+        preparePublicPagePreferenceState(display);
       seedPublicPageQueries(queryClient, bootstrap);
       hydrateRoot(
         root,

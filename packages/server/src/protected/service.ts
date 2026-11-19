@@ -253,6 +253,66 @@ export class ProtectedWorkflows {
       this.initialize(tx, user, fallbackLocation),
     );
   }
+  readPagePreferences(user: VerifiedIdentity): Promise<Preferences> {
+    return this.asUser(user, async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(userPreferences)
+        .where(eq(userPreferences.userId, user.id))
+        .limit(1);
+      const initialLocation = normalizeLocation(
+        user.signupLocation ?? DEFAULT_LOCATION,
+      );
+      return {
+        location: normalizeLocation(
+          !row?.signupInitialized &&
+            (!row?.location?.trim() || row.location === DEFAULT_LOCATION)
+            ? initialLocation
+            : row.location,
+        ),
+        ratingSources: row
+          ? normalizeRatingSources(row.ratingSources, { allowEmpty: true })
+          : [...DEFAULT_RATING_SOURCES],
+        siteColor: normalizeSiteColor(row?.siteColor),
+        hideReReleases: normalizeHideReReleases(row?.hideReReleases),
+        showtimePreferences: normalizeShowtimePreferences(
+          row?.showtimePreferences,
+        ),
+      };
+    });
+  }
+
+  readPageMovieTreatments(
+    user: VerifiedIdentity,
+    movieIds: readonly string[],
+  ): Promise<MovieDisplayPreference[]> {
+    if (!movieIds.length) return Promise.resolve([]);
+    return this.asUser(user, async (tx) => {
+      const rows = await tx
+        .select({
+          tmdbId: userMovieDisplayPreferences.tmdbId,
+          title: userMovieDisplayPreferences.title,
+          releaseYear: userMovieDisplayPreferences.releaseYear,
+          treatment: userMovieDisplayPreferences.treatment,
+          hideBackdrop: userMovieDisplayPreferences.hideBackdrop,
+        })
+        .from(userMovieDisplayPreferences)
+        .where(
+          and(
+            eq(userMovieDisplayPreferences.userId, user.id),
+            inArray(
+              userMovieDisplayPreferences.tmdbId,
+              movieIds.map((id) => BigInt(id)),
+            ),
+          ),
+        );
+      return rows.map((row) => ({
+        ...row,
+        tmdbId: String(row.tmdbId),
+        treatment: row.treatment as MovieDisplayPreference["treatment"],
+      }));
+    });
+  }
   patchPreferences(user: VerifiedIdentity, patch: PreferencePatch) {
     return this.asUser(user, async (tx) => {
       const current = await this.initialize(tx, user);

@@ -1,26 +1,57 @@
 import { getMovieCatalog, getCinemathequeData, getCinemaPageData, getMovieByPermanentCode, getMovieShowtimes, getPublicTheaterData, getShowtimeRange, withPublicationSnapshot, type PublicCinemaPageContext } from "@kartiseret/server/public-data";
+import { privatePageDisplaySchema, publicPageBootstrapSchema, type PrivatePageDisplay, type PublicPageBootstrap } from "@kartiseret/contracts/public-render";
 import { injectRenderedApplication, injectSeoPage, SITE_ORIGIN, buildSitemapXml, safeHttpUrl, getRequestOrigin } from "./renderHtml.js";
 import { createShowtimeInclusionPredicate, getCinemaDayDate, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
 import { cinemaIdForLocation, findCinemaIdentityForScreening, getCinemaIdentityById } from "./identities.js";
-import { publicPageBootstrapSchema, type PublicPageBootstrap } from "@kartiseret/contracts/public-render";
 import { getShowtimesCityFromPath, getShowtimesCityPath } from "@kartiseret/contracts/showtime-routes";
 import { timeCatalogStage, timeCatalogStageSync } from "@kartiseret/server/catalog-timing";
 import { getProductionPublicDataRepository } from "@kartiseret/server/public-production";
 import { filterShowtimeRows, resolvePreviewRouteSelection } from "../og/previewData.js";
+import { DEFAULT_LOCATION, type AppLocation } from "@kartiseret/contracts/preferences";
 import { socialPreviewImageUrl } from "@kartiseret/contracts/social-preview";
 import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
 import { parseMovieRouteCode } from "@kartiseret/contracts/showtime-links";
 import type { VercelRequest, VercelResponse } from "../og/vercelTypes.js";
 import type { PublicShowtime } from "@kartiseret/contracts/public-data";
-import { DEFAULT_LOCATION } from "@kartiseret/contracts/preferences";
 import { ALL_LOCATIONS } from "@kartiseret/contracts/preferences";
 import { renderBuiltPublicApplication } from "./renderer.js";
 import { logErrorSafely } from "@kartiseret/server/logging";
 import type { Movie } from "@kartiseret/contracts/movies";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const SEO_CACHE = "public, max-age=0, s-maxage=60";
+const PRIVATE_PAGE_CACHE = "private, no-store";
+const PRIVATE_DISPLAY_BUDGET_MS = 1200;
+let preferenceReader:
+  Promise<typeof import("@kartiseret/server/production")> | undefined;
+
+async function readPrivateDisplay(cookie: string) {
+  return timeCatalogStage("page_preferences", async () => {
+    preferenceReader ??= import("@kartiseret/server/production").catch((
+      error,
+    ) => {
+      preferenceReader = undefined;
+      throw error;
+    });
+    const { readProductionPagePreferences } = await preferenceReader;
+    return readProductionPagePreferences(cookie);
+  });
+}
+
+function getPageMovieIds(bootstrap: PublicPageBootstrap): string[] {
+  const ids = new Set<string>();
+  for (const catalog of Object.values(bootstrap.catalogs)) {
+    for (const movie of catalog?.movies ?? []) ids.add(movie.tmdbId);
+  }
+  if (bootstrap.movieDetail) ids.add(bootstrap.movieDetail.movie.tmdbId);
+  for (const { movie } of bootstrap.cinema?.screenings ?? [])
+    ids.add(movie.tmdbId);
+  for (const movie of bootstrap.cinematheques?.data.movies ?? [])
+    ids.add(movie.tmdbId);
+  return [...ids].filter((id) => /^[0-9]{1,12}$/.test(id));
+}
 const SITEMAP_CACHE = "public, max-age=0, s-maxage=300";
 const PUBLIC_PAGE_DEADLINE_MS = 25_000;
 const SSR_RENDER_BUDGET_MS = 12_000;
@@ -135,6 +166,7 @@ async function getMoviePage(
   instant = new Date(),
   imageOrigin = SITE_ORIGIN,
   requestedDate?: string,
+  preferredCity: AppLocation = DEFAULT_LOCATION,
 ) {
   const selection = resolvePreviewRouteSelection(
     routeCode,
@@ -196,7 +228,7 @@ async function getMoviePage(
     const selectedCity =
       parsedRoute?.kind === "encoded"
         ? (selection.city as typeof DEFAULT_LOCATION)
-        : DEFAULT_LOCATION;
+        : preferredCity;
     const selectedDate =
       parsedRoute?.kind === "encoded" ? selection.date : currentDate;
     const bootstrap = createPageBootstrap(
@@ -427,6 +459,7 @@ async function buildListingPage(
     comingSoon?: Awaited<ReturnType<typeof getMovieCatalog>>;
   },
   instant = new Date(),
+  preferredCity: AppLocation = DEFAULT_LOCATION,
 ) {
   let title = "Kartiseret movie listings";
   let description =
@@ -487,7 +520,13 @@ async function buildListingPage(
       catalogs?.nowPlaying ?? getMovieCatalog(repository, "nowPlaying"),
       catalogs?.comingSoon ?? getMovieCatalog(repository, "comingSoon"),
     ]);
-    cinemathequeData = data;
+    cinemathequeData =
+      preferredCity === DEFAULT_LOCATION
+        ? data
+        : await getCinemathequeData(repository, {
+            city: preferredCity,
+            startDate: getCinemaDayDate(instant),
+          });
     const publicMovies = new Map(
       [...nowPlaying.movies, ...comingSoon.movies]
         .filter((movie) => movie.movieCode)
@@ -506,7 +545,7 @@ async function buildListingPage(
       catalogs?.nowPlaying ?? (await getMovieCatalog(repository, "nowPlaying"));
     const [rows, eligibility] = await Promise.all([
       getShowtimeRange(repository, {
-        city: DEFAULT_LOCATION,
+        city: preferredCity,
         startDate,
         endDate: dayOffset(startDate, 6),
       }),
@@ -550,10 +589,14 @@ async function buildListingPage(
   };
 }
 
-async function getListingPage(path: string, instant = new Date()) {
+async function getListingPage(
+  path: string,
+  instant = new Date(),
+  preferredCity: AppLocation = DEFAULT_LOCATION,
+) {
   const repository = getProductionPublicDataRepository();
   return withPublicationSnapshot(repository, async (publicationRevision) => {
-    const city = getShowtimesCityFromPath(path) ?? DEFAULT_LOCATION;
+    const city = getShowtimesCityFromPath(path) ?? preferredCity;
     const [nowPlaying, comingSoon, theaters] = await Promise.all([
       path === "/soons" ? undefined : getMovieCatalog(repository, "nowPlaying"),
       path === "/movies"
@@ -568,6 +611,7 @@ async function getListingPage(path: string, instant = new Date()) {
       path,
       { nowPlaying, comingSoon },
       instant,
+      preferredCity,
     );
     const currentDate = getCinemaDayDate(instant);
     const extra: Partial<PublicPageBootstrap> = { theaters };
@@ -583,7 +627,7 @@ async function getListingPage(path: string, instant = new Date()) {
     }
     if (path === "/cinematheques" && page.cinemathequeData) {
       extra.cinematheques = {
-        city: DEFAULT_LOCATION,
+        city: preferredCity,
         publicationRevision,
         data: page.cinemathequeData,
       };
@@ -681,7 +725,21 @@ export default async function handler(
   request: VercelRequest,
   response: VercelResponse,
 ): Promise<void> {
-  const route = request.url?.split("?", 1)[0]?.replace(/^\/api\//, "") ?? "";
+  const dispatchRoute =
+    request.url?.split("?", 1)[0]?.replace(/^\/api\//, "") ?? "";
+  const privateRoute = [
+    "private-page",
+    "private-cinema",
+    "private-movie",
+  ].includes(dispatchRoute);
+  const route = privateRoute
+    ? dispatchRoute.slice("private-".length)
+    : dispatchRoute;
+  if (privateRoute) {
+    response
+      .setHeader("Cache-Control", PRIVATE_PAGE_CACHE)
+      .setHeader("Vary", "Cookie");
+  }
   if (route === "robots") {
     const isPreview = Boolean(
       process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production",
@@ -732,6 +790,15 @@ export default async function handler(
     }
 
     const deadlineAt = Date.now() + PUBLIC_PAGE_DEADLINE_MS;
+    const privateDeadline = Date.now() + PRIVATE_DISPLAY_BUDGET_MS;
+    const cookie = request.headers.cookie;
+    const identity =
+      privateRoute && typeof cookie === "string"
+        ? withDeadline(
+            () => readPrivateDisplay(cookie),
+            PRIVATE_DISPLAY_BUDGET_MS,
+          ).catch(() => null)
+        : Promise.resolve(null);
     const rendered = await withDeadline(async () => {
       const result = await timeCatalogStage("public_data", async () => {
         let pageResult: {
@@ -750,6 +817,9 @@ export default async function handler(
             new Date(),
             getRequestOrigin(request.headers),
             requestedDate,
+            parseMovieRouteCode(routeCode)?.kind === "plain"
+              ? (await identity)?.preferences.location
+              : undefined,
           );
           pageResult = movie
             ? { page: movie.page, bootstrap: movie.bootstrap }
@@ -757,11 +827,39 @@ export default async function handler(
         } else if (route === "cinema") {
           pageResult = await getCinemaPage(cinemaId);
         } else if (route === "page") {
-          pageResult = await getListingPage(path);
+          pageResult = await getListingPage(
+            path,
+            undefined,
+            path === "/showtimes" || path === "/cinematheques"
+              ? (await identity)?.preferences.location
+              : undefined,
+          );
         }
         return pageResult;
       });
       if (!result) return { result: null, output: "" };
+      const account = await identity;
+      let display: PrivatePageDisplay | undefined;
+      if (account) {
+        const budget = privateDeadline - Date.now();
+        const movieTreatments =
+          budget > 0
+            ? await withDeadline(
+                () =>
+                  timeCatalogStage("page_movie_treatments", () =>
+                    account.readMovieTreatments(
+                      getPageMovieIds(result.bootstrap),
+                    )),
+                budget,
+              ).catch(() => null)
+            : null;
+        display = privatePageDisplaySchema.parse({
+          version: 1,
+          accountKey: createHash("sha256").update(account.userId).digest("hex"),
+          preferences: account.preferences,
+          movieTreatments,
+        });
+      }
       const metadataHtml = injectSeoPage(html, result.page);
       const remainingMs = deadlineAt - Date.now();
       if (remainingMs <= 0) {
@@ -771,9 +869,16 @@ export default async function handler(
         renderBuiltPublicApplication(
           result.bootstrap,
           Math.min(SSR_RENDER_BUDGET_MS, remainingMs),
+          display,
         ));
       const output = timeCatalogStageSync("html_assembly", () =>
-        injectRenderedApplication(metadataHtml, markup, result.bootstrap));
+        injectRenderedApplication(
+          metadataHtml,
+          markup,
+          result.bootstrap,
+          [],
+          display,
+        ));
       return { result, output };
     }, PUBLIC_PAGE_DEADLINE_MS);
 
@@ -792,7 +897,7 @@ export default async function handler(
     response
       .status(200)
       .setHeader("Content-Type", "text/html; charset=utf-8")
-      .setHeader("Cache-Control", SEO_CACHE)
+      .setHeader("Cache-Control", privateRoute ? PRIVATE_PAGE_CACHE : SEO_CACHE)
       .setHeader(
         "X-Robots-Tag",
         process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production"

@@ -242,6 +242,16 @@ describe.sequential(
         'INSERT INTO public."userPreferences" (user_id,location,rating_sources,site_color) VALUES ($1,$2,$3,$4)',
         [alice.id, "Jerusalem", [], "#a66ae3"],
       );
+      expect(await workflows.readPagePreferences(alice)).toMatchObject({
+        location: "Haifa",
+        ratingSources: [],
+        siteColor: "#a66ae3",
+      });
+      const unchanged = await admin.pool.query(
+        'SELECT location FROM public."userPreferences" WHERE user_id=$1',
+        [alice.id],
+      );
+      expect(unchanged.rows).toEqual([{ location: "Jerusalem" }]);
       const first = await workflows.preferences(alice);
       expect(first).toEqual({
         location: "Haifa",
@@ -455,6 +465,13 @@ describe.sequential(
         preferences: [],
         nextCursor: null,
       });
+      expect(
+        await workflows.readPageMovieTreatments(alice, [preference.tmdbId]),
+      ).toEqual([preference]);
+      expect(
+        await workflows.readPageMovieTreatments(bob, [preference.tmdbId]),
+      ).toEqual([]);
+      expect(await workflows.readPageMovieTreatments(alice, ["1"])).toEqual([]);
       expect(
         (
           await request(app)

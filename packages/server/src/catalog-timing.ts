@@ -19,6 +19,8 @@ type Stage =
   | "movie_codes"
   | "response_json"
   | "public_data"
+  | "page_preferences"
+  | "page_movie_treatments"
   | "html_render"
   | "html_assembly";
 type CacheOutcome = "hit" | "miss" | "wait" | "bypass";

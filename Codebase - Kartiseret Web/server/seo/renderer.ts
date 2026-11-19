@@ -1,4 +1,4 @@
-import type { PublicPageBootstrap } from "@kartiseret/contracts/public-render";
+import type { PrivatePageDisplay, PublicPageBootstrap } from "@kartiseret/contracts/public-render";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 
@@ -6,6 +6,7 @@ type PublicRendererModule = {
   renderPublicApplication: (
     bootstrap: PublicPageBootstrap,
     timeoutMs?: number,
+    display?: PrivatePageDisplay,
   ) => Promise<string>;
 };
 
@@ -14,6 +15,7 @@ let publicRendererPromise: Promise<PublicRendererModule> | null = null;
 export function renderBuiltPublicApplication(
   bootstrap: PublicPageBootstrap,
   timeoutMs?: number,
+  display?: PrivatePageDisplay,
 ): Promise<string> {
   if (!publicRendererPromise) {
     const entryPath = resolve(
@@ -28,5 +30,5 @@ export function renderBuiltPublicApplication(
       });
   }
   return publicRendererPromise.then((renderer) =>
-    renderer.renderPublicApplication(bootstrap, timeoutMs));
+    renderer.renderPublicApplication(bootstrap, timeoutMs, display));
 }

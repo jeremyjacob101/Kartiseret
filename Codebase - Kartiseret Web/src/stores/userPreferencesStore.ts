@@ -6,6 +6,7 @@ import { ratingSourcesPreferenceDefinition, type RatingSource } from "../prefs/d
 import { hideReReleasesPreferenceDefinition } from "../prefs/definitions/hideReReleases";
 import { showtimePreferencesDefinition } from "../prefs/definitions/showtimePreferences";
 import { privateApiResponse, privateIdentityChanged } from "../data/privateApi";
+import type { PrivatePageDisplay } from "@kartiseret/contracts/public-render";
 import type { UserPreferenceDefinition } from "../prefs/definitions/shared";
 import { shouldRollbackOptimisticSave } from "./preferenceSavePolicy";
 import { getAuthClient } from "../lib/authClient";
@@ -57,6 +58,7 @@ type QueuedPreferenceSaves = Partial<{
 
 export type UserPreferencesStoreState = {
   user: ApplicationIdentity | null;
+  documentDisplay: PrivatePageDisplay | null;
   preferences: UserPreferences;
   preferenceOptions: UserPreferenceOptions;
   allSources: readonly RatingSource[];
@@ -183,7 +185,10 @@ function getBootstrappedPreferences(): UserPreferences {
     const cachedValue = getPreferenceDefinition(key).clientCache?.load();
 
     if (cachedValue === null || cachedValue === undefined) {
-      return getDefaultPreferenceValue(key);
+      const guestValue = getPreferenceDefinition(key).guestPersistence?.load();
+      return guestValue == null
+        ? getDefaultPreferenceValue(key)
+        : normalizePreferenceValue(key, guestValue);
     }
 
     return normalizePreferenceValue(key, cachedValue);
@@ -396,6 +401,7 @@ async function savePreferenceValue<Key extends PreferenceKey>(
 
 const userPreferencesStore = create<UserPreferencesStoreState>()(() => ({
   user: null,
+  documentDisplay: null,
   preferences: initialPreferences,
   preferenceOptions,
   allSources: preferenceOptions.ratingSources ?? [],
@@ -466,13 +472,16 @@ export function PublicPreferencesSnapshotProvider({
 }
 
 /** Create non-personalized public defaults without mutating the shared client store. */
-export function preparePublicPagePreferenceState(): UserPreferencesStoreState {
+export function preparePublicPagePreferenceState(
+  display?: PrivatePageDisplay,
+): UserPreferencesStoreState {
   const publicPreferences = createPreferenceValues((key, definition) =>
     normalizePreferenceValue(key, definition.defaultValue));
   return {
     ...userPreferencesStore.getInitialState(),
     user: null,
-    preferences: publicPreferences,
+    documentDisplay: display ?? null,
+    preferences: display?.preferences ?? publicPreferences,
     preferenceOptions,
     allSources: preferenceOptions.ratingSources ?? [],
     allLocations: preferenceOptions.location ?? [],
@@ -550,6 +559,7 @@ async function syncPreferencesWithUser(userId: string | null): Promise<void> {
 function activateUser(
   nextUser: ApplicationIdentity | null,
   forceSync = false,
+  keepDocumentDisplay = false,
 ): void {
   const nextUserId = nextUser?.id ?? null;
   const didIdentityChange = nextUserId !== activeUserId;
@@ -560,7 +570,8 @@ function activateUser(
     return;
   }
 
-  if (didIdentityChange) {
+  if (!keepDocumentDisplay && (didIdentityChange || forceSync)) {
+    useUserPreferencesStore.setState({ documentDisplay: null });
     clearCachedPreferences();
     const initial = getGuestPreferences();
     confirmedPreferences = initial;
@@ -583,22 +594,27 @@ function parseAuthUser(value: unknown): ApplicationIdentity | null {
     : null;
 }
 
-export function initializeUserPreferencesStore(): void {
+export function initializeUserPreferencesStore(
+  display?: PrivatePageDisplay,
+): void {
   if (initializationStarted) {
     return;
   }
 
   initializationStarted = true;
-  confirmedPreferences = getGuestPreferences();
+  useUserPreferencesStore.setState({ documentDisplay: display ?? null });
+  confirmedPreferences = display?.preferences ?? getBootstrappedPreferences();
   commitPreferences(confirmedPreferences);
 
   let receivedSession = false;
+  let sessionGeneration = 0;
   disposeAuthSubscription = authClient.useSession.subscribe(({
     data,
     error,
     isPending,
   }) => {
     if (isPending) return;
+    const generation = ++sessionGeneration;
     if (error && error.status !== 401) {
       useUserPreferencesStore.setState({
         error: error.message,
@@ -607,8 +623,27 @@ export function initializeUserPreferencesStore(): void {
       });
       return;
     }
-    activateUser(error ? null : parseAuthUser(data?.user), !receivedSession);
-    receivedSession = true;
+    const user = error ? null : parseAuthUser(data?.user);
+    const snapshot = useUserPreferencesStore.getState().documentDisplay;
+    const finish = (keep: boolean) => {
+      if (generation !== sessionGeneration) return;
+      activateUser(user, !receivedSession, keep);
+      receivedSession = true;
+    };
+    if (!user || !snapshot) {
+      finish(false);
+      return;
+    }
+    void crypto.subtle
+      .digest("SHA-256", new TextEncoder().encode(user.id))
+      .then(
+        (value) => {
+          const key = Array.from(new Uint8Array(value), (byte) =>
+            byte.toString(16).padStart(2, "0")).join("");
+          finish(key === snapshot.accountKey);
+        },
+        () => finish(false),
+      );
   });
 }
 

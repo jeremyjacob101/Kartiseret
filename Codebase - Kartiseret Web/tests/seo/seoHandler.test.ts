@@ -1,4 +1,5 @@
 import { addCalendarDays, buildMovieShowtimeShareUrl, getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
+import { DEFAULT_SHOWTIME_PREFERENCES } from "@kartiseret/contracts/showtime-preferences";
 import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { sampleMovie } from "../fixtures";
@@ -15,9 +16,13 @@ const mocks = vi.hoisted(() => ({
   getProductionPublicDataRepository: vi.fn(),
   withPublicationSnapshot: vi.fn(),
   renderBuiltPublicApplication: vi.fn(),
+  readProductionPagePreferences: vi.fn(),
 }));
 
 vi.mock("@kartiseret/server/public-data", () => mocks);
+vi.mock("@kartiseret/server/production", () => ({
+  readProductionPagePreferences: mocks.readProductionPagePreferences,
+}));
 vi.mock("@kartiseret/server/public-production", () => ({
   getProductionPublicDataRepository: mocks.getProductionPublicDataRepository,
 }));
@@ -135,6 +140,56 @@ beforeEach(() => {
 });
 
 describe("SEO request handler", () => {
+  it("renders isolated account display state while retaining the anonymous cache path", async () => {
+    const readMovieTreatments = vi.fn().mockResolvedValue([]);
+    mocks.readProductionPagePreferences.mockImplementation(async (
+      cookie: string,
+    ) => {
+      if (cookie === "invalid") throw new Error("expired");
+      return {
+        userId: cookie,
+        preferences: {
+          ratingSources: [],
+          location: "Tel Aviv",
+          siteColor: cookie === "one" ? "#69b0e2" : "#63ae3d",
+          hideReReleases: true,
+          showtimePreferences: DEFAULT_SHOWTIME_PREFERENCES,
+        },
+        readMovieTreatments,
+      };
+    });
+    async function render(cookie?: string) {
+      const response = createResponse();
+      const request = createRequest(
+        cookie ? "/api/private-page" : "/api/page",
+        { path: "/" },
+      );
+      if (cookie) request.headers.cookie = cookie;
+      await seoHandler(request, response as never);
+      expect(response.statusCode).toBe(200);
+      return response;
+    }
+    const [first, second, anonymous, expired] = await Promise.all([
+      render("one"),
+      render("two"),
+      render(),
+      render("invalid"),
+    ]);
+    expect(first.headers.get("cache-control")).toBe("private, no-store");
+    expect(second.headers.get("cache-control")).toBe("private, no-store");
+    expect(expired.headers.get("cache-control")).toBe("private, no-store");
+    expect(anonymous.headers.get("cache-control")).toContain("s-maxage=60");
+    expect(first.body).toContain('data-initial-site-color="#69b0e2"');
+    expect(first.body).not.toContain("#63ae3d");
+    expect(second.body).toContain('data-initial-site-color="#63ae3d"');
+    expect(first.body).toContain('id="kartiseret-display"');
+    expect(second.body).toContain('id="kartiseret-display"');
+    expect(anonymous.body).not.toContain('id="kartiseret-display"');
+    expect(expired.body).not.toContain('id="kartiseret-display"');
+    expect(mocks.readProductionPagePreferences).toHaveBeenCalledTimes(3);
+    expect(readMovieTreatments).toHaveBeenCalledTimes(2);
+  });
+
   it("allows production crawlers and blocks indexing on Vercel previews", async () => {
     const previousVercelEnvironment = process.env.VERCEL_ENV;
     try {

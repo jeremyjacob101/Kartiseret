@@ -1,4 +1,5 @@
 import { cases, encodedPath, makeBootstrap, renderPublicApplication } from "./ssrBuiltOutput.mjs";
+import { DEFAULT_SHOWTIME_PREFERENCES } from "@kartiseret/contracts/showtime-preferences";
 import { getShowtimesCityFromPath } from "@kartiseret/contracts/showtime-routes";
 import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
 import { mkdir, readFile } from "node:fs/promises";
@@ -49,8 +50,9 @@ async function htmlFor(
   pathname,
   bootstrap = makeBootstrap(pathname),
   clientBootstrap = bootstrap,
+  display,
 ) {
-  const markup = await renderPublicApplication(bootstrap);
+  const markup = await renderPublicApplication(bootstrap, 12_000, display);
   const canonicalPath = pathname.startsWith("/Ab1") ? "/Ab1" : pathname;
   const canonical = `https://seret.site${canonicalPath === "/" ? "/" : canonicalPath}`;
   const title = pageTitle(pathname);
@@ -75,7 +77,16 @@ async function htmlFor(
     .replaceAll("<", "\\u003c")
     .replaceAll(">", "\\u003e")
     .replaceAll("&", "\\u0026");
-  const html = baseHtml
+  const displayScript = display
+    ? `<script id="kartiseret-display" type="application/json">${JSON.stringify(display)}</script>`
+    : "";
+  const template = display
+    ? baseHtml.replace(
+        "<html ",
+        `<html data-initial-site-color="${display.preferences.siteColor}" style="--main-app-color:${display.preferences.siteColor}" `,
+      )
+    : baseHtml;
+  const html = template
     .replace(/<!-- SEO_META_START -->[\s\S]*?<!-- SEO_META_END -->/, metadata)
     .replace("</head>", () => `${preloadTags}</head>`)
     .replace(
@@ -84,7 +95,7 @@ async function htmlFor(
     )
     .replace(
       "</body>",
-      `<script id="kartiseret-bootstrap" type="application/json">${bootstrapJson}</script><script>window.__KARTISERET_BOOTSTRAP__=JSON.parse(document.getElementById("kartiseret-bootstrap").textContent||"null")</script></body>`,
+      `<script id="kartiseret-bootstrap" type="application/json">${bootstrapJson}</script><script>window.__KARTISERET_BOOTSTRAP__=JSON.parse(document.getElementById("kartiseret-bootstrap").textContent||"null")</script>${displayScript}</body>`,
     );
   return html;
 }
@@ -132,6 +143,20 @@ const server = createServer(async (request, response) => {
 
     const pathname = decodeURIComponent(url.pathname);
     const bootstrap = makeBootstrap(pathname);
+    if (pathname === "/" && url.searchParams.get("five-posters") === "1") {
+      const original = bootstrap.catalogs.nowPlaying.movies[0];
+      bootstrap.catalogs.nowPlaying.movies = Array.from({ length: 5 }, (
+        _,
+        index,
+      ) => ({
+        ...original,
+        tmdbId: String(201 + index),
+        movieCode: `Ax${index}`,
+        title: `Opening poster ${index}`,
+        imageSrc: `https://images.example.test/opening-${index}.svg`,
+        imageSrcSet: undefined,
+      }));
+    }
     let clientBootstrap = bootstrap;
     if (url.searchParams.get("stale") === "1") {
       clientBootstrap = {
@@ -139,7 +164,30 @@ const server = createServer(async (request, response) => {
         renderedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
       };
     }
-    const html = await htmlFor(pathname, bootstrap, clientBootstrap);
+    const display =
+      pathname === "/" && url.searchParams.get("private-home") === "1"
+        ? {
+            version: 1,
+            accountKey: "0".repeat(64),
+            preferences: {
+              location: "Tel Aviv",
+              siteColor: "#69b0e2",
+              hideReReleases: true,
+              ratingSources: [],
+              showtimePreferences: DEFAULT_SHOWTIME_PREFERENCES,
+            },
+            movieTreatments: [
+              {
+                tmdbId: "101",
+                title: "SSR Test Movie",
+                releaseYear: null,
+                treatment: "remove",
+                hideBackdrop: false,
+              },
+            ],
+          }
+        : undefined;
+    const html = await htmlFor(pathname, bootstrap, clientBootstrap, display);
     response.writeHead(200, {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store",
@@ -161,6 +209,74 @@ const baseUrl = `http://127.0.0.1:${address.port}`;
 const browser = await chromium.launch({ headless: true });
 
 try {
+  const privateHome = await browser.newPage({ reducedMotion: "reduce" });
+  const privateHomeErrors = [];
+  privateHome.on("pageerror", (error) => privateHomeErrors.push(error.message));
+  privateHome.on("console", (message) => {
+    if (/hydration|did not match|server rendered/i.test(message.text()))
+      privateHomeErrors.push(message.text());
+  });
+  await privateHome.route("**/api/auth/get-session", (route) =>
+    route.fulfill({ status: 503, json: { error: "Offline session fixture" } }));
+  const privateHomeResponse = await privateHome.goto(
+    baseUrl + "/?private-home=1",
+  );
+  assert.match(
+    await privateHomeResponse.text(),
+    /data-initial-site-color="#69b0e2"/,
+  );
+  assert.doesNotMatch(await privateHomeResponse.text(), /href="\/Ab1"/);
+  await privateHome
+    .locator('.movie-scroller-card[href="/Cd2"]')
+    .first()
+    .waitFor();
+  assert.equal(await privateHome.locator('main a[href="/Ab1"]').count(), 0);
+  assert.equal(
+    await privateHome.evaluate(() =>
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("--main-app-color")
+        .trim()),
+    "rgb(105, 176, 226)",
+  );
+  assert.deepEqual(privateHomeErrors, []);
+  await privateHome.close();
+
+  const introPage = await browser.newPage({ reducedMotion: "no-preference" });
+  let releaseLastPoster;
+  const lastPoster = new Promise((resolve) => {
+    releaseLastPoster = resolve;
+  });
+  await introPage.route("https://images.example.test/**", async (route) => {
+    if (route.request().url().endsWith("opening-4.svg")) await lastPoster;
+    await route.fulfill({ contentType: "image/svg+xml", body: posterFixture });
+  });
+  try {
+    await introPage.goto(baseUrl + "/?five-posters=1", {
+      waitUntil: "domcontentloaded",
+    });
+    const firstScroller = introPage.locator(".scroller-slot").first();
+    await firstScroller.locator('[data-scroller-intro-phase="pre"]').waitFor();
+    await introPage.waitForFunction(
+      () =>
+        performance
+          .getEntriesByType("resource")
+          .filter((entry) => /opening-[0-3]\.svg$/.test(entry.name)).length >=
+        4,
+    );
+    assert.equal(
+      await firstScroller.locator('[data-scroller-intro-phase="pre"]').count(),
+      1,
+    );
+    releaseLastPoster();
+    await firstScroller
+      .locator('[data-scroller-intro-phase="animating"]')
+      .waitFor();
+    await firstScroller.locator('[data-scroller-intro-phase="done"]').waitFor();
+  } finally {
+    releaseLastPoster();
+    await introPage.close();
+  }
+
   const noScriptPage = await browser.newPage({ javaScriptEnabled: false });
   const noScriptResponse = await noScriptPage.goto(`${baseUrl}/movies`);
   assert.equal(noScriptResponse?.status(), 200);
@@ -286,6 +402,14 @@ try {
     "the initial viewport posters are requested from HTML before the app script runs",
   );
   assert.ok(!homeRequestOrder.includes("auth"));
+  assert.equal(
+    await delayedHomePage
+      .locator(".home-poster-row")
+      .first()
+      .evaluate((row) => getComputedStyle(row).visibility),
+    "hidden",
+    "the settled fallback does not flash before the scroller flies in",
+  );
   const desktopBeforeHydration = await delayedHomePage.evaluate(() => {
     const slot = document.querySelector(".scroller-slot");
     const nextHeading = [...document.querySelectorAll(".section-heading")][1];
@@ -301,6 +425,11 @@ try {
     });
   }
   releaseHomeEntryScript?.();
+  await delayedHomePage
+    .locator(".scroller-slot")
+    .first()
+    .locator('[data-scroller-intro-phase="animating"]')
+    .waitFor();
   await delayedHomePage.waitForFunction(() =>
     [...document.querySelectorAll(".movie-scroller-card img")].some((image) => {
       const bounds = image.getBoundingClientRect();

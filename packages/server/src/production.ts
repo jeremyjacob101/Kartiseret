@@ -114,6 +114,18 @@ function getProductionRuntime(
 
 export { getProductionPublicDataRepository } from "./public-production.js";
 
+export async function readProductionPagePreferences(cookie: string) {
+  const { identityVerifier, workflows } = getProductionRuntime(process.env);
+  const user = await identityVerifier.verify({ cookie });
+  const preferences = await workflows.readPagePreferences(user);
+  return {
+    userId: user.id,
+    preferences,
+    readMovieTreatments: (ids: readonly string[]) =>
+      workflows.readPageMovieTreatments(user, ids),
+  };
+}
+
 export function createProductionApp(
   environment: Record<string, string | undefined> = process.env,
 ) {

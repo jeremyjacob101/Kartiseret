@@ -2,6 +2,7 @@ import { directMoviePageKey, adminMovieEditMutationOptions, loadComingSoonMovies
 import { loadAllShowtimesPageModule, loadCinemaPageModule, loadCinemathequesPageModule, loadMoviePageModule, loadPosterGridPageModule, loadUserPreferencesPageModule } from "./routing/publicRouteModuleLoaders.js";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEventHandler, type ReactNode } from "react";
 import { filterMoviesByReleaseCategory, getMovieReleaseCategory, MOVIE_RELEASE_CATEGORY_LABELS, type MovieReleaseCategory } from "./domain/movieRelease";
+import { INTRO_LEADING_CARD_COUNT, INTRO_TARGET_CARD_COUNT } from "./components/scroller/MovieScrollerBase";
 import { getCinemathequeDateRange, nationwideCinemathequeQueryOptions } from "./data/cinemathequeCatalog";
 import { getShowtimesCityFromPath, getShowtimesCityPath } from "@kartiseret/contracts/showtime-routes";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
@@ -167,6 +168,7 @@ type HomeRouteProps = {
   nowPlayingReady: boolean;
   nowPlayingMovies: readonly Movie[];
   nowPlayingReReleaseMovies: readonly Movie[];
+  hideReReleases?: boolean;
   scrollerSlotMinHeight: number;
 };
 
@@ -298,7 +300,12 @@ function HomePosterRow({
   return (
     <ul className="home-poster-row">
       {movies.map((movie, index) => {
-        const visible = prioritize && index < 4;
+        // The looping scroller opens with one card before the centered
+        // first movie and four cards beginning at the center.
+        const visible =
+          prioritize &&
+          (index < INTRO_TARGET_CARD_COUNT - INTRO_LEADING_CARD_COUNT ||
+            index >= movies.length - INTRO_LEADING_CARD_COUNT);
         const card = (
           <>
             {movie.imageSrc ? (
@@ -342,8 +349,12 @@ export function HomeRoute({
   nowPlayingReady,
   nowPlayingMovies,
   nowPlayingReReleaseMovies,
+  hideReReleases = false,
   scrollerSlotMinHeight,
 }: HomeRouteProps) {
+  const skipLateIntro =
+    typeof document !== "undefined" &&
+    document.documentElement.dataset.homeIntro === "fallback";
   return (
     <section className="scroller-panel" aria-label="Movie releases">
       <CatalogErrorNote message={catalogError} />
@@ -360,7 +371,7 @@ export function HomeRoute({
             fallback={<HomePosterRow movies={nowPlayingMovies} prioritize />}
           >
             <MovieScroller
-              skipIntro
+              skipIntro={skipLateIntro}
               mode="nowPlaying"
               movieItems={nowPlayingMovies}
               cardWidth={cardWidth}
@@ -386,7 +397,7 @@ export function HomeRoute({
         {comingSoonReady && comingSoonMovies.length > 0 ? (
           <ClientMounted fallback={<HomePosterRow movies={comingSoonMovies} />}>
             <MovieScroller
-              skipIntro
+              skipIntro={skipLateIntro}
               mode="comingSoon"
               movieItems={comingSoonMovies}
               cardWidth={cardWidth}
@@ -401,34 +412,38 @@ export function HomeRoute({
           </p>
         ) : null}
       </div>
-      <div className="section-heading">
-        <p className="section-kicker">Now Playing</p>
-        <h2 className="section-title">Re-Releases</h2>
-      </div>
-      <div
-        className="scroller-slot"
-        style={{ minHeight: scrollerSlotMinHeight }}
-      >
-        {nowPlayingReady && nowPlayingReReleaseMovies.length > 0 ? (
-          <ClientMounted
-            fallback={<HomePosterRow movies={nowPlayingReReleaseMovies} />}
+      {hideReReleases ? null : (
+        <>
+          <div className="section-heading">
+            <p className="section-kicker">Now Playing</p>
+            <h2 className="section-title">Re-Releases</h2>
+          </div>
+          <div
+            className="scroller-slot"
+            style={{ minHeight: scrollerSlotMinHeight }}
           >
-            <MovieScroller
-              skipIntro
-              mode="nowPlaying"
-              movieItems={nowPlayingReReleaseMovies}
-              cardWidth={cardWidth}
-              cardHeight={cardHeight}
-              gap={gap}
-              maxWidth={SCROLLER_MAX_WIDTH}
-            />
-          </ClientMounted>
-        ) : nowPlayingReady ? (
-          <p className="app-inline-note" role="status">
-            No re-releases are currently available.
-          </p>
-        ) : null}
-      </div>
+            {nowPlayingReady && nowPlayingReReleaseMovies.length > 0 ? (
+              <ClientMounted
+                fallback={<HomePosterRow movies={nowPlayingReReleaseMovies} />}
+              >
+                <MovieScroller
+                  skipIntro={skipLateIntro}
+                  mode="nowPlaying"
+                  movieItems={nowPlayingReReleaseMovies}
+                  cardWidth={cardWidth}
+                  cardHeight={cardHeight}
+                  gap={gap}
+                  maxWidth={SCROLLER_MAX_WIDTH}
+                />
+              </ClientMounted>
+            ) : nowPlayingReady ? (
+              <p className="app-inline-note" role="status">
+                No re-releases are currently available.
+              </p>
+            ) : null}
+          </div>
+        </>
+      )}
     </section>
   );
 }
@@ -1158,6 +1173,7 @@ function MainApplication() {
                 nowPlayingReady={nowPlayingReady}
                 nowPlayingMovies={nowPlayingNewReleaseMovies}
                 nowPlayingReReleaseMovies={nowPlayingReReleaseMovies}
+                hideReReleases={hideReReleases}
                 scrollerSlotMinHeight={scrollerSlotMinHeight}
               />
             }

@@ -9,6 +9,20 @@ import { movieSchema } from "./movies.js";
 import { appLocationSchema } from "./preferences.js";
 import { isoDateStringSchema } from "./runtime.js";
 import { z } from "zod";
+import {
+  movieDisplayPreferenceSchema,
+  preferencesSchema,
+} from "./private-data.js";
+
+/** Kept separate from the cacheable public bootstrap. */
+export const privatePageDisplaySchema = z.object({
+  version: z.literal(1),
+  accountKey: z.string().regex(/^[a-f0-9]{64}$/),
+  preferences: preferencesSchema,
+  movieTreatments: z.array(movieDisplayPreferenceSchema).nullable(),
+});
+
+export type PrivatePageDisplay = z.infer<typeof privatePageDisplaySchema>;
 
 const publicationRevisionSchema = z.string().regex(/^(0|[1-9][0-9]{0,18})$/);
 
