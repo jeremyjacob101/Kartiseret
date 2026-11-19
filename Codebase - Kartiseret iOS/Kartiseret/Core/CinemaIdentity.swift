@@ -65,6 +65,10 @@ struct CinemaIdentity: Hashable, Identifiable, Sendable {
         all.first { $0.id == id }
     }
 
+    static func includedCount(excluding excludedIDs: Set<String>) -> Int {
+        all.lazy.filter { !excludedIDs.contains($0.id) }.count
+    }
+
     static func forScreening(city: String, cinema: String) -> CinemaIdentity? {
         let normalizedCity = normalize(city)
         let normalizedCinema = normalize(cinema)

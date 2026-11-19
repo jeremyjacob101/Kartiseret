@@ -12,6 +12,14 @@ final class CoreAndAPITests: XCTestCase {
         XCTAssertTrue(UserPreferenceCategory.allCases.allSatisfy { !$0.summary.isEmpty && !$0.systemImage.isEmpty })
     }
 
+    func testCinemaPreferenceCountOnlyCountsKnownIncludedCinemas() {
+        XCTAssertEqual(CinemaIdentity.includedCount(excluding: []), CinemaIdentity.all.count)
+
+        let excluded = Set([CinemaIdentity.all[0].id, "stale-cinema-id"])
+        XCTAssertEqual(CinemaIdentity.includedCount(excluding: excluded), CinemaIdentity.all.count - 1)
+        XCTAssertGreaterThanOrEqual(CinemaIdentity.includedCount(excluding: Set(["stale-cinema-id"])), 0)
+    }
+
     func testUniversalLinkParserRoutesSupportedWebsiteDestinations() throws {
         XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/")!), .discover)
         XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/movies")!), .catalog(.nowPlaying))

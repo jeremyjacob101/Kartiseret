@@ -382,40 +382,74 @@ struct DeleteAccountView: View {
     @State private var error: String?
 
     var body: some View {
-        Form {
-            Section {
-                Text("Permanently delete your account and account-linked data stored by Kartiseret. This cannot be undone. Backup copies may remain until those backups expire.")
-                if let email = account.identity?.email {
-                    Text(email).font(.subheadline).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 12) {
+            PreferenceSurface {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red)
+                        Text("Delete account")
+                            .font(.headline)
+                            .foregroundStyle(.red)
+                    }
+
+                    Text("Permanently delete your account and account-linked data stored by Kartiseret. This cannot be undone. Backup copies may remain until those backups expire.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    if let email = account.identity?.email {
+                        Label(email, systemImage: "person.crop.circle")
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.82))
+                            .textSelection(.enabled)
+                    }
                 }
             }
+
             if sent {
-                Section {
-                    Label("Check your email", systemImage: "envelope")
-                    Text("Open the confirmation link in your email to return to Kartiseret and review deletion. Your account has not been deleted yet.")
+                PreferenceSurface {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Check your email", systemImage: "envelope.badge")
+                            .font(.headline)
+                            .foregroundStyle(.green)
+                        Text("Open the confirmation link in your email to return to Kartiseret and review deletion. Your account has not been deleted yet.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             } else {
-                Section {
-                    TextField("Type DELETE to confirm", text: $confirmation)
-                        .textInputAutocapitalization(.characters)
-                        .autocorrectionDisabled()
-                        .accessibilityIdentifier("account.delete.confirmation")
-                    Button(role: .destructive) {
-                        Task { await requestDeletion() }
-                    } label: {
-                        if pending { ProgressView("Sending email…") }
-                        else { Text("Email me a confirmation link") }
+                PreferenceSurface {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Type DELETE to continue")
+                            .font(.subheadline.weight(.semibold))
+                        TextField("DELETE", text: $confirmation)
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 11)
+                            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                            .accessibilityIdentifier("account.delete.confirmation")
+
+                        Button(role: .destructive) {
+                            Task { await requestDeletion() }
+                        } label: {
+                            if pending { ProgressView("Sending email…") }
+                            else { Label("Email me a confirmation link", systemImage: "envelope") }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
+                        .disabled(pending || confirmation != "DELETE" || account.state != .signedIn)
+                        .accessibilityIdentifier("account.delete.submit")
                     }
-                    .disabled(pending || confirmation != "DELETE" || account.state != .signedIn)
-                    .accessibilityIdentifier("account.delete.submit")
                 }
             }
-            if let error { Section { Text(error).foregroundStyle(.red) } }
+
+            if let error {
+                Label(error, systemImage: "exclamationmark.circle.fill")
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
         }
-        .scrollContentBackground(.hidden)
-        .background(BrandStyle.background)
-        .navigationTitle("Delete account")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     @MainActor private func requestDeletion() async {
