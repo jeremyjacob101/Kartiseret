@@ -1,5 +1,5 @@
 import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, parseExcludedCinemaIds, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "@kartiseret/contracts/showtime-links";
-import { findMovieByCode, isMovieShowtimeDateCovered, isValidMovieCode, loadShowtimesAroundDate, mergeMovieShowtimeRangeResult, showtimeCityQueryOptions, showtimeRangeQueryOptions, type ShowtimeRange } from "../data/movieCatalog";
+import { findMovieByCode, isMovieShowtimeDateCovered, isValidMovieCode, loadAdditionalShowtimeDays, loadShowtimesAroundDate, mergeMovieShowtimeRangeResult, showtimeCityQueryOptions, showtimeRangeQueryOptions, SHOWTIME_WINDOW_DAY_COUNT, type ShowtimeRange } from "../data/movieCatalog";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
 import { applyMovieDisplayPreference } from "../data/movieDisplayPreferences";
@@ -344,11 +344,6 @@ export function MoviePage({
       return;
     }
 
-    if (routeCatalogMode === "comingSoon" && parsedRoute.kind === "plain") {
-      queryStateRef.current = null;
-      return;
-    }
-
     const currentToday = todayRef.current;
 
     if (parsedRoute.kind === "plain") {
@@ -533,17 +528,24 @@ export function MoviePage({
     }
 
     mergeMovieShowtimeRangeResult(activeShowtimeRange, exactShowtimeQuery.data);
-    void loadShowtimesAroundDate(
+  }, [activeShowtimeRange, exactShowtimeQuery.data]);
+
+  useEffect(() => {
+    if (!activeShowtimeRange) {
+      return;
+    }
+
+    void loadAdditionalShowtimeDays(
       activeShowtimeRange.city,
+      SHOWTIME_WINDOW_DAY_COUNT,
       activeShowtimeRange.tmdbId,
-      activeShowtimeRange.startDate,
     ).catch((error: unknown) => {
       console.error(
         "Failed to extend the movie-page showtime date range.",
         error,
       );
     });
-  }, [activeShowtimeRange, exactShowtimeQuery.data]);
+  }, [activeShowtimeRange]);
 
   useEffect(
     () => () => {
@@ -672,7 +674,7 @@ export function MoviePage({
       return;
     }
 
-    void loadShowtimesAroundDate(currentState.location, tmdbId, date).catch((
+    void loadShowtimesAroundDate(currentState.location, date, tmdbId).catch((
       error: unknown,
     ) => {
       console.error(
@@ -789,7 +791,13 @@ export function MoviePage({
               activeQueryState ? handlePreferredShowtimeDateChange : undefined
             }
             targetShowtimeQueries
-            exactDateShowtimeQueries={Boolean(activeQueryState)}
+            exactDateShowtimeQueries={
+              activeQueryState !== null &&
+              !(
+                routeCatalogMode === "comingSoon" &&
+                activeQueryState.mode === "edit"
+              )
+            }
             onExactShowtimeDatePreviewChange={
               activeQueryState ? handleShowtimeDatePreviewChange : undefined
             }

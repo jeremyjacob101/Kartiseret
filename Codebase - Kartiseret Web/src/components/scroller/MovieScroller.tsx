@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type WheelEvent } from "react";
 import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
 import { buildMovieShowtimeShareUrl, filterMaskFromUnchecked, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "@kartiseret/contracts/showtime-links";
-import { loadShowtimes, loadShowtimesAroundDate, movieCollectionQueryOptions, selectMovies, type Movie } from "../../data/movieCatalog";
+import { loadAdditionalShowtimeDays, movieCollectionQueryOptions, selectMovies, SHOWTIME_WINDOW_DAY_COUNT, type Movie } from "../../data/movieCatalog";
 import { MovieDetailsContent, type MovieDetailsShareSelection, type MovieDetailsVariant } from "./MovieDetailsContent";
 import { useMovieDisplayPreferences } from "../../contexts/MovieDisplayPreferencesContext";
 import { applyMovieDisplayPreferences } from "../../data/movieDisplayPreferences";
@@ -807,18 +807,13 @@ function MovieScrollerContent({
         return;
       }
 
-      const loadPromise =
-        detailVariant === "comingSoon"
-          ? loadShowtimesAroundDate(
-              selectedCity,
-              getJerusalemCinemaDate(),
-              tmdbId,
-            )
-          : loadShowtimes(selectedCity, tmdbId);
-
-      void loadPromise.catch(() => {});
+      void loadAdditionalShowtimeDays(
+        selectedCity,
+        SHOWTIME_WINDOW_DAY_COUNT,
+        tmdbId,
+      ).catch(() => {});
     },
-    [detailVariant, selectedCity],
+    [selectedCity],
   );
 
   const measureDetailStage = useCallback(() => {

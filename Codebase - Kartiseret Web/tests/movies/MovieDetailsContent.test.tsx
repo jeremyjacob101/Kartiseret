@@ -210,7 +210,9 @@ describe("MovieDetailsContent", () => {
     queryClient.removeQueries({
       queryKey: movieCatalogQueryKeys.showtimeCity("Jerusalem"),
     });
-    renderDetails({ variant: "comingSoon" });
+    renderDetails({
+      variant: "comingSoon",
+    });
 
     expect(
       screen.getByText("Release date: September 18, 2026"),
@@ -250,6 +252,45 @@ describe("MovieDetailsContent", () => {
       screen.getByRole("radio", { name: /Tuesday, December 1, 2026/ }),
     ).toHaveAttribute("aria-checked", "true");
     expect(screen.getByLabelText(/No showtimes on/)).toBeInTheDocument();
+  });
+
+  it("offers a jump to a far future showing in the selected city", async () => {
+    const farShowtimeDate = "2026-12-15";
+    const onPreferredShowtimeDateChange = vi.fn();
+    const user = userEvent.setup();
+
+    queryClient.setQueryData(movieCatalogQueryKeys.showtimeCity("Jerusalem"), {
+      city: "Jerusalem",
+      broadFetchedDates: ["2026-09-16"],
+      broadLoadedDayCount: 1,
+      broadReady: true,
+      broadVisibleDayCount: 1,
+      movieShowtimesByTmdbId: {
+        [sampleMovie.tmdbId]: [
+          { date: "2026-09-16", theaters: [] },
+          { date: farShowtimeDate, theaters: sampleShowtimes },
+        ],
+      },
+      rowsByKey: {},
+      targetedFetchedDatesByTmdbId: {},
+      targetedLoadedDayCountByTmdbId: {},
+      visibleDayCount: 180,
+    });
+
+    renderDetails({
+      variant: "comingSoon",
+      preferredShowtimeDate: "2026-09-16",
+      onPreferredShowtimeDateChange,
+    });
+
+    const jumpButton = screen.getByRole("button", {
+      name: "Skip to showing day",
+    });
+    expect(jumpButton).toBeInTheDocument();
+
+    await user.click(jumpButton);
+
+    expect(onPreferredShowtimeDateChange).toHaveBeenCalledWith(farShowtimeDate);
   });
 
   it("shows the loading state when an exact-date showtime request has no selected day yet", () => {
