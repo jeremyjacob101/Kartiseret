@@ -7,6 +7,29 @@
       (function () {
         document.documentElement.classList.remove("no-js");
         document.documentElement.classList.add("js");
+        var root = document.documentElement;
+        if (!root.dataset.initialSiteColor) {
+          try {
+            var color = window.localStorage.getItem("cached_site_color_v1");
+            if (color && /^#[0-9a-f]{6}$/i.test(color)) {
+              root.style.setProperty("--main-app-color", color);
+            }
+          } catch (_) {
+            // A browser with storage disabled uses the default color.
+          }
+        }
+        if (location.pathname === "/" &&
+            !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          root.dataset.homeIntro = "pending";
+          window.setTimeout(function () {
+            if (root.dataset.homeIntro !== "pending") return;
+            if (document.querySelector(".home-poster-row")) {
+              root.dataset.homeIntro = "fallback";
+            } else {
+              delete root.dataset.homeIntro;
+            }
+          }, 2500);
+        }
         window.addEventListener(
           "error",
           function (event) {
@@ -18,6 +41,9 @@
             ) {
               document.documentElement.classList.remove("js");
               document.documentElement.classList.add("no-js");
+              if (root.dataset.homeIntro === "pending") {
+                root.dataset.homeIntro = "fallback";
+              }
             }
           },
           true,

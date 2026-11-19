@@ -1,9 +1,9 @@
 import { preparePublicPagePreferenceState, PublicPreferencesSnapshotProvider } from "./stores/userPreferencesStore.js";
+import type { PrivatePageDisplay, PublicPageBootstrap } from "@kartiseret/contracts/public-render";
 import { MovieDisplayPreferencesProvider } from "./contexts/MovieDisplayPreferencesProvider.js";
 import { PublicRouteComponentsProvider } from "./routing/PublicRouteComponentsProvider.js";
 import type { PublicRouteComponents } from "./routing/PublicRouteComponentsContext.js";
 import { preloadPublicRouteModules } from "./routing/preloadPublicRouteModules.js";
-import type { PublicPageBootstrap } from "@kartiseret/contracts/public-render";
 import { PublicRenderClockProvider } from "./contexts/PublicRenderClock.js";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { seedPublicPageQueries } from "./publicRenderBootstrap.js";
@@ -66,6 +66,7 @@ function createApplication(
 export async function renderPublicApplication(
   bootstrap: PublicPageBootstrap,
   timeoutMs = 12_000,
+  display?: PrivatePageDisplay,
 ): Promise<string> {
   const startedAt = Date.now();
   const routeComponents = await withTimeout(
@@ -76,7 +77,7 @@ export async function renderPublicApplication(
   if (remainingTimeoutMs <= 0) {
     throw new Error("Public page rendering exceeded its deadline.");
   }
-  const preferenceSnapshot = preparePublicPagePreferenceState();
+  const preferenceSnapshot = preparePublicPagePreferenceState(display);
 
   const queryClient = createRequestQueryClient();
   seedPublicPageQueries(queryClient, bootstrap);

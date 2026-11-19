@@ -39,6 +39,19 @@ function createHandlers() {
 }
 
 describe("Vercel API dispatcher", () => {
+  it("preserves the date on a private movie document", async () => {
+    const handlers = createHandlers();
+    const dispatch = createVercelDispatchHandler(handlers);
+    const request = createRequest(
+      "/api/dispatch?__vercel_route=private-movie&routeCode=Ab1ABC&date=2026-11-19",
+    );
+    await dispatch(request, response);
+    expect(request.url).toBe(
+      "/api/private-movie?routeCode=Ab1ABC&date=2026-11-19",
+    );
+    expect(handlers.seo).toHaveBeenCalledWith(request, response);
+    expect(handlers.api).not.toHaveBeenCalled();
+  });
   it("restores the original API path and preserves the query string", async () => {
     const handlers = createHandlers();
     const dispatch = createVercelDispatchHandler(handlers);

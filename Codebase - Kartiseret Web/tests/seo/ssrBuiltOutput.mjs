@@ -1,4 +1,5 @@
 import { addCalendarDays, buildMovieShowtimeShareUrl } from "@kartiseret/contracts/showtime-links";
+import { DEFAULT_SHOWTIME_PREFERENCES } from "@kartiseret/contracts/showtime-preferences";
 import { getShowtimesCityFromPath } from "@kartiseret/contracts/showtime-routes";
 import { publicPageBootstrapSchema } from "@kartiseret/contracts/public-render";
 import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
@@ -227,6 +228,34 @@ if (
       `${pathname} has no separate SEO fallback`,
     );
   }
+
+  const privateHomeMarkup = await renderPublicApplication(
+    makeBootstrap("/"),
+    12_000,
+    {
+      version: 1,
+      accountKey: "0".repeat(64),
+      preferences: {
+        location: DEFAULT_LOCATION,
+        ratingSources: [],
+        siteColor: "#69b0e2",
+        hideReReleases: true,
+        showtimePreferences: DEFAULT_SHOWTIME_PREFERENCES,
+      },
+      movieTreatments: [
+        {
+          tmdbId: movie.tmdbId,
+          title: movie.title,
+          releaseYear: null,
+          treatment: "remove",
+          hideBackdrop: false,
+        },
+      ],
+    },
+  );
+  assert.ok(!privateHomeMarkup.includes('href="/Ab1"'));
+  assert.ok(!privateHomeMarkup.includes(">Re-Releases</h2>"));
+  assert.ok(privateHomeMarkup.includes('href="/Cd2"'));
 
   const movieListingMarkup = await renderPublicApplication(
     makeBootstrap("/movies"),

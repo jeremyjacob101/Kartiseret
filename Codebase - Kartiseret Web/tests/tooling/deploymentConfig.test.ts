@@ -154,14 +154,31 @@ describe("deployment performance boundaries", () => {
   });
 
   it("routes the root through SSR before Vercel can serve the static index file", () => {
-    const rootRoute = (
+    const [privateRoute, rootRoute] = (
       config.routes as {
         src: string;
         dest: string;
+        has?: { type: string; key: string; value: string }[];
       }[]
-    ).find((route) => route.src === "^/$");
+    ).filter((route) => route.src === "^/$");
 
     expect(rootRoute?.dest).toBe("/api/dispatch?__vercel_route=page&path=/");
+    expect(rootRoute?.has).toBeUndefined();
+    expect(privateRoute?.dest).toBe(
+      "/api/dispatch?__vercel_route=private-page&path=/",
+    );
+    const [cookieCondition] = privateRoute?.has ?? [];
+    expect(cookieCondition).toMatchObject({ type: "header", key: "cookie" });
+    const matches = new RegExp(`^(?:${cookieCondition?.value})$`);
+    expect(
+      matches.test(
+        "unrelated=1; __Secure-kartiseret-production.session_token=opaque; other=1",
+      ),
+    ).toBe(true);
+    expect(matches.test("kartiseret-preview.session_token=opaque")).toBe(true);
+    expect(
+      matches.test("other=kartiseret-production.session_token=opaque"),
+    ).toBe(false);
   });
 
   it("marks account and reset pages as non-indexable in initial HTTP responses", () => {

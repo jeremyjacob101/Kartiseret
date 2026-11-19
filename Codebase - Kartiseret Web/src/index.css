@@ -583,6 +583,16 @@ html[data-device-type="mobile"] .scroller-slot {
   min-width: 0;
 }
 
+html[data-home-intro="pending"] .home-poster-row {
+  visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-home-intro="pending"] .home-poster-row {
+    visibility: visible;
+  }
+}
+
 .home-poster-row img,
 .home-poster-placeholder {
   display: block;

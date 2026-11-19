@@ -179,7 +179,7 @@ export function MoviePage({
     showtimePreferences,
   } = useUserPreferencesStore(
     useShallow((state) => ({
-      loading: state.loading,
+      loading: state.loading && !state.documentDisplay,
       location: state.preferences.location,
       showtimePreferences: state.preferences.showtimePreferences,
     })),

@@ -10,17 +10,26 @@ export function MovieDisplayPreferencesProvider({
 }: {
   children: ReactNode;
 }) {
-  const { user, loading } = useUserPreferencesStore(
-    useShallow((state) => ({ user: state.user, loading: state.loading })),
+  const { user, loading, documentDisplay } = useUserPreferencesStore(
+    useShallow((state) => ({
+      user: state.user,
+      loading: state.loading,
+      documentDisplay: state.documentDisplay,
+    })),
   );
   const preferencesQuery = useQuery(
     movieDisplayPreferencesQueryOptions(user?.id ?? null),
   );
   const preferencesById = useMemo(
-    () => indexMovieDisplayPreferences(preferencesQuery.data ?? []),
-    [preferencesQuery.data],
+    () =>
+      indexMovieDisplayPreferences(
+        preferencesQuery.data ?? documentDisplay?.movieTreatments ?? [],
+      ),
+    [preferencesQuery.data, documentDisplay],
   );
-  const ready = !loading && (!user || preferencesQuery.isSuccess);
+  const ready =
+    documentDisplay?.movieTreatments != null ||
+    (!loading && (!user || preferencesQuery.isSuccess));
   const error =
     preferencesQuery.error instanceof Error ? preferencesQuery.error : null;
 

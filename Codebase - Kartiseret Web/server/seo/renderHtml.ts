@@ -1,3 +1,5 @@
+import type { PrivatePageDisplay } from "@kartiseret/contracts/public-render";
+
 export const SITE_ORIGIN = "https://seret.site";
 
 export function getRequestOrigin(
@@ -103,6 +105,7 @@ export function injectRenderedApplication(
   markup: string,
   bootstrap: unknown,
   initialImagePreloadUrls: readonly string[] = [],
+  display?: PrivatePageDisplay,
 ): string {
   const rootPattern = /<div\s+id=["']root["'][^>]*>\s*<\/div>/;
   if (!rootPattern.test(html)) {
@@ -127,11 +130,22 @@ export function injectRenderedApplication(
     })
     .join("");
   const scripts = `<script id="kartiseret-bootstrap" type="application/json">${bootstrapJson}</script><script>window.__KARTISERET_BOOTSTRAP__=JSON.parse(document.getElementById("kartiseret-bootstrap").textContent||"null")</script>`;
-  return html
+  const displayScript = display
+    ? `<script id="kartiseret-display" type="application/json">${escapeJsonLd(display)}</script>`
+    : "";
+  const siteColor = display?.preferences.siteColor;
+  const themedHtml =
+    siteColor && /^#[0-9a-f]{6}$/.test(siteColor)
+      ? html.replace(
+          /<html\b/,
+          `<html data-initial-site-color="${siteColor}" style="--main-app-color:${siteColor}"`,
+        )
+      : html;
+  return themedHtml
     .replace(rootPattern, () => root)
     .replace("</head>", () => `${preloadTags}</head>`)
     .replace(/<!-- SEO_CONTENT_START -->[\s\S]*?<!-- SEO_CONTENT_END -->/, "")
-    .replace("</body>", () => `${scripts}</body>`);
+    .replace("</body>", () => `${scripts}${displayScript}</body>`);
 }
 
 export function xmlEscape(value: string): string {

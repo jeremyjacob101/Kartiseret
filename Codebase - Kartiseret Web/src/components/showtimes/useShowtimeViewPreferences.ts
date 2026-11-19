@@ -42,8 +42,8 @@ export function useShowtimeViewPreferences(viewKey: string) {
   } = useUserPreferencesStore(
     useShallow((state) => ({
       userId: state.user?.id ?? null,
-      loading: state.loading,
-      loadError: state.loadError,
+      loading: state.loading && !state.documentDisplay,
+      loadError: state.loadError && !state.documentDisplay,
       error: state.error,
       retryPreferenceLoad: state.retryPreferenceLoad,
       preferences: state.preferences.showtimePreferences,

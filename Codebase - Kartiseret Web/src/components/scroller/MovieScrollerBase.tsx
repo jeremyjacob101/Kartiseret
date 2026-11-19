@@ -71,8 +71,8 @@ const INTRO_STAGGER_STEP_MS = 72;
 const INTRO_MAX_STAGGER_MS = 320;
 const INTRO_IMAGE_READY_TIMEOUT_MS = 1200;
 const INTRO_OFFSCREEN_GUTTER_PX = 72;
-const INTRO_TARGET_CARD_COUNT = 5;
-const INTRO_LEADING_CARD_COUNT = 1;
+export const INTRO_TARGET_CARD_COUNT = 5;
+export const INTRO_LEADING_CARD_COUNT = 1;
 const TARGET_ITEMS_PER_SIDE = 280;
 const MIN_REPEAT_SETS = 5;
 const MOBILE_COLLAPSED_RIGHT_BIAS_PX = 125;
@@ -398,6 +398,15 @@ export function MovieScrollerBase({
     (src: string): Promise<void> => backdropPreloader.requestPosterNow(src),
     [],
   );
+  const prepareRenderedPoster = useCallback(
+    (index: number, src: string) => {
+      const image = scrollerRef.current?.querySelector<HTMLImageElement>(
+        `[data-movie-scroller-item-index="${index}"] img`,
+      );
+      return image?.decode ? image.decode() : preloadImageSource(src);
+    },
+    [preloadImageSource],
+  );
 
   const startIntroAnimation = useCallback(() => {
     introStartFrameRef.current = window.requestAnimationFrame(() => {
@@ -474,13 +483,15 @@ export function MovieScrollerBase({
       0,
       totalItems - 1,
     );
-    const introAnimatedSources = new Set<string>();
+    const openingPosters = new Map<string, number>();
 
     for (let i = introAnimatedStart; i <= introAnimatedEnd; i += 1) {
       const movie = allMovies[i % movieCount];
 
       if (movie?.imageSrc) {
-        introAnimatedSources.add(movie.imageSrc);
+        if (!openingPosters.has(movie.imageSrc)) {
+          openingPosters.set(movie.imageSrc, i);
+        }
       }
     }
 
@@ -500,18 +511,13 @@ export function MovieScrollerBase({
       startIntroAnimation();
     };
 
-    if (introAnimatedSources.size === 0) {
+    if (openingPosters.size === 0) {
       finishIntroSetup();
     } else {
-      Promise.all(
-        [...introAnimatedSources].map((src) => preloadImageSource(src)),
-      )
-        .then(() => {
-          finishIntroSetup();
-        })
-        .catch(() => {
-          finishIntroSetup();
-        });
+      void Promise.allSettled(
+        [...openingPosters].map(([src, index]) =>
+          prepareRenderedPoster(index, src)),
+      ).then(finishIntroSetup);
 
       introReadyTimeoutRef.current = window.setTimeout(() => {
         finishIntroSetup();
@@ -529,7 +535,7 @@ export function MovieScrollerBase({
     clearScheduledIntro,
     centeredAnchorIndex,
     movieCount,
-    preloadImageSource,
+    prepareRenderedPoster,
     startIntroAnimation,
     totalItems,
   ]);
@@ -836,7 +842,7 @@ export function MovieScrollerBase({
               imageSrcSet={movie.imageSrcSet}
               imageSizes={`${cardWidth}px`}
               alt={movie.title}
-              loading={isVisible ? "eager" : "lazy"}
+              loading={isVisible || shouldAnimateIntroCard ? "eager" : "lazy"}
               fetchPriority={
                 isVisible || shouldAnimateIntroCard ? "high" : "low"
               }
@@ -892,6 +898,7 @@ export function MovieScrollerBase({
   return (
     <section
       ref={scrollerRef}
+      data-scroller-intro-phase={introPhase}
       onScroll={scheduleWindowUpdate}
       className={className}
       style={{

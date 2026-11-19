@@ -58,6 +58,17 @@
   "routes": [
     {
       "src": "^/$",
+      "has": [
+        {
+          "type": "header",
+          "key": "cookie",
+          "value": "(?:.*;\\s*)?(?:__Secure-)?kartiseret-(?:production|preview|development)\\.session_token=[^;]+(?:;.*)?"
+        }
+      ],
+      "dest": "/api/dispatch?__vercel_route=private-page&path=/"
+    },
+    {
+      "src": "^/$",
       "dest": "/api/dispatch?__vercel_route=page&path=/"
     }
   ],
@@ -65,6 +76,17 @@
     {
       "source": "/.well-known/apple-app-site-association",
       "destination": "/apple-app-site-association"
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "header",
+          "key": "cookie",
+          "value": "(?:.*;\\s*)?(?:__Secure-)?kartiseret-(?:production|preview|development)\\.session_token=[^;]+(?:;.*)?"
+        }
+      ],
+      "destination": "/api/dispatch?__vercel_route=private-page&path=/"
     },
     {
       "source": "/",
@@ -80,7 +102,29 @@
     },
     {
       "source": "/c/:cinemaId",
+      "has": [
+        {
+          "type": "header",
+          "key": "cookie",
+          "value": "(?:.*;\\s*)?(?:__Secure-)?kartiseret-(?:production|preview|development)\\.session_token=[^;]+(?:;.*)?"
+        }
+      ],
+      "destination": "/api/dispatch?__vercel_route=private-cinema&cinemaId=:cinemaId"
+    },
+    {
+      "source": "/c/:cinemaId",
       "destination": "/api/dispatch?__vercel_route=cinema&cinemaId=:cinemaId"
+    },
+    {
+      "source": "/movies",
+      "has": [
+        {
+          "type": "header",
+          "key": "cookie",
+          "value": "(?:.*;\\s*)?(?:__Secure-)?kartiseret-(?:production|preview|development)\\.session_token=[^;]+(?:;.*)?"
+        }
+      ],
+      "destination": "/api/dispatch?__vercel_route=private-page&path=/movies"
     },
     {
       "source": "/movies",
@@ -88,7 +132,29 @@
     },
     {
       "source": "/showtimes",
+      "has": [
+        {
+          "type": "header",
+          "key": "cookie",
+          "value": "(?:.*;\\s*)?(?:__Secure-)?kartiseret-(?:production|preview|development)\\.session_token=[^;]+(?:;.*)?"
+        }
+      ],
+      "destination": "/api/dispatch?__vercel_route=private-page&path=/showtimes"
+    },
+    {
+      "source": "/showtimes",
       "destination": "/api/dispatch?__vercel_route=page&path=/showtimes"
+    },
+    {
+      "source": "/showtimes/:citySlug",
+      "has": [
+        {
+          "type": "header",
+          "key": "cookie",
+          "value": "(?:.*;\\s*)?(?:__Secure-)?kartiseret-(?:production|preview|development)\\.session_token=[^;]+(?:;.*)?"
+        }
+      ],
+      "destination": "/api/dispatch?__vercel_route=private-page&path=/showtimes/:citySlug"
     },
     {
       "source": "/showtimes/:citySlug",
@@ -96,7 +162,29 @@
     },
     {
       "source": "/soons",
+      "has": [
+        {
+          "type": "header",
+          "key": "cookie",
+          "value": "(?:.*;\\s*)?(?:__Secure-)?kartiseret-(?:production|preview|development)\\.session_token=[^;]+(?:;.*)?"
+        }
+      ],
+      "destination": "/api/dispatch?__vercel_route=private-page&path=/soons"
+    },
+    {
+      "source": "/soons",
       "destination": "/api/dispatch?__vercel_route=page&path=/soons"
+    },
+    {
+      "source": "/cinematheques",
+      "has": [
+        {
+          "type": "header",
+          "key": "cookie",
+          "value": "(?:.*;\\s*)?(?:__Secure-)?kartiseret-(?:production|preview|development)\\.session_token=[^;]+(?:;.*)?"
+        }
+      ],
+      "destination": "/api/dispatch?__vercel_route=private-page&path=/cinematheques"
     },
     {
       "source": "/cinematheques",
@@ -121,6 +209,17 @@
     {
       "source": "/unsubscribe/letterboxd",
       "destination": "/index.html"
+    },
+    {
+      "source": "/:routeCode([0-9A-Za-z]{3,10})",
+      "has": [
+        {
+          "type": "header",
+          "key": "cookie",
+          "value": "(?:.*;\\s*)?(?:__Secure-)?kartiseret-(?:production|preview|development)\\.session_token=[^;]+(?:;.*)?"
+        }
+      ],
+      "destination": "/api/dispatch?__vercel_route=private-movie&routeCode=:routeCode"
     },
     {
       "source": "/:routeCode([0-9A-Za-z]{3,10})",

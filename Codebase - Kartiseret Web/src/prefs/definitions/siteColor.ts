@@ -66,7 +66,13 @@ export function initializeSiteColorTheme(): void {
   }
 
   root.setAttribute(SITE_COLOR_INITIALIZED_ATTRIBUTE, "true");
-  setSiteColorVariables(root, loadCachedSiteColor() ?? DEFAULT_SITE_COLOR);
+  const serverColor = siteColorSchema.safeParse(root.dataset.initialSiteColor);
+  setSiteColorVariables(
+    root,
+    serverColor.success
+      ? serverColor.data
+      : (loadCachedSiteColor() ?? DEFAULT_SITE_COLOR),
+  );
 
   window.requestAnimationFrame(() => {
     window.requestAnimationFrame(() => {
