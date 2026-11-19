@@ -53,6 +53,7 @@ test("account settings, failed save rollback, alerts, refresh and logout use pro
       tableRequests.push(request.url());
   });
   await login(page);
+  await page.getByRole("button", { name: "Appearance", exact: true }).click();
   const saved = page.waitForResponse(
     (response) =>
       response.request().method() === "PATCH" &&
@@ -61,6 +62,7 @@ test("account settings, failed save rollback, alerts, refresh and logout use pro
   await page.getByRole("button", { name: "Use Blue site color" }).click();
   expect((await saved).status()).toBe(200);
   await page.reload();
+  await page.getByRole("button", { name: "Appearance", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Use Blue site color" }),
   ).toHaveAttribute("aria-pressed", "true");
@@ -97,6 +99,10 @@ test("account settings, failed save rollback, alerts, refresh and logout use pro
     }),
   ).toBeVisible();
   await page.goto("/user");
+  await page
+    .getByRole("button", { name: "Notifications", exact: true })
+    .click();
+  await page.getByText("Watched movies", { exact: true }).click();
   await page
     .getByRole("button", { name: "Cancel ticket alert for Dev Coming Soon" })
     .click();
@@ -243,6 +249,8 @@ test("real signup verification, current-password change and signed-out one-time 
     await expect(
       page.getByRole("heading", { name: "User Preferences", exact: true }),
     ).toBeVisible();
+    await page.getByRole("button", { name: "Account", exact: true }).click();
+    await page.getByText("Sign-in & security", { exact: true }).click();
     await page
       .getByLabel("Current password", { exact: true })
       .fill("browser-password-123");
@@ -320,6 +328,8 @@ test("saved showtime defaults survive reload while temporary filters reset on le
   page,
 }) => {
   await login(page);
+  await page.getByText("My screening filters", { exact: true }).click();
+  await page.getByText("Dubbing", { exact: true }).click();
   const hebrewDefault = page.getByRole("checkbox", {
     name: "Hebrew",
     exact: true,
@@ -332,6 +342,8 @@ test("saved showtime defaults survive reload while temporary filters reset on le
   await hebrewDefault.uncheck();
   expect((await saved).status()).toBe(200);
   await page.reload();
+  await page.getByText("My screening filters", { exact: true }).click();
+  await page.getByText("Dubbing", { exact: true }).click();
   await expect(hebrewDefault).not.toBeChecked();
   let preferenceWrites = 0;
   page.on("request", (request) => {
