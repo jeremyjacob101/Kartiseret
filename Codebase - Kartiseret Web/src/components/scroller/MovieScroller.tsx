@@ -646,6 +646,7 @@ function MovieScrollerContent({
   const collapsedOpenScrollLeftRef = useRef<number | null>(null);
   const collapsedOpenClientWidthRef = useRef<number | null>(null);
   const collapsedOpenAnchorItemIndexRef = useRef<number | null>(null);
+  const previousMovieItemsRef = useRef(movieItems);
   const scrollRequestNonceRef = useRef(0);
   const shareFeedbackTimeoutRef = useRef<number | null>(null);
   const titleId = useId();
@@ -727,6 +728,41 @@ function MovieScrollerContent({
     clearScheduledDetailTransition,
     clearScheduledExternalJump,
   ]);
+
+  useLayoutEffect(() => {
+    const previousMovieItems = previousMovieItemsRef.current;
+    previousMovieItemsRef.current = movieItems;
+
+    if (previousMovieItems.length === movieCount) {
+      return;
+    }
+
+    const rebaseItemIndex = (itemIndex: number) => {
+      const previousMovie =
+        previousMovieItems[mod(itemIndex, previousMovieItems.length)];
+      const nextMovieIndex = previousMovie
+        ? movieItems.findIndex((movie) => movie.tmdbId === previousMovie.tmdbId)
+        : -1;
+
+      return collapsedMiddleStartIndex + Math.max(nextMovieIndex, 0);
+    };
+
+    setCollapsedAnchorItemIndex((current) => rebaseItemIndex(current));
+    setCollapsedSelectedItemIndex((current) =>
+      current === null ? null : rebaseItemIndex(current));
+    setDetailActiveItemIndex(rebaseItemIndex(displayItemIndex));
+    setDetailTransition(null);
+    setGhostTransition((current) =>
+      current
+        ? { ...current, itemIndex: rebaseItemIndex(current.itemIndex) }
+        : null);
+    setCollapsedScrollRequest(null);
+
+    // Scroll offsets and anchor indices are measured against the old repeated list.
+    collapsedOpenScrollLeftRef.current = null;
+    collapsedOpenClientWidthRef.current = null;
+    collapsedOpenAnchorItemIndexRef.current = null;
+  }, [collapsedMiddleStartIndex, displayItemIndex, movieCount, movieItems]);
 
   const handleCollapsedScrollRequestApplied = useCallback((nonce: number) => {
     setCollapsedScrollRequest((currentRequest) =>
