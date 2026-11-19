@@ -159,40 +159,44 @@ struct PreferencesView: View {
     }
 
     private var categoryPicker: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 9) {
-                ForEach(UserPreferenceCategory.allCases) { category in
-                    let isSelected = activeCategory == category
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.18)) {
-                            activeCategory = category
-                        }
-                    } label: {
-                        Label(category.title, systemImage: category.systemImage)
-                            .font(.subheadline.weight(.semibold))
-                            .labelStyle(.titleAndIcon)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 11)
-                            .foregroundStyle(isSelected ? accent : Color.white.opacity(0.78))
-                            .background(
-                                isSelected ? accent.opacity(0.17) : Color.white.opacity(0.055),
-                                in: Capsule()
-                            )
-                            .overlay {
-                                Capsule().stroke(
-                                    isSelected ? accent.opacity(0.42) : Color.white.opacity(0.08),
-                                    lineWidth: 1
-                                )
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal) {
+                HStack(spacing: 9) {
+                    ForEach(UserPreferenceCategory.allCases) { category in
+                        let isSelected = activeCategory == category
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.18)) {
+                                activeCategory = category
+                                proxy.scrollTo(category.id, anchor: .center)
                             }
+                        } label: {
+                            Label(category.title, systemImage: category.systemImage)
+                                .font(.subheadline.weight(.semibold))
+                                .labelStyle(.titleAndIcon)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 11)
+                                .foregroundStyle(isSelected ? accent : Color.white.opacity(0.78))
+                                .background(
+                                    isSelected ? accent.opacity(0.17) : Color.white.opacity(0.055),
+                                    in: Capsule()
+                                )
+                                .overlay {
+                                    Capsule().stroke(
+                                        isSelected ? accent.opacity(0.42) : Color.white.opacity(0.08),
+                                        lineWidth: 1
+                                    )
+                                }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(isSelected ? .isSelected : [])
+                        .accessibilityIdentifier("preferences.category.\(category.rawValue)")
+                        .id(category.id)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(isSelected ? .isSelected : [])
-                    .accessibilityIdentifier("preferences.category.\(category.rawValue)")
                 }
+                .padding(.vertical, 2)
             }
-            .padding(.vertical, 2)
+            .scrollIndicators(.hidden)
         }
-        .scrollIndicators(.hidden)
     }
 
     @ViewBuilder
