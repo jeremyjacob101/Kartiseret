@@ -5,11 +5,19 @@ import {
 import { randomUUID } from "node:crypto";
 import { betterAuth } from "better-auth/minimal";
 import type { Auth, BetterAuthOptions } from "better-auth";
+import {
+  APIError,
+  addOAuthServerContext,
+  createAuthMiddleware,
+  getAuthoritativeSessionFromCtx,
+  getOAuthState,
+} from "better-auth/api";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Pool } from "pg";
 import { z } from "zod";
-import { authSchema } from "./schema.js";
+import { account, authSchema, user } from "./schema.js";
 import type { AuthMailer } from "./mail.js";
 import { createAppleClientSecret } from "./apple.js";
 import type { SocialProviderEnvironment } from "./env.js";
@@ -60,11 +68,85 @@ function createApplicationAuthOptions(
       encryptOAuthTokens: true,
       accountLinking: {
         enabled: true,
+        disableImplicitLinking: true,
+        // An explicitly linked Apple account may use a private relay address.
         allowDifferentEmails: true,
         allowUnlinkingAll: false,
       },
     },
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/link-social") return;
+        const session = await getAuthoritativeSessionFromCtx(ctx);
+        if (!session) {
+          throw APIError.from("UNAUTHORIZED", {
+            code: "UNAUTHORIZED",
+            message: "Sign in before connecting a sign-in method.",
+          });
+        }
+        const freshAge = ctx.context.sessionConfig.freshAge;
+        if (
+          freshAge > 0 &&
+          Date.now() - session.session.createdAt.getTime() >= freshAge * 1_000
+        ) {
+          throw APIError.from("FORBIDDEN", {
+            code: "SESSION_NOT_FRESH",
+            message: "Sign in again before connecting a sign-in method.",
+          });
+        }
+        await addOAuthServerContext({ linkingSessionId: session.session.id });
+      }),
+    },
+    databaseHooks: {
+      account: {
+        delete: {
+          before: async (linkedAccount, ctx) => {
+            if (ctx?.path !== "/unlink-account") return;
+            // Serialize unlinks for this user so two tabs cannot remove both
+            // remaining methods after each observed that there were two.
+            await database.transaction(async (tx) => {
+              await tx
+                .select({ id: user.id })
+                .from(user)
+                .where(eq(user.id, linkedAccount.userId))
+                .for("update");
+              const remaining = await tx
+                .select({ id: account.id })
+                .from(account)
+                .where(eq(account.userId, linkedAccount.userId))
+                .limit(2);
+              if (remaining.length < 2) {
+                throw APIError.from("BAD_REQUEST", {
+                  code: "FAILED_TO_UNLINK_LAST_ACCOUNT",
+                  message:
+                    "Connect another sign-in method before disconnecting this one.",
+                });
+              }
+              await tx.delete(account).where(eq(account.id, linkedAccount.id));
+            });
+            return false; // The transaction already performed the unlink.
+          },
+        },
+      },
+    },
     user: {
+      validateUserInfo: async ({ user: linkingUser, source }, ctx) => {
+        if (source.action !== "link-account" || source.method !== "oauth")
+          return;
+        const state = await getOAuthState();
+        const session = await getAuthoritativeSessionFromCtx(ctx);
+        if (
+          !session ||
+          session.user.id !== linkingUser.id ||
+          session.session.id !== state?.serverContext?.linkingSessionId
+        ) {
+          return {
+            error: "link_session_changed",
+            errorDescription:
+              "Sign in again and restart the connection from your account settings.",
+          };
+        }
+      },
       deleteUser: {
         enabled: true,
         sendDeleteAccountVerification: async ({ user, token }) => {

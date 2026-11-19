@@ -19,9 +19,9 @@ vi.mock("../../src/lib/authClient", () => ({
   getAuthClient: vi.fn(() => authMock),
 }));
 
-function renderSettings() {
+function renderSettings(path = "/user") {
   return render(
-    <MemoryRouter initialEntries={["/user"]}>
+    <MemoryRouter initialEntries={[path]}>
       <AccountSecuritySettings email="social@example.com" />
     </MemoryRouter>,
   );
@@ -53,6 +53,29 @@ afterEach(() => {
 });
 
 describe("AccountSecuritySettings", () => {
+  it("asks the user to sign in again when their session is too old to link Apple", async () => {
+    const user = userEvent.setup();
+    authMock.linkSocial.mockResolvedValueOnce({
+      error: { code: "SESSION_NOT_FRESH" },
+    });
+    renderSettings();
+    await user.click(
+      await screen.findByRole("button", { name: "Connect Apple" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Sign out and sign back in before changing your sign-in methods.",
+    );
+  });
+
+  it("explains when the provider is already linked to another account", async () => {
+    renderSettings(
+      "/user?linkError=1&error=account_already_linked_to_different_user",
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This sign-in method is already connected to another Kartiseret account.",
+    );
+  });
+
   it("connects providers and keeps the last sign-in method attached", async () => {
     const user = userEvent.setup();
     authMock.unlinkAccount.mockResolvedValueOnce({

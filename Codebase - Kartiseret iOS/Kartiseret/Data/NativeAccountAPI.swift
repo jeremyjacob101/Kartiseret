@@ -227,9 +227,17 @@ actor NativeAccountAPI {
 
     private func check(_ response: APIHTTPResponse) throws {
         guard (200..<300).contains(response.statusCode) else {
-            if let authError = try? JSONDecoder().decode(BetterAuthError.self, from: response.body),
-               authError.code == "INVALID_EMAIL_OR_PASSWORD" || authError.code == "INVALID_CREDENTIALS" {
-                throw APIClientError.invalidCredentials
+            if let authError = try? JSONDecoder().decode(BetterAuthError.self, from: response.body) {
+                if authError.code == "INVALID_EMAIL_OR_PASSWORD" || authError.code == "INVALID_CREDENTIALS" {
+                    throw APIClientError.invalidCredentials
+                }
+                if authError.code == "OAUTH_LINK_ERROR", authError.message == "account not linked" {
+                    throw APIClientError.remote(
+                        code: "account_not_linked",
+                        message: "Sign in with your original method, then connect Apple or Google in User Preferences on the Kartiseret website.",
+                        statusCode: response.statusCode
+                    )
+                }
             }
             if response.statusCode == 401 { throw APIClientError.unauthorized }
             if let envelope = try? JSONDecoder().decode(APIEnvelope<EmptyResponse>.self, from: response.body), let error = envelope.error {
@@ -252,7 +260,10 @@ actor NativeAccountAPI {
 private struct EmptyResponse: Decodable, Sendable {}
 private struct TitlesData: Decodable, Sendable { let titles: [TitleSearchResult] }
 private struct ProviderData: Decodable, Sendable { let providers: [String] }
-private struct BetterAuthError: Decodable { let code: String? }
+private struct BetterAuthError: Decodable {
+    let code: String?
+    let message: String?
+}
 
 private extension URL {
     var originString: String {

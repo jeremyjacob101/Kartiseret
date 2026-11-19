@@ -304,6 +304,20 @@ final class CoreAndAPITests: XCTestCase {
         XCTAssertEqual(idToken["accessToken"], "google-access-token")
     }
 
+    func testNativeSocialSignInExplainsHowToLinkAnExistingAccount() async throws {
+        let body = #"{"code":"OAUTH_LINK_ERROR","message":"account not linked"}"#
+        let transport = StubTransport(responses: [httpResponse(body, statusCode: 401)])
+        let api = NativeAccountAPI(baseURL: URL(string: "https://seret.site")!, transport: transport)
+
+        do {
+            _ = try await api.signInWithApple(identityToken: "signed-id-token", nonce: "nonce")
+            XCTFail("Expected the unlinked provider to be rejected")
+        } catch let error as APIClientError {
+            XCTAssertEqual(error.code, "account_not_linked")
+            XCTAssertTrue(error.localizedDescription.contains("User Preferences on the Kartiseret website"))
+        }
+    }
+
     func testDeletionConfirmationLinkRequiresAValidFragmentToken() {
         XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/confirm-account-deletion#token=abc123")!), .confirmAccountDeletion(token: "abc123"))
         for url in ["https://seret.site/confirm-account-deletion", "https://seret.site/confirm-account-deletion#token=", "https://seret.site/confirm-account-deletion#token=a&token=b"] {

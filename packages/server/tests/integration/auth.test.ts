@@ -1,4 +1,6 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { generateKeyPairSync } from "node:crypto";
+import { SignJWT } from "jose";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { toNodeHandler } from "better-auth/node";
 import { createEmailVerificationToken } from "better-auth/api";
@@ -33,11 +35,25 @@ const origin = "http://localhost";
 const secret = "integration-auth-secret-at-least-32-characters";
 const internalSecret = "integration-internal-secret-at-least-32-characters";
 const captured: AuthEmail[] = [];
+const appleKey = generateKeyPairSync("ec", { namedCurve: "P-256" });
+const appleClientId = "com.example.kartiseret.web";
+const googleClientId = "kartiseret-integration.apps.googleusercontent.com";
 const auth = createApplicationAuth(runtime.pool, {
   baseURL: origin,
   secret,
   cookiePrefix: "integration",
   trustedOrigins: [origin],
+  socialProviders: {
+    google: { clientId: googleClientId, clientSecret: "test-secret" },
+    apple: {
+      clientId: appleClientId,
+      teamId: "TESTTEAM",
+      keyId: "TESTKEY",
+      privateKey: appleKey.privateKey
+        .export({ type: "pkcs8", format: "pem" })
+        .toString(),
+    },
+  },
   mailer: async (email) => {
     captured.push(email);
   },
@@ -94,6 +110,17 @@ async function login(to = email, value = password) {
   });
   expect(response.status).toBe(200);
   return cookies(response);
+}
+
+async function createVerifiedMember(address: string) {
+  const created = await signup(address);
+  expect(created.status).toBe(200);
+  const verification = latest("verification", address);
+  expect(
+    (await request(app).get(verification.pathname + verification.search))
+      .status,
+  ).toBe(302);
+  return { id: created.body.user.id as string, cookie: await login(address) };
 }
 
 describe.sequential(
@@ -644,6 +671,212 @@ describe.sequential(
         (await request(app).get("/api/v1/account").set("Cookie", deleteCookie))
           .status,
       ).toBe(401);
+      const replacement = await createVerifiedMember(deleteEmail);
+      expect(replacement.id).not.toBe(deleteUserId);
+    });
+    it("links Apple to an existing Google account only from the initiating session", async () => {
+      const address = "pr5-apple-link@example.test";
+      const otherMember = await createVerifiedMember(
+        "pr5-apple-other@example.test",
+      );
+      const { socialProviders } = await auth.$context;
+      const appleProvider = socialProviders.find((item) => item.id === "apple");
+      const googleProvider = socialProviders.find(
+        (item) => item.id === "google",
+      );
+      const googleToken = await new SignJWT({
+        email: address,
+        email_verified: true,
+        name: "Test member",
+      })
+        .setProtectedHeader({ alg: "ES256", kid: "TESTKEY" })
+        .setSubject("integration-google-subject")
+        .setIssuer("https://accounts.google.com")
+        .setAudience(googleClientId)
+        .setIssuedAt()
+        .setExpirationTime("5m")
+        .sign(appleKey.privateKey);
+      if (!appleProvider || !googleProvider) {
+        throw new Error("Expected Apple and Google providers.");
+      }
+      for (const provider of [appleProvider, googleProvider]) {
+        if (!provider.idToken || !("jwks" in provider.idToken)) {
+          throw new Error("Expected JWKS verification.");
+        }
+        vi.spyOn(provider.idToken, "jwks").mockResolvedValue(
+          appleKey.publicKey,
+        );
+      }
+      const tokens = await Promise.all(
+        [address, "pr5-apple-relay@example.test"].map((email) =>
+          new SignJWT({ email, email_verified: true })
+            .setProtectedHeader({ alg: "ES256", kid: "TESTKEY" })
+            .setSubject(`apple-${email}`)
+            .setIssuer("https://appleid.apple.com")
+            .setAudience(appleClientId)
+            .setIssuedAt()
+            .setExpirationTime("5m")
+            .sign(appleKey.privateKey),
+        ),
+      );
+      const exchange = vi.spyOn(appleProvider, "validateAuthorizationCode");
+      const signIn = (token: string, provider = "apple") =>
+        post("/api/auth/sign-in/social", {
+          provider,
+          idToken: { token },
+        });
+      const startLink = (session: string) =>
+        post(
+          "/api/auth/link-social",
+          {
+            provider: "apple",
+            callbackURL: `${origin}/user?linked=1`,
+            errorCallbackURL: `${origin}/user?linkError=1`,
+          },
+          session,
+        );
+      async function completeLink(
+        initiator: string,
+        activeSession: string,
+        token: string,
+      ) {
+        const start = await startLink(initiator);
+        expect(start.status).toBe(200);
+        const state = new URL(start.body.url).searchParams.get("state")!;
+        exchange.mockResolvedValueOnce({ idToken: token });
+        const formPost = await request(app)
+          .post("/api/auth/callback/apple")
+          .set("Origin", "https://appleid.apple.com")
+          .type("form")
+          .send({ code: "apple-test-code", state });
+        expect(formPost.status).toBe(302);
+        const redirect = new URL(formPost.headers.location);
+        const callback = await request(app)
+          .get(redirect.pathname + redirect.search)
+          .set(
+            "Cookie",
+            [activeSession, cookies(start)].filter(Boolean).join("; "),
+          );
+        expect(callback.status).toBe(302);
+        return new URL(callback.headers.location).searchParams;
+      }
+      try {
+        const [sameEmailToken, relayToken] = tokens;
+        const created = await signIn(googleToken, "google");
+        expect(created.status).toBe(200);
+        const member = {
+          id: created.body.user.id as string,
+          cookie: cookies(created),
+        };
+        const secondSession = cookies(await signIn(googleToken, "google"));
+        expect((await startLink("")).status).toBe(401);
+        const implicit = await signIn(sameEmailToken);
+        expect(implicit.status).toBe(401);
+        expect(implicit.body.message).toBe("account not linked");
+        for (const invalidSession of ["", secondSession, otherMember.cookie]) {
+          expect(
+            (await completeLink(member.cookie, invalidSession, relayToken)).get(
+              "error",
+            ),
+          ).toBe("link_session_changed");
+        }
+        expect(
+          (await completeLink(member.cookie, member.cookie, relayToken)).get(
+            "linked",
+          ),
+        ).toBe("1");
+        const signedIn = await signIn(relayToken);
+        expect(signedIn.status).toBe(200);
+        expect(signedIn.body.user.id).toBe(member.id);
+        expect(signedIn.body.user.email).toBe(address);
+        expect(
+          (
+            await completeLink(
+              otherMember.cookie,
+              otherMember.cookie,
+              relayToken,
+            )
+          ).get("error"),
+        ).toBe("account_already_linked_to_different_user");
+        await admin.pool.query(
+          "UPDATE app_auth.sessions SET created_at = now() - interval '2 days' WHERE user_id = $1",
+          [otherMember.id],
+        );
+        const stale = await startLink(otherMember.cookie);
+        expect(stale.status).toBe(403);
+        expect(stale.body.code).toBe("SESSION_NOT_FRESH");
+
+        const listAccounts = async (): Promise<
+          { id: string; providerId: string }[]
+        > => {
+          const response = await request(app)
+            .get("/api/auth/list-accounts")
+            .set("Cookie", member.cookie);
+          expect(response.status).toBe(200);
+          return response.body;
+        };
+        const unlink = (accountId: string) =>
+          post("/api/auth/unlink-account", { accountId }, member.cookie);
+        const relay = (await listAccounts()).find(
+          (item) => item.providerId === "apple",
+        )!;
+        expect((await unlink(relay.id)).status).toBe(200);
+        expect(
+          (
+            await completeLink(member.cookie, member.cookie, sameEmailToken)
+          ).get("linked"),
+        ).toBe("1");
+        expect((await signIn(sameEmailToken)).body.user.id).toBe(member.id);
+
+        const linked = await listAccounts();
+        const apple = linked.find((item) => item.providerId === "apple")!;
+        const google = linked.find((item) => item.providerId === "google")!;
+        expect((await unlink(apple.id)).status).toBe(200);
+        expect((await signIn(sameEmailToken)).body.message).toBe(
+          "account not linked",
+        );
+        expect((await signIn(googleToken, "google")).body.user.id).toBe(
+          member.id,
+        );
+        expect(
+          (
+            await completeLink(member.cookie, member.cookie, sameEmailToken)
+          ).get("linked"),
+        ).toBe("1");
+        const relinkedApple = (await listAccounts()).find(
+          (item) => item.providerId === "apple",
+        )!;
+        const results = await Promise.all([
+          unlink(relinkedApple.id),
+          unlink(google.id),
+        ]);
+        expect(results.map((result) => result.status).sort()).toEqual([
+          200, 400,
+        ]);
+        expect(results.find((result) => result.status === 400)?.body.code).toBe(
+          "FAILED_TO_UNLINK_LAST_ACCOUNT",
+        );
+        expect(await listAccounts()).toHaveLength(1);
+
+        expect(
+          (await post("/api/auth/delete-user", {}, member.cookie)).status,
+        ).toBe(200);
+        const deletion = new URLSearchParams(
+          latest("deletion", address).hash.slice(1),
+        );
+        const deleted = await post(
+          "/api/auth/delete-user",
+          { token: deletion.get("token") },
+          member.cookie,
+        );
+        expect(deleted.status).toBe(200);
+        const restarted = await signIn(sameEmailToken);
+        expect(restarted.status).toBe(200);
+        expect(restarted.body.user.email).toBe(address);
+        expect(restarted.body.user.id).not.toBe(member.id);
+      } finally {
+        vi.restoreAllMocks();
+      }
     });
     it("lets a social-only user create a password and delete with an email confirmation", async () => {
       const socialEmail = "pr5-social@example.test";

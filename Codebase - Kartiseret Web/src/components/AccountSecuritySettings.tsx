@@ -14,6 +14,8 @@ const socialProviderLabels: Record<SocialProvider, string> = {
   google: "Google",
   apple: "Apple",
 };
+const freshSignInMessage =
+  "Sign out and sign back in before changing your sign-in methods.";
 
 export function AccountSecuritySettings({
   email,
@@ -70,7 +72,10 @@ export function AccountSecuritySettings({
       });
       if (result.error) {
         setError(
-          result.error.message ?? "This sign-in method could not be connected.",
+          result.error.code === "SESSION_NOT_FRESH"
+            ? freshSignInMessage
+            : (result.error.message ??
+                "This sign-in method could not be connected."),
         );
       }
     } catch {
@@ -90,7 +95,9 @@ export function AccountSecuritySettings({
         setError(
           result.error.code === "FAILED_TO_UNLINK_LAST_ACCOUNT"
             ? "Connect another sign-in method before disconnecting this one."
-            : (result.error.message ??
+            : result.error.code === "SESSION_NOT_FRESH"
+              ? freshSignInMessage
+              : (result.error.message ??
                 "This sign-in method could not be disconnected."),
         );
         return;
@@ -114,6 +121,7 @@ export function AccountSecuritySettings({
   const linkedCallback = new URLSearchParams(location.search);
   const linked = linkedCallback.get("linked") === "1";
   const linkError = linkedCallback.get("linkError") === "1";
+  const linkErrorCode = linkedCallback.get("error");
 
   return (
     <>
@@ -208,8 +216,11 @@ export function AccountSecuritySettings({
             className="account-security-feedback account-security-feedback--error"
             role="alert"
           >
-            The provider connection was not completed. Try again while signed
-            in.
+            {linkErrorCode === "account_already_linked_to_different_user"
+              ? "This sign-in method is already connected to another Kartiseret account."
+              : linkErrorCode === "link_session_changed"
+                ? "Sign in again and restart the connection from User Preferences."
+                : "The connection failed. Try again while signed in."}
           </p>
         ) : null}
         {message ? (

@@ -63,11 +63,11 @@ function GoogleMark() {
 
 function getAuthErrorMessage(code?: string | null, message?: string | null) {
   const normalized = code?.toLowerCase();
-  if (
-    normalized === "account_not_linked" ||
-    normalized === "social_account_already_linked"
-  ) {
-    return "That provider is attached to another Kartiseret account. Sign in with that account first, then connect this provider in User Preferences.";
+  if (normalized === "account_not_linked") {
+    return "Sign in to your existing Kartiseret account using your original method, then connect this provider in User Preferences.";
+  }
+  if (normalized === "social_account_already_linked") {
+    return "That provider is already attached to a Kartiseret account. Sign in with your linked method.";
   }
   return (
     message ?? "The account request could not be completed. Please try again."
