@@ -1,4 +1,5 @@
 import { getProductionDataRuntime } from "./public-production.js";
+import { HomepageFeaturedService } from "./homepage/featured.js";
 import { BetterAuthIdentityVerifier } from "./protected/identity.js";
 import { toNodeHandler } from "better-auth/node";
 import { waitUntil } from "@vercel/functions";
@@ -67,6 +68,7 @@ function createProductionRuntime(
     config,
     artworkStore: createR2ImageStore(selectedEnvironment as NodeJS.ProcessEnv),
     repository,
+    homepageFeatures: new HomepageFeaturedService(database.db),
     tmdbSearch: createTmdbSearchProvider(config.TMDB_API_KEY),
     workflows: new ProtectedWorkflows(database.db, repository),
     identityVerifier: new BetterAuthIdentityVerifier(auth),
@@ -143,6 +145,7 @@ export function createProductionApp(
     recipientRouter: runtime.recipientRouter,
     notificationUnsubscribeRouter: runtime.notificationUnsubscribeRouter,
     artworkStore: runtime.artworkStore,
+    homepageFeatures: runtime.homepageFeatures,
     logger: {
       error: (message, error) => {
         try {

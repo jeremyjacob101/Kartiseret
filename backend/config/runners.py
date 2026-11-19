@@ -883,6 +883,33 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
                     console,
                     status="failed" if preview_stats.get("failed") else None,
                 )
+            from backend.dataflow.homepage_featured import refresh_configured_homepage_lineup
+
+            lineup_stats = run_timed_stage(
+                "HomepageFeaturedRefresh",
+                "Refresh homepage weekly lineup",
+                refresh_configured_homepage_lineup,
+                console,
+                record_when=lambda value: value is not None,
+                outcome_for=lambda value: "Skipped" if value is None else "Complete",
+            )
+            if lineup_stats is None:
+                render_key_value_table(
+                    "Homepage weekly lineup",
+                    [("Status", "Skipped or unavailable")],
+                    console,
+                )
+            else:
+                render_key_value_table(
+                    "Homepage weekly lineup",
+                    [
+                        ("Week starting", lineup_stats["week_start"]),
+                        ("Now Playing candidates", lineup_stats["now_playing"]),
+                        ("Coming Soon candidates", lineup_stats["coming_soon"]),
+                        ("Status", "Complete"),
+                    ],
+                    console,
+                )
 
         # Notification dispatchers run after selected updates commit, but can
         # also run alone against the already-published catalog.

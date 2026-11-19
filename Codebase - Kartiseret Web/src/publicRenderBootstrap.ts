@@ -4,6 +4,7 @@ import { cinemathequeQueryOptions, type CinemathequeData } from "./data/cinemath
 import { getCinemaDayDate, SHOWTIME_TIME_ZONE } from "@kartiseret/contracts/showtime-day";
 import { publicPagePublicationKey } from "./data/publicationRevision.js";
 import { addCalendarDays } from "@kartiseret/contracts/showtime-links";
+import { homepageFeaturedQueryKey } from "./data/homepageFeatured.js";
 import { theaterDataQueryOptions } from "./data/theaters.js";
 import type { QueryClient } from "@tanstack/react-query";
 
@@ -57,6 +58,15 @@ export function seedPublicPageQueries(
     bootstrap.publicationRevision,
     { updatedAt },
   );
+  if (bootstrap.homepageFeatured) {
+    queryClient.setQueryData(
+      homepageFeaturedQueryKey,
+      bootstrap.homepageFeatured,
+      {
+        updatedAt,
+      },
+    );
+  }
   const movieDetail = bootstrap.movieDetail;
   if (movieDetail?.movie.movieCode) {
     queryClient.setQueryData(

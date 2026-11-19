@@ -52,6 +52,41 @@ export const adminUsers = pgTable("admin_users", {
   createdAt: instant("created_at").notNull().defaultNow(),
 });
 
+export const homepageFeaturedWeeklyLineups = pgTable(
+  "homepage_featured_weekly_lineups",
+  {
+    weekStart: calendarDate("week_start").primaryKey(),
+    nowPlayingIds: integer("now_playing_ids").array().notNull().default([]),
+    comingSoonIds: integer("coming_soon_ids").array().notNull().default([]),
+    generatedAt: instant("generated_at").notNull().defaultNow(),
+  },
+);
+
+export const homepageMovieHighlights = pgTable("homepage_movie_highlights", {
+  tmdbId: integer("tmdb_id").primaryKey(),
+  startsOn: calendarDate("starts_on").notNull(),
+  endsOn: calendarDate("ends_on").notNull(),
+  priority: smallint("priority").notNull().default(0),
+  label: text("label"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: instant("created_at").notNull().defaultNow(),
+  updatedAt: instant("updated_at").notNull().defaultNow(),
+});
+
+export const homepagePromotions = pgTable("homepage_promotions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  startsOn: calendarDate("starts_on").notNull(),
+  endsOn: calendarDate("ends_on").notNull(),
+  priority: smallint("priority").notNull().default(0),
+  ctaLabel: text("cta_label"),
+  ctaHref: text("cta_href"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: instant("created_at").notNull().defaultNow(),
+  updatedAt: instant("updated_at").notNull().defaultNow(),
+});
+
 export const allShowtimes = pgTable("allShowtimes", {
   id: uuid("id").primaryKey().defaultRandom(),
   createdAt: instant("created_at").defaultNow(),
@@ -611,6 +646,9 @@ export const applicationTables = {
   comingSoonDateWatches,
   letterboxdSources,
   adminUsers,
+  homepageFeaturedWeeklyLineups,
+  homepageMovieHighlights,
+  homepagePromotions,
   allShowtimes,
   allSoons,
   allTheques,

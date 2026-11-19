@@ -8,6 +8,8 @@ import { timeCatalogStage, timeCatalogStageSync } from "@kartiseret/server/catal
 import { getProductionPublicDataRepository } from "@kartiseret/server/public-production";
 import { filterShowtimeRows, resolvePreviewRouteSelection } from "../og/previewData.js";
 import { DEFAULT_LOCATION, type AppLocation } from "@kartiseret/contracts/preferences";
+import { getProductionDataRuntime } from "@kartiseret/server/public-production";
+import { HomepageFeaturedService } from "@kartiseret/server/homepage-featured";
 import { socialPreviewImageUrl } from "@kartiseret/contracts/social-preview";
 import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
 import { parseMovieRouteCode } from "@kartiseret/contracts/showtime-links";
@@ -597,7 +599,20 @@ async function getListingPage(
   const repository = getProductionPublicDataRepository();
   return withPublicationSnapshot(repository, async (publicationRevision) => {
     const city = getShowtimesCityFromPath(path) ?? preferredCity;
-    const [nowPlaying, comingSoon, theaters] = await Promise.all([
+    const homepageFeatures =
+      path === "/"
+        ? new HomepageFeaturedService(getProductionDataRuntime().database.db)
+            .readPublic(instant)
+            .catch((error: unknown) => {
+              logErrorSafely(
+                "homepage_featured_unavailable",
+                error,
+                "Homepage featured content could not be loaded.",
+              );
+              return undefined;
+            })
+        : Promise.resolve(undefined);
+    const [nowPlaying, comingSoon, theaters, featuredData] = await Promise.all([
       path === "/soons" ? undefined : getMovieCatalog(repository, "nowPlaying"),
       path === "/movies"
         ? undefined
@@ -605,6 +620,7 @@ async function getListingPage(
       ["/", "/movies", "/soons"].includes(path)
         ? undefined
         : getPublicTheaterData(repository),
+      homepageFeatures,
     ]);
     const page = await buildListingPage(
       repository,
@@ -615,6 +631,7 @@ async function getListingPage(
     );
     const currentDate = getCinemaDayDate(instant);
     const extra: Partial<PublicPageBootstrap> = { theaters };
+    if (featuredData) extra.homepageFeatured = featuredData;
     if (path === "/showtimes" || getShowtimesCityFromPath(path)) {
       extra.showtimeCity = {
         city,

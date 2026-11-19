@@ -46,6 +46,7 @@ import {
   type TmdbSearchProvider,
 } from "./public-data/tmdb-search.js";
 import type { SocialProviderId } from "./auth/env.js";
+import type { HomepageFeaturedService } from "./homepage/featured.js";
 import {
   createRequestLogContext,
   getRequestLogContext,
@@ -76,6 +77,7 @@ export interface AppDependencies {
   tmdbSearch?: TmdbSearchProvider;
   protectedRateLimit?: ProtectedRateLimitOptions;
   artworkStore?: R2ImageStore | null;
+  homepageFeatures?: HomepageFeaturedService;
 }
 
 const defaultAppLogger: AppLogger = {
@@ -152,6 +154,7 @@ export function createApp({
   tmdbSearch,
   protectedRateLimit,
   artworkStore,
+  homepageFeatures,
 }: AppDependencies) {
   const app = express();
   app.disable("x-powered-by");
@@ -182,6 +185,20 @@ export function createApp({
   app.get("/api/v1/auth/providers", (_request, response) => {
     response.json({ data: { providers: [...socialProviderIds] }, error: null });
   });
+  if (homepageFeatures) {
+    app.get("/api/v1/homepage/featured", async (_request, response, next) => {
+      try {
+        const result = await homepageFeatures.readPublic();
+        response.setHeader(
+          "Cache-Control",
+          "public, max-age=30, stale-while-revalidate=30",
+        );
+        response.json(result);
+      } catch (error) {
+        next(error);
+      }
+    });
+  }
   const imageStore =
     artworkStore === undefined ? createR2ImageStore() : artworkStore;
   app.get(

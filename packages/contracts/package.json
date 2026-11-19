@@ -72,6 +72,11 @@
       "types": "./dist/social-preview.d.ts",
       "import": "./dist/social-preview.js",
       "default": "./dist/social-preview.js"
+    },
+    "./homepage-featured": {
+      "types": "./dist/homepage-featured.d.ts",
+      "import": "./dist/homepage-featured.js",
+      "default": "./dist/homepage-featured.js"
     }
   },
   "scripts": {

@@ -18,10 +18,21 @@ const preferences = {
   hideReReleases: false,
   showtimePreferences: DEFAULT_SHOWTIME_PREFERENCES,
 };
-function setup(protectedRateLimit?: ProtectedRateLimitOptions) {
+function setup(
+  protectedRateLimit?: ProtectedRateLimitOptions,
+  isAdmin = false,
+) {
   const user = { id, email: "qa@example.test" };
+  const requireAdmin = () => {
+    if (!isAdmin)
+      throw new HttpError(
+        403,
+        "forbidden",
+        "Administrator access is required.",
+      );
+  };
   const workflows: ProtectedWorkflowService = {
-    account: vi.fn(async () => ({ user, isAdmin: false })),
+    account: vi.fn(async () => ({ user, isAdmin })),
     preferences: vi.fn(async () => preferences),
     patchPreferences: vi.fn(async () => preferences),
     ticketAlertPreferences: vi.fn(async () => DEFAULT_TICKET_ALERT_CRITERIA),
@@ -84,6 +95,33 @@ function setup(protectedRateLimit?: ProtectedRateLimitOptions) {
         "forbidden",
         "Administrator access is required.",
       );
+    }),
+    homepageAdminData: vi.fn(async () => {
+      requireAdmin();
+      return {
+        data: { highlights: [], promotions: [] },
+        error: null,
+      };
+    }),
+    upsertHomepageHighlight: vi.fn(async (_user, highlight) => {
+      requireAdmin();
+      return { data: { highlight }, error: null };
+    }),
+    removeHomepageHighlight: vi.fn(async () => {
+      requireAdmin();
+      return { data: { removed: true as const }, error: null };
+    }),
+    upsertHomepagePromotion: vi.fn(async (_user, promotion) => {
+      requireAdmin();
+      return {
+        data: {
+          promotion: {
+            id: promotion.id ?? sourceId,
+            ...promotion,
+          },
+        },
+        error: null,
+      };
     }),
   };
   const verify = vi.fn(
@@ -413,6 +451,84 @@ describe("protected HTTP contracts", () => {
           })
       ).status,
     ).toBe(403);
+  });
+  it("protects and validates homepage carousel management routes", async () => {
+    const nonAdmin = setup();
+    const denied = await request(nonAdmin.app)
+      .get("/api/v1/admin/homepage-featured")
+      .set("Cookie", "valid");
+    expect(denied.status).toBe(403);
+
+    const { app, workflows } = setup(undefined, true);
+    const read = await request(app)
+      .get("/api/v1/admin/homepage-featured")
+      .set("Cookie", "valid");
+    expect(read.status).toBe(200);
+    expect(read.body.data).toEqual({ highlights: [], promotions: [] });
+
+    const highlight = {
+      tmdbId: "101",
+      startsOn: "2026-11-19",
+      endsOn: "2026-11-30",
+      priority: 4,
+      label: "kids",
+      enabled: true,
+    };
+    const savedHighlight = await request(app)
+      .post("/api/v1/admin/homepage-highlights")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send(highlight);
+    expect(savedHighlight.status).toBe(200);
+    expect(savedHighlight.body.data.highlight).toEqual(highlight);
+    expect(workflows.upsertHomepageHighlight).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      highlight,
+    );
+
+    const invalidHighlight = await request(app)
+      .post("/api/v1/admin/homepage-highlights")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({ ...highlight, endsOn: "2026-11-18" });
+    expect(invalidHighlight.status).toBe(400);
+    expect(workflows.upsertHomepageHighlight).toHaveBeenCalledTimes(1);
+
+    const removed = await request(app)
+      .delete("/api/v1/admin/homepage-highlights/101")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost");
+    expect(removed.status).toBe(200);
+    expect(removed.body.data.removed).toBe(true);
+    expect(workflows.removeHomepageHighlight).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      "101",
+    );
+
+    const promotion = {
+      title: "Cinema day",
+      body: "Tickets for ₪10 nationwide.",
+      startsOn: "2026-11-19",
+      endsOn: "2026-11-20",
+      priority: 3,
+      ctaLabel: "Get tickets now",
+      ctaHref: "/showtimes",
+      enabled: true,
+    };
+    const savedPromotion = await request(app)
+      .post("/api/v1/admin/homepage-promotions")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send(promotion);
+    expect(savedPromotion.status).toBe(200);
+    expect(savedPromotion.body.data.promotion).toEqual({
+      id: sourceId,
+      ...promotion,
+    });
+    expect(workflows.upsertHomepagePromotion).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      promotion,
+    );
   });
   it("reads and updates owner-scoped ticket alert criteria through protected routes", async () => {
     const { app, workflows } = setup();

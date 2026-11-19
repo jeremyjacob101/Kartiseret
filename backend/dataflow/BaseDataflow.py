@@ -72,8 +72,10 @@ class BaseDataflow(ProviderFreshness, PipelineCheckpoints, InitializeBaseDataflo
             }
             if owns_catalog_publication and is_catalog_table:
                 from backend.dataflow.social_previews import refresh_configured_social_previews
+                from backend.dataflow.homepage_featured import refresh_configured_homepage_lineup
 
                 refresh_configured_social_previews()
+                refresh_configured_homepage_lineup()
         except Exception as error:
             self.discardPublicationStage()
             from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded

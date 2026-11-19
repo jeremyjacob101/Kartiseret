@@ -21,6 +21,11 @@ import {
   letterboxdSourceCreateSchema,
   letterboxdSourceIdSchema,
 } from "@kartiseret/contracts/private-data";
+import {
+  homepageMovieHighlightSchema,
+  homepageMovieIdSchema,
+  homepagePromotionUpsertSchema,
+} from "@kartiseret/contracts/homepage-featured";
 import { HttpError } from "../http-errors.js";
 import type { IdentityVerifier, VerifiedIdentity } from "./identity.js";
 import type { ProtectedWorkflowService } from "./service.js";
@@ -418,6 +423,45 @@ export function createProtectedRouter(
       ),
       error: null,
     });
+  });
+  router.get("/admin/homepage-featured", async (request, response) => {
+    parse(empty, request.query);
+    response.json(
+      await workflows.homepageAdminData(identity(response.locals.identity)),
+    );
+  });
+  router.post("/admin/homepage-highlights", async (request, response) => {
+    parse(empty, request.query);
+    const command = parse(homepageMovieHighlightSchema, request.body);
+    response.json(
+      await workflows.upsertHomepageHighlight(
+        identity(response.locals.identity),
+        command,
+      ),
+    );
+  });
+  router.delete(
+    "/admin/homepage-highlights/:tmdbId",
+    async (request, response) => {
+      parse(empty, request.query);
+      const tmdbId = parse(homepageMovieIdSchema, request.params.tmdbId);
+      response.json(
+        await workflows.removeHomepageHighlight(
+          identity(response.locals.identity),
+          tmdbId,
+        ),
+      );
+    },
+  );
+  router.post("/admin/homepage-promotions", async (request, response) => {
+    parse(empty, request.query);
+    const command = parse(homepagePromotionUpsertSchema, request.body);
+    response.json(
+      await workflows.upsertHomepagePromotion(
+        identity(response.locals.identity),
+        command,
+      ),
+    );
   });
   const handleFailure: ErrorRequestHandler = (
     error,
