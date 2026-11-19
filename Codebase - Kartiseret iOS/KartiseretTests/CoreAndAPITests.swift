@@ -176,10 +176,10 @@ final class CoreAndAPITests: XCTestCase {
         XCTAssertFalse(ShowtimeLogic.matchesSavedFilters(screening, state: state))
     }
 
-    func testCinemaIdentityResolvesTheSharedCanonicalName() {
+    func testCinemaIdentityResolvesOnlyUnambiguousSharedCanonicalNames() {
         XCTAssertEqual(CinemaIdentity.forScreening(city: "Jerusalem", cinema: "Jerusalem Cinematheque")?.id, "smBcm2HtRvQA")
         XCTAssertNil(CinemaIdentity.forScreening(city: "Jerusalem", cinema: "Unknown Cinema"))
-        XCTAssertEqual(CinemaIdentity.forScreening(city: "Ｊｅｒｕｓａｌｅｍ", cinema: "Ｃｉｎｅｍａｔｈｅｑｕｅ")?.id, "smBcm2HtRvQA")
+        XCTAssertNil(CinemaIdentity.forScreening(city: "Ｊｅｒｕｓａｌｅｍ", cinema: "Ｃｉｎｅｍａｔｈｅｑｕｅ"))
     }
 
     func testCatalogEnvelopeAndPublicationRevisionDecode() async throws {

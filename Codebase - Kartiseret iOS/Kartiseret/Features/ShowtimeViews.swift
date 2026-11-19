@@ -7,25 +7,31 @@ struct ShowtimeSections: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(cinemas) { cinema in
+                let theme = ShowtimeTheme.forCinema(cinema.name)
                 VStack(alignment: .leading, spacing: 8) {
                     if let identity = CinemaIdentity.forScreening(city: city, cinema: cinema.name) {
                         NavigationLink(value: CinemaRoute(cinemaID: identity.id)) {
                             HStack {
-                                Text(identity.displayName).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                                Text(identity.displayName).font(.subheadline.weight(.semibold)).foregroundStyle(Color(hex: theme.accentHex))
                                 Spacer()
-                                Image(systemName: "arrow.up.right").font(.caption.bold()).foregroundStyle(BrandStyle.accent)
+                                Image(systemName: "arrow.up.right").font(.caption.bold()).foregroundStyle(Color(hex: theme.accentHex))
                             }
                         }
                         .buttonStyle(.plain)
                     } else {
-                        Text(cinema.name).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                        Text(cinema.name).font(.subheadline.weight(.semibold)).foregroundStyle(Color(hex: theme.accentHex))
                     }
                     ForEach(cinema.showtimes) { showtime in
-                        ShowtimeRow(showtime: showtime)
+                        ShowtimeRow(showtime: showtime, cinemaName: cinema.name, theme: theme)
                     }
                 }
                 .padding(12)
-                .background(BrandStyle.raised, in: RoundedRectangle(cornerRadius: 13))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(hex: theme.accentHex).opacity(0.12), in: RoundedRectangle(cornerRadius: 13))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 13)
+                        .stroke(Color(hex: theme.accentHex).opacity(0.24), lineWidth: 1)
+                }
             }
         }
     }
@@ -33,36 +39,38 @@ struct ShowtimeSections: View {
 
 private struct ShowtimeRow: View {
     let showtime: Showtime
+    let cinemaName: String
+    let theme: ShowtimeTheme
     @Environment(AppStore.self) private var store
     @Environment(\.openURL) private var openURL
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text(showtime.displayTime)
-                .font(.subheadline.monospacedDigit().weight(.semibold))
-                .foregroundStyle(.white)
-                .frame(minWidth: 46, alignment: .leading)
-            if !showtime.formatLabels.isEmpty {
-                Text(showtime.formatLabels.joined(separator: " · "))
-                    .font(.caption)
-                    .foregroundStyle(BrandStyle.secondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 2)
+        HStack(spacing: 9) {
             if let url = showtime.bookingURL {
                 Button {
                     openURL(url)
                     store.captureFixtureBookingURL(url)
                 } label: {
-                    Label("Tickets", systemImage: "arrow.up.right")
-                        .font(.caption.weight(.semibold))
+                    ShowtimeTicket(time: showtime.displayTime, theme: theme, isBookable: true)
                 }
-                .buttonStyle(.bordered)
-                .tint(BrandStyle.accent)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Tickets for \(showtime.displayTime) at \(cinemaName)")
                 .accessibilityIdentifier("booking.\(showtime.tmdbId)")
+            } else {
+                ShowtimeTicket(time: showtime.displayTime, theme: theme)
+                    .accessibilityLabel(showtime.displayTime)
             }
+            if !showtime.formatLabels.isEmpty {
+                Text(showtime.formatLabels.joined(separator: " · "))
+                    .font(.caption)
+                    .foregroundStyle(BrandStyle.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            Spacer(minLength: 0)
         }
-        .padding(.vertical, 3)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 2)
     }
 }
 
@@ -95,6 +103,7 @@ struct MovieShowtimeCard: View {
             ShowtimeSections(cinemas: group.cinemas, city: city)
         }
         .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(BrandStyle.surface, in: RoundedRectangle(cornerRadius: 18))
     }
 }

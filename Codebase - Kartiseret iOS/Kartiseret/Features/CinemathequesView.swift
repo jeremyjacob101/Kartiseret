@@ -205,14 +205,14 @@ private struct CinemathequeMovieRow: View {
                 HStack(spacing: 7) {
                     ForEach(showtimes) { showtime in
                         if let url = showtime.bookingURL {
-                            Link(showtime.displayTime, destination: url)
-                                .buttonStyle(.bordered)
-                                .tint(BrandStyle.accent)
+                            Link(destination: url) {
+                                ShowtimeTicket(time: showtime.displayTime, theme: .cinematheque, isBookable: true)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Tickets for \(showtime.displayTime)")
                         } else {
-                            Text(showtime.displayTime)
-                                .font(.caption.monospacedDigit().weight(.semibold))
-                                .padding(.horizontal, 9).padding(.vertical, 6)
-                                .background(BrandStyle.raised, in: Capsule())
+                            ShowtimeTicket(time: showtime.displayTime, theme: .cinematheque)
+                                .accessibilityLabel(showtime.displayTime)
                         }
                     }
                 }
@@ -301,22 +301,33 @@ private struct CinemaScheduleSection: Identifiable {
 private struct CinemaScreeningRow: View {
     let entry: CinemaScreening
     let displayedMovie: Movie?
-    @Environment(\.openURL) private var openURL
 
     var body: some View {
         HStack(spacing: 12) {
             MovieArtwork(movie: displayedMovie, width: 48, height: 70)
             VStack(alignment: .leading, spacing: 5) {
                 Text(displayedMovie?.title ?? entry.movie.title).font(.headline).lineLimit(2)
-                Text("\(entry.screening.dateOfShowing) · \(entry.screening.displayTime)")
+                Text(entry.screening.dateOfShowing)
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 Text(entry.screening.formatLabels.joined(separator: " · ")).font(.caption2).foregroundStyle(.secondary)
             }
             Spacer()
             if let url = entry.screening.bookingURL {
-                Button { openURL(url) } label: { Image(systemName: "ticket.fill") }
-                    .buttonStyle(.borderedProminent).tint(BrandStyle.accent)
-                    .accessibilityLabel("Tickets for \(entry.movie.title) at \(entry.screening.displayTime)")
+                Link(destination: url) {
+                    ShowtimeTicket(
+                        time: entry.screening.displayTime,
+                        theme: ShowtimeTheme.forCinema(entry.screening.cinema),
+                        isBookable: true
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Tickets for \(entry.movie.title) at \(entry.screening.displayTime)")
+            } else {
+                ShowtimeTicket(
+                    time: entry.screening.displayTime,
+                    theme: ShowtimeTheme.forCinema(entry.screening.cinema)
+                )
+                .accessibilityLabel(entry.screening.displayTime)
             }
         }
         .padding(.vertical, 4)

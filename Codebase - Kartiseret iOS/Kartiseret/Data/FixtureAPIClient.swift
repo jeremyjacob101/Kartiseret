@@ -12,7 +12,17 @@ actor FixtureAPIClient: KartiseretAPI {
                 year: 2026,
                 releaseDate: "2026-10-30",
                 genres: ["Drama", "Mystery"],
-                runtime: 112
+                runtime: 112,
+                imdbRating: 8.1,
+                rtAudienceRating: 93,
+                rtAudienceVotes: 650,
+                rtCriticRating: 82,
+                rtCriticVotes: 110,
+                lbRating: 4.1,
+                tmdbRating: 7.9,
+                imdbId: "tt0000001",
+                rtId: "/m/fixture_feature",
+                lbId: "fixture-feature"
             ),
             Movie(
                 tmdbId: "9100002",
@@ -20,7 +30,13 @@ actor FixtureAPIClient: KartiseretAPI {
                 year: 2025,
                 releaseDate: nil,
                 genres: ["Comedy"],
-                runtime: 94
+                runtime: 94,
+                imdbRating: 6.2,
+                rtAudienceRating: 48,
+                rtAudienceVotes: 120,
+                rtCriticRating: 52,
+                rtCriticVotes: 34,
+                tmdbRating: 6.3
             ),
         ],
         movieCodesStatus: "ready"

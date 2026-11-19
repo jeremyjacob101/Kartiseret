@@ -77,17 +77,19 @@ private struct MoviePosterTile: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            MovieArtwork(movie: movie, width: 148, height: 220)
-                .frame(maxWidth: .infinity)
-                .overlay(alignment: .bottomLeading) {
-                    if mode == .comingSoon, let releaseDate = movie.releaseDate {
-                        Label(releaseDate, systemImage: "calendar")
-                            .font(.caption2.weight(.semibold))
-                            .padding(.horizontal, 8).padding(.vertical, 5)
-                            .background(.black.opacity(0.75), in: Capsule())
-                            .padding(7)
+            GeometryReader { geometry in
+                MovieArtwork(movie: movie, width: geometry.size.width, height: geometry.size.width * 220 / 148)
+                    .overlay(alignment: .bottomLeading) {
+                        if mode == .comingSoon, let releaseDate = movie.releaseDate {
+                            Label(releaseDate, systemImage: "calendar")
+                                .font(.caption2.weight(.semibold))
+                                .padding(.horizontal, 8).padding(.vertical, 5)
+                                .background(.black.opacity(0.75), in: Capsule())
+                                .padding(7)
+                        }
                     }
                 }
+            .aspectRatio(148 / 220, contentMode: .fit)
             Text(movie.title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
@@ -96,7 +98,7 @@ private struct MoviePosterTile: View {
             Text(movie.year > 0 ? String(movie.year) : "")
                 .font(.caption)
                 .foregroundStyle(BrandStyle.secondary)
-            MovieRatingsView(movie: movie, sources: ratingSources)
+            MovieRatingsView(movie: movie, sources: ratingSources, linksEnabled: false)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .contentShape(Rectangle())
@@ -119,7 +121,7 @@ struct MovieRow: View {
                 } else if !movie.genres.isEmpty {
                     Text(movie.genres.joined(separator: " · ")).font(.caption).foregroundStyle(BrandStyle.secondary).lineLimit(1)
                 }
-                MovieRatingsView(movie: movie, sources: ["imdbRating", "rtAudienceRating", "rtCriticRating"])
+                MovieRatingsView(movie: movie, sources: ["imdbRating", "rtAudienceRating", "rtCriticRating"], linksEnabled: false)
             }
             Spacer(minLength: 4)
             Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(BrandStyle.secondary)

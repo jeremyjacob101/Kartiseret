@@ -72,6 +72,7 @@ struct MovieDetailView: View {
             }
             .padding(16)
             .padding(.bottom, 24)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(BrandStyle.background)
         .navigationTitle(movie?.title ?? "Movie")
@@ -160,12 +161,15 @@ struct MovieDetailView: View {
                             .font(.caption.weight(.bold)).tracking(1.3).foregroundStyle(BrandStyle.accent)
                         Text(movie.title).font(.title2.weight(.bold)).foregroundStyle(.white)
                             .fixedSize(horizontal: false, vertical: true)
+                            .lineLimit(3)
+                            .minimumScaleFactor(0.8)
                             .accessibilityIdentifier("movie.details.title")
                         Text(metadata(for: movie).joined(separator: " · ")).font(.subheadline).foregroundStyle(BrandStyle.secondary)
                         if route.mode == .comingSoon, let releaseDate = movie.releaseDate {
                             Label(releaseDate, systemImage: "calendar").font(.caption.weight(.medium)).foregroundStyle(.white)
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.bottom, 4)
                 }
                 .padding(14)
@@ -177,30 +181,49 @@ struct MovieDetailView: View {
                 FlowChips(items: movie.genres)
             }
             MovieRatingsView(movie: movie, sources: account.preferences.ratingSources)
+                .frame(maxWidth: .infinity, alignment: .leading)
             actions(for: movie)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
     private func backdrop(_ movie: Movie) -> some View {
-        if let url = AppConfiguration.imageURL(movie.backdropSrc) {
-            AsyncImage(url: url) { phase in
-                if let image = phase.image { image.resizable().scaledToFill() }
-                else { BrandStyle.raised }
+        GeometryReader { geometry in
+            if let url = AppConfiguration.imageURL(movie.backdropSrc) {
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image { image.resizable().scaledToFill() }
+                    else { BrandStyle.raised }
+                }
+                .frame(width: geometry.size.width, height: 248)
+                .clipped()
+            } else {
+                LinearGradient(colors: [BrandStyle.raised, BrandStyle.background], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    .frame(width: geometry.size.width, height: 248)
+                    .overlay(alignment: .topTrailing) {
+                        Image(systemName: "film.stack")
+                            .font(.system(size: 50, weight: .light))
+                            .foregroundStyle(.white.opacity(0.14))
+                            .padding(24)
+                    }
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 248)
-            .clipped()
-        } else {
-            LinearGradient(colors: [BrandStyle.raised, BrandStyle.background], startPoint: .topLeading, endPoint: .bottomTrailing)
-                .frame(height: 248)
-                .overlay(alignment: .topTrailing) { Image(systemName: "film.stack").font(.system(size: 50, weight: .light)).foregroundStyle(.white.opacity(0.14)).padding(24) }
         }
+        .frame(height: 248)
     }
 
     @ViewBuilder
     private func actions(for movie: Movie) -> some View {
-        HStack(spacing: 10) {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) { actionButtons(for: movie) }
+            VStack(alignment: .leading, spacing: 8) { actionButtons(for: movie) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .controlSize(.regular)
+        if isSavingAction { ProgressView("Saving your alert…").font(.caption).tint(BrandStyle.accent) }
+    }
+
+    @ViewBuilder
+    private func actionButtons(for movie: Movie) -> some View {
             if let trailerKey = movie.trailerKey, let url = URL(string: "https://www.youtube.com/watch?v=\(trailerKey)") {
                 Button { openURL(url) } label: { Label("Trailer", systemImage: "play.fill") }
                     .buttonStyle(.bordered).tint(BrandStyle.accent)
@@ -222,9 +245,6 @@ struct MovieDetailView: View {
                 NavigationLink { SignInView() } label: { Label("Sign in for alerts", systemImage: "bell.badge") }
                     .buttonStyle(.borderedProminent).tint(BrandStyle.accent)
             }
-        }
-        .controlSize(.regular)
-        if isSavingAction { ProgressView("Saving your alert…").font(.caption).tint(BrandStyle.accent) }
     }
 
     @ViewBuilder
@@ -318,6 +338,7 @@ private struct FlowChips: View {
             }
         }
         .scrollIndicators(.hidden)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

@@ -36,7 +36,9 @@ struct Movie: Decodable, Hashable, Identifiable, Sendable {
     var trailerKey: String? = nil
     var imdbRating: Double? = nil
     var rtAudienceRating: Double? = nil
+    var rtAudienceVotes: Double? = nil
     var rtCriticRating: Double? = nil
+    var rtCriticVotes: Double? = nil
     var lbRating: Double? = nil
     var tmdbRating: Double? = nil
     var imdbId: String? = nil
