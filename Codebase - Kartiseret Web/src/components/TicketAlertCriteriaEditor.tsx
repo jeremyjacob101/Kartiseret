@@ -2,6 +2,7 @@ import type { TicketAlertCriteria, TicketAlertCriteriaOverride } from "@kartiser
 import { SHOWTIME_FILTER_OPTIONS } from "@kartiseret/contracts/showtime-links";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { ALL_LOCATIONS } from "@kartiseret/contracts/preferences";
+import { ChevronDown } from "lucide-react";
 import { useId, useState } from "react";
 
 type FilterGroup = keyof TicketAlertCriteria["filters"];
@@ -45,6 +46,15 @@ export function TicketAlertCriteriaEditor({
     : fullDraft.cities;
   const citiesInherited = isTitle && titleDraft.cities === undefined;
   const selectedCities = effectiveCities ?? [preferredCity];
+  const citySummary = citiesInherited
+    ? "Using account defaults"
+    : effectiveCities === null
+      ? `Preferred city (${preferredCity})`
+      : selectedCities.length === ALL_LOCATIONS.length
+        ? "All cities"
+        : selectedCities.length === 1
+          ? selectedCities[0]
+          : `${selectedCities.length} cities selected`;
   const effectiveMode =
     draft.notificationMode ?? defaults.notificationMode ?? "first_any_city";
 
@@ -181,37 +191,52 @@ export function TicketAlertCriteriaEditor({
             Use account default
           </label>
         ) : null}
-        <button
-          type="button"
-          className="ticket-alert-select-all"
-          disabled={citiesInherited || saving || effectiveCities === null}
-          onClick={() => setCities(null)}
-        >
-          Use preferred city ({preferredCity})
-        </button>
-        <button
-          className="ticket-alert-select-all"
-          type="button"
-          disabled={citiesInherited || saving}
-          onClick={() => setCities([...ALL_LOCATIONS])}
-        >
-          All cities
-        </button>
-        <div className="ticket-alert-city-options">
-          {ALL_LOCATIONS.map((city) => (
-            <label key={city}>
-              <input
-                type="checkbox"
-                checked={selectedCities.includes(city)}
+        <details className="ticket-alert-city-picker">
+          <summary aria-label="Choose cities">
+            <span>Choose cities</span>
+            <span>{citySummary}</span>
+            <ChevronDown
+              className="prefs-disclosure-chevron"
+              size={16}
+              aria-hidden="true"
+            />
+          </summary>
+          <div className="ticket-alert-city-picker-content">
+            <div className="ticket-alert-city-actions">
+              <button
+                type="button"
+                className="ticket-alert-select-all"
+                disabled={citiesInherited || saving || effectiveCities === null}
+                onClick={() => setCities(null)}
+              >
+                Use preferred city ({preferredCity})
+              </button>
+              <button
+                className="ticket-alert-select-all"
+                type="button"
                 disabled={citiesInherited || saving}
-                onChange={(event) =>
-                  toggleCity(city, event.currentTarget.checked)
-                }
-              />
-              {city}
-            </label>
-          ))}
-        </div>
+                onClick={() => setCities([...ALL_LOCATIONS])}
+              >
+                All cities
+              </button>
+            </div>
+            <div className="ticket-alert-city-options">
+              {ALL_LOCATIONS.map((city) => (
+                <label key={city}>
+                  <input
+                    type="checkbox"
+                    checked={selectedCities.includes(city)}
+                    disabled={citiesInherited || saving}
+                    onChange={(event) =>
+                      toggleCity(city, event.currentTarget.checked)
+                    }
+                  />
+                  {city}
+                </label>
+              ))}
+            </div>
+          </div>
+        </details>
       </fieldset>
 
       {(Object.keys(SHOWTIME_FILTER_OPTIONS) as FilterGroup[]).map((group) => {

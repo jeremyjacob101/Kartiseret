@@ -10,6 +10,7 @@ import { TicketAlertCriteriaEditor } from "./TicketAlertCriteriaEditor";
 import { LetterboxdSourceWatchlist } from "./LetterboxdSourceWatchlist";
 import { ComingSoonDateWatchlist } from "./ComingSoonDateWatchlist";
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
+import { ChevronDown } from "lucide-react";
 import { Link } from "react-router";
 import { useMemo } from "react";
 
@@ -198,14 +199,17 @@ export function UserTicketAlerts({ userId }: { userId: string | null }) {
 
   return (
     <>
-      <section className="prefs-setting prefs-alerts-setting">
-        <div className="prefs-setting-content prefs-setting-content--static">
+      <section
+        className="prefs-alerts-setting"
+        aria-label="Movie notifications"
+      >
+        <div className="prefs-alerts-content">
           <div className="prefs-alerts-header">
             <div className="prefs-setting-copy">
-              <span className="prefs-setting-label">Movie notifications</span>
+              <h3>Movie notifications</h3>
               <span className="prefs-setting-summary">
                 {visibleAlerts.length === 0
-                  ? "No movies being watched"
+                  ? "No active movie alerts"
                   : `${visibleAlerts.length} movie${visibleAlerts.length === 1 ? "" : "s"} being watched`}
               </span>
             </div>
@@ -242,40 +246,58 @@ export function UserTicketAlerts({ userId }: { userId: string | null }) {
               </p>
             ) : null}
           </details>
-          {alertsQuery.isPending ? (
-            <p className="prefs-alerts-empty" role="status">
-              Loading your alerts…
-            </p>
-          ) : alertsQuery.isError &&
-            !alertsQuery.data ? null : visibleAlerts.length === 0 ? (
-            <p className="prefs-alerts-empty">
-              Click Notify me on a coming soon movie to see it here.
-            </p>
-          ) : (
-            <ul className="prefs-alerts-list">
-              {visibleAlerts.map((alert) => (
-                <UserTicketAlertItem
-                  key={alert.tmdbId}
-                  userId={userId}
-                  alert={alert}
-                  movie={moviesById.get(alert.tmdbId)}
-                  defaults={defaults}
-                />
-              ))}
-            </ul>
-          )}
-          {alertsQuery.error ? (
-            <div className="prefs-alerts-error" role="alert">
-              <p>{alertsQuery.error.message}</p>
-              <button
-                className="prefs-alert-remove"
-                type="button"
-                onClick={() => void alertsQuery.refetch()}
-              >
-                Try again
-              </button>
+          <details className="prefs-disclosure prefs-alert-list-details">
+            <summary className="prefs-disclosure-summary">
+              <span className="prefs-disclosure-copy">
+                <strong>Watched movies</strong>
+                <span>
+                  {visibleAlerts.length} active alert
+                  {visibleAlerts.length === 1 ? "" : "s"}
+                </span>
+              </span>
+              <ChevronDown
+                className="prefs-disclosure-chevron"
+                size={18}
+                aria-hidden="true"
+              />
+            </summary>
+            <div className="prefs-disclosure-content">
+              {alertsQuery.isPending ? (
+                <p className="prefs-alerts-empty" role="status">
+                  Loading your alerts…
+                </p>
+              ) : alertsQuery.isError &&
+                !alertsQuery.data ? null : visibleAlerts.length === 0 ? (
+                <p className="prefs-alerts-empty">
+                  Click Notify me on a coming soon movie to see it here.
+                </p>
+              ) : (
+                <ul className="prefs-alerts-list">
+                  {visibleAlerts.map((alert) => (
+                    <UserTicketAlertItem
+                      key={alert.tmdbId}
+                      userId={userId}
+                      alert={alert}
+                      movie={moviesById.get(alert.tmdbId)}
+                      defaults={defaults}
+                    />
+                  ))}
+                </ul>
+              )}
+              {alertsQuery.error ? (
+                <div className="prefs-alerts-error" role="alert">
+                  <p>{alertsQuery.error.message}</p>
+                  <button
+                    className="prefs-alert-remove"
+                    type="button"
+                    onClick={() => void alertsQuery.refetch()}
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : null}
             </div>
-          ) : null}
+          </details>
         </div>
       </section>
       <ComingSoonDateWatchlist userId={userId} />

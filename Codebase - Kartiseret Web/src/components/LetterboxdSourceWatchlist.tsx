@@ -1,6 +1,7 @@
 import { addLetterboxdSourceMutationOptions, letterboxdSourcesQueryOptions, removeLetterboxdSourceMutationOptions, type LetterboxdSource } from "../data/letterboxdSources";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
+import { ChevronDown } from "lucide-react";
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
   month: "short",
@@ -48,19 +49,22 @@ export function LetterboxdSourceWatchlist({
   }
 
   return (
-    <section className="prefs-setting prefs-letterboxd-source-setting">
-      <div className="prefs-setting-content prefs-setting-content--static">
-        <div className="prefs-alerts-header">
-          <div className="prefs-setting-copy">
-            <span className="prefs-setting-label">Letterboxd sources</span>
-            <span className="prefs-setting-summary">
-              Track public watchlists and lists, including lists visible to
-              anyone with a share link, for first Coming Soon dates and first
-              ticket availability in your selected cities.
-            </span>
-          </div>
-        </div>
-
+    <details className="prefs-disclosure prefs-letterboxd-source-setting">
+      <summary className="prefs-disclosure-summary">
+        <span className="prefs-disclosure-copy">
+          <strong>Letterboxd sources</strong>
+          <span>
+            {sources.length} tracked source{sources.length === 1 ? "" : "s"}
+            {" · "}Add public watchlists and lists
+          </span>
+        </span>
+        <ChevronDown
+          className="prefs-disclosure-chevron"
+          size={18}
+          aria-hidden="true"
+        />
+      </summary>
+      <div className="prefs-disclosure-content">
         <p className="prefs-alerts-empty letterboxd-source-note">
           Add a public watchlist or list URL, or a share link for a list visible
           to anyone with the link. Sources that require Letterboxd sign-in are
@@ -164,6 +168,6 @@ export function LetterboxdSourceWatchlist({
           </p>
         ) : null}
       </div>
-    </section>
+    </details>
   );
 }

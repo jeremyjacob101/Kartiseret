@@ -2,6 +2,7 @@ import { comingSoonDateUnwatchMutationOptions, comingSoonDateWatchMutationOption
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
+import { ChevronDown } from "lucide-react";
 import { useMemo, useState } from "react";
 
 const EMPTY_WATCHES: ComingSoonDateWatch[] = [];
@@ -57,20 +58,23 @@ export function ComingSoonDateWatchlist({ userId }: { userId: string | null }) {
   if (!userId) return null;
 
   return (
-    <section className="prefs-setting prefs-coming-soon-watch-setting">
-      <div className="prefs-setting-content prefs-setting-content--static">
-        <div className="prefs-alerts-header">
-          <div className="prefs-setting-copy">
-            <span className="prefs-setting-label">
-              Coming Soon Date Watches
-            </span>
-            <span className="prefs-setting-summary">
-              Search TMDb to follow titles before they appear in the local
-              catalog.
-            </span>
-          </div>
-        </div>
-
+    <details className="prefs-disclosure prefs-coming-soon-watch-setting">
+      <summary className="prefs-disclosure-summary">
+        <span className="prefs-disclosure-copy">
+          <strong>Coming Soon date watches</strong>
+          <span>
+            {visibleWatches.length} tracked title
+            {visibleWatches.length === 1 ? "" : "s"}
+            {" · "}Follow a film's local release date
+          </span>
+        </span>
+        <ChevronDown
+          className="prefs-disclosure-chevron"
+          size={18}
+          aria-hidden="true"
+        />
+      </summary>
+      <div className="prefs-disclosure-content">
         <label
           className="coming-soon-watch-search-label"
           htmlFor="coming-soon-watch-search"
@@ -238,6 +242,6 @@ export function ComingSoonDateWatchlist({ userId }: { userId: string | null }) {
           </p>
         ) : null}
       </div>
-    </section>
+    </details>
   );
 }

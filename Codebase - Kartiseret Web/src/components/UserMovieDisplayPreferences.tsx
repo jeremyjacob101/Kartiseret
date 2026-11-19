@@ -1,6 +1,7 @@
 import { addMovieDisplayPreferenceMutationOptions, movieDisplayPreferencesQueryOptions, removeMovieDisplayPreferenceMutationOptions, updateMovieDisplayPreferenceMutationOptions, type MovieDisplayPreference } from "../data/movieDisplayPreferences";
 import { tmdbTitleSearchQueryOptions } from "../data/comingSoonDateWatches";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { ChevronDown } from "lucide-react";
 import { useMemo, useState } from "react";
 
 const EMPTY_PREFERENCES: MovieDisplayPreference[] = [];
@@ -57,18 +58,22 @@ export function UserMovieDisplayPreferences({ userId }: { userId: string }) {
   };
 
   return (
-    <section className="prefs-setting prefs-movie-display-setting">
-      <div className="prefs-setting-content prefs-setting-content--static">
-        <div className="prefs-alerts-header">
-          <div className="prefs-setting-copy">
-            <span className="prefs-setting-label">Movie Display</span>
-            <span className="prefs-setting-summary">
-              Choose a Kartiseret title poster or hide a movie from your site
-              views.
-            </span>
-          </div>
-        </div>
-
+    <details className="prefs-disclosure prefs-movie-display-setting">
+      <summary className="prefs-disclosure-summary">
+        <span className="prefs-disclosure-copy">
+          <strong>Movie display</strong>
+          <span>
+            {preferences.length} title rule{preferences.length === 1 ? "" : "s"}
+            {" · "}Search or edit movie display choices
+          </span>
+        </span>
+        <ChevronDown
+          className="prefs-disclosure-chevron"
+          size={18}
+          aria-hidden="true"
+        />
+      </summary>
+      <div className="prefs-disclosure-content">
         <label
           className="movie-display-search-label"
           htmlFor="movie-display-search"
@@ -244,6 +249,6 @@ export function UserMovieDisplayPreferences({ userId }: { userId: string }) {
           </p>
         ) : null}
       </div>
-    </section>
+    </details>
   );
 }
