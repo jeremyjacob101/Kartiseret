@@ -1,4 +1,4 @@
-import type { Movie } from "../data/movieCatalog";
+import { isMovieReRelease, type Movie } from "@kartiseret/contracts/movies";
 
 export type MovieReleaseCategory = "newReleases" | "reReleases";
 
@@ -10,13 +10,11 @@ export const MOVIE_RELEASE_CATEGORY_LABELS: Record<
   reReleases: "Re-Releases",
 };
 
-const RE_RELEASE_YEAR_OFFSET = 3;
-
 export function getMovieReleaseCategory(
   movie: Pick<Movie, "year">,
   currentYear = new Date().getFullYear(),
 ): MovieReleaseCategory {
-  return movie.year > 0 && movie.year <= currentYear - RE_RELEASE_YEAR_OFFSET
+  return isMovieReRelease(movie.year, currentYear)
     ? "reReleases"
     : "newReleases";
 }

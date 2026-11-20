@@ -40,6 +40,12 @@ export const publicPageBootstrapSchema = z.object({
     nowPlaying: movieCollectionBootstrapSchema.optional(),
     comingSoon: movieCollectionBootstrapSchema.optional(),
   }),
+  homepageCatalogs: z
+    .object({
+      nowPlaying: movieCollectionBootstrapSchema,
+      comingSoon: movieCollectionBootstrapSchema,
+    })
+    .optional(),
   movieDetail: z
     .object({
       movie: movieSchema,

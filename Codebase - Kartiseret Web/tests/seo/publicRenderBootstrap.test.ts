@@ -1,6 +1,6 @@
 import { createEmptyShowtimeCityData, isMovieShowtimeDateCovered, mergeShowtimeCityData, movieCatalogQueryKeys } from "../../src/data/movieCatalog";
+import { homepageCatalogsKey, seedPublicPageQueries } from "../../src/publicRenderBootstrap";
 import type { PublicPageBootstrap } from "@kartiseret/contracts/public-render";
-import { seedPublicPageQueries } from "../../src/publicRenderBootstrap";
 import { addCalendarDays } from "@kartiseret/contracts/showtime-links";
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
@@ -39,6 +39,45 @@ function movieBootstrap(date = today): PublicPageBootstrap {
 }
 
 describe("public route bootstrap showtime coverage", () => {
+  it("keeps the homepage preview outside the full catalog cache", () => {
+    const queryClient = new QueryClient();
+    const homepageCatalogs = {
+      nowPlaying: {
+        mode: "nowPlaying",
+        movies: [sampleMovie],
+        movieCodesStatus: "ready",
+        publicationRevision: "7",
+      },
+      comingSoon: {
+        mode: "comingSoon",
+        movies: [],
+        movieCodesStatus: "ready",
+        publicationRevision: "7",
+      },
+    } as const;
+    seedPublicPageQueries(queryClient, {
+      version: 1,
+      pathname: "/",
+      renderedAt,
+      publicationRevision: "7",
+      catalogs: {},
+      homepageCatalogs: {
+        nowPlaying: { ...homepageCatalogs.nowPlaying, movies: [sampleMovie] },
+        comingSoon: { ...homepageCatalogs.comingSoon, movies: [] },
+      },
+    });
+    expect(queryClient.getQueryData(homepageCatalogsKey)).toEqual(
+      homepageCatalogs,
+    );
+    expect(
+      queryClient.getQueryData(movieCatalogQueryKeys.collection("nowPlaying")),
+    ).toBeUndefined();
+    expect(
+      queryClient.getQueryData(movieCatalogQueryKeys.collection("comingSoon")),
+    ).toBeUndefined();
+    queryClient.clear();
+  });
+
   it("renders targeted screenings from a standalone movie with no catalog", () => {
     const queryClient = new QueryClient();
     const bootstrap = movieBootstrap();

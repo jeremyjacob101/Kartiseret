@@ -2,6 +2,7 @@ export { PublicDataIntegrityError } from "./errors.js";
 export {
   getMovieByPermanentCode,
   getMovieCatalog,
+  getHomepageCatalogs,
   getCinemathequeData,
   getPublicTheaterData,
   getMovieShowtimes,

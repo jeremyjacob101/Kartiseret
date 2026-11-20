@@ -6,6 +6,7 @@ import {
   getCinemaPageData,
   getMovieByPermanentCode,
   getMovieCatalog,
+  getHomepageCatalogs,
   getCinemathequeData,
   getMovieShowtimes,
   getPublicTheaterData,
@@ -115,6 +116,43 @@ describe("public movie catalog service", () => {
       ],
     });
     expect(repository.findMovieCodes).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps only initial homepage cards and featured movies using a single code lookup", async () => {
+    const nowPlayingRows = Array.from({ length: 12 }, (_, index) => ({
+      ...nowPlaying,
+      tmdbId: 9100100 + index,
+      popularity: 50 - index,
+    }));
+    const repository = createRepository({
+      findNowPlayingRows: vi.fn(async () => [
+        ...nowPlayingRows,
+        { ...nowPlaying, tmdbId: 9100200, releaseYear: 2010 },
+        { ...nowPlaying, tmdbId: 9100201, soloUpdate: true },
+      ]),
+      findMovieCodes: vi.fn(async () => new Map([["9100109", "Ab9"]])),
+    });
+    const result = await getHomepageCatalogs(
+      repository,
+      new Set(["9100109", "9100201"]),
+      2026,
+    );
+
+    const ids = result.nowPlaying.movies.map(({ tmdbId }) => tmdbId);
+    expect(ids).toHaveLength(11);
+    expect(ids).toEqual(
+      expect.arrayContaining(["9100109", "9100111", "9100200"]),
+    );
+    expect(ids).not.toContain("9100108");
+    expect(ids).not.toContain("9100201");
+    expect(
+      result.nowPlaying.movies.find(({ tmdbId }) => tmdbId === "9100109")
+        ?.movieCode,
+    ).toBe("Ab9");
+    expect(repository.findMovieCodes).toHaveBeenCalledExactlyOnceWith([
+      ...ids,
+      "9100002",
+    ]);
   });
 
   it("uses the balanced ranking for the public now-playing catalog", async () => {

@@ -6,6 +6,7 @@ import { sampleMovie } from "../fixtures";
 
 const mocks = vi.hoisted(() => ({
   getMovieCatalog: vi.fn(),
+  getHomepageCatalogs: vi.fn(),
   getCinemathequeData: vi.fn(),
   getCinemaPageData: vi.fn(),
   getMovieByPermanentCode: vi.fn(),
@@ -120,6 +121,10 @@ beforeEach(() => {
   ) => callback("7"));
   mocks.getMovieCatalog.mockImplementation(async (_repository, mode) =>
     mode === "nowPlaying" ? catalog([sampleMovie], mode) : catalog([], mode));
+  mocks.getHomepageCatalogs.mockResolvedValue({
+    nowPlaying: catalog([sampleMovie], "nowPlaying"),
+    comingSoon: catalog([], "comingSoon"),
+  });
   mocks.getCinemathequeData.mockResolvedValue({
     movies: [],
     movieCodesStatus: "ready",
@@ -150,7 +155,15 @@ beforeEach(() => {
 describe("SEO request handler", () => {
   it("reads homepage featured content before the catalog snapshot pins the pool", async () => {
     const featured = {
-      data: { lineup: null, highlights: [], promotions: [] },
+      data: {
+        lineup: {
+          weekStart: "2026-11-19",
+          nowPlayingIds: [sampleMovie.tmdbId],
+          comingSoonIds: [],
+        },
+        highlights: [],
+        promotions: [],
+      },
       error: null,
     };
     mocks.readHomepageFeatured.mockResolvedValue(featured);
@@ -168,8 +181,16 @@ describe("SEO request handler", () => {
     expect(mocks.renderBuiltPublicApplication.mock.calls[0]?.[0]).toMatchObject(
       {
         homepageFeatured: featured,
+        homepageCatalogs: { nowPlaying: { movies: [sampleMovie] } },
+        catalogs: { nowPlaying: undefined, comingSoon: undefined },
       },
     );
+    expect(mocks.getHomepageCatalogs).toHaveBeenCalledExactlyOnceWith(
+      expect.any(Object),
+      new Set([sampleMovie.tmdbId]),
+      expect.any(Number),
+    );
+    expect(mocks.getMovieCatalog).not.toHaveBeenCalled();
   });
 
   it("renders isolated account display state while retaining the anonymous cache path", async () => {

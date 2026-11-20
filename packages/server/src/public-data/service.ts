@@ -22,6 +22,7 @@ import {
 } from "@kartiseret/contracts/runtime";
 import {
   movieSchema,
+  isMovieReRelease,
   type Movie,
   citySchema,
   theaterSchema,
@@ -139,18 +140,12 @@ function buildMovieCodeIndex(
   return index;
 }
 
-export async function getMovieCatalog(
+async function readCatalogRows(
   repository: PublicDataRepository,
   mode: MovieCatalogMode,
-  onCodeLookupFailure?: (error: unknown) => void,
-): Promise<MovieCatalogData> {
-  const parsedMode = parseBoundary(
-    movieCatalogModeSchema,
-    mode,
-    "movie catalog mode",
-  );
+): Promise<unknown[]> {
   const rows = await timeCatalogStage("movie_rows", async () =>
-    parsedMode === "nowPlaying"
+    mode === "nowPlaying"
       ? [...(await repository.findNowPlayingRows())]
       : [...(await repository.findComingSoonRows())],
   );
@@ -164,40 +159,135 @@ export async function getMovieCatalog(
       pending !== "1"
     );
   });
-  const orderedRows =
-    parsedMode === "nowPlaying"
-      ? orderNowPlayingRows(visibleRows)
-      : visibleRows.sort(compareComingSoonRows);
+  return mode === "nowPlaying"
+    ? orderNowPlayingRows(visibleRows)
+    : visibleRows.sort(compareComingSoonRows);
+}
 
-  const ids = orderedRows.map((row) =>
-    tmdbIdSchema.parse(readField(row, "tmdbId")),
-  );
-  let codeMap: ReadonlyMap<string, string> = new Map();
-  let movieCodesStatus: MovieCatalogData["movieCodesStatus"] = "ready";
+function catalogRowId(row: unknown): string {
+  return tmdbIdSchema.parse(readField(row, "tmdbId"));
+}
 
+async function readCatalogCodes(
+  repository: PublicDataRepository,
+  rows: readonly unknown[],
+  onCodeLookupFailure?: (error: unknown) => void,
+): Promise<{
+  codeMap: ReadonlyMap<string, string>;
+  movieCodesStatus: MovieCatalogData["movieCodesStatus"];
+}> {
+  const ids = [...new Set(rows.map(catalogRowId))];
   try {
-    codeMap = await timeCatalogStage("movie_codes", () =>
+    const codeMap = await timeCatalogStage("movie_codes", () =>
       repository.findMovieCodes(ids),
     );
+    return { codeMap, movieCodesStatus: "ready" };
   } catch (error) {
-    movieCodesStatus = "failed";
     onCodeLookupFailure?.(error);
+    return { codeMap: new Map(), movieCodesStatus: "failed" };
   }
+}
 
+function prepareCatalog(
+  mode: MovieCatalogMode,
+  orderedRows: readonly unknown[],
+  { codeMap, movieCodesStatus }: Awaited<ReturnType<typeof readCatalogCodes>>,
+): MovieCatalogData {
   const codeIndex = buildMovieCodeIndex(orderedRows, codeMap);
   const movies = orderedRows.map((row) => {
-    const tmdbId = tmdbIdSchema.parse(readField(row, "tmdbId"));
+    const tmdbId = catalogRowId(row);
     const movieCode = codeIndex.get(tmdbId);
-    return parsedMode === "nowPlaying"
+    return mode === "nowPlaying"
       ? toNowPlayingMovie(row, movieCode)
       : toComingSoonMovie(row, movieCode);
   });
 
   return parseBoundary(
     movieCatalogDataSchema,
-    { mode: parsedMode, movies, movieCodesStatus },
-    `${parsedMode} catalog response`,
+    { mode, movies, movieCodesStatus },
+    `${mode} catalog response`,
   );
+}
+
+export async function getMovieCatalog(
+  repository: PublicDataRepository,
+  mode: MovieCatalogMode,
+  onCodeLookupFailure?: (error: unknown) => void,
+): Promise<MovieCatalogData> {
+  const parsedMode = parseBoundary(
+    movieCatalogModeSchema,
+    mode,
+    "movie catalog mode",
+  );
+  const rows = await readCatalogRows(repository, parsedMode);
+  return prepareCatalog(
+    parsedMode,
+    rows,
+    await readCatalogCodes(repository, rows, onCodeLookupFailure),
+  );
+}
+
+const INITIAL_HOMEPAGE_ROW_SIZE = 8;
+
+function selectHomepageRows(
+  rows: readonly unknown[],
+  featuredIds: ReadonlySet<string>,
+  year: number,
+  includeReReleases: boolean,
+): unknown[] {
+  const newReleases: unknown[] = [];
+  const reReleases: unknown[] = [];
+  const selected = new Set<unknown>();
+  for (const row of rows) {
+    if (featuredIds.has(catalogRowId(row))) selected.add(row);
+    const releases = isMovieReRelease(
+      Number(readField(row, "releaseYear")),
+      year,
+    )
+      ? reReleases
+      : newReleases;
+    releases.push(row);
+  }
+  for (const releases of includeReReleases
+    ? [newReleases, reReleases]
+    : [newReleases]) {
+    for (const row of releases.slice(0, INITIAL_HOMEPAGE_ROW_SIZE))
+      selected.add(row);
+    // The looping scroller starts with the last movie immediately to the left.
+    for (const row of releases.slice(-1)) selected.add(row);
+  }
+  return rows.filter((row) => selected.has(row));
+}
+
+export async function getHomepageCatalogs(
+  repository: PublicDataRepository,
+  featuredIds: ReadonlySet<string>,
+  year: number,
+): Promise<{ nowPlaying: MovieCatalogData; comingSoon: MovieCatalogData }> {
+  const [nowPlayingRows, comingSoonRows] = await Promise.all([
+    readCatalogRows(repository, "nowPlaying"),
+    readCatalogRows(repository, "comingSoon"),
+  ]);
+  const nowPlaying = selectHomepageRows(
+    nowPlayingRows,
+    featuredIds,
+    year,
+    true,
+  );
+  const comingSoon = selectHomepageRows(
+    comingSoonRows,
+    featuredIds,
+    year,
+    false,
+  );
+  const codes = await readCatalogCodes(repository, [
+    ...nowPlaying,
+    ...comingSoon,
+  ]);
+  return {
+    nowPlaying: prepareCatalog("nowPlaying", nowPlaying, codes),
+    comingSoon: prepareCatalog("comingSoon", comingSoon, codes),
+  };
 }
 
 const databaseShowtimeRowSchema = z.object({

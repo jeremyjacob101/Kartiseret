@@ -15,6 +15,11 @@ export function parsePublicPageBootstrap(
   return parsed.success ? parsed.data : null;
 }
 
+export const homepageCatalogsKey = ["homepageCatalogs"] as const;
+export type HomepageCatalogs = NonNullable<
+  PublicPageBootstrap["homepageCatalogs"]
+>;
+
 function asMovieCollectionData(
   data: NonNullable<PublicPageBootstrap["catalogs"]["nowPlaying"]>,
 ): MovieCollectionData {
@@ -58,6 +63,11 @@ export function seedPublicPageQueries(
     bootstrap.publicationRevision,
     { updatedAt },
   );
+  if (bootstrap.homepageCatalogs) {
+    queryClient.setQueryData(homepageCatalogsKey, bootstrap.homepageCatalogs, {
+      updatedAt,
+    });
+  }
   if (bootstrap.homepageFeatured) {
     queryClient.setQueryData(
       homepageFeaturedQueryKey,
