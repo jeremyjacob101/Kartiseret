@@ -733,19 +733,32 @@ function MovieScrollerContent({
     const previousMovieItems = previousMovieItemsRef.current;
     previousMovieItemsRef.current = movieItems;
 
-    if (previousMovieItems.length === movieCount) {
+    if (
+      previousMovieItems.length === movieCount &&
+      previousMovieItems.every(
+        (movie, index) => movie.tmdbId === movieItems[index]?.tmdbId,
+      )
+    ) {
       return;
     }
 
-    const rebaseItemIndex = (itemIndex: number) => {
-      const previousMovie =
-        previousMovieItems[mod(itemIndex, previousMovieItems.length)];
-      const nextMovieIndex = previousMovie
-        ? movieItems.findIndex((movie) => movie.tmdbId === previousMovie.tmdbId)
-        : -1;
+    const nextIndexById = new Map(
+      movieItems.map((movie, index) => [movie.tmdbId, index]),
+    );
+    const getNextMovieIndex = (itemIndex: number) =>
+      nextIndexById.get(
+        previousMovieItems[mod(itemIndex, previousMovieItems.length)]!.tmdbId,
+      );
+    const rebaseItemIndex = (itemIndex: number) =>
+      collapsedMiddleStartIndex + (getNextMovieIndex(itemIndex) ?? 0);
 
-      return collapsedMiddleStartIndex + Math.max(nextMovieIndex, 0);
-    };
+    clearScheduledDetailTransition();
+    const pendingJump = pendingExternalJumpRef.current;
+    if (pendingJump) {
+      const movieIndex = getNextMovieIndex(pendingJump.movieIndex);
+      pendingExternalJumpRef.current =
+        movieIndex === undefined ? null : { ...pendingJump, movieIndex };
+    }
 
     setCollapsedAnchorItemIndex((current) => rebaseItemIndex(current));
     setCollapsedSelectedItemIndex((current) =>
@@ -762,7 +775,13 @@ function MovieScrollerContent({
     collapsedOpenScrollLeftRef.current = null;
     collapsedOpenClientWidthRef.current = null;
     collapsedOpenAnchorItemIndexRef.current = null;
-  }, [collapsedMiddleStartIndex, displayItemIndex, movieCount, movieItems]);
+  }, [
+    clearScheduledDetailTransition,
+    collapsedMiddleStartIndex,
+    displayItemIndex,
+    movieCount,
+    movieItems,
+  ]);
 
   const handleCollapsedScrollRequestApplied = useCallback((nonce: number) => {
     setCollapsedScrollRequest((currentRequest) =>

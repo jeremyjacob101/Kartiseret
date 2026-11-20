@@ -1,8 +1,8 @@
 import { MovieScroller } from "../../src/components/scroller/MovieScroller";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Movie } from "../../src/data/movieCatalog";
-import { render } from "@testing-library/react";
 import { sampleMovie } from "../fixtures";
 
 afterEach(() => vi.restoreAllMocks());
@@ -57,6 +57,40 @@ describe("MovieScroller catalog updates", () => {
       .map((card) => card.getAttribute("aria-label"));
 
     expect(visibleTitles).toContain("Open Fresh movie 0 details");
+
+    unmount();
+    queryClient.clear();
+  });
+  it("keeps an open movie selected after a same-size catalog reorder", () => {
+    const queryClient = new QueryClient();
+    const original = movies("Movie", 3);
+    const renderScroller = (movieItems: Movie[]) => (
+      <QueryClientProvider client={queryClient}>
+        <MovieScroller
+          mode="comingSoon"
+          movieItems={movieItems}
+          jumpOpenMode="detail"
+          jumpRequest={{
+            tmdbId: original[1]!.tmdbId,
+            nonce: 1,
+            behavior: "auto",
+          }}
+          skipIntro
+        />
+      </QueryClientProvider>
+    );
+    const { rerender, unmount } = render(renderScroller(original));
+
+    expect(
+      screen.getByRole("article", { name: "Movie 1 details" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show next movie: Movie 2" }),
+    );
+    rerender(renderScroller([original[2]!, original[0]!, original[1]!]));
+    expect(
+      screen.getByRole("article", { name: "Movie 2 details" }),
+    ).toBeInTheDocument();
 
     unmount();
     queryClient.clear();
