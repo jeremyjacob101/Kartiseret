@@ -92,6 +92,20 @@ final class CoreAndAPITests: XCTestCase {
         ), url)
     }
 
+    func testInfinityVisionParticipatesInNativeShowtimeFiltering() {
+        let screening = Showtime(
+            tmdbId: "101", screeningCity: "Tel Aviv", dateOfShowing: "2027-01-15",
+            cinema: "Planet Cinema", showtime: "19:30", englishHref: nil, hebrewHref: nil,
+            screeningTech: "2D ScreenX Infinity Vision", screeningType: "Regular", dubLanguage: nil
+        )
+        var state = AccountPreferences.Showtime.FilterState()
+        state.unchecked.screeningTech = ["ScreenX"]
+        XCTAssertTrue(ShowtimeLogic.matchesSavedFilters(screening, state: state))
+
+        state.unchecked.screeningTech.append("Infinity Vision")
+        XCTAssertFalse(ShowtimeLogic.matchesSavedFilters(screening, state: state))
+    }
+
     @MainActor
     func testMovieLinkResolutionPreservesCaseAndSavedSelection() async throws {
         let body = #"{"data":{"mode":"nowPlaying","movies":[{"tmdbId":"1","title":"Uppercase","year":2026,"genres":[],"runtime":90,"movieCode":"Ab1"},{"tmdbId":"2","title":"Lowercase","year":2026,"genres":[],"runtime":90,"movieCode":"ab1"}],"movieCodesStatus":"ready"},"error":null}"#
@@ -197,7 +211,7 @@ final class CoreAndAPITests: XCTestCase {
     func testCinemaIdentityResolvesTheSharedCanonicalName() {
         XCTAssertEqual(CinemaIdentity.forScreening(city: "Jerusalem", cinema: "Jerusalem Cinematheque")?.id, "smBcm2HtRvQA")
         XCTAssertNil(CinemaIdentity.forScreening(city: "Jerusalem", cinema: "Unknown Cinema"))
-        XCTAssertEqual(CinemaIdentity.forScreening(city: "Ｊｅｒｕｓａｌｅｍ", cinema: "Ｃｉｎｅｍａｔｈｅｑｕｅ")?.id, "smBcm2HtRvQA")
+        XCTAssertNil(CinemaIdentity.forScreening(city: "Ｊｅｒｕｓａｌｅｍ", cinema: "Ｃｉｎｅｍａｔｈｅｑｕｅ"))
     }
 
     func testCatalogEnvelopeAndPublicationRevisionDecode() async throws {
