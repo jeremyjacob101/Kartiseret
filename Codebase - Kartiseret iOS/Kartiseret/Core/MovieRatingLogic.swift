@@ -22,19 +22,18 @@ enum MovieRatingLogic {
         sources.compactMap { source in
             switch source {
             case "imdbRating":
-                guard let rating = movie.imdbRating else { return nil }
-                let imdbID = movie.imdbId.map { $0.hasPrefix("http") ? $0 : "https://www.imdb.com/title/\($0)/" }
+                guard let rating = movie.imdbRating, rating.isFinite else { return nil }
                 let value = String(format: "%.1f", rating)
                 return MovieRatingBadge(
                     source: source,
                     value: value,
                     logoName: "RatingIMDb",
                     accessibilityLabel: "IMDb rating \(value)",
-                    destination: imdbID.flatMap { URL(string: $0) }
+                    destination: ratingURL(movie.imdbId, baseURL: "https://www.imdb.com/title", trailingSlash: true)
                 )
             case "rtAudienceRating":
-                guard let rating = movie.rtAudienceRating else { return nil }
-                let percentage = "\(Int(rating.rounded()))%"
+                guard let rating = movie.rtAudienceRating, rating.isFinite else { return nil }
+                let percentage = String(format: "%.0f%%", rating.rounded())
                 let isHot = rating >= audienceHotScore && (movie.rtAudienceVotes ?? 0) >= audienceHotRatings
                 let isPositive = rating >= audiencePositiveScore
                 let logoName = isHot
@@ -46,11 +45,11 @@ enum MovieRatingLogic {
                     value: percentage,
                     logoName: logoName,
                     accessibilityLabel: "Rotten Tomatoes audience rating \(percentage), \(description)",
-                    destination: rottenTomatoesURL(for: movie)
+                    destination: ratingURL(movie.rtId, baseURL: "https://www.rottentomatoes.com")
                 )
             case "rtCriticRating":
-                guard let rating = movie.rtCriticRating else { return nil }
-                let percentage = "\(Int(rating.rounded()))%"
+                guard let rating = movie.rtCriticRating, rating.isFinite else { return nil }
+                let percentage = String(format: "%.0f%%", rating.rounded())
                 let isCertified = rating >= criticCertifiedFreshScore && (movie.rtCriticVotes ?? 0) >= criticCertifiedFreshReviews
                 let isFresh = rating >= criticFreshScore
                 let logoName = isCertified
@@ -62,21 +61,20 @@ enum MovieRatingLogic {
                     value: percentage,
                     logoName: logoName,
                     accessibilityLabel: "Rotten Tomatoes critics rating \(percentage), \(description)",
-                    destination: rottenTomatoesURL(for: movie)
+                    destination: ratingURL(movie.rtId, baseURL: "https://www.rottentomatoes.com")
                 )
             case "lbRating":
-                guard let rating = movie.lbRating else { return nil }
+                guard let rating = movie.lbRating, rating.isFinite else { return nil }
                 let value = String(format: "%.1f", rating)
-                let identifier = movie.lbId?.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
                 return MovieRatingBadge(
                     source: source,
                     value: value,
                     logoName: "RatingLetterboxd",
                     accessibilityLabel: "Letterboxd rating \(value)",
-                    destination: identifier.flatMap { URL(string: "https://letterboxd.com/\($0)/") }
+                    destination: ratingURL(movie.lbId, baseURL: "https://letterboxd.com", trailingSlash: true)
                 )
             case "tmdbRating":
-                guard let rating = movie.tmdbRating else { return nil }
+                guard let rating = movie.tmdbRating, rating.isFinite else { return nil }
                 let value = String(format: "%.1f", rating)
                 return MovieRatingBadge(
                     source: source,
@@ -91,10 +89,15 @@ enum MovieRatingLogic {
         }
     }
 
-    private static func rottenTomatoesURL(for movie: Movie) -> URL? {
-        guard let identifier = movie.rtId else { return nil }
-        if identifier.hasPrefix("http") { return URL(string: identifier) }
-        let path = identifier.hasPrefix("/") ? identifier : "/\(identifier)"
-        return URL(string: "https://www.rottentomatoes.com\(path)")
+    private static func ratingURL(_ identifier: String?, baseURL: String, trailingSlash: Bool = false) -> URL? {
+        guard let value = identifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else { return nil }
+        if let absoluteURL = URL(string: value), let scheme = absoluteURL.scheme {
+            guard ["http", "https"].contains(scheme.lowercased()), absoluteURL.host != nil else { return nil }
+            return absoluteURL
+        }
+        let path = value.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !path.isEmpty else { return nil }
+        return URL(string: "\(baseURL)/\(path)\(trailingSlash ? "/" : "")")
     }
 }

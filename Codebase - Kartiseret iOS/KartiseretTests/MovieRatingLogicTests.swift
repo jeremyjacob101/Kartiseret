@@ -57,6 +57,23 @@ final class MovieRatingLogicTests: XCTestCase {
         ])
     }
 
+    func testRatingLinksHandleAbsoluteURLsRelativePathsAndMissingIDs() {
+        var movie = Movie(tmdbId: "123", title: "Ratings fixture", year: 2026, releaseDate: nil, genres: [], runtime: 100)
+        movie.imdbRating = 8
+        movie.imdbId = " /tt123/ "
+        movie.rtCriticRating = 75
+        movie.rtId = " "
+        movie.lbRating = 4.2
+        movie.lbId = " https://letterboxd.com/film/example/ "
+
+        let badges = MovieRatingLogic.badges(for: movie, sources: ["imdbRating", "rtCriticRating", "lbRating"])
+        XCTAssertEqual(badges.map { $0.destination?.absoluteString }, [
+            "https://www.imdb.com/title/tt123/",
+            nil,
+            "https://letterboxd.com/film/example/",
+        ])
+    }
+
     func testCinemaThemesMatchTheWebsiteShowtimePalette() {
         XCTAssertEqual(ShowtimeTheme.forCinema("Cinema City Jerusalem"), ShowtimeTheme(startHex: 0x186BDF, endHex: 0x084CAB, accentHex: 0x186BDF))
         XCTAssertEqual(ShowtimeTheme.forCinema("Planet Cinema Rishon"), ShowtimeTheme(startHex: 0xD9710F, endHex: 0xB05806, accentHex: 0xD9710F))
