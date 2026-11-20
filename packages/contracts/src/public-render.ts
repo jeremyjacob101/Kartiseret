@@ -13,6 +13,7 @@ import {
   movieDisplayPreferenceSchema,
   preferencesSchema,
 } from "./private-data.js";
+import { homepageFeaturedResponseSchema } from "./homepage-featured.js";
 
 /** Kept separate from the cacheable public bootstrap. */
 export const privatePageDisplaySchema = z.object({
@@ -69,6 +70,7 @@ export const publicPageBootstrapSchema = z.object({
     })
     .optional(),
   theaters: publicTheaterDataSchema.optional(),
+  homepageFeatured: homepageFeaturedResponseSchema.optional(),
   cinema: publicCinemaPageDataSchema.optional(),
 });
 

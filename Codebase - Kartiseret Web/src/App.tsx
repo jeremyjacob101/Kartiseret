@@ -1,5 +1,6 @@
 import { directMoviePageKey, adminMovieEditMutationOptions, loadComingSoonMovies, loadNowPlayingMovies, loadShowtimes, movieCollectionQueryOptions, reloadComingSoonMovies, reloadNowPlayingMovies, showtimeCityQueryOptions, type Movie } from "./data/movieCatalog";
 import { loadAllShowtimesPageModule, loadCinemaPageModule, loadCinemathequesPageModule, loadMoviePageModule, loadPosterGridPageModule, loadUserPreferencesPageModule } from "./routing/publicRouteModuleLoaders.js";
+import { homepageAdminQueryOptions, homepageHighlightMutationOptions, removeHomepageHighlightMutationOptions, homepageFeaturedQueryOptions, type HomepageMovieHighlight } from "./data/homepageFeatured";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEventHandler, type ReactNode } from "react";
 import { filterMoviesByReleaseCategory, getMovieReleaseCategory, MOVIE_RELEASE_CATEGORY_LABELS, type MovieReleaseCategory } from "./domain/movieRelease";
 import { INTRO_LEADING_CARD_COUNT, INTRO_TARGET_CARD_COUNT } from "./components/scroller/MovieScrollerBase";
@@ -7,12 +8,14 @@ import { getCinemathequeDateRange, nationwideCinemathequeQueryOptions } from "./
 import { getShowtimesCityFromPath, getShowtimesCityPath } from "@kartiseret/contracts/showtime-routes";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
 import { DeleteAccountConfirmationPage } from "./components/DeleteAccountConfirmationPage";
+import type { HomepageFeaturedResponse } from "@kartiseret/contracts/homepage-featured";
 import { useMovieDisplayPreferences } from "./contexts/MovieDisplayPreferencesContext";
 import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
 import { usePublicRouteComponents } from "./routing/PublicRouteComponentsContext.js";
 import { getCurrentRobotsDirectives, setSeoMetadata } from "./routing/seoMetadata";
 import { LetterboxdUnsubscribePage } from "./components/LetterboxdUnsubscribePage";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
+import { HomepageFeaturedCarousel } from "./components/HomepageFeaturedCarousel";
 import { ReleaseCategorySwitcher } from "./components/ReleaseCategorySwitcher";
 import type { ApplicationIdentity } from "@kartiseret/contracts/private-data";
 import { applyMovieDisplayPreferences } from "./data/movieDisplayPreferences";
@@ -156,6 +159,11 @@ type CatalogRouteProps = {
   onReleaseCategoryChange: (category: MovieReleaseCategory) => void;
   showReleaseCategorySwitcher?: boolean;
   scrollerSlotMinHeight: number;
+  homepageHighlights?: readonly HomepageMovieHighlight[];
+  onAdminSaveHomepageHighlight?: (
+    highlight: HomepageMovieHighlight,
+  ) => Promise<void>;
+  onAdminRemoveHomepageHighlight?: (tmdbId: string) => Promise<void>;
 };
 
 type HomeRouteProps = {
@@ -170,6 +178,14 @@ type HomeRouteProps = {
   nowPlayingReReleaseMovies: readonly Movie[];
   hideReReleases?: boolean;
   scrollerSlotMinHeight: number;
+  isAdmin?: boolean;
+  userId?: string | null;
+  homepageFeaturedConfig?: HomepageFeaturedResponse["data"];
+  homepageHighlights?: readonly HomepageMovieHighlight[];
+  onAdminSaveHomepageHighlight?: (
+    highlight: HomepageMovieHighlight,
+  ) => Promise<void>;
+  onAdminRemoveHomepageHighlight?: (tmdbId: string) => Promise<void>;
 };
 
 function CatalogErrorNote({ message }: { message: string | null }) {
@@ -220,6 +236,9 @@ export function CatalogRoute({
   onReleaseCategoryChange,
   showReleaseCategorySwitcher = true,
   scrollerSlotMinHeight,
+  homepageHighlights = [],
+  onAdminSaveHomepageHighlight = async () => undefined,
+  onAdminRemoveHomepageHighlight = async () => undefined,
 }: CatalogRouteProps) {
   const routeLabel = jumpMode === "nowPlaying" ? "Now Playing" : "Coming Soon";
   const releaseLabel = MOVIE_RELEASE_CATEGORY_LABELS[releaseCategory];
@@ -243,6 +262,9 @@ export function CatalogRoute({
           onRefreshRequested={async () => {
             await onRefreshRequested(jumpMode);
           }}
+          homepageHighlights={homepageHighlights}
+          onAdminSaveHomepageHighlight={onAdminSaveHomepageHighlight}
+          onAdminRemoveHomepageHighlight={onAdminRemoveHomepageHighlight}
         />
       </Suspense>
     ) : (
@@ -351,6 +373,12 @@ export function HomeRoute({
   nowPlayingReReleaseMovies,
   hideReReleases = false,
   scrollerSlotMinHeight,
+  isAdmin = false,
+  userId = null,
+  homepageFeaturedConfig,
+  homepageHighlights = [],
+  onAdminSaveHomepageHighlight = async () => undefined,
+  onAdminRemoveHomepageHighlight = async () => undefined,
 }: HomeRouteProps) {
   const skipLateIntro =
     typeof document !== "undefined" &&
@@ -358,6 +386,16 @@ export function HomeRoute({
   return (
     <section className="scroller-panel" aria-label="Movie releases">
       <CatalogErrorNote message={catalogError} />
+      <HomepageFeaturedCarousel
+        config={homepageFeaturedConfig}
+        nowPlayingMovies={nowPlayingMovies}
+        comingSoonMovies={comingSoonMovies}
+        isAdmin={isAdmin}
+        userId={userId}
+        homepageHighlights={homepageHighlights}
+        onAdminSaveHomepageHighlight={onAdminSaveHomepageHighlight}
+        onAdminRemoveHomepageHighlight={onAdminRemoveHomepageHighlight}
+      />
       <div className="section-heading">
         <p className="section-kicker">Now Playing</p>
         <h1 className="section-title">New Releases</h1>
@@ -539,7 +577,34 @@ function MainApplication() {
     ...adminStatusQueryOptions(user?.id ?? null),
     enabled: Boolean(user),
   });
+  const { data: homepageFeaturedResponse } = useQuery({
+    ...homepageFeaturedQueryOptions(),
+    enabled: pathname === "/",
+  });
   const queryClient = useQueryClient();
+  const adminHomepageQuery = useQuery({
+    ...homepageAdminQueryOptions(isAdmin ? (user?.id ?? null) : null),
+    enabled: isAdmin && ["/", "/movies", "/soons"].includes(pathname),
+  });
+  const saveHomepageHighlight = useMutation(
+    homepageHighlightMutationOptions(user?.id ?? "", queryClient),
+  );
+  const removeHomepageHighlight = useMutation(
+    removeHomepageHighlightMutationOptions(user?.id ?? "", queryClient),
+  );
+  const homepageHighlights = adminHomepageQuery.data?.data.highlights ?? [];
+  const saveHomepageHighlightFromUi = useCallback(
+    async (highlight: HomepageMovieHighlight) => {
+      await saveHomepageHighlight.mutateAsync(highlight);
+    },
+    [saveHomepageHighlight],
+  );
+  const removeHomepageHighlightFromUi = useCallback(
+    async (tmdbId: string) => {
+      await removeHomepageHighlight.mutateAsync(tmdbId);
+    },
+    [removeHomepageHighlight],
+  );
   const directMovieReady =
     isPotentialStandaloneMoviePath(pathname) &&
     queryClient.getQueryData(
@@ -1175,6 +1240,12 @@ function MainApplication() {
                 nowPlayingReReleaseMovies={nowPlayingReReleaseMovies}
                 hideReReleases={hideReReleases}
                 scrollerSlotMinHeight={scrollerSlotMinHeight}
+                isAdmin={isAdmin}
+                userId={user?.id ?? null}
+                homepageFeaturedConfig={homepageFeaturedResponse?.data}
+                homepageHighlights={homepageHighlights}
+                onAdminSaveHomepageHighlight={saveHomepageHighlightFromUi}
+                onAdminRemoveHomepageHighlight={removeHomepageHighlightFromUi}
               />
             }
           />
@@ -1208,6 +1279,11 @@ function MainApplication() {
                     }}
                     showReleaseCategorySwitcher={!hideReReleases}
                     scrollerSlotMinHeight={scrollerSlotMinHeight}
+                    homepageHighlights={homepageHighlights}
+                    onAdminSaveHomepageHighlight={saveHomepageHighlightFromUi}
+                    onAdminRemoveHomepageHighlight={
+                      removeHomepageHighlightFromUi
+                    }
                   />
                 ) : nowPlayingReady ? (
                   <p className="app-inline-note" role="status">
@@ -1266,6 +1342,11 @@ function MainApplication() {
                     }}
                     showReleaseCategorySwitcher={!hideReReleases}
                     scrollerSlotMinHeight={scrollerSlotMinHeight}
+                    homepageHighlights={homepageHighlights}
+                    onAdminSaveHomepageHighlight={saveHomepageHighlightFromUi}
+                    onAdminRemoveHomepageHighlight={
+                      removeHomepageHighlightFromUi
+                    }
                   />
                 ) : comingSoonReady ? (
                   <p className="app-inline-note" role="status">

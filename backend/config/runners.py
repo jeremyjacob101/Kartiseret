@@ -761,6 +761,7 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
     )
     failed_categories: set[str] = set()
     catalog_publication_committed = False
+    homepage_catalog_committed = False
     try:
         if scrape_items:
             console.print(Panel.fit(Text("Scrape", style="bold"), border_style="grey37"))
@@ -827,6 +828,8 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
                             "cinemathequeData",
                         }:
                             catalog_publication_committed = True
+                        if key in {"nowPlayingData", "comingSoonsData"}:
+                            homepage_catalog_committed = True
                         console.print(
                             Panel.fit(
                                 Text(f"{key} publication committed", style="green"),
@@ -882,6 +885,34 @@ def runPlan(run_id: int, plan: list[tuple[str, str]], header_renderable: Rendera
                     ],
                     console,
                     status="failed" if preview_stats.get("failed") else None,
+                )
+        if homepage_catalog_committed:
+            from backend.dataflow.homepage_featured import refresh_configured_homepage_lineup
+
+            lineup_stats = run_timed_stage(
+                "HomepageFeaturedRefresh",
+                "Refresh homepage weekly lineup",
+                refresh_configured_homepage_lineup,
+                console,
+                record_when=lambda value: value is not None,
+                outcome_for=lambda value: "Skipped" if value is None else "Complete",
+            )
+            if lineup_stats is None:
+                render_key_value_table(
+                    "Homepage weekly lineup",
+                    [("Status", "Skipped or unavailable")],
+                    console,
+                )
+            else:
+                render_key_value_table(
+                    "Homepage weekly lineup",
+                    [
+                        ("Week starting", lineup_stats["week_start"]),
+                        ("Now Playing candidates", lineup_stats["now_playing"]),
+                        ("Coming Soon candidates", lineup_stats["coming_soon"]),
+                        ("Status", "Complete"),
+                    ],
+                    console,
                 )
 
         # Notification dispatchers run after selected updates commit, but can

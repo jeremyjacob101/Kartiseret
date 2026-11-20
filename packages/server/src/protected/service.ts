@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import {
   DEFAULT_LOCATION,
   DEFAULT_HIDE_RE_RELEASES,
@@ -27,6 +28,13 @@ import type {
   LetterboxdSource,
 } from "@kartiseret/contracts/private-data";
 import {
+  homepageAdminDataResponseSchema,
+  homepageMovieHighlightResponseSchema,
+  homepagePromotionResponseSchema,
+  type HomepageMovieHighlight,
+  type HomepagePromotionUpsert,
+} from "@kartiseret/contracts/homepage-featured";
+import {
   DEFAULT_TICKET_ALERT_CRITERIA,
   MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE,
   matchesTicketAlertCriteria,
@@ -46,6 +54,8 @@ import {
   comingSoonDateWatches,
   userMovieDisplayPreferences,
   letterboxdSources,
+  homepageMovieHighlights,
+  homepagePromotions,
   finalMovies,
   finalSoons,
   finalShowtimes,
@@ -182,6 +192,167 @@ export class ProtectedWorkflows {
       .where(eq(adminUsers.userId, userId))
       .limit(1);
     return rows.length === 1;
+  }
+  homepageAdminData(user: VerifiedIdentity) {
+    return this.asUser(user, async (tx) => {
+      if (!(await this.isAdmin(tx, user.id)))
+        throw new HttpError(
+          403,
+          "forbidden",
+          "Administrator access is required.",
+        );
+      const [highlights, promotions] = await Promise.all([
+        tx
+          .select()
+          .from(homepageMovieHighlights)
+          .orderBy(
+            desc(homepageMovieHighlights.priority),
+            asc(homepageMovieHighlights.createdAt),
+          ),
+        tx
+          .select()
+          .from(homepagePromotions)
+          .orderBy(
+            desc(homepagePromotions.priority),
+            asc(homepagePromotions.createdAt),
+          ),
+      ]);
+      return homepageAdminDataResponseSchema.parse({
+        data: {
+          highlights: highlights.map((row) => ({
+            tmdbId: String(row.tmdbId),
+            startsOn: row.startsOn,
+            endsOn: row.endsOn,
+            priority: row.priority,
+            label: row.label,
+            enabled: row.enabled,
+          })),
+          promotions: promotions.map((row) => ({
+            id: row.id,
+            title: row.title,
+            body: row.body,
+            startsOn: row.startsOn,
+            endsOn: row.endsOn,
+            priority: row.priority,
+            ctaLabel: row.ctaLabel,
+            ctaHref: row.ctaHref,
+            enabled: row.enabled,
+          })),
+        },
+        error: null,
+      });
+    });
+  }
+  upsertHomepageHighlight(
+    user: VerifiedIdentity,
+    command: HomepageMovieHighlight,
+  ) {
+    return this.asUser(user, async (tx) => {
+      if (!(await this.isAdmin(tx, user.id)))
+        throw new HttpError(
+          403,
+          "forbidden",
+          "Administrator access is required.",
+        );
+      const [row] = await tx
+        .insert(homepageMovieHighlights)
+        .values({
+          tmdbId: Number(command.tmdbId),
+          startsOn: command.startsOn,
+          endsOn: command.endsOn,
+          priority: command.priority,
+          label: command.label,
+          enabled: command.enabled,
+        })
+        .onConflictDoUpdate({
+          target: homepageMovieHighlights.tmdbId,
+          set: {
+            startsOn: command.startsOn,
+            endsOn: command.endsOn,
+            priority: command.priority,
+            label: command.label,
+            enabled: command.enabled,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+      return homepageMovieHighlightResponseSchema.parse({
+        data: {
+          highlight: {
+            tmdbId: String(row.tmdbId),
+            startsOn: row.startsOn,
+            endsOn: row.endsOn,
+            priority: row.priority,
+            label: row.label,
+            enabled: row.enabled,
+          },
+        },
+        error: null,
+      });
+    });
+  }
+  removeHomepageHighlight(user: VerifiedIdentity, tmdbId: string) {
+    return this.asUser(user, async (tx) => {
+      if (!(await this.isAdmin(tx, user.id)))
+        throw new HttpError(
+          403,
+          "forbidden",
+          "Administrator access is required.",
+        );
+      await tx
+        .delete(homepageMovieHighlights)
+        .where(eq(homepageMovieHighlights.tmdbId, Number(tmdbId)));
+      return { data: { removed: true as const }, error: null };
+    });
+  }
+  upsertHomepagePromotion(
+    user: VerifiedIdentity,
+    command: HomepagePromotionUpsert,
+  ) {
+    return this.asUser(user, async (tx) => {
+      if (!(await this.isAdmin(tx, user.id)))
+        throw new HttpError(
+          403,
+          "forbidden",
+          "Administrator access is required.",
+        );
+      const id = command.id ?? randomUUID();
+      const values = {
+        id,
+        title: command.title,
+        body: command.body,
+        startsOn: command.startsOn,
+        endsOn: command.endsOn,
+        priority: command.priority,
+        ctaLabel: command.ctaLabel,
+        ctaHref: command.ctaHref,
+        enabled: command.enabled,
+      };
+      const [promotion] = await tx
+        .insert(homepagePromotions)
+        .values(values)
+        .onConflictDoUpdate({
+          target: homepagePromotions.id,
+          set: { ...values, updatedAt: new Date() },
+        })
+        .returning();
+      return homepagePromotionResponseSchema.parse({
+        data: {
+          promotion: {
+            id: promotion.id,
+            title: promotion.title,
+            body: promotion.body,
+            startsOn: promotion.startsOn,
+            endsOn: promotion.endsOn,
+            priority: promotion.priority,
+            ctaLabel: promotion.ctaLabel,
+            ctaHref: promotion.ctaHref,
+            enabled: promotion.enabled,
+          },
+        },
+        error: null,
+      });
+    });
   }
   account(user: VerifiedIdentity) {
     return this.asUser(user, async (tx) => ({
@@ -1010,4 +1181,8 @@ export type ProtectedWorkflowService = Pick<
   | "cancel"
   | "updateTicketAlertCriteria"
   | "correct"
+  | "homepageAdminData"
+  | "upsertHomepageHighlight"
+  | "removeHomepageHighlight"
+  | "upsertHomepagePromotion"
 >;

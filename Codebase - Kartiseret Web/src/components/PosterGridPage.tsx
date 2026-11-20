@@ -1,8 +1,10 @@
-import { type CSSProperties, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type FormEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { HomepageMovieHighlight } from "@kartiseret/contracts/homepage-featured";
 import { tmdbIdSchema } from "@kartiseret/contracts/runtime";
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
 import { type Movie } from "../data/movieCatalog";
 import { Pencil } from "lucide-react";
+import { Star } from "lucide-react";
 
 const POSTER_GRID_MIN_COLUMN_WIDTH_FALLBACK = 150;
 
@@ -61,6 +63,11 @@ type PosterGridPageProps = {
     isManualEntry: boolean;
   }) => Promise<void>;
   onRefreshRequested?: () => Promise<void>;
+  homepageHighlights?: readonly HomepageMovieHighlight[];
+  onAdminSaveHomepageHighlight?: (
+    highlight: HomepageMovieHighlight,
+  ) => Promise<void>;
+  onAdminRemoveHomepageHighlight?: (tmdbId: string) => Promise<void>;
 };
 
 export function PosterGridPage({
@@ -70,6 +77,9 @@ export function PosterGridPage({
   isAdmin = false,
   onAdminSaveEdit,
   onRefreshRequested,
+  homepageHighlights = [],
+  onAdminSaveHomepageHighlight,
+  onAdminRemoveHomepageHighlight,
 }: PosterGridPageProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [columnCount, setColumnCount] = useState(1);
@@ -80,6 +90,16 @@ export function PosterGridPage({
   const [isSaving, setIsSaving] = useState(false);
   const [saveComplete, setSaveComplete] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [highlightingMovie, setHighlightingMovie] = useState<Movie | null>(
+    null,
+  );
+  const [highlightStartsOn, setHighlightStartsOn] = useState("");
+  const [highlightEndsOn, setHighlightEndsOn] = useState("");
+  const [highlightLabel, setHighlightLabel] =
+    useState<HomepageMovieHighlight["label"]>(null);
+  const [highlightPriority, setHighlightPriority] = useState(0);
+  const [highlightError, setHighlightError] = useState<string | null>(null);
+  const [highlightSaving, setHighlightSaving] = useState(false);
   const posterEntries = useMemo(
     () =>
       movies.map((movie, index) => ({
@@ -148,6 +168,52 @@ export function PosterGridPage({
     ];
   }, [editingMovie]);
 
+  const openHighlightEditor = (movie: Movie) => {
+    const existing = homepageHighlights.find(
+      (item) => item.tmdbId === movie.tmdbId,
+    );
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Jerusalem",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const end = new Date(`${today}T12:00:00Z`);
+    end.setUTCDate(end.getUTCDate() + 30);
+    setHighlightingMovie(movie);
+    setHighlightStartsOn(existing?.startsOn ?? today);
+    setHighlightEndsOn(existing?.endsOn ?? end.toISOString().slice(0, 10));
+    setHighlightLabel(existing?.label ?? null);
+    setHighlightPriority(existing?.priority ?? 0);
+    setHighlightError(null);
+  };
+
+  const saveHighlight = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!highlightingMovie || !onAdminSaveHomepageHighlight) return;
+    setHighlightSaving(true);
+    setHighlightError(null);
+    try {
+      await onAdminSaveHomepageHighlight({
+        tmdbId: highlightingMovie.tmdbId,
+        startsOn: highlightStartsOn,
+        endsOn: highlightEndsOn,
+        priority: highlightPriority,
+        label: highlightLabel,
+        enabled: true,
+      });
+      setHighlightingMovie(null);
+    } catch (error) {
+      setHighlightError(
+        error instanceof Error
+          ? error.message
+          : "Could not save homepage highlight.",
+      );
+    } finally {
+      setHighlightSaving(false);
+    }
+  };
+
   return (
     <section className="poster-grid-page" aria-label={title}>
       <h1 className="poster-grid-page-heading section-title">{title}</h1>
@@ -164,23 +230,46 @@ export function PosterGridPage({
             }
           >
             {isAdmin ? (
-              <button
-                type="button"
-                className="poster-grid-edit-trigger"
-                aria-label={`Edit mapping for ${movie.title}`}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setEditingMovie(movie);
-                  setSelectedTmdbId(movie.tmdbId);
-                  setManualTmdbId("");
-                  setError(null);
-                  setIsSaving(false);
-                  setSaveComplete(false);
-                }}
-              >
-                <Pencil size={14} />
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="poster-grid-edit-trigger"
+                  aria-label={`Edit mapping for ${movie.title}`}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setEditingMovie(movie);
+                    setSelectedTmdbId(movie.tmdbId);
+                    setManualTmdbId("");
+                    setError(null);
+                    setIsSaving(false);
+                    setSaveComplete(false);
+                  }}
+                >
+                  <Pencil size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="poster-grid-highlight-trigger"
+                  aria-label={`${homepageHighlights.some((item) => item.tmdbId === movie.tmdbId && item.enabled) ? "Edit" : "Feature"} ${movie.title} on homepage`}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    openHighlightEditor(movie);
+                  }}
+                >
+                  <Star
+                    size={14}
+                    fill={
+                      homepageHighlights.some(
+                        (item) => item.tmdbId === movie.tmdbId && item.enabled,
+                      )
+                        ? "currentColor"
+                        : "none"
+                    }
+                  />
+                </button>
+              </>
             ) : null}
             {movie.movieCode ? (
               <a
@@ -237,6 +326,131 @@ export function PosterGridPage({
           </div>
         ))}
       </div>
+      {highlightingMovie ? (
+        <div
+          className="poster-grid-edit-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !highlightSaving)
+              setHighlightingMovie(null);
+          }}
+        >
+          <form
+            className="poster-grid-edit-modal homepage-feature-edit-form"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="poster-grid-highlight-heading"
+            onSubmit={saveHighlight}
+          >
+            <h2
+              id="poster-grid-highlight-heading"
+              className="poster-grid-edit-heading"
+            >
+              Feature on homepage
+            </h2>
+            <p className="poster-grid-edit-subtitle">
+              {highlightingMovie.title}
+            </p>
+            <div className="homepage-promo-date-row">
+              <label>
+                Starts
+                <input
+                  type="date"
+                  required
+                  value={highlightStartsOn}
+                  onChange={(event) => setHighlightStartsOn(event.target.value)}
+                />
+              </label>
+              <label>
+                Ends
+                <input
+                  type="date"
+                  required
+                  value={highlightEndsOn}
+                  onChange={(event) => setHighlightEndsOn(event.target.value)}
+                />
+              </label>
+            </div>
+            <div className="homepage-promo-date-row">
+              <label>
+                Label
+                <select
+                  value={highlightLabel ?? ""}
+                  onChange={(event) =>
+                    setHighlightLabel(
+                      (event.target.value ||
+                        null) as HomepageMovieHighlight["label"],
+                    )
+                  }
+                >
+                  <option value="">No label</option>
+                  <option value="kids">Kids</option>
+                  <option value="sci-fi">Sci-Fi</option>
+                  <option value="marvel">Marvel</option>
+                </select>
+              </label>
+              <label>
+                Priority
+                <input
+                  type="number"
+                  min={-100}
+                  max={100}
+                  value={highlightPriority}
+                  onChange={(event) =>
+                    setHighlightPriority(Number(event.target.value))
+                  }
+                />
+              </label>
+            </div>
+            {highlightError ? (
+              <p className="homepage-admin-error" role="alert">
+                {highlightError}
+              </p>
+            ) : null}
+            <div className="poster-grid-edit-actions">
+              {homepageHighlights.some(
+                (item) => item.tmdbId === highlightingMovie.tmdbId,
+              ) ? (
+                <button
+                  className="poster-grid-edit-cancel"
+                  type="button"
+                  disabled={highlightSaving}
+                  onClick={async () => {
+                    if (!onAdminRemoveHomepageHighlight) return;
+                    setHighlightSaving(true);
+                    setHighlightError(null);
+                    try {
+                      await onAdminRemoveHomepageHighlight(
+                        highlightingMovie.tmdbId,
+                      );
+                      setHighlightingMovie(null);
+                    } catch (error) {
+                      setHighlightError(
+                        error instanceof Error
+                          ? error.message
+                          : "Could not remove homepage highlight.",
+                      );
+                    } finally {
+                      setHighlightSaving(false);
+                    }
+                  }}
+                >
+                  Remove
+                </button>
+              ) : (
+                <span />
+              )}
+              <button
+                className="poster-grid-edit-action"
+                type="submit"
+                disabled={highlightSaving}
+              >
+                {highlightSaving ? "Saving…" : "Save highlight"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
       {editingMovie ? (
         <div
           className="poster-grid-edit-modal-backdrop"
