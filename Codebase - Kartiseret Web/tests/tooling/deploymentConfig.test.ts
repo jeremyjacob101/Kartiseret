@@ -153,32 +153,27 @@ describe("deployment performance boundaries", () => {
     ).toContain("__vercel_route=robots");
   });
 
-  it("routes the root through SSR before Vercel can serve the static index file", () => {
-    const [privateRoute, rootRoute] = (
-      config.routes as {
-        src: string;
-        dest: string;
-        has?: { type: string; key: string; value: string }[];
-      }[]
-    ).filter((route) => route.src === "^/$");
-
-    expect(rootRoute?.dest).toBe("/api/dispatch?__vercel_route=page&path=/");
-    expect(rootRoute?.has).toBeUndefined();
-    expect(privateRoute?.dest).toBe(
-      "/api/dispatch?__vercel_route=private-page&path=/",
-    );
-    const [cookieCondition] = privateRoute?.has ?? [];
-    expect(cookieCondition).toMatchObject({ type: "header", key: "cookie" });
-    const matches = new RegExp(`^(?:${cookieCondition?.value})$`);
+  it("routes every homepage request through the shared SSR handler", () => {
+    const routes = config.routes as { src: string; dest: string }[];
+    expect(routes.filter((route) => route.src === "^/$")).toEqual([
+      { src: "^/$", dest: "/api/dispatch?__vercel_route=page&path=/" },
+    ]);
+    const rewrites = config.rewrites as {
+      source: string;
+      destination: string;
+    }[];
+    expect(rewrites.filter((rewrite) => rewrite.source === "/")).toEqual([
+      { source: "/", destination: "/api/dispatch?__vercel_route=page&path=/" },
+    ]);
     expect(
-      matches.test(
-        "unrelated=1; __Secure-kartiseret-production.session_token=opaque; other=1",
-      ),
-    ).toBe(true);
-    expect(matches.test("kartiseret-preview.session_token=opaque")).toBe(true);
-    expect(
-      matches.test("other=kartiseret-production.session_token=opaque"),
-    ).toBe(false);
+      rewrites.find((rewrite) =>
+        rewrite.destination.startsWith(
+          "/api/dispatch?__vercel_route=private-page&path=/movies",
+        )),
+    ).toMatchObject({
+      source: "/movies",
+      has: [{ type: "header", key: "cookie" }],
+    });
   });
 
   it("marks account and reset pages as non-indexable in initial HTTP responses", () => {

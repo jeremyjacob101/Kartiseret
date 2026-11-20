@@ -172,6 +172,25 @@ describe("SEO request handler", () => {
     );
   });
 
+  it("serves public homepage HTML even with an account cookie", async () => {
+    for (const route of ["/api/page", "/api/private-page"]) {
+      const response = createResponse();
+      const request = createRequest(route, { path: "/" });
+      request.headers.cookie = "kartiseret-production.session_token=opaque";
+
+      await seoHandler(request, response as never);
+
+      expect(response.statusCode).toBe(200);
+      expect(response.headers.get("cache-control")).toBe(
+        "public, max-age=0, s-maxage=60, stale-while-revalidate=300",
+      );
+      expect(response.headers.has("vary")).toBe(false);
+      expect(response.body).toContain('id="kartiseret-bootstrap"');
+      expect(response.body).not.toContain('id="kartiseret-display"');
+    }
+    expect(mocks.readProductionPagePreferences).not.toHaveBeenCalled();
+  });
+
   it("renders isolated account display state while retaining the anonymous cache path", async () => {
     const readMovieTreatments = vi.fn().mockResolvedValue([]);
     mocks.readProductionPagePreferences.mockImplementation(async (
@@ -194,7 +213,7 @@ describe("SEO request handler", () => {
       const response = createResponse();
       const request = createRequest(
         cookie ? "/api/private-page" : "/api/page",
-        { path: "/" },
+        { path: "/movies" },
       );
       if (cookie) request.headers.cookie = cookie;
       await seoHandler(request, response as never);
