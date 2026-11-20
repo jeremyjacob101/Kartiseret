@@ -642,6 +642,7 @@ function MovieScrollerContent({
   const collapsedOpenScrollLeftRef = useRef<number | null>(null);
   const collapsedOpenClientWidthRef = useRef<number | null>(null);
   const collapsedOpenAnchorItemIndexRef = useRef<number | null>(null);
+  const previousMovieItemsRef = useRef(movieItems);
   const scrollRequestNonceRef = useRef(0);
   const shareFeedbackTimeoutRef = useRef<number | null>(null);
   const titleId = useId();
@@ -722,6 +723,60 @@ function MovieScrollerContent({
     clearScheduledAnimation,
     clearScheduledDetailTransition,
     clearScheduledExternalJump,
+  ]);
+
+  useLayoutEffect(() => {
+    const previousMovieItems = previousMovieItemsRef.current;
+    previousMovieItemsRef.current = movieItems;
+
+    if (
+      previousMovieItems.length === movieCount &&
+      previousMovieItems.every(
+        (movie, index) => movie.tmdbId === movieItems[index]?.tmdbId,
+      )
+    ) {
+      return;
+    }
+
+    const nextIndexById = new Map(
+      movieItems.map((movie, index) => [movie.tmdbId, index]),
+    );
+    const getNextMovieIndex = (itemIndex: number) =>
+      nextIndexById.get(
+        previousMovieItems[mod(itemIndex, previousMovieItems.length)]!.tmdbId,
+      );
+    const rebaseItemIndex = (itemIndex: number) =>
+      collapsedMiddleStartIndex + (getNextMovieIndex(itemIndex) ?? 0);
+
+    clearScheduledDetailTransition();
+    const pendingJump = pendingExternalJumpRef.current;
+    if (pendingJump) {
+      const movieIndex = getNextMovieIndex(pendingJump.movieIndex);
+      pendingExternalJumpRef.current =
+        movieIndex === undefined ? null : { ...pendingJump, movieIndex };
+    }
+
+    setCollapsedAnchorItemIndex((current) => rebaseItemIndex(current));
+    setCollapsedSelectedItemIndex((current) =>
+      current === null ? null : rebaseItemIndex(current));
+    setDetailActiveItemIndex(rebaseItemIndex(displayItemIndex));
+    setDetailTransition(null);
+    setGhostTransition((current) =>
+      current
+        ? { ...current, itemIndex: rebaseItemIndex(current.itemIndex) }
+        : null);
+    setCollapsedScrollRequest(null);
+
+    // Scroll offsets and anchor indices are measured against the old repeated list.
+    collapsedOpenScrollLeftRef.current = null;
+    collapsedOpenClientWidthRef.current = null;
+    collapsedOpenAnchorItemIndexRef.current = null;
+  }, [
+    clearScheduledDetailTransition,
+    collapsedMiddleStartIndex,
+    displayItemIndex,
+    movieCount,
+    movieItems,
   ]);
 
   const handleCollapsedScrollRequestApplied = useCallback((nonce: number) => {
