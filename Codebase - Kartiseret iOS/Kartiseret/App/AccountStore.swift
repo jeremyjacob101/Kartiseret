@@ -273,7 +273,7 @@ final class AccountStore {
         }
         do {
             let encoded = try JSONEncoder().encode(value)
-            let object = try JSONSerialization.jsonObject(with: encoded)
+            let object = try JSONSerialization.jsonObject(with: encoded, options: [.fragmentsAllowed])
             let patch = try JSONSerialization.data(withJSONObject: [key: object])
             _ = try await api.savePreferences(token: token, accountID: identity.id, patch: patch)
             guard self.token == token else { return }
@@ -282,11 +282,16 @@ final class AccountStore {
                 confirmedSaveGenerations[key] = generation
             }
         } catch {
-            if self.token == token, saveGenerations[key] == generation {
-                restorePreference(key, from: confirmedPreferences)
-                if key == "siteColor" { UserDefaults.standard.set(preferences.siteColor, forKey: Self.siteColorKey) }
-                feedback = "Couldn’t save this preference. Try again."
+            guard self.token == token else { return }
+            if let apiError = error as? APIClientError, case .unauthorized = apiError {
+                expireSession()
+                feedback = "Your session expired. Sign in again to save preferences."
+                return
             }
+            guard saveGenerations[key] == generation else { return }
+            restorePreference(key, from: confirmedPreferences)
+            if key == "siteColor" { UserDefaults.standard.set(preferences.siteColor, forKey: Self.siteColorKey) }
+            feedback = "Couldn’t save this preference. \(error.localizedDescription)"
         }
     }
 

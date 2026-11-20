@@ -3,6 +3,23 @@ import XCTest
 @testable import Kartiseret
 
 final class CoreAndAPITests: XCTestCase {
+    func testUserPreferenceCategoriesMirrorTheWebsiteSections() {
+        XCTAssertEqual(
+            UserPreferenceCategory.allCases.map(\.title),
+            ["Showtimes", "Discovery", "Appearance", "Notifications", "Account"]
+        )
+        XCTAssertEqual(Set(UserPreferenceCategory.allCases.map(\.id)).count, 5)
+        XCTAssertTrue(UserPreferenceCategory.allCases.allSatisfy { !$0.summary.isEmpty && !$0.systemImage.isEmpty })
+    }
+
+    func testCinemaPreferenceCountOnlyCountsKnownIncludedCinemas() {
+        XCTAssertEqual(CinemaIdentity.includedCount(excluding: []), CinemaIdentity.all.count)
+
+        let excluded = Set([CinemaIdentity.all[0].id, "stale-cinema-id"])
+        XCTAssertEqual(CinemaIdentity.includedCount(excluding: excluded), CinemaIdentity.all.count - 1)
+        XCTAssertGreaterThanOrEqual(CinemaIdentity.includedCount(excluding: Set(["stale-cinema-id"])), 0)
+    }
+
     func testUniversalLinkParserRoutesSupportedWebsiteDestinations() throws {
         XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/")!), .discover)
         XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/movies")!), .catalog(.nowPlaying))
@@ -87,6 +104,28 @@ final class CoreAndAPITests: XCTestCase {
         XCTAssertEqual(route.movieID, "2")
         XCTAssertEqual(store.selectedCity, originalCity)
         XCTAssertEqual(store.selectedDay, originalDay)
+    }
+
+    func testTicketAvailabilityChecksOtherCitiesAndFutureDates() async throws {
+        let transport = StubTransport(responses: [
+            httpResponse(#"{"data":{"showtimes":[{"screeningCity":"Haifa","dateOfShowing":"2026-11-15","showtime":"19:30"}]},"error":null}"#),
+            httpResponse(#"{"data":{"showtimes":[{"screeningCity":"Haifa","dateOfShowing":"2026-11-04","showtime":"08:00"}]},"error":null}"#),
+        ])
+        let api = URLSessionKartiseretAPI(baseURL: URL(string: "https://seret.site")!, transport: transport)
+        let instant = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-04T12:00:00Z"))
+
+        let future = try await api.hasTicketAvailability(movieID: "101", at: instant)
+        let elapsed = try await api.hasTicketAvailability(movieID: "101", at: instant)
+        XCTAssertTrue(future)
+        XCTAssertFalse(elapsed)
+        let requests = await transport.capturedRequests()
+        let request = try XCTUnwrap(requests.last)
+        let components = try XCTUnwrap(URLComponents(url: request.url, resolvingAgainstBaseURL: false))
+        XCTAssertEqual(components.path, "/api/v1/ticket-availability")
+        XCTAssertEqual(components.queryItems, [
+            URLQueryItem(name: "tmdbId", value: "101"),
+            URLQueryItem(name: "fromDate", value: "2026-11-04"),
+        ])
     }
 
     func testCinemaDayUsesJerusalemOneOhFiveCutoff() throws {
@@ -176,10 +215,10 @@ final class CoreAndAPITests: XCTestCase {
         XCTAssertFalse(ShowtimeLogic.matchesSavedFilters(screening, state: state))
     }
 
-    func testCinemaIdentityResolvesTheSharedCanonicalName() {
+    func testCinemaIdentityResolvesOnlyUnambiguousSharedCanonicalNames() {
         XCTAssertEqual(CinemaIdentity.forScreening(city: "Jerusalem", cinema: "Jerusalem Cinematheque")?.id, "smBcm2HtRvQA")
         XCTAssertNil(CinemaIdentity.forScreening(city: "Jerusalem", cinema: "Unknown Cinema"))
-        XCTAssertEqual(CinemaIdentity.forScreening(city: "Ｊｅｒｕｓａｌｅｍ", cinema: "Ｃｉｎｅｍａｔｈｅｑｕｅ")?.id, "smBcm2HtRvQA")
+        XCTAssertNil(CinemaIdentity.forScreening(city: "Ｊｅｒｕｓａｌｅｍ", cinema: "Ｃｉｎｅｍａｔｈｅｑｕｅ"))
     }
 
     func testCatalogEnvelopeAndPublicationRevisionDecode() async throws {
@@ -419,6 +458,110 @@ final class CoreAndAPITests: XCTestCase {
         XCTAssertEqual(store.preferences.ratingSources, AccountPreferences().ratingSources)
         XCTAssertFalse(store.preferences.hideReReleases)
         XCTAssertNil(UserDefaults.standard.string(forKey: "kartiseret.account.siteColor"))
+    }
+
+    @MainActor
+    func testPreferenceSaveShowsServerErrorAndRollsBackOptimisticValue() async throws {
+        let previousColor = UserDefaults.standard.string(forKey: "kartiseret.account.siteColor")
+        defer {
+            if let previousColor { UserDefaults.standard.set(previousColor, forKey: "kartiseret.account.siteColor") }
+            else { UserDefaults.standard.removeObject(forKey: "kartiseret.account.siteColor") }
+        }
+        let preferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
+        let transport = StubTransport(responses: [
+            httpResponse(#"{"token":null,"user":{"id":"user-1","email":"person@example.com"}}"#, headers: ["set-auth-token": "opaque-session-token"]),
+            httpResponse(#"{"data":{"user":{"id":"user-1","email":"person@example.com"},"isAdmin":false},"error":null}"#),
+            httpResponse(preferences),
+            httpResponse(#"{"data":{"preferences":[],"nextCursor":null},"error":null}"#),
+            httpResponse(#"{"data":null,"error":{"code":"invalid_request","message":"The preference payload was rejected."}}"#, statusCode: 400),
+        ])
+        let credentials = MemorySessionCredentialStore()
+        let store = AccountStore(
+            api: NativeAccountAPI(baseURL: URL(string: "https://seret.site")!, transport: transport),
+            credentials: credentials
+        )
+
+        try await store.signIn(email: "person@example.com", password: "passphrase", fallbackLocation: "Jerusalem")
+        await store.saveSiteColor("#ed4c57")
+
+        XCTAssertEqual(store.preferences.siteColor, "#a66ae3")
+        XCTAssertEqual(store.feedback, "Couldn’t save this preference. The preference payload was rejected.")
+        let requests = await transport.capturedRequests()
+        let request = try XCTUnwrap(requests.last)
+        XCTAssertEqual(request.url.path, "/api/v1/preferences")
+        XCTAssertEqual(request.method, "PATCH")
+        XCTAssertEqual(request.headers["Authorization"], "Bearer opaque-session-token")
+        XCTAssertEqual(request.headers["X-Kartiseret-Account-Id"], "user-1")
+        XCTAssertEqual(
+            try JSONSerialization.jsonObject(with: request.body ?? Data()) as? [String: String],
+            ["siteColor": "#ed4c57"]
+        )
+    }
+
+    @MainActor
+    func testBooleanPreferenceIsWrappedAndSentInAuthenticatedPatch() async throws {
+        let previousColor = UserDefaults.standard.string(forKey: "kartiseret.account.siteColor")
+        defer {
+            if let previousColor { UserDefaults.standard.set(previousColor, forKey: "kartiseret.account.siteColor") }
+            else { UserDefaults.standard.removeObject(forKey: "kartiseret.account.siteColor") }
+        }
+        let initialPreferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
+        let savedPreferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":true,"showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
+        let transport = StubTransport(responses: [
+            httpResponse(#"{"token":null,"user":{"id":"user-1","email":"person@example.com"}}"#, headers: ["set-auth-token": "opaque-session-token"]),
+            httpResponse(#"{"data":{"user":{"id":"user-1","email":"person@example.com"},"isAdmin":false},"error":null}"#),
+            httpResponse(initialPreferences),
+            httpResponse(#"{"data":{"preferences":[],"nextCursor":null},"error":null}"#),
+            httpResponse(savedPreferences),
+        ])
+        let store = AccountStore(
+            api: NativeAccountAPI(baseURL: URL(string: "https://seret.site")!, transport: transport),
+            credentials: MemorySessionCredentialStore()
+        )
+
+        try await store.signIn(email: "person@example.com", password: "passphrase", fallbackLocation: "Jerusalem")
+        await store.saveHideReReleases(true)
+
+        XCTAssertTrue(store.preferences.hideReReleases)
+        let requests = await transport.capturedRequests()
+        let request = try XCTUnwrap(requests.last)
+        XCTAssertEqual(request.url.path, "/api/v1/preferences")
+        XCTAssertEqual(request.method, "PATCH")
+        XCTAssertEqual(request.headers["Authorization"], "Bearer opaque-session-token")
+        XCTAssertEqual(
+            try JSONSerialization.jsonObject(with: request.body ?? Data()) as? [String: Bool],
+            ["hideReReleases": true]
+        )
+    }
+
+    @MainActor
+    func testUnauthorizedPreferenceSaveExpiresSessionAndExplainsSignIn() async throws {
+        let previousColor = UserDefaults.standard.string(forKey: "kartiseret.account.siteColor")
+        defer {
+            if let previousColor { UserDefaults.standard.set(previousColor, forKey: "kartiseret.account.siteColor") }
+            else { UserDefaults.standard.removeObject(forKey: "kartiseret.account.siteColor") }
+        }
+        let preferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
+        let transport = StubTransport(responses: [
+            httpResponse(#"{"token":null,"user":{"id":"user-1","email":"person@example.com"}}"#, headers: ["set-auth-token": "opaque-session-token"]),
+            httpResponse(#"{"data":{"user":{"id":"user-1","email":"person@example.com"},"isAdmin":false},"error":null}"#),
+            httpResponse(preferences),
+            httpResponse(#"{"data":{"preferences":[],"nextCursor":null},"error":null}"#),
+            httpResponse("", statusCode: 401),
+        ])
+        let credentials = MemorySessionCredentialStore()
+        let store = AccountStore(
+            api: NativeAccountAPI(baseURL: URL(string: "https://seret.site")!, transport: transport),
+            credentials: credentials
+        )
+
+        try await store.signIn(email: "person@example.com", password: "passphrase", fallbackLocation: "Jerusalem")
+        await store.saveSiteColor("#ed4c57")
+
+        XCTAssertEqual(store.state, .guest)
+        XCTAssertNil(store.identity)
+        XCTAssertNil(credentials.read())
+        XCTAssertEqual(store.feedback, "Your session expired. Sign in again to save preferences.")
     }
 
     @MainActor

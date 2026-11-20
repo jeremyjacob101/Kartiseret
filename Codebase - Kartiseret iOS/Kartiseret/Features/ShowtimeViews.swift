@@ -5,64 +5,75 @@ struct ShowtimeSections: View {
     let city: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 18) {
             ForEach(cinemas) { cinema in
-                VStack(alignment: .leading, spacing: 8) {
-                    if let identity = CinemaIdentity.forScreening(city: city, cinema: cinema.name) {
-                        NavigationLink(value: CinemaRoute(cinemaID: identity.id)) {
-                            HStack {
-                                Text(identity.displayName).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                                Spacer()
-                                Image(systemName: "arrow.up.right").font(.caption.bold()).foregroundStyle(BrandStyle.accent)
+                let theme = ShowtimeTheme.forCinema(cinema.name)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(Color(hex: theme.accentHex))
+                            .frame(width: 10, height: 10)
+                            .shadow(color: Color(hex: theme.accentHex).opacity(0.72), radius: 9)
+
+                        if let identity = CinemaIdentity.forScreening(city: city, cinema: cinema.name) {
+                            NavigationLink(value: CinemaRoute(cinemaID: identity.id)) {
+                                Text(identity.displayName)
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundStyle(.white)
                             }
+                            .buttonStyle(.plain)
+                        } else {
+                            Text(cinema.name)
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(.white)
                         }
-                        .buttonStyle(.plain)
-                    } else {
-                        Text(cinema.name).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
                     }
-                    ForEach(cinema.showtimes) { showtime in
-                        ShowtimeRow(showtime: showtime)
-                    }
+                    ShowtimeRow(showtimes: cinema.showtimes, cinemaName: cinema.name, theme: theme)
                 }
-                .padding(12)
-                .background(BrandStyle.raised, in: RoundedRectangle(cornerRadius: 13))
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
 }
 
 private struct ShowtimeRow: View {
-    let showtime: Showtime
+    let showtimes: [Showtime]
+    let cinemaName: String
+    let theme: ShowtimeTheme
     @Environment(AppStore.self) private var store
     @Environment(\.openURL) private var openURL
 
+    private let columns = [GridItem(.adaptive(minimum: 74, maximum: 74), spacing: 7, alignment: .bottom)]
+
     var body: some View {
-        HStack(spacing: 8) {
-            Text(showtime.displayTime)
-                .font(.subheadline.monospacedDigit().weight(.semibold))
-                .foregroundStyle(.white)
-                .frame(minWidth: 46, alignment: .leading)
-            if !showtime.formatLabels.isEmpty {
-                Text(showtime.formatLabels.joined(separator: " · "))
-                    .font(.caption)
-                    .foregroundStyle(BrandStyle.secondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 2)
-            if let url = showtime.bookingURL {
-                Button {
-                    openURL(url)
-                    store.captureFixtureBookingURL(url)
-                } label: {
-                    Label("Tickets", systemImage: "arrow.up.right")
-                        .font(.caption.weight(.semibold))
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 7) {
+            ForEach(showtimes) { showtime in
+                if let url = showtime.bookingURL {
+                    Button {
+                        openURL(url)
+                        store.captureFixtureBookingURL(url)
+                    } label: {
+                        ShowtimeTicketCell(showtime: showtime, theme: theme)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(ShowtimeLogic.ticketAccessibilityLabel(
+                        for: showtime,
+                        cinemaName: cinemaName,
+                        isBookable: true
+                    ))
+                    .accessibilityIdentifier("booking.\(showtime.tmdbId).\(showtime.displayTime.replacingOccurrences(of: ":", with: ""))")
+                } else {
+                    ShowtimeTicketCell(showtime: showtime, theme: theme)
+                        .accessibilityLabel(ShowtimeLogic.ticketAccessibilityLabel(
+                            for: showtime,
+                            cinemaName: cinemaName,
+                            isBookable: false
+                        ))
                 }
-                .buttonStyle(.bordered)
-                .tint(BrandStyle.accent)
-                .accessibilityIdentifier("booking.\(showtime.tmdbId)")
             }
         }
-        .padding(.vertical, 3)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 8)
     }
 }
 
@@ -95,6 +106,7 @@ struct MovieShowtimeCard: View {
             ShowtimeSections(cinemas: group.cinemas, city: city)
         }
         .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(BrandStyle.surface, in: RoundedRectangle(cornerRadius: 18))
     }
 }

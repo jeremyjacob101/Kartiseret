@@ -17,6 +17,7 @@ struct SelectionControls: View {
                 Label(store.selectedCity, systemImage: "mappin.and.ellipse")
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.75)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.bordered)
@@ -52,8 +53,10 @@ struct SelectionControls: View {
             .buttonStyle(.plain)
             .padding(.horizontal, 4)
             .background(BrandStyle.surface, in: RoundedRectangle(cornerRadius: 10))
+            .layoutPriority(1)
         }
         .tint(.white)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .sheet(item: $sheet) { destination in
             switch destination {
             case .city:

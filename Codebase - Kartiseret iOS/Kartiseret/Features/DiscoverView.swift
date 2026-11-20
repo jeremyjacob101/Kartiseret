@@ -121,7 +121,6 @@ private struct MovieShelf: View {
     let subtitle: String
     let movies: [Movie]
     let mode: CatalogMode
-    @Environment(AccountStore.self) private var account
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -151,8 +150,9 @@ private struct MovieShelf: View {
                                         }
                                     }
                                 Text(movie.title).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                                    .lineLimit(2).frame(width: 132, alignment: .leading)
-                                MovieRatingsView(movie: movie, sources: account.preferences.ratingSources)
+                                    .lineLimit(2, reservesSpace: true)
+                                    .frame(width: 132, alignment: .leading)
+                                    .accessibilityIdentifier("movie.title.\(movie.tmdbId)")
                             }
                             .contentShape(Rectangle())
                         }
@@ -215,7 +215,7 @@ private struct CatalogSearchView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(result.movie.title).font(.headline)
                                 Text("\(result.mode.title) · \(result.movie.year)").font(.caption).foregroundStyle(.secondary)
-                                MovieRatingsView(movie: result.movie, sources: account.preferences.ratingSources)
+                                MovieRatingsView(movie: result.movie, sources: account.preferences.ratingSources, linksEnabled: false)
                             }
                         }
                     }

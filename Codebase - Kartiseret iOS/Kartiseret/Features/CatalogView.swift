@@ -41,7 +41,7 @@ struct CatalogView: View {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 112, maximum: 190), spacing: 14)], alignment: .leading, spacing: 20) {
                             ForEach(visibleMovies) { movie in
                                 NavigationLink(value: MovieRoute(mode: mode, movieID: movie.tmdbId)) {
-                                    MoviePosterTile(movie: movie, mode: mode, ratingSources: account.preferences.ratingSources)
+                                    MoviePosterTile(movie: movie, mode: mode)
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityIdentifier("movie.\(movie.tmdbId)")
@@ -73,31 +73,31 @@ struct CatalogView: View {
 private struct MoviePosterTile: View {
     let movie: Movie
     let mode: CatalogMode
-    let ratingSources: [String]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            MovieArtwork(movie: movie, width: 148, height: 220)
-                .frame(maxWidth: .infinity)
-                .overlay(alignment: .bottomLeading) {
-                    if mode == .comingSoon, let releaseDate = movie.releaseDate {
-                        Label(releaseDate, systemImage: "calendar")
-                            .font(.caption2.weight(.semibold))
-                            .padding(.horizontal, 8).padding(.vertical, 5)
-                            .background(.black.opacity(0.75), in: Capsule())
-                            .padding(7)
+            GeometryReader { geometry in
+                MovieArtwork(movie: movie, width: geometry.size.width, height: geometry.size.width * 220 / 148)
+                    .overlay(alignment: .bottomLeading) {
+                        if mode == .comingSoon, let releaseDate = movie.releaseDate {
+                            Label(releaseDate, systemImage: "calendar")
+                                .font(.caption2.weight(.semibold))
+                                .padding(.horizontal, 8).padding(.vertical, 5)
+                                .background(.black.opacity(0.75), in: Capsule())
+                                .padding(7)
+                        }
                     }
                 }
+            .aspectRatio(148 / 220, contentMode: .fit)
             Text(movie.title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
-                .lineLimit(2)
+                .lineLimit(2, reservesSpace: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("movie.title.\(movie.tmdbId)")
             Text(movie.year > 0 ? String(movie.year) : "")
                 .font(.caption)
                 .foregroundStyle(BrandStyle.secondary)
-            MovieRatingsView(movie: movie, sources: ratingSources)
-                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .contentShape(Rectangle())
     }
@@ -119,7 +119,7 @@ struct MovieRow: View {
                 } else if !movie.genres.isEmpty {
                     Text(movie.genres.joined(separator: " · ")).font(.caption).foregroundStyle(BrandStyle.secondary).lineLimit(1)
                 }
-                MovieRatingsView(movie: movie, sources: ["imdbRating", "rtAudienceRating", "rtCriticRating"])
+                MovieRatingsView(movie: movie, sources: ["imdbRating", "rtAudienceRating", "rtCriticRating"], linksEnabled: false)
             }
             Spacer(minLength: 4)
             Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(BrandStyle.secondary)

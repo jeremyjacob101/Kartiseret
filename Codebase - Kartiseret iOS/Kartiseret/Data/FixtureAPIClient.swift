@@ -12,7 +12,17 @@ actor FixtureAPIClient: KartiseretAPI {
                 year: 2026,
                 releaseDate: "2026-10-30",
                 genres: ["Drama", "Mystery"],
-                runtime: 112
+                runtime: 112,
+                imdbRating: 8.1,
+                rtAudienceRating: 93,
+                rtAudienceVotes: 650,
+                rtCriticRating: 82,
+                rtCriticVotes: 110,
+                lbRating: 4.1,
+                tmdbRating: 7.9,
+                imdbId: "tt0000001",
+                rtId: "/m/fixture_feature",
+                lbId: "fixture-feature"
             ),
             Movie(
                 tmdbId: "9100002",
@@ -20,7 +30,13 @@ actor FixtureAPIClient: KartiseretAPI {
                 year: 2025,
                 releaseDate: nil,
                 genres: ["Comedy"],
-                runtime: 94
+                runtime: 94,
+                imdbRating: 6.2,
+                rtAudienceRating: 48,
+                rtAudienceVotes: 120,
+                rtCriticRating: 52,
+                rtCriticVotes: 34,
+                tmdbRating: 6.3
             ),
         ],
         movieCodesStatus: "ready"
@@ -50,6 +66,17 @@ actor FixtureAPIClient: KartiseretAPI {
         [City(name: "Jerusalem"), City(name: "Haifa"), City(name: "Tel Aviv")]
     }
 
+    func hasTicketAvailability(movieID: String, at instant: Date) async throws -> Bool {
+        let day = CinemaDay.current(at: instant)
+        for city in try await loadCities() {
+            let result = try await loadShowtimes(city: city.name, day: day, movieID: movieID, publicationRevision: nil)
+            if result.showtimes.contains(where: {
+                $0.bookingURL != nil && ShowtimeLogic.shouldInclude($0, for: day, at: instant)
+            }) { return true }
+        }
+        return false
+    }
+
     func loadShowtimes(
         city: String,
         day: CinemaDay,
@@ -57,11 +84,14 @@ actor FixtureAPIClient: KartiseretAPI {
         publicationRevision: String?
     ) async throws -> ShowtimesSnapshot {
         let selectedMovies = movieID.map { [$0] } ?? nowPlaying.movies.map(\.tmdbId)
-        let fixtures: [(String, String, String, String, String?)] = [
-            ("9100001", "Jerusalem", "Fixture Cinema", "18:30", "https://tickets.example/feature"),
-            ("9100001", "Tel Aviv", "Tel Aviv Screens", "20:15", "https://tickets.example/tel-aviv"),
-            ("9100002", "Jerusalem", "Downtown Cinema", "00:30", nil),
-            ("9100101", "Jerusalem", "Future Cinema", "17:30", "https://tickets.example/future"),
+        let fixtures: [(String, String, String, String, String?, String, String, String?)] = [
+            ("9100001", "Jerusalem", "Cinema City Jerusalem", "18:30", "https://tickets.example/feature", "IMAX", "Regular", nil),
+            ("9100001", "Jerusalem", "Cinema City Jerusalem", "19:15", "https://tickets.example/feature", "2D", "VIP Light", "Hebrew"),
+            ("9100001", "Jerusalem", "Cinema City Jerusalem", "20:45", "https://tickets.example/feature", "2D / 4DX", "Regular", "French"),
+            ("9100001", "Jerusalem", "Cinema City Jerusalem", "21:30", "https://tickets.example/feature", "2D", "Regular", nil),
+            ("9100001", "Tel Aviv", "Tel Aviv Screens", "20:15", "https://tickets.example/tel-aviv", "Standard", "Regular", nil),
+            ("9100002", "Jerusalem", "Downtown Cinema", "00:30", nil, "Standard", "Regular", nil),
+            ("9100101", "Jerusalem", "Future Cinema", "17:30", "https://tickets.example/future", "Standard", "Regular", nil),
         ]
         let rows = fixtures.compactMap { item -> Showtime? in
             guard item.1 == city, selectedMovies.contains(item.0) else { return nil }
@@ -73,9 +103,9 @@ actor FixtureAPIClient: KartiseretAPI {
                 showtime: item.3,
                 englishHref: item.4,
                 hebrewHref: nil,
-                screeningTech: item.0 == "9100001" ? "IMAX" : "Standard",
-                screeningType: "Regular",
-                dubLanguage: nil
+                screeningTech: item.5,
+                screeningType: item.6,
+                dubLanguage: item.7
             )
         }
         return ShowtimesSnapshot(showtimes: rows, publicationRevision: publicationRevision ?? "fixture-1")

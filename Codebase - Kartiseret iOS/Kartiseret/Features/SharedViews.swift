@@ -46,73 +46,160 @@ struct MovieArtwork: View {
 struct MovieRatingsView: View {
     let movie: Movie
     let sources: [String]
+    var maxWidth: CGFloat? = nil
+    var linksEnabled = true
 
-    private var ratings: [MovieRatingBadge] {
-        sources.compactMap { source in
-            switch source {
-            case "imdbRating":
-                guard let rating = movie.imdbRating else { return nil }
-                let id = movie.imdbId.map { $0.hasPrefix("http") ? $0 : "https://www.imdb.com/title/\($0)/" }
-                return MovieRatingBadge(key: source, label: "IMDb", value: String(format: "%.1f", rating), url: id.flatMap { URL(string: $0) })
-            case "rtAudienceRating":
-                guard let rating = movie.rtAudienceRating else { return nil }
-                let url = movie.rtId.flatMap { URL(string: $0.hasPrefix("http") ? $0 : "https://www.rottentomatoes.com\($0.hasPrefix("/") ? "" : "/")\($0)") }
-                return MovieRatingBadge(key: source, label: "RT audience", value: "\(Int(rating.rounded()))%", url: url)
-            case "rtCriticRating":
-                guard let rating = movie.rtCriticRating else { return nil }
-                let url = movie.rtId.flatMap { URL(string: $0.hasPrefix("http") ? $0 : "https://www.rottentomatoes.com\($0.hasPrefix("/") ? "" : "/")\($0)") }
-                return MovieRatingBadge(key: source, label: "RT critics", value: "\(Int(rating.rounded()))%", url: url)
-            case "lbRating":
-                guard let rating = movie.lbRating else { return nil }
-                let url = movie.lbId.flatMap { URL(string: $0.hasPrefix("http") ? $0 : "https://letterboxd.com/\($0.trimmingCharacters(in: CharacterSet(charactersIn: "/")))/") }
-                return MovieRatingBadge(key: source, label: "Letterboxd", value: String(format: "%.1f", rating), url: url)
-            case "tmdbRating":
-                guard let rating = movie.tmdbRating else { return nil }
-                return MovieRatingBadge(key: source, label: "TMDb", value: String(format: "%.1f", rating), url: URL(string: "https://www.themoviedb.org/movie/\(movie.tmdbId)"))
-            default:
-                return nil
-            }
-        }
-    }
+    private var ratings: [MovieRatingBadge] { MovieRatingLogic.badges(for: movie, sources: sources) }
 
     var body: some View {
         if !ratings.isEmpty {
-            ScrollView(.horizontal) {
-                HStack(spacing: 7) {
-                    ForEach(ratings) { rating in
-                        if let url = rating.url {
-                            Link(destination: url) { badge(rating) }
-                                .buttonStyle(.plain)
-                        } else {
-                            badge(rating)
-                        }
-                    }
+            Group {
+                if let maxWidth {
+                    ratingRow.frame(width: maxWidth, alignment: .leading)
+                } else {
+                    ratingRow.frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .scrollIndicators(.hidden)
             .accessibilityLabel("Movie ratings")
         }
     }
 
+    private var ratingRow: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 7) {
+                ForEach(ratings) { rating in
+                    if linksEnabled, let url = rating.destination {
+                        Link(destination: url) { badge(rating) }
+                            .buttonStyle(.plain)
+                    } else {
+                        badge(rating)
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .scrollIndicators(.hidden)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
     private func badge(_ rating: MovieRatingBadge) -> some View {
         HStack(spacing: 5) {
-            Text(rating.label).foregroundStyle(BrandStyle.secondary)
-            Text(rating.value).foregroundStyle(.white).fontWeight(.semibold)
+            Image(rating.logoName)
+                .resizable()
+                .scaledToFit()
+                .frame(width: logoSize(for: rating.logoName).width, height: logoSize(for: rating.logoName).height)
+            Text(rating.value)
+                .foregroundStyle(.white)
+                .font(.caption2.weight(.bold))
+                .monospacedDigit()
         }
-        .font(.caption2)
-        .padding(.horizontal, 9).padding(.vertical, 6)
+        .padding(.horizontal, 8).padding(.vertical, 6)
         .background(BrandStyle.raised, in: Capsule())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(rating.label): \(rating.value)")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(rating.accessibilityLabel)
+    }
+
+    private func logoSize(for name: String) -> CGSize {
+        switch name {
+        case "RatingIMDb", "RatingTMDb": CGSize(width: 25, height: 14)
+        case "RatingLetterboxd": CGSize(width: 17, height: 17)
+        default: CGSize(width: 17, height: 19)
+        }
     }
 }
 
-private struct MovieRatingBadge: Identifiable {
-    let key: String
-    let label: String
-    let value: String
-    let url: URL?
-    var id: String { key }
+struct ShowtimeTicket: View {
+    let time: String
+    let theme: ShowtimeTheme
+    var screeningType: String? = nil
+    var dubLanguage: String? = nil
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(hex: theme.startHex), Color(hex: theme.endHex)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .mask { Image("ShowtimeTicketMask").resizable() }
+
+            Image("ShowtimeTicketOutline")
+                .resizable()
+                .renderingMode(.template)
+                .foregroundStyle(.black.opacity(0.55))
+
+            Text(time)
+                .font(.system(size: 16, weight: .bold))
+                .tracking(-0.32)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .foregroundStyle(.white)
+
+            if let flagName = ShowtimeLogic.dubFlagAssetName(dubLanguage),
+               ShowtimeLogic.dubbingBadge(dubLanguage) != nil {
+                Image(flagName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 17, height: 13)
+                    .clipShape(RoundedRectangle(cornerRadius: 2))
+                    .background(.white, in: RoundedRectangle(cornerRadius: 2))
+                    .overlay(RoundedRectangle(cornerRadius: 2).stroke(.black.opacity(0.85), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.22), radius: 3, y: 2)
+                    .offset(x: -30, y: -16)
+                    .accessibilityHidden(true)
+            }
+
+            if ShowtimeLogic.screeningTypeBadge(screeningType ?? "") != nil {
+                Image(systemName: "star")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(BrandStyle.accent)
+                    .frame(width: 17, height: 13)
+                    .background(Color(hex: 0x0C0B14).opacity(0.9), in: Capsule())
+                    .overlay(Capsule().stroke(.black.opacity(0.85), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.22), radius: 3, y: 2)
+                    .offset(x: 30, y: -16)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(width: 74, height: 39)
+        .shadow(color: Color(hex: theme.accentHex).opacity(0.28), radius: 4, y: 2)
+        .accessibilityHidden(true)
+    }
+}
+
+struct ShowtimeTicketCell: View {
+    let showtime: Showtime
+    let theme: ShowtimeTheme
+
+    private var technology: String? { ShowtimeLogic.technologyBadge(showtime.screeningTech) }
+
+    var body: some View {
+        VStack(spacing: -4) {
+            if let technology {
+                Text(technology)
+                    .font(.system(size: 9, weight: .medium).italic())
+                    .tracking(-0.15)
+                    .foregroundStyle(Color(hex: 0xECE7EA))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.horizontal, 5)
+                    .padding(.top, 3)
+                    .frame(width: 70, height: 22, alignment: .top)
+                    .background(
+                        LinearGradient(colors: [Color(hex: 0x756F73), Color(hex: 0x6B6468)], startPoint: .top, endPoint: .bottom),
+                        in: UnevenRoundedRectangle(topLeadingRadius: 12, topTrailingRadius: 12)
+                    )
+                    .accessibilityHidden(true)
+            }
+            ShowtimeTicket(
+                time: showtime.displayTime,
+                theme: theme,
+                screeningType: showtime.screeningType,
+                dubLanguage: showtime.dubLanguage
+            )
+        }
+        .frame(width: 74, height: technology == nil ? 39 : 52, alignment: .bottom)
+        .accessibilityHidden(true)
+    }
 }
 
 struct LoadingState: View {

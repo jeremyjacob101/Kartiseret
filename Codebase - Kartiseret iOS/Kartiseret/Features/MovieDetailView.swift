@@ -11,6 +11,7 @@ struct MovieDetailView: View {
     @State private var actionMessage: String?
     @State private var actionError: String?
     @State private var ticketAlertSaved = false
+    @State private var hasTicketAvailability: Bool?
     @State private var releaseWatchSaved = false
     @State private var isSavingAction = false
 
@@ -42,6 +43,10 @@ struct MovieDetailView: View {
 
     private var rows: [Showtime]? { store.showtimes[request] }
 
+    private var shouldOfferTicketAlert: Bool {
+        hasTicketAvailability == false && (rows?.isEmpty ?? true)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -72,6 +77,7 @@ struct MovieDetailView: View {
             }
             .padding(16)
             .padding(.bottom, 24)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(BrandStyle.background)
         .navigationTitle(movie?.title ?? "Movie")
@@ -100,7 +106,11 @@ struct MovieDetailView: View {
             guard !Task.isCancelled else { return }
             await store.loadShowtimes(request)
         }
+        .task(id: store.today) {
+            await loadTicketAvailability()
+        }
         .refreshable {
+            await loadTicketAvailability()
             await store.loadCatalog(route.mode, forceRefresh: true)
             let updatedRequest = store.makeShowtimeRequest(
                 mode: route.mode,
@@ -160,12 +170,15 @@ struct MovieDetailView: View {
                             .font(.caption.weight(.bold)).tracking(1.3).foregroundStyle(BrandStyle.accent)
                         Text(movie.title).font(.title2.weight(.bold)).foregroundStyle(.white)
                             .fixedSize(horizontal: false, vertical: true)
+                            .lineLimit(3)
+                            .minimumScaleFactor(0.8)
                             .accessibilityIdentifier("movie.details.title")
                         Text(metadata(for: movie).joined(separator: " · ")).font(.subheadline).foregroundStyle(BrandStyle.secondary)
                         if route.mode == .comingSoon, let releaseDate = movie.releaseDate {
                             Label(releaseDate, systemImage: "calendar").font(.caption.weight(.medium)).foregroundStyle(.white)
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.bottom, 4)
                 }
                 .padding(14)
@@ -177,54 +190,74 @@ struct MovieDetailView: View {
                 FlowChips(items: movie.genres)
             }
             MovieRatingsView(movie: movie, sources: account.preferences.ratingSources)
+                .frame(maxWidth: .infinity, alignment: .leading)
             actions(for: movie)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
     private func backdrop(_ movie: Movie) -> some View {
-        if let url = AppConfiguration.imageURL(movie.backdropSrc) {
-            AsyncImage(url: url) { phase in
-                if let image = phase.image { image.resizable().scaledToFill() }
-                else { BrandStyle.raised }
+        GeometryReader { geometry in
+            if let url = AppConfiguration.imageURL(movie.backdropSrc) {
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image { image.resizable().scaledToFill() }
+                    else { BrandStyle.raised }
+                }
+                .frame(width: geometry.size.width, height: 248)
+                .clipped()
+            } else {
+                LinearGradient(colors: [BrandStyle.raised, BrandStyle.background], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    .frame(width: geometry.size.width, height: 248)
+                    .overlay(alignment: .topTrailing) {
+                        Image(systemName: "film.stack")
+                            .font(.system(size: 50, weight: .light))
+                            .foregroundStyle(.white.opacity(0.14))
+                            .padding(24)
+                    }
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 248)
-            .clipped()
-        } else {
-            LinearGradient(colors: [BrandStyle.raised, BrandStyle.background], startPoint: .topLeading, endPoint: .bottomTrailing)
-                .frame(height: 248)
-                .overlay(alignment: .topTrailing) { Image(systemName: "film.stack").font(.system(size: 50, weight: .light)).foregroundStyle(.white.opacity(0.14)).padding(24) }
         }
+        .frame(height: 248)
     }
 
     @ViewBuilder
     private func actions(for movie: Movie) -> some View {
-        HStack(spacing: 10) {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) { actionButtons(for: movie) }
+            VStack(alignment: .leading, spacing: 8) { actionButtons(for: movie) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .controlSize(.regular)
+        if isSavingAction { ProgressView("Saving your alert…").font(.caption).tint(BrandStyle.accent) }
+    }
+
+    @ViewBuilder
+    private func actionButtons(for movie: Movie) -> some View {
             if let trailerKey = movie.trailerKey, let url = URL(string: "https://www.youtube.com/watch?v=\(trailerKey)") {
                 Button { openURL(url) } label: { Label("Trailer", systemImage: "play.fill") }
                     .buttonStyle(.bordered).tint(BrandStyle.accent)
             }
-            if account.state == .signedIn {
-                Button { Task { await saveTicketAlert(for: movie) } } label: {
-                    Label(ticketAlertSaved ? "Watching tickets" : "Ticket alert", systemImage: ticketAlertSaved ? "bell.badge.fill" : "bell.badge")
-                }
-                .buttonStyle(.borderedProminent).tint(BrandStyle.accent)
-                .disabled(isSavingAction || ticketAlertSaved)
-                if route.mode == .comingSoon {
-                    Button { Task { await saveReleaseWatch(for: movie) } } label: {
-                        Label(releaseWatchSaved ? "Watching date" : "Watch release", systemImage: "calendar.badge.clock")
+            if shouldOfferTicketAlert {
+                if account.state == .signedIn {
+                    Button { Task { await saveTicketAlert(for: movie) } } label: {
+                        Label(ticketAlertSaved ? "Watching tickets" : "Ticket alert", systemImage: ticketAlertSaved ? "bell.badge.fill" : "bell.badge")
                     }
-                    .buttonStyle(.bordered).tint(BrandStyle.accent)
-                    .disabled(isSavingAction || releaseWatchSaved)
-                }
-            } else {
-                NavigationLink { SignInView() } label: { Label("Sign in for alerts", systemImage: "bell.badge") }
                     .buttonStyle(.borderedProminent).tint(BrandStyle.accent)
+                    .disabled(isSavingAction || ticketAlertSaved)
+                    .accessibilityIdentifier("movie.ticketAlert")
+                } else {
+                    NavigationLink { SignInView() } label: { Label("Sign in for alerts", systemImage: "bell.badge") }
+                        .buttonStyle(.borderedProminent).tint(BrandStyle.accent)
+                        .accessibilityIdentifier("movie.ticketAlert")
+                }
             }
-        }
-        .controlSize(.regular)
-        if isSavingAction { ProgressView("Saving your alert…").font(.caption).tint(BrandStyle.accent) }
+            if account.state == .signedIn, route.mode == .comingSoon {
+                Button { Task { await saveReleaseWatch(for: movie) } } label: {
+                    Label(releaseWatchSaved ? "Watching date" : "Watch release", systemImage: "calendar.badge.clock")
+                }
+                .buttonStyle(.bordered).tint(BrandStyle.accent)
+                .disabled(isSavingAction || releaseWatchSaved)
+            }
     }
 
     @ViewBuilder
@@ -270,6 +303,12 @@ struct MovieDetailView: View {
             filterState: showtimePreferences.screeningFilters,
             excludedCinemaIDs: showtimePreferences.excludedCinemaIds
         ) ?? URL(string: "https://seret.site/\(code)")
+    }
+
+    private func loadTicketAvailability() async {
+        let available = try? await store.api.hasTicketAvailability(movieID: route.movieID, at: store.currentInstant)
+        guard !Task.isCancelled else { return }
+        hasTicketAvailability = available
     }
 
     private func saveTicketAlert(for movie: Movie) async {
@@ -318,6 +357,7 @@ private struct FlowChips: View {
             }
         }
         .scrollIndicators(.hidden)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

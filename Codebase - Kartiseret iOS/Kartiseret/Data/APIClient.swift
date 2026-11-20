@@ -66,6 +66,7 @@ protocol KartiseretAPI: Sendable {
         movieID: String?,
         publicationRevision: String?
     ) async throws -> ShowtimesSnapshot
+    func hasTicketAvailability(movieID: String, at instant: Date) async throws -> Bool
     func loadCinematheques(
         city: String,
         startDate: String,
@@ -76,6 +77,10 @@ protocol KartiseretAPI: Sendable {
 }
 
 extension KartiseretAPI {
+    func hasTicketAvailability(movieID: String, at instant: Date) async throws -> Bool {
+        throw APIClientError.unsupported
+    }
+
     func loadCinematheques(
         city: String,
         startDate: String,
@@ -123,6 +128,32 @@ struct URLSessionKartiseretAPI: KartiseretAPI {
         }
         let (data, response) = try await get(ShowtimesData.self, url: url, headers: headers)
         return ShowtimesSnapshot(showtimes: data.showtimes, publicationRevision: response.header("X-Kartiseret-Publication"))
+    }
+
+    func hasTicketAvailability(movieID: String, at instant: Date) async throws -> Bool {
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            throw APIClientError.invalidURL
+        }
+        components.path = "/api/v1/ticket-availability"
+        components.queryItems = [
+            URLQueryItem(name: "tmdbId", value: movieID),
+            URLQueryItem(name: "fromDate", value: CinemaDay.current(at: instant).isoDate),
+        ]
+        guard let url = components.url else { throw APIClientError.invalidURL }
+        let (data, _) = try await get(TicketAvailabilityData.self, url: url, headers: [:])
+        return data.showtimes.contains { screening in
+            guard let day = CinemaDay(isoDate: screening.dateOfShowing) else { return false }
+            return ShowtimeLogic.shouldInclude(time: screening.showtime, for: day, at: instant)
+        }
+    }
+
+    private struct TicketAvailabilityData: Decodable {
+        struct Screening: Decodable {
+            let dateOfShowing: String
+            let showtime: String
+        }
+
+        let showtimes: [Screening]
     }
 
     func loadCinematheques(

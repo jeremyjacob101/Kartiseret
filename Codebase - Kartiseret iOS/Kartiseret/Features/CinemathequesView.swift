@@ -201,23 +201,29 @@ private struct CinemathequeMovieRow: View {
                 }
             }
             .buttonStyle(.plain)
-            ScrollView(.horizontal) {
-                HStack(spacing: 7) {
-                    ForEach(showtimes) { showtime in
-                        if let url = showtime.bookingURL {
-                            Link(showtime.displayTime, destination: url)
-                                .buttonStyle(.bordered)
-                                .tint(BrandStyle.accent)
-                        } else {
-                            Text(showtime.displayTime)
-                                .font(.caption.monospacedDigit().weight(.semibold))
-                                .padding(.horizontal, 9).padding(.vertical, 6)
-                                .background(BrandStyle.raised, in: Capsule())
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 74, maximum: 74), spacing: 7, alignment: .bottom)], alignment: .leading, spacing: 7) {
+                ForEach(showtimes) { showtime in
+                    if let url = showtime.bookingURL {
+                        Link(destination: url) {
+                            ShowtimeTicketCell(showtime: showtime, theme: .cinematheque)
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(ShowtimeLogic.ticketAccessibilityLabel(
+                            for: showtime,
+                            cinemaName: showtime.cinema,
+                            movieTitle: movie.title,
+                            isBookable: true
+                        ))
+                    } else {
+                        ShowtimeTicketCell(showtime: showtime, theme: .cinematheque)
+                            .accessibilityLabel(ShowtimeLogic.ticketAccessibilityLabel(
+                                for: showtime,
+                                cinemaName: showtime.cinema,
+                                isBookable: false
+                            ))
                     }
                 }
             }
-            .scrollIndicators(.hidden)
         }
         .padding(11)
         .background(BrandStyle.raised.opacity(0.75), in: RoundedRectangle(cornerRadius: 14))
@@ -301,22 +307,35 @@ private struct CinemaScheduleSection: Identifiable {
 private struct CinemaScreeningRow: View {
     let entry: CinemaScreening
     let displayedMovie: Movie?
-    @Environment(\.openURL) private var openURL
 
     var body: some View {
         HStack(spacing: 12) {
             MovieArtwork(movie: displayedMovie, width: 48, height: 70)
             VStack(alignment: .leading, spacing: 5) {
                 Text(displayedMovie?.title ?? entry.movie.title).font(.headline).lineLimit(2)
-                Text("\(entry.screening.dateOfShowing) · \(entry.screening.displayTime)")
+                Text(entry.screening.dateOfShowing)
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                Text(entry.screening.formatLabels.joined(separator: " · ")).font(.caption2).foregroundStyle(.secondary)
             }
             Spacer()
             if let url = entry.screening.bookingURL {
-                Button { openURL(url) } label: { Image(systemName: "ticket.fill") }
-                    .buttonStyle(.borderedProminent).tint(BrandStyle.accent)
-                    .accessibilityLabel("Tickets for \(entry.movie.title) at \(entry.screening.displayTime)")
+                Link(destination: url) {
+                    ShowtimeTicketCell(showtime: entry.screening, theme: ShowtimeTheme.forCinema(entry.screening.cinema))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(ShowtimeLogic.ticketAccessibilityLabel(
+                    for: entry.screening,
+                    cinemaName: entry.screening.cinema,
+                    movieTitle: entry.movie.title,
+                    isBookable: true
+                ))
+            } else {
+                ShowtimeTicketCell(showtime: entry.screening, theme: ShowtimeTheme.forCinema(entry.screening.cinema))
+                    .accessibilityLabel(ShowtimeLogic.ticketAccessibilityLabel(
+                        for: entry.screening,
+                        cinemaName: entry.screening.cinema,
+                        movieTitle: entry.movie.title,
+                        isBookable: false
+                    ))
             }
         }
         .padding(.vertical, 4)
