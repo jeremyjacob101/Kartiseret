@@ -74,6 +74,24 @@ final class CoreAndAPITests: XCTestCase {
         ))
     }
 
+    func testInfinityVisionShowtimeLinkRoundTrips() throws {
+        let url = try XCTUnwrap(URL(string: "https://seret.site/A7zlbI6Og?date=2027-01-15"))
+        guard case .movie(let movieLink) = try XCTUnwrap(UniversalLinkDestination.parse(url)) else {
+            return XCTFail("Expected a movie link")
+        }
+        let today = try XCTUnwrap(CinemaDay(isoDate: "2027-01-15"))
+        let context = try XCTUnwrap(movieLink.sharedContext(fallbackCity: "Jerusalem", today: today))
+        XCTAssertEqual(context.filterState.unchecked.screeningTech, ["Infinity Vision"])
+        XCTAssertEqual(UniversalMovieLink.shareURL(
+            movieCode: movieLink.movieCode,
+            city: context.city,
+            day: context.day,
+            today: today,
+            filterState: context.filterState,
+            excludedCinemaIDs: []
+        ), url)
+    }
+
     @MainActor
     func testMovieLinkResolutionPreservesCaseAndSavedSelection() async throws {
         let body = #"{"data":{"mode":"nowPlaying","movies":[{"tmdbId":"1","title":"Uppercase","year":2026,"genres":[],"runtime":90,"movieCode":"Ab1"},{"tmdbId":"2","title":"Lowercase","year":2026,"genres":[],"runtime":90,"movieCode":"ab1"}],"movieCodesStatus":"ready"},"error":null}"#

@@ -5,7 +5,7 @@ enum ShowtimeLogic {
     static let filterOptions: [String: [String]] = [
         "showType": ["Regular", "VIP", "VIP Light", "Upgrade", "Prime", "Lounge", "Premium", "Not Just Cinema"],
         "screenFormat": ["2D", "3D"],
-        "screeningTech": ["Standard", "HFR", "IMAX", "Atmos", "ONYX", "ScreenX", "4DX"],
+        "screeningTech": ["Standard", "HFR", "IMAX", "Atmos", "ONYX", "ScreenX", "4DX", "Infinity Vision"],
         "dubLanguage": ["Original", "Hebrew", "French"],
     ]
 
@@ -143,6 +143,9 @@ enum ShowtimeLogic {
             case "ATMOS": "Atmos"
             default: token
             }
+        }
+        if rawTech.range(of: #"\bINFINITY\s+VISION\b"#, options: [.regularExpression, .caseInsensitive]) != nil {
+            technologies.append("Infinity Vision")
         }
         if technologies.isEmpty { technologies = ["Standard"] }
 

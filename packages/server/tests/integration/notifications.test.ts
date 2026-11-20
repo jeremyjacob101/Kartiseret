@@ -103,6 +103,19 @@ describe.sequential("shared first availability notifications", () => {
     await admin.pool.query("delete from app_auth.users where id=$1", [user.id]);
     await Promise.all([admin.close(), runtime.close()]);
   });
+  it("stores Infinity Vision in ticket alert delivery snapshots", async () => {
+    const updateMask = (mask: number) =>
+      admin.pool.query<{ delivery_filter_mask: number }>(
+        "update public.ticket_alert_subscriptions set delivery_filter_mask=$1 where user_id=$2 and tmdb_id=$3 returning delivery_filter_mask",
+        [mask, user.id, movie],
+      );
+
+    await expect(updateMask(2 ** 21 - 1)).resolves.toMatchObject({
+      rows: [{ delivery_filter_mask: 2 ** 21 - 1 }],
+    });
+    await expect(updateMask(2 ** 21)).rejects.toMatchObject({ code: "23514" });
+  });
+
   it("collapses migrated sessions, preserves sent/baseline history, and retires uncertain attempts", async () => {
     const migrated = (
       await admin.pool.query(

@@ -94,6 +94,22 @@ class TicketAlertCriteriaTests(unittest.TestCase):
         self.assertNotIn("tickets.example.test", email.html)
         self.assertNotIn("tickets.example.test", email.text)
 
+    def test_retried_snapshot_preserves_infinity_vision_in_the_email_link(self):
+        item = delivery_item_from_snapshot(
+            {
+                "tmdb_id": 101,
+                "delivery_title": "Future Film",
+                "delivery_city": "Tel Aviv",
+                "delivery_date": "2027-01-15",
+                "delivery_href": "https://tickets.example.test/101",
+                "delivery_movie_code": "A7z",
+                "delivery_filter_mask": 2**20,
+            }
+        )
+        self.assertIsNotNone(item)
+        email = render_ticket_alert_email((item,), "https://seret.site", NOW.date())
+        self.assertIn("/A7zlbI6Og?date=2027-01-15", email.text)
+
     def test_legacy_delivery_snapshot_defaults_missing_filter_mask(self):
         item = delivery_item_from_snapshot(
             {

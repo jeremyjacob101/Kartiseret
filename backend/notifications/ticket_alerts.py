@@ -504,7 +504,7 @@ def delivery_item_from_snapshot(row: dict[str, Any]) -> DeliveryItem | None:
         filter_mask = int(filter_mask_value)
     except (TypeError, ValueError):
         filter_mask = 0
-    if not 0 <= filter_mask < 2**20:
+    if not 0 <= filter_mask < 2**SHOWTIME_FILTER_BIT_COUNT:
         filter_mask = 0
     if not (
         tmdb_id
