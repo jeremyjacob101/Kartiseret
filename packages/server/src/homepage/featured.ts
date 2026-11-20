@@ -53,7 +53,8 @@ export class HomepageFeaturedService {
       this.db
         .select()
         .from(homepageFeaturedWeeklyLineups)
-        .where(eq(homepageFeaturedWeeklyLineups.weekStart, weekStart))
+        .where(lte(homepageFeaturedWeeklyLineups.weekStart, weekStart))
+        .orderBy(desc(homepageFeaturedWeeklyLineups.weekStart))
         .limit(1),
       this.db
         .select()

@@ -8,6 +8,7 @@ import { asc, eq, getTableColumns, getTableName, inArray } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import request from "supertest";
 import { createApp } from "../../src/app.js";
+import { HomepageFeaturedService } from "../../src/homepage/featured.js";
 import { CatalogDatabaseError } from "../../src/catalog/errors.js";
 import { DrizzleCatalogRepository } from "../../src/catalog/drizzle-repository.js";
 import { createDatabase } from "../../src/db/client.js";
@@ -189,6 +190,59 @@ describe("PostgreSQL 17 integration", () => {
 
   afterAll(async () => {
     await Promise.all([runtimeDatabase.close(), adminDatabase.close()]);
+  });
+
+  it("keeps the last featured lineup and follows the cinema-day cutoff for offers", async () => {
+    const previousWeek = "2026-11-12";
+    const futureWeek = "2026-11-26";
+    const offerId = "00000000-0000-4000-8000-000000000287";
+    const featured = new HomepageFeaturedService(runtimeDatabase.db);
+
+    try {
+      await adminDatabase.db
+        .insert(schema.homepageFeaturedWeeklyLineups)
+        .values([
+          { weekStart: previousWeek, nowPlayingIds: [101], comingSoonIds: [] },
+          { weekStart: futureWeek, nowPlayingIds: [202], comingSoonIds: [] },
+        ]);
+      await adminDatabase.db.insert(schema.homepagePromotions).values({
+        id: offerId,
+        title: "Wednesday offer",
+        body: "Late screenings are included.",
+        startsOn: "2026-11-18",
+        endsOn: "2026-11-18",
+      });
+
+      // Thursday at 00:30 in Jerusalem still belongs to Wednesday's cinema day.
+      const beforeCutoff = await featured.readPublic(
+        new Date("2026-11-18T22:30:00Z"),
+      );
+      expect(beforeCutoff.data.promotions.map(({ id }) => id)).toContain(
+        offerId,
+      );
+      const afterCutoff = await featured.readPublic(
+        new Date("2026-11-18T23:05:00Z"),
+      );
+      expect(afterCutoff.data.promotions.map(({ id }) => id)).not.toContain(
+        offerId,
+      );
+      expect(afterCutoff.data.lineup).toMatchObject({
+        weekStart: previousWeek,
+        nowPlayingIds: ["101"],
+      });
+    } finally {
+      await adminDatabase.db
+        .delete(schema.homepagePromotions)
+        .where(eq(schema.homepagePromotions.id, offerId));
+      await adminDatabase.db
+        .delete(schema.homepageFeaturedWeeklyLineups)
+        .where(
+          inArray(schema.homepageFeaturedWeeklyLineups.weekStart, [
+            previousWeek,
+            futureWeek,
+          ]),
+        );
+    }
   });
 
   it("maps application tables and accounts for private pipeline tables", async () => {
