@@ -20,6 +20,11 @@ final class KartiseretUITests: XCTestCase {
         app.buttons["day.next"].tap()
 
         XCTAssertTrue(app.staticTexts["Tel Aviv Screens"].waitForExistence(timeout: 5))
+
+        app.buttons["selectedCityButton"].tap()
+        app.buttons["city.haifa"].tap()
+        XCTAssertTrue(app.staticTexts["No showtimes found"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["movie.ticketAlert"].exists)
     }
 
     func testComingSoonMovieOpensDetailWithCityAndDayControls() {

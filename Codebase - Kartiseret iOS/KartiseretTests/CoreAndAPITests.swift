@@ -106,6 +106,28 @@ final class CoreAndAPITests: XCTestCase {
         XCTAssertEqual(store.selectedDay, originalDay)
     }
 
+    func testTicketAvailabilityChecksOtherCitiesAndFutureDates() async throws {
+        let transport = StubTransport(responses: [
+            httpResponse(#"{"data":{"showtimes":[{"screeningCity":"Haifa","dateOfShowing":"2026-11-15","showtime":"19:30"}]},"error":null}"#),
+            httpResponse(#"{"data":{"showtimes":[{"screeningCity":"Haifa","dateOfShowing":"2026-11-04","showtime":"08:00"}]},"error":null}"#),
+        ])
+        let api = URLSessionKartiseretAPI(baseURL: URL(string: "https://seret.site")!, transport: transport)
+        let instant = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-04T12:00:00Z"))
+
+        let future = try await api.hasTicketAvailability(movieID: "101", at: instant)
+        let elapsed = try await api.hasTicketAvailability(movieID: "101", at: instant)
+        XCTAssertTrue(future)
+        XCTAssertFalse(elapsed)
+        let requests = await transport.capturedRequests()
+        let request = try XCTUnwrap(requests.last)
+        let components = try XCTUnwrap(URLComponents(url: request.url, resolvingAgainstBaseURL: false))
+        XCTAssertEqual(components.path, "/api/v1/ticket-availability")
+        XCTAssertEqual(components.queryItems, [
+            URLQueryItem(name: "tmdbId", value: "101"),
+            URLQueryItem(name: "fromDate", value: "2026-11-04"),
+        ])
+    }
+
     func testCinemaDayUsesJerusalemOneOhFiveCutoff() throws {
         let before = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-04T23:04:00Z"))
         let atCutoff = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-04T23:05:00Z"))

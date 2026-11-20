@@ -40,7 +40,11 @@ enum ShowtimeLogic {
     }
 
     static func shouldInclude(_ showtime: Showtime, for day: CinemaDay, at instant: Date) -> Bool {
-        guard let minutes = minutes(showtime.showtime) else { return false }
+        shouldInclude(time: showtime.showtime, for: day, at: instant)
+    }
+
+    static func shouldInclude(time: String, for day: CinemaDay, at instant: Date) -> Bool {
+        guard let minutes = minutes(time) else { return false }
         let effectiveDay = minutes < 65 ? day.addingDays(1) : day
         let today = CinemaDay.calendarDate(at: instant)
         if effectiveDay > today { return true }

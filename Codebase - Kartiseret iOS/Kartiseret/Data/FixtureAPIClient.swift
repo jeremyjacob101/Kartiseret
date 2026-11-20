@@ -66,6 +66,17 @@ actor FixtureAPIClient: KartiseretAPI {
         [City(name: "Jerusalem"), City(name: "Haifa"), City(name: "Tel Aviv")]
     }
 
+    func hasTicketAvailability(movieID: String, at instant: Date) async throws -> Bool {
+        let day = CinemaDay.current(at: instant)
+        for city in try await loadCities() {
+            let result = try await loadShowtimes(city: city.name, day: day, movieID: movieID, publicationRevision: nil)
+            if result.showtimes.contains(where: {
+                $0.bookingURL != nil && ShowtimeLogic.shouldInclude($0, for: day, at: instant)
+            }) { return true }
+        }
+        return false
+    }
+
     func loadShowtimes(
         city: String,
         day: CinemaDay,

@@ -11,6 +11,7 @@ struct MovieDetailView: View {
     @State private var actionMessage: String?
     @State private var actionError: String?
     @State private var ticketAlertSaved = false
+    @State private var hasTicketAvailability: Bool?
     @State private var releaseWatchSaved = false
     @State private var isSavingAction = false
 
@@ -43,8 +44,7 @@ struct MovieDetailView: View {
     private var rows: [Showtime]? { store.showtimes[request] }
 
     private var shouldOfferTicketAlert: Bool {
-        guard let rows else { return store.showtimeErrors[request] != nil }
-        return rows.isEmpty
+        hasTicketAvailability == false && (rows?.isEmpty ?? true)
     }
 
     var body: some View {
@@ -106,7 +106,11 @@ struct MovieDetailView: View {
             guard !Task.isCancelled else { return }
             await store.loadShowtimes(request)
         }
+        .task(id: store.today) {
+            await loadTicketAvailability()
+        }
         .refreshable {
+            await loadTicketAvailability()
             await store.loadCatalog(route.mode, forceRefresh: true)
             let updatedRequest = store.makeShowtimeRequest(
                 mode: route.mode,
@@ -299,6 +303,12 @@ struct MovieDetailView: View {
             filterState: showtimePreferences.screeningFilters,
             excludedCinemaIDs: showtimePreferences.excludedCinemaIds
         ) ?? URL(string: "https://seret.site/\(code)")
+    }
+
+    private func loadTicketAvailability() async {
+        let available = try? await store.api.hasTicketAvailability(movieID: route.movieID, at: store.currentInstant)
+        guard !Task.isCancelled else { return }
+        hasTicketAvailability = available
     }
 
     private func saveTicketAlert(for movie: Movie) async {
