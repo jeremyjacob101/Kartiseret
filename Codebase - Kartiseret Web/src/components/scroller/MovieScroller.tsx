@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type WheelEvent } from "react";
 import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
 import { buildMovieShowtimeShareUrl, filterMaskFromUnchecked, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "@kartiseret/contracts/showtime-links";
-import { loadAdditionalShowtimeDays, movieCollectionQueryOptions, selectMovies, SHOWTIME_WINDOW_DAY_COUNT, type Movie } from "../../data/movieCatalog";
 import { MovieDetailsContent, type MovieDetailsShareSelection, type MovieDetailsVariant } from "./MovieDetailsContent";
+import { movieCollectionQueryOptions, selectMovies, type Movie } from "../../data/movieCatalog";
 import { useMovieDisplayPreferences } from "../../contexts/MovieDisplayPreferencesContext";
 import { applyMovieDisplayPreferences } from "../../data/movieDisplayPreferences";
-import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
 import { useDeviceStore } from "../../device/useDeviceType";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { shareLink } from "../../routing/shareLink";
@@ -582,9 +581,6 @@ function MovieScrollerContent({
   maxWidth = "100%",
   className,
 }: MovieScrollerContentProps) {
-  const selectedCity = useUserPreferencesStore(
-    (state) => state.preferences.location,
-  );
   const isMobile = useDeviceStore((state) => state.isMobile);
   const movieCount = movieItems.length;
   const collapsedRepeatSets = getRepeatSetCount(cardWidth + gap, movieCount);
@@ -799,21 +795,6 @@ function MovieScrollerContent({
       }
     },
     [displayMovieIndex, movieItems, showShareFeedback],
-  );
-
-  const requestMovieShowtimes = useCallback(
-    (tmdbId?: string) => {
-      if (!tmdbId) {
-        return;
-      }
-
-      void loadAdditionalShowtimeDays(
-        selectedCity,
-        SHOWTIME_WINDOW_DAY_COUNT,
-        tmdbId,
-      ).catch(() => {});
-    },
-    [selectedCity],
   );
 
   const measureDetailStage = useCallback(() => {
@@ -1138,9 +1119,6 @@ function MovieScrollerContent({
       }
 
       const detailItemIndex = recenterCollapsedItemIndex(itemIndex);
-      requestMovieShowtimes(
-        movieItems[mod(detailItemIndex, movieCount)]?.tmdbId,
-      );
 
       clearAllScheduledWork();
       captureCollapsedViewportSnapshot();
@@ -1167,10 +1145,7 @@ function MovieScrollerContent({
     [
       captureCollapsedViewportSnapshot,
       clearAllScheduledWork,
-      movieCount,
-      movieItems,
       phase,
-      requestMovieShowtimes,
       recenterCollapsedItemIndex,
     ],
   );
@@ -1330,7 +1305,6 @@ function MovieScrollerContent({
   const openMovieDetailFromExternalRequest = useCallback(
     (movieIndex: number, behavior: ScrollBehavior = "auto") => {
       const normalizedMovieIndex = mod(movieIndex, movieCount);
-      requestMovieShowtimes(movieItems[normalizedMovieIndex]?.tmdbId);
 
       const itemIndex = collapsedMiddleStartIndex + normalizedMovieIndex;
       const scroller = getCollapsedScrollerElement();
@@ -1380,8 +1354,6 @@ function MovieScrollerContent({
       getCollapsedScrollerElement,
       maxWidth,
       movieCount,
-      movieItems,
-      requestMovieShowtimes,
     ],
   );
 
@@ -2243,6 +2215,7 @@ function MovieScrollerContent({
             titleId={`${titleId}-${bodyKey}`}
             eyebrow={detailEyebrow}
             variant={detailVariant}
+            targetShowtimeQueries={!motionClassName.includes("leaving")}
             preferredShowtimeDate={detailShowtimeDate}
             onPreferredShowtimeDateChange={handleDetailShowtimeDateChange}
             onShareShowtimes={

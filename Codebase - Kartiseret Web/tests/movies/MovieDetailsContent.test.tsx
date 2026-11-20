@@ -18,7 +18,8 @@ vi.setSystemTime(new Date("2026-09-16T16:30:00.000Z"));
 
 const { MovieDetailsContent } =
   await import("../../src/components/scroller/MovieDetailsContent");
-const { movieCatalogQueryKeys } = await import("../../src/data/movieCatalog");
+const movieCatalog = await import("../../src/data/movieCatalog");
+const { movieCatalogQueryKeys } = movieCatalog;
 
 afterAll(() => {
   vi.useRealTimers();
@@ -86,6 +87,46 @@ beforeEach(() => {
 });
 
 describe("MovieDetailsContent", () => {
+  it("loads the full targeted window for the active movie and city", () => {
+    const loadWindow = vi
+      .spyOn(movieCatalog, "loadAdditionalShowtimeDays")
+      .mockResolvedValue(undefined);
+    try {
+      const TestDetails = ({
+        city,
+        tmdbId,
+      }: {
+        city: "Jerusalem" | "Haifa";
+        tmdbId: string;
+      }) => (
+        <MemoryRouter>
+          <QueryClientProvider client={queryClient}>
+            <MovieDetailsContent
+              movie={{ ...sampleMovie, tmdbId }}
+              titleId="sample-title"
+              variant="comingSoon"
+              targetShowtimeQueries
+              locationOverride={city}
+            />
+          </QueryClientProvider>
+        </MemoryRouter>
+      );
+      const { rerender } = render(
+        <TestDetails city="Jerusalem" tmdbId="101" />,
+      );
+      rerender(<TestDetails city="Haifa" tmdbId="101" />);
+      rerender(<TestDetails city="Haifa" tmdbId="102" />);
+
+      expect(loadWindow.mock.calls).toEqual([
+        ["Jerusalem", 180, "101"],
+        ["Haifa", 180, "101"],
+        ["Haifa", 180, "102"],
+      ]);
+    } finally {
+      loadWindow.mockRestore();
+    }
+  });
+
   it("renders metadata, ratings, showtimes, sharing, and trailer overlay behavior", async () => {
     const user = userEvent.setup();
     const onShareShowtimes = vi.fn();

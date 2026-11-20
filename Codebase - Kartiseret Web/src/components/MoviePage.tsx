@@ -1,5 +1,5 @@
 import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, parseExcludedCinemaIds, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "@kartiseret/contracts/showtime-links";
-import { findMovieByCode, isMovieShowtimeDateCovered, isValidMovieCode, loadAdditionalShowtimeDays, loadShowtimesAroundDate, mergeMovieShowtimeRangeResult, showtimeCityQueryOptions, showtimeRangeQueryOptions, SHOWTIME_WINDOW_DAY_COUNT, type ShowtimeRange } from "../data/movieCatalog";
+import { findMovieByCode, isMovieShowtimeDateCovered, isValidMovieCode, loadShowtimesAroundDate, mergeMovieShowtimeRangeResult, showtimeCityQueryOptions, showtimeRangeQueryOptions, type ShowtimeRange } from "../data/movieCatalog";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
 import { applyMovieDisplayPreference } from "../data/movieDisplayPreferences";
@@ -530,23 +530,6 @@ export function MoviePage({
     mergeMovieShowtimeRangeResult(activeShowtimeRange, exactShowtimeQuery.data);
   }, [activeShowtimeRange, exactShowtimeQuery.data]);
 
-  useEffect(() => {
-    if (!activeShowtimeRange) {
-      return;
-    }
-
-    void loadAdditionalShowtimeDays(
-      activeShowtimeRange.city,
-      SHOWTIME_WINDOW_DAY_COUNT,
-      activeShowtimeRange.tmdbId,
-    ).catch((error: unknown) => {
-      console.error(
-        "Failed to extend the movie-page showtime date range.",
-        error,
-      );
-    });
-  }, [activeShowtimeRange]);
-
   useEffect(
     () => () => {
       if (shareFeedbackTimeoutRef.current !== null) {
@@ -790,7 +773,7 @@ export function MoviePage({
             onPreferredShowtimeDateChange={
               activeQueryState ? handlePreferredShowtimeDateChange : undefined
             }
-            targetShowtimeQueries
+            targetShowtimeQueries={Boolean(activeQueryState)}
             exactDateShowtimeQueries={
               activeQueryState !== null &&
               !(

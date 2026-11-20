@@ -612,7 +612,12 @@ export function MovieDetailsContent({
     ...showtimeCityQueryOptions(location, publicationRevision),
     enabled: false,
   });
-  const showtimesReady = showtimeCityData?.broadReady ?? false;
+  const showtimesReady =
+    (showtimeCityData?.broadReady ?? false) ||
+    (targetShowtimeQueries &&
+      Boolean(
+        showtimeCityData?.targetedFetchedDatesByTmdbId[movie.tmdbId]?.length,
+      ));
   const { data: theaterData } = useQuery({
     ...theaterDataQueryOptions(),
     enabled: variant === "nowPlaying",
@@ -1305,7 +1310,29 @@ export function MovieDetailsContent({
   );
 
   useEffect(() => {
-    if (variant !== "nowPlaying" || exactDateShowtimeQueries) {
+    if (!targetShowtimeQueries) return;
+
+    void loadAdditionalShowtimeDays(
+      location,
+      SHOWTIME_WINDOW_DAY_COUNT,
+      movie.tmdbId,
+    ).catch((error: unknown) => {
+      console.error("Could not load the movie's showtime window.", error);
+    });
+  }, [
+    cinemaDate,
+    location,
+    movie.tmdbId,
+    publicationRevision,
+    targetShowtimeQueries,
+  ]);
+
+  useEffect(() => {
+    if (
+      variant !== "nowPlaying" ||
+      exactDateShowtimeQueries ||
+      targetShowtimeQueries
+    ) {
       return;
     }
 
@@ -1317,7 +1344,6 @@ export function MovieDetailsContent({
     void loadShowtimesAroundDate(
       location,
       preferredShowtimeDate ?? cinemaDate,
-      targetShowtimeQueries ? movie.tmdbId : undefined,
     ).catch((error: unknown) => {
       console.error("Could not load showtimes for the selected city.", error);
     });
@@ -1335,6 +1361,7 @@ export function MovieDetailsContent({
     if (
       variant !== "nowPlaying" ||
       exactDateShowtimeQueries ||
+      targetShowtimeQueries ||
       !showtimesReady ||
       showtimeDays.length === 0 ||
       showtimeDays.length > INITIAL_SHOWTIME_WINDOW_DAY_COUNT
@@ -1356,11 +1383,7 @@ export function MovieDetailsContent({
       SHOWTIME_WINDOW_DAY_COUNT,
     );
     const requestMoreDays = () => {
-      void loadAdditionalShowtimeDays(
-        location,
-        nextDayCount,
-        targetShowtimeQueries ? movie.tmdbId : undefined,
-      ).catch(() => {});
+      void loadAdditionalShowtimeDays(location, nextDayCount).catch(() => {});
     };
 
     if (typeof windowWithIdleCallbacks.requestIdleCallback === "function") {
