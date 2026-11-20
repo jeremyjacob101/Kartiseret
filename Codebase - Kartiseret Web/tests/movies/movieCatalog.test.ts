@@ -1,6 +1,7 @@
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import type { Movie, ShowtimeRow } from "../../src/data/movieCatalog";
 import { ticketAlertQueryKeys } from "../../src/data/ticketAlerts";
-import { afterAll, describe, expect, it, vi } from "vitest";
+import { queryClient } from "../../src/lib/queryClient";
 import { QueryClient } from "@tanstack/react-query";
 
 vi.useFakeTimers();
@@ -9,12 +10,18 @@ vi.setSystemTime(new Date("2026-09-16T16:30:00.000Z"));
 const {
   fixedAppDateString,
   invalidateAdminMovieEditQueries,
+  loadAdditionalShowtimeDays,
   mergeShowtimeCityData,
   movieCatalogQueryKeys,
+  SHOWTIME_WINDOW_DAY_COUNT,
 } = await import("../../src/data/movieCatalog");
 
 afterAll(() => {
   vi.useRealTimers();
+});
+
+afterEach(() => {
+  queryClient.clear();
 });
 
 function addDay(date: string): string {
@@ -222,6 +229,56 @@ describe("showtime city cache merging", () => {
       refreshed.movieShowtimesByTmdbId[movie.tmdbId]?.[0]?.theaters[0]
         ?.showtimes[0]?.href,
     ).toBe("https://example.test/updated");
+  });
+});
+
+describe("selected movie showtime loading", () => {
+  it("loads the full visible date window for one selected movie", async () => {
+    const movie = createMovie();
+    const windowEndDate = Array.from(
+      { length: SHOWTIME_WINDOW_DAY_COUNT - 1 },
+      (_, index) => index,
+    ).reduce((date) => addDay(date), fixedAppDateString);
+    const farShowtimeDate = Array.from(
+      { length: 89 },
+      (_, index) => index,
+    ).reduce((date) => addDay(date), fixedAppDateString);
+
+    queryClient.setQueryData(movieCatalogQueryKeys.collection("nowPlaying"), {
+      movies: [movie],
+    });
+    queryClient.setQueryData(
+      movieCatalogQueryKeys.showtimeRange({
+        city: "Jerusalem",
+        startDate: fixedAppDateString,
+        endDate: windowEndDate,
+        tmdbId: movie.tmdbId,
+      }),
+      [createShowtimeRow(farShowtimeDate)],
+    );
+
+    await loadAdditionalShowtimeDays(
+      "Jerusalem",
+      SHOWTIME_WINDOW_DAY_COUNT,
+      movie.tmdbId,
+    );
+
+    const cityData = queryClient.getQueryData<{
+      targetedLoadedDayCountByTmdbId: Record<string, number>;
+      movieShowtimesByTmdbId: Record<
+        string,
+        Array<{ date: string; theaters: unknown[] }>
+      >;
+    }>(movieCatalogQueryKeys.showtimeCity("Jerusalem"));
+
+    expect(cityData?.targetedLoadedDayCountByTmdbId[movie.tmdbId]).toBe(
+      SHOWTIME_WINDOW_DAY_COUNT,
+    );
+    expect(
+      cityData?.movieShowtimesByTmdbId[movie.tmdbId]?.find(
+        (day) => day.date === farShowtimeDate,
+      )?.theaters,
+    ).toHaveLength(1);
   });
 });
 

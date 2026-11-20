@@ -344,11 +344,6 @@ export function MoviePage({
       return;
     }
 
-    if (routeCatalogMode === "comingSoon" && parsedRoute.kind === "plain") {
-      queryStateRef.current = null;
-      return;
-    }
-
     const currentToday = todayRef.current;
 
     if (parsedRoute.kind === "plain") {
@@ -533,16 +528,6 @@ export function MoviePage({
     }
 
     mergeMovieShowtimeRangeResult(activeShowtimeRange, exactShowtimeQuery.data);
-    void loadShowtimesAroundDate(
-      activeShowtimeRange.city,
-      activeShowtimeRange.tmdbId,
-      activeShowtimeRange.startDate,
-    ).catch((error: unknown) => {
-      console.error(
-        "Failed to extend the movie-page showtime date range.",
-        error,
-      );
-    });
   }, [activeShowtimeRange, exactShowtimeQuery.data]);
 
   useEffect(
@@ -672,7 +657,7 @@ export function MoviePage({
       return;
     }
 
-    void loadShowtimesAroundDate(currentState.location, tmdbId, date).catch((
+    void loadShowtimesAroundDate(currentState.location, date, tmdbId).catch((
       error: unknown,
     ) => {
       console.error(
@@ -788,8 +773,14 @@ export function MoviePage({
             onPreferredShowtimeDateChange={
               activeQueryState ? handlePreferredShowtimeDateChange : undefined
             }
-            targetShowtimeQueries
-            exactDateShowtimeQueries={Boolean(activeQueryState)}
+            targetShowtimeQueries={Boolean(activeQueryState)}
+            exactDateShowtimeQueries={
+              activeQueryState !== null &&
+              !(
+                routeCatalogMode === "comingSoon" &&
+                activeQueryState.mode === "edit"
+              )
+            }
             onExactShowtimeDatePreviewChange={
               activeQueryState ? handleShowtimeDatePreviewChange : undefined
             }
