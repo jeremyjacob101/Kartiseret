@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   findShowtimeEligibilityCandidates: vi.fn(),
   getProductionPublicDataRepository: vi.fn(),
   withPublicationSnapshot: vi.fn(),
+  readHomepageFeatured: vi.fn(),
   renderBuiltPublicApplication: vi.fn(),
   readProductionPagePreferences: vi.fn(),
 }));
@@ -25,6 +26,12 @@ vi.mock("@kartiseret/server/production", () => ({
 }));
 vi.mock("@kartiseret/server/public-production", () => ({
   getProductionPublicDataRepository: mocks.getProductionPublicDataRepository,
+  getProductionDataRuntime: () => ({ database: { db: {} } }),
+}));
+vi.mock("@kartiseret/server/homepage-featured", () => ({
+  HomepageFeaturedService: class {
+    readPublic = mocks.readHomepageFeatured;
+  },
 }));
 vi.mock("node:fs", async (importOriginal) => ({
   ...(await importOriginal<typeof import("node:fs")>()),
@@ -102,6 +109,7 @@ function theaterData() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.readHomepageFeatured.mockReset().mockResolvedValue(undefined);
   mocks.getProductionPublicDataRepository.mockReset().mockReturnValue({
     findShowtimeEligibilityCandidates: mocks.findShowtimeEligibilityCandidates,
   });
@@ -140,6 +148,30 @@ beforeEach(() => {
 });
 
 describe("SEO request handler", () => {
+  it("reads homepage featured content before the catalog snapshot pins the pool", async () => {
+    const featured = {
+      data: { lineup: null, highlights: [], promotions: [] },
+      error: null,
+    };
+    mocks.readHomepageFeatured.mockResolvedValue(featured);
+    const response = createResponse();
+
+    await seoHandler(
+      createRequest("/api/page?path=%2F", { path: "/" }),
+      response as never,
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(mocks.readHomepageFeatured).toHaveBeenCalledBefore(
+      mocks.withPublicationSnapshot,
+    );
+    expect(mocks.renderBuiltPublicApplication.mock.calls[0]?.[0]).toMatchObject(
+      {
+        homepageFeatured: featured,
+      },
+    );
+  });
+
   it("renders isolated account display state while retaining the anonymous cache path", async () => {
     const readMovieTreatments = vi.fn().mockResolvedValue([]);
     mocks.readProductionPagePreferences.mockImplementation(async (

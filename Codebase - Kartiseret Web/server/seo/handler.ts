@@ -597,25 +597,27 @@ async function getListingPage(
   preferredCity: AppLocation = DEFAULT_LOCATION,
 ) {
   const repository = getProductionPublicDataRepository();
+  // Featured content is independent of the catalog snapshot. Read it before
+  // the snapshot pins the connection in the serverless pool.
+  const featuredData =
+    path === "/"
+      ? await Promise.resolve()
+          .then(() =>
+            new HomepageFeaturedService(
+              getProductionDataRuntime().database.db,
+            ).readPublic(instant))
+          .catch((error: unknown) => {
+            logErrorSafely(
+              "homepage_featured_unavailable",
+              error,
+              "Homepage featured content could not be loaded.",
+            );
+            return undefined;
+          })
+      : undefined;
   return withPublicationSnapshot(repository, async (publicationRevision) => {
     const city = getShowtimesCityFromPath(path) ?? preferredCity;
-    const homepageFeatures =
-      path === "/"
-        ? Promise.resolve()
-            .then(() =>
-              new HomepageFeaturedService(
-                getProductionDataRuntime().database.db,
-              ).readPublic(instant))
-            .catch((error: unknown) => {
-              logErrorSafely(
-                "homepage_featured_unavailable",
-                error,
-                "Homepage featured content could not be loaded.",
-              );
-              return undefined;
-            })
-        : Promise.resolve(undefined);
-    const [nowPlaying, comingSoon, theaters, featuredData] = await Promise.all([
+    const [nowPlaying, comingSoon, theaters] = await Promise.all([
       path === "/soons" ? undefined : getMovieCatalog(repository, "nowPlaying"),
       path === "/movies"
         ? undefined
@@ -623,7 +625,6 @@ async function getListingPage(
       ["/", "/movies", "/soons"].includes(path)
         ? undefined
         : getPublicTheaterData(repository),
-      homepageFeatures,
     ]);
     const page = await buildListingPage(
       repository,
