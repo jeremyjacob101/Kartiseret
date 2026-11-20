@@ -1,4 +1,4 @@
-import { getMovieCatalog, getCinemathequeData, getCinemaPageData, getMovieByPermanentCode, getMovieShowtimes, getPublicTheaterData, getShowtimeRange, withPublicationSnapshot, type PublicCinemaPageContext } from "@kartiseret/server/public-data";
+import { getMovieCatalog, getHomepageCatalogs, getCinemathequeData, getCinemaPageData, getMovieByPermanentCode, getMovieShowtimes, getPublicTheaterData, getShowtimeRange, withPublicationSnapshot, type PublicCinemaPageContext } from "@kartiseret/server/public-data";
 import { privatePageDisplaySchema, publicPageBootstrapSchema, type PrivatePageDisplay, type PublicPageBootstrap } from "@kartiseret/contracts/public-render";
 import { injectRenderedApplication, injectSeoPage, SITE_ORIGIN, buildSitemapXml, safeHttpUrl, getRequestOrigin } from "./renderHtml.js";
 import { createShowtimeInclusionPredicate, getCinemaDayDate, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
@@ -44,7 +44,10 @@ async function readPrivateDisplay(cookie: string) {
 
 function getPageMovieIds(bootstrap: PublicPageBootstrap): string[] {
   const ids = new Set<string>();
-  for (const catalog of Object.values(bootstrap.catalogs)) {
+  for (const catalog of [
+    ...Object.values(bootstrap.catalogs),
+    ...Object.values(bootstrap.homepageCatalogs ?? {}),
+  ]) {
     for (const movie of catalog?.movies ?? []) ids.add(movie.tmdbId);
   }
   if (bootstrap.movieDetail) ids.add(bootstrap.movieDetail.movie.tmdbId);
@@ -616,13 +619,46 @@ async function getListingPage(
           })
       : undefined;
   return withPublicationSnapshot(repository, async (publicationRevision) => {
+    if (path === "/") {
+      const featuredIds = new Set([
+        ...(featuredData?.data.lineup?.nowPlayingIds ?? []),
+        ...(featuredData?.data.lineup?.comingSoonIds ?? []),
+        ...(featuredData?.data.highlights.map(({ tmdbId }) => tmdbId) ?? []),
+      ]);
+      const { nowPlaying, comingSoon } = await getHomepageCatalogs(
+        repository,
+        featuredIds,
+        instant.getFullYear(),
+      );
+      const page = await buildListingPage(
+        repository,
+        path,
+        {},
+        instant,
+        preferredCity,
+      );
+      const bootstrap = createPageBootstrap(
+        path,
+        publicationRevision,
+        instant,
+        {},
+        {
+          homepageFeatured: featuredData,
+          homepageCatalogs: {
+            nowPlaying: bootstrapCatalog(nowPlaying, publicationRevision),
+            comingSoon: bootstrapCatalog(comingSoon, publicationRevision),
+          },
+        },
+      );
+      return { ...page, bootstrap };
+    }
     const city = getShowtimesCityFromPath(path) ?? preferredCity;
     const [nowPlaying, comingSoon, theaters] = await Promise.all([
       path === "/soons" ? undefined : getMovieCatalog(repository, "nowPlaying"),
       path === "/movies"
         ? undefined
         : getMovieCatalog(repository, "comingSoon"),
-      ["/", "/movies", "/soons"].includes(path)
+      ["/movies", "/soons"].includes(path)
         ? undefined
         : getPublicTheaterData(repository),
     ]);
@@ -635,7 +671,6 @@ async function getListingPage(
     );
     const currentDate = getCinemaDayDate(instant);
     const extra: Partial<PublicPageBootstrap> = { theaters };
-    if (featuredData) extra.homepageFeatured = featuredData;
     if (path === "/showtimes" || getShowtimesCityFromPath(path)) {
       extra.showtimeCity = {
         city,

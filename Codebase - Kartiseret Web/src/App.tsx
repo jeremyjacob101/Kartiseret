@@ -12,6 +12,7 @@ import type { HomepageFeaturedResponse } from "@kartiseret/contracts/homepage-fe
 import { useMovieDisplayPreferences } from "./contexts/MovieDisplayPreferencesContext";
 import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
 import { usePublicRouteComponents } from "./routing/PublicRouteComponentsContext.js";
+import { homepageCatalogsKey, type HomepageCatalogs } from "./publicRenderBootstrap";
 import { getCurrentRobotsDirectives, setSeoMetadata } from "./routing/seoMetadata";
 import { LetterboxdUnsubscribePage } from "./components/LetterboxdUnsubscribePage";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
@@ -615,16 +616,36 @@ function MainApplication() {
     pathname !== "/attribution" &&
     pathname !== PASSWORD_RESET_PATH &&
     (!directMovieReady || cinemathequeSearchEnabled);
+  const homepageCatalogs =
+    pathname === "/"
+      ? queryClient.getQueryData<HomepageCatalogs>(homepageCatalogsKey)
+      : undefined;
+  const [loadFullHomepageCatalogs, setLoadFullHomepageCatalogs] =
+    useState(false);
+  useEffect(() => {
+    if (!homepageCatalogs || loadFullHomepageCatalogs) return;
+    const loadCatalogs = () => setLoadFullHomepageCatalogs(true);
+    if (typeof window.requestIdleCallback === "function") {
+      const idleId = window.requestIdleCallback(loadCatalogs, { timeout: 750 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+    const timeout = window.setTimeout(loadCatalogs, 150);
+    return () => window.clearTimeout(timeout);
+  }, [homepageCatalogs, loadFullHomepageCatalogs]);
+  const canLoadCatalog =
+    shouldLoadCatalog &&
+    (!homepageCatalogs ||
+      loadFullHomepageCatalogs ||
+      cinemathequeSearchEnabled);
   const nowPlayingQuery = useQuery({
     ...movieCollectionQueryOptions("nowPlaying"),
     enabled:
-      shouldLoadCatalog && (pathname !== "/soons" || cinemathequeSearchEnabled),
+      canLoadCatalog && (pathname !== "/soons" || cinemathequeSearchEnabled),
   });
   const comingSoonQuery = useQuery({
     ...movieCollectionQueryOptions("comingSoon"),
     enabled:
-      shouldLoadCatalog &&
-      (pathname !== "/movies" || cinemathequeSearchEnabled),
+      canLoadCatalog && (pathname !== "/movies" || cinemathequeSearchEnabled),
   });
   const cinemathequeSearchQuery = useQuery({
     ...nationwideCinemathequeQueryOptions(
@@ -640,21 +661,25 @@ function MainApplication() {
   const { mutateAsync: saveAdminMovieEdit } = useMutation(
     adminMovieEditMutationOptions(),
   );
+  const nowPlayingForDisplay =
+    nowPlayingQuery.data ?? homepageCatalogs?.nowPlaying;
+  const comingSoonForDisplay =
+    comingSoonQuery.data ?? homepageCatalogs?.comingSoon;
   const nowPlayingMovies = useMemo(
     () =>
       applyMovieDisplayPreferences(
-        nowPlayingQuery.data?.movies ?? [],
+        nowPlayingForDisplay?.movies ?? [],
         displayPreferences.preferencesById,
       ),
-    [displayPreferences.preferencesById, nowPlayingQuery.data?.movies],
+    [displayPreferences.preferencesById, nowPlayingForDisplay?.movies],
   );
   const comingSoonMovies = useMemo(
     () =>
       applyMovieDisplayPreferences(
-        comingSoonQuery.data?.movies ?? [],
+        comingSoonForDisplay?.movies ?? [],
         displayPreferences.preferencesById,
       ),
-    [comingSoonQuery.data?.movies, displayPreferences.preferencesById],
+    [comingSoonForDisplay?.movies, displayPreferences.preferencesById],
   );
   const nowPlayingNewReleaseMovies = useMemo(
     () => filterMoviesByReleaseCategory(nowPlayingMovies, "newReleases"),
@@ -1232,10 +1257,10 @@ function MainApplication() {
                 catalogError={catalogError}
                 cardHeight={scrollerCardHeight}
                 cardWidth={scrollerCardWidth}
-                comingSoonReady={comingSoonReady}
+                comingSoonReady={comingSoonForDisplay !== undefined}
                 comingSoonMovies={comingSoonNewReleaseMovies}
                 gap={scrollerGap}
-                nowPlayingReady={nowPlayingReady}
+                nowPlayingReady={nowPlayingForDisplay !== undefined}
                 nowPlayingMovies={nowPlayingNewReleaseMovies}
                 nowPlayingReReleaseMovies={nowPlayingReReleaseMovies}
                 hideReReleases={hideReReleases}

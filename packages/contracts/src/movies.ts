@@ -71,3 +71,7 @@ export type City = z.infer<typeof citySchema>;
 export type Theater = z.infer<typeof theaterSchema>;
 export type Movie = z.infer<typeof movieSchema>;
 export type MovieAltOption = z.infer<typeof movieAltOptionSchema>;
+
+export function isMovieReRelease(year: number, currentYear: number): boolean {
+  return year > 0 && year <= currentYear - 3;
+}
