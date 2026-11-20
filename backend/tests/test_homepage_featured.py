@@ -1,9 +1,11 @@
 from datetime import datetime, timezone
 import unittest
+from unittest.mock import Mock
 
 from backend.dataflow.homepage_featured import (
     choose_weekly_candidates,
     israel_week_start,
+    refresh_weekly_homepage_lineup,
 )
 
 
@@ -36,6 +38,21 @@ class HomepageFeaturedLineupTests(unittest.TestCase):
 
         self.assertEqual(now_playing_ids, [12, 11, 13])
         self.assertEqual(coming_soon_ids, [22, 23, 21])
+
+    def test_existing_weekly_lineup_skips_the_catalog_scan(self):
+        client = Mock()
+        query = client.table.return_value.select.return_value.eq.return_value.limit
+        query.return_value.execute.return_value.data = [
+            {"now_playing_ids": [1, 2], "coming_soon_ids": [3]},
+        ]
+
+        result = refresh_weekly_homepage_lineup(
+            client, datetime(2026, 11, 20, tzinfo=timezone.utc)
+        )
+
+        self.assertEqual(result, {"week_start": "2026-11-19", "now_playing": 2, "coming_soon": 1})
+        client.table.assert_called_once_with("homepage_featured_weekly_lineups")
+        client.table.return_value.upsert.assert_not_called()
 
     def test_candidate_reserve_lists_are_bounded(self):
         rows = [

@@ -73,6 +73,20 @@ def refresh_weekly_homepage_lineup(
     lease_guard=None,
 ) -> dict[str, int | str]:
     now = now or datetime.now(timezone.utc)
+    week_start = israel_week_start(now)
+    if lease_guard:
+        lease_guard()
+    lineups = client.table("homepage_featured_weekly_lineups")
+    existing = lineups.select("now_playing_ids,coming_soon_ids").eq(
+        "week_start", week_start
+    ).limit(1).execute().data
+    if existing:
+        return {
+            "week_start": week_start,
+            "now_playing": len(existing[0]["now_playing_ids"]),
+            "coming_soon": len(existing[0]["coming_soon_ids"]),
+        }
+
     current_year = now.astimezone(ISRAEL_TIME_ZONE).year
     now_playing_rows = list(each_row(
         client,
@@ -92,8 +106,9 @@ def refresh_weekly_homepage_lineup(
     if not now_playing_ids and not coming_soon_ids:
         raise RuntimeError("The published catalog has no eligible homepage movies")
 
-    week_start = israel_week_start(now)
-    client.table("homepage_featured_weekly_lineups").upsert(
+    if lease_guard:
+        lease_guard()
+    lineups.upsert(
         {
             "week_start": week_start,
             "now_playing_ids": now_playing_ids,

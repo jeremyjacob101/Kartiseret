@@ -14,6 +14,7 @@ export type HomepageFeaturedSlide =
       }
     | { type: "promotion"; promotion: HomepagePromotion };
 
+const MAX_MOVIE_SLIDES = 5;
 const LABELS = { kids: "Kids", "sci-fi": "Sci-Fi", marvel: "Marvel" } as const;
 
 function orderedMovies(
@@ -34,7 +35,7 @@ function orderedMovies(
   const selected = new Set<string>();
   const countByMode = { nowPlaying: 0, comingSoon: 0 };
   const add = (tmdbId: string, label: string | null = null) => {
-    if (selected.has(tmdbId)) return;
+    if (result.length >= MAX_MOVIE_SLIDES || selected.has(tmdbId)) return;
     const entry = available.get(tmdbId);
     if (
       !entry?.movie.movieCode ||
@@ -71,7 +72,7 @@ function orderedMovies(
   }
 
   let candidateIndex = 0;
-  while (result.length < 5 && candidateIndex < 80) {
+  while (result.length < MAX_MOVIE_SLIDES && candidateIndex < 80) {
     const mode = candidateIndex % 2 === 0 ? "nowPlaying" : "comingSoon";
     const list = candidates[mode];
     const modeIndex = Math.floor(candidateIndex / 2);
@@ -91,6 +92,12 @@ export function buildHomepageFeaturedSlides(
   const promotion = [...config.promotions].sort(
     (a, b) => b.priority - a.priority,
   )[0];
-  if (!promotion || movies.length === 0) return movies;
-  return [movies[0]!, { type: "promotion", promotion }, ...movies.slice(1)];
+  if (!promotion) return movies;
+
+  const [lead, ...remaining] = movies;
+  const promotionSlide: HomepageFeaturedSlide = {
+    type: "promotion",
+    promotion,
+  };
+  return lead ? [lead, promotionSlide, ...remaining] : [promotionSlide];
 }

@@ -107,6 +107,41 @@ describe("homepage featured carousel", () => {
     });
   });
 
+  it("caps scheduled highlights at five movie slides and keeps standalone offers", () => {
+    const movies = Array.from({ length: 7 }, (_, index) =>
+      movie(String(index + 1), `Movie ${index + 1}`, "nowPlaying"));
+    const promotion = {
+      id: "00000000-0000-4000-8000-000000000001",
+      title: "Cinema Day",
+      body: "₪10 tickets",
+      startsOn: "2026-11-19",
+      endsOn: "2026-11-20",
+      priority: 3,
+      ctaLabel: null,
+      ctaHref: null,
+      enabled: true,
+    };
+    const config = featuredConfig({
+      highlights: movies.map(({ tmdbId }, index) => ({
+        tmdbId,
+        startsOn: "2026-11-19",
+        endsOn: "2026-11-20",
+        priority: index,
+        label: null,
+        enabled: true,
+      })),
+      promotions: [promotion],
+    });
+
+    const slides = buildHomepageFeaturedSlides(config, movies, []);
+    expect(slides).toHaveLength(6);
+    expect(slides[0]).toMatchObject({ movie: { tmdbId: "7" } });
+    expect(slides[1]).toEqual({ type: "promotion", promotion });
+    expect(buildHomepageFeaturedSlides(config, [], [])).toEqual([
+      { type: "promotion", promotion },
+    ]);
+  });
+
   it("falls back to the current catalog, skips movies without a page, and limits movie slides to five", () => {
     const nowPlaying = Array.from({ length: 7 }, (_, index) =>
       movie(String(index + 1), `Movie ${index + 1}`, "nowPlaying"));
