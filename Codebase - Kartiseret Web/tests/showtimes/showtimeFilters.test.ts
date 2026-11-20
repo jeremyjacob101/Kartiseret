@@ -14,17 +14,20 @@ describe("showtime filter normalization", () => {
   });
 
   it("maps compound screening metadata into canonical filter tokens", () => {
+    expect(getShowtimeFilterOptions([]).screeningTech).toContain(
+      "Infinity Vision",
+    );
     expect(
       getCanonicalShowtimeMeta({
         time: "20:00",
-        screeningTech: "3D + IMAX + Atmos",
+        screeningTech: "3D + IMAX + Atmos + Infinity Vision",
         screeningType: "VIP Light",
         dubLanguage: " french ",
       }),
     ).toEqual({
       showTypeTokens: ["VIP", "VIP Light"],
       screenFormatToken: "3D",
-      screeningTechTokens: ["IMAX", "Atmos"],
+      screeningTechTokens: ["IMAX", "Atmos", "Infinity Vision"],
       dubLanguage: "French",
     });
   });

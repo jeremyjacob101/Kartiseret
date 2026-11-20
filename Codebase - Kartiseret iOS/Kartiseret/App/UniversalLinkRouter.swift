@@ -181,6 +181,8 @@ struct UniversalMovieLink: Equatable, Sendable {
         return nil
     }
 
+    private static let filterBitCount = 21
+
     private static func decodeFilterMask(_ value: String) -> Int? {
         guard value.count == 4 else { return nil }
         var decoded = 0
@@ -188,11 +190,11 @@ struct UniversalMovieLink: Equatable, Sendable {
             guard let digit = urlAlphabet.firstIndex(of: character) else { return nil }
             decoded = decoded * urlAlphabet.count + digit
         }
-        return decoded < (1 << 20) ? decoded : nil
+        return decoded < (1 << filterBitCount) ? decoded : nil
     }
 
     private static func encodeFilterMask(_ value: Int) -> String? {
-        guard (0..<(1 << 20)).contains(value) else { return nil }
+        guard (0..<(1 << filterBitCount)).contains(value) else { return nil }
         var remainder = value
         var digits: [Character] = []
         for _ in 0..<4 {
@@ -265,7 +267,8 @@ struct SharedShowtimeLinkContext: Hashable, Sendable {
         .init(bit: 16, group: "dubLanguage", value: "Original"),
         .init(bit: 17, group: "screenFormat", value: "2D"),
         .init(bit: 18, group: "screeningTech", value: "Standard"),
-        .init(bit: 19, group: "showType", value: "Regular")
+        .init(bit: 19, group: "showType", value: "Regular"),
+        .init(bit: 20, group: "screeningTech", value: "Infinity Vision"),
     ]
 }
 

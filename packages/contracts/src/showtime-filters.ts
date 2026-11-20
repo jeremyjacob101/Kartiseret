@@ -162,6 +162,7 @@ function getScreeningTechParts(raw: string): {
   screeningTechTokens: string[];
 } {
   const normalizedTech = normalizeScreeningTech(raw);
+  const hasInfinityVision = /\bINFINITY\s+VISION\b/i.test(normalizedTech);
   const tokens = normalizedTech
     .split(/[+\s/,-]+/)
     .map((value) => normalizeScreeningTechToken(value))
@@ -170,11 +171,14 @@ function getScreeningTechParts(raw: string): {
   const premiumTokens = tokens.filter(
     (token) => token !== "2D" && token !== "3D" && token !== "Standard",
   );
+  const screeningTechTokens = [...new Set(premiumTokens)];
+
+  if (hasInfinityVision) screeningTechTokens.push("Infinity Vision");
 
   return {
     screenFormatToken,
     screeningTechTokens:
-      premiumTokens.length > 0 ? [...new Set(premiumTokens)] : ["Standard"],
+      screeningTechTokens.length > 0 ? screeningTechTokens : ["Standard"],
   };
 }
 

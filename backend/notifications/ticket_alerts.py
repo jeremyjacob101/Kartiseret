@@ -25,6 +25,8 @@ DEFAULT_SITE_URL = "https://seret.site"
 JERUSALEM_TIME_ZONE = ZoneInfo("Asia/Jerusalem")
 SHOWTIME_DAY_CUTOFF_MINUTES = 65
 SHOWTIME_GRACE_PERIOD_MINUTES = 15
+SHOWTIME_FILTER_BIT_COUNT = 21
+SHOWTIME_FILTER_MASK_WIDTH = 4
 DATE_CODE_ALPHABET = (
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 )
@@ -51,6 +53,7 @@ FILTER_BIT_ASSIGNMENTS = (
     (17, "screenFormat", "2D"),
     (18, "screeningTech", "Standard"),
     (19, "showType", "Regular"),
+    (20, "screeningTech", "Infinity Vision"),
 )
 MOVIE_CODE_PATTERN = re.compile(r"^[0-9A-Za-z]{3}$")
 EMAIL_PATTERN = re.compile(r"^[^\s@<>()\"'\\]+@[^\s@<>()\"'\\]+\.[^\s@<>()\"'\\]+$")
@@ -88,7 +91,7 @@ CITY_CODE_BY_NAME = {
 ALERT_FILTER_OPTIONS = {
     "showType": ("Regular", "VIP", "VIP Light", "Upgrade", "Prime", "Lounge", "Premium", "Not Just Cinema"),
     "screenFormat": ("2D", "3D"),
-    "screeningTech": ("Standard", "HFR", "IMAX", "Atmos", "ONYX", "ScreenX", "4DX"),
+    "screeningTech": ("Standard", "HFR", "IMAX", "Atmos", "ONYX", "ScreenX", "4DX", "Infinity Vision"),
     "dubLanguage": ("Original", "Hebrew", "French"),
 }
 
@@ -222,6 +225,7 @@ def _show_type_tokens(value: Any) -> list[str]:
 
 def _screening_tech_parts(value: Any) -> tuple[str, list[str]]:
     normalized = _text(value) or "2D"
+    has_infinity_vision = re.search(r"\bINFINITY\s+VISION\b", normalized, re.IGNORECASE) is not None
     token_map = {
         "IMAX": "IMAX", "HFR": "HFR", "SCREENX": "ScreenX", "4DX": "4DX",
         "ONYX": "ONYX", "ATMOS": "Atmos", "2D": "2D", "3D": "3D",
@@ -233,6 +237,8 @@ def _screening_tech_parts(value: Any) -> tuple[str, list[str]]:
     ]
     screen_format = "3D" if "3D" in tokens else "2D"
     tech = list(dict.fromkeys(token for token in tokens if token not in {"2D", "3D", "Standard"}))
+    if has_infinity_vision:
+        tech.append("Infinity Vision")
     return screen_format, tech or ["Standard"]
 
 
@@ -371,11 +377,15 @@ def filter_mask_from_exclusions(exclusions: Any) -> int:
 
 
 def _encode_filter_mask(mask: int) -> str | None:
-    if not isinstance(mask, int) or isinstance(mask, bool) or not 0 <= mask < 2**20:
+    if (
+        not isinstance(mask, int)
+        or isinstance(mask, bool)
+        or not 0 <= mask < 2**SHOWTIME_FILTER_BIT_COUNT
+    ):
         return None
     remaining = mask
-    digits = [URL_ALPHABET[0]] * 4
-    for index in range(3, -1, -1):
+    digits = [URL_ALPHABET[0]] * SHOWTIME_FILTER_MASK_WIDTH
+    for index in range(SHOWTIME_FILTER_MASK_WIDTH - 1, -1, -1):
         digits[index] = URL_ALPHABET[remaining % len(URL_ALPHABET)]
         remaining //= len(URL_ALPHABET)
     return "".join(digits)
@@ -494,7 +504,7 @@ def delivery_item_from_snapshot(row: dict[str, Any]) -> DeliveryItem | None:
         filter_mask = int(filter_mask_value)
     except (TypeError, ValueError):
         filter_mask = 0
-    if not 0 <= filter_mask < 2**20:
+    if not 0 <= filter_mask < 2**SHOWTIME_FILTER_BIT_COUNT:
         filter_mask = 0
     if not (
         tmdb_id
