@@ -105,6 +105,11 @@ async function htmlFor(
 const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url ?? "/", "http://localhost");
+    if (url.pathname === "/_vercel/insights/script.js") {
+      response.writeHead(200, { "Content-Type": "application/javascript" });
+      response.end();
+      return;
+    }
     if (url.pathname.startsWith("/api/")) {
       response.writeHead(404, { "Content-Type": "application/json" });
       response.end(
@@ -791,6 +796,8 @@ try {
 
   await page.goto(`${baseUrl}/movies`, { waitUntil: "commit" });
   await desktopEntryScriptRequested;
+  const analyticsScript = page.locator('script[src="/_vercel/insights/script.js"]');
+  await expect(analyticsScript).toHaveCount(0);
   const root = page.locator("#root[data-ssr='true']");
   assert.equal(await root.count(), 1);
   const desktopHeading = page.getByRole("heading", { name: "Now Playing" });
@@ -832,6 +839,7 @@ try {
   }
   releaseDesktopRouteChunk?.();
   await page.waitForLoadState("load");
+  await expect(analyticsScript).toHaveCount(1);
   await page.waitForTimeout(150);
   assert.equal(await desktopHeading.count(), 1);
   const desktopHeadingAfterHydration = await desktopHeading.boundingBox();
