@@ -224,3 +224,84 @@ test("movie details date controls stay separate and clickable across widths", as
     await expectVisibleDayCentersReachable(page, ".details-day-picker-shell");
   }
 });
+
+test("search, city, account, and filter panels fit short and narrow screens", async ({
+  page,
+}) => {
+  const viewports = [
+    { width: 320, height: 568 },
+    { width: 700, height: 480 },
+    { width: 1_280, height: 900 },
+  ];
+  const menus = [
+    {
+      name: "search",
+      trigger: 'button[aria-label="Search movies"]',
+      panel: ".movie-search-panel",
+      waitMs: 100,
+    },
+    {
+      name: "city map",
+      trigger: "button.location-menu-trigger",
+      panel: ".theater-map-dialog",
+      waitMs: 500,
+    },
+    {
+      name: "account",
+      trigger: 'button[aria-label="Sign up or log in"]',
+      panel: ".user-menu-dialog",
+      waitMs: 250,
+    },
+    {
+      name: "showtime filter",
+      trigger: 'button[aria-label="Filter showtimes"]',
+      panel: ".showtime-filter-panel",
+      waitMs: 100,
+    },
+  ];
+
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+
+    for (const menu of menus) {
+      await page.goto("/showtimes");
+      await page.locator(menu.trigger).first().click();
+      const panel = page.locator(menu.panel).first();
+      await expect(panel, `${menu.name} panel should open`).toBeVisible();
+      await page.waitForTimeout(menu.waitMs);
+
+      const bounds = await panel.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          left: rect.left,
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+          width: rect.width,
+          height: rect.height,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+        };
+      });
+
+      expect(bounds.width, `${menu.name} panel width`).toBeGreaterThan(0);
+      expect(bounds.height, `${menu.name} panel height`).toBeGreaterThan(0);
+      expect(
+        bounds.left,
+        `${menu.name} left edge at ${viewport.width}px`,
+      ).toBeGreaterThanOrEqual(0);
+      expect(
+        bounds.top,
+        `${menu.name} top edge at ${viewport.height}px`,
+      ).toBeGreaterThanOrEqual(0);
+      expect(
+        bounds.right,
+        `${menu.name} right edge at ${viewport.width}px`,
+      ).toBeLessThanOrEqual(bounds.viewportWidth);
+      expect(
+        bounds.bottom,
+        `${menu.name} bottom edge at ${viewport.height}px`,
+      ).toBeLessThanOrEqual(bounds.viewportHeight);
+    }
+  }
+});
