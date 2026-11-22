@@ -245,6 +245,82 @@ describe("PostgreSQL 17 integration", () => {
     }
   });
 
+  it("supplies homepage ranking dates and only counts current ticket-linked screenings", async () => {
+    const featured = new HomepageFeaturedService(runtimeDatabase.db);
+    const released = 9100280;
+    const presale = 9100281;
+    const expired = 9100282;
+    const missingTicketLink = 9100283;
+    const upcoming = [presale, expired, missingTicketLink];
+    const allIds = [released, ...upcoming];
+    const ticketUrl = "https://tickets.example.test/presale";
+
+    try {
+      await adminDatabase.db.insert(schema.finalMovies).values({
+        tmdbId: released,
+        englishTitle: "New release",
+      });
+      await adminDatabase.db.insert(schema.movieReleaseDates).values({
+        tmdbId: released,
+        localReleaseDate: "2026-11-18",
+      });
+      await adminDatabase.db.insert(schema.finalSoons).values(
+        upcoming.map((tmdbId) => ({
+          tmdbId,
+          englishTitle: "Upcoming film",
+          hebrewTitle: "Upcoming film",
+          releaseDate: "2026-12-22",
+        })),
+      );
+      await adminDatabase.db.insert(schema.finalShowtimes).values([
+        {
+          tmdbId: presale,
+          dateOfShowing: "2026-11-22",
+          showtime: "00:45",
+          hebrewHref: ticketUrl,
+        },
+        {
+          tmdbId: expired,
+          dateOfShowing: "2026-11-22",
+          showtime: "20:00",
+          englishHref: ticketUrl,
+        },
+        {
+          tmdbId: missingTicketLink,
+          dateOfShowing: "2026-12-22",
+          showtime: "20:00",
+          englishHref: "not a ticket link",
+        },
+      ]);
+
+      const { data } = await featured.readPublic(
+        new Date("2026-11-22T22:30:00Z"),
+      );
+      expect(data.ranking?.asOf).toBe("2026-11-22");
+      expect(data.ranking?.localReleaseDates[String(released)]).toBe(
+        "2026-11-18",
+      );
+      expect(data.ranking?.ticketedUpcomingIds).toContain(String(presale));
+      expect(data.ranking?.ticketedUpcomingIds).not.toContain(String(expired));
+      expect(data.ranking?.ticketedUpcomingIds).not.toContain(
+        String(missingTicketLink),
+      );
+    } finally {
+      await adminDatabase.db
+        .delete(schema.finalShowtimes)
+        .where(inArray(schema.finalShowtimes.tmdbId, upcoming));
+      await adminDatabase.db
+        .delete(schema.finalSoons)
+        .where(inArray(schema.finalSoons.tmdbId, upcoming));
+      await adminDatabase.db
+        .delete(schema.finalMovies)
+        .where(eq(schema.finalMovies.tmdbId, released));
+      await adminDatabase.db
+        .delete(schema.movieReleaseDates)
+        .where(inArray(schema.movieReleaseDates.tmdbId, allIds));
+    }
+  });
+
   it("maps application tables and accounts for private pipeline tables", async () => {
     const mappedTables = Object.values(schema.applicationTables);
     expect(mappedTables.map((table) => getTableName(table)).sort()).toEqual(

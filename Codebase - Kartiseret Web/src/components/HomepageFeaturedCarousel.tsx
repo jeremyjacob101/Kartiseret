@@ -1,15 +1,32 @@
 import { homepageAdminQueryOptions, homepagePromotionMutationOptions, type HomepageMovieHighlight, type HomepagePromotion, type HomepagePromotionUpsert } from "../data/homepageFeatured";
+import { homepageFeatureRating, MAX_HOMEPAGE_FEATURE_RATING } from "@kartiseret/contracts/homepage-featured";
 import { buildHomepageFeaturedSlides, type HomepageFeaturedSlide } from "../data/homepageFeaturedSlides";
 import type { HomepageFeaturedResponse } from "@kartiseret/contracts/homepage-featured";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Pause, Play, Plus, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowLeft, ArrowRight, Plus, X } from "lucide-react";
+import type { CSSProperties, FormEvent } from "react";
 import type { Movie } from "../data/movieCatalog";
-import type { FormEvent } from "react";
 import "./HomepageFeaturedCarousel.css";
 
 type FeaturedPayload = HomepageFeaturedResponse["data"];
-const ROTATION_MS = 7_000;
+const ROTATION_MS = 5_000;
+const SLIDE_TRANSITION_MS = 350;
+
+function slideId(slide: HomepageFeaturedSlide): string {
+  return slide.type === "movie"
+    ? `movie-${slide.movie.tmdbId}`
+    : `promotion-${slide.promotion.id}`;
+}
+
+type Navigation = {
+  activeId: string | null;
+  outgoingId: string | null;
+  direction: 1 | -1;
+  wraps: boolean;
+};
+
+type SlideTarget = { step: 1 | -1 } | { index: number };
 
 function israelToday(): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -298,8 +315,12 @@ export function HomepageFeaturedCarousel({
       buildHomepageFeaturedSlides(config, nowPlayingMovies, comingSoonMovies),
     [config, nowPlayingMovies, comingSoonMovies],
   );
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [userPaused, setUserPaused] = useState(false);
+  const [navigation, setNavigation] = useState<Navigation>({
+    activeId: null,
+    outgoingId: null,
+    direction: 1,
+    wraps: false,
+  });
   const [hovered, setHovered] = useState(false);
   const [focusWithin, setFocusWithin] = useState(false);
   const [tabHidden, setTabHidden] = useState(false);
@@ -311,7 +332,7 @@ export function HomepageFeaturedCarousel({
     addDays(israelToday(), 30));
   const [featureLabel, setFeatureLabel] =
     useState<HomepageMovieHighlight["label"]>(null);
-  const [featurePriority, setFeaturePriority] = useState(0);
+  const [featurePriority, setFeaturePriority] = useState(homepageFeatureRating);
   const [adminError, setAdminError] = useState<string | null>(null);
   const [savingFeature, setSavingFeature] = useState(false);
 
@@ -332,15 +353,66 @@ export function HomepageFeaturedCarousel({
       document.removeEventListener("visibilitychange", updateVisibility);
   }, []);
 
+  const currentIndex = Math.max(
+    0,
+    slides.findIndex((item) => slideId(item) === navigation.activeId),
+  );
+  const slide = slides[currentIndex];
+  const outgoingIndex = slides.findIndex(
+    (item) => slideId(item) === navigation.outgoingId,
+  );
+  const outgoingSlide =
+    slide && slideId(slide) === navigation.activeId
+      ? slides[outgoingIndex]
+      : undefined;
+  const navigate = useCallback(
+    (target: SlideTarget) => {
+      if (slides.length < 2) return;
+      setNavigation((current) => {
+        const from = Math.max(
+          0,
+          slides.findIndex((item) => slideId(item) === current.activeId),
+        );
+        const to =
+          "step" in target
+            ? (from + target.step + slides.length) % slides.length
+            : target.index;
+        const next = slides[to];
+        const previous = slides[from];
+        if (!next || !previous || from === to) return current;
+        const direction = "step" in target ? target.step : to > from ? 1 : -1;
+        return {
+          activeId: slideId(next),
+          outgoingId: prefersReducedMotion ? null : slideId(previous),
+          direction,
+          wraps: "step" in target && (to - from) * direction < 0,
+        };
+      });
+    },
+    [prefersReducedMotion, slides],
+  );
+
   const paused =
-    userPaused || hovered || focusWithin || prefersReducedMotion || tabHidden;
+    hovered ||
+    focusWithin ||
+    prefersReducedMotion ||
+    tabHidden ||
+    showPromotionManager ||
+    featureDialog !== null;
   useEffect(() => {
-    if (paused || slides.length < 2) return undefined;
-    const timer = window.setInterval(() => {
-      setActiveIndex((index) => (index + 1) % slides.length);
-    }, ROTATION_MS);
-    return () => window.clearInterval(timer);
-  }, [paused, slides.length]);
+    if (paused || slides.length < 2) return;
+    const timer = window.setTimeout(() => navigate({ step: 1 }), ROTATION_MS);
+    return () => window.clearTimeout(timer);
+  }, [paused, slides.length, navigation.activeId, navigate]);
+
+  useEffect(() => {
+    if (!navigation.outgoingId) return;
+    const timer = window.setTimeout(() => {
+      setNavigation((current) =>
+        current === navigation ? { ...current, outgoingId: null } : current);
+    }, SLIDE_TRANSITION_MS);
+    return () => window.clearTimeout(timer);
+  }, [navigation]);
 
   const selectedMovie = featureDialog
     ? homepageHighlights.find((item) => item.tmdbId === featureDialog.tmdbId)
@@ -353,7 +425,7 @@ export function HomepageFeaturedCarousel({
     setFeatureStartsOn(existing?.startsOn ?? israelToday());
     setFeatureEndsOn(existing?.endsOn ?? addDays(israelToday(), 30));
     setFeatureLabel(existing?.label ?? null);
-    setFeaturePriority(existing?.priority ?? 0);
+    setFeaturePriority(homepageFeatureRating(existing?.priority));
     setAdminError(null);
   };
 
@@ -401,17 +473,19 @@ export function HomepageFeaturedCarousel({
       </>
     ) : null;
   }
-  const currentIndex = slides.length ? activeIndex % slides.length : 0;
-  const slide: HomepageFeaturedSlide | undefined = slides[currentIndex];
   if (!slide) return null;
-  const highlightedMovies = [...nowPlayingMovies, ...comingSoonMovies];
+  const hasCatalogMovies =
+    nowPlayingMovies.length > 0 || comingSoonMovies.length > 0;
 
   return (
     <>
       <section
         className="homepage-featured"
         aria-label="Featured movies and cinema offers"
-        onPointerEnter={() => setHovered(true)}
+        tabIndex={-1}
+        onPointerEnter={(event) => {
+          if (event.pointerType !== "touch") setHovered(true);
+        }}
         onPointerLeave={() => setHovered(false)}
         onFocusCapture={() => setFocusWithin(true)}
         onBlurCapture={(event) => {
@@ -419,15 +493,19 @@ export function HomepageFeaturedCarousel({
             setFocusWithin(false);
         }}
         onKeyDown={(event) => {
-          if (event.key === "ArrowRight") {
-            event.preventDefault();
-            setActiveIndex((index) => (index + 1) % slides.length);
-          } else if (event.key === "ArrowLeft") {
-            event.preventDefault();
-            setActiveIndex(
-              (index) => (index - 1 + slides.length) % slides.length,
-            );
+          if (
+            slides.length < 2 ||
+            (event.key !== "ArrowRight" && event.key !== "ArrowLeft")
+          )
+            return;
+          event.preventDefault();
+          if (
+            event.target instanceof HTMLElement &&
+            event.target.closest(".homepage-featured-slide")
+          ) {
+            event.currentTarget.focus();
           }
+          navigate({ step: event.key === "ArrowRight" ? 1 : -1 });
         }}
       >
         {isAdmin ? (
@@ -439,89 +517,108 @@ export function HomepageFeaturedCarousel({
           </div>
         ) : null}
         <div
-          className={`homepage-featured-frame${slide.type === "promotion" ? " is-promotion" : ""}`}
+          className="homepage-featured-frame"
+          style={
+            { "--slide-duration": `${SLIDE_TRANSITION_MS}ms` } as CSSProperties
+          }
+          data-direction={navigation.direction === 1 ? "forward" : "backward"}
           aria-live={paused ? "polite" : "off"}
         >
-          {slide.type === "movie" ? (
-            <>
-              <img
-                className="homepage-featured-art"
-                src={slide.movie.backdropSrc || slide.movie.imageSrc}
-                srcSet={
-                  slide.movie.backdropSrc
-                    ? slide.movie.backdropSrcSet
-                    : slide.movie.imageSrcSet
+          {(outgoingSlide ? [outgoingSlide, slide] : [slide]).map((item) => {
+            const outgoing = item === outgoingSlide;
+            return (
+              <div
+                key={slideId(item)}
+                className={`homepage-featured-slide${item.type === "promotion" ? " is-promotion" : ""}`}
+                data-motion={
+                  outgoing ? "outgoing" : outgoingSlide ? "incoming" : undefined
                 }
-                sizes="(max-width: 700px) 100vw, 1100px"
-                alt=""
-                loading={currentIndex === 0 ? "eager" : "lazy"}
-                fetchPriority={currentIndex === 0 ? "high" : undefined}
-              />
-              <div className="homepage-featured-copy">
-                {slide.label ? (
-                  <p className="homepage-featured-label">{slide.label}</p>
-                ) : null}
-                <p className="homepage-featured-status">
-                  {slide.mode === "nowPlaying" ? "Now playing" : "Coming soon"}
-                </p>
-                <h2>{slide.movie.title}</h2>
-                <a
-                  className="homepage-featured-cta"
-                  href={`/${slide.movie.movieCode}`}
-                >
-                  {slide.mode === "nowPlaying" ? "Get tickets" : "View movie"}
-                  <ArrowRight size={18} aria-hidden="true" />
-                </a>
+                inert={outgoing}
+                aria-hidden={outgoing || undefined}
+              >
+                {item.type === "movie" ? (
+                  <>
+                    <img
+                      className="homepage-featured-art"
+                      src={item.movie.backdropSrc || item.movie.imageSrc}
+                      srcSet={
+                        item.movie.backdropSrc
+                          ? item.movie.backdropSrcSet
+                          : item.movie.imageSrcSet
+                      }
+                      sizes="(max-width: 700px) 100vw, 1100px"
+                      alt=""
+                      loading="eager"
+                      fetchPriority={
+                        !outgoing && currentIndex === 0 ? "high" : undefined
+                      }
+                    />
+                    <div className="homepage-featured-copy">
+                      {item.label ? (
+                        <p className="homepage-featured-label">{item.label}</p>
+                      ) : null}
+                      <p className="homepage-featured-status">
+                        {item.mode === "nowPlaying"
+                          ? "Now playing"
+                          : "Coming soon"}
+                      </p>
+                      <h2>{item.movie.title}</h2>
+                      <a
+                        className="homepage-featured-cta"
+                        href={`/${item.movie.movieCode}`}
+                      >
+                        {item.ticketsOnSale ? "Get tickets" : "View movie"}
+                        <ArrowRight size={18} aria-hidden="true" />
+                      </a>
+                    </div>
+                    {isAdmin ? (
+                      <button
+                        type="button"
+                        className="homepage-featured-edit"
+                        onClick={() => openFeatureEditor(item.movie)}
+                      >
+                        Edit highlight
+                      </button>
+                    ) : null}
+                  </>
+                ) : (
+                  <div className="homepage-featured-promo-copy">
+                    <p className="homepage-featured-status">Cinema offer</p>
+                    <h2>{item.promotion.title}</h2>
+                    <p className="homepage-featured-promo-body">
+                      {item.promotion.body}
+                    </p>
+                    {item.promotion.ctaLabel && item.promotion.ctaHref ? (
+                      <a
+                        className="homepage-featured-cta"
+                        href={item.promotion.ctaHref}
+                        target={
+                          item.promotion.ctaHref.startsWith("http")
+                            ? "_blank"
+                            : undefined
+                        }
+                        rel={
+                          item.promotion.ctaHref.startsWith("http")
+                            ? "noreferrer"
+                            : undefined
+                        }
+                      >
+                        {item.promotion.ctaLabel}
+                        <ArrowRight size={18} aria-hidden="true" />
+                      </a>
+                    ) : null}
+                  </div>
+                )}
               </div>
-              {isAdmin ? (
-                <button
-                  type="button"
-                  className="homepage-featured-edit"
-                  onClick={() => openFeatureEditor(slide.movie)}
-                >
-                  Edit highlight
-                </button>
-              ) : null}
-            </>
-          ) : (
-            <div className="homepage-featured-promo-copy">
-              <p className="homepage-featured-status">Cinema offer</p>
-              <h2>{slide.promotion.title}</h2>
-              <p className="homepage-featured-promo-body">
-                {slide.promotion.body}
-              </p>
-              {slide.promotion.ctaLabel && slide.promotion.ctaHref ? (
-                <a
-                  className="homepage-featured-cta"
-                  href={slide.promotion.ctaHref}
-                  target={
-                    slide.promotion.ctaHref.startsWith("http")
-                      ? "_blank"
-                      : undefined
-                  }
-                  rel={
-                    slide.promotion.ctaHref.startsWith("http")
-                      ? "noreferrer"
-                      : undefined
-                  }
-                >
-                  {slide.promotion.ctaLabel}
-                  <ArrowRight size={18} aria-hidden="true" />
-                </a>
-              ) : null}
-            </div>
-          )}
+            );
+          })}
           {slides.length > 1 ? (
             <>
               <button
                 className="homepage-featured-arrow is-previous"
                 type="button"
                 aria-label="Previous featured item"
-                onClick={() =>
-                  setActiveIndex(
-                    (index) => (index - 1 + slides.length) % slides.length,
-                  )
-                }
+                onClick={() => navigate({ step: -1 })}
               >
                 <ArrowLeft size={19} />
               </button>
@@ -529,48 +626,47 @@ export function HomepageFeaturedCarousel({
                 className="homepage-featured-arrow is-next"
                 type="button"
                 aria-label="Next featured item"
-                onClick={() =>
-                  setActiveIndex((index) => (index + 1) % slides.length)
-                }
+                onClick={() => navigate({ step: 1 })}
               >
                 <ArrowRight size={19} />
               </button>
+              <div
+                className="homepage-featured-controls"
+                role="group"
+                aria-label="Choose featured item"
+              >
+                <div
+                  className="homepage-featured-indicator-track"
+                  aria-hidden="true"
+                >
+                  <span
+                    className="homepage-featured-indicator"
+                    data-motion={
+                      navigation.wraps && outgoingSlide ? "incoming" : undefined
+                    }
+                    style={{ "--dot-index": currentIndex } as CSSProperties}
+                  />
+                  {navigation.wraps && outgoingSlide ? (
+                    <span
+                      className="homepage-featured-indicator"
+                      data-motion="outgoing"
+                      style={{ "--dot-index": outgoingIndex } as CSSProperties}
+                    />
+                  ) : null}
+                </div>
+                {slides.map((item, index) => (
+                  <button
+                    key={slideId(item)}
+                    type="button"
+                    aria-label={`Show featured item ${index + 1} of ${slides.length}`}
+                    aria-current={index === currentIndex ? "true" : undefined}
+                    onClick={() => navigate({ index })}
+                  />
+                ))}
+              </div>
             </>
           ) : null}
         </div>
-        {slides.length > 1 ? (
-          <div className="homepage-featured-controls">
-            <div
-              className="homepage-featured-dots"
-              role="group"
-              aria-label="Choose featured item"
-            >
-              {slides.map((item, index) => (
-                <button
-                  key={`${item.type}-${index}`}
-                  type="button"
-                  className={index === currentIndex ? "is-active" : ""}
-                  aria-label={`Show featured item ${index + 1} of ${slides.length}`}
-                  aria-current={index === currentIndex ? "true" : undefined}
-                  onClick={() => setActiveIndex(index)}
-                />
-              ))}
-            </div>
-            <button
-              className="homepage-featured-pause"
-              type="button"
-              aria-label={userPaused ? "Play carousel" : "Pause carousel"}
-              onClick={() => setUserPaused((pausedByUser) => !pausedByUser)}
-            >
-              {userPaused ? <Play size={14} /> : <Pause size={14} />}
-            </button>
-            {prefersReducedMotion ? (
-              <span className="visually-hidden">
-                Automatic rotation is paused because reduced motion is enabled.
-              </span>
-            ) : null}
-          </div>
-        ) : null}
       </section>
       {showPromotionManager && userId ? (
         <PromotionManager
@@ -654,11 +750,12 @@ export function HomepageFeaturedCarousel({
                 </select>
               </label>
               <label>
-                Priority
+                Feature rating
                 <input
                   type="number"
-                  min={-100}
-                  max={100}
+                  min={0}
+                  max={MAX_HOMEPAGE_FEATURE_RATING}
+                  required
                   value={featurePriority}
                   onChange={(event) =>
                     setFeaturePriority(Number(event.target.value))
@@ -711,7 +808,7 @@ export function HomepageFeaturedCarousel({
           </form>
         </div>
       ) : null}
-      {isAdmin && highlightedMovies.length === 0 ? (
+      {isAdmin && !hasCatalogMovies ? (
         <span className="visually-hidden">
           No eligible movies to feature yet.
         </span>

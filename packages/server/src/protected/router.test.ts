@@ -492,6 +492,14 @@ describe("protected HTTP contracts", () => {
       .set("Origin", "http://localhost")
       .send({ ...highlight, endsOn: "2026-11-18" });
     expect(invalidHighlight.status).toBe(400);
+    for (const priority of [-1, 11, 5.5]) {
+      const invalidRating = await request(app)
+        .post("/api/v1/admin/homepage-highlights")
+        .set("Cookie", "valid")
+        .set("Origin", "http://localhost")
+        .send({ ...highlight, priority });
+      expect(invalidRating.status).toBe(400);
+    }
     expect(workflows.upsertHomepageHighlight).toHaveBeenCalledTimes(1);
 
     const removed = await request(app)

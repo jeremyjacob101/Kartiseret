@@ -22,7 +22,7 @@ import {
   letterboxdSourceIdSchema,
 } from "@kartiseret/contracts/private-data";
 import {
-  homepageMovieHighlightSchema,
+  homepageMovieHighlightUpsertSchema,
   homepageMovieIdSchema,
   homepagePromotionUpsertSchema,
 } from "@kartiseret/contracts/homepage-featured";
@@ -432,7 +432,7 @@ export function createProtectedRouter(
   });
   router.post("/admin/homepage-highlights", async (request, response) => {
     parse(empty, request.query);
-    const command = parse(homepageMovieHighlightSchema, request.body);
+    const command = parse(homepageMovieHighlightUpsertSchema, request.body);
     response.json(
       await workflows.upsertHomepageHighlight(
         identity(response.locals.identity),

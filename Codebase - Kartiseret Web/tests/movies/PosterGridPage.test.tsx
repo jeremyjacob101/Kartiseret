@@ -35,6 +35,37 @@ function createMovie(): Movie {
 }
 
 describe("PosterGridPage", () => {
+  it("defaults a new homepage feature rating to five and saves the selected rating", async () => {
+    const user = userEvent.setup();
+    const save = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PosterGridPage
+        title="Now Playing"
+        movies={[createMovie()]}
+        onPosterSelect={vi.fn()}
+        isAdmin
+        onAdminSaveHomepageHighlight={save}
+        onAdminRemoveHomepageHighlight={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Feature Original Movie on homepage",
+      }),
+    );
+    const rating = screen.getByRole("spinbutton", { name: "Feature rating" });
+    expect(rating).toHaveValue(5);
+    expect(rating).toHaveAttribute("min", "0");
+    expect(rating).toHaveAttribute("max", "10");
+    await user.clear(rating);
+    await user.type(rating, "8");
+    await user.click(screen.getByRole("button", { name: "Save highlight" }));
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({ tmdbId: "101", priority: 8 }),
+    );
+  });
+
   it("keeps movie shortlinks crawlable and opens selected movies in the scroller", async () => {
     const user = userEvent.setup();
     const onPosterSelect = vi.fn();

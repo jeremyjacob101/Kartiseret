@@ -1,12 +1,17 @@
 import type { ApplicationDatabase } from "../db/client.js";
 import {
+  finalMovies,
+  finalShowtimes,
   homepageFeaturedWeeklyLineups,
   homepageMovieHighlights,
   homepagePromotions,
+  movieReleaseDates,
 } from "../db/schema.js";
 import { homepageFeaturedResponseSchema } from "@kartiseret/contracts/homepage-featured";
-import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
+import { httpUrlSchema } from "@kartiseret/contracts/runtime";
+import { and, asc, desc, eq, gte, isNotNull, lte, or } from "drizzle-orm";
 import {
+  createShowtimeInclusionPredicate,
   getCinemaDayDate,
   SHOWTIME_TIME_ZONE,
 } from "@kartiseret/contracts/showtime-day";
@@ -49,7 +54,13 @@ export class HomepageFeaturedService {
   async readPublic(instant = new Date()) {
     const today = getCinemaDayDate(instant, SHOWTIME_TIME_ZONE);
     const weekStart = homepageWeekStart(today);
-    const [lineupRows, highlightRows, promotionRows] = await Promise.all([
+    const [
+      lineupRows,
+      highlightRows,
+      promotionRows,
+      releaseRows,
+      showtimeRows,
+    ] = await Promise.all([
       this.db
         .select()
         .from(homepageFeaturedWeeklyLineups)
@@ -84,6 +95,41 @@ export class HomepageFeaturedService {
           desc(homepagePromotions.priority),
           asc(homepagePromotions.createdAt),
         ),
+      this.db
+        .select({
+          tmdbId: movieReleaseDates.tmdbId,
+          releaseDate: movieReleaseDates.localReleaseDate,
+        })
+        .from(movieReleaseDates)
+        .innerJoin(
+          finalMovies,
+          eq(movieReleaseDates.tmdbId, finalMovies.tmdbId),
+        )
+        .where(eq(finalMovies.soloUpdate, false)),
+      this.db
+        .selectDistinct({
+          tmdbId: movieReleaseDates.tmdbId,
+          date: finalShowtimes.dateOfShowing,
+          time: finalShowtimes.showtime,
+          englishHref: finalShowtimes.englishHref,
+          hebrewHref: finalShowtimes.hebrewHref,
+        })
+        .from(finalShowtimes)
+        .innerJoin(
+          movieReleaseDates,
+          eq(movieReleaseDates.tmdbId, finalShowtimes.tmdbId),
+        )
+        .where(
+          and(
+            gte(movieReleaseDates.localReleaseDate, today),
+            gte(finalShowtimes.dateOfShowing, today),
+            isNotNull(finalShowtimes.showtime),
+            or(
+              isNotNull(finalShowtimes.englishHref),
+              isNotNull(finalShowtimes.hebrewHref),
+            ),
+          ),
+        ),
     ]);
     const lineup = lineupRows[0]
       ? {
@@ -92,12 +138,37 @@ export class HomepageFeaturedService {
           comingSoonIds: lineupRows[0].comingSoonIds.map(String),
         }
       : null;
+    const isCurrentShowtime = createShowtimeInclusionPredicate(instant);
+    const ticketedUpcomingIds = new Set<string>();
+    for (const row of showtimeRows) {
+      const id = String(row.tmdbId);
+      if (
+        !ticketedUpcomingIds.has(id) &&
+        row.date &&
+        row.time &&
+        isCurrentShowtime(row.date, row.time) &&
+        (httpUrlSchema.safeParse(row.englishHref).success ||
+          httpUrlSchema.safeParse(row.hebrewHref).success)
+      ) {
+        ticketedUpcomingIds.add(id);
+      }
+    }
 
     return homepageFeaturedResponseSchema.parse({
       data: {
         lineup,
         highlights: highlightRows.map(serializeHighlight),
         promotions: promotionRows.map(serializePromotion),
+        ranking: {
+          asOf: today,
+          localReleaseDates: Object.fromEntries(
+            releaseRows.map(({ tmdbId, releaseDate }) => [
+              String(tmdbId),
+              releaseDate,
+            ]),
+          ),
+          ticketedUpcomingIds: [...ticketedUpcomingIds].sort(),
+        },
       },
       error: null,
     });

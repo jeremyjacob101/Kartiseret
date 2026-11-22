@@ -1,3 +1,4 @@
+import { homepageFeatureRating, MAX_HOMEPAGE_FEATURE_RATING } from "@kartiseret/contracts/homepage-featured";
 import { type CSSProperties, type FormEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { HomepageMovieHighlight } from "@kartiseret/contracts/homepage-featured";
 import { tmdbIdSchema } from "@kartiseret/contracts/runtime";
@@ -97,7 +98,9 @@ export function PosterGridPage({
   const [highlightEndsOn, setHighlightEndsOn] = useState("");
   const [highlightLabel, setHighlightLabel] =
     useState<HomepageMovieHighlight["label"]>(null);
-  const [highlightPriority, setHighlightPriority] = useState(0);
+  const [highlightPriority, setHighlightPriority] = useState(
+    homepageFeatureRating,
+  );
   const [highlightError, setHighlightError] = useState<string | null>(null);
   const [highlightSaving, setHighlightSaving] = useState(false);
   const posterEntries = useMemo(
@@ -184,7 +187,7 @@ export function PosterGridPage({
     setHighlightStartsOn(existing?.startsOn ?? today);
     setHighlightEndsOn(existing?.endsOn ?? end.toISOString().slice(0, 10));
     setHighlightLabel(existing?.label ?? null);
-    setHighlightPriority(existing?.priority ?? 0);
+    setHighlightPriority(homepageFeatureRating(existing?.priority));
     setHighlightError(null);
   };
 
@@ -390,11 +393,12 @@ export function PosterGridPage({
                 </select>
               </label>
               <label>
-                Priority
+                Feature rating
                 <input
                   type="number"
-                  min={-100}
-                  max={100}
+                  min={0}
+                  max={MAX_HOMEPAGE_FEATURE_RATING}
+                  required
                   value={highlightPriority}
                   onChange={(event) =>
                     setHighlightPriority(Number(event.target.value))

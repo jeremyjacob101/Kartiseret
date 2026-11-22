@@ -26,20 +26,36 @@ function hasControlCharacters(value: string): boolean {
   return false;
 }
 
+const homepageMovieHighlightFields = {
+  tmdbId: homepageTmdbIdSchema,
+  startsOn: isoDateStringSchema,
+  endsOn: isoDateStringSchema,
+  label: homepageHighlightLabelSchema.nullable(),
+  enabled: z.boolean(),
+};
+
+const homepageHighlightDateError = {
+  path: ["endsOn"],
+  message: "End date must be on or after the start date.",
+};
+
+export const DEFAULT_HOMEPAGE_FEATURE_RATING = 5;
+export const MAX_HOMEPAGE_FEATURE_RATING = 10;
+
+export function homepageFeatureRating(value = DEFAULT_HOMEPAGE_FEATURE_RATING) {
+  return Math.min(MAX_HOMEPAGE_FEATURE_RATING, Math.max(0, value));
+}
+
 export const homepageMovieHighlightSchema = z
   .object({
-    tmdbId: homepageTmdbIdSchema,
-    startsOn: isoDateStringSchema,
-    endsOn: isoDateStringSchema,
+    ...homepageMovieHighlightFields,
     priority: z.number().int().min(-100).max(100),
-    label: homepageHighlightLabelSchema.nullable(),
-    enabled: z.boolean(),
   })
   .strict()
-  .refine((value) => value.startsOn <= value.endsOn, {
-    path: ["endsOn"],
-    message: "End date must be on or after the start date.",
-  });
+  .refine(
+    (value) => value.startsOn <= value.endsOn,
+    homepageHighlightDateError,
+  );
 export type HomepageMovieHighlight = z.infer<
   typeof homepageMovieHighlightSchema
 >;
@@ -133,6 +149,13 @@ export const homepageFeaturedResponseSchema = envelope(
     lineup: homepageWeeklyLineupSchema.nullable(),
     highlights: z.array(homepageMovieHighlightSchema),
     promotions: z.array(homepagePromotionSchema),
+    ranking: z
+      .object({
+        asOf: isoDateStringSchema,
+        localReleaseDates: z.record(homepageTmdbIdSchema, isoDateStringSchema),
+        ticketedUpcomingIds: z.array(homepageTmdbIdSchema),
+      })
+      .optional(),
   }),
 );
 export type HomepageFeaturedResponse = z.infer<
@@ -146,7 +169,16 @@ export const homepageAdminDataResponseSchema = envelope(
   }),
 );
 
-export const homepageMovieHighlightUpsertSchema = homepageMovieHighlightSchema;
+export const homepageMovieHighlightUpsertSchema = z
+  .object({
+    ...homepageMovieHighlightFields,
+    priority: z.number().int().min(0).max(MAX_HOMEPAGE_FEATURE_RATING),
+  })
+  .strict()
+  .refine(
+    (value) => value.startsOn <= value.endsOn,
+    homepageHighlightDateError,
+  );
 export const homepageMovieHighlightResponseSchema = envelope(
   z.object({ highlight: homepageMovieHighlightSchema }),
 );

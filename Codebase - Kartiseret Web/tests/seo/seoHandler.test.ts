@@ -150,7 +150,16 @@ beforeEach(() => {
 describe("SEO request handler", () => {
   it("reads homepage featured content before the catalog snapshot pins the pool", async () => {
     const featured = {
-      data: { lineup: null, highlights: [], promotions: [] },
+      data: {
+        lineup: null,
+        highlights: [],
+        promotions: [],
+        ranking: {
+          asOf: "2026-11-22",
+          localReleaseDates: { "101": "2026-11-20" },
+          ticketedUpcomingIds: ["102"],
+        },
+      },
       error: null,
     };
     mocks.readHomepageFeatured.mockResolvedValue(featured);
