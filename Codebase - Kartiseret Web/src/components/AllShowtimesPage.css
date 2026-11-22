@@ -396,6 +396,36 @@ html[data-device-type="mobile"] .all-showtimes-day-picker-shell {
   padding: 14px 0;
 }
 
+@media (min-width: 700px) and (max-width: 1055px) {
+  .all-showtimes-day-picker-shell {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    row-gap: 10px;
+    column-gap: 12px;
+    padding: 14px 0;
+  }
+
+  .all-showtimes-day-picker-scroll {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    justify-self: center;
+  }
+
+  .all-showtimes-page-city,
+  .cinema-showtimes-city-label {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .all-showtimes-day-picker-filter {
+    grid-column: 2;
+    grid-row: 2;
+    margin-right: 0;
+    justify-self: end;
+  }
+}
+
 html[data-device-type="mobile"] .all-showtimes-day-picker-scroll {
   grid-column: 1 / -1;
   grid-row: 1;

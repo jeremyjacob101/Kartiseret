@@ -239,3 +239,41 @@
     border-radius: 24px;
   }
 }
+
+@media (min-width: 701px) and (max-width: 1095px) {
+  .movie-page-card .details-day-picker-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    row-gap: 10px;
+    column-gap: 12px;
+    padding: 14px 14px 0;
+  }
+
+  .movie-page-card .details-day-picker-city {
+    position: static;
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+    inset: auto;
+    transform: none;
+  }
+
+  .movie-page-card .details-day-picker-actions {
+    position: static;
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    inset: auto;
+    transform: none;
+  }
+
+  .movie-page-card .details-day-picker-shell .showtime-day-picker-shell {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    justify-self: center;
+  }
+}

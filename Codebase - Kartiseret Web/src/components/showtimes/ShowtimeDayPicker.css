@@ -23,7 +23,10 @@
 
 html[data-hardware-device-type="desktop"] .showtime-day-picker-shell {
   --scroll-arrow-size: clamp(28px, 5vw, 34px);
-  padding-inline: var(--scroll-arrow-size);
+  --showtime-day-arrow-clearance: 8px;
+  padding-inline: calc(
+    var(--scroll-arrow-size) + var(--showtime-day-arrow-clearance)
+  );
 }
 
 html[data-hardware-device-type="desktop"] .showtime-day-picker-shell > .scroll-arrow {
