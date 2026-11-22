@@ -34,6 +34,24 @@ describe("showtime shared rendered surfaces", () => {
     ).toContain("linear-gradient");
   });
 
+  it.each([
+    ["Infinity Vision", "Inf. Vision"],
+    ["2D 4DX Infinity Vision", "4DX Inf. Vision"],
+    ["3D Infinity Vision", "3D Inf. Vision"],
+    ["2D ScreenX Infinity vision", "ScreenX Inf. Vision"],
+  ])("abbreviates %s on the showtime badge", (screeningTech, label) => {
+    const theater = sampleShowtimes[0];
+    const showtime = { ...theater.showtimes[0], screeningTech };
+    render(
+      <ShowtimeTheaters
+        movie={sampleMovie}
+        theaters={[{ ...theater, showtimes: [showtime] }]}
+      />,
+    );
+
+    expect(screen.getByText(label)).toBeInTheDocument();
+  });
+
   it("renders metrics only when there is useful content", () => {
     const metrics = getMetricDisplays(sampleMovie, ["imdbRating"]);
     const onTrailerClick = vi.fn();

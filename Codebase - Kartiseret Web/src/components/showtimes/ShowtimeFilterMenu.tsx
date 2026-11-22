@@ -1,6 +1,7 @@
 import { type ShowtimeFilterOptions, type ShowtimeFilterSelections } from "./showtimeFilters";
 import { Armchair, Building2, Glasses, Languages, ListFilter, TvMinimal } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { formatScreeningTechLabel } from "./showtimeTechLabels";
 import { createPortal } from "react-dom";
 import "./ShowtimeFilterMenu.css";
 
@@ -271,7 +272,11 @@ export function ShowtimeFilterMenu({
                               onToggleOption(group, value);
                             }}
                           >
-                            <span>{value}</span>
+                            <span>
+                              {group === "screeningTech"
+                                ? formatScreeningTechLabel(value)
+                                : value}
+                            </span>
                           </button>
                         );
                       })}

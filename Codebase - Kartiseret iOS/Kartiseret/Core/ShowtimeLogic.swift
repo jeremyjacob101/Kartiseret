@@ -59,6 +59,14 @@ enum ShowtimeLogic {
         return minutes < 65 ? minutes + 1_440 : minutes
     }
 
+    static func formatScreeningTechLabel(_ value: String) -> String {
+        value.replacingOccurrences(
+            of: #"\bInfinity\s+Vision\b"#,
+            with: "Inf. Vision",
+            options: [.regularExpression, .caseInsensitive]
+        )
+    }
+
     static func technologyBadge(_ screeningTech: String) -> String? {
         let normalizedValue = normalized(screeningTech)
         let strippedValue = normalizedValue
@@ -70,7 +78,7 @@ enum ShowtimeLogic {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !strippedValue.isEmpty,
               strippedValue.caseInsensitiveCompare("REGULAR") != .orderedSame else { return nil }
-        return strippedValue
+        return formatScreeningTechLabel(strippedValue)
     }
 
     static func screeningTypeBadge(_ screeningType: String) -> String? {

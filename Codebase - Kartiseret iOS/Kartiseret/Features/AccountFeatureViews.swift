@@ -587,7 +587,7 @@ private struct ShowtimePreferencesInline: View {
                         DisclosureGroup {
                             VStack(spacing: 2) {
                                 ForEach(options, id: \.self) { option in
-                                    Toggle(option, isOn: filterSelection(group: key, option: option))
+                                    Toggle(key == "screeningTech" ? ShowtimeLogic.formatScreeningTechLabel(option) : option, isOn: filterSelection(group: key, option: option))
                                         .font(.subheadline)
                                         .disabled(account.isSaving)
                                 }

@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 const options: ShowtimeFilterOptions = {
   showType: ["Regular", "VIP"],
   screenFormat: ["2D"],
-  screeningTech: ["Standard", "IMAX"],
+  screeningTech: ["Standard", "IMAX", "Infinity Vision"],
   dubLanguage: ["Original"],
 };
 
@@ -39,6 +39,11 @@ describe("ShowtimeFilterMenu", () => {
     });
     expect(panel).toHaveStyle({ width: "320px" });
 
+    await user.click(screen.getByRole("button", { name: "Inf. Vision" }));
+    expect(onToggleOption).toHaveBeenCalledWith(
+      "screeningTech",
+      "Infinity Vision",
+    );
     await user.click(screen.getByRole("button", { name: "VIP" }));
     expect(onToggleOption).toHaveBeenCalledWith("showType", "VIP");
     await user.click(

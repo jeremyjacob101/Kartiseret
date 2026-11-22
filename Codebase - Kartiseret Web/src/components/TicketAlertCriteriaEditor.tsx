@@ -1,5 +1,6 @@
 import type { TicketAlertCriteria, TicketAlertCriteriaOverride } from "@kartiseret/contracts/private-data";
 import { SHOWTIME_FILTER_OPTIONS } from "@kartiseret/contracts/showtime-links";
+import { formatScreeningTechLabel } from "./showtimes/showtimeTechLabels";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { ALL_LOCATIONS } from "@kartiseret/contracts/preferences";
 import { ChevronDown } from "lucide-react";
@@ -282,7 +283,9 @@ export function TicketAlertCriteriaEditor({
                       )
                     }
                   />
-                  {option}
+                  {group === "screeningTech"
+                    ? formatScreeningTechLabel(option)
+                    : option}
                 </label>
               ))}
             </div>

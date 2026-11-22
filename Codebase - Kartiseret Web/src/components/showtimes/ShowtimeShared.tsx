@@ -1,27 +1,11 @@
 import { type Movie, type ShowtimeEntry, type TheaterShowtimes } from "../../data/movieCatalog";
 import { getTheaterTheme, type TheaterTheme } from "./theaterTheme";
+import { getShowtimeTechLabel } from "./showtimeTechLabels";
 import { type CSSProperties, useEffect } from "react";
 import { type MetricDisplay } from "./showtimeUtils";
 import { createPortal } from "react-dom";
 import { Star, X } from "lucide-react";
 import "./ShowtimeShared.css";
-
-function getShowtimeTechLabel(screeningTech: string): string | null {
-  const normalizedValue = screeningTech.trim().replace(/\s+/g, " ");
-
-  if (!normalizedValue) {
-    return null;
-  }
-
-  const strippedValue = normalizedValue.replace(/^2D\b[\s/-]*/i, "").trim();
-  const comparableValue = strippedValue.toUpperCase();
-
-  if (!strippedValue || comparableValue === "REGULAR") {
-    return null;
-  }
-
-  return strippedValue;
-}
 
 function getDubFlagSrc(dubLanguage: string | null | undefined): string | null {
   switch (dubLanguage?.trim()) {

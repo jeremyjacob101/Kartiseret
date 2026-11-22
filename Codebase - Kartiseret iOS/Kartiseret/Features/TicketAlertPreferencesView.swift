@@ -84,7 +84,7 @@ struct TicketAlertPreferencesView: View {
                     DisclosureGroup(isExpanded: groupExpansion(group.id.rawValue)) {
                         VStack(spacing: 2) {
                             ForEach(group.options, id: \.self) { option in
-                                Toggle(option, isOn: filterSelection(group, option: option))
+                                Toggle(group == .screeningTech ? ShowtimeLogic.formatScreeningTechLabel(option) : option, isOn: filterSelection(group, option: option))
                                     .disabled(isLoading || isSaving)
                             }
                         }
@@ -277,7 +277,7 @@ struct TicketAlertCriteriaView: View {
                         VStack(spacing: 2) {
                             Toggle("Use account filter", isOn: filterInheritanceBinding(group))
                             ForEach(group.options, id: \.self) { option in
-                                Toggle(option, isOn: filterOverrideSelection(group, option: option))
+                                Toggle(group == .screeningTech ? ShowtimeLogic.formatScreeningTechLabel(option) : option, isOn: filterOverrideSelection(group, option: option))
                                     .disabled(uncheckedOverride(in: draft.filters, group: group) == nil || isLoading)
                             }
                         }

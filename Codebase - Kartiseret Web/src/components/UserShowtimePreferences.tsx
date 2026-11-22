@@ -1,6 +1,7 @@
 import { SHOWTIME_FILTER_OPTIONS, type ShowtimeFilterGroup } from "@kartiseret/contracts/showtime-links";
 import { updateShowtimeFilterState } from "@kartiseret/contracts/showtime-filters";
 import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
+import { formatScreeningTechLabel } from "./showtimes/showtimeTechLabels";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
 import { useShallow } from "zustand/react/shallow";
 import { ChevronDown } from "lucide-react";
@@ -335,7 +336,11 @@ export function UserShowtimePreferences() {
                                 disabled={saveDisabled}
                                 onChange={() => toggleFilter(group, option)}
                               />
-                              <span>{option}</span>
+                              <span>
+                                {group === "screeningTech"
+                                  ? formatScreeningTechLabel(option)
+                                  : option}
+                              </span>
                             </label>
                           );
                         })}

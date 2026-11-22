@@ -289,7 +289,7 @@ struct ShowtimePreferencesView: View {
             ForEach(groups, id: \.0) { title, options in
                 Section(title) {
                     ForEach(options, id: \.self) { option in
-                        Toggle(option, isOn: selection(for: title, option: option))
+                        Toggle(title == "Technology" ? ShowtimeLogic.formatScreeningTechLabel(option) : option, isOn: selection(for: title, option: option))
                     }
                 }
             }

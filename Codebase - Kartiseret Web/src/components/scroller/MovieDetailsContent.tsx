@@ -9,6 +9,7 @@ import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
 import { theaterDataQueryOptions, type City } from "../../data/theaters";
 import { usePublicRenderClock } from "../../contexts/PublicRenderClock";
+import { getShowtimeTechLabel } from "../showtimes/showtimeTechLabels";
 import { addCalendarDays } from "@kartiseret/contracts/showtime-links";
 import { type AppLocation } from "../../prefs/definitions/locations";
 import { ShowtimeFilterMenu } from "../showtimes/ShowtimeFilterMenu";
@@ -501,23 +502,6 @@ function cloneShowtimeDays(
       })),
     })),
   }));
-}
-
-function getShowtimeTechLabel(screeningTech: string): string | null {
-  const normalizedValue = screeningTech.trim().replace(/\s+/g, " ");
-
-  if (!normalizedValue) {
-    return null;
-  }
-
-  const strippedValue = normalizedValue.replace(/^2D\b[\s/-]*/i, "").trim();
-  const comparableValue = strippedValue.toUpperCase();
-
-  if (!strippedValue || comparableValue === "REGULAR") {
-    return null;
-  }
-
-  return strippedValue;
 }
 
 function getDubFlagSrc(dubLanguage: string | null | undefined): string | null {
