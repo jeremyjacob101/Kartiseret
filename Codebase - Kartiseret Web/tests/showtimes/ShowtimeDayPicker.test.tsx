@@ -1,8 +1,45 @@
 import { ShowtimeDayPicker } from "../../src/components/showtimes/ShowtimeDayPicker";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+afterEach(() => {
+  delete document.documentElement.dataset.hardwareDeviceType;
+});
 
 describe("ShowtimeDayPicker", () => {
+  it("navigates to adjacent available dates and disables an unavailable direction", () => {
+    document.documentElement.dataset.hardwareDeviceType = "desktop";
+    const onSelect = vi.fn();
+    const dates = ["2026-09-16", "2026-09-19", "2026-09-21"];
+    const { rerender } = render(
+      <ShowtimeDayPicker
+        dates={dates}
+        selectedDate={dates[0]}
+        onSelect={onSelect}
+        ariaLabel="Choose showtime date"
+      />,
+    );
+    const previous = screen.getByRole("button", {
+      name: "Previous showtime date",
+    });
+    const next = screen.getByRole("button", { name: "Next showtime date" });
+    expect(previous).toBeDisabled();
+    fireEvent.click(next);
+    expect(onSelect).toHaveBeenLastCalledWith(dates[1]);
+
+    rerender(
+      <ShowtimeDayPicker
+        dates={dates}
+        selectedDate={dates[2]}
+        onSelect={onSelect}
+        ariaLabel="Choose showtime date"
+      />,
+    );
+    expect(next).toBeDisabled();
+    fireEvent.click(previous);
+    expect(onSelect).toHaveBeenLastCalledWith(dates[1]);
+  });
+
   it("renders a radiogroup with selected, edge, and trailing states", () => {
     render(
       <ShowtimeDayPicker

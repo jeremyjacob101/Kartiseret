@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, type CSSProperties, type KeyboardEvent, type MouseEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { useDeviceStore } from "../../device/useDeviceType";
+import { getHardwareDeviceType, useDeviceStore } from "../../device/useDeviceType";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { backdropPreloader } from "./backdropPreloader";
 import { type Movie } from "../../data/movieCatalog";
+import { ScrollArrow } from "../ScrollArrow";
 
 export type PosterSourceRect = {
   top: number;
@@ -23,6 +24,7 @@ export type MovieScrollerBaseProps = {
   cardHeight?: number;
   gap?: number;
   maxWidth?: number | string;
+  showScrollArrows?: boolean;
   className?: string;
   focusOffsetItemSpans?: number;
   anchorItemIndex?: number | null;
@@ -163,6 +165,7 @@ export function MovieScrollerBase({
   cardHeight = 360,
   gap = 16,
   maxWidth = "100%",
+  showScrollArrows = false,
   className,
   focusOffsetItemSpans = 1,
   anchorItemIndex = null,
@@ -174,6 +177,9 @@ export function MovieScrollerBase({
   getCardStyle,
 }: MovieScrollerBaseProps) {
   const isMobile = useDeviceStore((state) => state.isMobile);
+  const showDesktopArrows =
+    showScrollArrows && getHardwareDeviceType() === "desktop";
+  const useEdgeMask = showDesktopArrows && selectedItemIndex === null;
   const allMovies = movieItems ?? EMPTY_MOVIES;
   const movieCount = allMovies.length;
   const scrollerRef = useRef<HTMLElement | null>(null);
@@ -708,7 +714,9 @@ export function MovieScrollerBase({
           const introTranslateX =
             isIntroPre && shouldAnimateIntroCard ? -introTravelDistance : 0;
           const renderedOpacity =
-            selectedItemIndex === null && isMobile ? 1 : opacity;
+            useEdgeMask || (selectedItemIndex === null && isMobile)
+              ? 1
+              : opacity;
           const introOpacity =
             isIntroPre && shouldAnimateIntroCard ? 0 : renderedOpacity;
           const directionalWaveRadius =
@@ -895,12 +903,13 @@ export function MovieScrollerBase({
           );
         });
 
-  return (
+  const scroller = (
     <section
       ref={scrollerRef}
       data-scroller-intro-phase={introPhase}
       onScroll={scheduleWindowUpdate}
       className={className}
+      data-edge-mask={useEdgeMask || undefined}
       style={{
         position: "relative",
         width: "100%",
@@ -924,5 +933,44 @@ export function MovieScrollerBase({
         {cards}
       </div>
     </section>
+  );
+
+  if (!showDesktopArrows) {
+    return scroller;
+  }
+
+  const scrollByPoster = (direction: -1 | 1) => {
+    scrollerRef.current?.scrollBy({
+      left: direction * itemSpan,
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
+    });
+  };
+  const arrowDisabled = !introInteractive || movieCount < 2;
+
+  return (
+    <div className="movie-scroller-arrow-row" style={{ maxWidth }}>
+      <ScrollArrow
+        direction={-1}
+        label="Scroll posters left"
+        disabled={
+          arrowDisabled ||
+          (viewport.clientWidth > 0 && viewport.scrollLeft <= 1)
+        }
+        onClick={() => scrollByPoster(-1)}
+      />
+      {scroller}
+      <ScrollArrow
+        direction={1}
+        label="Scroll posters right"
+        disabled={
+          arrowDisabled ||
+          (viewport.clientWidth > 0 &&
+            viewport.scrollLeft + viewport.clientWidth >= trackWidth - 1)
+        }
+        onClick={() => scrollByPoster(1)}
+      />
+    </div>
   );
 }

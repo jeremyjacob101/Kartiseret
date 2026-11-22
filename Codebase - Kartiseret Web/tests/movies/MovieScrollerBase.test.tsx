@@ -27,6 +27,39 @@ function configureReducedMotion(matches: boolean) {
 }
 
 describe("MovieScrollerBase virtualization and interaction", () => {
+  it("scrolls one poster span in either direction without selecting a movie", () => {
+    configureReducedMotion(true);
+    const onSelectMovie = vi.fn();
+    const { container } = render(
+      <MovieScrollerBase
+        movieItems={[sampleMovie, { ...sampleMovie, tmdbId: "2" }]}
+        showScrollArrows
+        cardWidth={200}
+        gap={12}
+        skipIntro
+        onSelectMovie={onSelectMovie}
+      />,
+    );
+    const viewport = container.querySelector("section")!;
+    const scrollBy = vi.fn();
+    viewport.scrollBy = scrollBy;
+    expect(viewport).toHaveAttribute("data-edge-mask", "true");
+    expect(
+      viewport.querySelector("[data-movie-scroller-item-index]"),
+    ).toHaveAttribute("data-movie-scroller-positional-opacity", "1.000000");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Scroll posters right" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Scroll posters left" }),
+    );
+    expect(scrollBy.mock.calls).toEqual([
+      [{ left: 212, behavior: "instant" }],
+      [{ left: -212, behavior: "instant" }],
+    ]);
+    expect(onSelectMovie).not.toHaveBeenCalled();
+  });
+
   it("withholds offscreen sources and promotes them immediately after scrolling", async () => {
     configureReducedMotion(true);
     vi.useFakeTimers();

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import { usePublicRenderClock } from "../../contexts/PublicRenderClock";
 import { getShowtimeDateLabel } from "./showtimeUtils";
+import { ScrollArrow } from "../ScrollArrow";
 import "./ShowtimeDayPicker.css";
 
 type ShowtimeDayPickerProps = {
@@ -643,7 +644,7 @@ export function ShowtimeDayPicker({
     [],
   );
 
-  if (entries.length === 0 || !selectedEntryDate) {
+  if (!selectedEntry || !selectedEntryDate) {
     return null;
   }
 
@@ -660,6 +661,9 @@ export function ShowtimeDayPicker({
 
     return startIndex;
   };
+  const selectedIndex = entries.indexOf(selectedEntry);
+  const previousIndex = findEnabledIndex(selectedIndex, -1);
+  const nextIndex = findEnabledIndex(selectedIndex, 1);
 
   const pickerStyle = {
     "--showtime-day-edge-padding": `${edgePadding}px`,
@@ -857,6 +861,12 @@ export function ShowtimeDayPicker({
         .filter(Boolean)
         .join(" ")}
     >
+      <ScrollArrow
+        direction={-1}
+        label="Previous showtime date"
+        disabled={previousIndex === selectedIndex}
+        onClick={() => requestDate(entries[previousIndex].date)}
+      />
       <div className="showtime-day-picker-frame" aria-hidden="true">
         <span className="showtime-day-picker-center-notch showtime-day-picker-center-notch--top" />
       </div>
@@ -990,6 +1000,12 @@ export function ShowtimeDayPicker({
           />
         </div>
       </div>
+      <ScrollArrow
+        direction={1}
+        label="Next showtime date"
+        disabled={nextIndex === selectedIndex}
+        onClick={() => requestDate(entries[nextIndex].date)}
+      />
     </div>
   );
 }

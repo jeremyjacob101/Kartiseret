@@ -41,6 +41,52 @@
   display: none;
 }
 
+.movie-scroller-arrow-row {
+  position: relative;
+  width: 100%;
+  margin-inline: auto;
+}
+
+.movie-scroller-arrow-row > .movie-scroller-collapsed {
+  z-index: 0;
+}
+
+.movie-scroller-arrow-row .scroll-arrow--left {
+  left: 8px;
+}
+
+.movie-scroller-arrow-row .scroll-arrow--right {
+  right: 8px;
+}
+
+.movie-scroller-arrow-row .scroll-arrow {
+  color: #f2ebfc;
+}
+
+.movie-scroller-collapsed[data-edge-mask] {
+  --movie-scroller-edge-fade: clamp(48px, 10%, 120px);
+  --movie-scroller-edge-inner: calc(var(--movie-scroller-edge-fade) * 0.2);
+  --movie-scroller-edge-middle: calc(var(--movie-scroller-edge-fade) * 0.5);
+  --movie-scroller-edge-outer: calc(var(--movie-scroller-edge-fade) * 0.8);
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    rgb(0 0 0 / 30%) var(--movie-scroller-edge-inner),
+    rgb(0 0 0 / 68%) var(--movie-scroller-edge-middle),
+    rgb(0 0 0 / 94%) var(--movie-scroller-edge-outer),
+    #000 var(--movie-scroller-edge-fade),
+    #000 calc(100% - var(--movie-scroller-edge-fade)),
+    rgb(0 0 0 / 94%) calc(100% - var(--movie-scroller-edge-outer)),
+    rgb(0 0 0 / 68%) calc(100% - var(--movie-scroller-edge-middle)),
+    rgb(0 0 0 / 30%) calc(100% - var(--movie-scroller-edge-inner)),
+    transparent
+  );
+}
+
+.movie-scroller-collapsed-layer[aria-hidden="true"] .scroll-arrow {
+  display: none;
+}
+
 .movie-scroller-collapsed .movie-scroller-card {
   backface-visibility: hidden;
   border-radius: 14px;

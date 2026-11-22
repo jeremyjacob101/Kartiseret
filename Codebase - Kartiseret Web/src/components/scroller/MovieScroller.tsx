@@ -579,6 +579,7 @@ function MovieScrollerContent({
   cardHeight = 360,
   gap = 16,
   maxWidth = "100%",
+  showScrollArrows,
   className,
 }: MovieScrollerContentProps) {
   const isMobile = useDeviceStore((state) => state.isMobile);
@@ -2344,6 +2345,7 @@ function MovieScrollerContent({
           cardHeight={cardHeight}
           gap={gap}
           maxWidth={maxWidth}
+          showScrollArrows={showScrollArrows}
           anchorItemIndex={collapsedAnchorItemIndex}
           scrollRequest={collapsedScrollRequest}
           onScrollRequestApplied={handleCollapsedScrollRequestApplied}

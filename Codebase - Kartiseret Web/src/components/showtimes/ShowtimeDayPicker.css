@@ -16,6 +16,20 @@
   pointer-events: none;
 }
 
+.showtime-day-picker-shell > .scroll-arrow {
+  display: none;
+  top: 48%;
+}
+
+html[data-hardware-device-type="desktop"] .showtime-day-picker-shell {
+  --scroll-arrow-size: clamp(28px, 5vw, 34px);
+  padding-inline: var(--scroll-arrow-size);
+}
+
+html[data-hardware-device-type="desktop"] .showtime-day-picker-shell > .scroll-arrow {
+  display: grid;
+}
+
 .showtime-day-picker-center-notch {
   position: absolute;
   left: 50%;
