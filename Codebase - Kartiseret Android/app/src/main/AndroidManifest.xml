@@ -1,13 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
-    <application android:theme="@style/AppTheme" android:label="Kartiseret" android:usesCleartextTraffic="false">
+    <application android:theme="@style/AppTheme" android:label="Kartiseret" android:icon="@drawable/ic_kartiseret" android:roundIcon="@drawable/ic_kartiseret" android:usesCleartextTraffic="false">
         <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.DEFAULT" /><category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="seret.site" />
+                <data android:scheme="https" android:host="${appLinkHost}" />
             </intent-filter>
         </activity>
     </application>
