@@ -6,8 +6,8 @@ import type { PublicRouteComponents } from "./routing/PublicRouteComponentsConte
 import { PublicRenderClockProvider } from "./contexts/PublicRenderClock";
 import { StrictMode, useEffect, useLayoutEffect } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Analytics } from "@vercel/analytics/react";
 import { BrowserRouter, useLocation } from "react-router";
+import { Analytics } from "@vercel/analytics/react";
 import { queryClient } from "./lib/queryClient";
 import { App } from "./App";
 

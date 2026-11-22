@@ -796,7 +796,9 @@ try {
 
   await page.goto(`${baseUrl}/movies`, { waitUntil: "commit" });
   await desktopEntryScriptRequested;
-  const analyticsScript = page.locator('script[src="/_vercel/insights/script.js"]');
+  const analyticsScript = page.locator(
+    'script[src="/_vercel/insights/script.js"]',
+  );
   await expect(analyticsScript).toHaveCount(0);
   const root = page.locator("#root[data-ssr='true']");
   assert.equal(await root.count(), 1);
