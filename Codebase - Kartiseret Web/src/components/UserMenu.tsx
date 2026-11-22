@@ -112,6 +112,7 @@ export function UserMenu({
     verified || verificationError || accountDeleted,
   );
   const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authPending, setAuthPending] = useState(false);
@@ -261,17 +262,21 @@ export function UserMenu({
     }
     const { email: trimmedEmail, password: validatedPassword } =
       credentials.data;
-    setAuthPending(true);
 
     if (authMode === "signup") {
-      const signupLocation = loadGuestLocation() ?? DEFAULT_LOCATION;
+      const trimmedName = name.trim();
+      if (!trimmedName) {
+        setAuthError("Enter your name.");
+        return;
+      }
       if (validatedPassword.length < PASSWORD_MIN_LENGTH) {
-        setAuthPending(false);
         setAuthError("Password must be between 8 and 128 characters.");
         return;
       }
+      const signupLocation = loadGuestLocation() ?? DEFAULT_LOCATION;
+      setAuthPending(true);
       const { error } = await authClient.signUp.email({
-        name: "Kartiseret member",
+        name: trimmedName,
         email: trimmedEmail,
         password: validatedPassword,
         signupLocation,
@@ -282,11 +287,13 @@ export function UserMenu({
         setAuthError(getAuthErrorMessage(error.code, error.message));
         return;
       }
+      setName("");
       setPassword("");
       setAuthMessage("Check your email to confirm your account, then log in.");
       return;
     }
 
+    setAuthPending(true);
     const { error } = await authClient.signIn.email({
       email: trimmedEmail,
       password: validatedPassword,
@@ -500,6 +507,19 @@ export function UserMenu({
                       </button>
                     </div>
                   )}
+
+                  {authMode === "signup" ? (
+                    <label className="user-menu-field">
+                      <span>Name</span>
+                      <input
+                        type="text"
+                        autoComplete="name"
+                        value={name}
+                        onChange={(event) => setName(event.target.value)}
+                        required
+                      />
+                    </label>
+                  ) : null}
 
                   <label className="user-menu-field">
                     <span>Email address</span>

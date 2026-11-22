@@ -122,18 +122,29 @@ describe("UserMenu", () => {
     expect(await screen.findByText("Invalid credentials")).toBeInTheDocument();
   });
 
-  it("sends the guest location as signup metadata and supports the mode toggle", async () => {
+  it("requires a name on signup and sends it with the guest location", async () => {
     const user = userEvent.setup();
     saveGuestLocation("Haifa");
     renderMenu();
     await user.click(screen.getByRole("button", { name: "Sign up or log in" }));
+    expect(
+      screen.queryByLabelText("Name", { exact: true }),
+    ).not.toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "Create account" }));
+    const nameField = screen.getByLabelText("Name", { exact: true });
     expect(screen.getByLabelText("Password")).toHaveAttribute(
       "autocomplete",
       "new-password",
     );
     await user.type(screen.getByLabelText("Email address"), "new@example.com");
     await user.type(screen.getByLabelText("Password"), "secret123");
+    await user.type(nameField, "   ");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+    expect(screen.getByText("Enter your name.")).toBeInTheDocument();
+    expect(authMock.signUp.email).not.toHaveBeenCalled();
+
+    await user.clear(nameField);
+    await user.type(nameField, "  Maya Cohen  ");
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
     await waitFor(() =>
@@ -141,7 +152,7 @@ describe("UserMenu", () => {
         email: "new@example.com",
         password: "secret123",
         signupLocation: "Haifa",
-        name: "Kartiseret member",
+        name: "Maya Cohen",
         callbackURL: new URL("/?verified=1", window.location.origin).href,
       }));
     expect(

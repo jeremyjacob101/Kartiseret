@@ -196,6 +196,7 @@ test("real signup verification, current-password change and signed-out one-time 
   request,
 }) => {
   const email = `pr5-browser-${Date.now()}@example.test`;
+  const accountName = "Maya Browser";
   const origin = "http://127.0.0.1:" + (process.env.PR3_E2E_WEB_PORT ?? 4173);
   const api = "http://127.0.0.1:" + (process.env.PR3_E2E_API_PORT ?? 3210);
   const db = new Client({ connectionString: process.env.TEST_DATABASE_URL });
@@ -219,6 +220,7 @@ test("real signup verification, current-password change and signed-out one-time 
     await page
       .getByRole("tab", { name: "Create account", exact: true })
       .click();
+    await page.getByLabel("Name", { exact: true }).fill(accountName);
     await page.getByLabel("Email address", { exact: true }).fill(email);
     await page
       .getByLabel("Password", { exact: true })
@@ -229,6 +231,11 @@ test("real signup verification, current-password change and signed-out one-time 
     await expect(
       page.getByText("Check your email to confirm your account, then log in."),
     ).toBeVisible();
+    const { rows } = await db.query<{ name: string }>(
+      "SELECT name FROM app_auth.users WHERE email = $1",
+      [email],
+    );
+    expect(rows).toEqual([{ name: accountName }]);
     await page.goto(await captured("verification"));
     await expect(
       page.getByText("Email confirmed. You can now log in."),
