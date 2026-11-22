@@ -25,6 +25,114 @@ def raw_row(row_id, title):
 
 class PublicationTests(TestCase):
 
+    def test_now_playing_publication_recovers_hebrew_title_fallbacks(self):
+        jaffa = "תמונות יפואיות 2"
+        matchmaking = "בחורים טובים 3"
+        inputs = (
+            ("planet-jaffa", "Planet Cinema", "Jaffa 2", jaffa, 1709961),
+            ("city-jaffa", "Cinema City", jaffa, jaffa, 1709961),
+            ("hot-jaffa", "Hot Cinema", "2", jaffa, 1709961),
+            ("rav-hen-jaffa", "Rav Hen", jaffa, jaffa, 1709961),
+            ("planet-matchmaking", "Planet Cinema", "Matchmaking 3", matchmaking, 1620123),
+            ("hot-sensitive", "Hot Cinema", "3", f"{matchmaking} - הקרנה רגישה", 1620123),
+            ("movieland-matchmaking", "MovieLand", "", matchmaking, 1620123),
+        )
+        movies = {"jaffa 2": (1709961, "Jaffa's Stories 2"), "matchmaking 3": (1620123, "Matchmaking 3")}
+
+        def tmdb(path, params):
+            if path == "search/movie":
+                movie = movies.get(params["query"])
+                return {"results": [{"id": movie[0]}] if movie else [], "total_pages": 1}
+            for tmdb_id, title in movies.values():
+                if path == f"movie/{tmdb_id}":
+                    return {"id": tmdb_id, "title": title, "release_date": f"{date.today().year}-01-01"}
+            return None
+
+        rows = [
+            {
+                **raw_row(row_id, title), "cinema": cinema, "hebrew_title": hebrew,
+                "english_href": f"https://example.com/{row_id}",
+                "screening_type": "Sensory" if row_id == "hot-sensitive" else "Regular",
+                "cleaned": title in ("2", "3"),
+            }
+            for row_id, cinema, title, hebrew, _ in inputs
+        ]
+        flow = self.build_flow(FLOWS[1], [], tmdb)
+        flow.supabase.tables["tableSkips"] = [{"name_or_tmdb_id": num} for num in ("2", "3")]
+        self.install_now_playing_sources(flow, rows)
+        clean = import_module("backend.dataflow.nowplayings.NowPlayingsClean").NowPlayingsClean
+        cleaner = clean.__new__(clean)
+        InitializeBaseDataflow.__init__(cleaner)
+        self.addCleanup(cleaner.closeDataflowRequests)
+        cleaner.run_id = 12
+        cleaner.supabase = flow.supabase
+        cleaner.refreshAllTables()
+        cleaner.logic()
+        flow.refreshAllTables()
+
+        flow.logic()
+
+        published = {
+            row["id"]: (row["tmdb_id"], row["hebrew_title"], row["english_href"], row["screening_type"])
+            for row in flow.supabase.tables["finalShowtimes"]
+        }
+        self.maxDiff = None
+        self.assertEqual(published, {
+            row_id: (tmdb_id, hebrew, f"https://example.com/{row_id}",
+                     "Sensory" if row_id == "hot-sensitive" else "Regular")
+            for row_id, _, _, hebrew, tmdb_id in inputs
+        })
+
+    def test_hebrew_fallback_requires_one_same_run_candidate_and_respects_title_fixes(self):
+        inputs = (
+            ("conflict-alpha", "Planet Cinema", "Alpha", "סרט 2"),
+            ("conflict-beta", "Cinema City", "Beta", "סרט 2"),
+            ("conflict-fallback", "Hot Cinema", "2", "סרט 2"),
+            ("old-donor", "MovieLand", "Alpha", "סרט 3"),
+            ("older-run-fallback", "Rav Hen", "3", "סרט 3"),
+            ("failed-donor", "Lev Cinema", "Alpha", "סרט 4"),
+            ("failed-source-fallback", "Hot Cinema", "4", "סרט 4"),
+            ("other-sequel", "Planet Cinema", "Alpha", "סרט 5"),
+            ("unmatched-sequel", "Hot Cinema", "6", "סרט 6"),
+            ("override-donor", "Planet Cinema", "Alpha", "סרט 7"),
+            ("explicit-override", "Hot Cinema", "7", "סרט 7"),
+        )
+        rows = [
+            {**raw_row(row_id, title), "cinema": cinema, "hebrew_title": hebrew,
+             "english_href": f"https://example.com/{row_id}", "showtime": f"20:{minute:02d}", "cleaned": True}
+            for minute, (row_id, cinema, title, hebrew) in enumerate(inputs)
+        ]
+        flow = self.build_flow(FLOWS[1], [])
+        flow.supabase.tables["tableFixes"] = [{"title_fix": "7", "tmdb_id": "102"}]
+        self.install_now_playing_sources(flow, rows, failed=("Lev Cinema",), stale=("MovieLand",))
+
+        flow.logic()
+
+        published = {row["id"]: row["tmdb_id"] for row in flow.supabase.tables["finalShowtimes"]}
+        self.assertEqual(published, {
+            "conflict-alpha": 101, "conflict-beta": 102, "old-donor": 101,
+            "other-sequel": 101, "override-donor": 101, "explicit-override": 102,
+        })
+        self.assertEqual(flow.unresolved_snapshot_ids, {
+            "conflict-fallback", "older-run-fallback", "failed-source-fallback", "unmatched-sequel",
+        })
+        self.assertEqual(
+            {row["id"]: row["english_title"] for row in flow.supabase.tables["allShowtimes"]},
+            {row_id: title for row_id, _, title, _ in inputs},
+        )
+
+    def install_now_playing_sources(self, flow, rows, *, failed=(), stale=()):
+        combined = []
+        for cinema in sorted({row["cinema"] for row in rows}):
+            self.install_snapshot(
+                flow, [row for row in rows if row["cinema"] == cinema],
+                cinema=cinema, run_id=10 if cinema in stale else 11,
+                status="failed" if cinema in failed else "complete",
+            )
+            combined.extend(flow.supabase.tables["allShowtimes"])
+        flow.supabase.tables["allShowtimes"] = combined
+        flow.refreshAllTables()
+
     def test_planet_cinema_cutover_publishes_new_label_and_preserves_raw_history(self):
         for source_label in ("Yes Planet", "Planet Cinema"):
             with self.subTest(source_label=source_label):

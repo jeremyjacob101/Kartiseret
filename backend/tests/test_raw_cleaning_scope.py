@@ -293,7 +293,7 @@ class RawCleaningScopeTests(TestCase):
         self.assertEqual(guarded_manifests, [])
         self.assertCountEqual(workspace.baseline["pipeline_scrape_snapshots"], db.tables["pipeline_scrape_snapshots"])
 
-    def test_manual_fix_and_historical_cross_cinema_title_evidence_are_preserved(self):
+    def test_cleaning_preserves_hebrew_fallbacks_and_manual_fixes(self):
         old, new, rav = [str(uuid.uuid4()) for _ in range(3)]
         failed = raw(old, cinema="Planet Cinema", english_title="Alpha", hebrew_title="סרט")
         current = raw(rav, cinema="Rav Hen", english_title="סרט")
@@ -307,7 +307,8 @@ class RawCleaningScopeTests(TestCase):
         flow.logic()
         stored = {r["id"]: r for r in db.tables["allShowtimes"]}
         self.assertEqual(stored[failed["id"]], failed)
-        self.assertEqual(stored[current["id"]]["english_title"], "alpha")
+        self.assertEqual(stored[current["id"]]["english_title"], "סרט")
+        self.assertTrue(stored[current["id"]]["cleaned"])
         self.assertEqual(stored[fixed["id"]]["english_title"], "Manual--Title")
         self.assertTrue(stored[fixed["id"]]["cleaned"])
         self.assertNotIn("_checkpoint_source", stored[fixed["id"]])
