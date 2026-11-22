@@ -39,6 +39,15 @@ class NowPlayingsTmdb(BaseDataflow):
             self.MAIN_TABLE_NAME,
             self.main_table_rows,
         )
+        today = date.today().isoformat()
+        unresolved_titles = [
+            row for row in self.recoverHebrewShowtimeTitles(rows_by_cinema, manifests_by_cinema)
+            if not (showing_date := self.clean_date(row.get("date_of_showing"))) or showing_date >= today
+        ]
+        if unresolved_titles:
+            self.protectUnresolvedSnapshot(unresolved_titles, category="nowplayings")
+            self.trace_unresolved(f"unresolved_hebrew_title_fallback | rows={len(unresolved_titles)}")
+        unresolved_title_ids = {self.clean_str(row.get("id")) for row in unresolved_titles}
         self.latest_rows_by_cinema = defaultdict(list, rows_by_cinema)
         for cinema, rows in rows_by_cinema.items():
             invalid_rows = [row for row in rows if not all(self.clean_str(row.get(field)).strip().lower() not in {"", "null", "none"} for field in ("english_title", "screening_city", "date_of_showing", "showtime"))]
@@ -46,8 +55,9 @@ class NowPlayingsTmdb(BaseDataflow):
                 self.trace_note(f"snapshot_guard | cinema={cinema} | invalid_rows={len(invalid_rows)}")
                 self.protectUnresolvedSnapshot(invalid_rows, category="nowplayings")
             invalid_ids = {self.clean_str(row.get("id")) for row in invalid_rows}
+            excluded_ids = invalid_ids | unresolved_title_ids
             self.latest_snapshot_rows.extend(
-                row for row in rows if self.clean_str(row.get("id")) not in invalid_ids
+                row for row in rows if self.clean_str(row.get("id")) not in excluded_ids
             )
 
         # CURRENT FINALSHOWTIMES IDS PER CINEMA

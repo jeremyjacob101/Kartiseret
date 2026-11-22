@@ -1,22 +1,61 @@
 from datetime import datetime
-
-from backend.cinema_names import canonical_cinema_name
+import re
 
 
 class NowPlayingsHelpers:
-    def applyPlanetCinemaHebrewToRavHenEnglish(self):
-        yes_map = {}
-        for row in self.main_table_rows:
-            if canonical_cinema_name(row.get("cinema")) == "Planet Cinema":
-                hebrew = (row.get("hebrew_title") or "").strip()
-                english = (row.get("english_title") or "").strip()
-                if hebrew and english and hebrew not in yes_map:
-                    yes_map[hebrew] = english
-        for row in self.main_table_rows:
-            if row.get("cinema") == "Rav Hen":
-                key = (row.get("english_title") or "").strip()
-                if key in yes_map:
-                    row["english_title"] = yes_map[key]
+    def hebrewShowtimeTitleKey(self, title):
+        # The sensory-friendly listing identifies the same film. Keep the
+        # suffix on the screening itself and use the base title for lookup.
+        title = self.normalizeFixTitle(title).removesuffix(" הקרנה רגישה")
+        return title if re.search(r"[א-ת]", title) else ""
+
+    def isHebrewShowtimeTitleFallback(self, english, hebrew_key):
+        if not hebrew_key:
+            return False
+        english = self.clean_str(english).strip()
+        normalized = self.normalizeTitle(english)
+        if re.search(r"[a-z]", normalized):
+            return False
+        # Match the digits left by older cleanup runs, while leaving unrelated
+        # numeric English titles to the existing matcher.
+        return (
+            not english or bool(re.search(r"[א-ת]", english))
+            or (normalized.isdecimal() and normalized == self.normalizeTitle(hebrew_key))
+        )
+
+    def recoverHebrewShowtimeTitles(self, rows_by_cinema, manifests_by_cinema):
+        candidates = {}
+        fallbacks = []
+        for cinema, rows in rows_by_cinema.items():
+            manifest_run_id = self.clean_int(manifests_by_cinema.get(cinema, {}).get("run_id"))
+            for row in rows:
+                hebrew_key = self.hebrewShowtimeTitleKey(row.get("hebrew_title") or row.get("english_title"))
+                if not hebrew_key:
+                    continue
+                # The cleaner can stamp rows with its own run ID. The manifest
+                # identifies the actual scrape run for snapshot rows.
+                run_id = manifest_run_id if row.get("snapshot_id") else self.clean_int(row.get("run_id"))
+                key = (run_id, hebrew_key)
+                english = self.clean_str(row.get("english_title")).strip()
+                fix = self.tmdbFixMatch(english, self.tmdb_fix_by_title)
+                if self.isHebrewShowtimeTitleFallback(english, hebrew_key):
+                    if not fix:
+                        fallbacks.append((key, row))
+                elif run_id is not None and re.search(r"[a-z]", self.normalizeTitle(english)):
+                    # Equivalent title variants count as one choice unless their
+                    # explicit fixes point to different movies.
+                    choice = (self.normalizeFixTitle(english), fix["tmdb_id"] if fix else None)
+                    choices = candidates.setdefault(key, {})
+                    choices[choice] = min(english, choices.get(choice, english))
+
+        unresolved = []
+        for key, row in fallbacks:
+            choices = candidates.get(key, {})
+            if len(choices) == 1:
+                row["english_title"] = next(iter(choices.values()))
+            else:
+                unresolved.append(row)
+        return unresolved
 
     def createdAtToDatetime(self, ca):
         if isinstance(ca, datetime):

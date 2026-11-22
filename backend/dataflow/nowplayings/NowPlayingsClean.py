@@ -9,13 +9,16 @@ class NowPlayingsClean(BaseDataflow):
         _, tmdb_fix_by_title, _ = self.buildTmdbFixMaps(self.helper_table_rows)
         fixed_row_ids = {row.get("id") for row in self.main_table_rows if self.tmdbFixMatch(row.get("english_title"), tmdb_fix_by_title)}
 
-        self.applyPlanetCinemaHebrewToRavHenEnglish()
-
         for row in self.rawRowsForCleaning(self.MAIN_TABLE_NAME, self.main_table_rows):
             if row.get("cleaned") is True:
                 continue
             if row.get("id") in fixed_row_ids:
                 self.updates.append({**row, "cleaned": True})
+                continue
+            hebrew = self.clean_str(row.get("hebrew_title"))
+            hebrew_key = self.hebrewShowtimeTitleKey(hebrew or row.get("english_title"))
+            if self.isHebrewShowtimeTitleFallback(row.get("english_title"), hebrew_key) and not self.removeRussianHebrewTitle(hebrew):
+                self.updates.append({"id": row["id"], "cleaned": True})
                 continue
             row["english_title"] = self.normalizeTitle(row.get("english_title") or "")
             row["hebrew_title"] = (row.get("hebrew_title") or "").lower()
