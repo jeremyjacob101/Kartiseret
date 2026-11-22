@@ -71,6 +71,17 @@ describe("toNowPlayingMovie", () => {
     });
   });
 
+  it("strips edge quote runs from titles and genres while preserving interior quotes", () => {
+    const movie = toNowPlayingMovie({
+      ...record,
+      englishTitle: '  "" A   "Featured" Film "" ',
+      genres: ['"" Drama ""', '"""', '"Sci"Fi"', ' "Comedy" '],
+    });
+
+    expect(movie.title).toBe('A "Featured" Film');
+    expect(movie.genres).toEqual(["Drama", 'Sci"Fi', '"Comedy"']);
+  });
+
   it("adds responsive variants only for app artwork URLs", () => {
     const movie = toNowPlayingMovie({
       ...record,
