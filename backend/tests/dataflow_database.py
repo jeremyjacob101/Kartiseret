@@ -36,7 +36,9 @@ class Query:
         self.operation, self.payload = "insert", copy.deepcopy(payload)
         return self
 
-    def upsert(self, payload):
+    def upsert(self, payload, *, on_conflict=None, ignore_duplicates=False):
+        self.conflict_columns = on_conflict.split(",") if on_conflict else None
+        self.ignore_duplicates = ignore_duplicates
         self.operation, self.payload = "upsert", copy.deepcopy(payload)
         return self
 
@@ -51,6 +53,10 @@ class Query:
     def eq(self, column, value):
         self.predicates.append(lambda row: row.get(column) == value)
         return self
+
+    def is_(self, column, value):
+        assert value == "null"
+        return self.eq(column, None)
 
     def gt(self, column, value):
         self.predicates.append(lambda row: row.get(column) is not None and row.get(column) > value)
@@ -91,10 +97,11 @@ class Query:
         elif self.operation == "upsert":
             primary_key = "tmdb_id" if self.table in ("finalMovies", "finalThequeMovies", "finalSoons") else "id"
             for row in self.payload if isinstance(self.payload, list) else [self.payload]:
-                existing = next((item for item in rows if item.get(primary_key) == row.get(primary_key)), None)
+                columns = self.conflict_columns or [primary_key]
+                existing = next((item for item in rows if all(item.get(column) == row.get(column) for column in columns)), None)
                 if existing is None:
                     rows.append(copy.deepcopy(row))
-                else:
+                elif not self.ignore_duplicates:
                     existing.update(row)
         return SimpleNamespace(data=copy.deepcopy(selected))
 

@@ -13,6 +13,7 @@ export const socialPreviewCardDataSchema = z.object({
   posterUrl: z.string().max(4_096),
   backdropUrl: z.string().max(4_096),
   isComingSoon: z.boolean(),
+  archived: z.literal(true).optional(),
   year: z.number().int().positive().nullable(),
   releaseDate: isoDateStringSchema.nullable(),
   runtime: z.number().positive().nullable(),

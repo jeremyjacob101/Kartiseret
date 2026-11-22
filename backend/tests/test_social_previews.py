@@ -219,7 +219,44 @@ class SocialPreviewTests(unittest.TestCase):
         self.assertEqual(result2["unchanged"], 1)
         self.assertEqual(result2["updated"], 0)
         self.assertEqual(result2["pending"], 0)
-        client2.table.return_value.update.assert_not_called()
+        self.assertEqual(worker2.requests[0]["op"], "fingerprint")
+
+    def test_archived_card_survives_catalog_removal_and_reuses_across_categories(self):
+        from dataflow_database import DB
+
+        live = {**ROW, "release_year": 1900, "social_preview_fingerprint": FINGERPRINT}
+        client = DB({"finalMovies": [live]})
+        r2 = FakeR2()
+        r2.objects[f"social/v1/{FINGERPRINT}/card.jpg"] = {
+            "Body": JPEG,
+            "ContentType": "image/jpeg",
+        }
+        worker = FakeWorker(current_fingerprint="b" * 64)
+        self.assertEqual(self.refresh(client, r2, worker, row=live)["unchanged"], 1)
+        client.tables["finalMovies"].clear()
+        client.tables["finalSoons"] = [{**ROW, "release_year": 1900, "id": 9}]
+        storage = SimpleNamespace(client=r2, bucket="dev")
+        with patch.object(
+            social_previews, "each_row",
+            side_effect=lambda _client, table, _columns: iter(client.tables.get(table, [])),
+        ):
+            result = social_previews.refresh_social_previews(client, storage, worker=worker)
+        self.assertEqual(result["updated"], 1)
+        self.assertEqual(client.tables["finalSoons"][0]["social_preview_fingerprint"], FINGERPRINT)
+        self.assertEqual(worker.requests, [])
+        self.assertEqual(r2.put_calls, [])
+
+    def test_first_archived_card_renders_and_is_saved_for_later_use(self):
+        from dataflow_database import DB
+
+        row = {**ROW, "release_year": 1900}
+        client = DB({"finalMovies": [row]})
+        worker = FakeWorker()
+        r2 = FakeR2()
+        self.assertEqual(self.refresh(client, r2, worker, row=row)["updated"], 1)
+        self.assertTrue(worker.requests[0]["archived"])
+        self.assertEqual(len(r2.put_calls), 1)
+        self.assertEqual(client.tables[social_previews.ARCHIVED_CARDS_TABLE][0]["social_preview_fingerprint"], FINGERPRINT)
 
     def test_r2_budget_failure_is_not_swallowed_by_best_effort_refresh(self):
         from backend.utils.log.r2_budget import R2BudgetExceeded
@@ -325,18 +362,20 @@ class SocialPreviewTests(unittest.TestCase):
     def test_cleanup_keeps_live_and_recent_cards_and_deletes_only_old_orphans(self):
         old = datetime.now(timezone.utc) - timedelta(days=31)
         recent = datetime.now(timezone.utc) - timedelta(days=1)
-        live, orphan, fresh = "a" * 64, "b" * 64, "c" * 64
+        live, orphan, fresh, archived = (digit * 64 for digit in "abcd")
         r2 = Mock()
         r2.delete_objects.return_value = {}
         r2.get_paginator.return_value.paginate.return_value = [{"Contents": [
             {"Key": f"social/v1/{live}/card.jpg", "LastModified": old},
             {"Key": f"social/v1/{orphan}/card.jpg", "LastModified": old},
+            {"Key": f"social/v1/{archived}/card.jpg", "LastModified": old},
             {"Key": f"social/v1/{fresh}/card.jpg", "LastModified": recent},
         ]}]
         rows = {
             "finalMovies": [{"social_preview_fingerprint": live}],
             "finalSoons": [],
             "finalThequeMovies": [],
+            social_previews.ARCHIVED_CARDS_TABLE: [{"tmdb_id": 51, "social_preview_fingerprint": archived}],
         }
         with patch.object(social_previews, "each_row", side_effect=lambda _client, table, _columns: iter(rows[table])):
             result = social_previews.cleanup_social_previews(
@@ -345,7 +384,7 @@ class SocialPreviewTests(unittest.TestCase):
             applied = social_previews.cleanup_social_previews(
                 Mock(), SimpleNamespace(client=r2, bucket="dev"), apply=True,
             )
-        self.assertEqual(result["live_fingerprints"], 1)
+        self.assertEqual(result["live_fingerprints"], 2)
         self.assertEqual(result["eligible_objects"], 1)
         self.assertEqual(applied["deleted"], 1)
         self.assertEqual(

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { toComingSoonMovie, toNowPlayingMovie } from "./movie-mapper.js";
 import { createSocialPreviewFingerprint } from "../social-preview.js";
 
@@ -174,35 +174,59 @@ describe("toNowPlayingMovie", () => {
   });
 
   it("exposes a stored social card only when it matches the current rendered data", () => {
-    const fingerprint = createSocialPreviewFingerprint({
-      tmdbId: "9100001",
-      title: "Feature Film",
-      posterUrl: "/backdrop.jpg",
-      backdropUrl: "/backdrop.jpg",
-      isComingSoon: false,
-      year: 2024,
-      releaseDate: null,
-      runtime: 122,
-      genres: ["Drama"],
-      imdbRating: 7.5,
-      rtCriticRating: null,
-      rtCriticVotes: null,
-      rtAudienceRating: 93,
-      rtAudienceVotes: 18,
-      lbRating: 4,
-    });
-    const current = toNowPlayingMovie({
-      ...record,
-      socialPreviewFingerprint: fingerprint,
-    });
-    const changed = toNowPlayingMovie({
-      ...record,
-      enPoster: "/new-poster.jpg",
-      socialPreviewFingerprint: fingerprint,
-    });
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-22T12:00:00Z"));
+    try {
+      const fingerprint = createSocialPreviewFingerprint({
+        tmdbId: "9100001",
+        title: "Feature Film",
+        posterUrl: "/backdrop.jpg",
+        backdropUrl: "/backdrop.jpg",
+        isComingSoon: false,
+        year: 2024,
+        releaseDate: null,
+        runtime: 122,
+        genres: ["Drama"],
+        imdbRating: 7.5,
+        rtCriticRating: null,
+        rtCriticVotes: null,
+        rtAudienceRating: 93,
+        rtAudienceVotes: 18,
+        lbRating: 4,
+      });
+      const current = toNowPlayingMovie({
+        ...record,
+        socialPreviewFingerprint: fingerprint,
+      });
+      const changed = toNowPlayingMovie({
+        ...record,
+        enPoster: "/new-poster.jpg",
+        socialPreviewFingerprint: fingerprint,
+      });
 
-    expect(current.socialPreviewFingerprint).toBe(fingerprint);
-    expect(changed.socialPreviewFingerprint).toBeUndefined();
+      expect(current.socialPreviewFingerprint).toBe(fingerprint);
+      expect(changed.socialPreviewFingerprint).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the published fingerprint for archive releases after inputs change", () => {
+    const fingerprint = "a".repeat(64);
+    const movie = toNowPlayingMovie({
+      ...record,
+      releaseYear: 1987n,
+      enPoster: "/updated.jpg",
+      socialPreviewFingerprint: fingerprint,
+    });
+    const comingSoon = toComingSoonMovie({
+      ...record,
+      releaseYear: 1987,
+      releaseDate: "2026-12-20",
+      socialPreviewFingerprint: fingerprint,
+    });
+    expect(movie.socialPreviewFingerprint).toBe(fingerprint);
+    expect(comingSoon.socialPreviewFingerprint).toBe(fingerprint);
   });
 
   it("rejects unsafe bigint years and a non-array alternatives value", () => {

@@ -22,6 +22,7 @@ from urllib.parse import urlsplit
 
 from backend.dataflow.backfill_catalog_artwork import each_row
 from backend.dataflow.utils.ArtworkStorage import ArtworkStorage
+from backend.dataflow.utils.ArchivedRatingsCache import is_archived_row
 from backend.config.target_environment import PROFILE_KEYS, resolve_target_environment
 from backend.utils.console.stage_progress import progress_items
 
@@ -257,7 +258,10 @@ def _card_sources(storage: ArtworkStorage, data: dict[str, Any]) -> tuple[bytes 
     return poster, backdrop
 
 
-def _verify_current_source(client, worker: SocialPreviewWorker, table: str, primary_key: str, key_value: Any, columns: str, expected_fingerprint: str) -> bool:
+def _verify_current_source(
+    client, worker: SocialPreviewWorker, table: str, primary_key: str,
+    key_value: Any, columns: str, expected_fingerprint: str, *, archived: bool = False,
+) -> bool:
     response = (
         client.table(table)
         .select(columns)
@@ -269,9 +273,54 @@ def _verify_current_source(client, worker: SocialPreviewWorker, table: str, prim
     if len(current) != 1 or current[0].get("solo_update") is True:
         return False
     result = worker.request(
-        {"op": "fingerprint", "table": table, "record": current[0]}
+        {"op": "fingerprint", "table": table, "record": current[0], **({"archived": True} if archived else {})}
     )
     return result.get("fingerprint") == expected_fingerprint
+
+
+ARCHIVED_CARDS_TABLE = "archived_movie_social_cards"
+ARCHIVED_CARDS_COLUMNS = "tmdb_id,social_preview_fingerprint"
+
+
+def _read_archived_cards(client, ids, lease_guard):
+    cards = {}
+    for start in range(0, len(ids), 200):
+        if lease_guard:
+            lease_guard()
+        rows = client.table(ARCHIVED_CARDS_TABLE).select(ARCHIVED_CARDS_COLUMNS).in_(
+            "tmdb_id", ids[start:start + 200]
+        ).execute().data
+        for row in rows:
+            cards[row["tmdb_id"]] = row["social_preview_fingerprint"]
+    return cards
+
+
+def _save_archived_card(client, tmdb_id, fingerprint, lease_guard):
+    if lease_guard:
+        lease_guard()
+    client.table(ARCHIVED_CARDS_TABLE).upsert(
+        {"tmdb_id": tmdb_id, "social_preview_fingerprint": fingerprint},
+        on_conflict="tmdb_id",
+        ignore_duplicates=True,
+    ).execute()
+    # Use the persisted winner if another worker saved a card first.
+    return _read_archived_cards(client, [tmdb_id], lease_guard)[tmdb_id]
+
+
+def _publish_fingerprint(client, table, primary_key, row, fingerprint, lease_guard, *, archived=False):
+    if lease_guard:
+        lease_guard()
+    update = client.table(table).update(
+        {"social_preview_fingerprint": fingerprint}
+    ).eq(primary_key, row[primary_key]).eq("solo_update", False)
+    if archived:
+        update = update.eq("tmdb_id", row["tmdb_id"]).eq("release_year", row["release_year"])
+    previous = row.get("social_preview_fingerprint")
+    if previous is None:
+        update = update.is_("social_preview_fingerprint", "null")
+    else:
+        update = update.eq("social_preview_fingerprint", previous)
+    return len(update.execute().data or []) == 1
 
 
 def refresh_social_previews(
@@ -288,21 +337,61 @@ def refresh_social_previews(
         raise ValueError("limit must be a positive integer")
     stats = {"scanned": 0, "updated": 0, "unchanged": 0, "failed": 0, "stale": 0, "pending": 0}
     owns_worker = worker is None
-    worker = worker or SocialPreviewWorker.start()
     completed_work = 0
     try:
         catalog = []
         for table, primary_key, _coming_soon, columns in TABLES:
             rows = each_row(client, table, columns, lease_guard=lease_guard) if lease_guard else each_row(client, table, columns)
             catalog.extend((table, primary_key, columns, row) for row in rows)
+        now = datetime.now(timezone.utc)
+        archived_ids = sorted({
+            row["tmdb_id"] for _, _, _, row in catalog
+            if row.get("tmdb_id") and is_archived_row(row, now=now) and not row.get("solo_update")
+        })
+        archived_cards = _read_archived_cards(client, archived_ids, lease_guard)
+        # Seed from published cards before processing any row that needs a card.
+        # Prefer a playing card over an existing dated Coming Soon card.
+        for table, _, _, row in sorted(catalog, key=lambda item: item[0] == "finalSoons"):
+            tmdb_id = row.get("tmdb_id")
+            previous = row.get("social_preview_fingerprint")
+            if (
+                not tmdb_id or tmdb_id in archived_cards or not is_archived_row(row, now=now)
+                or row.get("solo_update") or not isinstance(previous, str) or not FINGERPRINT_RE.fullmatch(previous)
+            ):
+                continue
+            if _social_object_exists(storage, f"social/v1/{previous}/card.jpg"):
+                archived_cards[tmdb_id] = (
+                    previous if dry_run else _save_archived_card(client, tmdb_id, previous, lease_guard)
+                )
+
         for table, primary_key, columns, row in progress_items(catalog, "rows checked"):
             stats["scanned"] += 1
             if row.get("solo_update") is True:
                 stats["unchanged"] += 1
                 continue
             try:
+                tmdb_id = row.get("tmdb_id")
+                archived = bool(tmdb_id and is_archived_row(row, now=now))
+                frozen = archived_cards.get(tmdb_id) if archived else None
+                if frozen:
+                    if row.get("social_preview_fingerprint") == frozen:
+                        stats["unchanged"] += 1
+                        continue
+                    if limit is not None and completed_work >= limit:
+                        return stats
+                    stats["pending"] += 1
+                    if not dry_run and _publish_fingerprint(client, table, primary_key, row, frozen, lease_guard, archived=True):
+                        stats["updated"] += 1
+                        stats["pending"] -= 1
+                    elif not dry_run:
+                        stats["stale"] += 1
+                    completed_work += 1
+                    continue
+
+                if worker is None:
+                    worker = SocialPreviewWorker.start()
                 hashed = worker.request(
-                    {"op": "fingerprint", "table": table, "record": row}
+                    {"op": "fingerprint", "table": table, "record": row, **({"archived": True} if archived else {})}
                 )
                 fingerprint = hashed.get("fingerprint")
                 data = hashed.get("data")
@@ -364,27 +453,20 @@ def refresh_social_previews(
                     row[primary_key],
                     columns,
                     fingerprint,
+                    archived=archived,
                 ):
                     stats["stale"] += 1
                     completed_work += 1
                     continue
 
-                if lease_guard:
-                    lease_guard()
-                update = client.table(table).update(
-                    {"social_preview_fingerprint": fingerprint}
-                ).eq(primary_key, row[primary_key])
-                previous = row.get("social_preview_fingerprint")
-                if previous is None:
-                    update = update.is_("social_preview_fingerprint", "null")
-                else:
-                    update = update.eq("social_preview_fingerprint", previous)
-                saved = update.execute().data or []
-                if len(saved) != 1:
-                    stats["stale"] += 1
-                else:
+                if archived:
+                    fingerprint = _save_archived_card(client, tmdb_id, fingerprint, lease_guard)
+                    archived_cards[tmdb_id] = fingerprint
+                if _publish_fingerprint(client, table, primary_key, row, fingerprint, lease_guard, archived=archived):
                     stats["updated"] += 1
                     stats["pending"] -= 1
+                else:
+                    stats["stale"] += 1
                 completed_work += 1
             except Exception as error:
                 from backend.utils.log.r2_budget import R2BudgetError, R2BudgetExceeded
@@ -402,7 +484,7 @@ def refresh_social_previews(
                 )
         return stats
     finally:
-        if owns_worker:
+        if owns_worker and worker is not None:
             worker.close()
 
 
@@ -420,7 +502,7 @@ def cleanup_social_previews(
     if grace_days < 0 or max_deletes < 1:
         raise ValueError("Cleanup grace period and deletion bound must be non-negative/positive")
     live: set[str] = set()
-    for table, _primary_key, _coming_soon, columns in TABLES:
+    for table, _primary_key, _coming_soon, columns in (*TABLES, (ARCHIVED_CARDS_TABLE, "tmdb_id", False, ARCHIVED_CARDS_COLUMNS)):
         rows = each_row(client, table, columns, lease_guard=lease_guard) if lease_guard else each_row(client, table, columns)
         for row in rows:
             fingerprint = row.get("social_preview_fingerprint")

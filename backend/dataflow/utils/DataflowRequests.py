@@ -371,9 +371,14 @@ class DataflowRequests:
                 self._tmdb_metrics["tmdb_cache_write_failures"] = self._tmdb_metrics.get("tmdb_cache_write_failures", 0) + 1
             self.trace_note(f"tmdb_cache_write_failed | error={type(error).__name__}")
 
-    def updateProviders(self, new_row, existing, tmdb_id):
+    def updateProviders(self, new_row, existing, tmdb_id, *, skip_providers=()):
         self._provider_executor = self._request_context.get_provider_executor()
-        futures = [self._provider_executor.submit(self.updateLetterboxd, new_row, existing, tmdb_id), self._provider_executor.submit(self.updateRottenTomatoes, new_row, existing)]
+        skipped = set(skip_providers)
+        futures = []
+        if "letterboxd" not in skipped:
+            futures.append(self._provider_executor.submit(self.updateLetterboxd, new_row, existing, tmdb_id))
+        if "rotten_tomatoes" not in skipped:
+            futures.append(self._provider_executor.submit(self.updateRottenTomatoes, new_row, existing))
         for future in futures:
             future.result()
 

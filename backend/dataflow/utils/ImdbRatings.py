@@ -119,9 +119,15 @@ class ImdbRatings:
         self._imdb_observation = None
         started = utc_now()
         imdb_ids = set()
+        archive = getattr(self, "_archived_ratings", None)
         for row in rows:
-            tmdb = self._update_tmdb.get(self.clean_int(row.get("tmdb_id"))) or {}
+            tmdb_id = self.clean_int(row.get("tmdb_id"))
+            if archive is not None and not archive.should_check_imdb(tmdb_id):
+                continue
+            tmdb = self._update_tmdb.get(tmdb_id) or {}
             imdb_id = (tmdb.get("external_ids") or {}).get("imdb_id") or row.get("imdb_id")
+            if archive is not None and tmdb_id in archive.locks:
+                imdb_id = archive.imdb_ids[tmdb_id]
             if imdb_id := self.clean_str(imdb_id).strip():
                 imdb_ids.add(imdb_id)
         if not imdb_ids:

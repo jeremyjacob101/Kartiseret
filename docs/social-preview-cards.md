@@ -23,9 +23,31 @@ the movie poster. The homepage uses the checked-in `public/og/home.jpg` file.
 - A successful upload is verified in R2 before the catalog fingerprint is
   updated. Failed source reads, renders, uploads, or raced catalog changes do
   not publish the new fingerprint. The normal next scrape retries them.
+- Films at or before the archived-release cutoff receive their first published
+  card, then keep it when catalog inputs change or the film returns after a
+  gap. The archive is keyed by TMDb ID and shared across Now Playing, Coming
+  Soon, and Cinematheques. Published cards are saved as each title is processed.
+  New archive cards omit
+  the screening date and release status so they can serve all three catalogs.
+  Newer films publish a new immutable card when their fingerprint changes.
 - Old card objects are intentionally retained in this change. They may still
   be used by cached social posts; any future reclamation needs a complete
   reference check and a grace period.
+
+## Archive rollout
+
+Apply the archive enrichment migration before starting updated workers or social
+card cleanup. The cutoff follows the existing TMDb rule of the current
+Jerusalem calendar year minus three. During the first development run, confirm
+an archived film has saved provider outcomes and a saved social fingerprint.
+On the next run, verify the card URL and any completed ratings are reused even
+if the film returns in a different catalog.
+
+Now Playing and Cinematheques share the archived ratings outcomes. Existing
+scores and confirmed absences count as complete. An unfinished provider lookup
+can retry after seven days, up to three total attempts. Coming Soon uses the
+existing TMDb metadata path. Old card objects referenced by the archive remain
+eligible to serve after their catalog rows are removed.
 
 ## Configuration
 

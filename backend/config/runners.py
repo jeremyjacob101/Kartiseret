@@ -375,7 +375,12 @@ def _run_shared_update_round(entries, run_id: int, attempt: int, context: Datafl
             ratings_entries = [cls for cls in viable if cls.__name__ in {"NowPlayingsUpdate", "CinemathequesUpdate"}]
             ratings_rows = [row for cls in ratings_entries for row in targets.get(cls, [])]
             if ratings_entries and ratings_rows:
-                imdb_ratings = flows[ratings_entries[0]].loadImdbRatings(ratings_rows)
+                ratings_flow = flows[ratings_entries[0]]
+                prepare_archived = getattr(ratings_flow, "prepareArchivedRatings", None)
+                archive = prepare_archived(ratings_rows) if prepare_archived else None
+                for cls in ratings_entries:
+                    flows[cls]._archived_ratings = archive
+                imdb_ratings = ratings_flow.loadImdbRatings(ratings_rows)
             for cls in viable:
                 flows[cls]._imdb_ratings = imdb_ratings
                 if ratings_entries:

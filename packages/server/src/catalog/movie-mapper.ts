@@ -109,12 +109,22 @@ function positiveOrNull(value: number | null): number | null {
   return value !== null && value > 0 ? value : null;
 }
 
+const jerusalemYearFormatter = new Intl.DateTimeFormat("en", {
+  timeZone: "Asia/Jerusalem",
+  year: "numeric",
+});
+
 function currentPreviewFingerprint(
   storedValue: string | null | undefined,
   data: Record<string, unknown>,
 ): string | undefined {
   const stored = socialPreviewFingerprintSchema.safeParse(storedValue);
   if (!stored.success) return undefined;
+  const year = data.year;
+  const archiveCutoff = Number(jerusalemYearFormatter.format(new Date())) - 3;
+  if (typeof year === "number" && year >= 1000 && year <= archiveCutoff) {
+    return stored.data;
+  }
   try {
     return stored.data === createSocialPreviewFingerprint(data)
       ? stored.data

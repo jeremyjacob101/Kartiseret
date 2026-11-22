@@ -258,7 +258,7 @@ async function createMovieTextLayers(
     data.lbRating ? data.lbRating.toFixed(1) : null,
   ].filter((value): value is string => Boolean(value));
   const eyebrowInput = await createTextLayer(
-    data.isComingSoon ? "COMING SOON" : "NOW PLAYING",
+    data.archived ? "FILM" : data.isComingSoon ? "COMING SOON" : "NOW PLAYING",
     400,
     20,
     "#C5A9EB",

@@ -1,3 +1,4 @@
+from backend.dataflow.utils.ArchivedRatingsCache import ArchivedRatingsUpdate, original_release_year
 from backend.dataflow.BaseDataflow import BaseDataflow
 from backend.dataflow.utils.RottenTomatoesScores import parse_rotten_tomatoes_scorecard, select_rotten_tomatoes_search_match
 
@@ -9,7 +10,7 @@ import re
 import json
 
 
-class NowPlayingsUpdate(BaseDataflow):
+class NowPlayingsUpdate(ArchivedRatingsUpdate, BaseDataflow):
     MAIN_TABLE_NAME = "finalMovies"
     USES_BROWSER = False
 
@@ -33,7 +34,7 @@ class NowPlayingsUpdate(BaseDataflow):
         new_row["popularity"] = data["popularity"] if data.get("popularity") is not None else existing["popularity"]
         new_row["imdb_id"] = data.get("external_ids", {}).get("imdb_id") or existing["imdb_id"]
         resolve_tmdb_artwork(self, new_row, data)
-        new_row["release_year"] = data["release_date"][:4] if data.get("release_date") else existing["release_year"]
+        new_row["release_year"] = original_release_year(existing, data)
         new_row["tmdbRating"] = int(round(data["vote_average"] * 10)) if data.get("vote_average") is not None else existing["tmdbRating"]
         new_row["tmdbVotes"] = data["vote_count"] if data.get("vote_count") is not None else existing["tmdbVotes"]
         new_row["lb_id"] = f"tmdb/{tmdb_id}"
@@ -41,16 +42,7 @@ class NowPlayingsUpdate(BaseDataflow):
         new_row["genres"] = genres or existing["genres"]
 
         self.recordTmdbFreshness(new_row, data, tmdb_id)
-        self.updateProviders(new_row, existing, tmdb_id)
-
-        # IMDb
-        imdb_id = (new_row.get("imdb_id") or "").strip()
-        ratings = self._imdb_ratings.get(imdb_id)
-        if ratings:
-            new_row["imdbRating"] = ratings["rating"]
-            new_row["imdbVotes"] = ratings["votes"]
-
-        self.recordImdbFreshness(new_row, imdb_id, ratings)
+        self.updateMovieRatings(row, new_row, existing, tmdb_id)
         return self.apply_solo_update_postprocess(new_row)
 
     def updateLetterboxd(self, new_row, existing, tmdb_id):
@@ -161,6 +153,7 @@ class NowPlayingsUpdate(BaseDataflow):
             return
 
         self.prepareUpdateTmdb(target_rows)
+        self.prepareArchivedRatings(target_rows)
         self._imdb_ratings = self.loadImdbRatings(target_rows)
 
         with ThreadPoolExecutor(max_workers=5) as executor:
