@@ -26,7 +26,7 @@ function buildDeviceInfo(deviceType: DeviceType): DeviceInfo {
   };
 }
 
-function detectDeviceType(): DeviceType {
+export function getHardwareDeviceType(): DeviceType {
   if (typeof window === "undefined" || typeof navigator === "undefined") {
     return "desktop";
   }
@@ -52,10 +52,6 @@ function detectDeviceType(): DeviceType {
     return "mobile";
   }
 
-  if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) {
-    return "mobile";
-  }
-
   return "desktop";
 }
 
@@ -76,7 +72,13 @@ export const useDeviceStore = create<DeviceInfo>()(
 let mobileViewportMediaQuery: MediaQueryList | null = null;
 
 function synchronizeDeviceType(): void {
-  const nextDeviceInfo = buildDeviceInfo(detectDeviceType());
+  const hardwareDeviceType = getHardwareDeviceType();
+  document.documentElement.dataset.hardwareDeviceType = hardwareDeviceType;
+  const nextDeviceInfo = buildDeviceInfo(
+    hardwareDeviceType === "mobile" || mobileViewportMediaQuery?.matches
+      ? "mobile"
+      : "desktop",
+  );
 
   if (nextDeviceInfo.deviceType === useDeviceStore.getState().deviceType) {
     return;

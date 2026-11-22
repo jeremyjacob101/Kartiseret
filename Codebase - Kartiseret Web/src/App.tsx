@@ -412,6 +412,7 @@ export function HomeRoute({
               skipIntro={skipLateIntro}
               mode="nowPlaying"
               movieItems={nowPlayingMovies}
+              showScrollArrows
               cardWidth={cardWidth}
               cardHeight={cardHeight}
               gap={gap}
@@ -438,6 +439,7 @@ export function HomeRoute({
               skipIntro={skipLateIntro}
               mode="comingSoon"
               movieItems={comingSoonMovies}
+              showScrollArrows
               cardWidth={cardWidth}
               cardHeight={cardHeight}
               gap={gap}
@@ -468,6 +470,7 @@ export function HomeRoute({
                   skipIntro={skipLateIntro}
                   mode="nowPlaying"
                   movieItems={nowPlayingReReleaseMovies}
+                  showScrollArrows
                   cardWidth={cardWidth}
                   cardHeight={cardHeight}
                   gap={gap}

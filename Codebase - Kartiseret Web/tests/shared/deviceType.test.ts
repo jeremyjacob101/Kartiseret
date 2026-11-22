@@ -37,7 +37,9 @@ async function loadDeviceModule(options: {
 
   vi.mocked(window.matchMedia).mockImplementation((query) => {
     const mediaQuery = {
-      matches: currentViewportMatches,
+      get matches() {
+        return currentViewportMatches;
+      },
       media: query,
       onchange: null,
       addListener: vi.fn(),
@@ -59,6 +61,7 @@ async function loadDeviceModule(options: {
 afterEach(() => {
   delete (navigator as Navigator & { userAgentData?: unknown }).userAgentData;
   document.documentElement.dataset.deviceType = "";
+  delete document.documentElement.dataset.hardwareDeviceType;
   vi.restoreAllMocks();
 });
 
@@ -82,6 +85,9 @@ describe("device type detection and synchronization", () => {
       isDesktop: expected === "desktop",
     });
     expect(document.documentElement.dataset.deviceType).toBe(expected);
+    expect(document.documentElement.dataset.hardwareDeviceType).toBe(
+      "viewportMatches" in options ? "desktop" : expected,
+    );
   });
 
   it("updates the store and document when the viewport media query changes", async () => {
@@ -95,6 +101,7 @@ describe("device type detection and synchronization", () => {
     expect(module.getDeviceType()).toBe("mobile");
     expect(module.useDeviceStore.getState().isMobile).toBe(true);
     expect(document.documentElement.dataset.deviceType).toBe("mobile");
+    expect(document.documentElement.dataset.hardwareDeviceType).toBe("desktop");
 
     currentViewportMatches = false;
     mediaChangeListener?.({ matches: false } as MediaQueryListEvent);
