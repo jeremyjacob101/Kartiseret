@@ -81,7 +81,10 @@ function cardDataForRow(row) {
     isComingSoon: isComingSoon && row.archived !== true,
     ...(row.archived === true ? { archived: true } : {}),
     year: movie.year > 0 ? movie.year : null,
-    releaseDate: isComingSoon && row.archived !== true ? (movie.releaseDate ?? null) : null,
+    releaseDate:
+      isComingSoon && row.archived !== true
+        ? (movie.releaseDate ?? null)
+        : null,
     runtime: movie.runtime > 0 ? movie.runtime : null,
     genres: movie.genres.slice(0, 3),
     imdbRating: isComingSoon ? null : positiveOrNull(movie.imdbRating),

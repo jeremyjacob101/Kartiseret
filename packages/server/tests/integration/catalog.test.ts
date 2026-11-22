@@ -80,6 +80,19 @@ const expectedTableNames = [
 // These private pipeline and operational tables deliberately stay out of
 // Drizzle's applicationTables, which is granted to the public API runtime.
 const expectedPipelineTableColumns = {
+  archived_movie_ratings_cache: [
+    "tmdb_id",
+    "provider",
+    "provider_identity",
+    "rating_values",
+    "outcome",
+    "reason",
+    "source",
+    "attempts",
+    "attempted_at",
+    "checked_at",
+  ],
+  archived_movie_social_cards: ["tmdb_id", "social_preview_fingerprint"],
   utilAvgTimeHistory: [
     "name",
     "runner_machine",
