@@ -17,6 +17,10 @@ DATE = re.compile(r"(?<!\d)(\d{1,2})[/.](\d{1,2})(?:[/.](\d{4}))?(?!\d)")
 TIME = re.compile(r"(?<!\d)([01]?\d|2[0-3]):([0-5]\d)(?!\d)")
 
 
+class MissingScreeningSchedule(ValueError):
+    pass
+
+
 def parse_titles(title):
     parts = [p.strip() for p in re.split(r"\s*[|｜]\s*", title) if p.strip()]
     hebrew = next ( (p for p in parts if HEBREW.search(p) and not LATIN.search(p)), None)
@@ -42,7 +46,10 @@ def parse_card(headings, paragraphs, links, today):
     times = [TIME.fullmatch(s.strip()) for s in headings]
     dm = next((m for m in dates if m), None)
     tm = next((m for m in times if m), None)
-    if not (hebrew or english) or not dm or not tm:
+    missing = [field for field, match in [('date', dm), ('showtime', tm)] if match is None]
+    if missing:
+        raise MissingScreeningSchedule(f"{title!r} missing {' and '.join(missing)}")
+    if not (hebrew or english):
         raise ValueError(f"Incomplete Sam Spiegel card: {title!r}")
     day, month = int(dm[1]), int(dm[2])
     year = int(dm[3]) if dm[3] else today.year
@@ -95,20 +102,38 @@ class SSCtheque(BaseCinema):
         self.screening_tech = '2D'
         self.appendToGatheringInfo()
 
-    def logic(self):
-        self.waitForElement(self.CARD_SELECTOR)
-        cards = self.driver.find_elements(By.XPATH, self.CARD_SELECTOR)
+    @staticmethod
+    def _parse_selenium_card(card, today):
+        headings = [e.text.strip() for e in card.find_elements(By.XPATH, './/h1|.//h2|.//h3|.//h4') if e.text.strip()]
+        paragraphs = [e.get_attribute('textContent').strip() for e in card.find_elements(By.XPATH, './/p') if e.get_attribute('textContent')]
+        links = [(e.get_attribute('href') or '', e.text or e.get_attribute('textContent') or '') for e in card.find_elements(By.XPATH, './/a[@href]')]
+        return parse_card(headings, paragraphs, links, today)
+
+    def _collect_cards(self, cards, parse):
+        skipped = []
+        self._coverage.update(cards_expected=len(cards), cards_completed=0, skipped_cards=skipped)
         if not cards:
             raise ValueError('Sam Spiegel schedule contains no cards')
+        today = date(int(self.current_year), int(self.current_month), 1)
         for card in cards:
-            headings = [e.text.strip() for e in card.find_elements(By.XPATH, './/h1|.//h2|.//h3|.//h4') if e.text.strip()]
-            paragraphs = [e.get_attribute('textContent').strip() for e in card.find_elements(By.XPATH, './/p') if e.get_attribute('textContent')]
-            links = [(e.get_attribute('href') or '', e.text or e.get_attribute('textContent') or '') for e in card.find_elements(By.XPATH, './/a[@href]')]
-            row = parse_card(headings, paragraphs, links, date(int(self.current_year), int(self.current_month), 1))
-            self._append_row(row)
+            try:
+                row = parse(card, today)
+            except MissingScreeningSchedule as error:
+                skipped.append(str(error))
+            else:
+                self._append_row(row)
+            self._coverage['cards_completed'] += 1
+        if len(skipped) == len(cards):
+            raise ValueError('Sam Spiegel schedule contains no cards with both a date and showtime')
+
+    def logic(self):
+        self._coverage = {}
+        self.waitForElement(self.CARD_SELECTOR)
+        cards = self.driver.find_elements(By.XPATH, self.CARD_SELECTOR)
+        self._collect_cards(cards, self._parse_selenium_card)
 
     def requests_logic(self):
-        self._coverage = {'pages_expected': 1, 'pages_completed': 0, 'cards_expected': 0, 'cards_parsed': 0}
+        self._coverage = {'pages_expected': 1, 'pages_completed': 0}
         with requests.Session() as session:
             configure_scrape_session(session, stats=getattr(self, '_http_stats', None))
             session.headers.update({'User-Agent': CHROME_USER_AGENT})
@@ -123,14 +148,5 @@ class SSCtheque(BaseCinema):
             if grid is None or 'לוח הקרנות' not in title:
                 raise ValueError('Sam Spiegel response is not the expected schedule page')
             cards = grid.select("[data-elementor-type='loop-item']")
-            if not cards:
-                raise ValueError('Sam Spiegel schedule has no film cards')
-            self._coverage.update(cards_expected=len(cards))
-            today = date(int(self.current_year), int(self.current_month), 1)
-            for card in cards:
-                row = self._parse_html_card(card, today)
-                self._append_row(row)
-                self._coverage['cards_parsed'] += 1
-            if self._coverage['cards_parsed'] != self._coverage['cards_expected']:
-                raise ValueError('Sam Spiegel schedule card coverage is incomplete')
+            self._collect_cards(cards, self._parse_html_card)
             self._coverage['pages_completed'] = 1
