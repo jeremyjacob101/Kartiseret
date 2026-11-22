@@ -100,11 +100,15 @@ actor NativeAccountAPI {
         return .session(token: token)
     }
 
-    func signInWithApple(identityToken: String, nonce: String) async throws -> String {
+    func signInWithApple(identityToken: String, nonce: String, authorizationCode: String) async throws -> String {
         let response = try await send(
             path: "/api/auth/sign-in/social",
             method: "POST",
-            body: try JSONSerialization.data(withJSONObject: ["provider": "apple", "idToken": ["token": identityToken, "nonce": nonce]] as [String: Any])
+            body: try JSONSerialization.data(withJSONObject: [
+                "provider": "apple",
+                "idToken": ["token": identityToken, "nonce": nonce],
+                "additionalData": ["appleAuthorizationCode": authorizationCode],
+            ] as [String: Any])
         )
         try check(response)
         return try sessionToken(from: response)
@@ -184,9 +188,10 @@ actor NativeAccountAPI {
         return envelope.data?.titles ?? []
     }
 
-    func confirmAccountDeletion(sessionToken: String, confirmationToken: String) async throws {
+    func confirmAccountDeletion(sessionToken: String, confirmationToken: String) async throws -> Bool {
         let response = try await send(path: "/api/auth/delete-user", method: "POST", body: try jsonData(["token": confirmationToken]), token: sessionToken)
         try check(response)
+        return response.header("x-kartiseret-apple-revocation") == "manual"
     }
 
     func requestAccountDeletion(token: String) async throws {
@@ -230,6 +235,14 @@ actor NativeAccountAPI {
             if let authError = try? JSONDecoder().decode(BetterAuthError.self, from: response.body) {
                 if authError.code == "INVALID_EMAIL_OR_PASSWORD" || authError.code == "INVALID_CREDENTIALS" {
                     throw APIClientError.invalidCredentials
+                }
+                if let code = authError.code,
+                   code == "APPLE_REVOCATION_FAILED" || code == "APPLE_AUTHORIZATION_FAILED" {
+                    throw APIClientError.remote(
+                        code: code,
+                        message: authError.message ?? "The Apple request could not be completed. Please try again.",
+                        statusCode: response.statusCode
+                    )
                 }
                 if authError.code == "OAUTH_LINK_ERROR", authError.message == "account not linked" {
                     throw APIClientError.remote(

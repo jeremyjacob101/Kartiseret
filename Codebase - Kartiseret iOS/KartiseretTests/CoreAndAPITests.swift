@@ -381,12 +381,16 @@ final class CoreAndAPITests: XCTestCase {
         let api = NativeAccountAPI(baseURL: URL(string: "https://seret.site")!, transport: transport)
 
         do {
-            _ = try await api.signInWithApple(identityToken: "signed-id-token", nonce: "nonce")
+            _ = try await api.signInWithApple(identityToken: "signed-id-token", nonce: "nonce", authorizationCode: "apple-code")
             XCTFail("Expected the unlinked provider to be rejected")
         } catch let error as APIClientError {
             XCTAssertEqual(error.code, "account_not_linked")
             XCTAssertTrue(error.localizedDescription.contains("User Preferences on the Kartiseret website"))
         }
+        let requests = await transport.capturedRequests()
+        let request = try XCTUnwrap(requests.first)
+        let payload = try XCTUnwrap(try JSONSerialization.jsonObject(with: request.body ?? Data()) as? [String: Any])
+        XCTAssertEqual(payload["additionalData"] as? [String: String], ["appleAuthorizationCode": "apple-code"])
     }
 
     func testDeletionConfirmationLinkRequiresAValidFragmentToken() {
@@ -399,13 +403,23 @@ final class CoreAndAPITests: XCTestCase {
     func testNativeDeletionConfirmationSendsTokenWithSession() async throws {
         let transport = StubTransport(responses: [httpResponse(#"{"success":true}"#)])
         let api = NativeAccountAPI(baseURL: URL(string: "https://seret.site")!, transport: transport)
-        try await api.confirmAccountDeletion(sessionToken: "session-token", confirmationToken: "email-token")
+        let needsManualAppleRevocation = try await api.confirmAccountDeletion(sessionToken: "session-token", confirmationToken: "email-token")
+        XCTAssertFalse(needsManualAppleRevocation)
         let requests = await transport.capturedRequests()
         let request = try XCTUnwrap(requests.first)
         XCTAssertEqual(request.url.path, "/api/auth/delete-user")
         XCTAssertEqual(request.headers["Authorization"], "Bearer session-token")
         let payload = try XCTUnwrap(try JSONSerialization.jsonObject(with: request.body ?? Data()) as? [String: String])
         XCTAssertEqual(payload, ["token": "email-token"])
+    }
+
+    func testNativeDeletionConfirmationRecognizesLegacyAppleFallback() async throws {
+        let transport = StubTransport(responses: [
+            httpResponse(#"{"success":true}"#, headers: ["X-Kartiseret-Apple-Revocation": "manual"]),
+        ])
+        let api = NativeAccountAPI(baseURL: URL(string: "https://seret.site")!, transport: transport)
+        let needsManualAppleRevocation = try await api.confirmAccountDeletion(sessionToken: "session-token", confirmationToken: "email-token")
+        XCTAssertTrue(needsManualAppleRevocation)
     }
 
     func testNativeDeletionRequestsConfirmationEmailWithBearerSession() async throws {

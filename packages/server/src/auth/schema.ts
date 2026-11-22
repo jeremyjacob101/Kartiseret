@@ -53,6 +53,7 @@ export const account = namespace.table(
       .references(() => user.id, { onDelete: "cascade" }),
     accessToken: text("access_token"),
     refreshToken: text("refresh_token"),
+    appleNativeRefreshToken: text("apple_native_refresh_token"),
     idToken: text("id_token"),
     accessTokenExpiresAt: instant("access_token_expires_at"),
     refreshTokenExpiresAt: instant("refresh_token_expires_at"),

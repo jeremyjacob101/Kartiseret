@@ -92,8 +92,8 @@ final class AccountStore {
         }
     }
 
-    func signInWithApple(identityToken: String, nonce: String, fallbackLocation: String) async throws {
-        let session = try await api.signInWithApple(identityToken: identityToken, nonce: nonce)
+    func signInWithApple(identityToken: String, nonce: String, authorizationCode: String, fallbackLocation: String) async throws {
+        let session = try await api.signInWithApple(identityToken: identityToken, nonce: nonce, authorizationCode: authorizationCode)
         try await activate(session, fallbackLocation: fallbackLocation)
     }
 
@@ -102,10 +102,11 @@ final class AccountStore {
         try await activate(session, fallbackLocation: fallbackLocation)
     }
 
-    func confirmAccountDeletion(confirmationToken: String) async throws {
+    func confirmAccountDeletion(confirmationToken: String) async throws -> Bool {
         guard state == .signedIn, let token else { throw APIClientError.unauthorized }
-        try await api.confirmAccountDeletion(sessionToken: token, confirmationToken: confirmationToken)
+        let needsManualAppleRevocation = try await api.confirmAccountDeletion(sessionToken: token, confirmationToken: confirmationToken)
         if self.token == token { clearAccountSession() }
+        return needsManualAppleRevocation
     }
 
     func requestAccountDeletion() async throws {

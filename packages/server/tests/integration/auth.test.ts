@@ -4,7 +4,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { toNodeHandler } from "better-auth/node";
 import { createEmailVerificationToken } from "better-auth/api";
-import { createApplicationAuth } from "../../src/auth/auth.js";
+import {
+  createApplicationAuth,
+  type ApplicationAuthOptions,
+} from "../../src/auth/auth.js";
 import type { AuthEmail } from "../../src/auth/mail.js";
 import { createRecipientRouter } from "../../src/auth/recipients.js";
 import { BetterAuthIdentityVerifier } from "../../src/protected/identity.js";
@@ -38,7 +41,7 @@ const captured: AuthEmail[] = [];
 const appleKey = generateKeyPairSync("ec", { namedCurve: "P-256" });
 const appleClientId = "com.example.kartiseret.web";
 const googleClientId = "kartiseret-integration.apps.googleusercontent.com";
-const auth = createApplicationAuth(runtime.pool, {
+const authOptions: ApplicationAuthOptions = {
   baseURL: origin,
   secret,
   cookiePrefix: "integration",
@@ -57,7 +60,8 @@ const auth = createApplicationAuth(runtime.pool, {
   mailer: async (email) => {
     captured.push(email);
   },
-});
+};
+const auth = createApplicationAuth(runtime.pool, authOptions);
 const repository = new DrizzleCatalogRepository(runtime.db);
 const app = createApp({
   catalogRepository: repository,
@@ -878,6 +882,158 @@ describe.sequential(
         vi.restoreAllMocks();
       }
     });
+    it("upgrades a legacy native Apple account and revokes its token on deletion", async () => {
+      const apple = authOptions.socialProviders!.apple!;
+      const bundleId = "com.example.kartiseret";
+      const nativeAuth = createApplicationAuth(runtime.pool, {
+        ...authOptions,
+        socialProviders: { apple: { ...apple, appBundleIdentifier: bundleId } },
+      });
+      const context = await nativeAuth.$context;
+      const provider = context.socialProviders.find(
+        (value) => value.id === "apple",
+      );
+      if (!provider?.idToken || !("jwks" in provider.idToken)) {
+        throw new Error("Expected Apple JWKS verification.");
+      }
+      const jwks = vi
+        .spyOn(provider.idToken, "jwks")
+        .mockResolvedValue(appleKey.publicKey);
+      const email = "native-apple-deletion@example.test";
+      const issueToken = (subject: string) =>
+        new SignJWT({ email, email_verified: true })
+          .setProtectedHeader({ alg: "ES256", kid: "TESTKEY" })
+          .setSubject(subject)
+          .setIssuer("https://appleid.apple.com")
+          .setAudience(bundleId)
+          .setIssuedAt()
+          .setExpirationTime("5m")
+          .sign(appleKey.privateKey);
+      const identityToken = await issueToken("native-apple-subject");
+      const differentIdentityToken = await issueToken("different-subject");
+      const send = (path: string, body: object, session?: string) =>
+        nativeAuth.handler(
+          new Request(origin + "/api/auth/" + path, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Origin: origin,
+              "X-Forwarded-For": `192.0.2.${requestIp++}`,
+              ...(session ? { Authorization: `Bearer ${session}` } : {}),
+            },
+            body: JSON.stringify(body),
+          }),
+        );
+      const signIn = (code?: string) =>
+        send("sign-in/social", {
+          provider: "apple",
+          idToken: { token: identityToken },
+          ...(code ? { additionalData: { appleAuthorizationCode: code } } : {}),
+        });
+      const confirmation = () =>
+        new URLSearchParams(latest("deletion", email).hash.slice(1)).get(
+          "token",
+        );
+      const appleRequests: Array<{ url: string; body: URLSearchParams }> = [];
+      let revokeStatus = 200;
+      const fetchMock = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async (url, options) => {
+          const body = options?.body as URLSearchParams;
+          appleRequests.push({ url: String(url), body });
+          if (String(url).endsWith("/auth/token")) {
+            return Response.json({
+              id_token:
+                body.get("code") === "wrong-code"
+                  ? differentIdentityToken
+                  : identityToken,
+              refresh_token: "apple-native-refresh-token",
+            });
+          }
+          expect(String(url)).toBe("https://appleid.apple.com/auth/revoke");
+          return new Response(null, { status: revokeStatus });
+        });
+      try {
+        const legacy = await signIn();
+        expect(legacy.status).toBe(200);
+        const legacyUser = (await legacy.json()).user.id;
+        const session = legacy.headers.get("set-auth-token")!;
+        expect(session).toBeTruthy();
+        expect((await send("delete-user", {}, session)).status).toBe(200);
+        const legacyDeletion = await send(
+          "delete-user",
+          { token: confirmation() },
+          session,
+        );
+        expect(legacyDeletion.status).toBe(200);
+        expect(
+          legacyDeletion.headers.get("x-kartiseret-apple-revocation"),
+        ).toBe("manual");
+        expect(appleRequests).toHaveLength(0);
+
+        const recreated = await signIn();
+        expect(recreated.status).toBe(200);
+        const { user } = await recreated.json();
+        expect(user.id).not.toBe(legacyUser);
+        const preservedSession = recreated.headers.get("set-auth-token")!;
+        expect((await signIn("wrong-code")).status).toBe(400);
+        const upgraded = await signIn("valid-code");
+        expect(upgraded.status).toBe(200);
+        expect((await upgraded.json()).user.id).toBe(user.id);
+        expect(appleRequests.at(-1)?.body.get("client_id")).toBe(bundleId);
+        expect(appleRequests.at(-1)?.body.has("redirect_uri")).toBe(false);
+        const stored = await admin.pool.query(
+          "SELECT apple_native_refresh_token FROM app_auth.accounts WHERE user_id = $1",
+          [user.id],
+        );
+        expect(stored.rows[0].apple_native_refresh_token).toEqual(
+          expect.any(String),
+        );
+        expect(stored.rows[0].apple_native_refresh_token).not.toContain(
+          "apple-native-refresh-token",
+        );
+        expect((await send("delete-user", {}, preservedSession)).status).toBe(
+          200,
+        );
+        revokeStatus = 503;
+        expect(
+          (
+            await send(
+              "delete-user",
+              { token: confirmation() },
+              preservedSession,
+            )
+          ).status,
+        ).toBe(503);
+        expect((await send("delete-user", {}, preservedSession)).status).toBe(
+          200,
+        );
+        revokeStatus = 200;
+        const deletion = await send(
+          "delete-user",
+          { token: confirmation() },
+          preservedSession,
+        );
+        expect(deletion.status).toBe(200);
+        expect(
+          deletion.headers.get("x-kartiseret-apple-revocation"),
+        ).toBeNull();
+        expect(appleRequests.at(-1)?.body.get("token")).toBe(
+          "apple-native-refresh-token",
+        );
+        expect(appleRequests.at(-1)?.body.get("client_id")).toBe(bundleId);
+        expect(appleRequests.at(-1)?.body.get("token_type_hint")).toBe(
+          "refresh_token",
+        );
+        expect((await send("delete-user", {}, preservedSession)).status).toBe(
+          401,
+        );
+      } finally {
+        fetchMock.mockRestore();
+        jwks.mockRestore();
+      }
+    });
+
     it("lets a social-only user create a password and delete with an email confirmation", async () => {
       const socialEmail = "pr5-social@example.test";
       const socialUserId = "00000000-0000-4000-8000-0000000000c2";

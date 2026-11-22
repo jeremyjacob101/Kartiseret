@@ -68,9 +68,36 @@ describe("DeleteAccountConfirmationPage", () => {
     await waitFor(() =>
       expect(deleteUser).toHaveBeenCalledExactlyOnceWith({
         token: "delete-confirm-token",
+        fetchOptions: { onSuccess: expect.any(Function) },
       }));
     expect(fetchMock).not.toHaveBeenCalled();
     expect(await screen.findByLabelText("Current path")).toHaveTextContent(
+      "/?accountDeleted=1",
+    );
+  });
+
+  it("shows Apple settings instructions after deleting a legacy account", async () => {
+    deleteUser.mockImplementationOnce(async ({ fetchOptions }) => {
+      fetchOptions.onSuccess({
+        response: new Response(null, {
+          headers: { "x-kartiseret-apple-revocation": "manual" },
+        }),
+      });
+      return { data: { success: true }, error: null };
+    });
+    render(
+      <MemoryRouter initialEntries={["/confirm-account-deletion#token=legacy"]}>
+        <DeleteAccountConfirmationPage />
+      </MemoryRouter>,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Confirm and delete account" }),
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /account has been deleted.*Sign in with Apple/,
+    );
+    expect(screen.getByRole("link", { name: "Done" })).toHaveAttribute(
+      "href",
       "/?accountDeleted=1",
     );
   });

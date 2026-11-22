@@ -3,6 +3,7 @@ import {
   PASSWORD_MAX_LENGTH,
 } from "@kartiseret/contracts/private-data";
 import { randomUUID } from "node:crypto";
+import { symmetricDecrypt, symmetricEncrypt } from "better-auth/crypto";
 import { betterAuth } from "better-auth/minimal";
 import type { Auth, BetterAuthOptions } from "better-auth";
 import {
@@ -13,13 +14,17 @@ import {
   getOAuthState,
 } from "better-auth/api";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { account, authSchema, user } from "./schema.js";
 import type { AuthMailer } from "./mail.js";
-import { createAppleClientSecret } from "./apple.js";
+import {
+  createAppleClientSecret,
+  exchangeNativeAppleCode,
+  revokeAppleRefreshToken,
+} from "./apple.js";
 import type { SocialProviderEnvironment } from "./env.js";
 import { bearer } from "better-auth/plugins";
 
@@ -36,7 +41,78 @@ export interface ApplicationAuthOptions {
 function createApplicationAuthOptions(
   database: ReturnType<typeof drizzle>,
   options: ApplicationAuthOptions,
+  getSecretConfig: () => Promise<Parameters<typeof symmetricDecrypt>[0]["key"]>,
 ) {
+  const apple = options.socialProviders?.apple;
+  const manualAppleRevocation = new WeakSet<Request>();
+
+  async function nativeAppleTokenData(
+    accountData: { providerId?: string; idToken?: string | null },
+    body: unknown,
+    secretConfig: Parameters<typeof symmetricEncrypt>[0]["key"],
+  ) {
+    if (accountData.providerId !== "apple" || !accountData.idToken) return;
+    const parsed = z
+      .object({
+        additionalData: z.object({
+          appleAuthorizationCode: z.string().min(1).max(4096),
+        }),
+      })
+      .safeParse(body);
+    if (!parsed.success) return; // Older native builds have no code.
+    try {
+      if (!apple?.appBundleIdentifier) throw new Error("Apple App ID missing.");
+      const token = await exchangeNativeAppleCode(
+        { ...apple, clientId: apple.appBundleIdentifier },
+        parsed.data.additionalData.appleAuthorizationCode,
+        accountData.idToken,
+      );
+      return {
+        data: {
+          appleNativeRefreshToken: await symmetricEncrypt({
+            key: secretConfig,
+            data: token,
+          }),
+        },
+      };
+    } catch {
+      throw APIError.from("BAD_REQUEST", {
+        code: "APPLE_AUTHORIZATION_FAILED",
+        message: "Apple sign-in could not be completed. Please try again.",
+      });
+    }
+  }
+
+  async function revokeAppleAccountTokens(linked: typeof account.$inferSelect) {
+    const credentials = [
+      {
+        token: linked.appleNativeRefreshToken,
+        clientId: apple?.appBundleIdentifier,
+      },
+      { token: linked.refreshToken, clientId: apple?.clientId },
+    ].filter(({ token }) => token !== null);
+    if (!credentials.length) return false;
+    try {
+      const key = await getSecretConfig();
+      await Promise.all(
+        credentials.map(async ({ clientId, token }) => {
+          if (!apple || !clientId || !token)
+            throw new Error("Missing Apple credentials.");
+          await revokeAppleRefreshToken(
+            { ...apple, clientId },
+            await symmetricDecrypt({ key, data: token }),
+          );
+        }),
+      );
+      return true;
+    } catch {
+      throw APIError.from("SERVICE_UNAVAILABLE", {
+        code: "APPLE_REVOCATION_FAILED",
+        message: "Apple access could not be revoked. Please try again.",
+      });
+    }
+  }
+
   return {
     appName: "Kartiseret",
     baseURL: options.baseURL,
@@ -66,6 +142,14 @@ function createApplicationAuthOptions(
     },
     account: {
       encryptOAuthTokens: true,
+      additionalFields: {
+        appleNativeRefreshToken: {
+          type: "string",
+          required: false,
+          input: false,
+          returned: false,
+        },
+      },
       accountLinking: {
         enabled: true,
         disableImplicitLinking: true,
@@ -96,9 +180,40 @@ function createApplicationAuthOptions(
         }
         await addOAuthServerContext({ linkingSessionId: session.session.id });
       }),
+      after: createAuthMiddleware(async (ctx) => {
+        if (
+          ctx.path === "/delete-user" &&
+          ctx.request &&
+          manualAppleRevocation.has(ctx.request)
+        ) {
+          ctx.setHeader("x-kartiseret-apple-revocation", "manual");
+        }
+      }),
     },
     databaseHooks: {
       account: {
+        create: {
+          before: async (data, ctx) => {
+            if (ctx?.path === "/sign-in/social") {
+              return nativeAppleTokenData(
+                data,
+                ctx.body,
+                ctx.context.secretConfig,
+              );
+            }
+          },
+        },
+        update: {
+          before: async (data, ctx) => {
+            if (ctx?.path === "/sign-in/social") {
+              return nativeAppleTokenData(
+                data,
+                ctx.body,
+                ctx.context.secretConfig,
+              );
+            }
+          },
+        },
         delete: {
           before: async (linkedAccount, ctx) => {
             if (ctx?.path !== "/unlink-account") return;
@@ -121,6 +236,15 @@ function createApplicationAuthOptions(
                   message:
                     "Connect another sign-in method before disconnecting this one.",
                 });
+              }
+              if (linkedAccount.providerId === "apple") {
+                const [currentAccount] = await tx
+                  .select()
+                  .from(account)
+                  .where(eq(account.id, linkedAccount.id))
+                  .for("update");
+                if (currentAccount)
+                  await revokeAppleAccountTokens(currentAccount);
               }
               await tx.delete(account).where(eq(account.id, linkedAccount.id));
             });
@@ -149,6 +273,22 @@ function createApplicationAuthOptions(
       },
       deleteUser: {
         enabled: true,
+        beforeDelete: async (deletingUser, request) => {
+          const appleAccounts = await database
+            .select()
+            .from(account)
+            .where(
+              and(
+                eq(account.userId, deletingUser.id),
+                eq(account.providerId, "apple"),
+              ),
+            );
+          const results = await Promise.all(
+            appleAccounts.map(revokeAppleAccountTokens),
+          );
+          if (request && results.includes(false))
+            manualAppleRevocation.add(request);
+        },
         sendDeleteAccountVerification: async ({ user, token }) => {
           const url = new URL("/confirm-account-deletion", options.baseURL);
           url.hash = new URLSearchParams({ token }).toString();
@@ -241,7 +381,14 @@ export function createApplicationAuth(
   options: ApplicationAuthOptions,
 ): Auth<ApplicationAuthConfiguration> {
   const database = drizzle(pool, { schema: authSchema });
-  return betterAuth(createApplicationAuthOptions(database, options));
+  const auth: ApplicationAuth = betterAuth(
+    createApplicationAuthOptions(
+      database,
+      options,
+      async () => (await auth.$context).secretConfig,
+    ),
+  );
+  return auth;
 }
 
 export type ApplicationAuth = Auth<ApplicationAuthConfiguration>;

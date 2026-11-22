@@ -12,6 +12,8 @@ export function DeleteAccountConfirmationPage() {
   const loading = useUserPreferencesStore((state) => state.loading);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsManualAppleRevocation, setNeedsManualAppleRevocation] =
+    useState(false);
   const token = new URLSearchParams(location.hash.slice(1)).get("token");
   const validToken = Boolean(token && token.length <= 4096);
 
@@ -20,13 +22,29 @@ export function DeleteAccountConfirmationPage() {
     setPending(true);
     setError(null);
     try {
-      const result = await getAuthClient().deleteUser({ token });
+      let manualAppleRevocation = false;
+      const result = await getAuthClient().deleteUser({
+        token,
+        fetchOptions: {
+          onSuccess: ({ response }) => {
+            manualAppleRevocation =
+              response.headers.get("x-kartiseret-apple-revocation") ===
+              "manual";
+          },
+        },
+      });
       if (result.error) {
         setError(
-          result.error.status === 404
-            ? "This link may have expired, or you need to sign in to the account that requested deletion before confirming."
-            : "The account could not be deleted. Please sign in and try again.",
+          result.error.code === "APPLE_REVOCATION_FAILED"
+            ? "Apple access could not be removed right now. Request a new confirmation email and try again."
+            : result.error.status === 404
+              ? "This link may have expired, or you need to sign in to the account that requested deletion before confirming."
+              : "The account could not be deleted. Please sign in and try again.",
         );
+        return;
+      }
+      if (manualAppleRevocation) {
+        setNeedsManualAppleRevocation(true);
         return;
       }
       navigate("/?accountDeleted=1", { replace: true });
@@ -45,7 +63,18 @@ export function DeleteAccountConfirmationPage() {
       <div className="delete-confirmation-card">
         <p className="section-kicker">Account security</p>
         <h1 className="delete-confirmation-title">Delete your account?</h1>
-        {!validToken ? (
+        {needsManualAppleRevocation ? (
+          <>
+            <p className="delete-confirmation-copy" role="status">
+              Your Kartiseret account has been deleted. To remove Kartiseret’s
+              Apple access, open Settings → [your name] → Sign in with Apple,
+              select Kartiseret, then tap Delete.
+            </p>
+            <Link to="/?accountDeleted=1" replace>
+              Done
+            </Link>
+          </>
+        ) : !validToken ? (
           <p className="delete-confirmation-copy" role="alert">
             This confirmation link is invalid or expired. Request a new one from
             User Preferences.

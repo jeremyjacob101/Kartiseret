@@ -253,9 +253,23 @@ private struct SignInWithAppleControl: View {
                     if case .failure(let failure) = result { error = failure.localizedDescription }
                     return
                 }
+                guard let codeData = credential.authorizationCode,
+                      let authorizationCode = String(data: codeData, encoding: .utf8),
+                      !authorizationCode.isEmpty else {
+                    error = "Apple sign-in could not be completed. Please try again."
+                    return
+                }
                 Task {
-                    do { try await account.signInWithApple(identityToken: identityToken, nonce: nonce, fallbackLocation: app.selectedCity) }
-                    catch { self.error = error.localizedDescription }
+                    do {
+                        try await account.signInWithApple(
+                            identityToken: identityToken,
+                            nonce: nonce,
+                            authorizationCode: authorizationCode,
+                            fallbackLocation: app.selectedCity
+                        )
+                    } catch {
+                        self.error = error.localizedDescription
+                    }
                 }
             }
             .signInWithAppleButtonStyle(.black)
@@ -472,6 +486,7 @@ struct ConfirmAccountDeletionView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var pending = false
     @State private var deleted = false
+    @State private var needsManualAppleRevocation = false
     @State private var error: String?
 
     var body: some View {
@@ -480,6 +495,9 @@ struct ConfirmAccountDeletionView: View {
                 Section {
                     Label("Account deleted", systemImage: "checkmark.circle")
                     Text("Your account and account-linked data have been deleted.")
+                    if needsManualAppleRevocation {
+                        Text("To remove Kartiseret’s Apple access, open Settings → [your name] → Sign in with Apple, select Kartiseret, then tap Delete.")
+                    }
                     Button("Done") { dismiss() }
                 }
             } else {
@@ -512,9 +530,11 @@ struct ConfirmAccountDeletionView: View {
         error = nil
         defer { pending = false }
         do {
-            try await account.confirmAccountDeletion(confirmationToken: token)
+            needsManualAppleRevocation = try await account.confirmAccountDeletion(confirmationToken: token)
             GIDSignIn.sharedInstance.signOut()
             deleted = true
+        } catch let failure as APIClientError where failure.code == "APPLE_REVOCATION_FAILED" {
+            error = "Apple access could not be removed right now. Request a new confirmation email and try again."
         } catch {
             self.error = "Deletion could not be completed. Check that you’re signed in to the account that requested it. If the link expired, request a new one."
         }
