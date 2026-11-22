@@ -1,10 +1,12 @@
 import { cases, encodedPath, makeBootstrap, renderPublicApplication } from "./ssrBuiltOutput.mjs";
 import { DEFAULT_SHOWTIME_PREFERENCES } from "@kartiseret/contracts/showtime-preferences";
 import { getShowtimesCityFromPath } from "@kartiseret/contracts/showtime-routes";
+import { PUBLICATION_REVISION_HEADER } from "@kartiseret/contracts/public-data";
 import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
+import { addCalendarDays } from "@kartiseret/contracts/showtime-links";
+import { chromium, expect } from "@playwright/test";
 import { mkdir, readFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
-import { chromium } from "@playwright/test";
 import { createServer } from "node:http";
 import assert from "node:assert/strict";
 import { join } from "node:path";
@@ -984,7 +986,11 @@ try {
     [`/c/${cinemaIdentity.id}`, cinemaIdentity.displayName],
   ];
   for (const [pathname, expectedContent] of hydratedPublicRouteCases) {
-    const hydratedPage = await browser.newPage();
+    const hydratedPage = await browser.newPage({ reducedMotion: "reduce" });
+    const { showtimeCity, publicationRevision } = makeBootstrap(pathname);
+    const nextShowtimeDate = showtimeCity
+      ? addCalendarDays(showtimeCity.endDate, 1)
+      : null;
     const routeHydrationErrors = [];
     hydratedPage.on("pageerror", (error) =>
       routeHydrationErrors.push(error.message));
@@ -1005,6 +1011,28 @@ try {
       }
       await route.continue();
     });
+    if (showtimeCity && nextShowtimeDate) {
+      await hydratedPage.route("**/api/v1/showtimes?*", (route) => {
+        const { searchParams } = new URL(route.request().url());
+        assert.equal(searchParams.get("city"), showtimeCity.city);
+        assert.equal(searchParams.get("startDate"), nextShowtimeDate);
+        assert.ok(searchParams.get("endDate") >= nextShowtimeDate);
+        return route.fulfill({
+          headers: { [PUBLICATION_REVISION_HEADER]: publicationRevision },
+          json: {
+            data: {
+              showtimes: [
+                {
+                  ...showtimeCity.showtimes[0],
+                  dateOfShowing: nextShowtimeDate,
+                },
+              ],
+            },
+            error: null,
+          },
+        });
+      });
+    }
     await hydratedPage.goto(`${baseUrl}${pathname}`, { waitUntil: "load" });
     await hydratedPage
       .getByText(expectedContent, { exact: true })
@@ -1016,6 +1044,22 @@ try {
       1,
       `${pathname} retains its server-rendered movie link after hydration`,
     );
+    if (nextShowtimeDate) {
+      const days = hydratedPage
+        .getByRole("radiogroup", { name: "Choose showtime day" })
+        .getByRole("radio");
+      await expect(days.nth(7)).toBeEnabled();
+      for (let day = 0; day < 6; day += 1) {
+        await days.nth(day).press("ArrowRight");
+      }
+      await days.nth(7).click();
+      await expect(days.nth(7)).toHaveAttribute("aria-checked", "true");
+      await expect(
+        hydratedPage
+          .locator(`[data-showtime-date="${nextShowtimeDate}"]`)
+          .getByRole("link", { name: /23:59 showtime/ }),
+      ).toBeVisible();
+    }
     assert.deepEqual(
       routeHydrationErrors,
       [],

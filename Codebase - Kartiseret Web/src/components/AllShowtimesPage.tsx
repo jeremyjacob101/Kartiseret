@@ -1,4 +1,4 @@
-import { getNextShowtimePrefetchDayCount, INITIAL_SHOWTIME_WINDOW_DAY_COUNT, loadAdditionalShowtimeDays, loadShowtimesAroundDate, movieCollectionQueryOptions, selectBroadMovieShowtimeDays, selectMovies, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, type Movie, type ShowtimeCityData, type ShowtimeEntry, type TheaterShowtimes } from "../data/movieCatalog";
+import { getNextShowtimePrefetchDayCount, loadAdditionalShowtimeDays, loadShowtimesAroundDate, movieCollectionQueryOptions, selectBroadMovieShowtimeDays, selectMovies, showtimeCityQueryOptions, SHOWTIME_PREFETCH_CHUNK_DAY_COUNT, SHOWTIME_WINDOW_DAY_COUNT, type Movie, type ShowtimeCityData, type ShowtimeEntry, type TheaterShowtimes } from "../data/movieCatalog";
 import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, updateShowtimeFilterState, type ShowtimeFilterOptions, type ShowtimeFilterSelections } from "./showtimes/showtimeFilters";
 import { filterMoviesByReleaseCategory, MOVIE_RELEASE_CATEGORY_LABELS, type MovieReleaseCategory } from "../domain/movieRelease";
 import { getShowtimeDateLabel, getShowtimeTargetDate, getTrailerEmbedUrl } from "./showtimes/showtimeUtils";
@@ -547,10 +547,11 @@ export function AllShowtimesPage({
   }, [cinema, location, selectedShowtimeDateForToday]);
 
   useEffect(() => {
+    // The server-rendered week is shorter than the first prefetch chunk.
     if (
       cinema ||
       dayPanels.length === 0 ||
-      dayPanels.length > INITIAL_SHOWTIME_WINDOW_DAY_COUNT
+      dayPanels.length >= SHOWTIME_PREFETCH_CHUNK_DAY_COUNT
     ) {
       return;
     }
