@@ -4,7 +4,7 @@ SET LOCAL ROLE service_role;
 DO $$
 DECLARE
   relation text; date_col text; source boolean; sid uuid;
-  cutoff date := '1900-01-01'; day date; result jsonb; i integer; remaining integer; before_revision bigint; after_revision bigint;
+  cutoff date := '1900-01-01'; day date; result jsonb; i integer; remaining integer; expected integer; before_revision bigint; after_revision bigint;
 BEGIN
   IF has_function_privilege('anon','public.retire_expired_rows(text,date,boolean,integer)','EXECUTE')
      OR has_function_privilege('authenticated','public.retire_expired_rows(text,date,boolean,integer)','EXECUTE') THEN
@@ -18,6 +18,7 @@ BEGIN
     result := public.retire_expired_rows(relation,cutoff,false,1);
     IF (result->>'eligible')::integer <> 0 THEN RAISE EXCEPTION 'Test date has existing rows'; END IF;
     date_col := CASE WHEN relation IN ('allSoons','finalSoons') THEN 'release_date' ELSE 'date_of_showing' END;
+    expected := CASE WHEN relation IN ('allShowtimes','finalShowtimes') THEN 3 ELSE 2 END;
     source := relation LIKE 'all%'; sid := gen_random_uuid();
     IF source THEN
       INSERT INTO public.pipeline_scrape_snapshots(snapshot_id,run_id,table_name,source_name,cinema,status,row_count)
@@ -42,16 +43,16 @@ BEGIN
       END IF;
     END LOOP;
     result := public.retire_expired_rows(relation,cutoff,false,1);
-    IF (result->>'eligible')::integer <> 2 OR (result->>'deleted')::integer <> 0 THEN RAISE EXCEPTION 'Dry run mismatch: %',result; END IF;
+    IF (result->>'eligible')::integer <> expected OR (result->>'deleted')::integer <> 0 THEN RAISE EXCEPTION 'Dry run mismatch: %',result; END IF;
     result := public.retire_expired_rows(relation,cutoff,true,1);
     IF (result->>'deleted')::integer <> 1 OR NOT (result->>'has_more')::boolean THEN RAISE EXCEPTION 'Bounded batch mismatch'; END IF;
     result := public.retire_expired_rows(relation,cutoff,true,10);
-    IF (result->>'deleted')::integer <> 1 OR (result->>'has_more')::boolean THEN RAISE EXCEPTION 'Second batch mismatch'; END IF;
+    IF (result->>'deleted')::integer <> expected-1 OR (result->>'has_more')::boolean THEN RAISE EXCEPTION 'Second batch mismatch'; END IF;
     result := public.retire_expired_rows(relation,cutoff,true,10);
     IF (result->>'deleted')::integer <> 0 THEN RAISE EXCEPTION 'Retry not idempotent'; END IF;
     IF source THEN
       SELECT row_count INTO remaining FROM public.pipeline_scrape_snapshots WHERE snapshot_id=sid;
-      IF remaining<>2 THEN RAISE EXCEPTION 'Manifest did not preserve future/null rows'; END IF;
+      IF remaining<>4-expected THEN RAISE EXCEPTION 'Manifest row count mismatch'; END IF;
     END IF;
   END LOOP;
   sid := gen_random_uuid();

@@ -60,6 +60,8 @@ class RawCleaningScopeTests(TestCase):
             raw(prepared, run_id=3, cleaned=True, added=True, date_of_showing="1900-01-01"),
             raw(current, run_id=10, cleaned=True, added=True, date_of_showing="1900-01-01"),
             raw(None, run_id=1, cleaned=True, added=False, date_of_showing="1900-01-01"),
+            raw(None, run_id=10, date_of_showing=None),
+            raw(None, run_id=1, date_of_showing=None),
         ]
         manifests = [
             manifest("allShowtimes", eligible, run_id=1, status="complete", count=1),
@@ -92,13 +94,29 @@ class RawCleaningScopeTests(TestCase):
                 lease_guard=SimpleNamespace(verify=lambda: None),
             )
 
-        self.assertEqual(deleted, 1)
+        self.assertEqual(deleted, 2)
         remaining = workspace.table("allShowtimes").select().execute().data
-        self.assertEqual({row["id"] for row in remaining}, {row["id"] for row in rows[1:]})
+        self.assertEqual({row["id"] for row in remaining}, {row["id"] for row in rows[1:-1]})
         repaired = workspace.table("pipeline_scrape_snapshots").select().eq(
             "snapshot_id", eligible
         ).execute().data
         self.assertEqual(repaired[0]["row_count"], 0)
+        self.assertEqual(live.actions, [])
+
+    def test_publication_cleanup_retires_undated_final_showtimes(self):
+        undated = {"id": str(uuid.uuid4()), "date_of_showing": None}
+        future = {"id": str(uuid.uuid4()), "date_of_showing": "1900-01-02"}
+        live = DB({"finalShowtimes": [undated, future]})
+        workspace = PublicationWorkspace("nowplayings", 10, live)
+
+        with publication_scope(workspace):
+            for apply in (False, True):
+                self.assertEqual(delete_entries_on_or_before(
+                    workspace, "finalShowtimes", "date_of_showing", "1900-01-01",
+                    apply=apply, lease_guard=lambda: None,
+                ), 1)
+
+        self.assertEqual(workspace.table("finalShowtimes").select().execute().data, [future])
         self.assertEqual(live.actions, [])
 
     def test_only_replaced_failed_attempts_are_excluded_without_mutating_rows(self):

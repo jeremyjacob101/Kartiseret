@@ -357,8 +357,8 @@ class WorkspaceQuery:
         self.predicates.append(lambda r: r.get(column) in allowed)
         return self
 
-    def lte(self, column, value):
-        self.predicates.append(lambda r: r.get(column) is not None and r[column] <= value)
+    def lte(self, column, value, *, include_null=False):
+        self.predicates.append(lambda row: include_null if row.get(column) is None else row[column] <= value)
         return self
 
     def gt(self, column, value):

@@ -23,10 +23,12 @@ SNAPSHOT_TABLES = {"allShowtimes", "allSoons", "allTheques"}
 
 
 def delete_entries_on_or_before(sb, table_name, date_column, cutoff, *, apply=True, lease_guard=None):
-    if table_name in SNAPSHOT_TABLES:
-        from backend.dataflow.utils.PublicationWorkspace import _active
+    from backend.dataflow.utils.PublicationWorkspace import _active
 
-        workspace = _active.get()
+    workspace = _active.get()
+    include_null = table_name in {"allShowtimes", "finalShowtimes"} and date_column == "date_of_showing"
+
+    if table_name in SNAPSHOT_TABLES:
         if workspace is not None and sb is workspace:
             manifests = {
                 str(row.get("snapshot_id")): row
@@ -44,12 +46,14 @@ def delete_entries_on_or_before(sb, table_name, date_column, cutoff, *, apply=Tr
             }
             current_run_id = int(workspace.run_id)
             rows = workspace.table(table_name).select(
-                "id,snapshot_id,run_id,cleaned,added"
-            ).lte(date_column, cutoff).order("id").execute().data or []
+                f"id,snapshot_id,run_id,cleaned,added,{date_column}"
+            ).lte(date_column, cutoff, include_null=include_null).order("id").execute().data or []
             safe_ids = []
             affected_snapshots = set()
             for row in rows:
-                if row.get("cleaned") is not True or row.get("added") is not True:
+                # Malformed legacy rows can lack both a snapshot and publication flags.
+                legacy_undated = include_null and row.get(date_column) is None and not row.get("snapshot_id")
+                if not legacy_undated and (row.get("cleaned") is not True or row.get("added") is not True):
                     continue
                 row_run_id = row.get("run_id")
                 if row_run_id is not None and int(row_run_id) == current_run_id:
@@ -93,7 +97,14 @@ def delete_entries_on_or_before(sb, table_name, date_column, cutoff, *, apply=Tr
         if lease_guard:
             lease_guard()
         start = 0 if apply else offset
-        rows = sb.table(table_name).select(select_columns).lte(date_column, cutoff).order("id").range(start, start + DELETE_CHUNK_SIZE - 1).execute().data or []
+        query = sb.table(table_name).select(select_columns)
+        if include_null and workspace is not None and sb is workspace:
+            query = query.lte(date_column, cutoff, include_null=True)
+        elif include_null:
+            query = query.or_(f"{date_column}.lte.{cutoff},{date_column}.is.null")
+        else:
+            query = query.lte(date_column, cutoff)
+        rows = query.order("id").range(start, start + DELETE_CHUNK_SIZE - 1).execute().data or []
         row_ids = [row.get("id") for row in rows if row.get("id")]
         if not row_ids:
             if apply:
