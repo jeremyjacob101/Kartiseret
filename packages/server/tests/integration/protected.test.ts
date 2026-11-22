@@ -82,7 +82,7 @@ const correction = (
   mode,
   currentTmdbId: String(source),
   selectedTmdbId: String(target),
-  selectedTitle: "Correct title",
+  selectedTitle: '  "" Correct   "movie" title ""  ',
   isManualEntry: true,
 });
 async function movie(id: number) {
@@ -926,7 +926,9 @@ describe.sequential(
                 [target],
               )
             ).rows,
-          ).toEqual([{ tmdb_id: target, english_title: "Correct title" }]);
+          ).toEqual([
+            { tmdb_id: target, english_title: 'Correct "movie" title' },
+          ]);
       },
     );
     it.each(["nowPlaying", "comingSoon"] as const)(

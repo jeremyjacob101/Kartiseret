@@ -11,6 +11,7 @@ import {
   resolveArtworkDeliveryOrigin,
 } from "../artwork/delivery.js";
 import { createSocialPreviewFingerprint } from "../social-preview.js";
+import { stripEdgeDoubleQuotes } from "../text.js";
 import { z } from "zod";
 import { CatalogDataIntegrityError } from "./errors.js";
 
@@ -98,7 +99,7 @@ function parseGenres(value: string[] | null): string[] {
   return [
     ...new Set(
       value
-        .map((genre) => normalizeText(genre.replace(/^"+|"+$/g, "")))
+        .map((genre) => normalizeText(stripEdgeDoubleQuotes(genre)))
         .filter(Boolean),
     ),
   ];
@@ -206,9 +207,7 @@ function mapSourceMovie(
   movieCode?: string,
   deliveryOrigin?: string,
 ): Movie {
-  const title = normalizeText(row.englishTitle)
-    .replace(/^"+|"+$/g, "")
-    .trim();
+  const title = stripEdgeDoubleQuotes(normalizeText(row.englishTitle)).trim();
   const imageSrc =
     normalizeText(row.enPoster ?? "") || normalizeText(row.backdrop ?? "");
   const backdropSrc = normalizeText(row.backdrop ?? "") || imageSrc;

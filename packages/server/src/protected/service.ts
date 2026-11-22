@@ -64,6 +64,7 @@ import {
 import type { PublicDataRepository } from "../public-data/repository.js";
 import { getTicketAvailabilityShowtimes } from "../public-data/service.js";
 import { HttpError } from "../http-errors.js";
+import { stripEdgeDoubleQuotes } from "../text.js";
 import type { VerifiedIdentity } from "./identity.js";
 import { parseLetterboxdSourceUrl } from "./letterboxd-source-url.js";
 
@@ -1086,10 +1087,12 @@ export class ProtectedWorkflows {
           "ambiguous_movie",
           "Multiple coming-soon rows match this movie. Resolve the duplicate before correcting it.",
         );
-      const title = (command.selectedTitle?.trim() || targets[0]?.title || "")
-        .replace(/\s+/g, " ")
-        .replace(/^"+|"+$/g, "")
-        .trim();
+      const title = stripEdgeDoubleQuotes(
+        (command.selectedTitle?.trim() || targets[0]?.title || "").replace(
+          /\s+/g,
+          " ",
+        ),
+      ).trim();
       await tx.execute(
         sql`insert into ${tableFixes} ("tmdb_id", "title_fix") values (${String(targetId)}, ${String(sourceId)})`,
       );
