@@ -35,10 +35,10 @@ describe("showtime shared rendered surfaces", () => {
   });
 
   it.each([
-    ["Infinity Vision", "Inf. Vision"],
-    ["2D 4DX Infinity Vision", "4DX Inf. Vision"],
-    ["3D Infinity Vision", "3D Inf. Vision"],
-    ["2D ScreenX Infinity vision", "ScreenX Inf. Vision"],
+    ["Infinity Vision", "InfVis"],
+    ["2D 4DX Infinity Vision", "4DX InfVis"],
+    ["3D Infinity Vision", "3D InfVis"],
+    ["2D ScreenX Infinity vision", "ScreenX InfVis"],
   ])("abbreviates %s on the showtime badge", (screeningTech, label) => {
     const theater = sampleShowtimes[0];
     const showtime = { ...theater.showtimes[0], screeningTech };

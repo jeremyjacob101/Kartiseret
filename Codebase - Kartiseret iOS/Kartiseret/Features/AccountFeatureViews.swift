@@ -407,13 +407,13 @@ struct PreferencesView: View {
 
     private var saveStatus: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                if account.isSaving {
+            if account.isSaving {
+                HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
+                    Text("Saving your changes…")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.secondary)
                 }
-                Text(account.isSaving ? "Saving your changes…" : "Changes save automatically")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.secondary)
             }
 
             if let feedback = account.feedback {

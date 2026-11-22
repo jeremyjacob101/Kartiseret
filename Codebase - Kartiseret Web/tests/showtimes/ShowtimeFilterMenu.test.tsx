@@ -39,7 +39,7 @@ describe("ShowtimeFilterMenu", () => {
     });
     expect(panel).toHaveStyle({ width: "320px" });
 
-    await user.click(screen.getByRole("button", { name: "Inf. Vision" }));
+    await user.click(screen.getByRole("button", { name: "InfVis" }));
     expect(onToggleOption).toHaveBeenCalledWith(
       "screeningTech",
       "Infinity Vision",

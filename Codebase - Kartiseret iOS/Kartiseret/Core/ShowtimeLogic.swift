@@ -62,7 +62,7 @@ enum ShowtimeLogic {
     static func formatScreeningTechLabel(_ value: String) -> String {
         value.replacingOccurrences(
             of: #"\bInfinity\s+Vision\b"#,
-            with: "Inf. Vision",
+            with: "InfVis",
             options: [.regularExpression, .caseInsensitive]
         )
     }

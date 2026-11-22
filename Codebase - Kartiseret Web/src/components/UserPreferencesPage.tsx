@@ -445,9 +445,11 @@ export function UserPreferencesPage() {
               </div>
             ) : null}
 
-            <p className="prefs-autosave" role="status" aria-live="polite">
-              {syncing ? "Saving changes…" : "Changes save automatically"}
-            </p>
+            {syncing ? (
+              <p className="prefs-autosave" role="status" aria-live="polite">
+                Saving changes…
+              </p>
+            ) : null}
           </div>
         </div>
       </div>

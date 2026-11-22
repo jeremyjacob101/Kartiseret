@@ -1,5 +1,5 @@
 export function formatScreeningTechLabel(value: string): string {
-  return value.replace(/\bInfinity\s+Vision\b/gi, "Inf. Vision");
+  return value.replace(/\bInfinity\s+Vision\b/gi, "InfVis");
 }
 
 export function getShowtimeTechLabel(screeningTech: string): string | null {

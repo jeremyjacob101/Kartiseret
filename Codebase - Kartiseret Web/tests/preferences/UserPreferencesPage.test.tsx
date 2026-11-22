@@ -55,6 +55,9 @@ describe("UserPreferencesPage", () => {
       "aria-expanded",
       "false",
     );
+    expect(
+      screen.queryByText("Changes save automatically"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Loading city map...")).not.toBeInTheDocument();
     expect(screen.getByText("All screening options shown")).toBeInTheDocument();
 

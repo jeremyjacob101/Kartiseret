@@ -83,10 +83,10 @@ final class MovieRatingLogicTests: XCTestCase {
     func testShowtimeTicketMetadataMatchesWebsiteBadgeRules() {
         XCTAssertEqual(ShowtimeLogic.technologyBadge("2D IMAX"), "IMAX")
         XCTAssertEqual(ShowtimeLogic.technologyBadge(" 2D / 4DX "), "4DX")
-        XCTAssertEqual(ShowtimeLogic.technologyBadge("Infinity Vision"), "Inf. Vision")
-        XCTAssertEqual(ShowtimeLogic.technologyBadge("2D 4DX Infinity Vision"), "4DX Inf. Vision")
-        XCTAssertEqual(ShowtimeLogic.technologyBadge("3D Infinity Vision"), "3D Inf. Vision")
-        XCTAssertEqual(ShowtimeLogic.technologyBadge("2D ScreenX Infinity vision"), "ScreenX Inf. Vision")
+        XCTAssertEqual(ShowtimeLogic.technologyBadge("Infinity Vision"), "InfVis")
+        XCTAssertEqual(ShowtimeLogic.technologyBadge("2D 4DX Infinity Vision"), "4DX InfVis")
+        XCTAssertEqual(ShowtimeLogic.technologyBadge("3D Infinity Vision"), "3D InfVis")
+        XCTAssertEqual(ShowtimeLogic.technologyBadge("2D ScreenX Infinity vision"), "ScreenX InfVis")
         XCTAssertNil(ShowtimeLogic.technologyBadge("2D"))
         XCTAssertNil(ShowtimeLogic.technologyBadge("REGULAR"))
 

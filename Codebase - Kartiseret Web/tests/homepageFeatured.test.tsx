@@ -291,7 +291,7 @@ describe("homepage featured carousel", () => {
     ).toEqual(["2", "3", "4", "5", "6", "9"]);
   });
 
-  it("slides by dot, arrow and keyboard, and restarts the five-second rotation after manual navigation", async () => {
+  it("slides by dot and keyboard, and restarts the five-second rotation after manual navigation", async () => {
     vi.useFakeTimers();
     const config = featuredConfig({
       promotions: [
@@ -335,6 +335,10 @@ describe("homepage featured carousel", () => {
     const frame = carousel.querySelector(".homepage-featured-frame")!;
     const dots = screen.getAllByRole("button", { name: /^Show featured item/ });
     expect(frame).toContainElement(dots[0]);
+    expect(dots[0]).toHaveAttribute("aria-current", "true");
+    expect(
+      screen.queryByRole("button", { name: /^(Previous|Next) featured item$/ }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /pause|play carousel/i }),
     ).toBeNull();
@@ -359,15 +363,9 @@ describe("homepage featured carousel", () => {
     expect(frame).toHaveAttribute("data-direction", "backward");
     expect(screen.getByRole("heading", { name: "Cinema Day" })).toBeVisible();
     fireEvent.click(dots[0]!);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Previous featured item" }),
-    );
+    fireEvent.keyDown(carousel, { key: "ArrowLeft" });
     expect(dots.at(-1)).toHaveAttribute("aria-current", "true");
-    expect(
-      frame.querySelector(
-        '.homepage-featured-indicator[data-motion="incoming"]',
-      ),
-    ).toBeInTheDocument();
+    expect(dots[0]).not.toHaveAttribute("aria-current");
 
     fireEvent.pointerEnter(carousel);
     await act(async () => vi.advanceTimersByTime(5_000));

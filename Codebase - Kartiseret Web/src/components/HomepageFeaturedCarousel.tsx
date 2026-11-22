@@ -4,8 +4,8 @@ import { buildHomepageFeaturedSlides, type HomepageFeaturedSlide } from "../data
 import type { HomepageFeaturedResponse } from "@kartiseret/contracts/homepage-featured";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Plus, X } from "lucide-react";
 import type { CSSProperties, FormEvent } from "react";
+import { ArrowRight, Plus, X } from "lucide-react";
 import type { Movie } from "../data/movieCatalog";
 import "./HomepageFeaturedCarousel.css";
 
@@ -23,7 +23,6 @@ type Navigation = {
   activeId: string | null;
   outgoingId: string | null;
   direction: 1 | -1;
-  wraps: boolean;
 };
 
 type SlideTarget = { step: 1 | -1 } | { index: number };
@@ -319,7 +318,6 @@ export function HomepageFeaturedCarousel({
     activeId: null,
     outgoingId: null,
     direction: 1,
-    wraps: false,
   });
   const [hovered, setHovered] = useState(false);
   const [focusWithin, setFocusWithin] = useState(false);
@@ -385,7 +383,6 @@ export function HomepageFeaturedCarousel({
           activeId: slideId(next),
           outgoingId: prefersReducedMotion ? null : slideId(previous),
           direction,
-          wraps: "step" in target && (to - from) * direction < 0,
         };
       });
     },
@@ -613,58 +610,21 @@ export function HomepageFeaturedCarousel({
             );
           })}
           {slides.length > 1 ? (
-            <>
-              <button
-                className="homepage-featured-arrow is-previous"
-                type="button"
-                aria-label="Previous featured item"
-                onClick={() => navigate({ step: -1 })}
-              >
-                <ArrowLeft size={19} />
-              </button>
-              <button
-                className="homepage-featured-arrow is-next"
-                type="button"
-                aria-label="Next featured item"
-                onClick={() => navigate({ step: 1 })}
-              >
-                <ArrowRight size={19} />
-              </button>
-              <div
-                className="homepage-featured-controls"
-                role="group"
-                aria-label="Choose featured item"
-              >
-                <div
-                  className="homepage-featured-indicator-track"
-                  aria-hidden="true"
-                >
-                  <span
-                    className="homepage-featured-indicator"
-                    data-motion={
-                      navigation.wraps && outgoingSlide ? "incoming" : undefined
-                    }
-                    style={{ "--dot-index": currentIndex } as CSSProperties}
-                  />
-                  {navigation.wraps && outgoingSlide ? (
-                    <span
-                      className="homepage-featured-indicator"
-                      data-motion="outgoing"
-                      style={{ "--dot-index": outgoingIndex } as CSSProperties}
-                    />
-                  ) : null}
-                </div>
-                {slides.map((item, index) => (
-                  <button
-                    key={slideId(item)}
-                    type="button"
-                    aria-label={`Show featured item ${index + 1} of ${slides.length}`}
-                    aria-current={index === currentIndex ? "true" : undefined}
-                    onClick={() => navigate({ index })}
-                  />
-                ))}
-              </div>
-            </>
+            <div
+              className="homepage-featured-controls"
+              role="group"
+              aria-label="Choose featured item"
+            >
+              {slides.map((item, index) => (
+                <button
+                  key={slideId(item)}
+                  type="button"
+                  aria-label={`Show featured item ${index + 1} of ${slides.length}`}
+                  aria-current={index === currentIndex ? "true" : undefined}
+                  onClick={() => navigate({ index })}
+                />
+              ))}
+            </div>
           ) : null}
         </div>
       </section>
