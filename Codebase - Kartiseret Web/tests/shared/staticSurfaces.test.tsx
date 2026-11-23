@@ -74,6 +74,15 @@ describe("site information", () => {
     );
     expect(privacyRules.getByText(/Section 11/)).toBeVisible();
     expect(privacyRules.getByText(/Analytics by default/)).toBeVisible();
+    expect(privacyRules.getByText(/I welcome suggestions/)).toHaveTextContent(
+      "access, correct, or delete personal information",
+    );
+    expect(
+      privacyRules.getByRole("link", { name: "jeremyjacob101@gmail.com" }),
+    ).toHaveAttribute(
+      "href",
+      expect.stringContaining("mailto:jeremyjacob101@gmail.com"),
+    );
     expect(
       privacyRules.getByRole("link", {
         name: "Privacy Protection Law in Hebrew",

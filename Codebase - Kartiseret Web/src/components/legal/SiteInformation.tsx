@@ -298,14 +298,14 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
         content: (
           <>
             <p>
-              Kartiseret is a free, independently run project. I aim to make
-              clear what the site collects and why. Section 11 of Israel’s
-              Privacy Protection Law requires notice when someone is asked for
-              personal information for use in a database. That includes why it’s
-              requested, whether you have to provide it and what happens if you
-              decline, who handles or receives it, and how to exercise access
-              and correction rights. When the law requires consent, it must be
-              informed.
+              Kartiseret is a free project I run as an independent developer.
+              I’m doing my best to protect your privacy and make clear what the
+              site collects and why. Section 11 of Israel’s Privacy Protection
+              Law requires notice when someone is asked for personal information
+              for use in a database. That includes why it’s requested, whether
+              you have to provide it and what happens if you decline, who
+              handles or receives it, and how to exercise access and correction
+              rights. When the law requires consent, it must be informed.
             </p>
             <p>
               Kartiseret explains why it asks for information at sign-up and
@@ -315,6 +315,14 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
               general guidance leaves open whether a particular cookieless
               analytics setup requires consent. I’ll revisit this policy if
               these practices or the guidance change.
+            </p>
+            <p>
+              If you have questions or concerns, please email me at{" "}
+              <EmailLink topic="Privacy request">{supportEmail}</EmailLink>. I’m
+              happy to clarify or update this policy and help you access,
+              correct, or delete personal information Kartiseret holds about
+              you, where applicable. I welcome suggestions and help improving
+              how Kartiseret handles privacy.
             </p>
             <p>
               <a href="https://main.knesset.gov.il/apps-lgs/legislation/main/laws/2000234">
