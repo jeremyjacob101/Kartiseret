@@ -12,6 +12,43 @@ for (const viewport of [
   { width: 390, height: 844 },
   { width: 1280, height: 900 },
 ]) {
+  test(`Credits logos fit their tiles at ${viewport.width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.goto("/attribution");
+    const logos = page.locator(".site-info-source-logo img");
+    await expect(logos).toHaveCount(20);
+    for (const logo of await logos.all()) {
+      await logo.scrollIntoViewIfNeeded();
+      const fits = await logo.evaluate(async (image: HTMLImageElement) => {
+        await image.decode();
+        const bounds = image.getBoundingClientRect();
+        const tile = image.parentElement!.getBoundingClientRect();
+        return (
+          bounds.width > 0 &&
+          bounds.height > 0 &&
+          bounds.left >= tile.left &&
+          bounds.top >= tile.top &&
+          bounds.right <= tile.right &&
+          bounds.bottom <= tile.bottom
+        );
+      });
+      expect(fits, (await logo.getAttribute("src")) ?? undefined).toBe(true);
+    }
+
+    for (const name of ["Holon Cinematheque", "Jerusalem Cinematheque"]) {
+      await expect(
+        page.getByRole("link", { name, exact: true }).locator("img"),
+      ).toHaveCSS("filter", "brightness(0)");
+    }
+    await expect(
+      page
+        .getByRole("link", { name: "Rotten Tomatoes Audience" })
+        .locator("img"),
+    ).toHaveCSS("filter", "none");
+  });
+
   test(`site information navigation works at ${viewport.width}px`, async ({
     page,
   }) => {

@@ -38,15 +38,25 @@ function EmailLink({
 function SourceLinks({
   sources,
 }: {
-  sources: readonly { name: string; href: string; logoSrc: string }[];
+  sources: readonly {
+    name: string;
+    href: string;
+    logoSrc: string;
+    darkLogo?: boolean;
+  }[];
 }) {
   return (
     <ul className="site-info-sources">
-      {sources.map(({ name, href, logoSrc }) => (
+      {sources.map(({ name, href, logoSrc, darkLogo }) => (
         <li key={name}>
           <a href={href} target="_blank" rel="noreferrer">
             <span className="site-info-source-logo">
-              <img src={logoSrc} alt="" loading="lazy" />
+              <img
+                src={logoSrc}
+                alt=""
+                loading="lazy"
+                className={darkLogo ? "site-info-source-logo--dark" : undefined}
+              />
             </span>
             <span>{name}</span>
             <ArrowUpRight size={15} aria-hidden="true" />

@@ -36,6 +36,7 @@ export const cinemathequeSources = [
     name: "Holon Cinematheque",
     href: "https://www.cinemaholon.org.il/",
     logoSrc: "/logos/theaters/holon-cinematheque.svg",
+    darkLogo: true,
   },
   {
     name: "Haifa Cinematheque",
@@ -51,6 +52,7 @@ export const cinemathequeSources = [
     name: "Jerusalem Cinematheque",
     href: "https://jer-cin.org.il/he",
     logoSrc: "/logos/theaters/jerusalem-cinematheque.png",
+    darkLogo: true,
   },
   {
     name: "Herzliya Cinematheque",

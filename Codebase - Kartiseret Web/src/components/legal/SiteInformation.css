@@ -146,19 +146,23 @@
 }
 
 .site-info-source-logo {
-  display: grid;
-  place-items: center;
   width: 30px;
   height: 28px;
   padding: 3px;
   border-radius: 5px;
   background: #f5f0f6;
+  overflow: hidden;
 }
 
 .site-info-source-logo img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.site-info-source-logo--dark {
+  filter: brightness(0);
 }
 
 .site-info-sources svg {
