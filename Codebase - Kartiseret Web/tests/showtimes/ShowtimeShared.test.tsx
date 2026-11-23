@@ -64,12 +64,9 @@ describe("showtime shared rendered surfaces", () => {
       />,
     );
 
-    const play = screen.getByRole("button", {
-      name: "Play Sample Movie trailer on YouTube",
-    });
-    expect(play).toHaveAccessibleDescription("Connects to YouTube");
-    expect(document.querySelector("iframe")).toBeNull();
-    fireEvent.click(play);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Watch Sample Movie trailer" }),
+    );
     expect(onTrailerClick).toHaveBeenCalledOnce();
     expect(screen.getByLabelText(/IMDb rating/)).toBeInTheDocument();
 

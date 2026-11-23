@@ -595,60 +595,6 @@ try {
   }
   await mobileHomePage.close();
 
-  for (const viewport of [
-    { width: 390, height: 844 },
-    { width: 1280, height: 900 },
-  ]) {
-    const trailerPage = await browser.newPage({
-      viewport,
-      reducedMotion: "reduce",
-    });
-    const trailerRequests = [];
-    const trailerErrors = [];
-    trailerPage.on("pageerror", (error) => trailerErrors.push(error.message));
-    await trailerPage.route("https://www.youtube-nocookie.com/**", (route) => {
-      trailerRequests.push(route.request().url());
-      return route.fulfill({
-        contentType: "text/html",
-        body: "<p>Trailer fixture</p>",
-      });
-    });
-    await trailerPage.goto(`${baseUrl}/soons`);
-    await expect(trailerPage).toHaveTitle(
-      "Coming soon movies in Israel | Kartiseret",
-    );
-    await trailerPage
-      .getByRole("link", { name: "Open SSR Coming Soon Movie movie page" })
-      .click();
-    const play = trailerPage.getByRole("button", {
-      name: "Play trailer on YouTube: SSR Coming Soon Movie",
-    });
-    await expect(play).toBeVisible();
-    await expect(play).toHaveAccessibleDescription(
-      "Playing this trailer connects to YouTube (Google).",
-    );
-    await expect(trailerPage.locator("iframe")).toHaveCount(0);
-    assert.deepEqual(trailerRequests, []);
-    if (screenshotDir) {
-      await play.scrollIntoViewIfNeeded();
-      await trailerPage.screenshot({
-        path: join(screenshotDir, `trailer-before-play-${viewport.width}.png`),
-      });
-    }
-
-    await play.click();
-    await expect(trailerPage.locator("iframe")).toHaveAttribute(
-      "src",
-      /youtube-nocookie\.com\/embed\/dQw4w9WgXcQ.*autoplay=1/,
-    );
-    await expect(
-      trailerPage.frameLocator("iframe").getByText("Trailer fixture"),
-    ).toHaveText("Trailer fixture");
-    assert.equal(trailerRequests.length, 1);
-    assert.deepEqual(trailerErrors, []);
-    await trailerPage.close();
-  }
-
   const mobilePage = await browser.newPage({
     javaScriptEnabled: false,
     viewport: { width: 390, height: 844 },

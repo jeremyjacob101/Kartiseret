@@ -309,12 +309,11 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
             </p>
             <p>
               Kartiseret explains why it asks for information at sign-up and
-              password reset, and loads YouTube only when you choose to play a
-              trailer. The website runs Vercel Web Analytics by default without
-              analytics cookies. The Israeli Privacy Protection Authority’s
-              general guidance leaves open whether a particular cookieless
-              analytics setup requires consent. I’ll revisit this policy if
-              these practices or the guidance change.
+              password reset. The website runs Vercel Web Analytics by default
+              without analytics cookies. The Israeli Privacy Protection
+              Authority’s general guidance leaves open whether a particular
+              cookieless analytics setup requires consent. I’ll revisit this
+              policy if these practices or the guidance change.
             </p>
             <p>
               If you have questions or concerns, please email me at{" "}
@@ -371,17 +370,13 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
             <p>
               On the website, Vercel Web Analytics measures visits using
               information such as pages viewed, referrer, browser, device and
-              approximate region. It uses no analytics cookies.
-            </p>
-            <p>
-              Opening the city map connects your browser to CARTO for map
-              content. Choosing to play a trailer connects your browser to
-              YouTube’s privacy-enhanced player. CARTO and YouTube receive
-              technical request information when their content loads. Kartiseret
-              does not place ads on its pages. YouTube may show ads within its
-              player. Google and Apple handle authentication if you choose their
-              sign-in option. If you follow a cinema booking link, the seller
-              handles information you provide there under its own policy.
+              approximate region. It uses no analytics cookies. Map requests go
+              to CARTO and trailer requests go to YouTube’s privacy-enhanced
+              player. These providers receive technical request information when
+              their content loads. Google and Apple handle authentication if you
+              choose their sign-in option. If you follow a cinema booking link,
+              the seller handles information you provide there under its own
+              policy.
             </p>
             <p>
               We may also disclose information when required by law or to

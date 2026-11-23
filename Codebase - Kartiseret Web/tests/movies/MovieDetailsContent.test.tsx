@@ -127,45 +127,6 @@ describe("MovieDetailsContent", () => {
     }
   });
 
-  it("loads a Coming Soon trailer only after Play and resets for a different movie", async () => {
-    const user = userEvent.setup();
-    const content = (movie: typeof sampleMovie) => (
-      <MemoryRouter>
-        <QueryClientProvider client={queryClient}>
-          <MovieDetailsContent
-            movie={movie}
-            titleId="sample-title"
-            variant="comingSoon"
-          />
-        </QueryClientProvider>
-      </MemoryRouter>
-    );
-    const { container, rerender } = render(
-      content({ ...sampleMovie, tmdbId: "201" }),
-    );
-    const play = screen.getByRole("button", {
-      name: "Play trailer on YouTube: Sample Movie",
-    });
-    expect(play).toHaveAccessibleDescription(
-      "Playing this trailer connects to YouTube (Google).",
-    );
-    expect(container.querySelector("iframe")).toBeNull();
-
-    await user.click(play);
-    expect(screen.getByTitle("Sample Movie official trailer")).toHaveAttribute(
-      "src",
-      expect.stringContaining("youtube-nocookie.com/embed/dQw4w9WgXcQ"),
-    );
-
-    rerender(content({ ...sampleMovie, tmdbId: "202", title: "Second Movie" }));
-    expect(container.querySelector("iframe")).toBeNull();
-    expect(
-      screen.getByRole("button", {
-        name: "Play trailer on YouTube: Second Movie",
-      }),
-    ).toBeVisible();
-  });
-
   it("renders metadata, ratings, showtimes, sharing, and trailer overlay behavior", async () => {
     const user = userEvent.setup();
     const onShareShowtimes = vi.fn();
@@ -205,9 +166,7 @@ describe("MovieDetailsContent", () => {
     });
 
     await user.click(
-      screen.getAllByRole("button", {
-        name: "Play Sample Movie trailer on YouTube",
-      })[0]!,
+      screen.getAllByRole("button", { name: "Watch Sample Movie trailer" })[0]!,
     );
     expect(
       screen.getByRole("dialog", { name: "Sample Movie trailer" }),

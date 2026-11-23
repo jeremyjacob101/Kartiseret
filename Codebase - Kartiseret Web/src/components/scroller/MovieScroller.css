@@ -489,6 +489,32 @@
   color: rgb(233, 226, 245 / 50);
 }
 
+.details-trailer-launch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    opacity 140ms ease;
+}
+
+.details-trailer-launch:hover,
+.details-trailer-launch:focus-visible {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.details-trailer-launch-logo {
+  display: block;
+  width: 30px;
+  height: 22px;
+  object-fit: contain;
+}
+
 .details-release-date {
   margin: 14px 0 0;
   font-size: 0.96rem;
@@ -657,6 +683,13 @@
 
 .details-metrics-row--mobile {
   display: none;
+}
+
+.details-trailer-launch--metrics {
+  align-self: stretch;
+  min-width: 36px;
+  padding: 0 2px;
+  margin-right: 10px;
 }
 
 .details-metrics-divider {
@@ -906,6 +939,11 @@
   margin: 0;
   padding: 24px;
   color: rgba(233, 226, 245, 0.76);
+}
+
+.details-trailer-shell {
+  display: grid;
+  gap: 14px;
 }
 
 .details-trailer-header {
@@ -1920,6 +1958,22 @@ html[data-device-type="mobile"]
   gap: 10px;
   margin-top: 2px;
   min-width: 0;
+}
+
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-metrics-row--mobile
+  .details-trailer-launch--metrics {
+  min-width: 0;
+  padding: 0;
+}
+
+html[data-device-type="mobile"]
+  .movie-scroller-detail-card
+  .details-metrics-row--mobile
+  .details-trailer-launch-logo {
+  width: 24px;
+  height: 18px;
 }
 
 html[data-device-type="mobile"]

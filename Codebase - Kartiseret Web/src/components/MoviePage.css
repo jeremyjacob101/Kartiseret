@@ -156,6 +156,18 @@
     min-width: 0;
   }
 
+  .movie-page-card
+    .details-metrics-row--mobile
+    .details-trailer-launch--metrics {
+    min-width: 0;
+    padding: 0;
+  }
+
+  .movie-page-card .details-metrics-row--mobile .details-trailer-launch-logo {
+    width: 24px;
+    height: 18px;
+  }
+
   .movie-page-card .details-metrics-row--mobile .details-metrics-divider {
     height: 38px;
   }

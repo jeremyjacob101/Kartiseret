@@ -36,7 +36,7 @@ const movie = {
   genres: ["Drama", "Comedy"],
   imageSrc: "https://images.example.test/poster.jpg",
   backdropSrc: "https://images.example.test/backdrop.jpg",
-  trailerKey: "dQw4w9WgXcQ",
+  trailerKey: "testTrailerKey",
   imdbRating: null,
   lbRating: null,
   lbVotes: null,

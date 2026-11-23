@@ -48,7 +48,7 @@ describe("site information", () => {
     );
   });
 
-  it("explains browser storage, analytics and when embedded services connect", () => {
+  it("explains browser storage, analytics, and Israeli privacy rules", () => {
     const privacy = siteInformationPages.find(
       ({ path }) => path === "/privacy",
     )!;
@@ -64,9 +64,6 @@ describe("site information", () => {
     expect(
       screen.getByText(/Vercel Web Analytics measures visits/),
     ).toHaveTextContent("It uses no analytics cookies.");
-    expect(screen.getByText(/Opening the city map/)).toHaveTextContent(
-      "Choosing to play a trailer connects your browser to YouTube’s privacy-enhanced player.",
-    );
     expect(screen.getByText(/Web sessions expire 30 days/)).toBeVisible();
 
     const privacyRules = within(
