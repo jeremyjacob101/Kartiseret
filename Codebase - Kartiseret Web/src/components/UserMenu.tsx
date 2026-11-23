@@ -1,7 +1,7 @@
 import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH } from "@kartiseret/contracts/private-data";
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { Apple, ArrowUpRight, Clapperboard, LogOut, User, X } from "lucide-react";
-import { useLocation, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { createPortal } from "react-dom";
 import { z } from "zod";
 import "./UserMenu.css";
@@ -13,11 +13,6 @@ import { OPEN_AUTH_MENU_EVENT } from "../lib/authMenu";
 import { getAuthClient } from "../lib/authClient";
 
 type AuthMode = "login" | "signup" | "forgotPassword";
-type UserMenuProps = {
-  panelDirection?: "down" | "up";
-  triggerTabIndex?: number;
-};
-
 const authClient = getAuthClient();
 const emailSchema = z
   .string()
@@ -94,10 +89,7 @@ function getAccentForegroundColor(): string {
   return whiteContrast >= darkContrast ? "#fff" : "#211b27";
 }
 
-export function UserMenu({
-  panelDirection = "down",
-  triggerTabIndex,
-}: UserMenuProps) {
+export function UserMenu() {
   const location = useLocation();
   const navigate = useNavigate();
   const user = useUserPreferencesStore((state) => state.user);
@@ -419,6 +411,17 @@ export function UserMenu({
                 </p>
               </div>
 
+              <p className="user-menu-privacy-note">
+                Browsing is available without an account. If you create one,
+                Jeremy Jacob uses the information you provide to run your
+                account and sync your preferences. The{" "}
+                <Link to="/privacy" onClick={() => setIsOpen(false)}>
+                  Privacy Policy
+                </Link>{" "}
+                explains who receives it and how to request access or
+                correction.
+              </p>
+
               {authMode !== "forgotPassword" && socialProviders.length > 0 ? (
                 <div
                   className="user-menu-social-options"
@@ -608,9 +611,6 @@ export function UserMenu({
                   {authError}
                 </p>
               ) : null}
-              <p className="user-menu-dialog-footer">
-                Your account keeps your Kartiseret preferences in sync.
-              </p>
             </div>
           </div>,
           document.body,
@@ -618,14 +618,10 @@ export function UserMenu({
       : null;
 
   return (
-    <div
-      className={`user-menu user-menu--panel-${panelDirection}`}
-      ref={menuRef}
-    >
+    <div className="user-menu" ref={menuRef}>
       <button
         type="button"
         className={`user-menu-trigger${isOpen ? " is-open" : ""}`}
-        tabIndex={triggerTabIndex}
         aria-haspopup={user ? "menu" : "dialog"}
         aria-expanded={isOpen}
         aria-label={user ? `Signed in as ${user.email}` : "Sign up or log in"}

@@ -132,6 +132,21 @@ describe("deployment performance boundaries", () => {
     expect(indexOf("/unsubscribe/letterboxd")).toBeLessThan(
       indexOf("/:routeCode([0-9A-Za-z]{3,10})"),
     );
+    for (const source of [
+      "/support",
+      "/accessibility",
+      "/privacy",
+      "/terms",
+      "/attribution",
+    ]) {
+      expect(indexOf(source)).toBeGreaterThanOrEqual(0);
+      expect(indexOf(source)).toBeLessThan(
+        indexOf("/:routeCode([0-9A-Za-z]{3,10})"),
+      );
+      expect(
+        rewrites.find((rewrite) => rewrite.source === source)?.destination,
+      ).toBe("/index.html");
+    }
     expect(indexOf("/(.*)")).toBe(rewrites.length - 1);
     expect(
       rewrites.find((rewrite) => rewrite.source === "/api")?.destination,
@@ -215,6 +230,10 @@ describe("deployment performance boundaries", () => {
       "/user",
       "/reset-password",
       "/confirm-account-deletion",
+      "/support",
+      "/accessibility",
+      "/privacy",
+      "/terms",
       "/attribution",
       "/unsubscribe/letterboxd",
     ]) {

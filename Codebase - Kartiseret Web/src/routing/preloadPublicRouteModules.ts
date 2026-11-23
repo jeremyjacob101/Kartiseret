@@ -1,6 +1,7 @@
 import { loadAllShowtimesPageModule, loadCinemaPageModule, loadCinemathequesPageModule, loadMoviePageModule, loadPosterGridPageModule, loadUserPreferencesPageModule } from "./publicRouteModuleLoaders.js";
 import type { PublicRouteComponents } from "./PublicRouteComponentsContext.js";
 import { movieCodeSchema } from "@kartiseret/contracts/runtime";
+import { siteInformationPages } from "./siteInformation.js";
 import { PASSWORD_RESET_PATH } from "../lib/authRoutes.js";
 
 const FIXED_APP_PATHS = new Set([
@@ -10,7 +11,7 @@ const FIXED_APP_PATHS = new Set([
   "/cinematheques",
   "/soons",
   "/user",
-  "/attribution",
+  ...siteInformationPages.map(({ path }) => path),
   "/unsubscribe/letterboxd",
   PASSWORD_RESET_PATH,
   "/confirm-account-deletion",

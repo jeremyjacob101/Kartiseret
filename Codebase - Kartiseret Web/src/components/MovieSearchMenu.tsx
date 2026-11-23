@@ -27,8 +27,6 @@ type MovieSearchMenuProps = {
   loading?: boolean;
   cinemathequeUnavailable?: boolean;
   onOpen?: () => void;
-  panelDirection?: "down" | "up";
-  triggerTabIndex?: number;
   onSelectResult: (result: MovieSearchResult) => void;
 };
 
@@ -74,8 +72,6 @@ export function MovieSearchMenu({
   loading = false,
   cinemathequeUnavailable = false,
   onOpen,
-  panelDirection = "down",
-  triggerTabIndex,
   onSelectResult,
 }: MovieSearchMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -188,14 +184,10 @@ export function MovieSearchMenu({
   }
 
   return (
-    <div
-      className={`movie-search movie-search--panel-${panelDirection}`}
-      ref={menuRef}
-    >
+    <div className="movie-search" ref={menuRef}>
       <button
         type="button"
         className={`movie-search-trigger${isOpen ? " is-open" : ""}`}
-        tabIndex={triggerTabIndex}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         aria-label="Search movies"

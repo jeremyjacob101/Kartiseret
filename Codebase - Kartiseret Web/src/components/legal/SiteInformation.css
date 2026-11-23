@@ -1,0 +1,216 @@
+.site-info {
+  --info-divider: color-mix(in srgb, var(--main-app-color) 30%, #353238);
+  --info-link: color-mix(in srgb, var(--main-app-color) 42%, #fff);
+  width: min(100%, 1032px);
+  min-width: 0;
+  padding: 12px clamp(12px, 3vw, 30px) 24px;
+  color: #f6f0f9;
+}
+
+.site-info-header {
+  padding: clamp(24px, 4vw, 50px) 0 clamp(24px, 4vw, 40px);
+  border-bottom: 1px solid var(--info-divider);
+}
+
+.site-info-header h1 {
+  margin: 0;
+  font-size: clamp(2.65rem, 5vw, 4.5rem);
+  font-weight: 750;
+  letter-spacing: -0.055em;
+  line-height: 1.03;
+}
+
+.site-info-header p {
+  max-width: 44ch;
+  margin: 14px 0 0;
+  color: #dfd7e5;
+  font-size: clamp(1.05rem, 2vw, 1.23rem);
+}
+
+.site-info-header .site-info-date {
+  margin-top: 16px;
+  color: #c4b9cc;
+  font-size: 0.88rem;
+}
+
+.site-info-layout {
+  display: grid;
+  grid-template-columns: minmax(156px, 218px) minmax(0, 1fr);
+  gap: clamp(26px, 5vw, 68px);
+  padding-top: 30px;
+}
+
+.site-info-index {
+  position: sticky;
+  top: 24px;
+  padding: 0 0 0 16px;
+  border-left: 2px solid var(--info-divider);
+}
+
+.site-info-index h2 {
+  margin: 0 0 8px;
+  font-size: 0.88rem;
+}
+
+.site-info-index ul,
+.site-info-sources {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.site-info-index a {
+  display: block;
+  padding: 5px 0;
+  color: #dfd7e5;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.site-info-index a:hover,
+.site-info-index a:focus-visible {
+  color: var(--info-link);
+  text-decoration: underline;
+}
+
+.site-info-section {
+  scroll-margin-top: 22px;
+}
+
+.site-info-section + .site-info-section {
+  border-top: 1px solid var(--info-divider);
+  margin-top: 28px;
+  padding-top: 26px;
+}
+
+.site-info-section h2 {
+  margin: 0 0 9px;
+  font-size: clamp(1.24rem, 2.6vw, 1.55rem);
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+
+.site-info-section h3 {
+  margin: 20px 0 8px;
+  font-size: 1rem;
+}
+
+.site-info-section p,
+.site-info-section > ul:not(.site-info-sources) {
+  margin: 0;
+  color: #dfd7e5;
+  line-height: 1.66;
+  overflow-wrap: anywhere;
+}
+
+.site-info-section > ul:not(.site-info-sources) {
+  padding: 0 0 0 20px;
+}
+
+.site-info-section > ul:not(.site-info-sources) li + li,
+.site-info-section p + p {
+  margin-top: 8px;
+}
+
+.site-info-section a {
+  color: var(--info-link);
+  text-underline-offset: 0.2em;
+}
+
+.site-info-section .site-info-sources {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.site-info-sources a {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  height: 100%;
+  min-height: 42px;
+  border: 1px solid var(--info-divider);
+  border-radius: 10px;
+  padding: 6px 8px;
+  background: color-mix(in srgb, var(--main-app-color) 6%, #252326);
+  color: #f6f0f9;
+  font-size: 0.87rem;
+  text-decoration: none;
+}
+
+.site-info-sources a:is(:hover, :focus-visible) {
+  border-color: var(--info-link);
+  text-decoration: underline;
+}
+
+.site-info-source-logo {
+  width: 30px;
+  height: 28px;
+  padding: 3px;
+  border-radius: 5px;
+  background: #f5f0f6;
+  overflow: hidden;
+}
+
+.site-info-source-logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.site-info-source-logo--dark {
+  filter: brightness(0);
+}
+
+.site-info-sources svg {
+  color: var(--info-link);
+}
+
+.site-info-section blockquote {
+  border-inline-start: 2px solid var(--info-divider);
+  margin: 12px 0;
+  padding: 8px 14px;
+  background: color-mix(in srgb, var(--main-app-color) 6%, #252326);
+  color: #e9e0ee;
+  line-height: 1.65;
+}
+
+@media (max-width: 720px) {
+  .site-info {
+    padding-top: 0;
+  }
+
+  .site-info-header {
+    padding-top: 14px;
+  }
+
+  .site-info-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+    padding-top: 18px;
+  }
+
+  .site-info-index {
+    position: static;
+    padding-left: 12px;
+  }
+
+  .site-info-index ul {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 12px;
+  }
+
+  .site-info-index a {
+    min-height: 32px;
+  }
+}
+
+@media (max-width: 420px) {
+  .site-info-section .site-info-sources {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

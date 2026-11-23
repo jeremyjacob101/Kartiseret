@@ -510,7 +510,6 @@ function isNavbarInteractiveTarget(target: EventTarget | null): boolean {
   return Boolean(
     target.closest(
       ".navbar, " +
-        ".floating-navbar-stack, " +
         ".movie-search-panel, " +
         ".user-menu-panel, " +
         ".showtime-filter-panel, " +
