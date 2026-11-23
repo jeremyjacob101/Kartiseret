@@ -308,16 +308,18 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
               password reset. The website runs Vercel Web Analytics by default
               without analytics cookies. The Israeli Privacy Protection
               Authority’s general guidance leaves open whether a particular
-              cookieless analytics setup requires consent. I’ll revisit this
-              policy if these practices or the guidance change.
+              cookieless analytics setup requires consent. I’m doing my best to
+              apply that guidance with users in mind, starting by explaining
+              here how Kartiseret uses analytics.
             </p>
             <p>
               If you have questions or concerns, please email me at{" "}
               <EmailLink topic="Privacy request">{supportEmail}</EmailLink>. I’m
               happy to clarify or update this policy and help you access,
               correct, or delete personal information Kartiseret holds about
-              you, where applicable. I welcome suggestions and help improving
-              how Kartiseret handles privacy.
+              you, where applicable. I’d be glad to hear from anyone with
+              suggestions or who’d like to help improve how Kartiseret handles
+              privacy.
             </p>
             <p>
               <a href="https://main.knesset.gov.il/apps-lgs/legislation/main/laws/2000234">
