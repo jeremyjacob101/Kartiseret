@@ -68,6 +68,23 @@ describe("site information", () => {
       "Choosing to play a trailer connects your browser to YouTube’s privacy-enhanced player.",
     );
     expect(screen.getByText(/Web sessions expire 30 days/)).toBeVisible();
+
+    const privacyRules = within(
+      screen.getByRole("region", { name: "Israeli privacy rules" }),
+    );
+    expect(privacyRules.getByText(/Section 11/)).toBeVisible();
+    expect(privacyRules.getByText(/Analytics by default/)).toBeVisible();
+    expect(
+      privacyRules.getByRole("link", {
+        name: "Privacy Protection Law in Hebrew",
+      }),
+    ).toHaveAttribute(
+      "href",
+      "https://main.knesset.gov.il/apps-lgs/legislation/main/laws/2000234",
+    );
+    expect(
+      privacyRules.getByRole("link", { name: /guidance on consent/ }),
+    ).toHaveAttribute("href", "https://www.gov.il/he/pages/consent-2026");
   });
 
   it.each([

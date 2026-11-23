@@ -293,6 +293,46 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
         ),
       },
       {
+        id: "israeli-privacy-rules",
+        title: "Israeli privacy rules",
+        content: (
+          <>
+            <p>
+              Kartiseret is a free, independently run project. I aim to make
+              clear what the site collects and why. Section 11 of Israel’s
+              Privacy Protection Law requires notice when someone is asked for
+              personal information for use in a database. That includes why it’s
+              requested, whether you have to provide it and what happens if you
+              decline, who handles or receives it, and how to exercise access
+              and correction rights. When the law requires consent, it must be
+              informed.
+            </p>
+            <p>
+              Kartiseret explains why it asks for information at sign-up and
+              password reset, and loads YouTube only when you choose to play a
+              trailer. The website runs Vercel Web Analytics by default without
+              analytics cookies. The Israeli Privacy Protection Authority’s
+              general guidance leaves open whether a particular cookieless
+              analytics setup requires consent. I’ll revisit this policy if
+              these practices or the guidance change.
+            </p>
+            <p>
+              <a href="https://main.knesset.gov.il/apps-lgs/legislation/main/laws/2000234">
+                Privacy Protection Law in Hebrew
+              </a>{" "}
+              ·{" "}
+              <a href="https://www.gov.il/he/pages/duty_to_notify">
+                Privacy Protection Authority guidance on notice
+              </a>{" "}
+              ·{" "}
+              <a href="https://www.gov.il/he/pages/consent-2026">
+                Privacy Protection Authority guidance on consent
+              </a>
+            </p>
+          </>
+        ),
+      },
+      {
         id: "email",
         title: "Account emails and movie alerts",
         content: (
