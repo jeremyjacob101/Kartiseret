@@ -373,10 +373,11 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
               approximate region. It uses no analytics cookies. Map requests go
               to CARTO and trailer requests go to YouTube’s privacy-enhanced
               player. These providers receive technical request information when
-              their content loads. Google and Apple handle authentication if you
-              choose their sign-in option. If you follow a cinema booking link,
-              the seller handles information you provide there under its own
-              policy.
+              their content loads. Some Coming Soon movie details can load the
+              YouTube player before you press Play. Google and Apple handle
+              authentication if you choose their sign-in option. If you follow a
+              cinema booking link, the seller handles information you provide
+              there under its own policy.
             </p>
             <p>
               We may also disclose information when required by law or to

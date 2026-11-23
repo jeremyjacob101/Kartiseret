@@ -64,6 +64,11 @@ describe("site information", () => {
     expect(
       screen.getByText(/Vercel Web Analytics measures visits/),
     ).toHaveTextContent("It uses no analytics cookies.");
+    expect(
+      screen.getByText(/YouTube’s privacy-enhanced player/),
+    ).toHaveTextContent(
+      "Some Coming Soon movie details can load the YouTube player before you press Play.",
+    );
     expect(screen.getByText(/Web sessions expire 30 days/)).toBeVisible();
 
     const privacyRules = within(
