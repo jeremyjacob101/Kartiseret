@@ -99,6 +99,16 @@ describe("UserMenu", () => {
     const user = userEvent.setup();
     renderMenu();
     await user.click(screen.getByRole("button", { name: "Sign up or log in" }));
+    const forgotPassword = screen.getByRole("button", {
+      name: "Forgot password?",
+    });
+    const privacyNote = screen.getByText(
+      /Kartiseret uses the information you provide to sign you in/,
+    );
+    expect(forgotPassword.nextElementSibling).toBe(privacyNote);
+    expect(
+      screen.getByRole("link", { name: "Privacy Policy" }),
+    ).toHaveAttribute("href", "/privacy");
     await user.type(
       screen.getByLabelText("Email address"),
       "  USER@Example.COM ",
