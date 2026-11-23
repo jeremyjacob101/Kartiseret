@@ -184,7 +184,6 @@ export class TheaterMapActionControl implements IControl {
   private mapPinButton?: HTMLButtonElement;
   private mapPinGlyph?: HTMLSpanElement;
   private mapPinTooltip?: HTMLDivElement;
-  private locateNotice?: HTMLParagraphElement;
   private isLocatePending = false;
   private blockedLocateMessage: string | null;
   private isOverview = false;
@@ -192,7 +191,6 @@ export class TheaterMapActionControl implements IControl {
   private showMapPinButton: boolean;
   private readonly options: {
     blockedLocateMessage: string | null;
-    locateNoticeId: string;
     onLocate: () => void;
     onMapPinAnchorChange?: (element: HTMLButtonElement | null) => void;
     onResetToOverview: () => void;
@@ -203,7 +201,6 @@ export class TheaterMapActionControl implements IControl {
 
   constructor(options: {
     blockedLocateMessage: string | null;
-    locateNoticeId: string;
     onLocate: () => void;
     onMapPinAnchorChange?: (element: HTMLButtonElement | null) => void;
     onResetToOverview: () => void;
@@ -247,7 +244,6 @@ export class TheaterMapActionControl implements IControl {
     mapPinButton.type = "button";
     mapPinButton.className =
       "theater-map-action-button theater-map-action-button--locate";
-    mapPinButton.setAttribute("aria-describedby", this.options.locateNoticeId);
     mapPinButton.addEventListener("click", (event) => {
       if (this.blockedLocateMessage || this.isLocatePending) {
         event.preventDefault();
@@ -289,15 +285,8 @@ export class TheaterMapActionControl implements IControl {
       toggleTooltip(false);
     });
 
-    const locateNotice = document.createElement("p");
-    locateNotice.id = this.options.locateNoticeId;
-    locateNotice.className = "theater-map-locate-notice";
-    locateNotice.textContent =
-      "Your exact location stays on your device. Kartiseret saves only the selected city.";
-
     controlsGroup.append(viewButton, mapPinButton);
-    container.append(controlsGroup, mapPinTooltip, locateNotice);
-    this.locateNotice = locateNotice;
+    container.append(controlsGroup, mapPinTooltip);
     this.container = container;
     this.viewButton = viewButton;
     this.viewGlyph = viewGlyph;
@@ -320,7 +309,6 @@ export class TheaterMapActionControl implements IControl {
     this.mapPinButton = undefined;
     this.mapPinGlyph = undefined;
     this.mapPinTooltip = undefined;
-    this.locateNotice = undefined;
   }
 
   setLocatePending(isPending: boolean) {
@@ -372,7 +360,6 @@ export class TheaterMapActionControl implements IControl {
     }
 
     const isBlocked = this.blockedLocateMessage !== null;
-    if (this.locateNotice) this.locateNotice.hidden = !this.showMapPinButton;
     this.mapPinButton.disabled = false;
     this.mapPinButton.classList.toggle("is-hidden", !this.showMapPinButton);
     this.mapPinButton.setAttribute("aria-busy", String(this.isLocatePending));
