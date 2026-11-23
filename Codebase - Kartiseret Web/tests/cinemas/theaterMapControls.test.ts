@@ -123,7 +123,7 @@ describe("theater map action control", () => {
     const locateNotice = document.getElementById("locate-notice");
     expect(locateNotice).toBeVisible();
     expect(mapPinButton).toHaveAccessibleDescription(
-      expect.stringContaining("saves only the selected city"),
+      "Your exact location stays on your device. Kartiseret saves only the selected city.",
     );
     expect(onLocate).not.toHaveBeenCalled();
     mapPinButton?.click();

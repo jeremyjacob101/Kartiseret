@@ -682,7 +682,7 @@ test("nearest-city disclosure precedes location access and manual guest selectio
     /saves only the selected city/,
   );
   await expect(
-    cityDialog.getByText(/uses your location on this device/),
+    cityDialog.getByText(/Your exact location stays on your device/),
   ).toBeVisible();
   expect(locationRequests).toBe(0);
 

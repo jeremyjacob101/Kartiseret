@@ -293,7 +293,7 @@ export class TheaterMapActionControl implements IControl {
     locateNotice.id = this.options.locateNoticeId;
     locateNotice.className = "theater-map-locate-notice";
     locateNotice.textContent =
-      "Kartiseret uses your location on this device to find a city and saves only the selected city. You can also pick a city manually.";
+      "Your exact location stays on your device. Kartiseret saves only the selected city.";
 
     controlsGroup.append(viewButton, mapPinButton);
     container.append(controlsGroup, mapPinTooltip, locateNotice);
