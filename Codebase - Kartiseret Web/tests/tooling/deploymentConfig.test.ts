@@ -198,17 +198,21 @@ describe("deployment performance boundaries", () => {
         ?.headers.find((header) => header.key.toLowerCase() === "x-robots-tag");
       expect(robots?.value).toBe("noindex, nofollow");
     }
-    const unsubscribeHeaders = headerRules.find(
-      (rule) => rule.source === "/unsubscribe/letterboxd",
-    )?.headers;
-    expect(unsubscribeHeaders).toContainEqual({
-      key: "Referrer-Policy",
-      value: "no-referrer",
-    });
-    expect(unsubscribeHeaders).toContainEqual({
-      key: "Cache-Control",
-      value: "no-store",
-    });
+    for (const path of [
+      "/reset-password",
+      "/confirm-account-deletion",
+      "/unsubscribe/letterboxd",
+    ]) {
+      const headers = headerRules.find((rule) => rule.source === path)?.headers;
+      expect(headers).toContainEqual({
+        key: "Referrer-Policy",
+        value: "no-referrer",
+      });
+      expect(headers).toContainEqual({
+        key: "Cache-Control",
+        value: "no-store",
+      });
+    }
   });
 });
 

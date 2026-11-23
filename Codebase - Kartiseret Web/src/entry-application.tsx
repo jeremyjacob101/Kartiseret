@@ -5,6 +5,7 @@ import { PublicRouteComponentsProvider } from "./routing/PublicRouteComponentsPr
 import type { PublicRouteComponents } from "./routing/PublicRouteComponentsContext";
 import { PublicRenderClockProvider } from "./contexts/PublicRenderClock";
 import { StrictMode, useEffect, useLayoutEffect } from "react";
+import { filterAnalyticsEvent } from "./lib/analyticsPrivacy";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, useLocation } from "react-router";
 import { Analytics } from "@vercel/analytics/react";
@@ -60,7 +61,7 @@ export function EntryApplication({
           <QueryClientProvider client={queryClient}>
             <BrowserRouter>
               <ApplicationRoutes />
-              <Analytics />
+              <Analytics beforeSend={filterAnalyticsEvent} />
             </BrowserRouter>
           </QueryClientProvider>
         </PublicRouteComponentsProvider>
