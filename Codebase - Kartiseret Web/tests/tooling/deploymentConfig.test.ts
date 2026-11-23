@@ -181,6 +181,31 @@ describe("deployment performance boundaries", () => {
     ).toBe(false);
   });
 
+  it("blocks framing across static and server-rendered routes", () => {
+    const headerRules = config.headers as {
+      source: string;
+      headers: { key: string; value: string }[];
+    }[];
+    for (const path of [
+      "/",
+      "/movies",
+      "/user",
+      "/reset-password",
+      "/confirm-account-deletion",
+      "/unsubscribe/letterboxd",
+    ]) {
+      const policies = headerRules
+        .filter((rule) => new RegExp(`^${rule.source}$`).test(path))
+        .flatMap((rule) => rule.headers)
+        .filter(
+          (header) => header.key.toLowerCase() === "content-security-policy",
+        );
+      expect(policies, path).toEqual([
+        { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+      ]);
+    }
+  });
+
   it("marks account and reset pages as non-indexable in initial HTTP responses", () => {
     const headerRules = config.headers as {
       source: string;
