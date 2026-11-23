@@ -65,13 +65,11 @@ export function TheaterMapDialog({
   locationOverride,
   onLocationOverrideChange,
   triggerLabel,
-  triggerTabIndex,
 }: {
   className?: string;
   locationOverride?: AppLocation;
   onLocationOverrideChange?: (location: AppLocation) => Promise<boolean>;
   triggerLabel?: string;
-  triggerTabIndex?: number;
 }) {
   const {
     location: preferenceLocation,
@@ -362,7 +360,6 @@ export function TheaterMapDialog({
         ]
           .filter(Boolean)
           .join(" ")}
-        tabIndex={triggerTabIndex}
         aria-haspopup="dialog"
         aria-expanded={isOpen && !isClosing}
         aria-label={`Open city selector. Current city: ${location}`}

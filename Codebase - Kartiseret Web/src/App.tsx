@@ -25,8 +25,8 @@ import { useUserPreferencesStore } from "./stores/userPreferencesStore";
 import { usePublicationRevision } from "./hooks/usePublicationRevision";
 import { type MovieSearchResult } from "./components/MovieSearchMenu";
 import { PasswordResetPage } from "./components/PasswordResetPage";
+import { siteInformationPages } from "./routing/siteInformation";
 import { movieCodeSchema } from "@kartiseret/contracts/runtime";
-import { AttributionPage } from "./components/AttributionPage";
 import { adminStatusQueryOptions } from "./data/adminStatus";
 import { BottomBar } from "./components/bars/BottomBar";
 import { useDeviceStore } from "./device/useDeviceType";
@@ -51,11 +51,15 @@ const FIXED_APP_PATHS = new Set([
   "/cinematheques",
   "/soons",
   "/user",
-  "/attribution",
+  ...siteInformationPages.map(({ path }) => path),
   PASSWORD_RESET_PATH,
   "/confirm-account-deletion",
   "/unsubscribe/letterboxd",
 ]);
+const SiteInformation = lazy(
+  () => import("./components/legal/SiteInformation"),
+);
+
 const CinemaPage = lazy(async () => {
   const module = await loadCinemaPageModule();
   return { default: module.CinemaPage };
@@ -565,6 +569,9 @@ function MainApplication() {
       })),
     );
   const pathname = routeLocation.pathname;
+  const informationPage = siteInformationPages.find(
+    ({ path }) => path === pathname,
+  );
   const generalShowtimesRobots = useRef(
     pathname === "/showtimes" && typeof document !== "undefined"
       ? getCurrentRobotsDirectives()
@@ -615,7 +622,7 @@ function MainApplication() {
     ) !== undefined;
   const shouldLoadCatalog =
     pathname !== "/user" &&
-    pathname !== "/attribution" &&
+    !informationPage &&
     pathname !== PASSWORD_RESET_PATH &&
     (!directMovieReady || cinemathequeSearchEnabled);
   const nowPlayingQuery = useQuery({
@@ -716,8 +723,6 @@ function MainApplication() {
     soonsDisplayReleaseCategory === "reReleases"
       ? comingSoonReReleaseMovies
       : comingSoonNewReleaseMovies;
-  const [miniNavPortalTarget, setMiniNavPortalTarget] =
-    useState<HTMLDivElement | null>(null);
   const nonCriticalPreloadStartedRef = useRef(false);
   const scrollerCardWidth = isMobile
     ? MOBILE_SCROLLER_CARD_WIDTH
@@ -811,19 +816,22 @@ function MainApplication() {
       });
       return;
     }
-    if (
-      pathname === "/user" ||
-      pathname === "/reset-password" ||
-      pathname === "/attribution"
-    ) {
+    if (informationPage) {
+      setSeoMetadata({
+        title: `${"title" in informationPage ? informationPage.title : informationPage.label} | Kartiseret`,
+        description: "Kartiseret support and site information.",
+        canonicalPath: pathname,
+        robots: "noindex, nofollow",
+      });
+      return;
+    }
+    if (pathname === "/user" || pathname === PASSWORD_RESET_PATH) {
       setSeoMetadata({
         title:
           pathname === "/user"
             ? "Account | Kartiseret"
-            : pathname === "/reset-password"
-              ? "Reset password | Kartiseret"
-              : "Attribution | Kartiseret",
-        description: "Kartiseret account and site information.",
+            : "Reset password | Kartiseret",
+        description: "Kartiseret account information.",
         canonicalPath: pathname,
         robots: "noindex, nofollow",
       });
@@ -831,6 +839,7 @@ function MainApplication() {
   }, [
     comingSoonQuery.data?.movies,
     comingSoonQuery.data?.movieCodesStatus,
+    informationPage,
     nowPlayingQuery.data?.movies,
     nowPlayingQuery.data?.movieCodesStatus,
     pathname,
@@ -906,7 +915,7 @@ function MainApplication() {
       isShowtimesPage ||
       pathname === "/cinematheques" ||
       pathname === "/user" ||
-      pathname === "/attribution" ||
+      informationPage ||
       pathname === PASSWORD_RESET_PATH ||
       isPotentialStandaloneMoviePath(pathname) ||
       !nowPlayingReady ||
@@ -955,6 +964,7 @@ function MainApplication() {
       }
     };
   }, [
+    informationPage,
     comingSoonReady,
     nowPlayingReady,
     pathname,
@@ -1168,7 +1178,7 @@ function MainApplication() {
     [resetCatalogPage],
   );
 
-  const handleFloatingHomeClick = useCallback(() => {
+  const handleHomeClick = useCallback(() => {
     if (pathname !== "/") {
       navigate("/");
     }
@@ -1211,10 +1221,9 @@ function MainApplication() {
         cinemathequeUnavailable={
           cinemathequeSearchEnabled && cinemathequeSearchQuery.isError
         }
-        miniNavPortalTarget={miniNavPortalTarget}
         searchCollections={searchCollections}
         settingsDisabled={!user || loading}
-        onHomeClick={handleFloatingHomeClick}
+        onHomeClick={handleHomeClick}
         onMoviesNavClick={handleMoviesNavClick}
         onSearchOpen={handleSearchOpen}
         onSelectResult={handleMovieSearchSelect}
@@ -1379,14 +1388,17 @@ function MainApplication() {
               </section>
             }
           />
-          <Route
-            path="/attribution"
-            element={
-              <section className="page-panel">
-                <AttributionPage />
-              </section>
-            }
-          />
+          {siteInformationPages.map((page) => (
+            <Route
+              key={page.path}
+              path={page.path}
+              element={
+                <Suspense fallback={null}>
+                  <SiteInformation page={page} />
+                </Suspense>
+              }
+            />
+          ))}
           <Route
             path="/c/:cinemaId"
             element={
@@ -1417,7 +1429,6 @@ function MainApplication() {
         </Routes>
       </main>
 
-      <div ref={setMiniNavPortalTarget} />
       <BottomBar />
     </div>
   );

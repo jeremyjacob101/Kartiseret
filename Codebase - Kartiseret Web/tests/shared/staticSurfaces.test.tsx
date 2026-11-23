@@ -1,51 +1,51 @@
-import { AttributionPage } from "../../src/components/AttributionPage";
-import { MiniNavBar } from "../../src/components/bars/MiniNavBar";
+import SiteInformation from "../../src/components/legal/SiteInformation";
+import { siteInformationPages } from "../../src/routing/siteInformation";
 import { BottomBar } from "../../src/components/bars/BottomBar";
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router";
 
-describe("static and portal-rendered surfaces", () => {
-  it("keeps every attribution source link external and secure", () => {
-    render(<AttributionPage />);
-
-    expect(
-      screen.getByRole("heading", { name: "Attribution" }),
-    ).toBeInTheDocument();
-    expect(screen.getAllByRole("link")).toHaveLength(21);
-    for (const link of screen.getAllByRole("link")) {
-      expect(link).toHaveAttribute("target", "_blank");
-      expect(link).toHaveAttribute("rel", "noreferrer");
-    }
-    const tmdbLinks = screen.getAllByRole("link", { name: /TMDb/i });
-    expect(tmdbLinks).toHaveLength(2);
-    for (const link of tmdbLinks) {
-      expect(link).toHaveAttribute("href", "https://www.themoviedb.org/");
-    }
-    for (const image of document.querySelectorAll("img")) {
-      expect(image).toHaveAttribute("alt", "");
-    }
-  });
-
-  it("renders footer navigation and preserves external profile security", () => {
+describe("site information", () => {
+  it("preserves source attribution, secure provider links and rights contacts", () => {
+    const credits = siteInformationPages.find(
+      ({ path }) => path === "/attribution",
+    )!;
     render(
       <MemoryRouter>
-        <BottomBar />
+        <SiteInformation page={credits} />
       </MemoryRouter>,
     );
 
-    expect(screen.getByText(/^©\d{4} Kartiseret$/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Attribution" })).toHaveAttribute(
+    expect(
+      screen.getByRole("heading", { name: "Credits", level: 1 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This product uses the TMDB API but is not endorsed or certified by TMDB.",
+      ),
+    ).toBeInTheDocument();
+    const providers = Array.from(
+      document.querySelectorAll(".site-info-sources a"),
+    );
+    expect(providers).toHaveLength(20);
+    for (const link of providers) {
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", "noreferrer");
+      expect(link.querySelector("img")).toHaveAttribute("alt", "");
+    }
+    expect(screen.getByRole("link", { name: "TMDb" })).toHaveAttribute(
       "href",
-      "/attribution",
+      "https://www.themoviedb.org/",
     );
     expect(
-      screen.getByRole("link", { name: "Jeremy Jacob on GitHub" }),
-    ).toHaveAttribute("rel", "noreferrer");
+      screen.getByRole("link", { name: "third-party software notices" }),
+    ).toHaveAttribute("href", "/third-party-licenses.txt");
     expect(
-      screen.getByRole("link", { name: "Jeremy Jacob on LinkedIn" }),
-    ).toHaveAttribute("target", "_blank");
+      screen.getByRole("link", { name: "jeremyjacob101@gmail.com" }),
+    ).toHaveAttribute(
+      "href",
+      expect.stringContaining("mailto:jeremyjacob101@gmail.com"),
+    );
   });
 
   it.each([
@@ -66,52 +66,35 @@ describe("static and portal-rendered surfaces", () => {
     }
   });
 
-  it("portals the floating navigation and controls keyboard visibility", async () => {
-    const user = userEvent.setup();
-    const onHomeClick = vi.fn();
-    const portalTarget = document.createElement("div");
-    document.body.append(portalTarget);
-    const { rerender } = render(
-      <MiniNavBar
-        actions={<button type="button">Search</button>}
-        bottomOffset={18}
-        isOverBottomBar
-        isVisible={false}
-        onHomeClick={onHomeClick}
-        portalTarget={portalTarget}
-        stackRef={{ current: null }}
-      />,
+  it("lists the five footer destinations and marks only the current page", () => {
+    render(
+      <MemoryRouter initialEntries={["/privacy"]}>
+        <BottomBar />
+      </MemoryRouter>,
     );
 
+    const footerNavigation = within(
+      screen.getByRole("navigation", { name: "Footer" }),
+    );
     expect(
-      portalTarget.querySelector(".floating-navbar-stack"),
-    ).toHaveAttribute("aria-hidden", "true");
-    expect(portalTarget.querySelector(".floating-home-button")).toHaveAttribute(
-      "tabindex",
-      "-1",
-    );
-    expect(portalTarget.querySelector(".floating-navbar-stack")).toHaveClass(
-      "is-over-bottom-bar",
-    );
-
-    rerender(
-      <MiniNavBar
-        actions={<button type="button">Search</button>}
-        bottomOffset={18}
-        isOverBottomBar={false}
-        isVisible
-        onHomeClick={onHomeClick}
-        portalTarget={portalTarget}
-        stackRef={{ current: null }}
-      />,
-    );
-    expect(portalTarget.querySelector(".floating-navbar-stack")).toHaveClass(
-      "is-visible",
-    );
-    expect(portalTarget.querySelector(".floating-navbar-stack")).toHaveStyle(
-      "--floating-navbar-dynamic-bottom: 18px",
-    );
-    await user.click(screen.getByRole("button", { name: "Go to homepage" }));
-    expect(onHomeClick).toHaveBeenCalledOnce();
+      footerNavigation
+        .getAllByRole("link")
+        .map((link) => [link.textContent, link.getAttribute("href")]),
+    ).toEqual([
+      ["Support", "/support"],
+      ["Accessibility", "/accessibility"],
+      ["Privacy", "/privacy"],
+      ["Terms of Use", "/terms"],
+      ["Credits", "/attribution"],
+    ]);
+    expect(
+      footerNavigation.getByRole("link", { name: "Privacy", current: "page" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Jeremy Jacob on GitHub" }),
+    ).toHaveAttribute("rel", "noreferrer");
+    expect(
+      screen.getByRole("link", { name: "Jeremy Jacob on LinkedIn" }),
+    ).toHaveAttribute("target", "_blank");
   });
 });

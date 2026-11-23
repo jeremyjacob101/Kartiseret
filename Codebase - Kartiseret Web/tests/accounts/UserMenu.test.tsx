@@ -131,6 +131,9 @@ describe("UserMenu", () => {
       screen.queryByLabelText("Name", { exact: true }),
     ).not.toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "Create account" }));
+    expect(
+      screen.getByRole("link", { name: "Privacy Policy" }),
+    ).toHaveAttribute("href", "/privacy");
     const nameField = screen.getByLabelText("Name", { exact: true });
     expect(screen.getByLabelText("Password")).toHaveAttribute(
       "autocomplete",

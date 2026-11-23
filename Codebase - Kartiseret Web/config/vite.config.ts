@@ -16,6 +16,7 @@ export default defineConfig(({ mode }) => {
     envDir: repoRoot,
     plugins: [react()],
     build: {
+      license: { fileName: "third-party-licenses.txt" },
       // Public pages share one CSS file so route-chunk styles are present in
       // the HTML before client JavaScript loads.
       cssCodeSplit: false,
