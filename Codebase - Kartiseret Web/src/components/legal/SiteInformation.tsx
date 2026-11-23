@@ -333,13 +333,13 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
           <p>
             Account details, synced preferences and subscriptions are kept while
             your account is active or until you remove the relevant data. Web
-            sessions have a seven-day lifetime that can renew with use. Guest
-            preferences can remain on your device until cleared or replaced.
-            Account deletion removes the account and account-linked settings and
-            alerts from the active database. Backup copies, security logs, email
-            delivery records and support correspondence may persist for the time
-            needed for recovery, security, delivery troubleshooting, support, or
-            legal obligations.
+            sessions expire 30 days after sign-in or the most recent renewal.
+            Guest preferences can remain on your device until cleared or
+            replaced. Account deletion removes the account and account-linked
+            settings and alerts from the active database. Backup copies,
+            security logs, email delivery records and support correspondence may
+            persist for the time needed for recovery, security, delivery
+            troubleshooting, support, or legal obligations.
           </p>
         ),
       },

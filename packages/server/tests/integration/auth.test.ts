@@ -254,17 +254,23 @@ describe.sequential(
       });
       expect(socialOptions.headers["cache-control"]).toBe("no-store");
     });
-    it("refreshes an active session inside its configured update window", async () => {
+    it("keeps a 30-day session valid and refreshes it after eight days away", async () => {
       const session = (
         await admin.pool.query(
-          "SELECT token FROM app_auth.sessions WHERE user_id=$1 ORDER BY created_at DESC LIMIT 1",
+          "SELECT token, created_at, expires_at FROM app_auth.sessions WHERE user_id=$1 ORDER BY created_at DESC LIMIT 1",
           [userId],
         )
       ).rows[0];
       expect(session).toBeDefined();
+      const thirtyDaysInSeconds = 30 * 24 * 60 * 60;
+      expect(
+        Math.round(
+          (session.expires_at.getTime() - session.created_at.getTime()) / 1000,
+        ),
+      ).toBe(thirtyDaysInSeconds);
       const sessionToken: string | undefined = session?.token;
       await admin.pool.query(
-        "UPDATE app_auth.sessions SET expires_at=now()+interval '5 days',updated_at=now()-interval '2 days' WHERE token=$1 AND user_id=$2",
+        "UPDATE app_auth.sessions SET expires_at=now()+interval '22 days',updated_at=now()-interval '8 days' WHERE token=$1 AND user_id=$2",
         [sessionToken, userId],
       );
       const before = (
@@ -288,7 +294,15 @@ describe.sequential(
 
       expect(refreshed.status).toBe(200);
       expect(refreshed.body.session).not.toBeNull();
-      expect(refreshed.headers["set-cookie"]).toBeDefined();
+      expect(refreshed.headers["set-cookie"]).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(
+            new RegExp(
+              `^integration\\.session_token=.*; Max-Age=${thirtyDaysInSeconds}(;|$)`,
+            ),
+          ),
+        ]),
+      );
       expect(after.expires_at.valueOf()).toBeGreaterThan(
         before.expires_at.valueOf(),
       );
