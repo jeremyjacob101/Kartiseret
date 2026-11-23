@@ -464,6 +464,10 @@
   text-underline-offset: 0.18em;
 }
 
+.user-menu-auth-form > .user-menu-privacy-note {
+  margin: 0;
+}
+
 .user-menu :focus-visible,
 .user-menu-dialog :focus-visible {
   outline: 2px solid color-mix(in srgb, var(--main-app-color) 82%, #fff);

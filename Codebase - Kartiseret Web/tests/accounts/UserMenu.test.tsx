@@ -99,6 +99,16 @@ describe("UserMenu", () => {
     const user = userEvent.setup();
     renderMenu();
     await user.click(screen.getByRole("button", { name: "Sign up or log in" }));
+    const forgotPassword = screen.getByRole("button", {
+      name: "Forgot password?",
+    });
+    const privacyNote = screen.getByText(
+      /Kartiseret uses the information you provide to sign you in/,
+    );
+    expect(forgotPassword.nextElementSibling).toBe(privacyNote);
+    expect(
+      screen.getByRole("link", { name: "Privacy Policy" }),
+    ).toHaveAttribute("href", "/privacy");
     await user.type(
       screen.getByLabelText("Email address"),
       "  USER@Example.COM ",
@@ -134,6 +144,11 @@ describe("UserMenu", () => {
     expect(
       screen.getByRole("link", { name: "Privacy Policy" }),
     ).toHaveAttribute("href", "/privacy");
+    expect(
+      screen.getByText(/Creating an account is optional/),
+    ).toHaveTextContent(
+      "You need an account to sync preferences and receive movie alerts.",
+    );
     const nameField = screen.getByLabelText("Name", { exact: true });
     expect(screen.getByLabelText("Password")).toHaveAttribute(
       "autocomplete",
@@ -172,6 +187,12 @@ describe("UserMenu", () => {
     await user.click(screen.getByRole("button", { name: "Sign up or log in" }));
     await user.click(screen.getByRole("button", { name: "Forgot password?" }));
     expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/uses the email address you enter/),
+    ).toHaveTextContent("to send a password reset link");
+    expect(
+      screen.getByRole("link", { name: "Privacy Policy" }),
+    ).toHaveAttribute("href", "/privacy");
 
     await user.type(
       screen.getByLabelText("Email address"),

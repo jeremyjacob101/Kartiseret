@@ -48,6 +48,61 @@ describe("site information", () => {
     );
   });
 
+  it("explains browser storage, analytics, and Israeli privacy rules", () => {
+    const privacy = siteInformationPages.find(
+      ({ path }) => path === "/privacy",
+    )!;
+    render(
+      <MemoryRouter initialEntries={["/privacy"]}>
+        <SiteInformation page={privacy} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(/uses sign-in cookies/)).toHaveTextContent(
+      "can sign you out and reset these local choices",
+    );
+    expect(
+      screen.getByText(/Vercel Web Analytics measures visits/),
+    ).toHaveTextContent("It uses no analytics cookies.");
+    expect(
+      screen.getByText(/YouTube’s privacy-enhanced player/),
+    ).toHaveTextContent(
+      "Some Coming Soon movie details can load the YouTube player before you press Play.",
+    );
+    expect(screen.getByText(/Web sessions expire 30 days/)).toBeVisible();
+
+    const privacyRules = within(
+      screen.getByRole("region", { name: "Israeli privacy rules" }),
+    );
+    expect(
+      privacyRules.getByText(/apply Israel’s Privacy Protection Law/),
+    ).toBeVisible();
+    expect(privacyRules.getByText(/Analytics by default/)).toBeVisible();
+    expect(
+      privacyRules.getByText(/apply that guidance with users in mind/),
+    ).toBeVisible();
+    expect(
+      privacyRules.getByText(/glad to hear from anyone/),
+    ).toHaveTextContent("access, correct, or delete personal information");
+    expect(
+      privacyRules.getByRole("link", { name: "jeremyjacob101@gmail.com" }),
+    ).toHaveAttribute(
+      "href",
+      expect.stringContaining("mailto:jeremyjacob101@gmail.com"),
+    );
+    expect(
+      privacyRules.getByRole("link", {
+        name: "Privacy Protection Law in Hebrew",
+      }),
+    ).toHaveAttribute(
+      "href",
+      "https://main.knesset.gov.il/apps-lgs/legislation/main/laws/2000234",
+    );
+    expect(
+      privacyRules.getByRole("link", { name: /guidance on consent/ }),
+    ).toHaveAttribute("href", "https://www.gov.il/he/pages/consent-2026");
+  });
+
   it.each([
     ["2026-12-31T21:59:59Z", "2026"],
     ["2026-12-31T22:00:00Z", "2027"],

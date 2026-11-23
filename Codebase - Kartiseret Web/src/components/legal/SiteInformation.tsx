@@ -274,11 +274,13 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
         content: (
           <>
             <p>
-              The website uses session cookies to keep you signed in and browser
-              storage to remember choices such as your city, theme, and showtime
-              filters. You can clear this data in your browser. The iOS app
-              keeps sign-in credentials in the iOS Keychain and stores
-              preferences on the device.
+              The website uses sign-in cookies to keep your account signed in.
+              Browser storage remembers the city you select as a guest and can
+              cache your theme so it appears when the page loads. Clearing
+              Kartiseret’s site data in your browser can sign you out and reset
+              these local choices. Preferences saved to your account are managed
+              in User Preferences. The iOS app keeps sign-in credentials in the
+              iOS Keychain and stores preferences on the device.
             </p>
             <p>
               On the web, choosing the nearest-city option asks your browser for
@@ -286,6 +288,51 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
               match a city and saves the selected city as a preference. You can
               pick a city manually and manage location access in your browser
               settings.
+            </p>
+          </>
+        ),
+      },
+      {
+        id: "israeli-privacy-rules",
+        title: "Israeli privacy rules",
+        content: (
+          <>
+            <p>
+              Kartiseret is a free project I run as an independent developer. I
+              do my best to understand and apply Israel’s Privacy Protection Law
+              with your privacy in mind. That means explaining what Kartiseret
+              collects, why it collects it, and what choices you have.
+            </p>
+            <p>
+              Kartiseret explains why it asks for information at sign-up and
+              password reset. The website runs Vercel Web Analytics by default
+              without analytics cookies. The Israeli Privacy Protection
+              Authority’s general guidance leaves open whether a particular
+              cookieless analytics setup requires consent. I’m doing my best to
+              apply that guidance with users in mind, starting by explaining
+              here how Kartiseret uses analytics.
+            </p>
+            <p>
+              If you have questions or concerns, please email me at{" "}
+              <EmailLink topic="Privacy request">{supportEmail}</EmailLink>. I’m
+              happy to clarify or update this policy and help you access,
+              correct, or delete personal information Kartiseret holds about
+              you, where applicable. I’d be glad to hear from anyone with
+              suggestions or who’d like to help improve how Kartiseret handles
+              privacy.
+            </p>
+            <p>
+              <a href="https://main.knesset.gov.il/apps-lgs/legislation/main/laws/2000234">
+                Privacy Protection Law in Hebrew
+              </a>{" "}
+              ·{" "}
+              <a href="https://www.gov.il/he/pages/duty_to_notify">
+                Privacy Protection Authority guidance on notice
+              </a>{" "}
+              ·{" "}
+              <a href="https://www.gov.il/he/pages/consent-2026">
+                Privacy Protection Authority guidance on consent
+              </a>
             </p>
           </>
         ),
@@ -324,10 +371,11 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
               approximate region. It uses no analytics cookies. Map requests go
               to CARTO and trailer requests go to YouTube’s privacy-enhanced
               player. These providers receive technical request information when
-              their content loads. Google and Apple handle authentication if you
-              choose their sign-in option. If you follow a cinema booking link,
-              the seller handles information you provide there under its own
-              policy.
+              their content loads. Some Coming Soon movie details can load the
+              YouTube player before you press Play. Google and Apple handle
+              authentication if you choose their sign-in option. If you follow a
+              cinema booking link, the seller handles information you provide
+              there under its own policy.
             </p>
             <p>
               We may also disclose information when required by law or to
