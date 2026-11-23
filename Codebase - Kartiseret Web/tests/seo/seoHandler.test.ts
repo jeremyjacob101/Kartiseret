@@ -208,6 +208,9 @@ describe("SEO request handler", () => {
       if (cookie) request.headers.cookie = cookie;
       await seoHandler(request, response as never);
       expect(response.statusCode).toBe(200);
+      expect(response.headers.get("content-security-policy")).toBe(
+        "frame-ancestors 'none'",
+      );
       return response;
     }
     const [first, second, anonymous, expired] = await Promise.all([

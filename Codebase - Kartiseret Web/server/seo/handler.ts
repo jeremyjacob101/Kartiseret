@@ -777,6 +777,8 @@ export default async function handler(
     return;
   }
   if (route === "sitemap") return renderSitemap(response);
+  // The homepage's Vercel routes can bypass the configured headers.
+  response.setHeader("Content-Security-Policy", "frame-ancestors 'none'");
   const html = getBaseHtml();
   try {
     const cinemaId = Array.isArray(request.query.cinemaId)
