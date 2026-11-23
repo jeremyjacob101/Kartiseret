@@ -67,6 +67,7 @@ describe("theater map action control", () => {
     const onZoomToSelectedCity = vi.fn();
     const control = new TheaterMapActionControl({
       blockedLocateMessage: null,
+      locateNoticeId: "locate-notice",
       onLocate: vi.fn(),
       onResetToOverview,
       onZoomToSelectedCity,
@@ -97,6 +98,7 @@ describe("theater map action control", () => {
     const onAnchorChange = vi.fn();
     const control = new TheaterMapActionControl({
       blockedLocateMessage: null,
+      locateNoticeId: "locate-notice",
       onLocate,
       onMapPinAnchorChange: onAnchorChange,
       onResetToOverview: vi.fn(),
@@ -118,6 +120,12 @@ describe("theater map action control", () => {
       "aria-label",
       "Find nearest city to my location",
     );
+    const locateNotice = document.getElementById("locate-notice");
+    expect(locateNotice).toBeVisible();
+    expect(mapPinButton).toHaveAccessibleDescription(
+      expect.stringContaining("saves only the selected city"),
+    );
+    expect(onLocate).not.toHaveBeenCalled();
     mapPinButton?.click();
     expect(onLocate).toHaveBeenCalledOnce();
 
@@ -135,6 +143,7 @@ describe("theater map action control", () => {
     expect(tooltip).not.toHaveClass("is-visible");
 
     control.setMapPinVisible(false);
+    expect(locateNotice).not.toBeVisible();
     expect(mapPinButton).toHaveAttribute("aria-hidden", "true");
     expect(mapPinButton).toHaveAttribute("tabindex", "-1");
     expect(mapPinButton).toHaveAttribute("aria-disabled", "true");
@@ -146,6 +155,7 @@ describe("theater map action control", () => {
   it("uses the standard disabled-location message for blocked tooltips", () => {
     const control = new TheaterMapActionControl({
       blockedLocateMessage: LOCATION_DISABLED_MESSAGE,
+      locateNoticeId: "locate-notice",
       onLocate: vi.fn(),
       onResetToOverview: vi.fn(),
       onZoomToSelectedCity: vi.fn(),

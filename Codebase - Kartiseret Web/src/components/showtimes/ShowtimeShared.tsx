@@ -1,7 +1,7 @@
 import { type Movie, type ShowtimeEntry, type TheaterShowtimes } from "../../data/movieCatalog";
+import { type CSSProperties, useEffect, useId, useState } from "react";
 import { getTheaterTheme, type TheaterTheme } from "./theaterTheme";
 import { getShowtimeTechLabel } from "./showtimeTechLabels";
-import { type CSSProperties, useEffect } from "react";
 import { type MetricDisplay } from "./showtimeUtils";
 import { createPortal } from "react-dom";
 import { Star, X } from "lucide-react";
@@ -133,6 +133,95 @@ function renderShowtimeCard(
   );
 }
 
+export function TrailerPlayButton({
+  movieTitle,
+  onClick,
+  inline = false,
+}: {
+  movieTitle: string;
+  onClick?: () => void;
+  inline?: boolean;
+}) {
+  const noticeId = useId();
+
+  return (
+    <div
+      className={inline ? "trailer-play trailer-play--inline" : "trailer-play"}
+    >
+      <button
+        type="button"
+        className="trailer-play-button"
+        aria-label={
+          inline
+            ? `Play trailer on YouTube: ${movieTitle}`
+            : `Play ${movieTitle} trailer on YouTube`
+        }
+        aria-describedby={noticeId}
+        onClick={onClick}
+      >
+        <img
+          src="/logos/youtube.svg"
+          alt=""
+          width={28}
+          height={20}
+          decoding="async"
+        />
+        {inline ? "Play trailer on YouTube" : null}
+      </button>
+      <span id={noticeId} className="trailer-play-notice">
+        {inline
+          ? "Playing this trailer connects to YouTube (Google)."
+          : "Connects to YouTube"}
+      </span>
+    </div>
+  );
+}
+
+function TrailerFrame({
+  title,
+  embedUrl,
+}: {
+  title: string;
+  embedUrl: string;
+}) {
+  return (
+    <iframe
+      src={`${embedUrl}&autoplay=1`}
+      title={title}
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      allowFullScreen
+      referrerPolicy="strict-origin-when-cross-origin"
+    />
+  );
+}
+
+export function InlineMovieTrailer({
+  movieTitle,
+  embedUrl,
+}: {
+  movieTitle: string;
+  embedUrl: string;
+}) {
+  const [playing, setPlaying] = useState(false);
+
+  return (
+    <div className="details-trailer-frame">
+      {playing ? (
+        <TrailerFrame
+          title={`${movieTitle} official trailer`}
+          embedUrl={embedUrl}
+        />
+      ) : (
+        <TrailerPlayButton
+          movieTitle={movieTitle}
+          onClick={() => setPlaying(true)}
+          inline
+        />
+      )}
+    </div>
+  );
+}
+
 type MovieMetricsRowProps = {
   movie: Movie;
   metrics: readonly MetricDisplay[];
@@ -160,21 +249,7 @@ export function MovieMetricsRow({
       className={["details-metrics-row", className].filter(Boolean).join(" ")}
     >
       {hasTrailerLaunch ? (
-        <button
-          type="button"
-          className="details-trailer-launch details-trailer-launch--metrics"
-          aria-label={`Watch ${movie.title} trailer`}
-          onClick={onTrailerClick}
-        >
-          <img
-            src="/logos/youtube.svg"
-            alt=""
-            className="details-trailer-launch-logo"
-            width={28}
-            height={20}
-            decoding="async"
-          />
-        </button>
+        <TrailerPlayButton movieTitle={movie.title} onClick={onTrailerClick} />
       ) : null}
 
       {hasTrailerLaunch && hasMetrics ? (
@@ -287,14 +362,7 @@ export function MovieTrailerModal({
           <X size={20} strokeWidth={2.6} />
         </button>
         <div className="movie-trailer-modal-frame">
-          <iframe
-            src={`${embedUrl}&autoplay=1`}
-            title={`${movieTitle} trailer`}
-            loading="eager"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-            referrerPolicy="strict-origin-when-cross-origin"
-          />
+          <TrailerFrame title={`${movieTitle} trailer`} embedUrl={embedUrl} />
         </div>
       </div>
     </div>,

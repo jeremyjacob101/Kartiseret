@@ -274,11 +274,13 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
         content: (
           <>
             <p>
-              The website uses session cookies to keep you signed in and browser
-              storage to remember choices such as your city, theme, and showtime
-              filters. You can clear this data in your browser. The iOS app
-              keeps sign-in credentials in the iOS Keychain and stores
-              preferences on the device.
+              The website uses sign-in cookies to keep your account signed in.
+              Browser storage remembers the city you select as a guest and can
+              cache your theme so it appears when the page loads. Clearing
+              Kartiseret’s site data in your browser can sign you out and reset
+              these local choices. Preferences saved to your account are managed
+              in User Preferences. The iOS app keeps sign-in credentials in the
+              iOS Keychain and stores preferences on the device.
             </p>
             <p>
               On the web, choosing the nearest-city option asks your browser for
@@ -321,13 +323,17 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
             <p>
               On the website, Vercel Web Analytics measures visits using
               information such as pages viewed, referrer, browser, device and
-              approximate region. It uses no analytics cookies. Map requests go
-              to CARTO and trailer requests go to YouTube’s privacy-enhanced
-              player. These providers receive technical request information when
-              their content loads. Google and Apple handle authentication if you
-              choose their sign-in option. If you follow a cinema booking link,
-              the seller handles information you provide there under its own
-              policy.
+              approximate region. It uses no analytics cookies.
+            </p>
+            <p>
+              Opening the city map connects your browser to CARTO for map
+              content. Choosing to play a trailer connects your browser to
+              YouTube’s privacy-enhanced player. CARTO and YouTube receive
+              technical request information when their content loads. Kartiseret
+              does not place ads on its pages. YouTube may show ads within its
+              player. Google and Apple handle authentication if you choose their
+              sign-in option. If you follow a cinema booking link, the seller
+              handles information you provide there under its own policy.
             </p>
             <p>
               We may also disclose information when required by law or to

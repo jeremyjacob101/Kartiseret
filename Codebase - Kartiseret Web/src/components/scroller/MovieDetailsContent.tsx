@@ -2,8 +2,9 @@ import { APP_TIME_ZONE, getMovieShowtimeCities, getMovieShowtimeDays, getNextSho
 import { buildShowtimeFilterSelections, filterTheatersBySelections, getShowtimeFilterOptions, updateShowtimeFilterState, type ShowtimeFilterOptions, type ShowtimeFilterSelections, type ShowtimeFilterState } from "../showtimes/showtimeFilters";
 import { cinemaIdForLocation, findCinemaIdentityForScreening, getCinemaIdentitiesForCity } from "@kartiseret/contracts/cinema-identities";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type Ref } from "react";
+import { InlineMovieTrailer, MovieTrailerModal, TrailerPlayButton } from "../showtimes/ShowtimeShared";
 import { useShowtimeViewPreferences } from "../showtimes/useShowtimeViewPreferences";
-import { Clock8, ExternalLink, MapPin, MoveRight, Star, X } from "lucide-react";
+import { Clock8, ExternalLink, MapPin, MoveRight, Star } from "lucide-react";
 import { usePublicationRevision } from "../../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
 import { type RatingSource } from "../../prefs/definitions/ratingSources";
@@ -20,7 +21,6 @@ import { getTheaterTheme } from "../showtimes/theaterTheme";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { TicketAlertControl } from "./TicketAlertControl";
 import { useShallow } from "zustand/react/shallow";
-import { createPortal } from "react-dom";
 import { Link } from "react-router";
 
 const showtimeDateFormatter = new Intl.DateTimeFormat(undefined, {
@@ -1040,23 +1040,10 @@ export function MovieDetailsContent({
         className={["details-metrics-row", className].filter(Boolean).join(" ")}
       >
         {hasTrailerLaunch ? (
-          <button
-            type="button"
-            className="details-trailer-launch details-trailer-launch--metrics"
-            aria-label={`Watch ${movie.title} trailer`}
-            onClick={() => {
-              setOpenTrailerModalId(trailerModalId);
-            }}
-          >
-            <img
-              src="/logos/youtube.svg"
-              alt=""
-              className="details-trailer-launch-logo"
-              width={28}
-              height={20}
-              decoding="async"
-            />
-          </button>
+          <TrailerPlayButton
+            movieTitle={movie.title}
+            onClick={() => setOpenTrailerModalId(trailerModalId)}
+          />
         ) : null}
 
         {hasTrailerLaunch && hasMetrics ? (
@@ -1405,71 +1392,7 @@ export function MovieDetailsContent({
     variant,
   ]);
 
-  useEffect(() => {
-    if (!isTrailerModalOpen) {
-      return;
-    }
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpenTrailerModalId(null);
-      }
-    };
-
-    window.addEventListener("keydown", handleEscape);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleEscape);
-    };
-  }, [isTrailerModalOpen]);
-
-  const trailerModal =
-    isTrailerModalOpen && trailerEmbedUrl && typeof document !== "undefined"
-      ? createPortal(
-          <div
-            className="movie-trailer-modal"
-            data-movie-scroller-detail-overlay="true"
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget) {
-                setOpenTrailerModalId(null);
-              }
-            }}
-          >
-            <div
-              className="movie-trailer-modal-dialog"
-              role="dialog"
-              aria-modal="true"
-              aria-label={`${movie.title} trailer`}
-            >
-              <button
-                type="button"
-                className="movie-trailer-modal-close"
-                aria-label="Close trailer"
-                onClick={() => {
-                  setOpenTrailerModalId(null);
-                }}
-              >
-                <X size={20} strokeWidth={2.6} />
-              </button>
-              <div className="movie-trailer-modal-frame">
-                <iframe
-                  src={`${trailerEmbedUrl}&autoplay=1`}
-                  title={`${movie.title} trailer`}
-                  loading="eager"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                  referrerPolicy="strict-origin-when-cross-origin"
-                />
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )
-      : null;
+  const closeTrailer = useCallback(() => setOpenTrailerModalId(null), []);
 
   return (
     <>
@@ -1918,24 +1841,22 @@ export function MovieDetailsContent({
           aria-label={`${movie.title} trailer`}
         >
           {trailerEmbedUrl ? (
-            <div className="details-trailer-shell">
-              <div className="details-trailer-frame">
-                <iframe
-                  src={trailerEmbedUrl}
-                  title={`${movie.title} official trailer`}
-                  loading="lazy"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                  referrerPolicy="strict-origin-when-cross-origin"
-                />
-              </div>
-            </div>
+            <InlineMovieTrailer
+              key={`${trailerModalId}:${trailerEmbedUrl}`}
+              movieTitle={movie.title}
+              embedUrl={trailerEmbedUrl}
+            />
           ) : (
             <p className="details-showtime-empty">Trailer not available yet.</p>
           )}
         </section>
       )}
-      {trailerModal}
+      <MovieTrailerModal
+        movieTitle={movie.title}
+        embedUrl={trailerEmbedUrl}
+        isOpen={isTrailerModalOpen}
+        onClose={closeTrailer}
+      />
     </>
   );
 }

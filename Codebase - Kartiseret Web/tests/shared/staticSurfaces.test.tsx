@@ -48,6 +48,28 @@ describe("site information", () => {
     );
   });
 
+  it("explains browser storage, analytics and when embedded services connect", () => {
+    const privacy = siteInformationPages.find(
+      ({ path }) => path === "/privacy",
+    )!;
+    render(
+      <MemoryRouter initialEntries={["/privacy"]}>
+        <SiteInformation page={privacy} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(/uses sign-in cookies/)).toHaveTextContent(
+      "can sign you out and reset these local choices",
+    );
+    expect(
+      screen.getByText(/Vercel Web Analytics measures visits/),
+    ).toHaveTextContent("It uses no analytics cookies.");
+    expect(screen.getByText(/Opening the city map/)).toHaveTextContent(
+      "Choosing to play a trailer connects your browser to YouTube’s privacy-enhanced player.",
+    );
+    expect(screen.getByText(/Web sessions expire 30 days/)).toBeVisible();
+  });
+
   it.each([
     ["2026-12-31T21:59:59Z", "2026"],
     ["2026-12-31T22:00:00Z", "2027"],

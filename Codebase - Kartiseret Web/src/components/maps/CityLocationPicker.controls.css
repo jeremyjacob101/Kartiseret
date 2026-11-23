@@ -278,6 +278,28 @@
   display: flex;
 }
 
+.theater-map-panel .theater-map-locate-notice {
+  position: absolute;
+  top: 100%;
+  right: calc(100% + 8px);
+  z-index: 11;
+  width: min(206px, 57vw);
+  margin: 0;
+  padding: 6px 9px;
+  border: 1px solid rgba(241, 236, 255, 0.5);
+  border-radius: 8px;
+  background: #10141b;
+  color: #f3ebff;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.theater-map-panel .theater-map-action-tooltip.is-visible + .theater-map-locate-notice {
+  visibility: hidden;
+}
+
 .theater-map-control-message {
   position: absolute;
   left: 18px;

@@ -412,9 +412,12 @@ export function UserMenu() {
               </div>
 
               <p className="user-menu-privacy-note">
-                Browsing is available without an account. If you create one,
-                Jeremy Jacob uses the information you provide to run your
-                account and sync your preferences. The{" "}
+                {authMode === "forgotPassword"
+                  ? "Jeremy Jacob uses the email address you enter to send a password reset link. "
+                  : authMode === "signup"
+                    ? "Creating an account is optional. Jeremy Jacob uses the information you provide to run your account. Anyone can browse listings. You need an account to sync preferences and receive movie alerts. "
+                    : "Jeremy Jacob uses the information you provide to sign you in. You can browse listings without an account. "}
+                The{" "}
                 <Link to="/privacy" onClick={() => setIsOpen(false)}>
                   Privacy Policy
                 </Link>{" "}

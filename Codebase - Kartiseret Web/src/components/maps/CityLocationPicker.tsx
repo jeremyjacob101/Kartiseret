@@ -1,6 +1,6 @@
 import { Map as MapLibreMap, Marker, NavigationControl, Popup, setWorkerUrl } from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Clapperboard, List, Search } from "lucide-react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { useQuery } from "@tanstack/react-query";
@@ -74,6 +74,7 @@ export function CityLocationPicker({
   const theaterMarkersRef = useRef<TheaterMarkerState[]>([]);
   const scheduleVisibilitySyncRef = useRef<(() => void) | null>(null);
   const focusSelectedLocationRef = useRef<(() => void) | null>(null);
+  const locateNoticeId = useId();
   const handleLocateNearestCityRef = useRef<(() => void) | null>(null);
   const searchZoomOutTimeoutRef = useRef<number | null>(null);
   const searchQueryRef = useRef("");
@@ -503,6 +504,7 @@ export function CityLocationPicker({
     });
     const mapActionControl = new TheaterMapActionControl({
       blockedLocateMessage: locateBlockedMessageRef.current,
+      locateNoticeId,
       onLocate: () => {
         handleLocateNearestCityRef.current?.();
       },
@@ -577,7 +579,7 @@ export function CityLocationPicker({
       map.remove();
       mapRef.current = null;
     };
-  }, [fitStartingView]);
+  }, [fitStartingView, locateNoticeId]);
 
   useEffect(() => {
     const currentMap = mapRef.current;
