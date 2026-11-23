@@ -127,9 +127,9 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
         content: (
           <p>
             Kartiseret is a free, independently run personal project. I’m doing
-            my best to make the website and iOS app easier to use and to follow
-            the accessibility rules that apply. I’ll update this statement as I
-            improve both.
+            everything I can to make the website and iOS app as accessible as
+            possible. I’ll keep working to meet the accessibility requirements
+            that apply and update this statement as I make improvements.
           </p>
         ),
       },
@@ -139,8 +139,9 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
         content: (
           <>
             <p>
-              Kartiseret earns no revenue and has no ads, paid subscriptions, or
-              booking commissions. Based on how the project operates today, my
+              I’m including the regulation here for reference. Kartiseret earns
+              no revenue and has no ads, paid subscriptions, or booking
+              commissions. Based on how the project operates today, my
               understanding is that the low-turnover exemption in Regulation{" "}
               <bdi dir="rtl" lang="he">
                 35ו(ז)
