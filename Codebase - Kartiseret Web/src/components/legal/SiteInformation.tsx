@@ -298,14 +298,10 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
         content: (
           <>
             <p>
-              Kartiseret is a free project I run as an independent developer.
-              I’m doing my best to protect your privacy and make clear what the
-              site collects and why. Section 11 of Israel’s Privacy Protection
-              Law requires notice when someone is asked for personal information
-              for use in a database. That includes why it’s requested, whether
-              you have to provide it and what happens if you decline, who
-              handles or receives it, and how to exercise access and correction
-              rights. When the law requires consent, it must be informed.
+              Kartiseret is a free project I run as an independent developer. I
+              do my best to understand and apply Israel’s Privacy Protection Law
+              with your privacy in mind. That means explaining what Kartiseret
+              collects, why it collects it, and what choices you have.
             </p>
             <p>
               Kartiseret explains why it asks for information at sign-up and

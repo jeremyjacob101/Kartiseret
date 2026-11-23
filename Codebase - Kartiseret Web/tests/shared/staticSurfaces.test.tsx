@@ -74,7 +74,9 @@ describe("site information", () => {
     const privacyRules = within(
       screen.getByRole("region", { name: "Israeli privacy rules" }),
     );
-    expect(privacyRules.getByText(/Section 11/)).toBeVisible();
+    expect(
+      privacyRules.getByText(/apply Israel’s Privacy Protection Law/),
+    ).toBeVisible();
     expect(privacyRules.getByText(/Analytics by default/)).toBeVisible();
     expect(privacyRules.getByText(/I welcome suggestions/)).toHaveTextContent(
       "access, correct, or delete personal information",
