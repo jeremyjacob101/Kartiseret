@@ -2,12 +2,17 @@ import { Link } from "react-router";
 import "./BottomBar.css";
 
 export function BottomBar() {
+  const year = new Date().toLocaleString("en", {
+    timeZone: "Asia/Jerusalem",
+    year: "numeric",
+  });
+
   return (
     <footer className="bottom-bar-shell">
       <div className="bottom-bar" aria-label="Site footer">
         <div className="bottom-bar-content">
           <p className="bottom-bar-credit">
-            <span className="bottom-bar-credit-line">©2026 Kartiseret</span>
+            <span className="bottom-bar-credit-line">©{year} Kartiseret</span>
           </p>
           <div className="bottom-bar-links" aria-label="Footer links">
             <Link

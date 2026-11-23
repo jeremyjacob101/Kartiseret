@@ -35,7 +35,7 @@ describe("static and portal-rendered surfaces", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("©2026 Kartiseret")).toBeInTheDocument();
+    expect(screen.getByText(/^©\d{4} Kartiseret$/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Attribution" })).toHaveAttribute(
       "href",
       "/attribution",
@@ -46,6 +46,24 @@ describe("static and portal-rendered surfaces", () => {
     expect(
       screen.getByRole("link", { name: "Jeremy Jacob on LinkedIn" }),
     ).toHaveAttribute("target", "_blank");
+  });
+
+  it.each([
+    ["2026-12-31T21:59:59Z", "2026"],
+    ["2026-12-31T22:00:00Z", "2027"],
+  ])("renders the Israeli calendar year at %s", (instant, year) => {
+    vi.setSystemTime(new Date(instant));
+    try {
+      render(
+        <MemoryRouter>
+          <BottomBar />
+        </MemoryRouter>,
+      );
+
+      expect(screen.getByText(`©${year} Kartiseret`)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("portals the floating navigation and controls keyboard visibility", async () => {
