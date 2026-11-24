@@ -178,7 +178,6 @@ export function UserMenu() {
         previousFocus?.focus();
       };
     }
-
   }, [isOpen, user]);
 
   useEffect(() => {

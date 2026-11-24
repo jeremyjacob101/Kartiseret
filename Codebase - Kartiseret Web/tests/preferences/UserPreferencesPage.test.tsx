@@ -52,8 +52,13 @@ describe("UserPreferencesPage", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("button", { name: "Account" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.queryByRole("link", { name: "Back to Home" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Account" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(
+      screen.queryByRole("link", { name: "Back to Home" }),
+    ).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Sign out" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Session expired");
   });

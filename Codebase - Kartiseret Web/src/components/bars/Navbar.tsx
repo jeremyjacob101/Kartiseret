@@ -1,6 +1,6 @@
 import { useEffect, useState, type MouseEventHandler } from "react";
-import { Clock8, Film } from "lucide-react";
 import { Link, useLocation } from "react-router";
+import { Clock8, Film } from "lucide-react";
 import "./Navbar.css";
 import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "../MovieSearchMenu";
 import { TheaterMapDialog } from "../maps/TheaterMapDialog";

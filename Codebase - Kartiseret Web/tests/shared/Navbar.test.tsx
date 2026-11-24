@@ -78,7 +78,9 @@ describe("Navbar", () => {
     fireEvent.click(screen.getByRole("link", { name: "All Showtimes" }));
     fireEvent.click(screen.getByRole("button", { name: "Open search" }));
 
-    expect(screen.queryByRole("button", { name: /settings/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /settings/i }),
+    ).not.toBeInTheDocument();
     expect(callbacks.onHomeClick).toHaveBeenCalledOnce();
     expect(callbacks.onMoviesNavClick).toHaveBeenCalledOnce();
     expect(callbacks.onSoonsNavClick).toHaveBeenCalledOnce();

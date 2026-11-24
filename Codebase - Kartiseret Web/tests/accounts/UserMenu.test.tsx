@@ -20,7 +20,11 @@ vi.mock("../../src/lib/authClient", () => ({
 }));
 
 function PathLabel() {
-  return <output data-testid="path">{useLocation().pathname + useLocation().search}</output>;
+  return (
+    <output data-testid="path">
+      {useLocation().pathname + useLocation().search}
+    </output>
+  );
 }
 
 function renderMenu(path = "/") {
@@ -219,7 +223,9 @@ describe("UserMenu", () => {
     });
     renderMenu();
 
-    await user.click(screen.getByRole("button", { name: "Open User Preferences" }));
+    await user.click(
+      screen.getByRole("button", { name: "Open User Preferences" }),
+    );
     expect(screen.getByTestId("path")).toHaveTextContent("/user?tab=account");
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });

@@ -1,8 +1,8 @@
 import { Bell, CalendarDays, ChevronDown, MapPin, Monitor, Search, UserRound } from "lucide-react";
 import { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { useSearchParams } from "react-router";
 import { getAuthClient } from "../lib/authClient";
+import { useSearchParams } from "react-router";
 import "./UserPreferencesPage.css";
 import { getSiteColorLabel, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
 import { UserMovieDisplayPreferences } from "./UserMovieDisplayPreferences";
@@ -136,9 +136,9 @@ export function UserPreferencesPage() {
     })),
   );
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeCategory = preferenceCategories.find(
-    ({ id }) => id === searchParams.get("tab"),
-  )?.id ?? "showtimes";
+  const activeCategory =
+    preferenceCategories.find(({ id }) => id === searchParams.get("tab"))?.id ??
+    "showtimes";
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
@@ -147,7 +147,10 @@ export function UserPreferencesPage() {
     setSignOutError(null);
     try {
       const { error } = await getAuthClient().signOut();
-      if (error) setSignOutError(error.message || "Could not sign out. Please try again.");
+      if (error)
+        setSignOutError(
+          error.message || "Could not sign out. Please try again.",
+        );
     } catch {
       setSignOutError("Could not sign out. Please try again.");
     } finally {
@@ -219,12 +222,15 @@ export function UserPreferencesPage() {
               type="button"
               aria-pressed={activeCategory === id}
               onClick={() => {
-                setSearchParams((params) => {
-                  const next = new URLSearchParams(params);
-                  if (id === "showtimes") next.delete("tab");
-                  else next.set("tab", id);
-                  return next;
-                }, { replace: true, preventScrollReset: true });
+                setSearchParams(
+                  (params) => {
+                    const next = new URLSearchParams(params);
+                    if (id === "showtimes") next.delete("tab");
+                    else next.set("tab", id);
+                    return next;
+                  },
+                  { replace: true, preventScrollReset: true },
+                );
               }}
             >
               <Icon size={19} strokeWidth={1.8} aria-hidden="true" />
