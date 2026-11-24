@@ -293,8 +293,7 @@ span.topnav-icon {
 }
 
 .movie-search-trigger,
-.location-menu-trigger,
-.settings-button {
+.location-menu-trigger {
   display: grid;
   place-items: center;
   width: 42px;
@@ -315,8 +314,7 @@ span.topnav-icon {
 .movie-search-trigger:hover,
 .movie-search-trigger.is-open,
 .location-menu-trigger:hover,
-.location-menu-trigger.is-open,
-.settings-button:hover {
+.location-menu-trigger.is-open {
   transform: translateY(-1px);
   box-shadow: 0 12px 24px rgba(45, 34, 58, 0.2);
 }
@@ -530,16 +528,6 @@ span.topnav-icon {
   cursor: not-allowed;
 }
 
-.settings-button:disabled {
-  opacity: 0.58;
-  cursor: not-allowed;
-}
-
-.settings-button:disabled:hover {
-  transform: none;
-  box-shadow: none;
-}
-
 .location-menu-feedback {
   margin: 10px 0 0;
   font-size: 0.8rem;
@@ -637,8 +625,7 @@ html[data-device-type="mobile"] .navbar-actions {
 }
 
 html[data-device-type="mobile"] .navbar-actions .movie-search-trigger,
-html[data-device-type="mobile"] .navbar-actions .location-menu-trigger,
-html[data-device-type="mobile"] .navbar-actions .settings-button {
+html[data-device-type="mobile"] .navbar-actions .location-menu-trigger {
   width: 44px;
   height: 44px;
 }
@@ -785,8 +772,7 @@ html[data-device-type="mobile"] .movie-search-results {
   }
 
   .movie-search-trigger,
-  .location-menu-trigger,
-  .settings-button {
+  .location-menu-trigger {
     transition: none;
   }
 }

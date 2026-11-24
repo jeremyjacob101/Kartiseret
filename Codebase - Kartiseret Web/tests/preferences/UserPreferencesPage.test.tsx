@@ -5,8 +5,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 
+const { signOut } = vi.hoisted(() => ({ signOut: vi.fn() }));
+
 vi.mock("../../src/lib/authClient", () => ({
   getAuthClient: () => ({
+    signOut,
     getSession: async () => ({ data: { user: null }, error: null }),
     listAccounts: async () => ({ data: [], error: null }),
     useSession: { subscribe: () => () => {} },
@@ -36,6 +39,25 @@ afterEach(() => {
 });
 
 describe("UserPreferencesPage", () => {
+  it("opens Account from the header URL and reports sign-out errors", async () => {
+    const user = userEvent.setup();
+    useUserPreferencesStore.setState({
+      user: { id: "user-a", email: "user@example.com" } as never,
+    });
+    signOut.mockResolvedValueOnce({ error: { message: "Session expired" } });
+
+    render(
+      <MemoryRouter initialEntries={["/user?tab=account"]}>
+        <UserPreferencesPage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("button", { name: "Account" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("link", { name: "Back to Home" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Sign out" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Session expired");
+  });
+
   it("starts compact and reveals showtime settings in their disclosures", async () => {
     const user = userEvent.setup();
 

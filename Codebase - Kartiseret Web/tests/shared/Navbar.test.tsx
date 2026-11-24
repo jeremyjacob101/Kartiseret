@@ -26,12 +26,10 @@ function renderNavbar(path = "/movies") {
       <Navbar
         catalogReady
         searchCollections={[]}
-        settingsDisabled={false}
         onHomeClick={vi.fn()}
         onMoviesNavClick={vi.fn()}
         onSearchOpen={vi.fn()}
         onSelectResult={vi.fn()}
-        onSettingsClick={vi.fn()}
         onSoonsNavClick={vi.fn()}
       />
     </MemoryRouter>,
@@ -56,7 +54,6 @@ describe("Navbar", () => {
       onHomeClick: vi.fn(),
       onMoviesNavClick: vi.fn(),
       onSearchOpen: vi.fn(),
-      onSettingsClick: vi.fn(),
       onSoonsNavClick: vi.fn(),
     };
     render(
@@ -64,7 +61,6 @@ describe("Navbar", () => {
         <Navbar
           catalogReady
           searchCollections={[]}
-          settingsDisabled={false}
           onSelectResult={vi.fn()}
           {...callbacks}
         />
@@ -81,43 +77,12 @@ describe("Navbar", () => {
     fireEvent.click(screen.getByRole("link", { name: "Coming Soon" }));
     fireEvent.click(screen.getByRole("link", { name: "All Showtimes" }));
     fireEvent.click(screen.getByRole("button", { name: "Open search" }));
-    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
 
+    expect(screen.queryByRole("button", { name: /settings/i })).not.toBeInTheDocument();
     expect(callbacks.onHomeClick).toHaveBeenCalledOnce();
     expect(callbacks.onMoviesNavClick).toHaveBeenCalledOnce();
     expect(callbacks.onSoonsNavClick).toHaveBeenCalledOnce();
     expect(callbacks.onSearchOpen).toHaveBeenCalledOnce();
-    expect(callbacks.onSettingsClick).toHaveBeenCalledOnce();
-  });
-
-  it("prevents settings interaction when no account is available", () => {
-    const onSettingsClick = vi.fn();
-    render(
-      <MemoryRouter>
-        <Navbar
-          catalogReady={false}
-          searchCollections={[]}
-          settingsDisabled
-          onHomeClick={vi.fn()}
-          onMoviesNavClick={vi.fn()}
-          onSearchOpen={vi.fn()}
-          onSelectResult={vi.fn()}
-          onSettingsClick={onSettingsClick}
-          onSoonsNavClick={vi.fn()}
-        />
-      </MemoryRouter>,
-    );
-
-    const button = screen.getByRole("button", {
-      name: "Settings require an account",
-    });
-    expect(button).toBeDisabled();
-    expect(button).toHaveAttribute(
-      "title",
-      "Sign up or log in to use settings",
-    );
-    fireEvent.click(button);
-    expect(onSettingsClick).not.toHaveBeenCalled();
   });
 
   it("ends the intro transition on schedule", () => {

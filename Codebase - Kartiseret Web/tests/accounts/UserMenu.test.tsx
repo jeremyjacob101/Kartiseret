@@ -20,7 +20,7 @@ vi.mock("../../src/lib/authClient", () => ({
 }));
 
 function PathLabel() {
-  return <output data-testid="path">{useLocation().pathname}</output>;
+  return <output data-testid="path">{useLocation().pathname + useLocation().search}</output>;
 }
 
 function renderMenu(path = "/") {
@@ -212,31 +212,16 @@ describe("UserMenu", () => {
     ).toBeInTheDocument();
   });
 
-  it("routes authenticated users to preferences and keeps the panel on sign-out errors", async () => {
+  it("opens the Account tab directly for signed-in users", async () => {
     const user = userEvent.setup();
     useUserPreferencesStore.setState({
       user: { id: "user-a", email: "user@example.com" } as never,
     });
-    authMock.signOut.mockResolvedValue({
-      error: { message: "Session expired" },
-    });
     renderMenu();
 
-    await user.click(
-      screen.getByRole("button", { name: "Signed in as user@example.com" }),
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Open User Preferences" }),
-    );
-    expect(screen.getByTestId("path")).toHaveTextContent("/user");
+    await user.click(screen.getByRole("button", { name: "Open User Preferences" }));
+    expect(screen.getByTestId("path")).toHaveTextContent("/user?tab=account");
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-
-    await user.click(
-      screen.getByRole("button", { name: "Signed in as user@example.com" }),
-    );
-    await user.click(screen.getByRole("button", { name: "Sign out" }));
-    expect(await screen.findByText("Session expired")).toBeInTheDocument();
-    expect(screen.getByRole("menu")).toBeInTheDocument();
   });
 
   it("shows only configured providers and starts Apple sign-in with a safe return URL", async () => {

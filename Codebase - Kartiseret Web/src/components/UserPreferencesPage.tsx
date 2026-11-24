@@ -1,7 +1,8 @@
-import { ArrowLeft, Bell, CalendarDays, ChevronDown, MapPin, Monitor, Search, UserRound } from "lucide-react";
+import { Bell, CalendarDays, ChevronDown, MapPin, Monitor, Search, UserRound } from "lucide-react";
 import { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { Link } from "react-router";
+import { useSearchParams } from "react-router";
+import { getAuthClient } from "../lib/authClient";
 import "./UserPreferencesPage.css";
 import { getSiteColorLabel, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
 import { UserMovieDisplayPreferences } from "./UserMovieDisplayPreferences";
@@ -134,8 +135,25 @@ export function UserPreferencesPage() {
       resetSiteColor: state.resetSiteColor,
     })),
   );
-  const [activeCategory, setActiveCategory] =
-    useState<PreferenceCategory>("showtimes");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeCategory = preferenceCategories.find(
+    ({ id }) => id === searchParams.get("tab"),
+  )?.id ?? "showtimes";
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    setSignOutError(null);
+    try {
+      const { error } = await getAuthClient().signOut();
+      if (error) setSignOutError(error.message || "Could not sign out. Please try again.");
+    } catch {
+      setSignOutError("Could not sign out. Please try again.");
+    } finally {
+      setSigningOut(false);
+    }
+  }
   const [isCityPickerOpen, setIsCityPickerOpen] = useState(false);
   const [isSourcesOpen, setIsSourcesOpen] = useState(false);
   const visibleSiteColors = useMemo(
@@ -190,10 +208,6 @@ export function UserPreferencesPage() {
           <p className="section-kicker">User</p>
           <h1 className="section-title">User Preferences</h1>
         </div>
-        <Link className="prefs-page-back" to="/">
-          <ArrowLeft size={16} strokeWidth={2.1} aria-hidden="true" />
-          <span>Back to Home</span>
-        </Link>
       </div>
 
       <div className="prefs-page-workspace" aria-busy={syncing}>
@@ -204,7 +218,14 @@ export function UserPreferencesPage() {
               className={`prefs-category-button${activeCategory === id ? " is-active" : ""}`}
               type="button"
               aria-pressed={activeCategory === id}
-              onClick={() => setActiveCategory(id)}
+              onClick={() => {
+                setSearchParams((params) => {
+                  const next = new URLSearchParams(params);
+                  if (id === "showtimes") next.delete("tab");
+                  else next.set("tab", id);
+                  return next;
+                }, { replace: true, preventScrollReset: true });
+              }}
             >
               <Icon size={19} strokeWidth={1.8} aria-hidden="true" />
               <span>{label}</span>
@@ -411,6 +432,17 @@ export function UserPreferencesPage() {
               <div className="prefs-settings-stack prefs-account-stack">
                 {user ? (
                   <>
+                    <div>
+                      <button
+                        type="button"
+                        className="prefs-color-reset"
+                        disabled={signingOut}
+                        onClick={() => void handleSignOut()}
+                      >
+                        {signingOut ? "Signing out…" : "Sign out"}
+                      </button>
+                      {signOutError ? <p role="alert">{signOutError}</p> : null}
+                    </div>
                     <details className="prefs-disclosure prefs-account-details">
                       <summary className="prefs-disclosure-summary">
                         <span className="prefs-disclosure-copy">
