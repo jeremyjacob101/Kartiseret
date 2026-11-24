@@ -1078,9 +1078,6 @@ function MainApplication() {
     setSoonsPageView("grid");
   }, []);
 
-    navigate("/user");
-  }, [loading, navigate, user]);
-
   const resetCatalogPage = useCallback((mode: MovieSearchMode) => {
     if (mode === "nowPlaying") {
       setMoviesPageView("grid");
