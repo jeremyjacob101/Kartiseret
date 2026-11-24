@@ -1,4 +1,5 @@
 import { ticketAlertCriteriaMutationOptions, ticketAlertMutationOptions, ticketAlertPreferencesMutationOptions, ticketAlertPreferencesQueryOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions, type UserTicketAlertSubscription } from "../data/ticketAlerts";
+import { notificationDeliveryMutationOptions, notificationDeliveryQueryOptions, pushDeviceStatusQueryOptions } from "../data/notificationDelivery";
 import { DEFAULT_TICKET_ALERT_CRITERIA, type TicketAlertCriteria, type TicketAlertCriteriaOverride } from "@kartiseret/contracts/private-data";
 import { movieCollectionQueryOptions, selectMovies, type Movie } from "../data/movieCatalog";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
@@ -10,11 +11,6 @@ import { TicketAlertCriteriaEditor } from "./TicketAlertCriteriaEditor";
 import { LetterboxdSourceWatchlist } from "./LetterboxdSourceWatchlist";
 import { ComingSoonDateWatchlist } from "./ComingSoonDateWatchlist";
 import { MoviePosterArtwork } from "./MoviePosterArtwork";
-import {
-  notificationDeliveryMutationOptions,
-  notificationDeliveryQueryOptions,
-  pushDeviceStatusQueryOptions,
-} from "../data/notificationDelivery";
 import { ChevronDown } from "lucide-react";
 import { Link } from "react-router";
 import { useMemo } from "react";
@@ -238,7 +234,8 @@ export function UserTicketAlerts({ userId }: { userId: string | null }) {
             ["iphone", "both"].includes(deliveryQuery.data) &&
             pushDeviceQuery.data !== true ? (
               <p className="prefs-alerts-device-status" role="status">
-                Open Kartiseret on an iPhone or iPad and enable notifications there to finish setup.
+                Open Kartiseret on an iPhone or iPad and enable notifications
+                there to finish setup.
               </p>
             ) : null}
             {deliveryMutation.error ? (

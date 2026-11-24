@@ -55,7 +55,10 @@ export const pushDeviceUnregisterSchema = z
   .strict();
 export const pushDeviceStatusQuerySchema = z
   .object({
-    token: z.string().regex(/^(?:[0-9a-f]{2}){16,64}$/i).optional(),
+    token: z
+      .string()
+      .regex(/^(?:[0-9a-f]{2}){16,64}$/i)
+      .optional(),
   })
   .strict();
 export type PushDeviceRegistration = z.infer<

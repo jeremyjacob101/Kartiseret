@@ -1,19 +1,15 @@
-import {
-  notificationDeliverySchema,
-  preferencesResponseSchema,
-  pushDeviceStatusResponseSchema,
-  type NotificationDelivery,
-} from "@kartiseret/contracts/private-data";
+import { notificationDeliverySchema, preferencesResponseSchema, pushDeviceStatusResponseSchema, type NotificationDelivery } from "@kartiseret/contracts/private-data";
 import { mutationOptions, queryOptions, skipToken } from "@tanstack/react-query";
-import { privateApiResponse } from "./privateApi";
-import { queryClient } from "../lib/queryClient";
 import { applicationIdentitySchema } from "@kartiseret/contracts/private-data";
 import { parseBoundary } from "@kartiseret/contracts/runtime";
+import { privateApiResponse } from "./privateApi";
+import { queryClient } from "../lib/queryClient";
 
 const userIdSchema = applicationIdentitySchema.shape.id;
 
 export const notificationDeliveryQueryKeys = {
-  preference: (userId: string | null) => ["notificationDelivery", userId] as const,
+  preference: (userId: string | null) =>
+    ["notificationDelivery", userId] as const,
   device: (userId: string | null) => ["pushDevice", userId] as const,
 };
 
