@@ -83,7 +83,10 @@ struct AppRootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .kartiseretAPNSToken)) { notification in
             guard let token = notification.userInfo?["token"] as? String,
                   let environment = notification.userInfo?["environment"] as? String else { return }
-            Task { await accountStore.registerPushDevice(deviceToken: token, environment: environment) }
+            let previousToken = notification.userInfo?["previousToken"] as? String
+            Task {
+                await accountStore.registerPushDevice(deviceToken: token, environment: environment, previousToken: previousToken)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .kartiseretPushURL)) { notification in
             guard let value = notification.userInfo?["url"] as? String,
@@ -111,7 +114,6 @@ struct AppRootView: View {
         .onChange(of: accountStore.identity) { _, identity in
             guard identity != nil else { return }
             store.selectCity(accountStore.preferences.location)
-            Task { await accountStore.syncPushDeviceRegistration() }
         }
         .onChange(of: accountStore.preferences.location) { _, location in
             guard accountStore.state == .signedIn else { return }

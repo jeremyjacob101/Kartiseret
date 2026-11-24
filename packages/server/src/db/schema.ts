@@ -566,7 +566,7 @@ export const movieNotificationDeliveries = pgTable(
 );
 
 export const apnsDevices = pgTable("apns_devices", {
-  id: uuid("id").primaryKey(),
+  id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")
     .notNull()
     .references(() => authUser.id, { onDelete: "cascade" }),
@@ -580,16 +580,19 @@ export const apnsDevices = pgTable("apns_devices", {
 export const movieNotificationPushDeliveries = pgTable(
   "movie_notification_push_deliveries",
   {
-    id: uuid("id").primaryKey(),
+    id: uuid("id").defaultRandom().primaryKey(),
     deliveryId: uuid("delivery_id")
       .notNull()
-      .references(() => movieNotificationDeliveries.id, { onDelete: "cascade" }),
+      .references(() => movieNotificationDeliveries.id, {
+        onDelete: "cascade",
+      }),
     deviceId: uuid("device_id").references(() => apnsDevices.id, {
       onDelete: "set null",
     }),
     status: text("status").notNull().default("pending"),
     attempts: integer("attempts").notNull().default(0),
     firstAttemptAt: instant("first_attempt_at"),
+    lastAttemptAt: instant("last_attempt_at"),
     nextAttemptAt: instant("next_attempt_at"),
     payloadSnapshot: jsonb("payload_snapshot").$type<JsonValue>(),
     apnsId: text("apns_id"),

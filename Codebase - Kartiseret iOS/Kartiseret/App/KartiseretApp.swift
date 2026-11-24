@@ -21,12 +21,13 @@ final class KartiseretAppDelegate: NSObject, UIApplicationDelegate, UNUserNotifi
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         let token = deviceToken.map { String(format: "%02x", $0) }.joined()
         let environment = PushNotificationRegistration.environment
+        let previousToken = PushNotificationRegistration.storedDeviceToken
         UserDefaults.standard.set(token, forKey: PushNotificationRegistration.deviceTokenKey)
         UserDefaults.standard.set(environment, forKey: PushNotificationRegistration.environmentKey)
         NotificationCenter.default.post(
             name: .kartiseretAPNSToken,
             object: nil,
-            userInfo: ["token": token, "environment": environment]
+            userInfo: ["token": token, "environment": environment, "previousToken": previousToken ?? token]
         )
     }
 
@@ -34,24 +35,26 @@ final class KartiseretAppDelegate: NSObject, UIApplicationDelegate, UNUserNotifi
         NSLog("Kartiseret APNs registration failed: %@", error.localizedDescription)
     }
 
-    func userNotificationCenter(
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let urlString = response.notification.request.content.userInfo["url"] as? String
         if let urlString {
-            PushNotificationRegistration.pendingURL = URL(string: urlString)
-            NotificationCenter.default.post(
-                name: .kartiseretPushURL,
-                object: nil,
-                userInfo: ["url": urlString]
-            )
+            Task { @MainActor in
+                PushNotificationRegistration.pendingURL = URL(string: urlString)
+                NotificationCenter.default.post(
+                    name: .kartiseretPushURL,
+                    object: nil,
+                    userInfo: ["url": urlString]
+                )
+            }
         }
         completionHandler()
     }
 
-    func userNotificationCenter(
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void

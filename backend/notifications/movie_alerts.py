@@ -33,6 +33,7 @@ from backend.notifications.letterboxd_alerts import (
 from backend.notifications.ticket_alerts import (
     CITY_CODE_BY_NAME,
     SHOWTIME_DAY_CUTOFF_MINUTES,
+    NoCanonicalEmail,
     RenderedEmail,
     TicketAlertConfig,
     _friendly_date,
@@ -659,13 +660,12 @@ class SupabaseMovieNotificationRepository(SupabaseLetterboxdRepository):
         )
         return sorted({row["user_id"] for row in rows})
 
-    def claim(self, user, delivery_id):
+    def claim_batches(self, user, delivery_id):
         response = self.supabase.rpc(
             "claim_movie_notification_delivery",
             {"p_user": user, "p_delivery": delivery_id},
         ).execute()
-        rows = self._response_rows(response)
-        return rows[0] if rows else None
+        return self._response_rows(response)
 
     def reconcile(self, batch):
         rows = self._response_rows(
@@ -690,6 +690,12 @@ class SupabaseMovieNotificationRepository(SupabaseLetterboxdRepository):
             "complete_movie_notification_delivery",
             {"p_delivery": batch["id"], "p_resend_id": resend_id},
         ).execute()
+
+    def skip_email(self, batch, error):
+        self.supabase.table("movie_notification_deliveries").update(
+            {"email_status": "skipped", "last_error": str(error)}
+        ).eq("id", batch["id"]).eq("status", "pending").eq("email_status", "pending").execute()
+        self.reconcile(batch)
 
     def fail(self, batch, error):
         self.supabase.table("movie_notification_deliveries").update(
@@ -859,10 +865,7 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
         )
         sent = pushes_sent = notified = 0
         failures = []
-        for user in progress_items(self.repository.pending_users(), "recipients"):
-            batch = self.repository.claim(user, str(self.delivery_id_factory()))
-            if batch is None:
-                continue
+        for user, batch in self._claimed_batches():
             try:
                 reconcile = getattr(self.repository, "reconcile", None)
                 if callable(reconcile):
@@ -887,6 +890,7 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
                     try:
                         snapshot = batch.get("email_snapshot")
                         if snapshot is None:
+                            recipient = self.repository.canonical_email(user)
                             support_reader = getattr(
                                 self.repository,
                                 "letterboxd_supported_movies",
@@ -925,7 +929,7 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
                                 "html": email.html,
                                 "text": email.text,
                                 "headers": email.headers,
-                                "recipient": self.repository.canonical_email(user),
+                                "recipient": recipient,
                                 "from": self.config.from_email,
                             }
                         snapshot = self.repository.attempt(batch, snapshot)
@@ -949,6 +953,8 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
                             sent += 1
                             notified += len(batch["events"])
                             batch_notified = True
+                    except NoCanonicalEmail as error:
+                        self.repository.skip_email(batch, error)
                     except Exception as error:
                         self.repository.fail(batch, error)
                         failures.append(
@@ -995,7 +1001,7 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
                                     batch_notified = True
                             except APNSResponseError as error:
                                 message = str(error)
-                                if error.status_code == 429 or error.status_code >= 500:
+                                if error.status_code in (403, 429) or error.status_code >= 500:
                                     self.repository.retry_push(push_id, message)
                                     failures.append(f"{push_id}: {message}")
                                 else:
@@ -1037,6 +1043,18 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
                 "Movie notification delivery failed: " + " | ".join(failures)
             )
         return MovieNotificationSummary(synced, failed, sent, notified, pushes_sent)
+
+    def _claimed_batches(self):
+        for user in progress_items(self.repository.pending_users(), "recipients"):
+            delivery_id = str(self.delivery_id_factory())
+            claim_batches = getattr(self.repository, "claim_batches", None)
+            if claim_batches is None:
+                batch = self.repository.claim(user, delivery_id)
+                if batch is not None:
+                    yield user, batch
+            else:
+                for batch in claim_batches(user, delivery_id):
+                    yield user, batch
 
     def dataRun(self):
         result = self.dispatch()

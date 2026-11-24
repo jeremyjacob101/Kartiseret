@@ -394,7 +394,7 @@ export class ProtectedWorkflows {
       .where(eq(userPreferences.userId, user.id))
       .for("update");
     if (!row) throw new Error("Preference initialization returned no row.");
-    const result = {
+    const result: Preferences = {
       ratingSources: normalizeRatingSources(row.ratingSources, {
         allowEmpty: true,
       }),

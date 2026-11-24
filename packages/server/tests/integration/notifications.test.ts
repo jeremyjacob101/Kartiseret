@@ -79,6 +79,13 @@ describe.sequential("shared first availability notifications", () => {
       [user.id],
     );
     await admin.pool.query(
+      'delete from public."userPreferences" where user_id=$1',
+      [user.id],
+    );
+    await admin.pool.query("delete from public.apns_devices where user_id=$1", [
+      user.id,
+    ]);
+    await admin.pool.query(
       "delete from public.ticket_alert_subscriptions where user_id=$1",
       [user.id],
     );
@@ -102,6 +109,79 @@ describe.sequential("shared first availability notifications", () => {
   afterAll(async () => {
     await admin.pool.query("delete from app_auth.users where id=$1", [user.id]);
     await Promise.all([admin.close(), runtime.close()]);
+  });
+  it("claims fresh email while an earlier digest is waiting for a push retry", async () => {
+    await admin.pool.query(
+      'insert into public."userPreferences"(user_id,notification_delivery) values($1,$2)',
+      [user.id, "both"],
+    );
+    await admin.pool.query(
+      "insert into public.apns_devices(user_id,device_token,environment) values($1,$2,'development')",
+      [user.id, "ab".repeat(32)],
+    );
+    await queue([candidate("Jerusalem", "first_per_city")]);
+    const first = await claim();
+    await admin.pool.query(
+      "select public.complete_movie_notification_delivery($1,'email-1')",
+      [first.id],
+    );
+    const push = (
+      await admin.pool.query(
+        "select id from public.movie_notification_push_deliveries where delivery_id=$1",
+        [first.id],
+      )
+    ).rows[0];
+    await admin.pool.query(
+      "select * from public.start_movie_notification_push_delivery($1,'{}')",
+      [push.id],
+    );
+    await admin.pool.query(
+      "select public.retry_movie_notification_push_delivery($1,'try again')",
+      [push.id],
+    );
+
+    await queue([candidate("Haifa", "first_per_city")]);
+    const nextId = randomUUID();
+    const { rows } = await admin.pool.query(
+      "select * from public.claim_movie_notification_delivery($1,$2)",
+      [user.id, nextId],
+    );
+    expect(rows).toMatchObject([
+      { id: first.id, email_status: "sent", push_status: "pending" },
+      { id: nextId, email_status: "pending", push_status: "pending" },
+    ]);
+    expect(
+      (
+        await admin.pool.query(
+          "select * from public.start_movie_notification_delivery($1,'{}')",
+          [first.id],
+        )
+      ).rows,
+    ).toEqual([]);
+    await admin.pool.query(
+      "update public.movie_notification_push_deliveries set first_attempt_at=now()-interval '1 day', next_attempt_at=now() where id=$1",
+      [push.id],
+    );
+    expect(
+      (
+        await admin.pool.query(
+          "select * from public.start_movie_notification_push_delivery($1,'{}')",
+          [push.id],
+        )
+      ).rowCount,
+    ).toBe(1);
+    await admin.pool.query(
+      "select * from public.reconcile_movie_notification_delivery($1)",
+      [first.id],
+    );
+    expect(
+      (
+        await admin.pool.query(
+          "select status from public.movie_notification_push_deliveries where id=$1",
+          [push.id],
+        )
+      ).rows[0].status,
+    ).toBe("sending");
   });
   it("stores Infinity Vision in ticket alert delivery snapshots", async () => {
     const updateMask = (mask: number) =>

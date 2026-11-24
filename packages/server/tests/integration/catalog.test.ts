@@ -49,6 +49,8 @@ const app = createApp({
 const expectedTableNames = [
   "movie_notification_events",
   "movie_notification_deliveries",
+  "apns_devices",
+  "movie_notification_push_deliveries",
   "cities",
   "coming_soon_date_watches",
   "letterboxd_sources",

@@ -166,8 +166,11 @@ final class AccountStore {
         }
     }
 
-    func registerPushDevice(deviceToken: String, environment: String) async {
-        guard state == .signedIn, let token, let identity else { return }
+    func registerPushDevice(deviceToken: String, environment: String, previousToken: String?) async {
+        guard state == .signedIn, let token, let identity,
+              preferences.notificationDelivery.includesIPhone,
+              await PushNotificationRegistration.notificationsAuthorized(),
+              self.token == token, preferences.notificationDelivery.includesIPhone else { return }
         do {
             let status = try await api.registerPushDevice(
                 token: token,
@@ -177,8 +180,12 @@ final class AccountStore {
             )
             guard self.token == token else { return }
             pushDeviceRegistered = status.registered
+            if let previousToken, previousToken != deviceToken {
+                _ = try? await api.unregisterPushDevice(token: token, accountID: identity.id, deviceToken: previousToken)
+            }
         } catch {
             guard self.token == token else { return }
+            pushDeviceRegistered = false
             feedback = "iPhone notifications couldn’t be enabled. Try again shortly."
         }
     }
@@ -188,17 +195,10 @@ final class AccountStore {
             pushDeviceRegistered = false
             return
         }
-        if preferences.notificationDelivery.includesIPhone,
-           await PushNotificationRegistration.notificationsAuthorized() {
-            if let deviceToken = PushNotificationRegistration.storedDeviceToken {
-                await registerPushDevice(
-                    deviceToken: deviceToken,
-                    environment: PushNotificationRegistration.environment
-                )
-            } else {
-                await PushNotificationRegistration.registerForRemoteNotifications()
-                await refreshPushDeviceStatus()
-            }
+        let authorized = await PushNotificationRegistration.notificationsAuthorized()
+        guard self.token == token else { return }
+        if preferences.notificationDelivery.includesIPhone && authorized {
+            await PushNotificationRegistration.registerForRemoteNotifications()
         } else if let deviceToken = PushNotificationRegistration.storedDeviceToken {
             _ = try? await api.registerPushDevice(
                 token: token,

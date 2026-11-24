@@ -6,7 +6,7 @@ alter table public."userPreferences"
 
 alter table public.movie_notification_deliveries
   add column email_status text not null default 'pending'
-    check (email_status in ('pending','sent','cancelled','not_requested')),
+    check (email_status in ('pending','sent','cancelled','not_requested','skipped')),
   add column push_status text not null default 'not_requested'
     check (push_status in ('pending','sent','suppressed','cancelled','not_requested')),
   add column delivery_mode text not null default 'email'
@@ -14,6 +14,9 @@ alter table public.movie_notification_deliveries
 
 update public.movie_notification_deliveries
 set email_status = case status when 'sent' then 'sent' when 'cancelled' then 'cancelled' else 'pending' end;
+
+drop index public.movie_notification_one_pending_delivery;
+create index movie_notification_pending_deliveries on public.movie_notification_deliveries(user_id,created_at) where status='pending';
 
 create table public.apns_devices (
   id uuid primary key default gen_random_uuid(),
@@ -34,6 +37,7 @@ create table public.movie_notification_push_deliveries (
     check (status in ('pending','sending','sent','suppressed','uncertain')),
   attempts integer not null default 0,
   first_attempt_at timestamptz,
+  last_attempt_at timestamptz,
   next_attempt_at timestamptz,
   payload_snapshot jsonb check (payload_snapshot is null or jsonb_typeof(payload_snapshot) = 'object'),
   apns_id text,
@@ -105,12 +109,8 @@ returns setof public.movie_notification_deliveries language plpgsql security def
 declare snapshot jsonb; mode text; wants_email boolean; wants_push boolean; device_count integer;
 begin
   perform pg_advisory_xact_lock(hashtextextended('movie-notifications:'||p_user::text,0));
-  if exists (select 1 from public.movie_notification_deliveries d where d.user_id=p_user and d.status='pending'
-      and (d.email_status='pending' or d.push_status='pending')) then
-    return query select * from public.movie_notification_deliveries d where d.user_id=p_user and d.status='pending'
-      and (d.email_status='pending' or d.push_status='pending') order by d.created_at limit 1;
-    return;
-  end if;
+  return query select * from public.movie_notification_deliveries d
+    where d.user_id=p_user and d.status='pending' order by d.created_at;
   select coalesce(notification_delivery,'email') into mode from public."userPreferences" where user_id=p_user;
   mode := coalesce(mode,'email');
   if mode='neither' then
@@ -156,19 +156,10 @@ begin
   wants_email := mode in ('email','both');
   wants_push := mode in ('iphone','both');
   update public.movie_notification_push_deliveries set status='uncertain',last_error='Previous push attempt ended without confirmation'
-    where delivery_id=p_delivery and status='sending' and first_attempt_at < now()-interval '30 minutes';
+    where delivery_id=p_delivery and status='sending' and last_attempt_at < now()-interval '30 minutes';
   update public.movie_notification_push_deliveries p set status='suppressed',last_error='Device is no longer registered'
     where p.delivery_id=p_delivery and p.status='pending'
-      and not exists (select 1 from public.apns_devices a where a.id=p.device_id and a.active and a.device_token is not null);
-  if mode='neither' then
-    update public.movie_notification_deliveries set email_status='cancelled',push_status='cancelled',delivery_mode=mode where id=p_delivery;
-    update public.movie_notification_push_deliveries set status='suppressed',last_error='Notifications disabled'
-      where delivery_id=p_delivery and status='pending';
-    update public.movie_notification_deliveries set status='cancelled' where id=p_delivery;
-    update public.movie_notification_events set status='suppressed' where delivery_id=p_delivery and status='pending';
-    return query select * from public.movie_notification_deliveries where id=p_delivery;
-    return;
-  end if;
+      and not exists (select 1 from public.apns_devices a where a.id=p.device_id and a.user_id=d.user_id and a.active and a.device_token is not null);
   update public.movie_notification_deliveries set
     email_status=case when wants_email and email_status in ('not_requested','cancelled') and attempts=0 then 'pending'
       when not wants_email and email_status='pending' then 'cancelled' else email_status end,
@@ -176,13 +167,13 @@ begin
       when not wants_push and push_status='pending' then 'cancelled' else push_status end,
     delivery_mode=mode
     where id=p_delivery;
-  if wants_push then
+  if wants_push and d.push_status in ('not_requested','cancelled') then
     insert into public.movie_notification_push_deliveries(delivery_id,device_id)
       select p_delivery,id from public.apns_devices where user_id=d.user_id and active and device_token is not null
       on conflict (delivery_id,device_id) do update
         set status='pending',last_error=null,next_attempt_at=null
         where movie_notification_push_deliveries.status='suppressed' and movie_notification_push_deliveries.attempts=0;
-  else
+  elsif not wants_push then
     update public.movie_notification_push_deliveries set status='suppressed',last_error='Push notifications disabled'
       where delivery_id=p_delivery and status='pending';
   end if;
@@ -193,7 +184,12 @@ $$;
 
 create or replace function public.start_movie_notification_delivery(p_delivery uuid,p_snapshot jsonb)
 returns setof public.movie_notification_deliveries language plpgsql security definer set search_path=pg_catalog,public as $$
+declare account_id uuid;
 begin
+  select user_id into account_id from public.movie_notification_deliveries where id=p_delivery;
+  if account_id is null then return; end if;
+  perform pg_advisory_xact_lock(hashtextextended('movie-notification-queue',0));
+  perform pg_advisory_xact_lock(hashtextextended('movie-notifications:'||account_id::text,0));
   update public.movie_notification_deliveries set email_status='cancelled',last_error='Unconfirmed email delivery exceeded safe retry window'
     where id=p_delivery and status='pending' and email_status='pending'
       and first_attempt_at < now()-interval '23 hours';
@@ -201,9 +197,8 @@ begin
   return query update public.movie_notification_deliveries set attempts=attempts+1,
     first_attempt_at=coalesce(first_attempt_at,now()),email_snapshot=coalesce(email_snapshot,p_snapshot)
     where id=p_delivery and status='pending' and email_status='pending'
-      and exists (select 1 from public."userPreferences" pref
-        where pref.user_id=movie_notification_deliveries.user_id
-          and pref.notification_delivery in ('email','both')) returning *;
+      and coalesce((select pref.notification_delivery from public."userPreferences" pref
+        where pref.user_id=movie_notification_deliveries.user_id), 'email') in ('email','both') returning *;
 end;
 $$;
 
@@ -219,13 +214,19 @@ $$;
 create function public.start_movie_notification_push_delivery(p_push_delivery uuid,p_payload jsonb)
 returns table(push_delivery_id uuid,device_token text,environment text,payload_snapshot jsonb)
 language plpgsql security definer set search_path=pg_catalog,public as $$
+declare account_id uuid;
 begin
+  select d.user_id into account_id from public.movie_notification_deliveries d
+    join public.movie_notification_push_deliveries p on p.delivery_id=d.id where p.id=p_push_delivery;
+  if account_id is null then return; end if;
+  perform pg_advisory_xact_lock(hashtextextended('movie-notification-queue',0));
+  perform pg_advisory_xact_lock(hashtextextended('movie-notifications:'||account_id::text,0));
   return query update public.movie_notification_push_deliveries p set status='sending',attempts=p.attempts+1,
-    first_attempt_at=coalesce(p.first_attempt_at,now()),payload_snapshot=coalesce(p.payload_snapshot,p_payload)
+    first_attempt_at=coalesce(p.first_attempt_at,now()),last_attempt_at=now(),payload_snapshot=coalesce(p.payload_snapshot,p_payload)
     from public.movie_notification_deliveries d,public.apns_devices a,public."userPreferences" pref
     where p.id=p_push_delivery and p.delivery_id=d.id and d.status='pending' and d.push_status='pending'
       and pref.user_id=d.user_id and pref.notification_delivery in ('iphone','both')
-      and p.device_id=a.id and a.active and a.device_token is not null
+      and p.device_id=a.id and a.user_id=d.user_id and a.active and a.device_token is not null
       and p.status='pending' and (p.next_attempt_at is null or p.next_attempt_at<=now())
     returning p.id,a.device_token,a.environment,p.payload_snapshot;
 end;
@@ -273,6 +274,8 @@ begin
   if p_environment not in ('development','production') or p_token !~* '^(?:[0-9a-f]{2}){16,64}$' then
     raise exception 'Invalid APNs device registration';
   end if;
+  p_token := lower(p_token);
+  perform pg_advisory_xact_lock(hashtextextended('apns-device:'||p_token,0));
   select id,user_id into v_device,v_old_user from public.apns_devices where device_token=p_token for update;
   if v_device is null then
     insert into public.apns_devices(user_id,device_token,environment,active)
@@ -298,6 +301,8 @@ declare v_user uuid; v_device uuid; delivery uuid;
 begin
   v_user := app_auth.current_user_id();
   if v_user is null then raise exception 'Authentication required'; end if;
+  p_token := lower(p_token);
+  perform pg_advisory_xact_lock(hashtextextended('apns-device:'||p_token,0));
   select id into v_device from public.apns_devices
     where user_id=v_user and device_token=p_token for update;
   if v_device is null then return; end if;
