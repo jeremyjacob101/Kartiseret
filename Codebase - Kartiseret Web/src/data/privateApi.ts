@@ -13,6 +13,8 @@ export function privateIdentityChanged(userId: string | null): void {
   const filter = {
     predicate: (query: { queryKey: readonly unknown[] }) =>
       query.queryKey[0] === "adminStatus" ||
+      query.queryKey[0] === "notificationDelivery" ||
+      query.queryKey[0] === "pushDevice" ||
       query.queryKey[0] === "comingSoonDateWatches" ||
       query.queryKey[0] === "movieDisplayPreferences" ||
       query.queryKey[0] === "letterboxdSources" ||

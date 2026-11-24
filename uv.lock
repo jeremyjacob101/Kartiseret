@@ -353,6 +353,8 @@ source = { virtual = "." }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "boto3" },
+    { name = "cryptography" },
+    { name = "httpx", extra = ["http2"] },
     { name = "pillow" },
     { name = "psycopg", extra = ["binary"] },
     { name = "python-dotenv" },
@@ -369,6 +371,8 @@ dependencies = [
 requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.12,<5" },
     { name = "boto3" },
+    { name = "cryptography", specifier = ">=50,<51" },
+    { name = "httpx", extras = ["http2"], specifier = ">=0.28,<1" },
     { name = "pillow", specifier = ">=9.1" },
     { name = "psycopg", extras = ["binary"], specifier = "==3.3.6" },
     { name = "python-dotenv" },

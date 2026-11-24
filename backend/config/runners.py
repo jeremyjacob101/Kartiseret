@@ -90,6 +90,7 @@ def _render_movie_notification_summary(console: Console, result: RunResult) -> N
     table.add_column("Measure", style="bold")
     table.add_column("Count", justify="right")
     table.add_row("Emails sent", str(summary.emails_sent))
+    table.add_row("iPhone alerts sent", str(getattr(summary, "pushes_sent", 0)))
     table.add_row("First-availability updates", str(summary.events_notified))
     table.add_row("Sources synced", str(summary.sources_synced))
     table.add_row("Sources failed", str(summary.sources_failed))

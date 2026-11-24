@@ -16,6 +16,7 @@ const preferences = {
   location: "Haifa",
   siteColor: "#123456",
   hideReReleases: false,
+  notificationDelivery: "email" as const,
   showtimePreferences: DEFAULT_SHOWTIME_PREFERENCES,
 };
 function setup(
@@ -35,6 +36,9 @@ function setup(
     account: vi.fn(async () => ({ user, isAdmin })),
     preferences: vi.fn(async () => preferences),
     patchPreferences: vi.fn(async () => preferences),
+    pushDeviceStatus: vi.fn(async () => ({ registered: true })),
+    registerPushDevice: vi.fn(async () => ({ registered: true })),
+    unregisterPushDevice: vi.fn(async () => ({ registered: false })),
     ticketAlertPreferences: vi.fn(async () => DEFAULT_TICKET_ALERT_CRITERIA),
     patchTicketAlertPreferences: vi.fn(
       async () => DEFAULT_TICKET_ALERT_CRITERIA,
@@ -150,6 +154,76 @@ function setup(
   };
 }
 describe("protected HTTP contracts", () => {
+  it("stores notification delivery preferences and scopes device registration to the signed-in account", async () => {
+    const { app, workflows } = setup();
+    const unauthorized = await request(app).get("/api/v1/push/devices/status");
+    expect(unauthorized.status).toBe(401);
+
+    const saved = await request(app)
+      .patch("/api/v1/preferences")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({ notificationDelivery: "both" });
+    expect(saved.status).toBe(200);
+    expect(workflows.patchPreferences).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      { notificationDelivery: "both" },
+    );
+
+    const status = await request(app)
+      .get("/api/v1/push/devices/status")
+      .set("Cookie", "valid");
+    expect(status.body.data.registered).toBe(true);
+
+    const registration = {
+      token: "a1".repeat(32),
+      environment: "development",
+    };
+    const currentDeviceStatus = await request(app)
+      .get(`/api/v1/push/devices/status?token=${registration.token}`)
+      .set("Cookie", "valid");
+    expect(currentDeviceStatus.status).toBe(200);
+    expect(workflows.pushDeviceStatus).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      registration.token,
+    );
+
+    const invalidStatus = await request(app)
+      .get("/api/v1/push/devices/status?token=invalid")
+      .set("Cookie", "valid");
+    expect(invalidStatus.status).toBe(400);
+
+    const registered = await request(app)
+      .post("/api/v1/push/devices/register")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send(registration);
+    expect(registered.status).toBe(200);
+    expect(workflows.registerPushDevice).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      registration,
+    );
+
+    const invalid = await request(app)
+      .post("/api/v1/push/devices/register")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({ ...registration, token: "not-a-device-token" });
+    expect(invalid.status).toBe(400);
+    expect(workflows.registerPushDevice).toHaveBeenCalledTimes(1);
+
+    const removed = await request(app)
+      .delete("/api/v1/push/devices/current")
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({ token: registration.token });
+    expect(removed.status).toBe(200);
+    expect(workflows.unregisterPushDevice).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      registration.token,
+    );
+  });
+
   it("accepts native bearer requests for reads and mutations without a browser origin", async () => {
     const { app, verify, workflows } = setup();
     const account = await request(app)

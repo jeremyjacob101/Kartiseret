@@ -20,6 +20,7 @@ final class AccountStore {
     private(set) var isSaving = false
     private(set) var appleSignInAvailable = false
     private(set) var googleSignInAvailable = false
+    private(set) var pushDeviceRegistered = false
     private(set) var feedback: String?
 
     @ObservationIgnored private let api: NativeAccountAPI
@@ -121,8 +122,100 @@ final class AccountStore {
 
     func signOut() async {
         let oldToken = token
+        if let oldToken,
+           let identity,
+           let deviceToken = PushNotificationRegistration.storedDeviceToken {
+            _ = try? await api.unregisterPushDevice(
+                token: oldToken,
+                accountID: identity.id,
+                deviceToken: deviceToken
+            )
+        }
         clearAccountSession()
         if let oldToken { await api.signOut(token: oldToken) }
+    }
+
+    func saveNotificationDelivery(_ value: AccountPreferences.NotificationDelivery) async {
+        await save(key: "notificationDelivery", value: value, apply: {
+            $0.notificationDelivery = value
+        })
+        guard confirmedPreferences.notificationDelivery == value else { return }
+        await syncPushDeviceRegistration()
+    }
+
+    func refreshPushDeviceStatus() async {
+        guard state == .signedIn, let token, let identity else {
+            pushDeviceRegistered = false
+            return
+        }
+        guard let deviceToken = PushNotificationRegistration.storedDeviceToken else {
+            pushDeviceRegistered = false
+            return
+        }
+        do {
+            let status = try await api.pushDeviceStatus(
+                token: token,
+                accountID: identity.id,
+                deviceToken: deviceToken
+            )
+            guard self.token == token else { return }
+            pushDeviceRegistered = status.registered
+        } catch {
+            guard self.token == token else { return }
+            pushDeviceRegistered = false
+        }
+    }
+
+    func registerPushDevice(deviceToken: String, environment: String) async {
+        guard state == .signedIn, let token, let identity else { return }
+        do {
+            let status = try await api.registerPushDevice(
+                token: token,
+                accountID: identity.id,
+                deviceToken: deviceToken,
+                environment: environment
+            )
+            guard self.token == token else { return }
+            pushDeviceRegistered = status.registered
+        } catch {
+            guard self.token == token else { return }
+            feedback = "iPhone notifications couldn’t be enabled. Try again shortly."
+        }
+    }
+
+    func syncPushDeviceRegistration() async {
+        guard state == .signedIn, let token, let identity else {
+            pushDeviceRegistered = false
+            return
+        }
+        if preferences.notificationDelivery.includesIPhone,
+           await PushNotificationRegistration.notificationsAuthorized() {
+            if let deviceToken = PushNotificationRegistration.storedDeviceToken {
+                await registerPushDevice(
+                    deviceToken: deviceToken,
+                    environment: PushNotificationRegistration.environment
+                )
+            } else {
+                await PushNotificationRegistration.registerForRemoteNotifications()
+                await refreshPushDeviceStatus()
+            }
+        } else if let deviceToken = PushNotificationRegistration.storedDeviceToken {
+            _ = try? await api.registerPushDevice(
+                token: token,
+                accountID: identity.id,
+                deviceToken: deviceToken,
+                environment: PushNotificationRegistration.environment
+            )
+            _ = try? await api.unregisterPushDevice(
+                token: token,
+                accountID: identity.id,
+                deviceToken: deviceToken
+            )
+            guard self.token == token else { return }
+            pushDeviceRegistered = false
+        } else {
+            await refreshPushDeviceStatus()
+        }
     }
 
     func saveLocation(_ value: String) async { await save(key: "location", value: value, apply: { $0.location = value }) }
@@ -234,6 +327,7 @@ final class AccountStore {
         UserDefaults.standard.set(loadedPreferences.siteColor, forKey: Self.siteColorKey)
         state = .signedIn
         feedback = nil
+        await syncPushDeviceRegistration()
         await refreshMovieDisplayRules()
     }
 
@@ -245,6 +339,7 @@ final class AccountStore {
         credentials.clear()
         token = nil
         identity = nil
+        pushDeviceRegistered = false
         saveGenerations.removeAll()
         confirmedSaveGenerations.removeAll()
         movieDisplayRules = [:]
@@ -302,6 +397,7 @@ final class AccountStore {
         case "siteColor": preferences.siteColor = saved.siteColor
         case "ratingSources": preferences.ratingSources = saved.ratingSources
         case "hideReReleases": preferences.hideReReleases = saved.hideReReleases
+        case "notificationDelivery": preferences.notificationDelivery = saved.notificationDelivery
         case "showtimePreferences": preferences.showtimePreferences = saved.showtimePreferences
         default: break
         }

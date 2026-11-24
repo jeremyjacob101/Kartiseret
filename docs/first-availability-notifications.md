@@ -50,6 +50,22 @@ Source deletion, manual-watch deletion, queue collection, delivery claims, and d
 
 Rolling back the worker alone is unsafe: the legacy system interprets null city settings differently and does not honor the shared ledger. Keep notification jobs paused until API, worker, and migration state are compatible.
 
+## Email and iPhone delivery
+
+Signed-in users choose **Email**, **iPhone**, **Both**, or **Neither** in the Notifications settings on the website or iPhone app. Existing accounts keep the email behavior through the migration default. This applies to the shared ticket availability, Coming Soon, and Letterboxd movie digest. Account verification and password-reset mail are unchanged.
+
+The iPhone app requests notification permission after the user selects iPhone delivery. It registers its APNs token through the authenticated API, re-registers after sign-in, and removes the registration on sign-out. The website reports whether an iPhone is registered and directs users to finish setup in the app. Tapping a one-film alert opens that movie. A multi-film alert opens Showtimes.
+
+Email continues to use `movie_notification_deliveries`. The migration adds independent email state and one `movie_notification_push_deliveries` row per target device. APNs payloads are immutable after the first attempt. A confirmed APNs response completes that device delivery. APNs 429 and 5xx responses retry after 15 minutes, invalid device tokens are deactivated, and network failures without a response are retired as uncertain to avoid duplicate lock-screen alerts. The dispatcher processes each channel independently, so a failed push does not resend a successful email.
+
+### APNs setup and deployment
+
+1. Apply `20261124120000_ios_push_notification_delivery.sql` after the existing shared notification and unsubscribe migrations. Deploy the API and website revision with the migration.
+2. Enable Push Notifications for the `com.jj.kartiseret` App ID and add the Push Notifications capability to the iOS signing configuration. The app entitlement is in `Codebase - Kartiseret iOS/Kartiseret/Kartiseret.entitlements`.
+3. Create an APNs authentication key. Set `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`, and `APNS_PRIVATE_KEY_BASE64` for each pipeline target. Base64 encode the `.p8` key for the last value. Keep development and production credentials in their matching `DEV_` and `PROD_` profiles.
+4. Deploy the updated iOS app. Test both development and TestFlight devices with their corresponding APNs environment. Verify a locked-screen delivery, account sign-out, one-film tap-through, multi-film tap-through, and email-only delivery.
+5. Configure the updated pipeline runner with the matching target APNs values before enabling iPhone or Both preferences for users.
+
 ## Verification
 
 Regression coverage includes both notification modes, preferred-city selection, filters and overrides, repeated pipeline runs, silent baselines, overlapping sources, mixed digest formatting, migrated historical state, cancellation, concurrent claims, and immutable provider retries. Integration tests use disposable local PostgreSQL only; the bootstrap seeds historical fixtures before applying the cutover migration.

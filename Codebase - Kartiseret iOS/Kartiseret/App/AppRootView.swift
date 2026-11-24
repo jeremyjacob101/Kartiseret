@@ -80,6 +80,17 @@ struct AppRootView: View {
         .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
             if let url = activity.webpageURL { handleIncomingURL(url) }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .kartiseretAPNSToken)) { notification in
+            guard let token = notification.userInfo?["token"] as? String,
+                  let environment = notification.userInfo?["environment"] as? String else { return }
+            Task { await accountStore.registerPushDevice(deviceToken: token, environment: environment) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .kartiseretPushURL)) { notification in
+            guard let value = notification.userInfo?["url"] as? String,
+                  let url = URL(string: value) else { return }
+            PushNotificationRegistration.pendingURL = nil
+            handleIncomingURL(url)
+        }
         .task {
             if !store.fixtureMode {
                 await accountStore.loadSignInProviders()
@@ -93,17 +104,24 @@ struct AppRootView: View {
                 pendingUniversalLinkURL = nil
                 handleIncomingURL(pendingURL)
             }
+            if let pendingPushURL = PushNotificationRegistration.pendingURL {
+                handleIncomingURL(pendingPushURL)
+            }
         }
         .onChange(of: accountStore.identity) { _, identity in
             guard identity != nil else { return }
             store.selectCity(accountStore.preferences.location)
+            Task { await accountStore.syncPushDeviceRegistration() }
         }
         .onChange(of: accountStore.preferences.location) { _, location in
             guard accountStore.state == .signedIn else { return }
             store.selectCity(location)
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { store.reconcileDay() }
+            if phase == .active {
+                store.reconcileDay()
+                Task { await accountStore.syncPushDeviceRegistration() }
+            }
         }
         .alert("Couldn’t open this link", isPresented: Binding(
             get: { linkError != nil },

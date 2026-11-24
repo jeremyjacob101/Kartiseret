@@ -736,6 +736,47 @@ button.prefs-disclosure-summary[aria-expanded="true"]
   border-bottom: 1px solid var(--prefs-divider);
 }
 
+.prefs-notification-delivery {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(130px, 200px);
+  align-items: center;
+  gap: 8px 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--prefs-border, rgba(255, 255, 255, 0.1));
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.prefs-notification-delivery h3,
+.prefs-notification-delivery p {
+  margin: 0;
+}
+
+.prefs-notification-delivery h3 {
+  font-size: 0.95rem;
+}
+
+.prefs-notification-delivery p {
+  margin-top: 4px;
+  color: var(--prefs-muted, rgba(255, 255, 255, 0.65));
+  font-size: 0.82rem;
+}
+
+.prefs-notification-delivery select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  background: #1b1822;
+  color: inherit;
+}
+
+.prefs-notification-delivery .prefs-alerts-device-status,
+.prefs-notification-delivery .prefs-alerts-error {
+  grid-column: 1 / -1;
+}
+
 .prefs-alerts-content {
   display: grid;
   gap: 12px;

@@ -61,6 +61,7 @@ beforeEach(async () => {
           location: row?.location ?? "Haifa",
           siteColor: row?.site_color ?? "#a66ae3",
           hideReReleases: row?.hide_re_releases ?? false,
+          notificationDelivery: "email",
           showtimePreferences:
             row?.showtime_preferences ?? DEFAULT_SHOWTIME_PREFERENCES,
         },

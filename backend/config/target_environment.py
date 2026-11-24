@@ -39,6 +39,10 @@ PROFILE_KEYS = (
     "RESEND_API_KEY",
     "TICKET_ALERT_RECIPIENT_API_URL",
     "TICKET_ALERT_INTERNAL_API_SECRET",
+    "APNS_KEY_ID",
+    "APNS_TEAM_ID",
+    "APNS_BUNDLE_ID",
+    "APNS_PRIVATE_KEY_BASE64",
     "R2_BUCKET",
     "R2_IMAGE_ORIGIN",
     "R2_ACCESS_KEY_ID",
@@ -277,7 +281,7 @@ def resolve_target_environment(
         )
 
     if target == "development":
-        # Development runs must never inherit production alert credentials.
+        # Development runs must never inherit production email alert credentials.
         resolved["RESEND_API_KEY"] = ""
         resolved["TICKET_ALERT_RECIPIENT_API_URL"] = ""
         resolved["TICKET_ALERT_INTERNAL_API_SECRET"] = ""
@@ -287,6 +291,10 @@ def resolve_target_environment(
             "RESEND_API_KEY",
             "TICKET_ALERT_RECIPIENT_API_URL",
             "TICKET_ALERT_INTERNAL_API_SECRET",
+            "APNS_KEY_ID",
+            "APNS_TEAM_ID",
+            "APNS_BUNDLE_ID",
+            "APNS_PRIVATE_KEY_BASE64",
         ):
             # Notification secrets are opt-in for production local runs.
             resolved.setdefault(key, "")

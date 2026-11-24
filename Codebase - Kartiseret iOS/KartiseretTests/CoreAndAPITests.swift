@@ -447,7 +447,7 @@ final class CoreAndAPITests: XCTestCase {
     }
 
     func testNativePrivateRequestsAttachBearerAndAccountIdentity() async throws {
-        let body = ##"{"data":{"ratingSources":["imdbRating"],"location":"Tel Aviv","siteColor":"#ed4c57","hideReReleases":true,"showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":["VIP"],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":["cinema-1"]}},"error":null}"##
+        let body = ##"{"data":{"ratingSources":["imdbRating"],"location":"Tel Aviv","siteColor":"#ed4c57","hideReReleases":true,"notificationDelivery":"both","showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":["VIP"],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":["cinema-1"]}},"error":null}"##
         let transport = StubTransport(responses: [httpResponse(body)])
         let api = NativeAccountAPI(baseURL: URL(string: "https://seret.site")!, transport: transport)
 
@@ -456,6 +456,7 @@ final class CoreAndAPITests: XCTestCase {
         XCTAssertEqual(preferences.location, "Tel Aviv")
         XCTAssertEqual(preferences.siteColor, "#ed4c57")
         XCTAssertTrue(preferences.hideReReleases)
+        XCTAssertEqual(preferences.notificationDelivery, .both)
         XCTAssertEqual(preferences.showtimePreferences.screeningFilters.unchecked.showType, ["VIP"])
         XCTAssertEqual(preferences.showtimePreferences.excludedCinemaIds, ["cinema-1"])
         let requests = await transport.capturedRequests()
@@ -472,7 +473,7 @@ final class CoreAndAPITests: XCTestCase {
             if let previousColor { UserDefaults.standard.set(previousColor, forKey: "kartiseret.account.siteColor") }
             else { UserDefaults.standard.removeObject(forKey: "kartiseret.account.siteColor") }
         }
-        let preferences = ##"{"data":{"ratingSources":["tmdbRating"],"location":"Tel Aviv","siteColor":"#ed4c57","hideReReleases":true,"showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":["cinema-1"]}},"error":null}"##
+        let preferences = ##"{"data":{"ratingSources":["tmdbRating"],"location":"Tel Aviv","siteColor":"#ed4c57","hideReReleases":true,"notificationDelivery":"email","showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":["cinema-1"]}},"error":null}"##
         let transport = StubTransport(responses: [
             httpResponse(#"{"token":null,"user":{"id":"user-1","email":"person@example.com"}}"#, headers: ["set-auth-token": "opaque-session-token"]),
             httpResponse(#"{"data":{"user":{"id":"user-1","email":"person@example.com"},"isAdmin":false},"error":null}"#),
@@ -513,7 +514,7 @@ final class CoreAndAPITests: XCTestCase {
             if let previousColor { UserDefaults.standard.set(previousColor, forKey: "kartiseret.account.siteColor") }
             else { UserDefaults.standard.removeObject(forKey: "kartiseret.account.siteColor") }
         }
-        let preferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
+        let preferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"notificationDelivery":"email","showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
         let transport = StubTransport(responses: [
             httpResponse(#"{"token":null,"user":{"id":"user-1","email":"person@example.com"}}"#, headers: ["set-auth-token": "opaque-session-token"]),
             httpResponse(#"{"data":{"user":{"id":"user-1","email":"person@example.com"},"isAdmin":false},"error":null}"#),
@@ -551,8 +552,8 @@ final class CoreAndAPITests: XCTestCase {
             if let previousColor { UserDefaults.standard.set(previousColor, forKey: "kartiseret.account.siteColor") }
             else { UserDefaults.standard.removeObject(forKey: "kartiseret.account.siteColor") }
         }
-        let initialPreferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
-        let savedPreferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":true,"showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
+        let initialPreferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"notificationDelivery":"email","showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
+        let savedPreferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":true,"notificationDelivery":"email","showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
         let transport = StubTransport(responses: [
             httpResponse(#"{"token":null,"user":{"id":"user-1","email":"person@example.com"}}"#, headers: ["set-auth-token": "opaque-session-token"]),
             httpResponse(#"{"data":{"user":{"id":"user-1","email":"person@example.com"},"isAdmin":false},"error":null}"#),
@@ -587,7 +588,7 @@ final class CoreAndAPITests: XCTestCase {
             if let previousColor { UserDefaults.standard.set(previousColor, forKey: "kartiseret.account.siteColor") }
             else { UserDefaults.standard.removeObject(forKey: "kartiseret.account.siteColor") }
         }
-        let preferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
+        let preferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"notificationDelivery":"email","showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
         let transport = StubTransport(responses: [
             httpResponse(#"{"token":null,"user":{"id":"user-1","email":"person@example.com"}}"#, headers: ["set-auth-token": "opaque-session-token"]),
             httpResponse(#"{"data":{"user":{"id":"user-1","email":"person@example.com"},"isAdmin":false},"error":null}"#),
@@ -617,7 +618,7 @@ final class CoreAndAPITests: XCTestCase {
             if let previousColor { UserDefaults.standard.set(previousColor, forKey: "kartiseret.account.siteColor") }
             else { UserDefaults.standard.removeObject(forKey: "kartiseret.account.siteColor") }
         }
-        let preferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
+        let preferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"notificationDelivery":"email","showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
         let transport = StubTransport(responses: [
             httpResponse("", statusCode: 503),
             httpResponse(#"{"data":{"user":{"id":"user-1","email":"person@example.com"},"isAdmin":false},"error":null}"#),

@@ -35,12 +35,39 @@ export const applicationIdentitySchema = z.object({
   email: z.string().email().nullable(),
 });
 export type ApplicationIdentity = z.infer<typeof applicationIdentitySchema>;
+export const notificationDeliverySchema = z.enum([
+  "email",
+  "iphone",
+  "both",
+  "neither",
+]);
+export type NotificationDelivery = z.infer<typeof notificationDeliverySchema>;
+export const pushDeviceRegistrationSchema = z
+  .object({
+    token: z.string().regex(/^(?:[0-9a-f]{2}){16,64}$/i),
+    environment: z.enum(["development", "production"]),
+  })
+  .strict();
+export const pushDeviceUnregisterSchema = z
+  .object({
+    token: z.string().regex(/^(?:[0-9a-f]{2}){16,64}$/i),
+  })
+  .strict();
+export const pushDeviceStatusQuerySchema = z
+  .object({
+    token: z.string().regex(/^(?:[0-9a-f]{2}){16,64}$/i).optional(),
+  })
+  .strict();
+export type PushDeviceRegistration = z.infer<
+  typeof pushDeviceRegistrationSchema
+>;
 export const preferencesSchema = z
   .object({
     ratingSources: z.array(ratingSourceSchema).max(5),
     location: appLocationSchema.pipe(z.string().max(200)),
     siteColor: siteColorSchema,
     hideReReleases: hideReReleasesSchema,
+    notificationDelivery: notificationDeliverySchema,
     showtimePreferences: persistedShowtimePreferencesSchema,
   })
   .strict();
@@ -331,6 +358,12 @@ export const accountResponseSchema = envelope(
   z.object({ user: applicationIdentitySchema, isAdmin: z.boolean() }),
 );
 export const preferencesResponseSchema = envelope(preferencesSchema);
+export const pushDeviceStatusResponseSchema = envelope(
+  z.object({ registered: z.boolean() }),
+);
+export const pushDeviceChangeResponseSchema = envelope(
+  z.object({ registered: z.boolean() }),
+);
 export const subscriptionsResponseSchema = envelope(
   z.object({
     subscriptions: z.array(subscriptionSchema),

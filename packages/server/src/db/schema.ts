@@ -559,6 +559,42 @@ export const movieNotificationDeliveries = pgTable(
     notifiedAt: instant("notified_at"),
     resendEmailId: text("resend_email_id"),
     lastError: text("last_error"),
+    emailStatus: text("email_status").notNull().default("pending"),
+    pushStatus: text("push_status").notNull().default("not_requested"),
+    deliveryMode: text("delivery_mode").notNull().default("email"),
+  },
+);
+
+export const apnsDevices = pgTable("apns_devices", {
+  id: uuid("id").primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => authUser.id, { onDelete: "cascade" }),
+  deviceToken: text("device_token").unique(),
+  environment: text("environment").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdAt: instant("created_at").notNull().defaultNow(),
+  updatedAt: instant("updated_at").notNull().defaultNow(),
+});
+
+export const movieNotificationPushDeliveries = pgTable(
+  "movie_notification_push_deliveries",
+  {
+    id: uuid("id").primaryKey(),
+    deliveryId: uuid("delivery_id")
+      .notNull()
+      .references(() => movieNotificationDeliveries.id, { onDelete: "cascade" }),
+    deviceId: uuid("device_id").references(() => apnsDevices.id, {
+      onDelete: "set null",
+    }),
+    status: text("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    firstAttemptAt: instant("first_attempt_at"),
+    nextAttemptAt: instant("next_attempt_at"),
+    payloadSnapshot: jsonb("payload_snapshot").$type<JsonValue>(),
+    apnsId: text("apns_id"),
+    lastError: text("last_error"),
+    createdAt: instant("created_at").notNull().defaultNow(),
   },
 );
 
@@ -572,6 +608,9 @@ export const userPreferences = pgTable("userPreferences", {
   location: text("location"),
   siteColor: text("site_color"),
   hideReReleases: boolean("hide_re_releases").notNull().default(false),
+  notificationDelivery: text("notification_delivery")
+    .notNull()
+    .default("email"),
   showtimePreferences: jsonb("showtime_preferences")
     .$type<ShowtimePreferences>()
     .notNull()
@@ -642,6 +681,8 @@ export const utilRunLogs = pgTable("utilRunLogs", {
 export const applicationTables = {
   movieNotificationEvents,
   movieNotificationDeliveries,
+  apnsDevices,
+  movieNotificationPushDeliveries,
   cities,
   comingSoonDateWatches,
   letterboxdSources,
