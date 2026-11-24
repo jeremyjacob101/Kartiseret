@@ -194,6 +194,7 @@ describe("SEO request handler", () => {
           location: "Tel Aviv",
           siteColor: cookie === "one" ? "#69b0e2" : "#63ae3d",
           hideReReleases: true,
+          notificationDelivery: "email",
           showtimePreferences: DEFAULT_SHOWTIME_PREFERENCES,
         },
         readMovieTreatments,
