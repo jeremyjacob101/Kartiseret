@@ -503,6 +503,8 @@ describe("PostgreSQL 17 integration", () => {
     expect(providerForeignKeys.map((key) => key.table_name).sort()).toEqual(
       [
         "admin_users",
+        "apns_devices",
+
         "coming_soon_date_watches",
         "letterboxd_event_alerts",
         "letterboxd_source_films",
