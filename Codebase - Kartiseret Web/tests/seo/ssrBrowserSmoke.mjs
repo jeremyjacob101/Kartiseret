@@ -180,6 +180,7 @@ const server = createServer(async (request, response) => {
               location: "Tel Aviv",
               siteColor: "#69b0e2",
               hideReReleases: true,
+              notificationDelivery: "email",
               ratingSources: [],
               showtimePreferences: DEFAULT_SHOWTIME_PREFERENCES,
             },

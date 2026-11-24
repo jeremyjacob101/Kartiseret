@@ -240,6 +240,7 @@ if (
         ratingSources: [],
         siteColor: "#69b0e2",
         hideReReleases: true,
+        notificationDelivery: "email",
         showtimePreferences: DEFAULT_SHOWTIME_PREFERENCES,
       },
       movieTreatments: [
