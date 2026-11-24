@@ -230,7 +230,7 @@
   contain-intrinsic-size: 340px;
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 1000px) {
   .all-showtimes-movie-row {
     grid-template-columns: minmax(0, 1fr);
     gap: 18px;
