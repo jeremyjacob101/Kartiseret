@@ -27,7 +27,7 @@ class HCsoon(BaseCinema):
             for film_card in range(1, self.lenElements(f"/html/body/div[2]/div[4]/div[2]/div/div/div[{film_block}]/div/h4")):
                 self.english_hrefs.append(self.element(f"/html/body/div[2]/div[4]/div[2]/div/div/div[{film_block}]/div[{film_card}]/div[1]/a").get_attribute("href"))
         for href in self.english_hrefs:
-            self.driver.get(href)
+            self.driver.get(re.sub(r"/movie/(\d+)/.*$", r"/movie/\1/x", href))
             if self.is_forbidden_page() or "ERR_TOO_MANY_REDIRECTS" in self.driver.page_source:
                 continue
             self.waitForVisible("/html/body/div[2]/div[4]/div[2]/div[1]/div[1]/div[2]/div[2]/div[1]/div[1]/h1")
@@ -35,7 +35,7 @@ class HCsoon(BaseCinema):
             self.english_title = self.element("/html/body/div[2]/div[4]/div[2]/div[1]/div[1]/div[2]/div[2]/div[1]/div[2]/h2").text.strip()
             self.hebrew_title = self.element("/html/body/div[2]/div[4]/div[2]/div[1]/div[1]/div[2]/div[2]/div[1]/div[1]/h1").text.strip()
 
-            if "סטנדאפ" in self.english_title or "סטנדאפ" in self.hebrew_title or "מדובב לרוסית" in self.hebrew_title or "מדובב לעברית" in self.hebrew_title or "מדובב לצרפתית" in self.hebrew_title or "סינימה אישי" in self.hebrew_title or "קומדי בר" in self.hebrew_title or "HFR" in self.hebrew_title or "תלת-ממד" in self.hebrew_title:
+            if "סטנדאפ" in self.english_title or "סטנדאפ" in self.hebrew_title or "מדובב לרוסית" in self.hebrew_title or "מדובב לעברית" in self.hebrew_title or "מדובב לצרפתית" in self.hebrew_title or "מדובב לערבית" in self.hebrew_title or "סינימה אישי" in self.hebrew_title or "קומדי בר" in self.hebrew_title or "HFR" in self.hebrew_title or "תלת-ממד" in self.hebrew_title:
                 continue
 
             self.hebrew_title = re.sub(r"^\s*סינמה נוסטלגיה\s*[-–—]\s*", "", self.hebrew_title).strip()

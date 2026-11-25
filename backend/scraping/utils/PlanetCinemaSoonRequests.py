@@ -11,7 +11,7 @@ from backend.scraping.utils.ScrapeRequests import configure_scrape_session
 def collect_planet_cinema_soon(scraper):
     base = 'https://www.planetcinema.co.il/il/data-api-service/v1'
     scraper._coverage = {'posters_expected': 0, 'posters_completed': 0}
-    languages = {'en': 'English', 'he': 'Hebrew', 'fr': 'French', 'de': 'German', 'ja': 'Japanese', 'it': 'Italian', 'es': 'Spanish', 'am': 'Amharic', 'zh': 'Chinese', 'cs': 'Czech', 'ko': 'Korean', 'da': 'Danish', 'no': 'Norwegian', 'ru': 'Russian', 'hi': 'Hindi'}
+    languages = {'en': 'English', 'he': 'Hebrew', 'fr': 'French', 'de': 'German', 'ja': 'Japanese', 'it': 'Italian', 'es': 'Spanish', 'am': 'Amharic', 'zh': 'Chinese', 'cs': 'Czech', 'ko': 'Korean', 'da': 'Danish', 'no': 'Norwegian', 'ca': 'Catalan', 'ru': 'Russian', 'hi': 'Hindi'}
     with requests.Session() as session:
         configure_scrape_session(session, stats=getattr(scraper, '_http_stats', None))
         session.headers.update({'User-Agent': CHROME_USER_AGENT})

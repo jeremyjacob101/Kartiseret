@@ -38,14 +38,14 @@ def collect_hot_soon(scraper):
                 raise ValueError('Hot Cinema coming-soon group is incomplete')
             # The existing collector intentionally traverses range(1, count).
             for anchor in anchors[:count - 1]:
-                href = urljoin(scraper.URL, anchor['href'])
+                href = re.sub(r'/movie/(\d+)/.*$', r'/movie/\1/x', urljoin(scraper.URL, anchor['href']))
                 block = page(href).select_one('.movie-page > .d-none.d-md-block .movie-details .left-side')
                 if block is None or block.select_one('h1') is None or block.select_one('h2') is None or block.select_one('.desc2') is None:
                     raise ValueError(f'Hot Cinema coming-soon film details are missing: {href}')
                 scraper._coverage['film_pages_completed'] += 1
                 scraper.english_title = _text(block.select_one('h2'))
                 scraper.hebrew_title = _text(block.select_one('h1'))
-                excluded = ('סטנדאפ', 'מדובב לרוסית', 'מדובב לעברית', 'מדובב לצרפתית', 'סינימה אישי', 'קומדי בר', 'HFR', 'תלת-ממד')
+                excluded = ('סטנדאפ', 'מדובב לרוסית', 'מדובב לעברית', 'מדובב לצרפתית', 'מדובב לערבית', 'סינימה אישי', 'קומדי בר', 'HFR', 'תלת-ממד')
                 if 'סטנדאפ' in scraper.english_title or any(value in scraper.hebrew_title for value in excluded):
                     continue
                 scraper.hebrew_title = re.sub(r'^\s*סינמה נוסטלגי(?:ה)?\s*[-–—]\s*', '', scraper.hebrew_title).strip()

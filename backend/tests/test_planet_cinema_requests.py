@@ -86,3 +86,20 @@ class PlanetCinemaRequestsTests(TestCase):
         self.event['attributeIds'] = ['2d', 'infinity-vision', 'vip']
         with self.assertRaisesRegex(ValueError, 'unhandled Infinity Vision'):
             self.run_collector()
+
+    def test_unknown_original_language_defaults_to_hebrew(self):
+        self.original_languages = ['unknown']
+        self.event['filmId'] = 'soon'
+        self.run_collector()
+        self.assertEqual(self.scraper.gathering_info['original_language'], ['Hebrew'])
+
+    def test_catalan_and_norwegian_original_languages(self):
+        for code, label in (('ca', 'Catalan'), ('no', 'Norwegian')):
+            with self.subTest(code=code):
+                self.original_languages = [code]
+                self.event['filmId'] = 'soon'
+                self.run_collector()
+                self.assertEqual(self.scraper.gathering_info['original_language'], [label])
+                InitializeBaseCinema.__init__(self.scraper)
+                self.scraper.today_date = datetime(2026, 11, 2, 12)
+                self.scraper.run_id = 1

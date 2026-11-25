@@ -13,7 +13,7 @@ from backend.scraping.utils.ScrapeRequests import configure_scrape_session
 def collect_planet_cinema(scraper):
     base = 'https://www.planetcinema.co.il/il/data-api-service/v1'
     scraper._coverage = {'catalog_films_completed': 0, 'cinemas_completed': 0, 'dates_completed': 0, 'unlisted_films_skipped': 0, 'russian_screenings_skipped': 0}
-    languages = {'en': 'English', 'he': 'Hebrew', 'fr': 'French', 'de': 'German', 'ja': 'Japanese', 'it': 'Italian', 'es': 'Spanish', 'am': 'Amharic', 'zh': 'Chinese', 'cs': 'Czech', 'ko': 'Korean', 'da': 'Danish', 'ru': 'Russian', 'hi': 'Hindi'}
+    languages = {'en': 'English', 'he': 'Hebrew', 'fr': 'French', 'de': 'German', 'ja': 'Japanese', 'it': 'Italian', 'es': 'Spanish', 'am': 'Amharic', 'zh': 'Chinese', 'cs': 'Czech', 'ko': 'Korean', 'da': 'Danish', 'no': 'Norwegian', 'ca': 'Catalan', 'ru': 'Russian', 'hi': 'Hindi'}
     valid_cities = {'SCREENINGS FOR PLANET AYALON', 'SCREENINGS FOR PLANET BEER SHEVA', 'SCREENINGS FOR PLANET HAIFA', 'SCREENINGS FOR PLANET JERUSALEM', 'SCREENINGS FOR PLANET RISHON LETZIYON', 'SCREENINGS FOR PLANET ZICHRON YAAKOV'}
     with requests.Session() as session:
         configure_scrape_session(session, stats=getattr(scraper, '_http_stats', None))
@@ -117,8 +117,7 @@ def collect_planet_cinema(scraper):
                     title, metadata = found
                     he, en = metadata['he_IL'], metadata['en_GB']
                     original = en.get('languages', {}).get('original') or ['he']
-                    if any(language not in languages for language in original):
-                        raise ValueError('Planet Cinema film has an unknown original language')
+                    original_languages = [languages.get(language, 'Hebrew') for language in original]
                     restriction = en.get('ageRestrictionName')
                     if restriction not in (None, 'other', 'all', '9-plus', '12-plus', '14-plus', '16-plus', '18-plus'):
                         raise ValueError('Planet Cinema film has an unknown age restriction')
@@ -127,7 +126,7 @@ def collect_planet_cinema(scraper):
                     scraper.hebrew_title = he['name']
                     scraper.release_year = int(year) if year and str(year).isdigit() else None
                     scraper.directed_by = en.get('directors') or ''
-                    scraper.original_language = 'Hebrew' if original == ['he'] else ', '.join(languages[language] for language in original)
+                    scraper.original_language = 'Hebrew' if original_languages == ['Hebrew'] else ', '.join(original_languages)
                     scraper.rating = 'All' if restriction == 'all' else restriction.replace('-plus', '+') if restriction and restriction.endswith('-plus') else None
                     scraper.runtime = int(en['length']) if en.get('length') else None
                     scraper.dub_language = 'Hebrew' if 'dubbed' in attr else None

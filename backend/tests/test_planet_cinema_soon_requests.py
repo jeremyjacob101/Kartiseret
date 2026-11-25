@@ -47,6 +47,11 @@ class PlanetCinemaSoonRequestsTests(TestCase):
         self.run_collector()
         self.assertEqual(self.scraper.gathering_info['original_language'], ['Norwegian'])
 
+    def test_catalan_language(self):
+        self.film['languages'] = {'original': ['ca']}
+        self.run_collector()
+        self.assertEqual(self.scraper.gathering_info['original_language'], ['Catalan'])
+
     def test_unknown_language_defaults_to_hebrew(self):
         self.film['languages'] = {'original': ['en', 'unknown']}
         self.run_collector()
