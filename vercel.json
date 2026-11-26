@@ -84,17 +84,6 @@
   "routes": [
     {
       "src": "^/$",
-      "has": [
-        {
-          "type": "header",
-          "key": "cookie",
-          "value": "(?:.*;\\s*)?(?:__Secure-)?kartiseret-(?:production|preview|development)\\.session_token=[^;]+(?:;.*)?"
-        }
-      ],
-      "dest": "/api/dispatch?__vercel_route=private-page&path=/"
-    },
-    {
-      "src": "^/$",
       "dest": "/api/dispatch?__vercel_route=page&path=/"
     }
   ],
@@ -102,17 +91,6 @@
     {
       "source": "/.well-known/apple-app-site-association",
       "destination": "/apple-app-site-association"
-    },
-    {
-      "source": "/",
-      "has": [
-        {
-          "type": "header",
-          "key": "cookie",
-          "value": "(?:.*;\\s*)?(?:__Secure-)?kartiseret-(?:production|preview|development)\\.session_token=[^;]+(?:;.*)?"
-        }
-      ],
-      "destination": "/api/dispatch?__vercel_route=private-page&path=/"
     },
     {
       "source": "/",

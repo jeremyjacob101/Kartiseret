@@ -24,6 +24,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const SEO_CACHE = "public, max-age=0, s-maxage=60";
+const HOME_PAGE_CACHE = `${SEO_CACHE}, stale-while-revalidate=300`;
 const PRIVATE_PAGE_CACHE = "private, no-store";
 const PRIVATE_DISPLAY_BUDGET_MS = 1200;
 let preferenceReader:
@@ -748,19 +749,14 @@ export default async function handler(
 ): Promise<void> {
   const dispatchRoute =
     request.url?.split("?", 1)[0]?.replace(/^\/api\//, "") ?? "";
-  const privateRoute = [
+  const requestedPrivateRoute = [
     "private-page",
     "private-cinema",
     "private-movie",
   ].includes(dispatchRoute);
-  const route = privateRoute
+  const route = requestedPrivateRoute
     ? dispatchRoute.slice("private-".length)
     : dispatchRoute;
-  if (privateRoute) {
-    response
-      .setHeader("Cache-Control", PRIVATE_PAGE_CACHE)
-      .setHeader("Vary", "Cookie");
-  }
   if (route === "robots") {
     const isPreview = Boolean(
       process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production",
@@ -787,6 +783,18 @@ export default async function handler(
     const path = Array.isArray(request.query.path)
       ? (request.query.path.at(-1) ?? "")
       : (request.query.path ?? "");
+    const isHomePage = route === "page" && path === "/";
+    const privateRoute = requestedPrivateRoute && !isHomePage;
+    if (privateRoute) {
+      response
+        .setHeader("Cache-Control", PRIVATE_PAGE_CACHE)
+        .setHeader("Vary", "Cookie");
+    }
+    const pageCache = isHomePage
+      ? HOME_PAGE_CACHE
+      : privateRoute
+        ? PRIVATE_PAGE_CACHE
+        : SEO_CACHE;
     if (route === "cinema" && !/^[A-Za-z0-9_-]{12}$/.test(cinemaId)) {
       response
         .status(404)
@@ -920,7 +928,7 @@ export default async function handler(
     response
       .status(200)
       .setHeader("Content-Type", "text/html; charset=utf-8")
-      .setHeader("Cache-Control", privateRoute ? PRIVATE_PAGE_CACHE : SEO_CACHE)
+      .setHeader("Cache-Control", pageCache)
       .setHeader(
         "X-Robots-Tag",
         process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production"
