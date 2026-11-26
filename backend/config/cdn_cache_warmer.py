@@ -105,12 +105,13 @@ class CatalogRevisionReader:
                     connect_timeout=10,
                     application_name="kartiseret-cdn-cache-warmer",
                     autocommit=True,
-                    options="-c default_transaction_read_only=on",
+                    prepare_threshold=None,
                     row_factory=dict_row,
                     sslmode="verify-full",
                     sslrootcert=str(self._certificate_path),
                 )
-            with self._connection.cursor() as cursor:
+            with self._connection.transaction(), self._connection.cursor() as cursor:
+                cursor.execute("SET TRANSACTION READ ONLY")
                 cursor.execute(
                     "select revision::text from public.pipeline_catalog_revision where singleton"
                 )
@@ -256,6 +257,10 @@ def run_cycle(
     return last_revision, True
 
 
+class WarmerAlreadyRunning(RuntimeError):
+    pass
+
+
 def acquire_singleton_lock(state_path: Path):
     lock_path = state_path.with_suffix(state_path.suffix + ".lock")
     lock_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -264,7 +269,7 @@ def acquire_singleton_lock(state_path: Path):
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         lock_file.close()
-        raise RuntimeError("The production cache warmer is already running.") from None
+        raise WarmerAlreadyRunning("The production cache warmer is already running.") from None
     return lock_file
 
 
@@ -276,6 +281,7 @@ def main(argv: list[str] | None = None) -> int:
     load_dotenv()
     parser = argparse.ArgumentParser()
     parser.add_argument("--check-config", action="store_true")
+    parser.add_argument("--check-revision", action="store_true")
     parser.add_argument(
         "--once",
         action="store_true",
@@ -292,10 +298,23 @@ def main(argv: list[str] | None = None) -> int:
         print("Production cache warmer configuration is valid.")
         return 0
 
+    if args.check_revision:
+        reader = CatalogRevisionReader(database_url, ca_certificate)
+        try:
+            print(f"Production catalog revision: {reader.read()}")
+        finally:
+            reader.close()
+        return 0
+
     state_path = Path(
         os.environ.get("CACHE_WARMER_STATE_FILE", str(STATE_FILE))
     ).expanduser()
-    lock_file = acquire_singleton_lock(state_path)
+    try:
+        lock_file = acquire_singleton_lock(state_path)
+    except WarmerAlreadyRunning:
+        if args.once:
+            return 0
+        raise
     reader = CatalogRevisionReader(database_url, ca_certificate)
     revision = load_saved_revision(state_path)
     signal.signal(signal.SIGTERM, handle_shutdown_signal)

@@ -20,24 +20,25 @@ Keep the token on the machine only. Do not add it to the Vercel project's enviro
 
 ## Scraper Mac setup
 
-The worker uses the existing production runtime database profile. Confirm `.env` has valid `PROD_DATABASE_URL` and `PROD_DATABASE_SSL_CA_CERT` values for the production Supabase project. The database user must be `kartiseret_api`, never the publisher login, and the connection must use verified TLS. The worker sets each PostgreSQL session to read-only before querying the revision.
+The worker uses the existing production runtime database profile. Confirm `.env` has valid `PROD_DATABASE_URL` and `PROD_DATABASE_SSL_CA_CERT` values for the production Supabase project. The database user must be `kartiseret_api`, never the publisher login, and the connection must use verified TLS. The worker reads the revision inside an explicit read-only transaction.
 
-From the repository checkout that the machine keeps updated, install and start the LaunchAgent:
-
-```sh
-./backend/config/cdn_cache_warmer.sh install
-```
-
-The installer syncs the locked Python environment, validates required configuration, and registers a user LaunchAgent that runs at login and restarts if it exits. The worker state is stored at `~/.cache/kartiseret/cdn-cache-warmer-revision`. Logs are written to `~/Library/Logs/Kartiseret/cdn-cache-warmer.log`.
-
-Check or stop it with:
+On the scraper Mac, from the checkout that cron will use, run:
 
 ```sh
-./backend/config/cdn_cache_warmer.sh status
-./backend/config/cdn_cache_warmer.sh stop
+uv sync --locked
+uv run --locked --no-sync python -m backend.config.cdn_cache_warmer --check-revision
+mkdir -p "$HOME/Library/Logs/Kartiseret"
+pwd
+crontab -e
 ```
 
-Start it again with `./backend/config/cdn_cache_warmer.sh start`. Remove the LaunchAgent with `./backend/config/cdn_cache_warmer.sh uninstall`. Uninstall keeps the logs and saved revision state.
+The revision check uses the configured production database and does not contact Vercel or change the saved revision. Add this single line to the scraper user's crontab, replacing the checkout path with the absolute path printed by `pwd`:
+
+```cron
+* * * * * "/absolute/path/to/checkout/backend/config/cdn_cache_warmer.sh" >> "$HOME/Library/Logs/Kartiseret/cdn-cache-warmer.log" 2>&1
+```
+
+The script starts one-shot runs at 0, 20, and 40 seconds. The worker skips overlapping runs using its lock and stores the revision at `~/.cache/kartiseret/cdn-cache-warmer-revision`. Check the entry with `crontab -l`. Remove the line with `crontab -e` to stop future batches. Keep the Mac awake for cron to run.
 
 To run one immediate production cycle manually, use:
 
