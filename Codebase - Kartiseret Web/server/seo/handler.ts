@@ -1,7 +1,7 @@
 import { getMovieCatalog, getCinemathequeData, getCinemaPageData, getMovieByPermanentCode, getMovieShowtimes, getPublicTheaterData, getShowtimeRange, withPublicationSnapshot, type PublicCinemaPageContext } from "@kartiseret/server/public-data";
 import { privatePageDisplaySchema, publicPageBootstrapSchema, type PrivatePageDisplay, type PublicPageBootstrap } from "@kartiseret/contracts/public-render";
-import { injectRenderedApplication, injectSeoPage, SITE_ORIGIN, buildSitemapXml, safeHttpUrl, getRequestOrigin } from "./renderHtml.js";
 import { createShowtimeInclusionPredicate, getCinemaDayDate, shouldIncludeShowtime, SHOWTIME_TIME_ZONE } from "@kartiseret/contracts/showtime-day";
+import { injectRenderedApplication, injectSeoPage, SITE_ORIGIN, buildSitemapXml, safeHttpUrl, getRequestOrigin } from "./renderHtml.js";
 import { cinemaIdForLocation, findCinemaIdentityForScreening, getCinemaIdentityById } from "./identities.js";
 import { getShowtimesCityFromPath, getShowtimesCityPath } from "@kartiseret/contracts/showtime-routes";
 import { timeCatalogStage, timeCatalogStageSync } from "@kartiseret/server/catalog-timing";
@@ -772,7 +772,12 @@ async function renderSitemap(response: VercelResponse): Promise<void> {
         .filter((movie) => movie.movieCode)
         .map((movie) => `/${movie.movieCode}`);
       const [eligibility, cinemathequesListing] = await Promise.all([
-        getShowtimeEligibility(repository, nowPlaying, renderInstant, comingSoon),
+        getShowtimeEligibility(
+          repository,
+          nowPlaying,
+          renderInstant,
+          comingSoon,
+        ),
         buildListingPage(
           repository,
           "/cinematheques",
@@ -816,7 +821,7 @@ async function renderSitemap(response: VercelResponse): Promise<void> {
       .status(200)
       .setHeader("Content-Type", "application/xml; charset=utf-8")
       .setHeader("Cache-Control", cachePolicy.cacheControl);
-    if ("cacheTag" in cachePolicy)
+    if (cachePolicy.cacheTag)
       response.setHeader("Vercel-Cache-Tag", cachePolicy.cacheTag);
     response.send(xml);
   } catch (error) {
@@ -1016,7 +1021,7 @@ export default async function handler(
       .status(200)
       .setHeader("Content-Type", "text/html; charset=utf-8")
       .setHeader("Cache-Control", cachePolicy.cacheControl);
-    if ("cacheTag" in cachePolicy)
+    if (cachePolicy.cacheTag)
       response.setHeader("Vercel-Cache-Tag", cachePolicy.cacheTag);
     response
       .setHeader(

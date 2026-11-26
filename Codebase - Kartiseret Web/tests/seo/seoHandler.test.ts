@@ -42,9 +42,8 @@ vi.mock("../../server/seo/renderer.js", () => ({
   renderBuiltPublicApplication: mocks.renderBuiltPublicApplication,
 }));
 
-const { default: seoHandler, publicCatalogCachePolicy } = await import(
-  "../../server/seo/handler.js"
-);
+const { default: seoHandler, publicCatalogCachePolicy } =
+  await import("../../server/seo/handler.js");
 
 const cinema = CINEMA_IDENTITIES.find(
   (identity) => identity.displayName === "Cinema City Jerusalem",
