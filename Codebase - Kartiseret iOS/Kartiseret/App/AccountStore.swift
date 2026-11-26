@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import CryptoKit
 
 enum AccountState: Equatable {
     case restoring
@@ -13,6 +14,7 @@ enum AccountState: Equatable {
 final class AccountStore {
     private static let guestShowtimePreferencesKey = "kartiseret.guest.showtimePreferences"
     private static let siteColorKey = "kartiseret.account.siteColor"
+    private static let offlineIdentityKey = "kartiseret.account.offlineIdentity"
     private(set) var state: AccountState = .restoring
     private(set) var identity: AccountIdentity?
     private(set) var preferences = AccountPreferences()
@@ -52,7 +54,11 @@ final class AccountStore {
         case .guest, .signedIn:
             return
         }
-        guard let savedToken = credentials.read() else { state = .guest; return }
+        guard let savedToken = credentials.read() else {
+            UserDefaults.standard.removeObject(forKey: Self.offlineIdentityKey)
+            state = .guest
+            return
+        }
         token = savedToken
         do {
             try await loadIdentityAndPreferences(token: savedToken, fallbackLocation: fallbackLocation)
@@ -60,6 +66,7 @@ final class AccountStore {
             if token == savedToken { clearAccountSession() }
         } catch {
             guard token == savedToken else { return }
+            identity = Self.cachedIdentity(for: savedToken)
             state = .unavailable(error.localizedDescription)
         }
     }
@@ -127,6 +134,11 @@ final class AccountStore {
     func signOut() async {
         guard !isSigningOut, let oldToken = token, let identity else { return }
         signOutError = nil
+        if case .unavailable = state {
+            clearAccountSession()
+            signOutError = "Signed out on this iPhone. Reconnect later to remove it from movie alerts."
+            return
+        }
         guard !isUpdatingPushRegistration else {
             signOutError = "Notifications are still being updated. Try signing out again in a moment."
             return
@@ -347,7 +359,10 @@ final class AccountStore {
             if token == value { clearAccountSession() }
             throw APIClientError.unauthorized
         } catch {
-            if token == value { state = .unavailable(error.localizedDescription) }
+            if token == value {
+                identity = Self.cachedIdentity(for: value)
+                state = .unavailable(error.localizedDescription)
+            }
             throw error
         }
     }
@@ -356,6 +371,7 @@ final class AccountStore {
         let account = try await api.loadAccount(token: token)
         let loadedPreferences = try await api.loadPreferences(token: token, accountID: account.id, fallbackLocation: fallbackLocation)
         guard self.token == token else { throw CancellationError() }
+        Self.cacheIdentity(account, for: token)
         identity = account
         preferences = loadedPreferences
         confirmedPreferences = loadedPreferences
@@ -375,6 +391,7 @@ final class AccountStore {
         credentials.clear()
         token = nil
         identity = nil
+        UserDefaults.standard.removeObject(forKey: Self.offlineIdentityKey)
         pushDeviceRegistered = false
         saveGenerations.removeAll()
         confirmedSaveGenerations.removeAll()
@@ -388,6 +405,30 @@ final class AccountStore {
         UserDefaults.standard.removeObject(forKey: Self.siteColorKey)
         feedback = nil
         state = .guest
+    }
+
+    private struct OfflineIdentity: Codable {
+        let identity: AccountIdentity
+        let credentialDigest: String
+    }
+
+    private static func cacheIdentity(_ identity: AccountIdentity, for token: String) {
+        let cached = OfflineIdentity(identity: identity, credentialDigest: digest(token))
+        guard let data = try? JSONEncoder().encode(cached) else { return }
+        UserDefaults.standard.set(data, forKey: offlineIdentityKey)
+    }
+
+    private static func cachedIdentity(for token: String) -> AccountIdentity? {
+        guard let data = UserDefaults.standard.data(forKey: offlineIdentityKey),
+              let cached = try? JSONDecoder().decode(OfflineIdentity.self, from: data),
+              cached.credentialDigest == digest(token) else { return nil }
+        return cached.identity
+    }
+
+    private static func digest(_ value: String) -> String {
+        SHA256.hash(data: Data(value.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 
     private func save<Value: Encodable & Sendable>(key: String, value: Value, apply: (inout AccountPreferences) -> Void) async {

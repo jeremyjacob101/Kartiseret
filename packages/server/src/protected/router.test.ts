@@ -90,6 +90,7 @@ function setup(
     })),
     removeLetterboxdSource: vi.fn(async () => ({ removed: true as const })),
     walletTickets: vi.fn(async () => []),
+    walletTicketDetails: vi.fn(async () => []),
     walletTicket: vi.fn(async () => {
       throw new HttpError(404, "ticket_not_found", "Ticket not found.");
     }),
@@ -185,6 +186,69 @@ function setup(
   };
 }
 describe("protected HTTP contracts", () => {
+  it("serves a private QR image at the query-free ticket URL", async () => {
+    const { app, workflows } = setup();
+    vi.mocked(workflows.walletTicket).mockResolvedValue({
+      id,
+      tmdbId: null,
+      title: "Test Movie",
+      city: "Jerusalem",
+      cinema: "Test Cinema",
+      screeningDate: "2026-12-01",
+      screeningTime: "19:30",
+      reminderEnabled: false,
+      createdAt: "2026-11-26T10:00:00.000Z",
+      updatedAt: "2026-11-26T10:00:00.000Z",
+      qrMessage: "private-ticket-payload",
+    });
+
+    const result = await request(app)
+      .get(`/api/v1/ticket-passes/${id}/qr.svg`)
+      .set("Cookie", "valid");
+
+    expect(result.status).toBe(200);
+    expect(result.headers["content-type"]).toContain("image/svg+xml");
+    expect(result.headers["cache-control"]).toBe("no-store");
+    expect(result.body.toString()).toContain("<svg");
+    expect(workflows.walletTicket).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      id,
+    );
+  });
+
+  it("returns the signed-in account’s ticket details for protected offline caching", async () => {
+    const { app, workflows } = setup();
+    vi.mocked(workflows.walletTicketDetails).mockResolvedValue([
+      {
+        id,
+        tmdbId: null,
+        title: "Test Movie",
+        city: "Jerusalem",
+        cinema: "Test Cinema",
+        screeningDate: "2026-12-01",
+        screeningTime: "19:30",
+        reminderEnabled: false,
+        createdAt: "2026-11-26T10:00:00.000Z",
+        updatedAt: "2026-11-26T10:00:00.000Z",
+        qrMessage: "private-ticket-payload",
+      },
+    ]);
+
+    const result = await request(app)
+      .get("/api/v1/ticket-passes/offline-cache")
+      .set("Cookie", "valid");
+
+    expect(result.status).toBe(200);
+    expect(result.headers["cache-control"]).toBe("no-store");
+    expect(result.body.data.tickets[0].qrMessage).toBe(
+      "private-ticket-payload",
+    );
+    expect(workflows.walletTicketDetails).toHaveBeenCalledWith({
+      id,
+      email: "qa@example.test",
+    });
+  });
+
   it("stores notification delivery preferences and scopes device registration to the signed-in account", async () => {
     const { app, workflows } = setup();
     const unauthorized = await request(app).get("/api/v1/push/devices/status");

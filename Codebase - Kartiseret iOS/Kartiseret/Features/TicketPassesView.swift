@@ -14,9 +14,138 @@ extension Notification.Name {
     static let kartiseretTicketReminderTapped = Notification.Name("kartiseret.ticketReminderTapped")
 }
 
+actor WalletTicketOfflineCache {
+    static let shared = WalletTicketOfflineCache()
+
+    private struct Snapshot: Codable {
+        let accountID: String
+        var tickets: [WalletTicket]
+        var details: [String: WalletTicketDetail]
+    }
+
+    func loadTickets(accountID: String) -> [WalletTicket]? {
+        load(accountID: accountID)?.tickets
+    }
+
+    func loadDetail(ticketID: String, accountID: String) -> WalletTicketDetail? {
+        load(accountID: accountID)?.details[ticketID]
+    }
+
+    func storeTickets(_ tickets: [WalletTicket], accountID: String) {
+        var snapshot = load(accountID: accountID) ?? Snapshot(
+            accountID: accountID,
+            tickets: [],
+            details: [:]
+        )
+        let currentByID = Dictionary(uniqueKeysWithValues: tickets.map { ($0.id, $0) })
+        snapshot.tickets = tickets
+        snapshot.details = snapshot.details.filter { id, detail in
+            currentByID[id]?.updatedAt == detail.updatedAt
+        }
+        save(snapshot)
+    }
+
+    func storeDetail(_ detail: WalletTicketDetail, accountID: String) {
+        storeDetails([detail], accountID: accountID)
+    }
+
+    func storeDetails(_ details: [WalletTicketDetail], accountID: String) {
+        var snapshot = load(accountID: accountID) ?? Snapshot(
+            accountID: accountID,
+            tickets: [],
+            details: [:]
+        )
+        for detail in details {
+            snapshot.details[detail.id] = detail
+            let summary = WalletTicket(
+                id: detail.id,
+                tmdbId: detail.tmdbId,
+                title: detail.title,
+                city: detail.city,
+                cinema: detail.cinema,
+                screeningDate: detail.screeningDate,
+                screeningTime: detail.screeningTime,
+                reminderEnabled: detail.reminderEnabled,
+                createdAt: detail.createdAt,
+                updatedAt: detail.updatedAt
+            )
+            if let index = snapshot.tickets.firstIndex(where: { $0.id == detail.id }) {
+                snapshot.tickets[index] = summary
+            } else {
+                snapshot.tickets.append(summary)
+            }
+        }
+        snapshot.tickets.sort {
+            ($0.screeningDate, $0.screeningTime, $0.createdAt) <
+                ($1.screeningDate, $1.screeningTime, $1.createdAt)
+        }
+        save(snapshot)
+    }
+
+    func remove(ticketID: String, accountID: String) {
+        guard var snapshot = load(accountID: accountID) else { return }
+        snapshot.tickets.removeAll { $0.id == ticketID }
+        snapshot.details[ticketID] = nil
+        save(snapshot)
+    }
+
+    func clear(accountID: String) {
+        guard let url = fileURL(accountID: accountID) else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    private func load(accountID: String) -> Snapshot? {
+        guard let url = fileURL(accountID: accountID),
+              let data = try? Data(contentsOf: url),
+              let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data),
+              snapshot.accountID == accountID else { return nil }
+        return snapshot
+    }
+
+    private func save(_ snapshot: Snapshot) {
+        guard let url = fileURL(accountID: snapshot.accountID),
+              let data = try? JSONEncoder().encode(snapshot) else { return }
+        do {
+            try data.write(to: url, options: .atomic)
+            try FileManager.default.setAttributes(
+                [.protectionKey: FileProtectionType.complete],
+                ofItemAtPath: url.path
+            )
+            var resourceValues = URLResourceValues()
+            resourceValues.isExcludedFromBackup = true
+            var cacheURL = url
+            try cacheURL.setResourceValues(resourceValues)
+        } catch {
+            // Ticket QR payloads are cached only when they can be stored safely.
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    private func fileURL(accountID: String) -> URL? {
+        let safeID = String(accountID.filter { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") })
+        guard !safeID.isEmpty,
+              let supportDirectory = FileManager.default.urls(
+                for: .applicationSupportDirectory,
+                in: .userDomainMask
+              ).first else { return nil }
+        let directory = supportDirectory.appendingPathComponent("KartiseretWalletTickets", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true,
+                attributes: [.protectionKey: FileProtectionType.complete]
+            )
+        } catch {
+            return nil
+        }
+        return directory.appendingPathComponent("\(safeID).json", isDirectory: false)
+    }
+}
+
 @MainActor
 enum TicketReminderManager {
     nonisolated static let identifierPrefix = "kartiseret.ticket-reminder."
+    private static let pendingTappedTicketIDKey = "kartiseret.ticket.pendingReminderTicketID"
     private static let maximumPendingRequests = 64
     private static let timeZone = TimeZone(identifier: "Asia/Jerusalem") ?? .current
 
@@ -47,6 +176,21 @@ enum TicketReminderManager {
         center.removeDeliveredNotifications(
             withIdentifiers: delivered.map(\.request.identifier).filter { $0.hasPrefix(identifierPrefix) }
         )
+    }
+
+    static func rememberTappedTicket(_ ticketID: String) {
+        guard UUID(uuidString: ticketID) != nil else { return }
+        UserDefaults.standard.set(ticketID, forKey: pendingTappedTicketIDKey)
+    }
+
+    static func takePendingTappedTicketID() -> String? {
+        guard let ticketID = UserDefaults.standard.string(forKey: pendingTappedTicketIDKey),
+              UUID(uuidString: ticketID) != nil else {
+            UserDefaults.standard.removeObject(forKey: pendingTappedTicketIDKey)
+            return nil
+        }
+        UserDefaults.standard.removeObject(forKey: pendingTappedTicketIDKey)
+        return ticketID
     }
 
     static func reconcile(tickets: [WalletTicket]) async {
@@ -84,9 +228,19 @@ enum TicketReminderManager {
     }
 
     static func refreshFromServer(account: AccountStore) async {
-        guard account.state == .signedIn else {
+        switch account.state {
+        case .signedIn:
+            break
+        case .guest:
             await cancelAll()
             return
+        case .restoring:
+            return
+        case .unavailable:
+            guard account.identity != nil else {
+                await cancelAll()
+                return
+            }
         }
         do {
             let page: WalletTicketList = try await account.requestPrivate(
@@ -214,6 +368,9 @@ struct TicketPassesView: View {
     @State private var errorMessage: String?
     @State private var statusMessage: String?
     @State private var scanMessage: String?
+    @State private var hasInteractedWithScreening = false
+    @State private var hasConfirmedShowDate = false
+    @State private var hasConfirmedShowTime = false
 
     init(initialTicketID: String? = nil) {
         self.initialTicketID = initialTicketID
@@ -232,27 +389,42 @@ struct TicketPassesView: View {
     private var showDate: Binding<Date> {
         Binding(
             get: { parseScreeningDate(form.screeningDate) ?? .now },
-            set: { form.screeningDate = formatDate($0) }
+            set: {
+                form.screeningDate = formatDate($0)
+                hasConfirmedShowDate = true
+                hasInteractedWithScreening = true
+            }
         )
     }
 
     private var showTime: Binding<Date> {
         Binding(
             get: { parseScreeningTime(form.screeningTime) ?? .now },
-            set: { form.screeningTime = formatTime($0) }
+            set: {
+                form.screeningTime = formatTime($0)
+                hasConfirmedShowTime = true
+                hasInteractedWithScreening = true
+            }
         )
     }
 
     var body: some View {
         Form {
-            if account.state != .signedIn {
+            if account.identity == nil {
                 Section {
                     Text("Sign in to import and sync tickets across Kartiseret on the web and iPhone.")
                         .foregroundStyle(.secondary)
                 }
             } else {
-                importSection
-                screeningSection
+                if account.state == .signedIn {
+                    importSection
+                    screeningSection
+                } else {
+                    Section {
+                        Text("You’re offline. Tickets saved on this iPhone are available below; connect to import, edit, or sync tickets.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 savedTicketsSection
                 if let selectedTicket { selectedTicketSection(selectedTicket) }
             }
@@ -333,11 +505,11 @@ struct TicketPassesView: View {
 
     private var screeningSection: some View {
         Section {
-            TextField("Movie or show", text: $form.title)
+            TextField("Movie or show", text: screeningTextBinding(\.title))
                 .textInputAutocapitalization(.words)
-            TextField("City", text: $form.city)
+            TextField("City", text: screeningTextBinding(\.city))
                 .textInputAutocapitalization(.words)
-            TextField("Cinema", text: $form.cinema)
+            TextField("Cinema", text: screeningTextBinding(\.cinema))
                 .textInputAutocapitalization(.words)
             DatePicker("Show date", selection: showDate, displayedComponents: .date)
                 .environment(\.calendar, jerusalemCalendar)
@@ -345,6 +517,11 @@ struct TicketPassesView: View {
             DatePicker("Showtime", selection: showTime, displayedComponents: .hourAndMinute)
                 .environment(\.calendar, jerusalemCalendar)
                 .environment(\.timeZone, jerusalemTimeZone)
+            if !hasConfirmedShowDate || !hasConfirmedShowTime {
+                Text("Confirm both the show date and time, or use a recent showtime suggestion, before saving.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
             if let statusMessage {
                 Text(statusMessage).font(.footnote).foregroundStyle(.secondary)
             }
@@ -388,6 +565,10 @@ struct TicketPassesView: View {
             } else {
                 ForEach(tickets) { ticket in
                     Button {
+                        selectedTicket = nil
+                        if editingTicketID != nil {
+                            cancelEditing()
+                        }
                         Task { await loadTicket(ticket.id) }
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
@@ -470,16 +651,49 @@ struct TicketPassesView: View {
 
     private var isValidForm: Bool {
         !qrMessage.isEmpty &&
+        hasConfirmedShowDate &&
+        hasConfirmedShowTime &&
+        !form.screeningDate.isEmpty &&
+        !form.screeningTime.isEmpty &&
         !form.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !form.city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !form.cinema.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private func screeningTextBinding(
+        _ keyPath: WritableKeyPath<WalletTicketScreening, String>
+    ) -> Binding<String> {
+        Binding(
+            get: { form[keyPath: keyPath] },
+            set: {
+                form[keyPath: keyPath] = $0
+                hasInteractedWithScreening = true
+            }
+        )
+    }
+
     private func loadTickets() async {
-        guard account.state == .signedIn else { isLoading = false; return }
+        guard let accountID = account.identity?.id else { isLoading = false; return }
         isLoading = true
         errorMessage = nil
+        if account.state != .signedIn {
+            tickets = await WalletTicketOfflineCache.shared.loadTickets(accountID: accountID) ?? []
+            statusMessage = tickets.isEmpty
+                ? "No tickets have been saved on this iPhone yet. Connect to your account to sync them."
+                : "Offline copies are shown. Connect to refresh ticket details and reminders."
+            isLoading = false
+            if let initialTicketID, !initialTicketID.isEmpty {
+                await loadTicket(initialTicketID)
+            }
+            return
+        }
+        if let cachedTickets = await WalletTicketOfflineCache.shared.loadTickets(accountID: accountID) {
+            tickets = cachedTickets
+            isLoading = false
+            statusMessage = "Showing tickets saved on this iPhone while the list refreshes."
+        }
         defer { isLoading = false }
+        var loadedFromServer = false
         do {
             let page: WalletTicketList = try await account.requestPrivate(
                 path: "/api/v1/ticket-passes",
@@ -487,24 +701,59 @@ struct TicketPassesView: View {
                 as: WalletTicketList.self
             )
             tickets = page.tickets
-            await TicketReminderManager.reconcile(tickets: page.tickets)
-            if let initialTicketID, !initialTicketID.isEmpty {
-                await loadTicket(initialTicketID)
-            } else if let recent = try? await account.requestPrivate(
+            loadedFromServer = true
+            statusMessage = nil
+            await WalletTicketOfflineCache.shared.storeTickets(page.tickets, accountID: accountID)
+            do {
+                let details: WalletTicketDetailsPage = try await account.requestPrivate(
+                    path: "/api/v1/ticket-passes/offline-cache",
+                    method: "GET",
+                    as: WalletTicketDetailsPage.self
+                )
+                await WalletTicketOfflineCache.shared.storeDetails(details.tickets, accountID: accountID)
+            } catch {
+                // Keep the ticket list usable when warming its offline QR cache fails.
+            }
+            if account.state == .signedIn {
+                await TicketReminderManager.reconcile(tickets: page.tickets)
+            }
+        } catch {
+            if let cachedTickets = await WalletTicketOfflineCache.shared.loadTickets(accountID: accountID) {
+                tickets = cachedTickets
+                statusMessage = "Showing the tickets saved on this iPhone. Connect to refresh them."
+            } else {
+                errorMessage = error.localizedDescription
+            }
+        }
+        if let initialTicketID, !initialTicketID.isEmpty {
+            await loadTicket(initialTicketID)
+        } else if loadedFromServer,
+                  !hasInteractedWithScreening,
+                  let recent = try? await account.requestPrivate(
                 path: "/api/v1/ticket-passes/recent-screening",
                 method: "GET",
                 as: WalletTicketRecentScreeningPage.self
             ).screening {
                 apply(recent)
                 statusMessage = "Prefilled from your latest Kartiseret showtime click. Review the details."
-            }
-        } catch {
-            errorMessage = error.localizedDescription
         }
     }
 
     private func loadTicket(_ id: String) async {
-        guard account.state == .signedIn else { return }
+        guard let accountID = account.identity?.id else { return }
+        if let cachedTicket = await WalletTicketOfflineCache.shared.loadDetail(
+            ticketID: id,
+            accountID: accountID
+           ) {
+            selectedTicket = cachedTicket
+            statusMessage = "Showing the copy saved on this iPhone while the ticket refreshes."
+        }
+        guard account.state == .signedIn else {
+            if selectedTicket == nil {
+                errorMessage = "This ticket has not been opened on this iPhone yet. Connect to load its QR code."
+            }
+            return
+        }
         do {
             let page: WalletTicketDetailPage = try await account.requestPrivate(
                 path: "/api/v1/ticket-passes/\(id)",
@@ -512,10 +761,21 @@ struct TicketPassesView: View {
                 as: WalletTicketDetailPage.self
             )
             selectedTicket = page.ticket
+            await WalletTicketOfflineCache.shared.storeDetail(page.ticket, accountID: accountID)
             errorMessage = nil
+            statusMessage = nil
         } catch {
-            selectedTicket = nil
-            errorMessage = error.localizedDescription
+            if let cachedTicket = await WalletTicketOfflineCache.shared.loadDetail(
+                ticketID: id,
+                accountID: accountID
+               ) {
+                selectedTicket = cachedTicket
+                statusMessage = "Offline copy shown. Check the cinema’s original ticket for the latest status."
+                errorMessage = nil
+            } else {
+                selectedTicket = nil
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -563,11 +823,14 @@ struct TicketPassesView: View {
                 statusMessage = "Ticket updated. Select Update in Apple Wallet to replace the pass."
             } else {
                 await loadTicket(saved.ticket.id)
-                form = emptyForm
-                qrMessage = ""
                 statusMessage = "Ticket saved to your Kartiseret account."
             }
             editingTicketID = nil
+            form = emptyForm
+            qrMessage = ""
+            hasInteractedWithScreening = false
+            hasConfirmedShowDate = false
+            hasConfirmedShowTime = false
             await loadTicketListOnly()
         } catch {
             errorMessage = error.localizedDescription
@@ -582,6 +845,9 @@ struct TicketPassesView: View {
                 as: WalletTicketList.self
             )
             tickets = page.tickets
+            if let accountID = account.identity?.id {
+                await WalletTicketOfflineCache.shared.storeTickets(page.tickets, accountID: accountID)
+            }
             await TicketReminderManager.reconcile(tickets: page.tickets)
         } catch {
             errorMessage = error.localizedDescription
@@ -596,6 +862,9 @@ struct TicketPassesView: View {
                 method: "DELETE"
             )
             await TicketReminderManager.cancel(ticketID: ticket.id)
+            if let accountID = account.identity?.id {
+                await WalletTicketOfflineCache.shared.remove(ticketID: ticket.id, accountID: accountID)
+            }
             selectedTicket = nil
             editingTicketID = nil
             statusMessage = "Ticket deleted."
@@ -616,6 +885,9 @@ struct TicketPassesView: View {
             screeningTime: ticket.screeningTime
         )
         qrMessage = ticket.qrMessage
+        hasInteractedWithScreening = true
+        hasConfirmedShowDate = true
+        hasConfirmedShowTime = true
         statusMessage = nil
         errorMessage = nil
     }
@@ -626,6 +898,9 @@ struct TicketPassesView: View {
         form = emptyForm
         statusMessage = nil
         errorMessage = nil
+        hasInteractedWithScreening = false
+        hasConfirmedShowDate = false
+        hasConfirmedShowTime = false
     }
 
     private func changeReminder(_ enabled: Bool, for ticket: WalletTicketDetail) async {
@@ -751,9 +1026,16 @@ struct TicketPassesView: View {
                 request.symbologies = [.qr]
                 do {
                     try VNImageRequestHandler(cgImage: image).perform([request])
-                    let codes = (request.results ?? []).compactMap(\.payloadStringValue)
-                    guard codes.count == 1, let code = codes.first, !code.isEmpty else {
-                        continuation.resume(throwing: codes.isEmpty ? TicketPassError.qrNotFound : TicketPassError.multipleQRCodes)
+                    let observations = request.results ?? []
+                    guard observations.count == 1, let observation = observations.first else {
+                        continuation.resume(throwing: observations.isEmpty ? TicketPassError.qrNotFound : TicketPassError.multipleQRCodes)
+                        return
+                    }
+                    guard let code = observation.payloadStringValue,
+                          let payloadData = observation.payloadData,
+                          Data(code.utf8) == payloadData,
+                          !code.isEmpty else {
+                        continuation.resume(throwing: TicketPassError.qrPayloadUnsupported)
                         return
                     }
                     guard code.utf8.count <= 2048 else {
@@ -769,7 +1051,10 @@ struct TicketPassesView: View {
     }
 
     private func apply(_ suggestion: WalletTicketScreening) {
+        guard !hasInteractedWithScreening else { return }
         form = suggestion
+        hasConfirmedShowDate = true
+        hasConfirmedShowTime = true
     }
 
     private func formatDate(_ date: Date) -> String {
@@ -843,6 +1128,7 @@ struct TicketPassesView: View {
     private enum TicketPassError: LocalizedError {
         case imageUnavailable
         case imageTooLarge
+        case qrPayloadUnsupported
         case qrPayloadTooLarge
         case qrNotFound
         case multipleQRCodes
@@ -854,6 +1140,7 @@ struct TicketPassesView: View {
             switch self {
             case .imageUnavailable: "This image could not be opened."
             case .imageTooLarge: "Choose an image smaller than 12 MB."
+            case .qrPayloadUnsupported: "This QR code uses a text encoding Kartiseret cannot preserve on a Wallet pass. Use the original ticket instead."
             case .qrPayloadTooLarge: "This QR code contains more data than Kartiseret can safely put on a Wallet pass. Use the original ticket instead."
             case .qrNotFound: "No readable QR code was found."
             case .multipleQRCodes: "More than one QR code was found. Choose a screenshot with one ticket QR."

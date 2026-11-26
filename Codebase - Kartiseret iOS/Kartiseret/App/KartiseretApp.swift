@@ -43,6 +43,10 @@ final class KartiseretAppDelegate: NSObject, UIApplicationDelegate, UNUserNotifi
         let request = response.notification.request
         if request.identifier.hasPrefix(TicketReminderManager.identifierPrefix),
            let ticketID = request.content.userInfo["ticketId"] as? String {
+            UserDefaults.standard.set(
+                ticketID,
+                forKey: "kartiseret.ticket.pendingReminderTicketID"
+            )
             Task { @MainActor in
                 NotificationCenter.default.post(name: .kartiseretTicketReminderTapped, object: ticketID)
             }

@@ -12,14 +12,26 @@ struct YouView: View {
         List {
             if account.state == .restoring {
                 Section { ProgressView("Restoring your account…") }
-            } else if account.state == .signedIn, let identity = account.identity {
+            } else if let identity = account.identity, account.state != .guest {
                 Section("Account") {
                     Label(identity.email ?? "Kartiseret account", systemImage: "person.crop.circle.fill")
                     settingsLink("My Tickets", systemImage: "ticket") {
                         TicketPassesView()
                     }
-                    settingsLink("Preferences", systemImage: "slider.horizontal.3") {
-                        PreferencesView()
+                    if account.state == .signedIn {
+                        settingsLink("Preferences", systemImage: "slider.horizontal.3") {
+                            PreferencesView()
+                        }
+                    } else {
+                        Text("Offline access to tickets saved on this iPhone")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if case .unavailable(let message) = account.state {
+                    Section {
+                        Text(message).foregroundStyle(.orange)
+                        Button("Try again") { Task { await account.restore(fallbackLocation: app.selectedCity) } }
                     }
                 }
                 Section("Support") {
@@ -29,8 +41,12 @@ struct YouView: View {
                 Section {
                     Button("Sign Out", role: .destructive) {
                         Task {
+                            let accountID = account.identity?.id
                             await account.signOut()
                             if account.state == .guest {
+                                if let accountID {
+                                    await WalletTicketOfflineCache.shared.clear(accountID: accountID)
+                                }
                                 GIDSignIn.sharedInstance.signOut()
                             }
                         }
@@ -56,6 +72,9 @@ struct YouView: View {
                     Text("Your Kartiseret")
                 } footer: {
                     Text("Browsing showtimes and opening ticket links are available without an account.")
+                }
+                if let error = account.signOutError {
+                    Section { Text(error).font(.footnote).foregroundStyle(.secondary) }
                 }
                 if case .unavailable(let message) = account.state {
                     Section {
@@ -541,7 +560,11 @@ struct ConfirmAccountDeletionView: View {
         error = nil
         defer { pending = false }
         do {
+            let accountID = account.identity?.id
             needsManualAppleRevocation = try await account.confirmAccountDeletion(confirmationToken: token)
+            if let accountID {
+                await WalletTicketOfflineCache.shared.clear(accountID: accountID)
+            }
             GIDSignIn.sharedInstance.signOut()
             deleted = true
         } catch let failure as APIClientError where failure.code == "APPLE_REVOCATION_FAILED" {

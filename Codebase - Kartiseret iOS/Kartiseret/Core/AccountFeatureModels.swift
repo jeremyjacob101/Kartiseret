@@ -80,6 +80,10 @@ struct WalletTicketDetail: Codable, Identifiable, Equatable, Sendable {
     let qrMessage: String
 }
 
+struct WalletTicketDetailsPage: Decodable, Sendable {
+    let tickets: [WalletTicketDetail]
+}
+
 struct WalletTicketScreening: Codable, Equatable, Sendable {
     var tmdbId: String?
     var title: String

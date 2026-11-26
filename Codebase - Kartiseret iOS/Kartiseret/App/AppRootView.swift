@@ -99,10 +99,8 @@ struct AppRootView: View {
             handleIncomingURL(url)
         }
         .onReceive(NotificationCenter.default.publisher(for: .kartiseretTicketReminderTapped)) { notification in
-            guard let ticketID = notification.object as? String else { return }
-            selectedTab = .you
-            accountPath = NavigationPath()
-            accountPath.append(TicketPassRoute(ticketID: ticketID))
+            guard notification.object as? String != nil else { return }
+            openPendingTicketReminderIfReady()
         }
         .task {
             if !store.fixtureMode {
@@ -120,10 +118,14 @@ struct AppRootView: View {
             if let pendingPushURL = PushNotificationRegistration.pendingURL {
                 handleIncomingURL(pendingPushURL)
             }
+            openPendingTicketReminderIfReady()
         }
         .onChange(of: accountStore.identity) { _, identity in
             guard identity != nil else { return }
-            store.selectCity(accountStore.preferences.location)
+            if accountStore.state == .signedIn {
+                store.selectCity(accountStore.preferences.location)
+            }
+            openPendingTicketReminderIfReady()
         }
         .onChange(of: accountStore.preferences.location) { _, location in
             guard accountStore.state == .signedIn else { return }
@@ -137,10 +139,17 @@ struct AppRootView: View {
             }
         }
         .onChange(of: accountStore.state) { _, state in
-            if state == .signedIn {
+            switch state {
+            case .signedIn:
                 Task { await TicketReminderManager.refreshFromServer(account: accountStore) }
-            } else {
+            case .guest:
                 Task { await TicketReminderManager.cancelAll() }
+            case .unavailable:
+                if accountStore.identity == nil {
+                    Task { await TicketReminderManager.cancelAll() }
+                }
+            case .restoring:
+                break
             }
         }
         .alert("Couldn’t open this link", isPresented: Binding(
@@ -159,6 +168,22 @@ struct AppRootView: View {
         } message: {
             Text(linkError ?? "")
         }
+    }
+
+    private func openPendingTicketReminderIfReady() {
+        let accountCanReadTickets: Bool
+        switch accountStore.state {
+        case .signedIn, .unavailable:
+            accountCanReadTickets = accountStore.identity != nil
+        case .restoring, .guest:
+            accountCanReadTickets = false
+        }
+        guard isReadyForUniversalLinks,
+              accountCanReadTickets,
+              let ticketID = TicketReminderManager.takePendingTappedTicketID() else { return }
+        selectedTab = .you
+        accountPath = NavigationPath()
+        accountPath.append(TicketPassRoute(ticketID: ticketID))
     }
 
     private func handleIncomingURL(_ url: URL) {

@@ -1278,6 +1278,22 @@ export class ProtectedWorkflows {
     });
   }
 
+  walletTicketDetails(user: VerifiedIdentity): Promise<WalletTicketDetail[]> {
+    return this.asUser(user, async (tx) => {
+      const rows = await tx
+        .select()
+        .from(userWalletTickets)
+        .where(eq(userWalletTickets.userId, user.id))
+        .orderBy(
+          asc(userWalletTickets.screeningDate),
+          asc(userWalletTickets.screeningTime),
+          asc(userWalletTickets.createdAt),
+        )
+        .limit(100);
+      return rows.map(mapWalletTicketDetail);
+    });
+  }
+
   walletTicket(
     user: VerifiedIdentity,
     ticketId: string,
@@ -1414,7 +1430,7 @@ export class ProtectedWorkflows {
           and(
             eq(finalShowtimes.tmdbId, Number(input.tmdbId)),
             eq(finalShowtimes.dateOfShowing, input.screeningDate),
-            eq(finalShowtimes.showtime, `${input.screeningTime}:00`),
+            sql`to_char(${finalShowtimes.showtime}, 'HH24:MI') = ${input.screeningTime}`,
             eq(finalShowtimes.screeningCity, input.city),
             eq(finalShowtimes.cinema, input.cinema),
           ),
@@ -1422,9 +1438,6 @@ export class ProtectedWorkflows {
         .orderBy(desc(finalShowtimes.createdAt))
         .limit(1);
       const showtime = candidates[0];
-      await tx
-        .delete(userWalletRecentShowtimeClicks)
-        .where(eq(userWalletRecentShowtimeClicks.userId, user.id));
       if (
         !showtime ||
         showtime.tmdbId === null ||
@@ -1434,6 +1447,7 @@ export class ProtectedWorkflows {
         !showtime.cinema
       )
         return null;
+      const clickedAt = this.clock();
       const [row] = await tx
         .insert(userWalletRecentShowtimeClicks)
         .values({
@@ -1444,7 +1458,19 @@ export class ProtectedWorkflows {
           cinema: showtime.cinema,
           screeningDate: showtime.dateOfShowing,
           screeningTime: showtime.showtime.slice(0, 5),
-          clickedAt: this.clock(),
+          clickedAt,
+        })
+        .onConflictDoUpdate({
+          target: userWalletRecentShowtimeClicks.userId,
+          set: {
+            tmdbId: BigInt(showtime.tmdbId),
+            title: showtime.englishTitle?.trim() || input.title,
+            city: showtime.screeningCity,
+            cinema: showtime.cinema,
+            screeningDate: showtime.dateOfShowing,
+            screeningTime: showtime.showtime.slice(0, 5),
+            clickedAt,
+          },
         })
         .returning();
       if (!row) return null;
@@ -1478,9 +1504,7 @@ export class ProtectedWorkflows {
         return null;
       }
       const screening = `${row.screeningDate}T${row.screeningTime.slice(0, 5)}`;
-      const localNow = new Date(`${jerusalemLocalMinute(now)}:00Z`);
-      localNow.setUTCHours(localNow.getUTCHours() - 4);
-      if (screening < localNow.toISOString().slice(0, 16)) {
+      if (screening < jerusalemLocalMinute(now)) {
         await tx
           .delete(userWalletRecentShowtimeClicks)
           .where(eq(userWalletRecentShowtimeClicks.userId, user.id));
@@ -1519,6 +1543,7 @@ export type ProtectedWorkflowService = Pick<
   | "addLetterboxdSource"
   | "removeLetterboxdSource"
   | "walletTickets"
+  | "walletTicketDetails"
   | "walletTicket"
   | "createWalletTicket"
   | "updateWalletTicket"

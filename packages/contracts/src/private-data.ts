@@ -443,6 +443,9 @@ export const walletTicketListResponseSchema = envelope(
 export const walletTicketDetailResponseSchema = envelope(
   z.object({ ticket: walletTicketDetailSchema }),
 );
+export const walletTicketDetailsResponseSchema = envelope(
+  z.object({ tickets: z.array(walletTicketDetailSchema).max(100) }),
+);
 export const walletTicketChangeResponseSchema = envelope(
   z.object({ ticket: walletTicketSchema }),
 );

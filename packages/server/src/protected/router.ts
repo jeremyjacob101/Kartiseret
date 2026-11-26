@@ -467,6 +467,17 @@ export function createProtectedRouter(
       error: null,
     });
   });
+  router.get("/ticket-passes/offline-cache", async (request, response) => {
+    parse(empty, request.query);
+    response.json({
+      data: {
+        tickets: await workflows.walletTicketDetails(
+          identity(response.locals.identity),
+        ),
+      },
+      error: null,
+    });
+  });
   router.get("/ticket-passes/recent-screening", async (request, response) => {
     parse(empty, request.query);
     response.json({

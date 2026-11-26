@@ -1,5 +1,6 @@
 import { createWalletTicketMutationOptions, deleteWalletTicketMutationOptions, updateWalletTicketMutationOptions, walletRecentScreeningQueryOptions, walletTicketDetailQueryOptions, walletTicketsQueryOptions } from "../data/walletTickets";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { decodeSingleQrCode } from "../lib/walletQrScanner";
 import { privateApiBlob } from "../data/privateApi";
 import { ApiRequestError } from "../data/apiClient";
 import { useRef, useState } from "react";
@@ -14,8 +15,6 @@ type ScreeningForm = {
   screeningDate: string;
   screeningTime: string;
 };
-
-const maxQrPayloadBytes = 2048;
 
 const emptyScreening: ScreeningForm = {
   tmdbId: "",
@@ -57,19 +56,7 @@ async function readQrFromImage(file: File): Promise<string> {
     context.drawImage(image, 0, 0, width, height);
     const pixels = context.getImageData(0, 0, width, height);
     const { default: jsQR } = await import("jsqr");
-    const result = jsQR(pixels.data, width, height, {
-      inversionAttempts: "attemptBoth",
-    });
-    if (!result?.data)
-      throw new Error(
-        "No readable QR code was found. Retry with a clearer screenshot or use the original ticket.",
-      );
-    if (new TextEncoder().encode(result.data).byteLength > maxQrPayloadBytes) {
-      throw new Error(
-        "This QR code contains more data than Kartiseret can safely put on a Wallet pass. Use the original ticket instead.",
-      );
-    }
-    return result.data;
+    return decodeSingleQrCode(pixels.data, width, height, jsQR);
   } finally {
     URL.revokeObjectURL(imageUrl);
   }
@@ -521,7 +508,9 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
                   aria-pressed={activeTicketId === ticket.id}
                   onClick={() => {
                     setActiveTicketId(ticket.id);
-                    setEditingTicketId(null);
+                    if (editingTicketId) {
+                      cancelEditing();
+                    }
                     setPageError(null);
                     setFeedback(null);
                   }}
@@ -555,7 +544,7 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
           <article className="wallet-ticket-detail">
             <div className="wallet-ticket-detail-qr">
               <img
-                src={`/api/v1/ticket-passes/${selectedTicket.id}/qr.svg?v=${encodeURIComponent(selectedTicket.updatedAt)}`}
+                src={`/api/v1/ticket-passes/${selectedTicket.id}/qr.svg`}
                 alt={`QR code for ${selectedTicket.title}`}
                 width={240}
                 height={240}

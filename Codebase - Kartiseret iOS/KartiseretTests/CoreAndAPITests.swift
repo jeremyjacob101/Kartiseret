@@ -467,6 +467,146 @@ final class CoreAndAPITests: XCTestCase {
     }
 
     @MainActor
+    func testOfflineRestoreOnlyUsesIdentityForTheMatchingStoredSession() async throws {
+        let identityKey = "kartiseret.account.offlineIdentity"
+        let previousIdentity = UserDefaults.standard.data(forKey: identityKey)
+        let colorKey = "kartiseret.account.siteColor"
+        let previousColor = UserDefaults.standard.string(forKey: colorKey)
+        let deviceTokenKey = PushNotificationRegistration.deviceTokenKey
+        let previousDeviceToken = UserDefaults.standard.string(forKey: deviceTokenKey)
+        UserDefaults.standard.removeObject(forKey: deviceTokenKey)
+        defer {
+            if let previousIdentity { UserDefaults.standard.set(previousIdentity, forKey: identityKey) }
+            else { UserDefaults.standard.removeObject(forKey: identityKey) }
+            if let previousColor { UserDefaults.standard.set(previousColor, forKey: colorKey) }
+            else { UserDefaults.standard.removeObject(forKey: colorKey) }
+            if let previousDeviceToken { UserDefaults.standard.set(previousDeviceToken, forKey: deviceTokenKey) }
+            else { UserDefaults.standard.removeObject(forKey: deviceTokenKey) }
+        }
+
+        let preferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"notificationDelivery":"email","showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
+        let credentials = MemorySessionCredentialStore()
+        let onlineTransport = StubTransport(responses: [
+            httpResponse(#"{"token":null,"user":{"id":"user-1","email":"person@example.com"}}"#, headers: ["set-auth-token": "opaque-session-token"]),
+            httpResponse(#"{"data":{"user":{"id":"user-1","email":"person@example.com"},"isAdmin":false},"error":null}"#),
+            httpResponse(preferences),
+            httpResponse(#"{"data":{"preferences":[],"nextCursor":null},"error":null}"#),
+        ])
+        let onlineStore = AccountStore(
+            api: NativeAccountAPI(baseURL: URL(string: "https://seret.site")!, transport: onlineTransport),
+            credentials: credentials
+        )
+        try await onlineStore.signIn(
+            email: "person@example.com",
+            password: "passphrase",
+            fallbackLocation: "Jerusalem"
+        )
+
+        let offlineStore = AccountStore(
+            api: NativeAccountAPI(
+                baseURL: URL(string: "https://seret.site")!,
+                transport: StubTransport(responses: [])
+            ),
+            credentials: credentials
+        )
+        await offlineStore.restore(fallbackLocation: "Jerusalem")
+        XCTAssertEqual(offlineStore.identity, AccountIdentity(id: "user-1", email: "person@example.com"))
+        if case .unavailable = offlineStore.state {} else { XCTFail("Expected offline account restoration") }
+
+        let differentCredentials = MemorySessionCredentialStore()
+        try differentCredentials.save("a-different-session-token")
+        let differentSessionStore = AccountStore(
+            api: NativeAccountAPI(
+                baseURL: URL(string: "https://seret.site")!,
+                transport: StubTransport(responses: [])
+            ),
+            credentials: differentCredentials
+        )
+        await differentSessionStore.restore(fallbackLocation: "Jerusalem")
+        XCTAssertNil(differentSessionStore.identity)
+    }
+
+    func testOfflineTicketCacheKeepsAndRemovesAccountScopedQRData() async {
+        let cache = WalletTicketOfflineCache.shared
+        let accountID = "cache-\(UUID().uuidString)"
+        let ticket = WalletTicket(
+            id: UUID().uuidString,
+            tmdbId: "123",
+            title: "Cache Test Movie",
+            city: "Jerusalem",
+            cinema: "Test Cinema",
+            screeningDate: "2026-12-01",
+            screeningTime: "19:30",
+            reminderEnabled: false,
+            createdAt: "2026-11-26T10:00:00.000Z",
+            updatedAt: "2026-11-26T10:00:00.000Z"
+        )
+        let detail = WalletTicketDetail(
+            id: ticket.id,
+            tmdbId: ticket.tmdbId,
+            title: ticket.title,
+            city: ticket.city,
+            cinema: ticket.cinema,
+            screeningDate: ticket.screeningDate,
+            screeningTime: ticket.screeningTime,
+            reminderEnabled: ticket.reminderEnabled,
+            createdAt: ticket.createdAt,
+            updatedAt: ticket.updatedAt,
+            qrMessage: "private-offline-qr"
+        )
+
+        await cache.storeTickets([ticket], accountID: accountID)
+        await cache.storeDetails([detail], accountID: accountID)
+        let cachedTickets = await cache.loadTickets(accountID: accountID)
+        let cachedDetail = await cache.loadDetail(ticketID: ticket.id, accountID: accountID)
+        XCTAssertEqual(cachedTickets, [ticket])
+        XCTAssertEqual(cachedDetail, detail)
+        let cacheURL = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        )[0]
+            .appendingPathComponent("KartiseretWalletTickets", isDirectory: true)
+            .appendingPathComponent("\(accountID).json", isDirectory: false)
+        XCTAssertTrue(
+            try cacheURL.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup ?? false
+        )
+
+        await cache.remove(ticketID: ticket.id, accountID: accountID)
+        let removedTickets = await cache.loadTickets(accountID: accountID)
+        let removedDetail = await cache.loadDetail(ticketID: ticket.id, accountID: accountID)
+        XCTAssertEqual(removedTickets, [])
+        XCTAssertNil(removedDetail)
+
+        await cache.clear(accountID: accountID)
+        let clearedTickets = await cache.loadTickets(accountID: accountID)
+        XCTAssertNil(clearedTickets)
+    }
+
+    @MainActor
+    func testPendingTicketReminderIsConsumedOnlyOnce() {
+        let key = "kartiseret.ticket.pendingReminderTicketID"
+        let previousValue = UserDefaults.standard.string(forKey: key)
+        defer {
+            if let previousValue {
+                UserDefaults.standard.set(previousValue, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+
+        let ticketID = UUID().uuidString
+        UserDefaults.standard.removeObject(forKey: key)
+        XCTAssertNil(TicketReminderManager.takePendingTappedTicketID())
+
+        TicketReminderManager.rememberTappedTicket(ticketID)
+        XCTAssertEqual(TicketReminderManager.takePendingTappedTicketID(), ticketID)
+        XCTAssertNil(TicketReminderManager.takePendingTappedTicketID())
+
+        TicketReminderManager.rememberTappedTicket("not-a-ticket-id")
+        XCTAssertNil(TicketReminderManager.takePendingTappedTicketID())
+    }
+
+    @MainActor
     func testExpiredAccountSessionClearsPrivatePreferencesAndStoredCredential() async throws {
         let previousColor = UserDefaults.standard.string(forKey: "kartiseret.account.siteColor")
         defer {
