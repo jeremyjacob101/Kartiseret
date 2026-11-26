@@ -42,7 +42,9 @@ vi.mock("../../server/seo/renderer.js", () => ({
   renderBuiltPublicApplication: mocks.renderBuiltPublicApplication,
 }));
 
-const { default: seoHandler } = await import("../../server/seo/handler.js");
+const { default: seoHandler, publicCatalogCachePolicy } = await import(
+  "../../server/seo/handler.js"
+);
 
 const cinema = CINEMA_IDENTITIES.find(
   (identity) => identity.displayName === "Cinema City Jerusalem",
@@ -222,7 +224,12 @@ describe("SEO request handler", () => {
     expect(first.headers.get("cache-control")).toBe("private, no-store");
     expect(second.headers.get("cache-control")).toBe("private, no-store");
     expect(expired.headers.get("cache-control")).toBe("private, no-store");
-    expect(anonymous.headers.get("cache-control")).toContain("s-maxage=60");
+    const anonymousCacheControl = anonymous.headers.get("cache-control") ?? "";
+    expect(anonymousCacheControl).toMatch(/no-store|s-maxage=/);
+    expect(anonymous.headers.get("vercel-cache-tag")).toBe(
+      anonymousCacheControl === "no-store" ? null : "public-catalog",
+    );
+    expect(first.headers.has("vercel-cache-tag")).toBe(false);
     expect(first.body).toContain('data-initial-site-color="#69b0e2"');
     expect(first.body).not.toContain("#63ae3d");
     expect(second.body).toContain('data-initial-site-color="#63ae3d"');
@@ -232,6 +239,44 @@ describe("SEO request handler", () => {
     expect(expired.body).not.toContain('id="kartiseret-display"');
     expect(mocks.readProductionPagePreferences).toHaveBeenCalledTimes(3);
     expect(readMovieTreatments).toHaveBeenCalledTimes(2);
+  });
+
+  it("limits the public cache lifetime so cached cinema dates expire before rollover", () => {
+    const nearRollover = publicCatalogCachePolicy(
+      new Date("2026-11-26T22:56:00.000Z"),
+    );
+    expect(nearRollover).toEqual({
+      cacheControl:
+        "public, max-age=0, s-maxage=300, stale-while-revalidate=239",
+      cacheTag: "public-catalog",
+    });
+
+    expect(
+      publicCatalogCachePolicy(new Date("2026-03-26T22:56:00.000Z")),
+    ).toEqual({
+      cacheControl:
+        "public, max-age=0, s-maxage=300, stale-while-revalidate=239",
+      cacheTag: "public-catalog",
+    });
+
+    expect(
+      publicCatalogCachePolicy(new Date("2026-11-26T23:04:59.000Z")),
+    ).toEqual({ cacheControl: "no-store" });
+
+    expect(
+      publicCatalogCachePolicy(
+        new Date("2026-11-26T23:04:50.000Z"),
+        new Date("2026-11-26T23:05:10.000Z"),
+      ),
+    ).toEqual({ cacheControl: "no-store" });
+
+    expect(
+      publicCatalogCachePolicy(new Date("2026-11-26T23:05:00.000Z")),
+    ).toEqual({
+      cacheControl:
+        "public, max-age=0, s-maxage=300, stale-while-revalidate=300",
+      cacheTag: "public-catalog",
+    });
   });
 
   it("allows production crawlers and blocks indexing on Vercel previews", async () => {
@@ -677,7 +722,11 @@ describe("SEO request handler", () => {
     expect(response.headers.get("content-type")).toBe(
       "application/xml; charset=utf-8",
     );
-    expect(response.headers.get("cache-control")).toContain("s-maxage=300");
+    const sitemapCacheControl = response.headers.get("cache-control") ?? "";
+    expect(sitemapCacheControl).toMatch(/no-store|s-maxage=/);
+    expect(response.headers.get("vercel-cache-tag")).toBe(
+      sitemapCacheControl === "no-store" ? null : "public-catalog",
+    );
     expect(response.body).toContain("https://seret.site/Ab1");
     expect(response.body).toContain("https://seret.site/showtimes/jerusalem");
     expect(response.body).not.toContain(
