@@ -1,6 +1,6 @@
 import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH } from "@kartiseret/contracts/private-data";
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
-import { Apple, ArrowUpRight, Clapperboard, LogOut, User, X } from "lucide-react";
+import { Apple, ArrowUpRight, Clapperboard, User, X } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { createPortal } from "react-dom";
 import { z } from "zod";
@@ -112,7 +112,6 @@ export function UserMenu() {
     null,
   );
   const [socialProviders, setSocialProviders] = useState<SocialProvider[]>([]);
-  const [logoutPending, setLogoutPending] = useState(false);
   const [authMessage, setAuthMessage] = useState<string | null>(
     accountDeleted
       ? "Your Kartiseret account has been deleted."
@@ -127,7 +126,6 @@ export function UserMenu() {
         ? "This sign-in link could not be completed. Check the link or sign in with your original method."
         : null,
   );
-  const menuRef = useRef<HTMLDivElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -180,27 +178,12 @@ export function UserMenu() {
         previousFocus?.focus();
       };
     }
-
-    function handleOutsidePointerDown(event: PointerEvent) {
-      const target = event.target;
-      if (target instanceof Node && !menuRef.current?.contains(target)) {
-        setIsOpen(false);
-      }
-    }
-    function handleMenuEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setIsOpen(false);
-    }
-    window.addEventListener("pointerdown", handleOutsidePointerDown);
-    window.addEventListener("keydown", handleMenuEscape);
-    return () => {
-      window.removeEventListener("pointerdown", handleOutsidePointerDown);
-      window.removeEventListener("keydown", handleMenuEscape);
-    };
   }, [isOpen, user]);
 
   useEffect(() => {
     const handleAuthMenuRequest = () => {
-      if (!user) setAuthMode("login");
+      if (user) return;
+      setAuthMode("login");
       setAuthMessage(null);
       setAuthError(null);
       setIsOpen(true);
@@ -326,20 +309,6 @@ export function UserMenu() {
     } finally {
       setPendingProvider(null);
     }
-  }
-
-  async function handleSignOut() {
-    setAuthMessage(null);
-    setAuthError(null);
-    setLogoutPending(true);
-    const { error } = await authClient.signOut();
-    setLogoutPending(false);
-    if (error) {
-      setAuthError(getAuthErrorMessage(error.code, error.message));
-      return;
-    }
-    setAuthMessage("Signed out.");
-    setIsOpen(false);
   }
 
   const privacyNote = (
@@ -625,14 +594,19 @@ export function UserMenu() {
       : null;
 
   return (
-    <div className="user-menu" ref={menuRef}>
+    <div className="user-menu">
       <button
         type="button"
         className={`user-menu-trigger${isOpen ? " is-open" : ""}`}
-        aria-haspopup={user ? "menu" : "dialog"}
-        aria-expanded={isOpen}
-        aria-label={user ? `Signed in as ${user.email}` : "Sign up or log in"}
+        aria-haspopup={user ? undefined : "dialog"}
+        aria-expanded={user ? undefined : isOpen}
+        aria-label={user ? "Open User Preferences" : "Sign up or log in"}
         onClick={() => {
+          if (user) {
+            setIsOpen(false);
+            navigate("/user?tab=account");
+            return;
+          }
           setAuthError(null);
           setAuthMessage(null);
           setIsOpen((open) => !open);
@@ -640,55 +614,6 @@ export function UserMenu() {
       >
         <User size={20} strokeWidth={2.75} className="app-accent-icon" />
       </button>
-
-      {isOpen && user ? (
-        <div
-          className="user-menu-panel"
-          role="menu"
-          aria-label="User account menu"
-        >
-          <div className="user-menu-header">
-            <p className="user-menu-title">Account</p>
-            <p className="user-menu-subtitle">{user.email}</p>
-          </div>
-          <div className="user-menu-authenticated">
-            <button
-              type="button"
-              className="user-menu-nav-button"
-              onClick={() => {
-                navigate(location.pathname === "/user" ? "/" : "/user");
-                setIsOpen(false);
-              }}
-            >
-              {location.pathname === "/user"
-                ? "Back to Home"
-                : "Open User Preferences"}
-            </button>
-            <button
-              type="button"
-              className="user-menu-signout"
-              onClick={() => void handleSignOut()}
-              disabled={logoutPending}
-            >
-              <LogOut size={18} className="user-menu-signout-icon" />
-              {logoutPending ? "Signing out…" : "Sign out"}
-            </button>
-          </div>
-          {authError ? (
-            <p
-              className="user-menu-feedback user-menu-feedback--error"
-              role="alert"
-            >
-              {authError}
-            </p>
-          ) : null}
-          {authMessage ? (
-            <p className="user-menu-feedback" role="status">
-              {authMessage}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
 
       {authDialog}
     </div>

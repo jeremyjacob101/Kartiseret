@@ -16,7 +16,7 @@ async function login(page: Page, email = "browser@example.test") {
   await page.getByRole("button", { name: "Log in", exact: true }).click();
   expect((await signedIn).status()).toBe(200);
   await expect(
-    page.getByRole("button", { name: `Signed in as ${email}` }),
+    page.getByRole("button", { name: "Open User Preferences" }),
   ).toBeVisible();
   await page
     .getByRole("button", { name: "Open User Preferences", exact: true })
@@ -111,10 +111,7 @@ test("account settings, failed save rollback, alerts, refresh and logout use pro
       name: "Cancel ticket alert for Dev Coming Soon",
     }),
   ).toHaveCount(0);
-  await page
-    .getByRole("banner")
-    .getByRole("button", { name: "Signed in as browser@example.test" })
-    .click();
+  await page.getByRole("button", { name: "Account", exact: true }).click();
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Sign up or log in", exact: true }),
@@ -249,7 +246,7 @@ test("real signup verification, current-password change and signed-out one-time 
     await page.getByRole("button", { name: "Log in", exact: true }).click();
     expect((await signedIn).status()).toBe(200);
     await expect(
-      page.getByRole("button", { name: `Signed in as ${email}` }),
+      page.getByRole("button", { name: "Open User Preferences" }),
     ).toBeVisible();
     await page.goto("/user");
     await page.reload();
@@ -273,10 +270,7 @@ test("real signup verification, current-password change and signed-out one-time 
     await expect(
       page.getByText("Password updated.", { exact: true }),
     ).toBeVisible();
-    await page
-      .getByRole("banner")
-      .getByRole("button", { name: `Signed in as ${email}` })
-      .click();
+    await page.getByRole("button", { name: "Account", exact: true }).click();
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await page
       .getByRole("button", { name: "Sign up or log in", exact: true })
@@ -335,6 +329,7 @@ test("saved showtime defaults survive reload while temporary filters reset on le
   page,
 }) => {
   await login(page);
+  await page.getByRole("button", { name: "Showtimes", exact: true }).click();
   await page.getByText("My screening filters", { exact: true }).click();
   await page.getByText("Dubbing", { exact: true }).click();
   const hebrewDefault = page.getByRole("checkbox", {

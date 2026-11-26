@@ -1,6 +1,6 @@
 import { useEffect, useState, type MouseEventHandler } from "react";
-import { Clock8, Film, Settings } from "lucide-react";
 import { Link, useLocation } from "react-router";
+import { Clock8, Film } from "lucide-react";
 import "./Navbar.css";
 import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "../MovieSearchMenu";
 import { TheaterMapDialog } from "../maps/TheaterMapDialog";
@@ -12,10 +12,8 @@ type NavbarActionsProps = {
   searchLoading: boolean;
   cinemathequeUnavailable: boolean;
   searchCollections: readonly MovieSearchCollection[];
-  settingsDisabled: boolean;
   onSearchOpen: () => void;
   onSelectResult: (result: MovieSearchResult) => void;
-  onSettingsClick: () => void;
 };
 
 export type NavbarProps = {
@@ -23,12 +21,10 @@ export type NavbarProps = {
   searchLoading?: boolean;
   cinemathequeUnavailable?: boolean;
   searchCollections: readonly MovieSearchCollection[];
-  settingsDisabled: boolean;
   onHomeClick: () => void;
   onMoviesNavClick: MouseEventHandler<HTMLAnchorElement>;
   onSearchOpen: () => void;
   onSelectResult: (result: MovieSearchResult) => void;
-  onSettingsClick: () => void;
   onSoonsNavClick: MouseEventHandler<HTMLAnchorElement>;
 };
 
@@ -37,10 +33,8 @@ function NavbarActions({
   searchLoading,
   cinemathequeUnavailable,
   searchCollections,
-  settingsDisabled,
   onSearchOpen,
   onSelectResult,
-  onSettingsClick,
 }: NavbarActionsProps) {
   return (
     <div className="navbar-actions">
@@ -59,22 +53,6 @@ function NavbarActions({
       <div>
         <UserMenu />
       </div>
-      <div>
-        <button
-          type="button"
-          className="settings-button"
-          aria-label={
-            settingsDisabled ? "Settings require an account" : "Settings"
-          }
-          title={
-            settingsDisabled ? "Sign up or log in to use settings" : undefined
-          }
-          disabled={settingsDisabled}
-          onClick={onSettingsClick}
-        >
-          <Settings size={20} strokeWidth={2.75} className="app-accent-icon" />
-        </button>
-      </div>
     </div>
   );
 }
@@ -84,12 +62,10 @@ export function Navbar({
   searchLoading = false,
   cinemathequeUnavailable = false,
   searchCollections,
-  settingsDisabled,
   onHomeClick,
   onMoviesNavClick,
   onSearchOpen,
   onSelectResult,
-  onSettingsClick,
   onSoonsNavClick,
 }: NavbarProps) {
   const { pathname: currentPath } = useLocation();
@@ -169,10 +145,8 @@ export function Navbar({
             searchLoading={searchLoading}
             cinemathequeUnavailable={cinemathequeUnavailable}
             searchCollections={searchCollections}
-            settingsDisabled={settingsDisabled}
             onSearchOpen={onSearchOpen}
             onSelectResult={onSelectResult}
-            onSettingsClick={onSettingsClick}
           />
         </div>
       </header>

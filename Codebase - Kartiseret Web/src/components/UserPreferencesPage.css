@@ -52,31 +52,6 @@
   color: var(--prefs-foreground);
 }
 
-.prefs-page-back {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  flex: none;
-  min-height: 40px;
-  border: 1px solid rgba(233, 218, 255, 0.27);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.035);
-  color: var(--prefs-foreground);
-  padding: 8px 14px;
-  font-size: 0.86rem;
-  font-weight: 700;
-  text-decoration: none;
-  transition:
-    border-color 150ms ease,
-    background-color 150ms ease;
-}
-
-.prefs-page-back:hover {
-  border-color: color-mix(in srgb, var(--main-app-color) 68%, white 12%);
-  background: color-mix(in srgb, var(--main-app-color) 11%, transparent);
-}
-
 .prefs-page-workspace {
   display: grid;
   grid-template-columns: 214px minmax(0, 1fr);
@@ -1401,24 +1376,8 @@ a.prefs-alert-title:focus-visible {
     font-size: clamp(1.8rem, 8vw, 2.25rem);
   }
 
-  .prefs-page-back {
-    min-height: 34px;
-    border: 0;
-    background: transparent;
-    padding: 0;
-    font-size: 0.82rem;
-  }
-
-  .prefs-page-back:hover {
-    background: transparent;
-  }
-
   .prefs-page-header > div {
     order: 1;
-  }
-
-  .prefs-page-back {
-    order: 0;
   }
 
   .prefs-page-card {

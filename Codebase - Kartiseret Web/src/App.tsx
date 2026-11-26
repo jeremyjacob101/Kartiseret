@@ -1078,14 +1078,6 @@ function MainApplication() {
     setSoonsPageView("grid");
   }, []);
 
-  const handleSettingsClick = useCallback(() => {
-    if (!user || loading) {
-      return;
-    }
-
-    navigate("/user");
-  }, [loading, navigate, user]);
-
   const resetCatalogPage = useCallback((mode: MovieSearchMode) => {
     if (mode === "nowPlaying") {
       setMoviesPageView("grid");
@@ -1222,12 +1214,10 @@ function MainApplication() {
           cinemathequeSearchEnabled && cinemathequeSearchQuery.isError
         }
         searchCollections={searchCollections}
-        settingsDisabled={!user || loading}
         onHomeClick={handleHomeClick}
         onMoviesNavClick={handleMoviesNavClick}
         onSearchOpen={handleSearchOpen}
         onSelectResult={handleMovieSearchSelect}
-        onSettingsClick={handleSettingsClick}
         onSoonsNavClick={handleSoonsNavClick}
       />
 
