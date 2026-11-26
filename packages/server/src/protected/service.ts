@@ -46,7 +46,10 @@ import {
   matchesTicketAlertCriteria,
   resolveTicketAlertCriteria,
 } from "@kartiseret/contracts/private-data";
-import { getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
+import {
+  addCalendarDays,
+  getJerusalemCinemaDate,
+} from "@kartiseret/contracts/showtime-links";
 import { shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
 import type {
   ApplicationDatabase,
@@ -1422,6 +1425,7 @@ export class ProtectedWorkflows {
     user: VerifiedIdentity,
     input: WalletTicketRecentClick,
   ) {
+    const clickedAt = this.clock();
     return this.asUser(user, async (tx) => {
       const candidates = await tx
         .select()
@@ -1430,7 +1434,7 @@ export class ProtectedWorkflows {
           and(
             eq(finalShowtimes.tmdbId, Number(input.tmdbId)),
             eq(finalShowtimes.dateOfShowing, input.screeningDate),
-            sql`to_char(${finalShowtimes.showtime}, 'HH24:MI') = ${input.screeningTime}`,
+            sql`left(${finalShowtimes.showtime}::text, 5) = ${input.screeningTime}`,
             eq(finalShowtimes.screeningCity, input.city),
             eq(finalShowtimes.cinema, input.cinema),
           ),
@@ -1447,7 +1451,16 @@ export class ProtectedWorkflows {
         !showtime.cinema
       )
         return null;
-      const clickedAt = this.clock();
+      const screeningTime = showtime.showtime.slice(0, 5);
+      const screeningDate =
+        screeningTime < "01:05"
+          ? addCalendarDays(showtime.dateOfShowing, 1)
+          : showtime.dateOfShowing;
+      if (
+        !screeningDate ||
+        `${screeningDate}T${screeningTime}` < jerusalemLocalMinute(this.clock())
+      )
+        return null;
       const [row] = await tx
         .insert(userWalletRecentShowtimeClicks)
         .values({
@@ -1456,19 +1469,20 @@ export class ProtectedWorkflows {
           title: showtime.englishTitle?.trim() || input.title,
           city: showtime.screeningCity,
           cinema: showtime.cinema,
-          screeningDate: showtime.dateOfShowing,
-          screeningTime: showtime.showtime.slice(0, 5),
+          screeningDate,
+          screeningTime,
           clickedAt,
         })
         .onConflictDoUpdate({
           target: userWalletRecentShowtimeClicks.userId,
+          setWhere: sql`${userWalletRecentShowtimeClicks.clickedAt} <= excluded.clicked_at`,
           set: {
             tmdbId: BigInt(showtime.tmdbId),
             title: showtime.englishTitle?.trim() || input.title,
             city: showtime.screeningCity,
             cinema: showtime.cinema,
-            screeningDate: showtime.dateOfShowing,
-            screeningTime: showtime.showtime.slice(0, 5),
+            screeningDate,
+            screeningTime,
             clickedAt,
           },
         })
@@ -1500,14 +1514,24 @@ export class ProtectedWorkflows {
       if (clickExpired) {
         await tx
           .delete(userWalletRecentShowtimeClicks)
-          .where(eq(userWalletRecentShowtimeClicks.userId, user.id));
+          .where(
+            and(
+              eq(userWalletRecentShowtimeClicks.userId, user.id),
+              eq(userWalletRecentShowtimeClicks.clickedAt, row.clickedAt),
+            ),
+          );
         return null;
       }
       const screening = `${row.screeningDate}T${row.screeningTime.slice(0, 5)}`;
       if (screening < jerusalemLocalMinute(now)) {
         await tx
           .delete(userWalletRecentShowtimeClicks)
-          .where(eq(userWalletRecentShowtimeClicks.userId, user.id));
+          .where(
+            and(
+              eq(userWalletRecentShowtimeClicks.userId, user.id),
+              eq(userWalletRecentShowtimeClicks.clickedAt, row.clickedAt),
+            ),
+          );
         return null;
       }
       return {

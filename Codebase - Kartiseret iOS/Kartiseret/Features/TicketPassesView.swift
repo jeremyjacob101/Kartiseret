@@ -254,6 +254,27 @@ enum TicketReminderManager {
         }
     }
 
+    static func reschedule(_ ticket: WalletTicket) async throws {
+        guard ticket.reminderEnabled, let fireDate = reminderDate(for: ticket), fireDate > .now else {
+            await cancel(ticketID: ticket.id)
+            return
+        }
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        guard settings.authorizationStatus == .authorized ||
+                settings.authorizationStatus == .provisional ||
+                settings.authorizationStatus == .ephemeral else {
+            await cancel(ticketID: ticket.id)
+            throw ReminderError.permissionDenied
+        }
+        do {
+            try await center.add(request(for: ticket, fireDate: fireDate))
+        } catch {
+            await cancel(ticketID: ticket.id)
+            throw error
+        }
+    }
+
     static func enable(for ticket: WalletTicketDetail) async throws {
         guard let fireDate = reminderDate(for: ticket), fireDate > .now else {
             throw ReminderError.screeningTooSoon
@@ -345,6 +366,7 @@ struct TicketPassesView: View {
     let initialTicketID: String?
 
     @State private var tickets: [WalletTicket] = []
+    @State private var detailRequestID = UUID()
     @State private var selectedTicket: WalletTicketDetail?
     @State private var editingTicketID: String?
     @State private var form = WalletTicketScreening(
@@ -435,6 +457,12 @@ struct TicketPassesView: View {
         .navigationBarTitleDisplayMode(.inline)
         .tint(Color(hexString: account.preferences.siteColor) ?? BrandStyle.accent)
         .task { await loadTickets() }
+        .refreshable { await loadTickets() }
+        .safeAreaInset(edge: .bottom) {
+            if account.state != .signedIn, let errorMessage {
+                Text(errorMessage).font(.footnote).padding()
+            }
+        }
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
             Task { await readPhotoPickerItem(item) }
@@ -741,39 +769,46 @@ struct TicketPassesView: View {
 
     private func loadTicket(_ id: String) async {
         guard let accountID = account.identity?.id else { return }
-        if let cachedTicket = await WalletTicketOfflineCache.shared.loadDetail(
-            ticketID: id,
-            accountID: accountID
-           ) {
-            selectedTicket = cachedTicket
-            statusMessage = "Showing the copy saved on this iPhone while the ticket refreshes."
+        let requestID = UUID()
+        detailRequestID = requestID
+        func isCurrent() -> Bool {
+            detailRequestID == requestID && account.identity?.id == accountID
         }
+
+        let cachedTicket = await WalletTicketOfflineCache.shared.loadDetail(ticketID: id, accountID: accountID)
+        guard isCurrent() else { return }
+        selectedTicket = cachedTicket
+        errorMessage = nil
         guard account.state == .signedIn else {
-            if selectedTicket == nil {
-                errorMessage = "This ticket has not been opened on this iPhone yet. Connect to load its QR code."
+            if cachedTicket == nil {
+                errorMessage = "Connect to load this ticket’s QR code."
             }
             return
         }
+
         do {
             let page: WalletTicketDetailPage = try await account.requestPrivate(
                 path: "/api/v1/ticket-passes/\(id)",
                 method: "GET",
                 as: WalletTicketDetailPage.self
             )
+            guard isCurrent() else { return }
             selectedTicket = page.ticket
-            await WalletTicketOfflineCache.shared.storeDetail(page.ticket, accountID: accountID)
-            errorMessage = nil
             statusMessage = nil
+            await WalletTicketOfflineCache.shared.storeDetail(page.ticket, accountID: accountID)
+        } catch let error as APIClientError where error.code == "ticket_not_found" {
+            guard isCurrent() else { return }
+            selectedTicket = nil
+            tickets.removeAll { $0.id == id }
+            if editingTicketID == id { cancelEditing() }
+            errorMessage = error.localizedDescription
+            await WalletTicketOfflineCache.shared.remove(ticketID: id, accountID: accountID)
+            await TicketReminderManager.cancel(ticketID: id)
         } catch {
-            if let cachedTicket = await WalletTicketOfflineCache.shared.loadDetail(
-                ticketID: id,
-                accountID: accountID
-               ) {
-                selectedTicket = cachedTicket
+            guard isCurrent() else { return }
+            if cachedTicket != nil {
                 statusMessage = "Offline copy shown. Check the cinema’s original ticket for the latest status."
-                errorMessage = nil
             } else {
-                selectedTicket = nil
                 errorMessage = error.localizedDescription
             }
         }
@@ -816,7 +851,14 @@ struct TicketPassesView: View {
                 body: body,
                 as: WalletTicketChangePage.self
             )
-            if let editingTicketID { await TicketReminderManager.cancel(ticketID: editingTicketID) }
+            var reminderFailure: String?
+            if isEditing {
+                do {
+                    try await TicketReminderManager.reschedule(saved.ticket)
+                } catch {
+                    reminderFailure = "Ticket saved. The reminder could not be updated: \(error.localizedDescription)"
+                }
+            }
             let savedID = editingTicketID ?? ""
             if isEditing, !savedID.isEmpty {
                 await loadTicket(savedID)
@@ -832,6 +874,7 @@ struct TicketPassesView: View {
             hasConfirmedShowDate = false
             hasConfirmedShowTime = false
             await loadTicketListOnly()
+            if let reminderFailure { errorMessage = reminderFailure }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -865,8 +908,8 @@ struct TicketPassesView: View {
             if let accountID = account.identity?.id {
                 await WalletTicketOfflineCache.shared.remove(ticketID: ticket.id, accountID: accountID)
             }
-            selectedTicket = nil
-            editingTicketID = nil
+            if selectedTicket?.id == ticket.id { selectedTicket = nil }
+            if editingTicketID == ticket.id { cancelEditing() }
             statusMessage = "Ticket deleted."
             await loadTicketListOnly()
         } catch {
@@ -974,7 +1017,6 @@ struct TicketPassesView: View {
             qrMessage = try await decodeQrMessage(from: data)
             scanMessage = "QR code read on this iPhone. The screenshot was not uploaded or saved."
         } catch {
-            qrMessage = ""
             scanMessage = "\(error.localizedDescription) Retry with a clearer screenshot or use the original ticket."
         }
     }
@@ -997,7 +1039,6 @@ struct TicketPassesView: View {
             qrMessage = try await decodeQrMessage(from: data)
             scanMessage = "QR code read on this iPhone. The screenshot was not uploaded or saved."
         } catch {
-            qrMessage = ""
             scanMessage = "\(error.localizedDescription) Retry with a clearer screenshot or use the original ticket."
         }
     }

@@ -19,7 +19,7 @@ const click = {
   screeningTime: "19:30",
 };
 
-function setup(candidates: object[]) {
+function setup(candidates: object[], savedScreening = {}) {
   const selectQuery = {
     from: vi.fn(() => selectQuery),
     where: vi.fn(() => selectQuery),
@@ -37,6 +37,7 @@ function setup(candidates: object[]) {
         cinema: "Test Cinema",
         screeningDate: "2026-12-01",
         screeningTime: "19:30:00",
+        ...savedScreening,
       },
     ]),
   };
@@ -68,6 +69,36 @@ describe("wallet showtime click persistence", () => {
     expect(result).toBeNull();
     expect(transaction.delete).not.toHaveBeenCalled();
     expect(transaction.insert).not.toHaveBeenCalled();
+  });
+
+  it("moves a post-midnight listing to the next calendar date", async () => {
+    const { workflows, insertQuery } = setup(
+      [
+        {
+          tmdbId: 123,
+          englishTitle: "Matched Movie",
+          dateOfShowing: "2026-11-26",
+          showtime: "00:30:00",
+          screeningCity: "Jerusalem",
+          cinema: "Test Cinema",
+        },
+      ],
+      { screeningDate: "2026-11-27", screeningTime: "00:30:00" },
+    );
+
+    const result = await workflows.recordWalletShowtimeClick(user, {
+      ...click,
+      screeningDate: "2026-11-26",
+      screeningTime: "00:30",
+    });
+
+    expect(result?.screeningDate).toBe("2026-11-27");
+    expect(insertQuery.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        screeningDate: "2026-11-27",
+        screeningTime: "00:30",
+      }),
+    );
   });
 
   it("atomically replaces the suggestion and matches the clicked minute", async () => {

@@ -182,7 +182,9 @@ export async function generateWalletPass(
     pass.preferredStyleSchemes = ["eventTicket"];
     // Wallet picks the precise presentation time around this relevance date.
     pass.setRelevantDate(new Date(relevantAt));
-    pass.setRelevantDates([{ relevantDate: relevantAt }]);
+    pass.setRelevantDates([
+      { startDate: relevantAt, endDate: eventStart.toISOString() },
+    ]);
     return await pass.getAsBuffer();
   } catch {
     throw new HttpError(

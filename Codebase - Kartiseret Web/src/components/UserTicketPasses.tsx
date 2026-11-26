@@ -145,7 +145,6 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
         "QR code read on this device. The screenshot was not uploaded or saved.",
       );
     } catch (error) {
-      setQrMessage(null);
       setQrError(
         error instanceof Error
           ? error.message
@@ -281,6 +280,7 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
     setPageError(null);
     try {
       await deleteMutation.mutateAsync(ticketId);
+      if (editingTicketId === ticketId) cancelEditing();
       if (activeTicketId === ticketId) setActiveTicketId(null);
       setConfirmDeleteId(null);
       setFeedback("Ticket deleted from your Kartiseret account.");
@@ -544,6 +544,7 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
           <article className="wallet-ticket-detail">
             <div className="wallet-ticket-detail-qr">
               <img
+                key={selectedTicket.updatedAt}
                 src={`/api/v1/ticket-passes/${selectedTicket.id}/qr.svg`}
                 alt={`QR code for ${selectedTicket.title}`}
                 width={240}
