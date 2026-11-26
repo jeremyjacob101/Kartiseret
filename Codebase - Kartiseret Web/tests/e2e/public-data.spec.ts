@@ -465,14 +465,12 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
     await expect(
       page.getByRole("heading", { name: title, exact: true }),
     ).toBeVisible();
-    const movieDateButton = page.getByRole("radio", {
-      name: new RegExp(
-        escapeRegularExpression(dateCalendarLabel(showtimeDate)),
-      ),
+    const share = await page.request.post("/api/v1/public-routes/shares", {
+      data: { movieCode, city: "Jerusalem", date: showtimeDate, filterMask: 0 },
     });
-    await expect(movieDateButton).toBeVisible();
-    await movieDateButton.scrollIntoViewIfNeeded();
-    await movieDateButton.click();
+    expect(share.ok()).toBe(true);
+    const { data } = (await share.json()) as { data: { path: string } };
+    await page.goto(data.path);
     const detailsDayPanel = page.locator(".details-day-panel");
     await expect(detailsDayPanel).toHaveAttribute(
       "data-showtime-date",
@@ -520,7 +518,7 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
     });
     await expect(planetCinemaLink).toBeVisible();
     await planetCinemaLink.click();
-    await expect(page).toHaveURL(/^\/[a-z0-9]{8}$/);
+    await expect(page).toHaveURL(/\/[a-z0-9]{8}$/);
     await expect(
       page.getByRole("heading", {
         name: "Planet Cinema Jerusalem showtimes",

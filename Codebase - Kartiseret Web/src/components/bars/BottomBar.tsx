@@ -1,4 +1,3 @@
-import { usePublicRoutePaths } from "../../routing/PublicRoutePathsContext";
 import { usePublicRouteLocation } from "../../routing/PublicRouteLocation";
 import { siteInformationPages } from "../../routing/siteInformation";
 import { PublicRouteLink } from "../../routing/PublicRouteLink";
