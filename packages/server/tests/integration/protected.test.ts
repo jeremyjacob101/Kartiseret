@@ -259,6 +259,7 @@ describe.sequential(
         ratingSources: [],
         siteColor: "#a66ae3",
         hideReReleases: false,
+        notificationDelivery: "email",
       });
       await workflows.patchPreferences(alice, { hideReReleases: true });
       expect((await workflows.preferences(alice)).hideReReleases).toBe(true);
@@ -284,6 +285,7 @@ describe.sequential(
         siteColor: "#123456",
         ratingSources: ["lbRating"],
         hideReReleases: true,
+        notificationDelivery: "email",
       });
       expect(
         (await workflows.preferences({ ...bob, signupLocation: "Haifa" }))

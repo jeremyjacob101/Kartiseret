@@ -1,4 +1,6 @@
 import SwiftUI
+import UIKit
+import UserNotifications
 
 enum UserPreferenceCategory: String, CaseIterable, Identifiable, Sendable {
     case showtimes
@@ -378,6 +380,7 @@ struct PreferencesView: View {
 
     private var notificationSettings: some View {
         VStack(alignment: .leading, spacing: 12) {
+            NotificationDeliverySettingsView()
             TicketAlertPreferencesView()
             TicketAlertsView()
             ComingSoonWatchesView()
@@ -471,6 +474,98 @@ struct PreferencesView: View {
         case "lbRating": "Letterboxd"
         default: "TMDB"
         }
+    }
+}
+
+private struct NotificationDeliverySettingsView: View {
+    @Environment(AccountStore.self) private var account
+    @Environment(\.openURL) private var openURL
+    @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
+    @State private var isUpdating = false
+
+    var body: some View {
+        PreferenceSurface {
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Movie alert delivery").font(.headline)
+                    Text("Choose where ticket, release-date, and Letterboxd alerts go.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Picker("Send movie alerts to", selection: deliverySelection) {
+                    Text("Email").tag(AccountPreferences.NotificationDelivery.email)
+                    Text("iPhone").tag(AccountPreferences.NotificationDelivery.iphone)
+                    Text("Both").tag(AccountPreferences.NotificationDelivery.both)
+                    Text("Neither").tag(AccountPreferences.NotificationDelivery.neither)
+                }
+                .pickerStyle(.menu)
+                .disabled(account.state != .signedIn || account.isSaving || isUpdating)
+                .accessibilityIdentifier("preferences.notificationDelivery")
+
+                if account.preferences.notificationDelivery.includesIPhone {
+                    if account.pushDeviceRegistered {
+                        Label("This iPhone is ready for alerts", systemImage: "checkmark.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    } else {
+                        Text("Allow notifications so movie alerts can appear on your Lock Screen.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button(authorizationStatus == .denied ? "Open iPhone Settings" : "Enable iPhone notifications") {
+                            Task { await enableNotifications() }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(isUpdating || account.state != .signedIn)
+                    }
+                }
+            }
+        }
+        .task { await refreshStatus() }
+        .onChange(of: account.pushDeviceRegistered) { _, _ in
+            Task { await refreshStatus() }
+        }
+    }
+
+    private var deliverySelection: Binding<AccountPreferences.NotificationDelivery> {
+        Binding(
+            get: { account.preferences.notificationDelivery },
+            set: { value in Task { await updateDelivery(value) } }
+        )
+    }
+
+    private func updateDelivery(_ value: AccountPreferences.NotificationDelivery) async {
+        isUpdating = true
+        defer { isUpdating = false }
+        await account.saveNotificationDelivery(value)
+        if value.includesIPhone {
+            if authorizationStatus == .denied {
+                return
+            }
+            _ = await PushNotificationRegistration.requestPermission()
+            await account.syncPushDeviceRegistration()
+        }
+        await refreshStatus()
+    }
+
+    private func enableNotifications() async {
+        if authorizationStatus == .denied {
+            if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                openURL(settingsURL)
+            }
+            return
+        }
+        isUpdating = true
+        defer { isUpdating = false }
+        _ = await PushNotificationRegistration.requestPermission()
+        await account.syncPushDeviceRegistration()
+        await refreshStatus()
+    }
+
+    private func refreshStatus() async {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        authorizationStatus = settings.authorizationStatus
+        await account.refreshPushDeviceStatus()
     }
 }
 

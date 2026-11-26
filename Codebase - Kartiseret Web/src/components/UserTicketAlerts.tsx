@@ -1,4 +1,5 @@
 import { ticketAlertCriteriaMutationOptions, ticketAlertMutationOptions, ticketAlertPreferencesMutationOptions, ticketAlertPreferencesQueryOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions, type UserTicketAlertSubscription } from "../data/ticketAlerts";
+import { notificationDeliveryMutationOptions, notificationDeliveryQueryOptions, pushDeviceStatusQueryOptions } from "../data/notificationDelivery";
 import { DEFAULT_TICKET_ALERT_CRITERIA, type TicketAlertCriteria, type TicketAlertCriteriaOverride } from "@kartiseret/contracts/private-data";
 import { movieCollectionQueryOptions, selectMovies, type Movie } from "../data/movieCatalog";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
@@ -155,6 +156,11 @@ export function UserTicketAlerts({ userId }: { userId: string | null }) {
   const preferencesMutation = useMutation(
     ticketAlertPreferencesMutationOptions(userId),
   );
+  const deliveryQuery = useQuery(notificationDeliveryQueryOptions(userId));
+  const deliveryMutation = useMutation(
+    notificationDeliveryMutationOptions(userId),
+  );
+  const pushDeviceQuery = useQuery(pushDeviceStatusQueryOptions(userId));
   const { data: rawNowPlaying = EMPTY_MOVIES } = useQuery({
     ...movieCollectionQueryOptions("nowPlaying"),
     select: selectMovies,
@@ -204,6 +210,50 @@ export function UserTicketAlerts({ userId }: { userId: string | null }) {
         aria-label="Movie notifications"
       >
         <div className="prefs-alerts-content">
+          <section className="prefs-notification-delivery">
+            <div>
+              <h3>Send movie alerts to</h3>
+              <p>Email, your iPhone, both, or neither.</p>
+            </div>
+            <select
+              aria-label="Send movie alerts to"
+              value={deliveryQuery.data ?? "email"}
+              disabled={deliveryMutation.isPending || deliveryQuery.isPending}
+              onChange={(event) =>
+                deliveryMutation.mutate(
+                  event.target.value as "email" | "iphone" | "both" | "neither",
+                )
+              }
+            >
+              <option value="email">Email</option>
+              <option value="iphone">iPhone</option>
+              <option value="both">Both</option>
+              <option value="neither">Neither</option>
+            </select>
+            {deliveryQuery.data &&
+            ["iphone", "both"].includes(deliveryQuery.data) &&
+            pushDeviceQuery.data !== true ? (
+              <p className="prefs-alerts-device-status" role="status">
+                Open Kartiseret on an iPhone or iPad and enable notifications
+                there to finish setup.
+              </p>
+            ) : null}
+            {deliveryMutation.error ? (
+              <p className="prefs-alerts-error" role="alert">
+                {deliveryMutation.error.message}
+              </p>
+            ) : null}
+            {deliveryQuery.isError ? (
+              <p className="prefs-alerts-error" role="alert">
+                {deliveryQuery.error.message}
+              </p>
+            ) : null}
+            {pushDeviceQuery.isError ? (
+              <p className="prefs-alerts-error" role="alert">
+                {pushDeviceQuery.error.message}
+              </p>
+            ) : null}
+          </section>
           <div className="prefs-alerts-header">
             <div className="prefs-setting-copy">
               <h3>Movie notifications</h3>

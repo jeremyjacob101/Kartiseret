@@ -604,6 +604,10 @@ def render_ticket_alert_email(
     return RenderedEmail(subject=subject, html=html_body, text=text_body)
 
 
+class NoCanonicalEmail(ValueError):
+    """The recipient service confirmed that this account cannot receive email."""
+
+
 def get_canonical_app_email(
     http_client: Any, *, base_url: str, secret: str, user_id: str
 ) -> str:
@@ -631,10 +635,10 @@ def get_canonical_app_email(
         raise ValueError("Canonical recipient response is invalid.")
     matches = [row for row in rows if isinstance(row, dict) and row.get("id") == user_id]
     if len(matches) != 1 or matches[0].get("emailVerified") is not True:
-        raise ValueError("The account has no verified canonical recipient.")
+        raise NoCanonicalEmail("The account has no verified canonical recipient.")
     email = matches[0].get("email")
     if not isinstance(email, str) or not EMAIL_PATTERN.fullmatch(email) or "\r" in email or "\n" in email:
-        raise ValueError("The account has no deliverable canonical recipient.")
+        raise NoCanonicalEmail("The account has no deliverable canonical recipient.")
     return email
 
 

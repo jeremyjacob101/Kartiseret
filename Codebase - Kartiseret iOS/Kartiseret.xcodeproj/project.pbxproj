@@ -448,6 +448,7 @@
 		6204393E3B1EF3EE54992170 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Kartiseret/Kartiseret.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
@@ -479,6 +480,7 @@
 		718FC79DEF86B64D375FA1A0 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APS_ENVIRONMENT = production;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Kartiseret/Kartiseret.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";

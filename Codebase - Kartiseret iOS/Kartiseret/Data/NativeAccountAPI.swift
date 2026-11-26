@@ -6,6 +6,15 @@ struct AccountIdentity: Codable, Equatable, Sendable {
 }
 
 struct AccountPreferences: Codable, Equatable, Sendable {
+    enum NotificationDelivery: String, Codable, CaseIterable, Sendable {
+        case email
+        case iphone
+        case both
+        case neither
+
+        var includesIPhone: Bool { self == .iphone || self == .both }
+    }
+
     struct FilterExclusions: Codable, Equatable, Sendable {
         var showType: [String] = []
         var screenFormat: [String] = []
@@ -27,6 +36,7 @@ struct AccountPreferences: Codable, Equatable, Sendable {
     var location = "Jerusalem"
     var siteColor = "#a66ae3"
     var hideReReleases = false
+    var notificationDelivery: NotificationDelivery = .email
     var showtimePreferences = Showtime()
 
     static let ratingSourceOptions = ["imdbRating", "rtAudienceRating", "rtCriticRating", "lbRating", "tmdbRating"]
@@ -40,6 +50,10 @@ struct AccountPreferences: Codable, Equatable, Sendable {
 struct AccountAPIEnvelope<Value: Decodable & Sendable>: Decodable, Sendable {
     let data: Value?
     let error: AccountAPIError?
+}
+
+struct PushDeviceStatus: Decodable, Sendable {
+    let registered: Bool
 }
 
 struct AccountAPIError: Decodable, Error, Sendable {
@@ -204,6 +218,36 @@ actor NativeAccountAPI {
 
     func signOut(token: String) async {
         _ = try? await send(path: "/api/auth/sign-out", method: "POST", body: try? jsonData([String: String]()), token: token)
+    }
+
+    func pushDeviceStatus(token: String, accountID: String, deviceToken: String) async throws -> PushDeviceStatus {
+        try await protectedRequest(
+            path: "/api/v1/push/devices/status?token=\(deviceToken)",
+            token: token,
+            accountID: accountID,
+            method: "GET",
+            body: nil
+        )
+    }
+
+    func registerPushDevice(token: String, accountID: String, deviceToken: String, environment: String) async throws -> PushDeviceStatus {
+        try await protectedRequest(
+            path: "/api/v1/push/devices/register",
+            token: token,
+            accountID: accountID,
+            method: "POST",
+            body: try jsonData(["token": deviceToken, "environment": environment])
+        )
+    }
+
+    func unregisterPushDevice(token: String, accountID: String, deviceToken: String) async throws -> PushDeviceStatus {
+        try await protectedRequest(
+            path: "/api/v1/push/devices/current",
+            token: token,
+            accountID: accountID,
+            method: "DELETE",
+            body: try jsonData(["token": deviceToken])
+        )
     }
 
     private func protectedRequest<Value: Decodable & Sendable>(path: String, token: String, accountID: String? = nil, method: String, body: Data?) async throws -> Value {

@@ -447,7 +447,7 @@ final class CoreAndAPITests: XCTestCase {
     }
 
     func testNativePrivateRequestsAttachBearerAndAccountIdentity() async throws {
-        let body = ##"{"data":{"ratingSources":["imdbRating"],"location":"Tel Aviv","siteColor":"#ed4c57","hideReReleases":true,"showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":["VIP"],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":["cinema-1"]}},"error":null}"##
+        let body = ##"{"data":{"ratingSources":["imdbRating"],"location":"Tel Aviv","siteColor":"#ed4c57","hideReReleases":true,"notificationDelivery":"both","showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":["VIP"],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":["cinema-1"]}},"error":null}"##
         let transport = StubTransport(responses: [httpResponse(body)])
         let api = NativeAccountAPI(baseURL: URL(string: "https://seret.site")!, transport: transport)
 
@@ -456,6 +456,7 @@ final class CoreAndAPITests: XCTestCase {
         XCTAssertEqual(preferences.location, "Tel Aviv")
         XCTAssertEqual(preferences.siteColor, "#ed4c57")
         XCTAssertTrue(preferences.hideReReleases)
+        XCTAssertEqual(preferences.notificationDelivery, .both)
         XCTAssertEqual(preferences.showtimePreferences.screeningFilters.unchecked.showType, ["VIP"])
         XCTAssertEqual(preferences.showtimePreferences.excludedCinemaIds, ["cinema-1"])
         let requests = await transport.capturedRequests()
@@ -472,7 +473,7 @@ final class CoreAndAPITests: XCTestCase {
             if let previousColor { UserDefaults.standard.set(previousColor, forKey: "kartiseret.account.siteColor") }
             else { UserDefaults.standard.removeObject(forKey: "kartiseret.account.siteColor") }
         }
-        let preferences = ##"{"data":{"ratingSources":["tmdbRating"],"location":"Tel Aviv","siteColor":"#ed4c57","hideReReleases":true,"showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":["cinema-1"]}},"error":null}"##
+        let preferences = ##"{"data":{"ratingSources":["tmdbRating"],"location":"Tel Aviv","siteColor":"#ed4c57","hideReReleases":true,"notificationDelivery":"email","showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":["cinema-1"]}},"error":null}"##
         let transport = StubTransport(responses: [
             httpResponse(#"{"token":null,"user":{"id":"user-1","email":"person@example.com"}}"#, headers: ["set-auth-token": "opaque-session-token"]),
             httpResponse(#"{"data":{"user":{"id":"user-1","email":"person@example.com"},"isAdmin":false},"error":null}"#),
@@ -507,13 +508,52 @@ final class CoreAndAPITests: XCTestCase {
     }
 
     @MainActor
+    func testSignOutKeepsSessionUntilPushDeviceIsRemoved() async throws {
+        let key = PushNotificationRegistration.deviceTokenKey
+        let previous = UserDefaults.standard.string(forKey: key)
+        UserDefaults.standard.removeObject(forKey: key)
+        defer { UserDefaults.standard.set(previous, forKey: key) }
+
+        let preferences = String(decoding: try JSONEncoder().encode(AccountPreferences()), as: UTF8.self)
+        let transport = StubTransport(responses: [
+            httpResponse(#"{"token":null,"user":{"id":"user-1","email":"person@example.com"}}"#, headers: ["set-auth-token": "session-token"]),
+            httpResponse(#"{"data":{"user":{"id":"user-1","email":"person@example.com"},"isAdmin":false},"error":null}"#),
+            httpResponse("{\"data\":\(preferences),\"error\":null}"),
+            httpResponse(#"{"data":{"preferences":[],"nextCursor":null},"error":null}"#),
+            httpResponse("", statusCode: 503),
+            httpResponse(#"{"data":{"registered":false},"error":null}"#),
+            httpResponse("{}"),
+        ])
+        let credentials = MemorySessionCredentialStore()
+        let store = AccountStore(
+            api: NativeAccountAPI(baseURL: URL(string: "https://seret.site")!, transport: transport),
+            credentials: credentials
+        )
+        try await store.signIn(email: "person@example.com", password: "passphrase", fallbackLocation: "Jerusalem")
+        UserDefaults.standard.set(String(repeating: "ab", count: 32), forKey: key)
+
+        await store.signOut()
+        XCTAssertEqual(store.state, .signedIn)
+        XCTAssertEqual(credentials.read(), "session-token")
+        XCTAssertNotNil(store.signOutError)
+        let failedRequests = await transport.capturedRequests()
+        XCTAssertEqual(failedRequests.last?.url.path, "/api/v1/push/devices/current")
+
+        await store.signOut()
+        XCTAssertEqual(store.state, .guest)
+        XCTAssertNil(credentials.read())
+        let completedRequests = await transport.capturedRequests()
+        XCTAssertEqual(completedRequests.last?.url.path, "/api/auth/sign-out")
+    }
+
+    @MainActor
     func testPreferenceSaveShowsServerErrorAndRollsBackOptimisticValue() async throws {
         let previousColor = UserDefaults.standard.string(forKey: "kartiseret.account.siteColor")
         defer {
             if let previousColor { UserDefaults.standard.set(previousColor, forKey: "kartiseret.account.siteColor") }
             else { UserDefaults.standard.removeObject(forKey: "kartiseret.account.siteColor") }
         }
-        let preferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
+        let preferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"notificationDelivery":"email","showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
         let transport = StubTransport(responses: [
             httpResponse(#"{"token":null,"user":{"id":"user-1","email":"person@example.com"}}"#, headers: ["set-auth-token": "opaque-session-token"]),
             httpResponse(#"{"data":{"user":{"id":"user-1","email":"person@example.com"},"isAdmin":false},"error":null}"#),
@@ -551,8 +591,8 @@ final class CoreAndAPITests: XCTestCase {
             if let previousColor { UserDefaults.standard.set(previousColor, forKey: "kartiseret.account.siteColor") }
             else { UserDefaults.standard.removeObject(forKey: "kartiseret.account.siteColor") }
         }
-        let initialPreferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
-        let savedPreferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":true,"showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
+        let initialPreferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"notificationDelivery":"email","showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
+        let savedPreferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":true,"notificationDelivery":"email","showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
         let transport = StubTransport(responses: [
             httpResponse(#"{"token":null,"user":{"id":"user-1","email":"person@example.com"}}"#, headers: ["set-auth-token": "opaque-session-token"]),
             httpResponse(#"{"data":{"user":{"id":"user-1","email":"person@example.com"},"isAdmin":false},"error":null}"#),
@@ -587,7 +627,7 @@ final class CoreAndAPITests: XCTestCase {
             if let previousColor { UserDefaults.standard.set(previousColor, forKey: "kartiseret.account.siteColor") }
             else { UserDefaults.standard.removeObject(forKey: "kartiseret.account.siteColor") }
         }
-        let preferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
+        let preferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"notificationDelivery":"email","showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
         let transport = StubTransport(responses: [
             httpResponse(#"{"token":null,"user":{"id":"user-1","email":"person@example.com"}}"#, headers: ["set-auth-token": "opaque-session-token"]),
             httpResponse(#"{"data":{"user":{"id":"user-1","email":"person@example.com"},"isAdmin":false},"error":null}"#),
@@ -617,7 +657,7 @@ final class CoreAndAPITests: XCTestCase {
             if let previousColor { UserDefaults.standard.set(previousColor, forKey: "kartiseret.account.siteColor") }
             else { UserDefaults.standard.removeObject(forKey: "kartiseret.account.siteColor") }
         }
-        let preferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
+        let preferences = ##"{"data":{"ratingSources":["imdbRating"],"location":"Jerusalem","siteColor":"#a66ae3","hideReReleases":false,"notificationDelivery":"email","showtimePreferences":{"screeningFilters":{"version":3,"unchecked":{"showType":[],"screenFormat":[],"screeningTech":[],"dubLanguage":[]}},"excludedCinemaIds":[]}},"error":null}"##
         let transport = StubTransport(responses: [
             httpResponse("", statusCode: 503),
             httpResponse(#"{"data":{"user":{"id":"user-1","email":"person@example.com"},"isAdmin":false},"error":null}"#),

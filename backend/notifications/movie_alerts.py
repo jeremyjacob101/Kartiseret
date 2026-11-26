@@ -14,12 +14,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from html import escape
 import os
+import re
 from typing import Any
 from urllib.parse import urlsplit
 from uuid import uuid4
 
 import requests
 from backend.utils.log.job_lease import create_client
+from backend.notifications.apns import APNSResponseError, ApplePushClient
 
 from backend.notifications.letterboxd_alerts import (
     COMING_SOON_TABLE,
@@ -31,6 +33,7 @@ from backend.notifications.letterboxd_alerts import (
 from backend.notifications.ticket_alerts import (
     CITY_CODE_BY_NAME,
     SHOWTIME_DAY_CUTOFF_MINUTES,
+    NoCanonicalEmail,
     RenderedEmail,
     TicketAlertConfig,
     _friendly_date,
@@ -435,6 +438,49 @@ def render_movie_notification_email(
     )
 
 
+def render_movie_notification_push(
+    events: list[dict[str, Any]],
+    site_url: str,
+    movie_codes: dict[int, str],
+) -> dict[str, Any]:
+    movies: dict[int, dict[str, Any]] = {}
+    for event in events:
+        try:
+            tmdb_id = int(event["tmdb_id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        movies.setdefault(tmdb_id, event)
+
+    site_origin = safe_site_url(site_url)
+    if len(movies) == 1:
+        tmdb_id, event = next(iter(movies.items()))
+        payload = event.get("event_payload") or {}
+        title = _text(payload.get("title")) or "A movie"
+        if event.get("event_type") == "showtime":
+            body = f"Tickets are now available for {title}."
+        else:
+            body = f"A release date is available for {title}."
+        movie_code = movie_codes.get(tmdb_id)
+        url = (
+            f"{site_origin}/{movie_code}"
+            if movie_code and re.fullmatch(r"[0-9A-Za-z]{3}", movie_code)
+            else f"{site_origin}/showtimes"
+        )
+        alert_title = "New movie alert"
+    else:
+        body = f"New alerts are ready for {len(movies)} movies."
+        url = f"{site_origin}/showtimes"
+        alert_title = "New movie alerts"
+
+    return {
+        "aps": {
+            "alert": {"title": alert_title, "body": body[:200]},
+            "sound": "default",
+        },
+        "url": url,
+    }
+
+
 def create_movie_notification_unsubscribe_urls(
     http_client: Any,
     *,
@@ -614,12 +660,20 @@ class SupabaseMovieNotificationRepository(SupabaseLetterboxdRepository):
         )
         return sorted({row["user_id"] for row in rows})
 
-    def claim(self, user, delivery_id):
+    def claim_batches(self, user, delivery_id):
         response = self.supabase.rpc(
             "claim_movie_notification_delivery",
             {"p_user": user, "p_delivery": delivery_id},
         ).execute()
-        rows = self._response_rows(response)
+        return self._response_rows(response)
+
+    def reconcile(self, batch):
+        rows = self._response_rows(
+            self.supabase.rpc(
+                "reconcile_movie_notification_delivery",
+                {"p_delivery": batch["id"]},
+            ).execute()
+        )
         return rows[0] if rows else None
 
     def attempt(self, batch, snapshot):
@@ -637,10 +691,60 @@ class SupabaseMovieNotificationRepository(SupabaseLetterboxdRepository):
             {"p_delivery": batch["id"], "p_resend_id": resend_id},
         ).execute()
 
+    def skip_email(self, batch, error):
+        self.supabase.table("movie_notification_deliveries").update(
+            {"email_status": "skipped", "last_error": str(error)}
+        ).eq("id", batch["id"]).eq("status", "pending").eq("email_status", "pending").execute()
+        self.reconcile(batch)
+
     def fail(self, batch, error):
         self.supabase.table("movie_notification_deliveries").update(
             {"last_error": str(error)[:2000]}
         ).eq("id", batch["id"]).eq("status", "pending").execute()
+
+    def pending_push_deliveries(self, batch):
+        return self._collect_pages(
+            lambda start, end: self.supabase.table(
+                "movie_notification_push_deliveries"
+            )
+            .select("id")
+            .eq("delivery_id", batch["id"])
+            .eq("status", "pending")
+            .order("created_at")
+            .range(start, end)
+        )
+
+    def start_push(self, push_delivery, payload):
+        rows = self._response_rows(
+            self.supabase.rpc(
+                "start_movie_notification_push_delivery",
+                {"p_push_delivery": push_delivery, "p_payload": payload},
+            ).execute()
+        )
+        return rows[0] if rows else None
+
+    def complete_push(self, push_delivery, apns_id):
+        self.supabase.rpc(
+            "complete_movie_notification_push_delivery",
+            {"p_push_delivery": push_delivery, "p_apns_id": apns_id},
+        ).execute()
+
+    def retry_push(self, push_delivery, error):
+        self.supabase.rpc(
+            "retry_movie_notification_push_delivery",
+            {"p_push_delivery": push_delivery, "p_error": str(error)[:2000]},
+        ).execute()
+
+    def resolve_push(self, push_delivery, resolution, error, deactivate_device=False):
+        self.supabase.rpc(
+            "resolve_movie_notification_push_delivery",
+            {
+                "p_push_delivery": push_delivery,
+                "p_resolution": resolution,
+                "p_error": str(error)[:2000],
+                "p_deactivate_device": deactivate_device,
+            },
+        ).execute()
 
 
 @dataclass(frozen=True)
@@ -649,6 +753,7 @@ class MovieNotificationSummary:
     sources_failed: int
     emails_sent: int
     events_notified: int
+    pushes_sent: int = 0
 
 
 class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
@@ -659,6 +764,7 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
         repository=None,
         http_client=requests,
         config=None,
+        apns_client=None,
         now_factory=None,
         delivery_id_factory=uuid4,
         request_context=None,
@@ -687,6 +793,7 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
             delivery_id_factory=delivery_id_factory,
             request_context=request_context,
         )
+        self.apns_client = apns_client
 
     def dispatch(self):
         now = _jerusalem_now(self.now_factory())
@@ -756,95 +863,198 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
         self.repository.clear_baseline(
             [row for row in active if row.get("needs_baseline") and row.get("tmdb_id")]
         )
-        sent = notified = 0
+        sent = pushes_sent = notified = 0
         failures = []
-        for user in progress_items(self.repository.pending_users(), "recipients"):
-            batch = self.repository.claim(user, str(self.delivery_id_factory()))
-            if batch is None:
-                continue
+        for user, batch in self._claimed_batches():
             try:
-                snapshot = batch.get("email_snapshot")
-                if snapshot is None:
-                    batch_movie_ids = sorted(
-                        {
-                            int(event["tmdb_id"])
-                            for event in batch["events"]
-                            if str(event.get("tmdb_id", "")).isdigit()
-                        }
-                    )
-                    batch_movie_codes = self.repository.load_movie_codes(
-                        batch_movie_ids
-                    )
-                    support_reader = getattr(
-                        self.repository, "letterboxd_supported_movies", None
-                    )
-                    supported_ids = (
-                        support_reader(user, batch_movie_ids)
-                        if callable(support_reader)
-                        else set()
-                    )
-                    unsubscribe_urls = None
-                    if supported_ids:
-                        unsubscribe_urls = create_movie_notification_unsubscribe_urls(
-                            self.http_client,
-                            base_url=self.config.recipient_api_url,
-                            internal_secret=self.config.internal_api_secret,
-                            site_url=self.config.site_url,
-                            user_id=user,
-                            delivery_id=batch["id"],
-                        )
-                    email = render_movie_notification_email(
-                        batch["events"],
-                        self.config.site_url,
-                        batch_movie_codes,
-                        **(
-                            {
-                                "letterboxd_manage_url": unsubscribe_urls[0],
-                                "one_click_unsubscribe_url": unsubscribe_urls[1],
-                            }
-                            if unsubscribe_urls is not None
-                            else {}
-                        ),
-                    )
-                    snapshot = {
-                        "subject": email.subject,
-                        "html": email.html,
-                        "text": email.text,
-                        "headers": email.headers,
-                        "recipient": self.repository.canonical_email(user),
-                        "from": self.config.from_email,
-                    }
-                snapshot = self.repository.attempt(batch, snapshot)
-                if snapshot is None:
+                reconcile = getattr(self.repository, "reconcile", None)
+                if callable(reconcile):
+                    batch = reconcile(batch) or batch
+                if batch.get("status") != "pending":
                     continue
-                email = RenderedEmail(
-                    snapshot["subject"],
-                    snapshot["html"],
-                    snapshot["text"],
-                    snapshot.get("headers") or {},
+
+                email_status = batch.get("email_status", "pending")
+                push_status = batch.get("push_status", "not_requested")
+                delivery_mode = batch.get("delivery_mode", "email")
+                batch_notified = False
+                batch_movie_ids = sorted(
+                    {
+                        int(event["tmdb_id"])
+                        for event in batch["events"]
+                        if str(event.get("tmdb_id", "")).isdigit()
+                    }
                 )
-                resend_id = send_resend_email(
-                    self.http_client,
-                    api_key=self.config.resend_api_key,
-                    from_email=snapshot["from"],
-                    to_email=snapshot["recipient"],
-                    delivery_id=batch["id"],
-                    email=email,
-                    idempotency_prefix="movie-notification",
+                batch_movie_codes = self.repository.load_movie_codes(batch_movie_ids)
+
+                if email_status == "pending" and delivery_mode in ("email", "both"):
+                    try:
+                        snapshot = batch.get("email_snapshot")
+                        if snapshot is None:
+                            recipient = self.repository.canonical_email(user)
+                            support_reader = getattr(
+                                self.repository,
+                                "letterboxd_supported_movies",
+                                None,
+                            )
+                            supported_ids = (
+                                support_reader(user, batch_movie_ids)
+                                if callable(support_reader)
+                                else set()
+                            )
+                            unsubscribe_urls = None
+                            if supported_ids:
+                                unsubscribe_urls = create_movie_notification_unsubscribe_urls(
+                                    self.http_client,
+                                    base_url=self.config.recipient_api_url,
+                                    internal_secret=self.config.internal_api_secret,
+                                    site_url=self.config.site_url,
+                                    user_id=user,
+                                    delivery_id=batch["id"],
+                                )
+                            email = render_movie_notification_email(
+                                batch["events"],
+                                self.config.site_url,
+                                batch_movie_codes,
+                                **(
+                                    {
+                                        "letterboxd_manage_url": unsubscribe_urls[0],
+                                        "one_click_unsubscribe_url": unsubscribe_urls[1],
+                                    }
+                                    if unsubscribe_urls is not None
+                                    else {}
+                                ),
+                            )
+                            snapshot = {
+                                "subject": email.subject,
+                                "html": email.html,
+                                "text": email.text,
+                                "headers": email.headers,
+                                "recipient": recipient,
+                                "from": self.config.from_email,
+                            }
+                        snapshot = self.repository.attempt(batch, snapshot)
+                        if snapshot is not None:
+                            email = RenderedEmail(
+                                snapshot["subject"],
+                                snapshot["html"],
+                                snapshot["text"],
+                                snapshot.get("headers") or {},
+                            )
+                            resend_id = send_resend_email(
+                                self.http_client,
+                                api_key=self.config.resend_api_key,
+                                from_email=snapshot["from"],
+                                to_email=snapshot["recipient"],
+                                delivery_id=batch["id"],
+                                email=email,
+                                idempotency_prefix="movie-notification",
+                            )
+                            self.repository.complete(batch, resend_id)
+                            sent += 1
+                            notified += len(batch["events"])
+                            batch_notified = True
+                    except NoCanonicalEmail as error:
+                        self.repository.skip_email(batch, error)
+                    except Exception as error:
+                        self.repository.fail(batch, error)
+                        failures.append(
+                            f"{batch['id']} email: {type(error).__name__}: {_text(error)}"
+                        )
+
+                pending_push_reader = getattr(
+                    self.repository, "pending_push_deliveries", None
                 )
-                self.repository.complete(batch, resend_id)
-                sent += 1
-                notified += len(batch["events"])
+                if (
+                    push_status == "pending"
+                    and delivery_mode in ("iphone", "both")
+                    and callable(pending_push_reader)
+                ):
+                    push_deliveries = pending_push_reader(batch)
+                    if push_deliveries:
+                        try:
+                            if self.apns_client is None:
+                                self.apns_client = ApplePushClient.from_environment()
+                        except Exception as error:
+                            failures.append(
+                                f"{batch['id']} push setup: {type(error).__name__}: {_text(error)}"
+                            )
+                            continue
+                        push_payload = render_movie_notification_push(
+                            batch["events"], self.config.site_url, batch_movie_codes
+                        )
+                        for push_delivery in push_deliveries:
+                            push_id = push_delivery["id"]
+                            try:
+                                started = self.repository.start_push(push_id, push_payload)
+                                if started is None:
+                                    continue
+                                payload = started.get("payload_snapshot") or push_payload
+                                apns_id = self.apns_client.send(
+                                    started["device_token"],
+                                    started["environment"],
+                                    payload,
+                                )
+                                self.repository.complete_push(push_id, apns_id)
+                                pushes_sent += 1
+                                if not batch_notified:
+                                    notified += len(batch["events"])
+                                    batch_notified = True
+                            except APNSResponseError as error:
+                                message = str(error)
+                                if error.status_code in (403, 429) or error.status_code >= 500:
+                                    self.repository.retry_push(push_id, message)
+                                    failures.append(f"{push_id}: {message}")
+                                else:
+                                    invalid_token = error.reason in {
+                                        "BadDeviceToken",
+                                        "DeviceTokenNotForTopic",
+                                        "ExpiredToken",
+                                        "Unregistered",
+                                    }
+                                    self.repository.resolve_push(
+                                        push_id,
+                                        "suppressed",
+                                        message,
+                                        deactivate_device=invalid_token,
+                                    )
+                                    if not invalid_token:
+                                        failures.append(f"{push_id}: {message}")
+                            except Exception as error:
+                                self.repository.resolve_push(
+                                    push_id,
+                                    "uncertain",
+                                    f"{type(error).__name__}: {_text(error)}",
+                                )
+                                failures.append(
+                                    f"{push_id}: {type(error).__name__}: {_text(error)}"
+                                )
             except Exception as error:
                 self.repository.fail(batch, error)
                 failures.append(
                     f"{batch['id']}: {type(error).__name__}: {_text(error)}"
                 )
+        if self.apns_client is not None:
+            close = getattr(self.apns_client, "close", None)
+            if callable(close):
+                close()
+            self.apns_client = None
         if failures:
             raise RuntimeError(
                 "Movie notification delivery failed: " + " | ".join(failures)
             )
-        return MovieNotificationSummary(synced, failed, sent, notified)
+        return MovieNotificationSummary(synced, failed, sent, notified, pushes_sent)
+
+    def _claimed_batches(self):
+        for user in progress_items(self.repository.pending_users(), "recipients"):
+            delivery_id = str(self.delivery_id_factory())
+            claim_batches = getattr(self.repository, "claim_batches", None)
+            if claim_batches is None:
+                batch = self.repository.claim(user, delivery_id)
+                if batch is not None:
+                    yield user, batch
+            else:
+                for batch in claim_batches(user, delivery_id):
+                    yield user, batch
 
     def dataRun(self):
         result = self.dispatch()

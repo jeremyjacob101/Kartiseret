@@ -20,6 +20,9 @@ import {
   subscriptionMovieIdSchema as watchMovieIdSchema,
   letterboxdSourceCreateSchema,
   letterboxdSourceIdSchema,
+  pushDeviceRegistrationSchema,
+  pushDeviceStatusQuerySchema,
+  pushDeviceUnregisterSchema,
 } from "@kartiseret/contracts/private-data";
 import {
   homepageMovieHighlightUpsertSchema,
@@ -112,6 +115,7 @@ export function createProtectedRouter(
       "/ticket-alerts",
       "/coming-soon-watches",
       "/letterboxd-sources",
+      "/push/devices",
       "/admin",
     ],
     limiter,
@@ -220,6 +224,38 @@ export function createProtectedRouter(
       data: await workflows.patchPreferences(
         identity(response.locals.identity),
         patch,
+      ),
+      error: null,
+    });
+  });
+  router.get("/push/devices/status", async (request, response) => {
+    const query = parse(pushDeviceStatusQuerySchema, request.query);
+    response.json({
+      data: await workflows.pushDeviceStatus(
+        identity(response.locals.identity),
+        query.token,
+      ),
+      error: null,
+    });
+  });
+  router.post("/push/devices/register", async (request, response) => {
+    parse(empty, request.query);
+    const registration = parse(pushDeviceRegistrationSchema, request.body);
+    response.json({
+      data: await workflows.registerPushDevice(
+        identity(response.locals.identity),
+        registration,
+      ),
+      error: null,
+    });
+  });
+  router.delete("/push/devices/current", async (request, response) => {
+    parse(empty, request.query);
+    const body = parse(pushDeviceUnregisterSchema, request.body);
+    response.json({
+      data: await workflows.unregisterPushDevice(
+        identity(response.locals.identity),
+        body.token,
       ),
       error: null,
     });

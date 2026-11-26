@@ -20,6 +20,7 @@ final class AccountStore {
     private(set) var isSaving = false
     private(set) var appleSignInAvailable = false
     private(set) var googleSignInAvailable = false
+    private(set) var pushDeviceRegistered = false
     private(set) var feedback: String?
 
     @ObservationIgnored private let api: NativeAccountAPI
@@ -119,10 +120,123 @@ final class AccountStore {
         }
     }
 
+    private(set) var isSigningOut = false
+    private(set) var signOutError: String?
+    private var isUpdatingPushRegistration = false
+
     func signOut() async {
-        let oldToken = token
+        guard !isSigningOut, let oldToken = token, let identity else { return }
+        signOutError = nil
+        guard !isUpdatingPushRegistration else {
+            signOutError = "Notifications are still being updated. Try signing out again in a moment."
+            return
+        }
+        isSigningOut = true
+        defer { isSigningOut = false }
+
+        if let deviceToken = PushNotificationRegistration.storedDeviceToken {
+            do {
+                _ = try await api.unregisterPushDevice(
+                    token: oldToken,
+                    accountID: identity.id,
+                    deviceToken: deviceToken
+                )
+            } catch {
+                signOutError = "Couldn’t remove this device from movie alerts. Check your connection and try signing out again."
+                return
+            }
+        }
+        guard token == oldToken else { return }
         clearAccountSession()
-        if let oldToken { await api.signOut(token: oldToken) }
+        await api.signOut(token: oldToken)
+    }
+
+    func saveNotificationDelivery(_ value: AccountPreferences.NotificationDelivery) async {
+        await save(key: "notificationDelivery", value: value, apply: {
+            $0.notificationDelivery = value
+        })
+        guard confirmedPreferences.notificationDelivery == value else { return }
+        await syncPushDeviceRegistration()
+    }
+
+    func refreshPushDeviceStatus() async {
+        guard state == .signedIn, let token, let identity else {
+            pushDeviceRegistered = false
+            return
+        }
+        guard let deviceToken = PushNotificationRegistration.storedDeviceToken else {
+            pushDeviceRegistered = false
+            return
+        }
+        do {
+            let status = try await api.pushDeviceStatus(
+                token: token,
+                accountID: identity.id,
+                deviceToken: deviceToken
+            )
+            guard self.token == token else { return }
+            pushDeviceRegistered = status.registered
+        } catch {
+            guard self.token == token else { return }
+            pushDeviceRegistered = false
+        }
+    }
+
+    func registerPushDevice(deviceToken: String, environment: String, previousToken: String?) async {
+        guard state == .signedIn, let token, let identity,
+              preferences.notificationDelivery.includesIPhone,
+              await PushNotificationRegistration.notificationsAuthorized(),
+              self.token == token, preferences.notificationDelivery.includesIPhone,
+              !isSigningOut, !isUpdatingPushRegistration else { return }
+        isUpdatingPushRegistration = true
+        defer { isUpdatingPushRegistration = false }
+        do {
+            let status = try await api.registerPushDevice(
+                token: token,
+                accountID: identity.id,
+                deviceToken: deviceToken,
+                environment: environment
+            )
+            guard self.token == token else { return }
+            pushDeviceRegistered = status.registered
+            if let previousToken, previousToken != deviceToken {
+                _ = try? await api.unregisterPushDevice(token: token, accountID: identity.id, deviceToken: previousToken)
+            }
+        } catch {
+            guard self.token == token else { return }
+            pushDeviceRegistered = false
+            feedback = "iPhone notifications couldn’t be enabled. Try again shortly."
+        }
+    }
+
+    func syncPushDeviceRegistration() async {
+        guard state == .signedIn, let token, let identity else {
+            pushDeviceRegistered = false
+            return
+        }
+        let authorized = await PushNotificationRegistration.notificationsAuthorized()
+        guard self.token == token, !isSigningOut, !isUpdatingPushRegistration else { return }
+        if preferences.notificationDelivery.includesIPhone && authorized {
+            await PushNotificationRegistration.registerForRemoteNotifications()
+        } else if let deviceToken = PushNotificationRegistration.storedDeviceToken {
+            isUpdatingPushRegistration = true
+            defer { isUpdatingPushRegistration = false }
+            _ = try? await api.registerPushDevice(
+                token: token,
+                accountID: identity.id,
+                deviceToken: deviceToken,
+                environment: PushNotificationRegistration.environment
+            )
+            _ = try? await api.unregisterPushDevice(
+                token: token,
+                accountID: identity.id,
+                deviceToken: deviceToken
+            )
+            guard self.token == token else { return }
+            pushDeviceRegistered = false
+        } else {
+            await refreshPushDeviceStatus()
+        }
     }
 
     func saveLocation(_ value: String) async { await save(key: "location", value: value, apply: { $0.location = value }) }
@@ -234,6 +348,7 @@ final class AccountStore {
         UserDefaults.standard.set(loadedPreferences.siteColor, forKey: Self.siteColorKey)
         state = .signedIn
         feedback = nil
+        await syncPushDeviceRegistration()
         await refreshMovieDisplayRules()
     }
 
@@ -245,6 +360,7 @@ final class AccountStore {
         credentials.clear()
         token = nil
         identity = nil
+        pushDeviceRegistered = false
         saveGenerations.removeAll()
         confirmedSaveGenerations.removeAll()
         movieDisplayRules = [:]
@@ -302,6 +418,7 @@ final class AccountStore {
         case "siteColor": preferences.siteColor = saved.siteColor
         case "ratingSources": preferences.ratingSources = saved.ratingSources
         case "hideReReleases": preferences.hideReReleases = saved.hideReReleases
+        case "notificationDelivery": preferences.notificationDelivery = saved.notificationDelivery
         case "showtimePreferences": preferences.showtimePreferences = saved.showtimePreferences
         default: break
         }

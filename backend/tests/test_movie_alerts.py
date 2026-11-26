@@ -9,6 +9,7 @@ from backend.notifications.movie_alerts import (
     collect_first_availability,
     create_movie_notification_unsubscribe_urls,
     render_movie_notification_email,
+    render_movie_notification_push,
 )
 from backend.notifications.ticket_alerts import (
     TicketAlertConfig,
@@ -210,6 +211,34 @@ class MovieNotificationTests(TestCase):
         (repo.dates if date else repo.tickets).append(
             {"user_id": "alice", "tmdb_id": 101}
         )
+
+    def test_push_digest_links_to_one_movie_or_the_showtimes_list(self):
+        single = render_movie_notification_push(
+            [
+                {
+                    "tmdb_id": 101,
+                    "event_type": "showtime",
+                    "event_payload": {"title": "Interstellar"},
+                }
+            ],
+            "https://seret.site",
+            {101: "abc"},
+        )
+        self.assertEqual(single["aps"]["alert"]["title"], "New movie alert")
+        self.assertIn("Interstellar", single["aps"]["alert"]["body"])
+        self.assertEqual(single["url"], "https://seret.site/abc")
+
+        multiple = render_movie_notification_push(
+            [
+                {"tmdb_id": 101, "event_type": "showtime", "event_payload": {}},
+                {"tmdb_id": 102, "event_type": "coming_soon", "event_payload": {}},
+            ],
+            "https://seret.site",
+            {},
+        )
+        self.assertEqual(multiple["aps"]["alert"]["title"], "New movie alerts")
+        self.assertEqual(multiple["aps"]["alert"]["body"], "New alerts are ready for 2 movies.")
+        self.assertEqual(multiple["url"], "https://seret.site/showtimes")
 
     def test_default_city_and_first_day_only_even_as_sessions_links_and_days_change(
         self,

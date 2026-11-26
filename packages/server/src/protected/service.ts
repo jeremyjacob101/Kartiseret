@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import {
   DEFAULT_LOCATION,
@@ -20,6 +20,7 @@ import type {
   MovieDisplayPreferencePage,
   PreferencePatch,
   Preferences,
+  PushDeviceRegistration,
   SubscriptionChange,
   TicketAlertCriteria,
   TicketAlertCriteriaOverride,
@@ -49,6 +50,7 @@ import type {
 import {
   adminUsers,
   userPreferences,
+  apnsDevices,
   ticketAlertPreferences,
   ticketAlertSubscriptions,
   comingSoonDateWatches,
@@ -381,6 +383,7 @@ export class ProtectedWorkflows {
         location: initialLocation,
         siteColor: DEFAULT_SITE_COLOR,
         hideReReleases: DEFAULT_HIDE_RE_RELEASES,
+        notificationDelivery: "email",
         showtimePreferences: DEFAULT_SHOWTIME_PREFERENCES,
         signupInitialized: true,
       })
@@ -391,7 +394,7 @@ export class ProtectedWorkflows {
       .where(eq(userPreferences.userId, user.id))
       .for("update");
     if (!row) throw new Error("Preference initialization returned no row.");
-    const result = {
+    const result: Preferences = {
       ratingSources: normalizeRatingSources(row.ratingSources, {
         allowEmpty: true,
       }),
@@ -403,6 +406,12 @@ export class ProtectedWorkflows {
       ),
       siteColor: normalizeSiteColor(row.siteColor),
       hideReReleases: normalizeHideReReleases(row.hideReReleases),
+      notificationDelivery:
+        row.notificationDelivery === "iphone" ||
+        row.notificationDelivery === "both" ||
+        row.notificationDelivery === "neither"
+          ? row.notificationDelivery
+          : "email",
       showtimePreferences: normalizeShowtimePreferences(
         row.showtimePreferences,
       ),
@@ -415,6 +424,7 @@ export class ProtectedWorkflows {
         .set({
           location: result.location,
           siteColor: result.siteColor,
+          notificationDelivery: result.notificationDelivery,
           signupInitialized: true,
         })
         .where(eq(userPreferences.userId, user.id));
@@ -447,6 +457,12 @@ export class ProtectedWorkflows {
           : [...DEFAULT_RATING_SOURCES],
         siteColor: normalizeSiteColor(row?.siteColor),
         hideReReleases: normalizeHideReReleases(row?.hideReReleases),
+        notificationDelivery:
+          row?.notificationDelivery === "iphone" ||
+          row?.notificationDelivery === "both" ||
+          row?.notificationDelivery === "neither"
+            ? row.notificationDelivery
+            : "email",
         showtimePreferences: normalizeShowtimePreferences(
           row?.showtimePreferences,
         ),
@@ -493,6 +509,44 @@ export class ProtectedWorkflows {
         .set(patch)
         .where(eq(userPreferences.userId, user.id));
       return { ...current, ...patch };
+    });
+  }
+  pushDeviceStatus(user: VerifiedIdentity, deviceToken?: string) {
+    return this.asUser(user, async (tx) => {
+      const [device] = await tx
+        .select({ id: apnsDevices.id })
+        .from(apnsDevices)
+        .where(
+          and(
+            eq(apnsDevices.userId, user.id),
+            eq(apnsDevices.active, true),
+            isNotNull(apnsDevices.deviceToken),
+            ...(deviceToken ? [eq(apnsDevices.deviceToken, deviceToken)] : []),
+          ),
+        )
+        .limit(1);
+      return { registered: Boolean(device) };
+    });
+  }
+  registerPushDevice(
+    user: VerifiedIdentity,
+    registration: PushDeviceRegistration,
+  ) {
+    return this.asUser(user, async (tx) => {
+      await tx.execute(sql`
+        select app_auth.register_apns_device(
+          ${registration.token}, ${registration.environment}
+        )
+      `);
+      return { registered: true };
+    });
+  }
+  unregisterPushDevice(user: VerifiedIdentity, token: string) {
+    return this.asUser(user, async (tx) => {
+      await tx.execute(sql`
+        select app_auth.unregister_apns_device(${token})
+      `);
+      return { registered: false };
     });
   }
   ticketAlertPreferences(user: VerifiedIdentity) {
@@ -1167,6 +1221,9 @@ export type ProtectedWorkflowService = Pick<
   | "account"
   | "preferences"
   | "patchPreferences"
+  | "pushDeviceStatus"
+  | "registerPushDevice"
+  | "unregisterPushDevice"
   | "ticketAlertPreferences"
   | "patchTicketAlertPreferences"
   | "subscriptions"
