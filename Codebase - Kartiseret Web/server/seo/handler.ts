@@ -1,7 +1,7 @@
 import { getMovieCatalog, getCinemathequeData, getCinemaPageData, getMovieByPermanentCode, getMovieShowtimes, getPublicTheaterData, getShowtimeRange, withPublicationSnapshot, type PublicCinemaPageContext } from "@kartiseret/server/public-data";
 import { privatePageDisplaySchema, publicPageBootstrapSchema, type PrivatePageDisplay, type PublicPageBootstrap } from "@kartiseret/contracts/public-render";
+import { createShowtimeInclusionPredicate, getCinemaDayDate, shouldIncludeShowtime, SHOWTIME_TIME_ZONE } from "@kartiseret/contracts/showtime-day";
 import { injectRenderedApplication, injectSeoPage, SITE_ORIGIN, buildSitemapXml, safeHttpUrl, getRequestOrigin } from "./renderHtml.js";
-import { createShowtimeInclusionPredicate, getCinemaDayDate, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
 import { cinemaIdForLocation, findCinemaIdentityForScreening, getCinemaIdentityById } from "./identities.js";
 import { getShowtimesCityFromPath, getShowtimesCityPath } from "@kartiseret/contracts/showtime-routes";
 import { timeCatalogStage, timeCatalogStageSync } from "@kartiseret/server/catalog-timing";
@@ -23,8 +23,10 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const SEO_CACHE = "public, max-age=0, s-maxage=60";
 const PRIVATE_PAGE_CACHE = "private, no-store";
+export const PUBLIC_CATALOG_CACHE_TAG = "public-catalog";
+const PUBLIC_CATALOG_CACHE_TTL_SECONDS = 300;
+const PUBLIC_CATALOG_STALE_SECONDS = 300;
 const PRIVATE_DISPLAY_BUDGET_MS = 1200;
 let preferenceReader:
   Promise<typeof import("@kartiseret/server/production")> | undefined;
@@ -54,9 +56,95 @@ function getPageMovieIds(bootstrap: PublicPageBootstrap): string[] {
     ids.add(movie.tmdbId);
   return [...ids].filter((id) => /^[0-9]{1,12}$/.test(id));
 }
-const SITEMAP_CACHE = "public, max-age=0, s-maxage=300";
 const PUBLIC_PAGE_DEADLINE_MS = 25_000;
 const SSR_RENDER_BUDGET_MS = 12_000;
+
+const JERUSALEM_CLOCK = new Intl.DateTimeFormat("en-CA", {
+  timeZone: SHOWTIME_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
+function getJerusalemParts(instant: Date) {
+  const parts = JERUSALEM_CLOCK.formatToParts(instant);
+  return {
+    year: Number(parts.find((part) => part.type === "year")?.value),
+    month: Number(parts.find((part) => part.type === "month")?.value),
+    day: Number(parts.find((part) => part.type === "day")?.value),
+    hour: Number(parts.find((part) => part.type === "hour")?.value),
+    minute: Number(parts.find((part) => part.type === "minute")?.value),
+    second: Number(parts.find((part) => part.type === "second")?.value),
+  };
+}
+
+function getNextCinemaDayBoundary(instant: Date): Date {
+  const cinemaDate = getCinemaDayDate(instant);
+  const nextDate = dayOffset(cinemaDate, 1);
+  const [year, month, day] = nextDate.split("-").map(Number);
+  const localBoundaryAsUtc = Date.UTC(year!, month! - 1, day!, 1, 5);
+  const offsetReference = new Date(localBoundaryAsUtc - 12 * 60 * 60 * 1000);
+  const referenceLocal = getJerusalemParts(offsetReference);
+  const referenceAsUtc = Date.UTC(
+    referenceLocal.year,
+    referenceLocal.month - 1,
+    referenceLocal.day,
+    referenceLocal.hour,
+    referenceLocal.minute,
+    referenceLocal.second,
+  );
+  const boundary = new Date(
+    localBoundaryAsUtc - (referenceAsUtc - offsetReference.getTime()),
+  );
+  const actual = getJerusalemParts(boundary);
+
+  // If timezone rules don't map this local boundary exactly, avoid caching it.
+  if (
+    actual.year !== year ||
+    actual.month !== month ||
+    actual.day !== day ||
+    actual.hour !== 1 ||
+    actual.minute !== 5 ||
+    actual.second !== 0
+  ) {
+    return instant;
+  }
+
+  return boundary;
+}
+
+export function publicCatalogCachePolicy(
+  renderInstant: Date = new Date(),
+  responseInstant: Date = renderInstant,
+) {
+  if (getCinemaDayDate(renderInstant) !== getCinemaDayDate(responseInstant))
+    return { cacheControl: "no-store" };
+
+  const secondsToBoundary = Math.floor(
+    (getNextCinemaDayBoundary(renderInstant).getTime() -
+      responseInstant.getTime()) /
+      1000,
+  );
+  if (secondsToBoundary <= 1) return { cacheControl: "no-store" };
+
+  const freshSeconds = Math.min(
+    PUBLIC_CATALOG_CACHE_TTL_SECONDS,
+    secondsToBoundary - 1,
+  );
+  const staleSeconds = Math.min(
+    PUBLIC_CATALOG_STALE_SECONDS,
+    secondsToBoundary - freshSeconds - 1,
+  );
+
+  return {
+    cacheControl: `public, max-age=0, s-maxage=${freshSeconds}, stale-while-revalidate=${staleSeconds}`,
+    cacheTag: PUBLIC_CATALOG_CACHE_TAG,
+  };
+}
 
 function withDeadline<Value>(
   operation: () => Promise<Value>,
@@ -665,10 +753,10 @@ async function getListingPage(
 }
 
 async function renderSitemap(response: VercelResponse): Promise<void> {
+  const renderInstant = new Date();
   try {
     const repository = getProductionPublicDataRepository();
     const paths = await withPublicationSnapshot(repository, async () => {
-      const instant = new Date();
       const [nowPlaying, comingSoon, theaterData] = await Promise.all([
         getMovieCatalog(repository, "nowPlaying"),
         getMovieCatalog(repository, "comingSoon"),
@@ -684,12 +772,17 @@ async function renderSitemap(response: VercelResponse): Promise<void> {
         .filter((movie) => movie.movieCode)
         .map((movie) => `/${movie.movieCode}`);
       const [eligibility, cinemathequesListing] = await Promise.all([
-        getShowtimeEligibility(repository, nowPlaying, instant, comingSoon),
+        getShowtimeEligibility(
+          repository,
+          nowPlaying,
+          renderInstant,
+          comingSoon,
+        ),
         buildListingPage(
           repository,
           "/cinematheques",
           { nowPlaying, comingSoon },
-          instant,
+          renderInstant,
         ),
       ]);
       const eligibleCityPaths = ALL_LOCATIONS.filter((city) =>
@@ -723,11 +816,14 @@ async function renderSitemap(response: VercelResponse): Promise<void> {
       ];
     });
     const xml = buildSitemapXml(paths);
+    const cachePolicy = publicCatalogCachePolicy(renderInstant, new Date());
     response
       .status(200)
       .setHeader("Content-Type", "application/xml; charset=utf-8")
-      .setHeader("Cache-Control", SITEMAP_CACHE)
-      .send(xml);
+      .setHeader("Cache-Control", cachePolicy.cacheControl);
+    if (cachePolicy.cacheTag)
+      response.setHeader("Vercel-Cache-Tag", cachePolicy.cacheTag);
+    response.send(xml);
   } catch (error) {
     logErrorSafely(
       "public_sitemap_build_failed",
@@ -814,6 +910,7 @@ export default async function handler(
 
     const deadlineAt = Date.now() + PUBLIC_PAGE_DEADLINE_MS;
     const privateDeadline = Date.now() + PRIVATE_DISPLAY_BUDGET_MS;
+    const renderInstant = new Date();
     const cookie = request.headers.cookie;
     const identity =
       privateRoute && typeof cookie === "string"
@@ -837,7 +934,7 @@ export default async function handler(
             : (request.query.date ?? "");
           const movie = await getMoviePage(
             routeCode,
-            new Date(),
+            renderInstant,
             getRequestOrigin(request.headers),
             requestedDate,
             parseMovieRouteCode(routeCode)?.kind === "plain"
@@ -848,11 +945,11 @@ export default async function handler(
             ? { page: movie.page, bootstrap: movie.bootstrap }
             : null;
         } else if (route === "cinema") {
-          pageResult = await getCinemaPage(cinemaId);
+          pageResult = await getCinemaPage(cinemaId, renderInstant);
         } else if (route === "page") {
           pageResult = await getListingPage(
             path,
-            undefined,
+            renderInstant,
             path === "/showtimes" || path === "/cinematheques"
               ? (await identity)?.preferences.location
               : undefined,
@@ -917,10 +1014,16 @@ export default async function handler(
       return;
     }
     const { result, output } = rendered;
+    const cachePolicy = privateRoute
+      ? { cacheControl: PRIVATE_PAGE_CACHE }
+      : publicCatalogCachePolicy(renderInstant, new Date());
     response
       .status(200)
       .setHeader("Content-Type", "text/html; charset=utf-8")
-      .setHeader("Cache-Control", privateRoute ? PRIVATE_PAGE_CACHE : SEO_CACHE)
+      .setHeader("Cache-Control", cachePolicy.cacheControl);
+    if (cachePolicy.cacheTag)
+      response.setHeader("Vercel-Cache-Tag", cachePolicy.cacheTag);
+    response
       .setHeader(
         "X-Robots-Tag",
         process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production"
