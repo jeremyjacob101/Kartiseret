@@ -387,3 +387,81 @@ export const subscriptionChangeResponseSchema = envelope(
 export const correctionResponseSchema = envelope(
   z.object({ changed: z.boolean() }),
 );
+
+export const walletTicketIdSchema = z.string().uuid();
+const ticketScreeningTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+const ticketLabelSchema = z.string().trim().min(1).max(200);
+export const walletTicketScreeningSchema = z
+  .object({
+    tmdbId: protectedMovieIdSchema.nullable(),
+    title: ticketLabelSchema,
+    city: ticketLabelSchema,
+    cinema: ticketLabelSchema,
+    screeningDate: isoDateStringSchema,
+    screeningTime: ticketScreeningTimeSchema,
+  })
+  .strict();
+const walletQrMessageSchema = z
+  .string()
+  .min(1)
+  .max(2048)
+  .refine((value) => new TextEncoder().encode(value).byteLength <= 2048);
+export const walletTicketCreateSchema = walletTicketScreeningSchema
+  .extend({
+    qrMessage: walletQrMessageSchema,
+    reminderEnabled: z.boolean().default(false),
+  })
+  .strict();
+export const walletTicketPatchSchema = z
+  .object({
+    ...walletTicketScreeningSchema.shape,
+    qrMessage: walletQrMessageSchema,
+    reminderEnabled: z.boolean(),
+  })
+  .partial()
+  .strict()
+  .refine((value) => Object.keys(value).length > 0);
+export type WalletTicketCreate = z.infer<typeof walletTicketCreateSchema>;
+export type WalletTicketPatch = z.infer<typeof walletTicketPatchSchema>;
+export const walletTicketSchema = z
+  .object({
+    id: walletTicketIdSchema,
+    ...walletTicketScreeningSchema.shape,
+    reminderEnabled: z.boolean(),
+    createdAt: z.iso.datetime({ offset: true }),
+    updatedAt: z.iso.datetime({ offset: true }),
+  })
+  .strict();
+export type WalletTicket = z.infer<typeof walletTicketSchema>;
+export const walletTicketDetailSchema = walletTicketSchema.extend({
+  qrMessage: walletQrMessageSchema,
+});
+export type WalletTicketDetail = z.infer<typeof walletTicketDetailSchema>;
+export const walletTicketListResponseSchema = envelope(
+  z.object({ tickets: z.array(walletTicketSchema).max(100) }),
+);
+export const walletTicketDetailResponseSchema = envelope(
+  z.object({ ticket: walletTicketDetailSchema }),
+);
+export const walletTicketChangeResponseSchema = envelope(
+  z.object({ ticket: walletTicketSchema }),
+);
+export const walletTicketRemoveResponseSchema = envelope(
+  z.object({ removed: z.literal(true) }),
+);
+export const walletTicketRecentClickCreateSchema =
+  walletTicketScreeningSchema.extend({
+    tmdbId: protectedMovieIdSchema,
+  });
+export type WalletTicketRecentClick = z.infer<
+  typeof walletTicketRecentClickCreateSchema
+>;
+export const walletTicketRecentClickRequestSchema =
+  walletTicketRecentClickCreateSchema
+    .extend({
+      expectedAccountId: applicationIdentitySchema.shape.id.optional(),
+    })
+    .strict();
+export const walletTicketRecentClickResponseSchema = envelope(
+  z.object({ screening: walletTicketRecentClickCreateSchema.nullable() }),
+);

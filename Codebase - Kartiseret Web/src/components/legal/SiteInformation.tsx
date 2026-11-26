@@ -129,7 +129,7 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
   },
   "/accessibility": {
     intro: "I want everyone to be able to find a film and plan a cinema visit.",
-    updated: { date: "2026-11-23", label: "23 November 2026" },
+    updated: { date: "2026-11-26", label: "26 November 2026" },
     sections: [
       {
         id: "commitment",
@@ -265,6 +265,29 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
             sync it across supported devices. Providing account information is
             voluntary and required to use account features such as synced
             preferences and alerts.
+          </p>
+        ),
+      },
+      {
+        id: "ticket-imports",
+        title: "Imported tickets and showtime suggestions",
+        content: (
+          <p>
+            If you import a ticket, the website or iOS app reads its QR code on
+            your device; the screenshot is not uploaded or stored by Kartiseret.
+            When you save the ticket, Kartiseret stores the QR contents, movie,
+            cinema, city, date, time, and reminder setting in your private
+            account so the ticket can appear on your devices and be used to
+            create an Apple Wallet pass. QR contents can include a unique ticket
+            code, so keep your account secure. You can review or delete a saved
+            ticket in My Tickets. To help prefill a ticket, Kartiseret may store
+            the latest showtime you opened while signed in: the movie, city,
+            cinema, date, time, and click time, without storing the booking-link
+            URL. This suggestion is eligible for 24 hours and is deleted when My
+            Tickets checks it after expiring, replaced by a later showtime
+            click, cleared when you import a ticket, or removed with your
+            account. Optional ticket reminders are scheduled as local iOS
+            notifications and open the saved ticket in the app.
           </p>
         ),
       },

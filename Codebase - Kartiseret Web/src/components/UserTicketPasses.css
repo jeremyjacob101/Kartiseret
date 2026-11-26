@@ -1,0 +1,283 @@
+.wallet-ticket-workspace {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.wallet-ticket-panel,
+.wallet-ticket-list-panel {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--prefs-divider);
+  border-radius: 18px;
+  background: var(--prefs-surface);
+}
+
+.wallet-ticket-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.wallet-ticket-panel-heading h3 {
+  margin: 5px 0 0;
+  color: var(--prefs-foreground);
+  font-size: 1.08rem;
+}
+
+.wallet-ticket-help,
+.wallet-ticket-success,
+.wallet-ticket-error,
+.wallet-ticket-suggestion,
+.wallet-ticket-privacy-note {
+  color: var(--prefs-secondary);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.wallet-ticket-help {
+  margin: 0 0 16px;
+}
+
+.wallet-ticket-success,
+.wallet-ticket-error,
+.wallet-ticket-suggestion {
+  margin: 12px 0 0;
+}
+
+.wallet-ticket-success,
+.wallet-ticket-qr-ready {
+  color: #b8ecc9;
+}
+
+.wallet-ticket-error {
+  color: #ffb1ac;
+}
+
+.wallet-ticket-suggestion {
+  border-left: 3px solid var(--main-app-color);
+  padding: 8px 11px;
+  background: color-mix(in srgb, var(--main-app-color) 10%, transparent);
+}
+
+.wallet-ticket-upload {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 15px;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 62%, transparent);
+  border-radius: 11px;
+  color: var(--prefs-foreground);
+  background: color-mix(in srgb, var(--main-app-color) 16%, transparent);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.wallet-ticket-upload:hover {
+  background: color-mix(in srgb, var(--main-app-color) 24%, transparent);
+}
+
+.wallet-ticket-upload:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--main-app-color) 80%, white 10%);
+  outline-offset: 2px;
+}
+
+.wallet-ticket-upload input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.wallet-ticket-qr-ready {
+  margin: 10px 0 0;
+  font-size: 0.88rem;
+}
+
+.wallet-ticket-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+  margin-top: 17px;
+}
+
+.wallet-ticket-form-grid label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: var(--prefs-secondary);
+  font-size: 0.84rem;
+  font-weight: 650;
+}
+
+.wallet-ticket-form-grid input {
+  width: 100%;
+  min-height: 42px;
+  box-sizing: border-box;
+  border: 1px solid var(--prefs-divider);
+  border-radius: 10px;
+  padding: 0 11px;
+  color: var(--prefs-foreground);
+  background: rgba(0, 0, 0, 0.16);
+  font: inherit;
+  color-scheme: dark;
+}
+
+.wallet-ticket-form-grid input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--main-app-color) 76%, white 8%);
+  outline-offset: 2px;
+}
+
+.wallet-ticket-form-actions,
+.wallet-ticket-detail-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 16px;
+}
+
+.wallet-ticket-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--main-app-color) 65%, transparent);
+  border-radius: 10px;
+  padding: 0 13px;
+  color: white;
+  background: var(--main-app-color);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.wallet-ticket-button:disabled {
+  opacity: 0.56;
+  cursor: wait;
+}
+
+.wallet-ticket-button--quiet {
+  color: var(--prefs-foreground);
+  background: transparent;
+  border-color: var(--prefs-divider);
+}
+
+.wallet-ticket-button--danger {
+  color: #ffb1ac;
+  background: transparent;
+  border-color: rgba(255, 177, 172, 0.35);
+}
+
+.wallet-ticket-privacy-note {
+  font-size: 0.82rem;
+}
+
+.wallet-ticket-count {
+  display: inline-grid;
+  min-width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--prefs-foreground);
+  background: var(--prefs-surface-hover);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.wallet-ticket-list {
+  display: grid;
+  gap: 8px;
+  margin: 15px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wallet-ticket-list-item {
+  display: grid;
+  width: 100%;
+  gap: 3px;
+  border: 1px solid var(--prefs-divider);
+  border-radius: 12px;
+  padding: 12px;
+  color: var(--prefs-secondary);
+  background: transparent;
+  font: inherit;
+  font-size: 0.86rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wallet-ticket-list-item:hover,
+.wallet-ticket-list-item.is-selected {
+  border-color: color-mix(in srgb, var(--main-app-color) 65%, transparent);
+  background: color-mix(in srgb, var(--main-app-color) 10%, transparent);
+}
+
+.wallet-ticket-list-title {
+  color: var(--prefs-foreground);
+  font-size: 0.96rem;
+  font-weight: 750;
+}
+
+.wallet-ticket-detail {
+  margin-top: 18px;
+  border-top: 1px solid var(--prefs-divider);
+  padding-top: 18px;
+}
+
+.wallet-ticket-detail-qr {
+  display: grid;
+  width: fit-content;
+  max-width: 100%;
+  place-items: center;
+  border-radius: 14px;
+  padding: 14px;
+  background: white;
+}
+
+.wallet-ticket-detail-qr img {
+  display: block;
+  width: min(240px, 64vw);
+  height: auto;
+}
+
+.wallet-ticket-delete-confirm {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--prefs-secondary);
+  font-size: 0.88rem;
+}
+
+.wallet-ticket-delete-confirm button {
+  border: 1px solid var(--prefs-divider);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--prefs-foreground);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .wallet-ticket-panel,
+  .wallet-ticket-list-panel {
+    padding: 16px;
+  }
+
+  .wallet-ticket-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

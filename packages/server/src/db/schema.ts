@@ -6,6 +6,7 @@ import {
   date,
   doublePrecision,
   foreignKey,
+  index,
   integer,
   jsonb,
   numeric,
@@ -442,6 +443,49 @@ export const userMovieDisplayPreferences = pgTable(
   ],
 );
 
+export const userWalletTickets = pgTable(
+  "user_wallet_tickets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    tmdbId: bigint("tmdb_id", { mode: "bigint" }),
+    title: text("title").notNull(),
+    city: text("city").notNull(),
+    cinema: text("cinema").notNull(),
+    screeningDate: calendarDate("screening_date").notNull(),
+    screeningTime: time("screening_time", { precision: 0 }).notNull(),
+    qrMessage: text("qr_message").notNull(),
+    reminderEnabled: boolean("reminder_enabled").notNull().default(false),
+    createdAt: instant("created_at").notNull().defaultNow(),
+    updatedAt: instant("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("user_wallet_tickets_user_date_idx").on(
+      table.userId,
+      table.screeningDate,
+      table.screeningTime,
+    ),
+  ],
+);
+
+export const userWalletRecentShowtimeClicks = pgTable(
+  "user_wallet_recent_showtime_clicks",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    tmdbId: bigint("tmdb_id", { mode: "bigint" }).notNull(),
+    title: text("title").notNull(),
+    city: text("city").notNull(),
+    cinema: text("cinema").notNull(),
+    screeningDate: calendarDate("screening_date").notNull(),
+    screeningTime: time("screening_time", { precision: 0 }).notNull(),
+    clickedAt: instant("clicked_at").notNull().defaultNow(),
+  },
+);
+
 export const letterboxdSources = pgTable(
   "letterboxd_sources",
   {
@@ -709,6 +753,8 @@ export const applicationTables = {
   ticketAlertPreferences,
   ticketAlertSubscriptions,
   userMovieDisplayPreferences,
+  userWalletTickets,
+  userWalletRecentShowtimeClicks,
   userPreferences,
   utilAvgTime,
   utilRunLogs,

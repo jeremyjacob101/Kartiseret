@@ -63,6 +63,10 @@ struct AppRootView: View {
 
                 NavigationStack(path: $accountPath) {
                     YouView()
+                        .navigationDestination(for: TicketPassRoute.self) { route in
+                            TicketPassesView(initialTicketID: route.ticketID)
+                                .id(accountStore.identity?.id ?? "signed-out")
+                        }
                 }
                 .tabItem { Label("You", systemImage: "person.crop.circle") }
                 .tag(AppTab.you)
@@ -94,6 +98,12 @@ struct AppRootView: View {
             PushNotificationRegistration.pendingURL = nil
             handleIncomingURL(url)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .kartiseretTicketReminderTapped)) { notification in
+            guard let ticketID = notification.object as? String else { return }
+            selectedTab = .you
+            accountPath = NavigationPath()
+            accountPath.append(TicketPassRoute(ticketID: ticketID))
+        }
         .task {
             if !store.fixtureMode {
                 await accountStore.loadSignInProviders()
@@ -123,6 +133,14 @@ struct AppRootView: View {
             if phase == .active {
                 store.reconcileDay()
                 Task { await accountStore.syncPushDeviceRegistration() }
+                Task { await TicketReminderManager.refreshFromServer(account: accountStore) }
+            }
+        }
+        .onChange(of: accountStore.state) { _, state in
+            if state == .signedIn {
+                Task { await TicketReminderManager.refreshFromServer(account: accountStore) }
+            } else {
+                Task { await TicketReminderManager.cancelAll() }
             }
         }
         .alert("Couldn’t open this link", isPresented: Binding(

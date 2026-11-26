@@ -274,6 +274,21 @@ final class AccountStore {
         }
     }
 
+    func requestPrivateFile(path: String, contentType: String) async throws -> Data {
+        guard state == .signedIn, let token, let identity else { throw APIClientError.unauthorized }
+        do {
+            return try await api.requestPrivateFile(
+                token: token,
+                accountID: identity.id,
+                path: path,
+                contentType: contentType
+            )
+        } catch APIClientError.unauthorized {
+            if self.token == token { expireSession() }
+            throw APIClientError.unauthorized
+        }
+    }
+
     func displayedMovie(_ movie: Movie) -> Movie? {
         guard let rule = movieDisplayRules[movie.tmdbId] else { return movie }
         guard rule.treatment != "remove" else { return nil }

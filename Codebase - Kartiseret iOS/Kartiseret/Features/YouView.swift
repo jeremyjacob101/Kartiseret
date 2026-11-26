@@ -15,6 +15,9 @@ struct YouView: View {
             } else if account.state == .signedIn, let identity = account.identity {
                 Section("Account") {
                     Label(identity.email ?? "Kartiseret account", systemImage: "person.crop.circle.fill")
+                    settingsLink("My Tickets", systemImage: "ticket") {
+                        TicketPassesView()
+                    }
                     settingsLink("Preferences", systemImage: "slider.horizontal.3") {
                         PreferencesView()
                     }

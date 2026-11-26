@@ -7,7 +7,13 @@ import { describe, expect, it, vi } from "vitest";
 
 describe("showtime shared rendered surfaces", () => {
   it("renders theater links, technology badges, dub flags, and safe fallback colors", () => {
-    render(<ShowtimeTheaters movie={sampleMovie} theaters={sampleShowtimes} />);
+    render(
+      <ShowtimeTheaters
+        movie={sampleMovie}
+        theaters={sampleShowtimes}
+        screeningDate="2026-11-27"
+      />,
+    );
 
     expect(screen.getByText("Cinema City")).toBeInTheDocument();
     expect(screen.getByText("Unknown Cinema")).toBeInTheDocument();
@@ -45,6 +51,7 @@ describe("showtime shared rendered surfaces", () => {
     render(
       <ShowtimeTheaters
         movie={sampleMovie}
+        screeningDate="2026-11-27"
         theaters={[{ ...theater, showtimes: [showtime] }]}
       />,
     );

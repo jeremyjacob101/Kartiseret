@@ -40,6 +40,13 @@ final class KartiseretAppDelegate: NSObject, UIApplicationDelegate, UNUserNotifi
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
+        let request = response.notification.request
+        if request.identifier.hasPrefix(TicketReminderManager.identifierPrefix),
+           let ticketID = request.content.userInfo["ticketId"] as? String {
+            Task { @MainActor in
+                NotificationCenter.default.post(name: .kartiseretTicketReminderTapped, object: ticketID)
+            }
+        }
         let urlString = response.notification.request.content.userInfo["url"] as? String
         if let urlString {
             Task { @MainActor in

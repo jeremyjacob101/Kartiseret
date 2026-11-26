@@ -53,6 +53,51 @@ struct LetterboxdSource: Decodable, Identifiable, Sendable {
 
 struct LetterboxdSourcePage: Decodable, Sendable { let sources: [LetterboxdSource] }
 
+struct WalletTicket: Codable, Identifiable, Equatable, Sendable {
+    let id: String
+    let tmdbId: String?
+    let title: String
+    let city: String
+    let cinema: String
+    let screeningDate: String
+    let screeningTime: String
+    let reminderEnabled: Bool
+    let createdAt: String
+    let updatedAt: String
+}
+
+struct WalletTicketDetail: Codable, Identifiable, Equatable, Sendable {
+    let id: String
+    let tmdbId: String?
+    let title: String
+    let city: String
+    let cinema: String
+    let screeningDate: String
+    let screeningTime: String
+    let reminderEnabled: Bool
+    let createdAt: String
+    let updatedAt: String
+    let qrMessage: String
+}
+
+struct WalletTicketScreening: Codable, Equatable, Sendable {
+    var tmdbId: String?
+    var title: String
+    var city: String
+    var cinema: String
+    var screeningDate: String
+    var screeningTime: String
+}
+
+struct WalletTicketList: Decodable, Sendable { let tickets: [WalletTicket] }
+struct WalletTicketDetailPage: Decodable, Sendable { let ticket: WalletTicketDetail }
+struct WalletTicketChangePage: Decodable, Sendable { let ticket: WalletTicket }
+struct WalletTicketRecentScreeningPage: Decodable, Sendable { let screening: WalletTicketScreening? }
+
+struct TicketPassRoute: Hashable, Sendable {
+    let ticketID: String
+}
+
 struct MovieDisplayRule: Codable, Identifiable, Sendable {
     let tmdbId: String
     let title: String
