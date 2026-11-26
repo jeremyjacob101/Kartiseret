@@ -1,8 +1,11 @@
+import { usePublicRoutePaths } from "../../routing/PublicRoutePathsContext";
+import { usePublicRouteLocation } from "../../routing/PublicRouteLocation";
 import { siteInformationPages } from "../../routing/siteInformation";
-import { NavLink } from "react-router";
+import { PublicRouteLink } from "../../routing/PublicRouteLink";
 import "./BottomBar.css";
 
 export function BottomBar() {
+  const { pathname } = usePublicRouteLocation();
   const year = new Date().toLocaleString("en", {
     timeZone: "Asia/Jerusalem",
     year: "numeric",
@@ -13,9 +16,14 @@ export function BottomBar() {
       <div className="bottom-bar">
         <nav className="bottom-bar-links" aria-label="Footer">
           {siteInformationPages.map(({ path, label }) => (
-            <NavLink key={path} className="bottom-bar-link" to={path} end>
+            <PublicRouteLink
+              key={path}
+              className="bottom-bar-link"
+              to={path}
+              aria-current={pathname === path ? "page" : undefined}
+            >
               {label}
-            </NavLink>
+            </PublicRouteLink>
           ))}
         </nav>
         <div className="bottom-bar-identity">

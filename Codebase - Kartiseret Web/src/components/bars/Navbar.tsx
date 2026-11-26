@@ -1,8 +1,10 @@
 import { useEffect, useState, type MouseEventHandler } from "react";
-import { Link, useLocation } from "react-router";
 import { Clock8, Film } from "lucide-react";
+import { useLocation } from "react-router";
 import "./Navbar.css";
 import { MovieSearchMenu, type MovieSearchCollection, type MovieSearchResult } from "../MovieSearchMenu";
+import { usePublicRoutePaths } from "../../routing/PublicRoutePathsContext";
+import { PublicRouteLink } from "../../routing/PublicRouteLink";
 import { TheaterMapDialog } from "../maps/TheaterMapDialog";
 import { UserMenu } from "../UserMenu";
 
@@ -69,6 +71,14 @@ export function Navbar({
   onSoonsNavClick,
 }: NavbarProps) {
   const { pathname: currentPath } = useLocation();
+  const routePaths = usePublicRoutePaths();
+  const isCurrentRoute = (path: string) =>
+    currentPath === path || currentPath === routePaths[path];
+  const isShowtimesRoute =
+    isCurrentRoute("/showtimes") ||
+    Object.entries(routePaths).some(
+      ([path, code]) => path.startsWith("/showtimes/") && code === currentPath,
+    );
   const [showNavbarIntro, setShowNavbarIntro] = useState(true);
 
   useEffect(() => {
@@ -104,20 +114,20 @@ export function Navbar({
             <span className="visually-hidden">Kartiseret</span>
           </button>
           <nav className="topnav" aria-label="Primary">
-            <Link
+            <PublicRouteLink
               to="/movies"
               className={`topnav-link topnav-button${
-                currentPath === "/movies" ? " topnav-link--active" : ""
+                isCurrentRoute("/movies") ? " topnav-link--active" : ""
               }`}
               onClick={onMoviesNavClick}
             >
               <Film className="topnav-icon" aria-hidden="true" />
               <span className="topnav-label">Now Playing</span>
-            </Link>
-            <Link
+            </PublicRouteLink>
+            <PublicRouteLink
               to="/soons"
               className={`topnav-link topnav-button${
-                currentPath === "/soons" ? " topnav-link--active" : ""
+                isCurrentRoute("/soons") ? " topnav-link--active" : ""
               }`}
               onClick={onSoonsNavClick}
             >
@@ -126,19 +136,16 @@ export function Navbar({
                 aria-hidden="true"
               />
               <span className="topnav-label">Coming Soon</span>
-            </Link>
-            <Link
+            </PublicRouteLink>
+            <PublicRouteLink
               to="/showtimes"
               className={`topnav-link topnav-button${
-                currentPath === "/showtimes" ||
-                currentPath.startsWith("/showtimes/")
-                  ? " topnav-link--active"
-                  : ""
+                isShowtimesRoute ? " topnav-link--active" : ""
               }`}
             >
               <Clock8 className="topnav-icon" aria-hidden="true" />
               <span className="topnav-label">All Showtimes</span>
-            </Link>
+            </PublicRouteLink>
           </nav>
           <NavbarActions
             catalogReady={catalogReady}

@@ -16,7 +16,8 @@
     "./public-data": "./dist/public-data/index.js",
     "./vercel-dispatch": "./dist/vercel-dispatch.js",
     "./social-preview": "./dist/social-preview.js",
-    "./homepage-featured": "./dist/homepage/featured.js"
+    "./homepage-featured": "./dist/homepage/featured.js",
+    "./page-routes": "./dist/page-routes.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

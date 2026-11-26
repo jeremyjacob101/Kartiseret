@@ -153,12 +153,13 @@ export function CinemathequesPage() {
                         className="cinematheques-poster-tile"
                         key={movie.tmdbId}
                       >
-                        {movie.movieCode &&
+                        {movie.publicRouteCode &&
+                        movie.movieCode &&
                         findMovieByCode(movie.movieCode, queryClient)?.movie
                           .tmdbId === movie.tmdbId ? (
                           <Link
                             className="cinematheques-poster-button"
-                            to={`/${movie.movieCode}`}
+                            to={`/${movie.publicRouteCode}`}
                             aria-label={`View details for ${movie.title}`}
                           >
                             <MoviePosterArtwork

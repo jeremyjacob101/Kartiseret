@@ -98,6 +98,24 @@ function latest(kind: AuthEmail["kind"], to = email) {
   if (!message) throw new Error("Expected captured auth email.");
   return new URL(message.url);
 }
+function emailActionToken(kind: AuthEmail["kind"], to = email): string {
+  const prefix = { verification: "e", reset: "r", deletion: "d" }[kind];
+  const url = latest(kind, to);
+  expect(url.origin).toBe(origin);
+  expect(url.search).toBe("");
+  expect(url.hash).toBe("");
+  expect(url.pathname.startsWith(`/${prefix}`)).toBe(true);
+  return url.pathname.slice(2);
+}
+async function verifyEmail(to = email) {
+  const token = emailActionToken("verification", to);
+  const response = await request(app)
+    .get("/api/auth/verify-email")
+    .query({ token });
+  expect(response.status).toBe(200);
+  expect(response.body.status).toBe(true);
+  return response;
+}
 function signup(to: string) {
   return post("/api/auth/sign-up/email", {
     name: "Test member",
@@ -119,11 +137,7 @@ async function login(to = email, value = password) {
 async function createVerifiedMember(address: string) {
   const created = await signup(address);
   expect(created.status).toBe(200);
-  const verification = latest("verification", address);
-  expect(
-    (await request(app).get(verification.pathname + verification.search))
-      .status,
-  ).toBe(302);
+  await verifyEmail(address);
   return { id: created.body.user.id as string, cookie: await login(address) };
 }
 
@@ -213,7 +227,6 @@ describe.sequential(
       const created = await signup(email);
       expect(created.status).toBe(200);
       userId = created.body.user.id;
-      const signupVerification = latest("verification");
       expect(created.body.token).toBeNull();
       expect(
         (await post("/api/auth/sign-in/email", { email, password })).status,
@@ -228,12 +241,17 @@ describe.sequential(
         `/api/auth/verify-email?token=${encodeURIComponent(expired)}`,
       );
       expect(denied.status).toBeGreaterThanOrEqual(400);
-      const url = signupVerification;
-      const confirmed = await request(app).get(url.pathname + url.search);
-      expect(confirmed.status).toBe(302);
-      expect(confirmed.headers.location).toBe(`${origin}/?verified=1`);
-      const replay = await request(app).get(url.pathname + url.search);
-      expect(replay.status).toBe(302);
+      const verificationToken = emailActionToken("verification");
+      const confirmed = await request(app)
+        .get("/api/auth/verify-email")
+        .query({ token: verificationToken });
+      expect(confirmed.status).toBe(200);
+      expect(confirmed.body.status).toBe(true);
+      const replay = await request(app)
+        .get("/api/auth/verify-email")
+        .query({ token: verificationToken });
+      expect(replay.status).toBe(200);
+      expect(replay.body.status).toBe(true);
       expect(replay.headers["set-cookie"]).toBeUndefined(); // Verified replay is an idempotent no-op, never a sign-in.
       cookie = await login();
       expect(cookie).toContain("integration.session_token=");
@@ -310,10 +328,7 @@ describe.sequential(
     it("keeps real cookie accounts isolated across preferences, alerts and admin commands", async () => {
       const otherEmail = "pr5-other@example.test";
       expect((await signup(otherEmail)).status).toBe(200);
-      const link = latest("verification", otherEmail);
-      expect((await request(app).get(link.pathname + link.search)).status).toBe(
-        302,
-      );
+      await verifyEmail(otherEmail);
       const other = await login(otherEmail);
       const otherId = (
         await request(app).get("/api/v1/account").set("Cookie", other)
@@ -480,13 +495,9 @@ describe.sequential(
         email,
         redirectTo: `${origin}/reset-password`,
       });
-      const url = latest("reset"),
-        token = url.pathname.split("/").at(-1)!;
-      const callback = await request(app).get(url.pathname + url.search);
-      expect(callback.status).toBe(302);
-      expect(callback.headers.location).toContain(
-        `/reset-password?token=${token}`,
-      );
+      const url = latest("reset");
+      const token = emailActionToken("reset");
+      expect(url.pathname).toBe(`/r${token}`);
       await admin.pool.query(
         `CREATE FUNCTION app_auth.pr5_reject_account() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.user_id='${userId}'::uuid THEN RAISE EXCEPTION 'controlled password write failure'; END IF; RETURN NEW; END $$; CREATE TRIGGER pr5_reject_account BEFORE UPDATE ON app_auth.accounts FOR EACH ROW EXECUTE FUNCTION app_auth.pr5_reject_account()`,
       );
@@ -543,7 +554,7 @@ describe.sequential(
         email,
         redirectTo: `${origin}/reset-password`,
       });
-      const expired = latest("reset").pathname.split("/").at(-1)!;
+      const expired = emailActionToken("reset");
       await admin.pool.query(
         "UPDATE app_auth.verifications SET expires_at=now()-interval '1 minute' WHERE identifier=$1",
         [`reset-password:${expired}`],
@@ -560,7 +571,7 @@ describe.sequential(
         email,
         redirectTo: `${origin}/reset-password`,
       });
-      const token = latest("reset").pathname.split("/").at(-1)!;
+      const token = emailActionToken("reset");
       const results = await Promise.all([
         post("/api/auth/reset-password", {
           token,
@@ -578,11 +589,7 @@ describe.sequential(
       const created = await signup(deleteEmail);
       expect(created.status).toBe(200);
       const deleteUserId: string = created.body.user.id;
-      const verification = latest("verification", deleteEmail);
-      expect(
-        (await request(app).get(verification.pathname + verification.search))
-          .status,
-      ).toBe(302);
+      await verifyEmail(deleteEmail);
       const deleteCookie = await login(deleteEmail);
 
       await admin.pool.query(
@@ -646,9 +653,7 @@ describe.sequential(
         deleteCookie,
       );
       expect(deleted.status).toBe(200);
-      const email = latest("deletion", deleteEmail);
-      const token = new URLSearchParams(email.hash.slice(1)).get("token");
-      expect(token).toBeTruthy();
+      const token = emailActionToken("deletion", deleteEmail);
       expect(
         (
           await admin.pool.query(
@@ -879,12 +884,10 @@ describe.sequential(
         expect(
           (await post("/api/auth/delete-user", {}, member.cookie)).status,
         ).toBe(200);
-        const deletion = new URLSearchParams(
-          latest("deletion", address).hash.slice(1),
-        );
+        const deletion = emailActionToken("deletion", address);
         const deleted = await post(
           "/api/auth/delete-user",
-          { token: deletion.get("token") },
+          { token: deletion },
           member.cookie,
         );
         expect(deleted.status).toBe(200);
@@ -944,10 +947,7 @@ describe.sequential(
           idToken: { token: identityToken },
           ...(code ? { additionalData: { appleAuthorizationCode: code } } : {}),
         });
-      const confirmation = () =>
-        new URLSearchParams(latest("deletion", email).hash.slice(1)).get(
-          "token",
-        );
+      const confirmation = () => emailActionToken("deletion", email);
       const appleRequests: Array<{ url: string; body: URLSearchParams }> = [];
       let revokeStatus = 200;
       const fetchMock = vi
@@ -1067,9 +1067,7 @@ describe.sequential(
         redirectTo: `${origin}/reset-password`,
       });
       expect(reset.status).toBe(200);
-      const resetToken = latest("reset", socialEmail)
-        .pathname.split("/")
-        .at(-1)!;
+      const resetToken = emailActionToken("reset", socialEmail);
       expect(
         (
           await post("/api/auth/reset-password", {
@@ -1094,15 +1092,11 @@ describe.sequential(
         socialCookie,
       );
       expect(deletionRequest.status).toBe(200);
-      const deletionEmail = latest("deletion", socialEmail);
-      const deletionToken = new URLSearchParams(
-        deletionEmail.hash.slice(1),
-      ).get("token");
-      expect(deletionToken).toBeTruthy();
+      const deletionToken = emailActionToken("deletion", socialEmail);
 
       const confirmed = await request(app)
         .get(
-          `/api/auth/delete-user/callback?token=${encodeURIComponent(deletionToken!)}&callbackURL=${encodeURIComponent(`${origin}/?accountDeleted=1`)}`,
+          `/api/auth/delete-user/callback?token=${encodeURIComponent(deletionToken)}&callbackURL=${encodeURIComponent(`${origin}/?accountDeleted=1`)}`,
         )
         .set("Origin", origin)
         .set("Cookie", socialCookie);
@@ -1122,7 +1116,7 @@ describe.sequential(
         email: to,
         redirectTo: `${origin}/reset-password`,
       });
-      const token = latest("reset", to).pathname.split("/").at(-1)!;
+      const token = emailActionToken("reset", to);
       expect(
         (
           await post("/api/auth/reset-password", {

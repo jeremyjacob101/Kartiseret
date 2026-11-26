@@ -7,20 +7,25 @@ import { INTRO_LEADING_CARD_COUNT, INTRO_TARGET_CARD_COUNT } from "./components/
 import { getCinemathequeDateRange, nationwideCinemathequeQueryOptions } from "./data/cinemathequeCatalog";
 import { getShowtimesCityFromPath, getShowtimesCityPath } from "@kartiseret/contracts/showtime-routes";
 import { MovieScroller, type MovieScrollerJumpRequest } from "./components/scroller/MovieScroller";
+import { getPublicRouteRenderPath, publicRouteSchema } from "@kartiseret/contracts/public-routes";
 import { DeleteAccountConfirmationPage } from "./components/DeleteAccountConfirmationPage";
 import type { HomepageFeaturedResponse } from "@kartiseret/contracts/homepage-featured";
+import { SecureEmailVerificationPage } from "./components/SecureEmailVerificationPage";
 import { useMovieDisplayPreferences } from "./contexts/MovieDisplayPreferencesContext";
 import { preloadCityLocationPicker } from "./components/maps/loadCityLocationPicker";
 import { usePublicRouteComponents } from "./routing/PublicRouteComponentsContext.js";
+import { PublicRouteLocationProvider } from "./routing/PublicRouteLocationProvider";
 import { getCurrentRobotsDirectives, setSeoMetadata } from "./routing/seoMetadata";
 import { LetterboxdUnsubscribePage } from "./components/LetterboxdUnsubscribePage";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { HomepageFeaturedCarousel } from "./components/HomepageFeaturedCarousel";
+import { resolveLegacyEmailActionPath } from "./routing/legacyEmailActionRoute";
 import { ReleaseCategorySwitcher } from "./components/ReleaseCategorySwitcher";
 import type { ApplicationIdentity } from "@kartiseret/contracts/private-data";
 import { applyMovieDisplayPreferences } from "./data/movieDisplayPreferences";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { backdropPreloader } from "./components/scroller/backdropPreloader";
+import { usePublicRoutePaths } from "./routing/PublicRoutePathsContext.js";
 import { useUserPreferencesStore } from "./stores/userPreferencesStore";
 import { usePublicationRevision } from "./hooks/usePublicationRevision";
 import { type MovieSearchResult } from "./components/MovieSearchMenu";
@@ -28,11 +33,15 @@ import { PasswordResetPage } from "./components/PasswordResetPage";
 import { siteInformationPages } from "./routing/siteInformation";
 import { movieCodeSchema } from "@kartiseret/contracts/runtime";
 import { adminStatusQueryOptions } from "./data/adminStatus";
+import { PublicRouteLink } from "./routing/PublicRouteLink";
+import { getOpaquePublicPath } from "./data/publicRoutes";
 import { BottomBar } from "./components/bars/BottomBar";
 import { useDeviceStore } from "./device/useDeviceType";
 import { PASSWORD_RESET_PATH } from "./lib/authRoutes";
 import { useShallow } from "zustand/react/shallow";
+import { getApiResponse } from "./data/apiClient";
 import { Navbar } from "./components/bars/Navbar";
+import { z } from "zod";
 import "./index.css";
 
 const SCROLLER_CARD_WIDTH = 220;
@@ -40,6 +49,17 @@ const SCROLLER_CARD_HEIGHT = 330;
 const SCROLLER_GAP = 22;
 const SCROLLER_MAX_WIDTH = 1100;
 const SCROLLER_SLOT_MIN_HEIGHT = 420;
+const publicRouteResponseSchema = z.object({
+  data: z.object({
+    route: publicRouteSchema,
+    renderPath: z.string().min(1).max(2048),
+  }),
+  error: z.null(),
+});
+const legacyRouteResponseSchema = z.object({
+  data: z.object({ path: z.string().regex(/^\/[a-z0-9]{8}$/) }),
+  error: z.null(),
+});
 const MOBILE_SCROLLER_CARD_WIDTH = 160;
 const MOBILE_SCROLLER_CARD_HEIGHT = 240;
 const MOBILE_SCROLLER_GAP = 18;
@@ -218,7 +238,7 @@ function NotFoundRoute() {
     <section className="page-panel">
       <h1>Page not found</h1>
       <p>This page is not available.</p>
-      <a href="/">Return to Kartiseret</a>
+      <PublicRouteLink to="/">Return to Kartiseret</PublicRouteLink>
     </section>
   );
 }
@@ -353,8 +373,8 @@ function HomePosterRow({
         );
         return (
           <li key={movie.tmdbId}>
-            {movie.movieCode ? (
-              <a href={`/${movie.movieCode}`}>{card}</a>
+            {movie.publicRouteCode ? (
+              <a href={`/${movie.publicRouteCode}`}>{card}</a>
             ) : (
               card
             )}
@@ -525,6 +545,23 @@ function UserRoute({
   user: ApplicationIdentity | null;
   loading: boolean;
 }) {
+  const publicRoutePaths = usePublicRoutePaths();
+  const navigate = useNavigate();
+  const [homeRouteUnavailable, setHomeRouteUnavailable] = useState(false);
+  useEffect(() => {
+    if (user || loading) return;
+    let active = true;
+    void getOpaquePublicPath("/", publicRoutePaths)
+      .then((path) => {
+        if (active) navigate(path, { replace: true });
+      })
+      .catch(() => {
+        if (active) setHomeRouteUnavailable(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [loading, navigate, publicRoutePaths, user]);
   if (!user && loading)
     return (
       <section className="page-panel">
@@ -532,7 +569,16 @@ function UserRoute({
       </section>
     );
   if (!user) {
-    return <Navigate to="/" replace />;
+    return homeRouteUnavailable ? (
+      <section className="page-panel">
+        <p role="status">Sign in to view User Preferences.</p>
+        <PublicRouteLink to="/">Return to Kartiseret</PublicRouteLink>
+      </section>
+    ) : (
+      <section className="page-panel">
+        <p role="status">Returning to Kartiseret…</p>
+      </section>
+    );
   }
 
   return (
@@ -546,14 +592,52 @@ function UserRoute({
 
 export function App() {
   const location = useLocation();
-  if (location.pathname === "/unsubscribe/letterboxd") {
-    return <LetterboxdUnsubscribePage />;
+  if (
+    location.pathname === "/unsubscribe/letterboxd" ||
+    location.pathname === "/confirm-account-deletion"
+  ) {
+    const currentOpaqueActionPath = resolveLegacyEmailActionPath(
+      location.pathname,
+      location.hash,
+    );
+    return currentOpaqueActionPath ? (
+      <Navigate to={currentOpaqueActionPath} replace />
+    ) : (
+      <Navigate to="/" replace />
+    );
+  }
+  const unsubscribeMatch = /^\/u([A-Za-z0-9_-]{43})$/.exec(location.pathname);
+  if (unsubscribeMatch?.[1]) {
+    return <LetterboxdUnsubscribePage token={unsubscribeMatch[1]} />;
+  }
+  const verificationMatch = /^\/e([A-Za-z0-9._-]{24,4094})$/.exec(
+    location.pathname,
+  );
+  if (verificationMatch?.[1]) {
+    return <SecureEmailVerificationPage token={verificationMatch[1]} />;
+  }
+  const resetMatch = /^\/r([A-Za-z0-9_-]{16,256})$/.exec(location.pathname);
+  if (resetMatch?.[1]) {
+    return (
+      <section className="page-panel">
+        <PasswordResetPage resetToken={resetMatch[1]} />
+      </section>
+    );
+  }
+  const deletionMatch = /^\/d([A-Za-z0-9_-]{16,256})$/.exec(location.pathname);
+  if (deletionMatch?.[1]) {
+    return (
+      <section className="page-panel">
+        <DeleteAccountConfirmationPage confirmationToken={deletionMatch[1]} />
+      </section>
+    );
   }
   return <MainApplication />;
 }
 
 function MainApplication() {
   const { cinemaPage: StaticCinemaPage } = usePublicRouteComponents();
+  const publicRoutePaths = usePublicRoutePaths();
   const publicationRevision = usePublicationRevision();
   const displayPreferences = useMovieDisplayPreferences();
   const routeLocation = useLocation();
@@ -568,7 +652,52 @@ function MainApplication() {
         hideReReleases: state.preferences.hideReReleases,
       })),
     );
-  const pathname = routeLocation.pathname;
+  const routeCodeMatch = /^\/([a-z0-9]{8})$/.exec(routeLocation.pathname);
+  const routeCode = routeCodeMatch?.[1] ?? null;
+  const routeQuery = useQuery({
+    queryKey: ["public-route", routeCode],
+    queryFn: async () => {
+      if (!routeCode) throw new Error("The page code is missing.");
+      const response = await getApiResponse(
+        `/api/v1/public-routes/${routeCode}`,
+        publicRouteResponseSchema,
+      );
+      const renderPath = getPublicRouteRenderPath(response.data.route);
+      if (!renderPath)
+        throw new Error("The page code has an invalid destination.");
+      return { route: response.data.route, renderPath };
+    },
+    enabled: Boolean(routeCode),
+  });
+  useEffect(() => {
+    if (routeCode) return;
+    const legacyPath = routeLocation.pathname + routeLocation.search;
+    const hash = routeLocation.hash;
+    let active = true;
+    void getApiResponse(
+      `/api/v1/public-routes/legacy?path=${encodeURIComponent(legacyPath)}`,
+      legacyRouteResponseSchema,
+    )
+      .then((response) => {
+        if (active && response.data.path !== legacyPath) {
+          navigate(`${response.data.path}${hash}`, { replace: true });
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [
+    navigate,
+    routeCode,
+    routeLocation.hash,
+    routeLocation.pathname,
+    routeLocation.search,
+  ]);
+  const effectiveRoute = routeQuery.data?.renderPath;
+  const effectivePathname =
+    effectiveRoute?.split("?", 1)[0] ?? routeLocation.pathname;
+  const pathname = effectivePathname;
   const informationPage = siteInformationPages.find(
     ({ path }) => path === pathname,
   );
@@ -1113,11 +1242,26 @@ function MainApplication() {
   const handleMovieSearchSelect = useCallback(
     (result: MovieSearchResult) => {
       if (result.mode === "cinematheque") {
-        navigate("/cinematheques");
+        void getOpaquePublicPath("/cinematheques", publicRoutePaths)
+          .then((path) => navigate(path))
+          .catch(() => undefined);
         return;
       }
       if (result.movieCode) {
-        navigate(`/${result.movieCode}`);
+        const movie = [
+          ...(nowPlayingQuery.data?.movies ?? []),
+          ...(comingSoonQuery.data?.movies ?? []),
+        ].find((candidate) => candidate.movieCode === result.movieCode);
+        if (movie?.publicRouteCode) {
+          navigate(`/${movie.publicRouteCode}`);
+        } else if (movie) {
+          void getApiResponse(
+            `/api/v1/public-routes/legacy?path=${encodeURIComponent(`/${movie.movieCode}`)}`,
+            legacyRouteResponseSchema,
+          )
+            .then((response) => navigate(response.data.path))
+            .catch(() => undefined);
+        }
         return;
       }
 
@@ -1130,10 +1274,20 @@ function MainApplication() {
       const targetPath = result.mode === "nowPlaying" ? "/movies" : "/soons";
 
       if (pathname !== targetPath) {
-        navigate(targetPath);
+        void getOpaquePublicPath(targetPath, publicRoutePaths)
+          .then((path) => navigate(path))
+          .catch(() => undefined);
       }
     },
-    [handleReleaseCategoryChange, navigate, openCatalogMovie, pathname],
+    [
+      comingSoonQuery.data?.movies,
+      handleReleaseCategoryChange,
+      navigate,
+      nowPlayingQuery.data?.movies,
+      openCatalogMovie,
+      pathname,
+      publicRoutePaths,
+    ],
   );
 
   const handleMoviesNavClick = useCallback<
@@ -1172,7 +1326,9 @@ function MainApplication() {
 
   const handleHomeClick = useCallback(() => {
     if (pathname !== "/") {
-      navigate("/");
+      void getOpaquePublicPath("/", publicRoutePaths)
+        .then((path) => navigate(path))
+        .catch(() => undefined);
     }
 
     window.requestAnimationFrame(() => {
@@ -1183,7 +1339,7 @@ function MainApplication() {
 
       window.scrollTo({ top: 0, behavior });
     });
-  }, [navigate, pathname]);
+  }, [navigate, pathname, publicRoutePaths]);
 
   const searchCollections = [
     {
@@ -1204,222 +1360,250 @@ function MainApplication() {
   ];
 
   return (
-    <div className="app-shell">
-      <Navbar
-        catalogReady={catalogReady}
-        searchLoading={
-          cinemathequeSearchEnabled && cinemathequeSearchQuery.isFetching
-        }
-        cinemathequeUnavailable={
-          cinemathequeSearchEnabled && cinemathequeSearchQuery.isError
-        }
-        searchCollections={searchCollections}
-        onHomeClick={handleHomeClick}
-        onMoviesNavClick={handleMoviesNavClick}
-        onSearchOpen={handleSearchOpen}
-        onSelectResult={handleMovieSearchSelect}
-        onSoonsNavClick={handleSoonsNavClick}
-      />
+    <PublicRouteLocationProvider
+      renderPath={routeQuery.data?.renderPath ?? null}
+    >
+      <div className="app-shell">
+        <Navbar
+          catalogReady={catalogReady}
+          searchLoading={
+            cinemathequeSearchEnabled && cinemathequeSearchQuery.isFetching
+          }
+          cinemathequeUnavailable={
+            cinemathequeSearchEnabled && cinemathequeSearchQuery.isError
+          }
+          searchCollections={searchCollections}
+          onHomeClick={handleHomeClick}
+          onMoviesNavClick={handleMoviesNavClick}
+          onSearchOpen={handleSearchOpen}
+          onSelectResult={handleMovieSearchSelect}
+          onSoonsNavClick={handleSoonsNavClick}
+        />
 
-      <main
-        className={["app-main", isShowtimesPage ? "app-main--showtimes" : null]
-          .filter(Boolean)
-          .join(" ")}
-      >
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <HomeRoute
-                catalogError={catalogError}
-                cardHeight={scrollerCardHeight}
-                cardWidth={scrollerCardWidth}
-                comingSoonReady={comingSoonReady}
-                comingSoonMovies={comingSoonNewReleaseMovies}
-                gap={scrollerGap}
-                nowPlayingReady={nowPlayingReady}
-                nowPlayingMovies={nowPlayingNewReleaseMovies}
-                nowPlayingReReleaseMovies={nowPlayingReReleaseMovies}
-                hideReReleases={hideReReleases}
-                scrollerSlotMinHeight={scrollerSlotMinHeight}
-                isAdmin={isAdmin}
-                userId={user?.id ?? null}
-                homepageFeaturedConfig={homepageFeaturedResponse?.data}
-                homepageHighlights={homepageHighlights}
-                onAdminSaveHomepageHighlight={saveHomepageHighlightFromUi}
-                onAdminRemoveHomepageHighlight={removeHomepageHighlightFromUi}
-              />
+        <main
+          className={[
+            "app-main",
+            isShowtimesPage ? "app-main--showtimes" : null,
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          <Routes
+            location={
+              routeCode
+                ? (routeQuery.data?.renderPath ??
+                  (routeQuery.isError
+                    ? "/__route-not-found"
+                    : "/__route-loading"))
+                : routeLocation
             }
-          />
-          <Route
-            path="/movies"
-            element={
-              <section className="page-panel">
-                <CatalogErrorNote message={catalogError} />
-                {nowPlayingReady &&
-                nowPlayingQuery.data?.movieCodesStatus === "ready" ? (
-                  <CatalogRoute
-                    catalogMovieJumpRequest={catalogMovieJumpRequest}
-                    cardHeight={scrollerCardHeight}
-                    cardWidth={scrollerCardWidth}
-                    gap={scrollerGap}
-                    jumpMode="nowPlaying"
-                    movies={moviesPageMovies}
-                    onExitDetail={() => {
-                      resetCatalogPage("nowPlaying");
-                    }}
-                    onPosterSelect={(tmdbId) => {
-                      openCatalogMovie("nowPlaying", tmdbId);
-                    }}
-                    isAdmin={isAdmin}
-                    view={moviesPageView}
-                    onAdminSaveEdit={handleAdminSaveEdit}
-                    onRefreshRequested={handleAdminRefreshRequested}
-                    releaseCategory={moviesDisplayReleaseCategory}
-                    onReleaseCategoryChange={(category) => {
-                      handleReleaseCategoryChange("nowPlaying", category);
-                    }}
-                    showReleaseCategorySwitcher={!hideReReleases}
-                    scrollerSlotMinHeight={scrollerSlotMinHeight}
-                    homepageHighlights={homepageHighlights}
-                    onAdminSaveHomepageHighlight={saveHomepageHighlightFromUi}
-                    onAdminRemoveHomepageHighlight={
-                      removeHomepageHighlightFromUi
-                    }
-                  />
-                ) : nowPlayingReady ? (
-                  <p className="app-inline-note" role="status">
-                    Movie links are temporarily unavailable.
-                  </p>
-                ) : null}
-              </section>
-            }
-          />
-          <Route
-            path="/showtimes"
-            element={<ShowtimesRoute catalogError={catalogError} />}
-          />
-          <Route
-            path="/showtimes/:citySlug"
-            element={<ShowtimesRoute catalogError={catalogError} />}
-          />
-          <Route
-            path="/cinematheques"
-            element={
-              <section className="page-panel">
-                <CatalogErrorNote message={catalogError} />
-                <Suspense fallback={null}>
-                  <CinemathequesPage />
-                </Suspense>
-              </section>
-            }
-          />
-          <Route
-            path="/soons"
-            element={
-              <section className="page-panel">
-                <CatalogErrorNote message={catalogError} />
-                {comingSoonReady &&
-                comingSoonQuery.data?.movieCodesStatus === "ready" ? (
-                  <CatalogRoute
-                    catalogMovieJumpRequest={catalogMovieJumpRequest}
-                    cardHeight={scrollerCardHeight}
-                    cardWidth={scrollerCardWidth}
-                    gap={scrollerGap}
-                    jumpMode="comingSoon"
-                    movies={soonsPageMovies}
-                    onExitDetail={() => {
-                      resetCatalogPage("comingSoon");
-                    }}
-                    onPosterSelect={(tmdbId) => {
-                      openCatalogMovie("comingSoon", tmdbId);
-                    }}
-                    isAdmin={isAdmin}
-                    view={soonsPageView}
-                    onAdminSaveEdit={handleAdminSaveEdit}
-                    onRefreshRequested={handleAdminRefreshRequested}
-                    releaseCategory={soonsDisplayReleaseCategory}
-                    onReleaseCategoryChange={(category) => {
-                      handleReleaseCategoryChange("comingSoon", category);
-                    }}
-                    showReleaseCategorySwitcher={!hideReReleases}
-                    scrollerSlotMinHeight={scrollerSlotMinHeight}
-                    homepageHighlights={homepageHighlights}
-                    onAdminSaveHomepageHighlight={saveHomepageHighlightFromUi}
-                    onAdminRemoveHomepageHighlight={
-                      removeHomepageHighlightFromUi
-                    }
-                  />
-                ) : comingSoonReady ? (
-                  <p className="app-inline-note" role="status">
-                    Movie links are temporarily unavailable.
-                  </p>
-                ) : null}
-              </section>
-            }
-          />
-          <Route
-            path="/user"
-            element={<UserRoute user={user} loading={loading} />}
-          />
-          <Route
-            path={PASSWORD_RESET_PATH}
-            element={
-              <section className="page-panel">
-                <PasswordResetPage />
-              </section>
-            }
-          />
-          <Route
-            path="/confirm-account-deletion"
-            element={
-              <section className="page-panel">
-                <DeleteAccountConfirmationPage />
-              </section>
-            }
-          />
-          {siteInformationPages.map((page) => (
+          >
             <Route
-              key={page.path}
-              path={page.path}
+              path="/__route-loading"
+              element={
+                <p className="app-inline-note" role="status">
+                  Loading page…
+                </p>
+              }
+            />
+            <Route path="/__route-not-found" element={<NotFoundRoute />} />
+            <Route
+              path="/"
+              element={
+                <HomeRoute
+                  catalogError={catalogError}
+                  cardHeight={scrollerCardHeight}
+                  cardWidth={scrollerCardWidth}
+                  comingSoonReady={comingSoonReady}
+                  comingSoonMovies={comingSoonNewReleaseMovies}
+                  gap={scrollerGap}
+                  nowPlayingReady={nowPlayingReady}
+                  nowPlayingMovies={nowPlayingNewReleaseMovies}
+                  nowPlayingReReleaseMovies={nowPlayingReReleaseMovies}
+                  hideReReleases={hideReReleases}
+                  scrollerSlotMinHeight={scrollerSlotMinHeight}
+                  isAdmin={isAdmin}
+                  userId={user?.id ?? null}
+                  homepageFeaturedConfig={homepageFeaturedResponse?.data}
+                  homepageHighlights={homepageHighlights}
+                  onAdminSaveHomepageHighlight={saveHomepageHighlightFromUi}
+                  onAdminRemoveHomepageHighlight={removeHomepageHighlightFromUi}
+                />
+              }
+            />
+            <Route
+              path="/movies"
+              element={
+                <section className="page-panel">
+                  <CatalogErrorNote message={catalogError} />
+                  {nowPlayingReady &&
+                  nowPlayingQuery.data?.movieCodesStatus === "ready" ? (
+                    <CatalogRoute
+                      catalogMovieJumpRequest={catalogMovieJumpRequest}
+                      cardHeight={scrollerCardHeight}
+                      cardWidth={scrollerCardWidth}
+                      gap={scrollerGap}
+                      jumpMode="nowPlaying"
+                      movies={moviesPageMovies}
+                      onExitDetail={() => {
+                        resetCatalogPage("nowPlaying");
+                      }}
+                      onPosterSelect={(tmdbId) => {
+                        openCatalogMovie("nowPlaying", tmdbId);
+                      }}
+                      isAdmin={isAdmin}
+                      view={moviesPageView}
+                      onAdminSaveEdit={handleAdminSaveEdit}
+                      onRefreshRequested={handleAdminRefreshRequested}
+                      releaseCategory={moviesDisplayReleaseCategory}
+                      onReleaseCategoryChange={(category) => {
+                        handleReleaseCategoryChange("nowPlaying", category);
+                      }}
+                      showReleaseCategorySwitcher={!hideReReleases}
+                      scrollerSlotMinHeight={scrollerSlotMinHeight}
+                      homepageHighlights={homepageHighlights}
+                      onAdminSaveHomepageHighlight={saveHomepageHighlightFromUi}
+                      onAdminRemoveHomepageHighlight={
+                        removeHomepageHighlightFromUi
+                      }
+                    />
+                  ) : nowPlayingReady ? (
+                    <p className="app-inline-note" role="status">
+                      Movie links are temporarily unavailable.
+                    </p>
+                  ) : null}
+                </section>
+              }
+            />
+            <Route
+              path="/showtimes"
+              element={<ShowtimesRoute catalogError={catalogError} />}
+            />
+            <Route
+              path="/showtimes/:citySlug"
+              element={<ShowtimesRoute catalogError={catalogError} />}
+            />
+            <Route
+              path="/cinematheques"
+              element={
+                <section className="page-panel">
+                  <CatalogErrorNote message={catalogError} />
+                  <Suspense fallback={null}>
+                    <CinemathequesPage />
+                  </Suspense>
+                </section>
+              }
+            />
+            <Route
+              path="/soons"
+              element={
+                <section className="page-panel">
+                  <CatalogErrorNote message={catalogError} />
+                  {comingSoonReady &&
+                  comingSoonQuery.data?.movieCodesStatus === "ready" ? (
+                    <CatalogRoute
+                      catalogMovieJumpRequest={catalogMovieJumpRequest}
+                      cardHeight={scrollerCardHeight}
+                      cardWidth={scrollerCardWidth}
+                      gap={scrollerGap}
+                      jumpMode="comingSoon"
+                      movies={soonsPageMovies}
+                      onExitDetail={() => {
+                        resetCatalogPage("comingSoon");
+                      }}
+                      onPosterSelect={(tmdbId) => {
+                        openCatalogMovie("comingSoon", tmdbId);
+                      }}
+                      isAdmin={isAdmin}
+                      view={soonsPageView}
+                      onAdminSaveEdit={handleAdminSaveEdit}
+                      onRefreshRequested={handleAdminRefreshRequested}
+                      releaseCategory={soonsDisplayReleaseCategory}
+                      onReleaseCategoryChange={(category) => {
+                        handleReleaseCategoryChange("comingSoon", category);
+                      }}
+                      showReleaseCategorySwitcher={!hideReReleases}
+                      scrollerSlotMinHeight={scrollerSlotMinHeight}
+                      homepageHighlights={homepageHighlights}
+                      onAdminSaveHomepageHighlight={saveHomepageHighlightFromUi}
+                      onAdminRemoveHomepageHighlight={
+                        removeHomepageHighlightFromUi
+                      }
+                    />
+                  ) : comingSoonReady ? (
+                    <p className="app-inline-note" role="status">
+                      Movie links are temporarily unavailable.
+                    </p>
+                  ) : null}
+                </section>
+              }
+            />
+            <Route
+              path="/user"
+              element={<UserRoute user={user} loading={loading} />}
+            />
+            <Route
+              path={PASSWORD_RESET_PATH}
+              element={
+                <section className="page-panel">
+                  <PasswordResetPage />
+                </section>
+              }
+            />
+            <Route
+              path="/confirm-account-deletion"
+              element={
+                <section className="page-panel">
+                  <DeleteAccountConfirmationPage />
+                </section>
+              }
+            />
+            {siteInformationPages.map((page) => (
+              <Route
+                key={page.path}
+                path={page.path}
+                element={
+                  <Suspense fallback={null}>
+                    <SiteInformation page={page} />
+                  </Suspense>
+                }
+              />
+            ))}
+            <Route
+              path="/__cinema/:cinemaId"
+              element={
+                StaticCinemaPage ? (
+                  <StaticCinemaPage />
+                ) : (
+                  <Suspense
+                    fallback={
+                      <section className="page-panel" aria-busy="true" />
+                    }
+                  >
+                    <CinemaPage />
+                  </Suspense>
+                )
+              }
+            />
+            <Route
+              path="/:movieCode"
               element={
                 <Suspense fallback={null}>
-                  <SiteInformation page={page} />
+                  <MoviePage
+                    catalogError={catalogError}
+                    catalogReady={directMovieReady || catalogReady}
+                    movieCodesReady={directMovieReady || movieCodesReady}
+                    publicRoute={routeQuery.data?.route}
+                  />
                 </Suspense>
               }
             />
-          ))}
-          <Route
-            path="/c/:cinemaId"
-            element={
-              StaticCinemaPage ? (
-                <StaticCinemaPage />
-              ) : (
-                <Suspense
-                  fallback={<section className="page-panel" aria-busy="true" />}
-                >
-                  <CinemaPage />
-                </Suspense>
-              )
-            }
-          />
-          <Route
-            path="/:movieCode"
-            element={
-              <Suspense fallback={null}>
-                <MoviePage
-                  catalogError={catalogError}
-                  catalogReady={directMovieReady || catalogReady}
-                  movieCodesReady={directMovieReady || movieCodesReady}
-                />
-              </Suspense>
-            }
-          />
-          <Route path="*" element={<NotFoundRoute />} />
-        </Routes>
-      </main>
+            <Route path="*" element={<NotFoundRoute />} />
+          </Routes>
+        </main>
 
-      <BottomBar />
-    </div>
+        <BottomBar />
+      </div>
+    </PublicRouteLocationProvider>
   );
 }

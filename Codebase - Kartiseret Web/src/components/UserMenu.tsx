@@ -1,7 +1,11 @@
 import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH } from "@kartiseret/contracts/private-data";
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { Apple, ArrowUpRight, Clapperboard, User, X } from "lucide-react";
-import { Link, useLocation, useNavigate } from "react-router";
+import { usePublicRoutePaths } from "../routing/PublicRoutePathsContext";
+import { usePublicRouteLocation } from "../routing/PublicRouteLocation";
+import { PublicRouteLink } from "../routing/PublicRouteLink";
+import { getOpaquePublicPath } from "../data/publicRoutes";
+import { useNavigate } from "react-router";
 import { createPortal } from "react-dom";
 import { z } from "zod";
 import "./UserMenu.css";
@@ -90,8 +94,9 @@ function getAccentForegroundColor(): string {
 }
 
 export function UserMenu() {
-  const location = useLocation();
+  const location = usePublicRouteLocation();
   const navigate = useNavigate();
+  const publicRoutePaths = usePublicRoutePaths();
   const user = useUserPreferencesStore((state) => state.user);
   const callback = new URLSearchParams(
     location.pathname === "/" ? location.search : "",
@@ -319,9 +324,9 @@ export function UserMenu() {
           ? "Creating an account is optional. Jeremy Jacob uses the information you provide to run your account. Anyone can browse listings. You need an account to sync preferences and receive movie alerts. "
           : "Kartiseret uses the information you provide to sign you in. You can browse listings without an account. "}
       The{" "}
-      <Link to="/privacy" onClick={() => setIsOpen(false)}>
+      <PublicRouteLink to="/privacy" onClick={() => setIsOpen(false)}>
         Privacy Policy
-      </Link>{" "}
+      </PublicRouteLink>{" "}
       explains who receives it and how to request access or correction.
     </p>
   );
@@ -604,7 +609,9 @@ export function UserMenu() {
         onClick={() => {
           if (user) {
             setIsOpen(false);
-            navigate("/user?tab=account");
+            void getOpaquePublicPath("/user?tab=account", publicRoutePaths)
+              .then((path) => navigate(path))
+              .catch(() => undefined);
             return;
           }
           setAuthError(null);

@@ -1,4 +1,5 @@
 import { DeleteAccountConfirmationPage } from "../../src/components/DeleteAccountConfirmationPage";
+import { PublicRoutePathsProvider } from "../../src/routing/PublicRoutePathsProvider";
 import { useUserPreferencesStore } from "../../src/stores/userPreferencesStore";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -51,7 +52,11 @@ describe("DeleteAccountConfirmationPage", () => {
           "/confirm-account-deletion#token=delete-confirm-token",
         ]}
       >
-        <DeleteAccountConfirmationPage />
+        <PublicRoutePathsProvider
+          paths={{ "/": "/home1234", "/?accountDeleted=1": "/deleted1" }}
+        >
+          <DeleteAccountConfirmationPage />
+        </PublicRoutePathsProvider>
         <CurrentPath />
       </MemoryRouter>,
     );
@@ -72,7 +77,7 @@ describe("DeleteAccountConfirmationPage", () => {
       }));
     expect(fetchMock).not.toHaveBeenCalled();
     expect(await screen.findByLabelText("Current path")).toHaveTextContent(
-      "/?accountDeleted=1",
+      "/deleted1",
     );
   });
 
@@ -87,7 +92,11 @@ describe("DeleteAccountConfirmationPage", () => {
     });
     render(
       <MemoryRouter initialEntries={["/confirm-account-deletion#token=legacy"]}>
-        <DeleteAccountConfirmationPage />
+        <PublicRoutePathsProvider
+          paths={{ "/": "/home1234", "/?accountDeleted=1": "/deleted1" }}
+        >
+          <DeleteAccountConfirmationPage />
+        </PublicRoutePathsProvider>
       </MemoryRouter>,
     );
     await userEvent.click(
@@ -98,7 +107,7 @@ describe("DeleteAccountConfirmationPage", () => {
     );
     expect(screen.getByRole("link", { name: "Done" })).toHaveAttribute(
       "href",
-      "/?accountDeleted=1",
+      "/deleted1",
     );
   });
 });

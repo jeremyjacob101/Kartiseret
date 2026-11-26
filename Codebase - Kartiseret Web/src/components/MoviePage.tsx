@@ -1,21 +1,27 @@
-import { buildMovieShowtimeShareUrl, CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, parseExcludedCinemaIds, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "@kartiseret/contracts/showtime-links";
+import { CURRENT_CITY_CODE, decodeDateCode, encodeDateCode, encodeMovieRouteCode, filterMaskFromUnchecked, getExplicitCityCode, parseExcludedCinemaIds, parseMovieRouteCode, resolveCityCode, uncheckedFromFilterMask, type MovieRouteMode } from "@kartiseret/contracts/showtime-links";
 import { findMovieByCode, isMovieShowtimeDateCovered, isValidMovieCode, loadShowtimesAroundDate, mergeMovieShowtimeRangeResult, showtimeCityQueryOptions, showtimeRangeQueryOptions, type ShowtimeRange } from "../data/movieCatalog";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMovieDisplayPreferences } from "../contexts/MovieDisplayPreferencesContext";
+import { movieShowtimeShareStateSchema } from "@kartiseret/contracts/showtime-links";
 import { applyMovieDisplayPreference } from "../data/movieDisplayPreferences";
 import { socialPreviewImageUrl } from "@kartiseret/contracts/social-preview";
 import { usePublicationRevision } from "../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
-import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { usePublicRouteLocation } from "../routing/PublicRouteLocation";
 import { type ShowtimeFilterState } from "./showtimes/showtimeFilters";
+import type { PublicRoute } from "@kartiseret/contracts/public-routes";
 import { usePublicRenderClock } from "../contexts/PublicRenderClock";
 import { MovieDetailsContent } from "./scroller/MovieDetailsContent";
 import { isoDateStringSchema } from "@kartiseret/contracts/runtime";
 import { safeSeoUrl, setSeoMetadata } from "../routing/seoMetadata";
 import { DEFAULT_LOCATION } from "../prefs/definitions/locations";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { PublicRouteLink } from "../routing/PublicRouteLink";
+import { requestApiResponse } from "../data/apiClient";
+import { useNavigate, useParams } from "react-router";
 import { useShallow } from "zustand/react/shallow";
 import { shareLink } from "../routing/shareLink";
+import { z } from "zod";
 import "./scroller/MovieScroller.css";
 import "./MoviePage.css";
 
@@ -25,6 +31,7 @@ type MoviePageProps = {
   catalogError: string | null;
   catalogReady: boolean;
   movieCodesReady: boolean;
+  publicRoute?: PublicRoute;
 };
 
 type MoviePageStateProps = {
@@ -50,8 +57,8 @@ function MoviePageState({ message, title }: MoviePageStateProps) {
         <h1>{title}</h1>
         <p>{message}</p>
         <div className="movie-page-state-actions">
-          <Link to="/movies">Now playing</Link>
-          <Link to="/soons">Coming soon</Link>
+          <PublicRouteLink to="/movies">Now playing</PublicRouteLink>
+          <PublicRouteLink to="/soons">Coming soon</PublicRouteLink>
         </div>
       </div>
     </section>
@@ -166,12 +173,29 @@ export function MoviePage({
   catalogError,
   catalogReady,
   movieCodesReady,
+  publicRoute,
 }: MoviePageProps) {
   const publicationRevision = usePublicationRevision();
   const queryClient = useQueryClient();
   const displayPreferences = useMovieDisplayPreferences();
   const { movieCode: routeCode = "" } = useParams();
-  const routeLocation = useLocation();
+  const routeLocation = usePublicRouteLocation();
+  const shareRoute =
+    publicRoute?.kind === "share"
+      ? movieShowtimeShareStateSchema.safeParse(publicRoute.payload)
+      : null;
+  const routeSearch = shareRoute?.success
+    ? `?${new URLSearchParams({
+        date: shareRoute.data.date,
+        ...(shareRoute.data.excludedCinemaIds?.length
+          ? {
+              excludeCinemas: [...new Set(shareRoute.data.excludedCinemaIds)]
+                .sort()
+                .join(","),
+            }
+          : {}),
+      })}`
+    : routeLocation.search;
   const navigate = useNavigate();
   const {
     loading: preferencesLoading,
@@ -186,7 +210,10 @@ export function MoviePage({
   );
   const today = useJerusalemToday();
   const todayRef = useRef(today);
-  const candidateMovieCode = routeCode.slice(0, 3);
+  const candidateMovieCode =
+    publicRoute && ["movie", "share"].includes(publicRoute.kind)
+      ? publicRoute.destinationId
+      : routeCode.slice(0, 3);
   const hasValidMovieCode = isValidMovieCode(candidateMovieCode);
   const catalogRouteMatch =
     catalogReady && movieCodesReady && hasValidMovieCode
@@ -274,6 +301,7 @@ export function MoviePage({
 
   const replaceRouteForState = useCallback(
     (state: MoviePageQueryState) => {
+      if (publicRoute) return;
       const dateCode = encodeDateCode(state.date);
 
       if (!dateCode) {
@@ -305,7 +333,7 @@ export function MoviePage({
         navigate(nextLocation, { replace: true });
       }
     },
-    [navigate, routeLocation.pathname, routeLocation.search],
+    [navigate, publicRoute, routeLocation.pathname, routeLocation.search],
   );
 
   const commitQueryState = useCallback(
@@ -364,7 +392,7 @@ export function MoviePage({
     }
 
     const requestedDate = isoDateStringSchema.safeParse(
-      new URLSearchParams(routeLocation.search).get("date"),
+      new URLSearchParams(routeSearch).get("date"),
     );
     const decodedDate = requestedDate.success
       ? requestedDate.data < currentToday
@@ -394,7 +422,7 @@ export function MoviePage({
         date: decodedDate,
         filterMask: parsedRoute.filterMask,
         filterState,
-        excludedCinemaIds: parseExcludedCinemaIds(routeLocation.search),
+        excludedCinemaIds: parseExcludedCinemaIds(routeSearch),
         mode: "share",
       };
     } else {
@@ -434,6 +462,7 @@ export function MoviePage({
     candidateMovieCode,
     catalogError,
     catalogReady,
+    routeSearch,
     commitQueryState,
     hasValidMovieCode,
     navigate,
@@ -480,7 +509,7 @@ export function MoviePage({
           isEncodedSelection && currentState
             ? `${routeMovie.title} showtimes in ${currentState.location} on ${currentState.date} on Kartiseret.`
             : `${routeMovie.title}${routeMovie.year ? ` (${routeMovie.year})` : ""}. ${routeCatalogMode === "comingSoon" ? "Coming soon information" : "Find movie showtimes at cinemas across Israel"} on Kartiseret.`,
-        canonicalPath: `/${candidateMovieCode}`,
+        canonicalPath: `/${publicRoute?.code ?? routeMovie.publicRouteCode ?? candidateMovieCode}`,
         openGraphPath: `${routeLocation.pathname}${routeLocation.search}`,
         imageUrl:
           (routeMovie.socialPreviewFingerprint
@@ -495,7 +524,7 @@ export function MoviePage({
           name: routeMovie.title,
           ...(safeMovieImageUrl ? { image: safeMovieImageUrl } : {}),
           ...(routeMovie.genres.length ? { genre: routeMovie.genres } : {}),
-          url: `https://seret.site/${encodeURIComponent(candidateMovieCode)}`,
+          url: `https://seret.site/${publicRoute?.code ?? routeMovie.publicRouteCode ?? encodeURIComponent(candidateMovieCode)}`,
         },
       });
       return;
@@ -514,6 +543,7 @@ export function MoviePage({
     exactShowtimeQuery.isSuccess,
     isActiveShowtimeDateLoaded,
     movieCodesReady,
+    publicRoute?.code,
     queryState,
     routeCode,
     routeLocation.pathname,
@@ -674,18 +704,33 @@ export function MoviePage({
       return;
     }
 
-    const url = buildMovieShowtimeShareUrl({
-      movieCode: currentState.movieCode,
-      city: currentState.location,
-      date: currentState.date,
-      filterMask: currentState.filterMask,
-      excludedCinemaIds: currentState.excludedCinemaIds,
-    });
-
-    if (!url) {
+    let sharePath: string;
+    try {
+      const response = await requestApiResponse(
+        "/api/v1/public-routes/shares",
+        z.object({
+          data: z.object({ path: z.string().regex(/^\/[a-z0-9]{8}$/) }),
+          error: z.null(),
+        }),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            movieCode: currentState.movieCode,
+            city: currentState.location,
+            date: currentState.date,
+            filterMask: currentState.filterMask,
+            excludedCinemaIds: currentState.excludedCinemaIds,
+          }),
+        },
+      );
+      sharePath = response.data.path;
+    } catch {
       showShareFeedback("Unable to share this selection");
       return;
     }
+
+    const url = new URL(sharePath, window.location.origin).href;
 
     const result = await shareLink({
       title: `${routeMovie.title} showtimes`,

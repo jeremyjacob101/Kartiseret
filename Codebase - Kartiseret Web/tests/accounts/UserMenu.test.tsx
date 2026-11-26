@@ -1,3 +1,4 @@
+import { PublicRoutePathsProvider } from "../../src/routing/PublicRoutePathsProvider";
 import { useUserPreferencesStore } from "../../src/stores/userPreferencesStore";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { saveGuestLocation } from "../../src/prefs/definitions/locations";
@@ -30,7 +31,14 @@ function PathLabel() {
 function renderMenu(path = "/") {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <UserMenu />
+      <PublicRoutePathsProvider
+        paths={{
+          "/privacy": "/privac01",
+          "/user?tab=account": "/account1",
+        }}
+      >
+        <UserMenu />
+      </PublicRoutePathsProvider>
       <PathLabel />
     </MemoryRouter>,
   );
@@ -112,7 +120,7 @@ describe("UserMenu", () => {
     expect(forgotPassword.nextElementSibling).toBe(privacyNote);
     expect(
       screen.getByRole("link", { name: "Privacy Policy" }),
-    ).toHaveAttribute("href", "/privacy");
+    ).toHaveAttribute("href", "/privac01");
     await user.type(
       screen.getByLabelText("Email address"),
       "  USER@Example.COM ",
@@ -147,7 +155,7 @@ describe("UserMenu", () => {
     await user.click(screen.getByRole("tab", { name: "Create account" }));
     expect(
       screen.getByRole("link", { name: "Privacy Policy" }),
-    ).toHaveAttribute("href", "/privacy");
+    ).toHaveAttribute("href", "/privac01");
     expect(
       screen.getByText(/Creating an account is optional/),
     ).toHaveTextContent(
@@ -196,7 +204,7 @@ describe("UserMenu", () => {
     ).toHaveTextContent("to send a password reset link");
     expect(
       screen.getByRole("link", { name: "Privacy Policy" }),
-    ).toHaveAttribute("href", "/privacy");
+    ).toHaveAttribute("href", "/privac01");
 
     await user.type(
       screen.getByLabelText("Email address"),
@@ -226,7 +234,7 @@ describe("UserMenu", () => {
     await user.click(
       screen.getByRole("button", { name: "Open User Preferences" }),
     );
-    expect(screen.getByTestId("path")).toHaveTextContent("/user?tab=account");
+    expect(screen.getByTestId("path")).toHaveTextContent("/account1");
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 

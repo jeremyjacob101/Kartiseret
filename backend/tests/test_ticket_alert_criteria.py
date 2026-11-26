@@ -13,8 +13,10 @@ from backend.notifications.ticket_alerts import (
     _encode_filter_mask,
     build_movie_showtime_path,
     build_ticket_alert_path,
+    create_public_route_link_paths,
     delivery_item_from_snapshot,
     filter_mask_from_exclusions,
+    movie_showtime_share_key,
     matches_ticket_alert_criteria,
     render_ticket_alert_email,
     resolve_ticket_alert_criteria,
@@ -52,6 +54,61 @@ def showtime(tmdb_id=101, **changes):
 
 
 class TicketAlertCriteriaTests(unittest.TestCase):
+    def test_public_notification_route_requests_are_chunked_with_order_preserved(self):
+        class RouteResponse:
+            status_code = 200
+
+            def __init__(self, payload):
+                self.payload = payload
+
+            def json(self):
+                return {
+                    "data": {
+                        "moviePaths": ["/a0000000"] * len(self.payload["movieCodes"]),
+                        "pagePaths": ["/b0000000"] * len(self.payload["pagePaths"]),
+                        "sharePaths": ["/c0000000"] * len(self.payload["shares"]),
+                    }
+                }
+
+        class RouteClient:
+            def __init__(self):
+                self.payloads = []
+
+            def post(self, _url, *, json, **_kwargs):
+                self.payloads.append(json)
+                return RouteResponse(json)
+
+        client = RouteClient()
+        links = create_public_route_link_paths(
+            client,
+            base_url="https://api.example.test",
+            internal_secret="internal-test-secret",
+            movie_codes=[f"M{index:02d}" for index in range(50)],
+            page_paths=[f"/page-{index}" for index in range(10)],
+            shares=[{"movieCode": "Ab1"} for _ in range(50)],
+        )
+
+        self.assertEqual(len(client.payloads), 2)
+        self.assertEqual(
+            [
+                len(client.payloads[0]["movieCodes"]),
+                len(client.payloads[0]["pagePaths"]),
+                len(client.payloads[0]["shares"]),
+            ],
+            [50, 10, 40],
+        )
+        self.assertEqual(
+            [
+                len(client.payloads[1]["movieCodes"]),
+                len(client.payloads[1]["pagePaths"]),
+                len(client.payloads[1]["shares"]),
+            ],
+            [0, 0, 10],
+        )
+        self.assertEqual(len(links["moviePaths"]), 50)
+        self.assertEqual(len(links["pagePaths"]), 10)
+        self.assertEqual(len(links["sharePaths"]), 50)
+
     def test_shared_showtime_link_vectors_match_typescript_contract(self):
         vectors_path = (
             Path(__file__).resolve().parents[2]
@@ -86,11 +143,13 @@ class TicketAlertCriteriaTests(unittest.TestCase):
             filter_mask=45120,
         )
         email = render_ticket_alert_email(
-            (item,), "https://seret.site", NOW.date()
+            (item,),
+            "https://seret.site",
+            {movie_showtime_share_key("A7z", "Tel Aviv", "2027-01-15", 45120): "/abcd1234"},
         )
         self.assertIn("View showtimes", email.html)
         self.assertIn("View showtimes:", email.text)
-        self.assertIn("/A7zlb1fHK?date=2027-01-15", email.text)
+        self.assertIn("https://seret.site/abcd1234", email.text)
         self.assertNotIn("tickets.example.test", email.html)
         self.assertNotIn("tickets.example.test", email.text)
 
@@ -107,8 +166,12 @@ class TicketAlertCriteriaTests(unittest.TestCase):
             }
         )
         self.assertIsNotNone(item)
-        email = render_ticket_alert_email((item,), "https://seret.site", NOW.date())
-        self.assertIn("/A7zlbI6Og?date=2027-01-15", email.text)
+        email = render_ticket_alert_email(
+            (item,),
+            "https://seret.site",
+            {movie_showtime_share_key("A7z", "Tel Aviv", "2027-01-15", 2**20): "/efgh5678"},
+        )
+        self.assertIn("https://seret.site/efgh5678", email.text)
 
     def test_legacy_delivery_snapshot_defaults_missing_filter_mask(self):
         item = delivery_item_from_snapshot(
@@ -123,8 +186,10 @@ class TicketAlertCriteriaTests(unittest.TestCase):
         )
         self.assertIsNotNone(item)
         self.assertEqual(item.filter_mask, 0)
-        email = render_ticket_alert_email((item,), "https://seret.site", NOW.date())
-        self.assertIn("https://seret.site/showtimes", email.html)
+        email = render_ticket_alert_email(
+            (item,), "https://seret.site", {("page", "/showtimes"): "/pqrs9876"}
+        )
+        self.assertIn('href="https://seret.site/pqrs9876"', email.html)
         self.assertNotIn("tickets.example.test", email.html)
 
     def test_retry_enriches_an_old_snapshot_movie_code_without_using_ticket_href(self):
@@ -176,8 +241,19 @@ class TicketAlertCriteriaTests(unittest.TestCase):
             def __init__(self):
                 self.payload = None
 
-            def post(self, _url, *, json, **_kwargs):
+            def post(self, url, *, json, **_kwargs):
                 self.payload = json
+                if url.endswith("/api/internal/public-route-links"):
+                    return type("RouteResponse", (), {
+                        "status_code": 200,
+                        "json": staticmethod(lambda: {
+                            "data": {
+                                "moviePaths": [],
+                                "pagePaths": [],
+                                "sharePaths": ["/abcd1234"],
+                            }
+                        }),
+                    })()
                 return Response()
 
         repository = Repository()
@@ -190,6 +266,8 @@ class TicketAlertCriteriaTests(unittest.TestCase):
                 resend_api_key="fake",
                 from_email="alerts@example.test",
                 site_url="https://seret.site",
+                recipient_api_url="https://api.example.test",
+                internal_api_secret="internal-test-secret",
             ),
             now_factory=lambda: NOW,
         )
@@ -199,7 +277,7 @@ class TicketAlertCriteriaTests(unittest.TestCase):
         self.assertEqual(summary.emails_sent, 1)
         self.assertEqual(repository.asserted_ids, [101])
         self.assertIn(
-            f"https://seret.site{build_movie_showtime_path('A7z', 'Tel Aviv', '2027-01-15', 0)}",
+            "https://seret.site/abcd1234",
             resend.payload["text"],
         )
         self.assertNotIn("tickets.example.test", resend.payload["html"])

@@ -47,7 +47,7 @@ export async function preloadPublicRouteModules(
   if (pathname === "/cinematheques") {
     loaders.push(loadCinemathequesPageModule());
   }
-  if (pathname.startsWith("/c/")) {
+  if (pathname.startsWith("/__cinema/")) {
     loaders.push(
       loadCinemaPageModule().then(({ CinemaPage }) => {
         components.cinemaPage = CinemaPage;

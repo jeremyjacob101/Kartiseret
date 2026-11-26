@@ -23,9 +23,14 @@ import { getShowtimesCityFromPath, getShowtimesCityPath } from "@kartiseret/cont
 import { getCinemaIdentitiesForCity } from "@kartiseret/contracts/cinema-identities";
 import { useShowtimeViewPreferences } from "./showtimes/useShowtimeViewPreferences";
 import { type PublicCinemaPageData } from "@kartiseret/contracts/public-data";
+import { usePublicRoutePaths } from "../routing/PublicRoutePathsContext";
+import { usePublicRouteLocation } from "../routing/PublicRouteLocation";
 import { addCalendarDays } from "@kartiseret/contracts/showtime-links";
 import { normalizeLocation } from "../prefs/definitions/locations";
-import { Link, useLocation, useNavigate } from "react-router";
+import { PublicRouteLink } from "../routing/PublicRouteLink";
+import { CinemaRouteLink } from "../routing/CinemaRouteLink";
+import { getOpaquePublicPath } from "../data/publicRoutes";
+import { useNavigate } from "react-router";
 import { MapPin } from "lucide-react";
 
 type ShowtimesDayPanel = {
@@ -46,8 +51,9 @@ export function AllShowtimesPage({
   cinema?: PublicCinemaPageData;
 }) {
   const { cinemaDate } = usePublicRenderClock();
-  const routeLocation = useLocation();
+  const routeLocation = usePublicRouteLocation();
   const navigate = useNavigate();
+  const publicRoutePaths = usePublicRoutePaths();
   const routeCity = getShowtimesCityFromPath(routeLocation.pathname);
   const publicationRevision = usePublicationRevision();
   const displayPreferences = useMovieDisplayPreferences();
@@ -423,18 +429,29 @@ export function AllShowtimesPage({
   ]);
   const handleLocationOverrideChange = useCallback(
     async (nextLocation: AppLocation) => {
-      setLocation(nextLocation);
-      navigate(getShowtimesCityPath(nextLocation));
-      return true;
+      const cityPath = getShowtimesCityPath(nextLocation);
+      try {
+        const opaquePath = await getOpaquePublicPath(
+          cityPath,
+          publicRoutePaths,
+        );
+        setLocation(nextLocation);
+        navigate(opaquePath);
+        return true;
+      } catch {
+        return false;
+      }
     },
-    [navigate, setLocation],
+    [navigate, publicRoutePaths, setLocation],
   );
   const handleRestoreDefaults = useCallback(() => {
     restoreDefaults();
     if (!cinema && routeCity) {
-      navigate("/showtimes");
+      void getOpaquePublicPath("/showtimes", publicRoutePaths)
+        .then((path) => navigate(path))
+        .catch(() => undefined);
     }
-  }, [cinema, navigate, restoreDefaults, routeCity]);
+  }, [cinema, navigate, publicRoutePaths, restoreDefaults, routeCity]);
   const effectiveSelectedDayPanel =
     filteredSelectedDayPanel ?? selectedDayPanel;
   const openTrailerMovie = useMemo(
@@ -634,9 +651,9 @@ export function AllShowtimesPage({
             <a href={cinema.mapUrl} target="_blank" rel="noreferrer">
               View location
             </a>
-            <Link to={getShowtimesCityPath(location)}>
+            <PublicRouteLink to={getShowtimesCityPath(location)}>
               More showtimes in {location}
-            </Link>
+            </PublicRouteLink>
           </div>
         </header>
       ) : null}
@@ -762,12 +779,12 @@ export function AllShowtimesPage({
                       </p>
 
                       {cinema ? (
-                        <Link
+                        <PublicRouteLink
                           to={getShowtimesCityPath(location)}
                           className="details-empty-city-button"
                         >
                           Browse more showtimes in {location}
-                        </Link>
+                        </PublicRouteLink>
                       ) : (
                         <div className="details-empty-actions all-showtimes-empty-actions">
                           {hasFilteredOutAllSelectedDayMovies ? (
@@ -779,12 +796,12 @@ export function AllShowtimesPage({
                               >
                                 Show everything
                               </button>
-                              <Link
+                              <PublicRouteLink
                                 to="/user"
                                 className="details-empty-city-button"
                               >
                                 Change saved preferences
-                              </Link>
+                              </PublicRouteLink>
                             </div>
                           ) : null}
                           <div className="details-empty-nearby all-showtimes-empty-nearby">
@@ -879,9 +896,9 @@ export function AllShowtimesPage({
             <ul className="all-showtimes-city-links">
               {ALL_LOCATIONS.map((city) => (
                 <li key={city}>
-                  <Link to={getShowtimesCityPath(city)}>
+                  <PublicRouteLink to={getShowtimesCityPath(city)}>
                     Movie showtimes in {city}
-                  </Link>
+                  </PublicRouteLink>
                 </li>
               ))}
             </ul>
@@ -898,9 +915,9 @@ export function AllShowtimesPage({
                       )))
                   .map((identity) => (
                     <li key={identity.id}>
-                      <Link to={`/c/${identity.id}`}>
+                      <CinemaRouteLink cinemaId={identity.id}>
                         {identity.displayName} showtimes
-                      </Link>
+                      </CinemaRouteLink>
                     </li>
                   ))}
               </ul>
@@ -910,9 +927,12 @@ export function AllShowtimesPage({
       ) : null}
 
       <div className="all-showtimes-cinematheque-link">
-        <Link className="cinematheque-link-button" to="/cinematheques">
+        <PublicRouteLink
+          className="cinematheque-link-button"
+          to="/cinematheques"
+        >
           Cinematheque showtimes
-        </Link>
+        </PublicRouteLink>
       </div>
 
       <MovieTrailerModal

@@ -27,6 +27,7 @@ assert.ok(weekEnd);
 const movie = {
   tmdbId: "101",
   movieCode: "Ab1",
+  publicRouteCode: "movie000",
   imdbId: "tt1234567",
   rtId: "/m/sample_movie",
   lbId: "/film/sample-movie/",
@@ -54,6 +55,7 @@ const comingSoonMovie = {
   ...movie,
   tmdbId: "102",
   movieCode: "Cd2",
+  publicRouteCode: "soon0000",
   title: "SSR Coming Soon Movie",
 };
 const screening = {
@@ -68,6 +70,67 @@ const screening = {
   screeningType: "Regular",
   dubLanguage: null,
 };
+
+function route(code, kind, destinationId, renderPath, payload = {}) {
+  return {
+    code,
+    destinationKey: `${kind}:${destinationId}`,
+    kind,
+    destinationId,
+    payload,
+    renderPath,
+  };
+}
+
+const encodedUrl = buildMovieShowtimeShareUrl({
+  movieCode: "Ab1",
+  city: DEFAULT_LOCATION,
+  date: today,
+  filterMask: 0,
+});
+assert.ok(encodedUrl);
+export const encodedPath = new URL(encodedUrl).pathname;
+
+export const publicRouteFixtures = new Map([
+  ["home0000", route("home0000", "page", "/", "/")],
+  ["movies00", route("movies00", "page", "/movies", "/movies")],
+  ["soons000", route("soons000", "page", "/soons", "/soons")],
+  ["show0000", route("show0000", "page", "/showtimes", "/showtimes")],
+  ["jeru0000", route("jeru0000", "city", "Jerusalem", "/showtimes/jerusalem")],
+  ["theques0", route("theques0", "page", "/cinematheques", "/cinematheques")],
+  ["movie000", route("movie000", "movie", "Ab1", "/Ab1")],
+  ["soon0000", route("soon0000", "movie", "Cd2", "/Cd2")],
+  [
+    "cinema00",
+    route(
+      "cinema00",
+      "cinema",
+      cinemaIdentity.id,
+      `/__cinema/${cinemaIdentity.id}`,
+    ),
+  ],
+  [
+    "share000",
+    route("share000", "share", "Ab1", encodedPath, {
+      movieCode: "Ab1",
+      city: DEFAULT_LOCATION,
+      date: today,
+      filterMask: 0,
+      excludedCinemaIds: [],
+    }),
+  ],
+]);
+
+export const legacyPathToCode = new Map([
+  ["/", "home0000"],
+  ["/movies", "movies00"],
+  ["/soons", "soons000"],
+  ["/showtimes", "show0000"],
+  ["/showtimes/jerusalem", "jeru0000"],
+  ["/cinematheques", "theques0"],
+  ["/Ab1", "movie000"],
+  ["/Cd2", "soon0000"],
+]);
 const theaters = {
   cities: [
     {
@@ -100,16 +163,32 @@ const theaters = {
 };
 
 export function makeBootstrap(pathname) {
+  const route = publicRouteFixtures.get(pathname.slice(1));
+  const renderPath = route?.renderPath ?? pathname;
   const showtimeCity =
-    pathname === "/showtimes"
+    renderPath === "/showtimes"
       ? DEFAULT_LOCATION
-      : getShowtimesCityFromPath(pathname);
+      : getShowtimesCityFromPath(renderPath);
   return publicPageBootstrapSchema.parse({
     version: 1,
     pathname,
+    ...(route
+      ? {
+          resolvedRoute: {
+            route: {
+              code: route.code,
+              destinationKey: route.destinationKey,
+              kind: route.kind,
+              destinationId: route.destinationId,
+              payload: route.payload,
+            },
+            renderPath: route.renderPath,
+          },
+        }
+      : {}),
     renderedAt,
     publicationRevision: "7",
-    catalogs: pathname.startsWith("/Ab1")
+    catalogs: renderPath.startsWith("/Ab1")
       ? {}
       : {
           nowPlaying: {
@@ -126,7 +205,7 @@ export function makeBootstrap(pathname) {
           },
         },
     theaters,
-    ...(pathname.startsWith("/Ab1")
+    ...(renderPath.startsWith("/Ab1")
       ? { movieDetail: { movie, mode: "nowPlaying" } }
       : {}),
     ...(showtimeCity
@@ -139,7 +218,7 @@ export function makeBootstrap(pathname) {
           },
         }
       : {}),
-    ...(pathname === "/cinematheques"
+    ...(renderPath === "/cinematheques"
       ? {
           cinematheques: {
             city: DEFAULT_LOCATION,
@@ -152,7 +231,7 @@ export function makeBootstrap(pathname) {
           },
         }
       : {}),
-    ...(pathname === `/c/${cinemaIdentity.id}`
+    ...(renderPath === `/__cinema/${cinemaIdentity.id}`
       ? {
           cinema: {
             id: cinemaIdentity.id,
@@ -166,7 +245,7 @@ export function makeBootstrap(pathname) {
           },
         }
       : {}),
-    ...(pathname === "/Ab1"
+    ...(renderPath === "/Ab1"
       ? {
           targetedMovieShowtimes: {
             city: DEFAULT_LOCATION,
@@ -180,24 +259,16 @@ export function makeBootstrap(pathname) {
 }
 
 export const cases = [
-  ["/", "Now Playing"],
-  ["/movies", "SSR Test Movie"],
-  ["/soons", "SSR Coming Soon Movie"],
-  ["/showtimes", "SSR Test Movie"],
-  ["/showtimes/jerusalem", "Movie showtimes in Jerusalem"],
-  ["/cinematheques", "Cinematheque Showtimes"],
-  ["/Ab1", "SSR Test Movie"],
-  [`/c/${cinemaIdentity.id}`, cinemaIdentity.displayName],
+  ["/home0000", "Now Playing"],
+  ["/movies00", "SSR Test Movie"],
+  ["/soons000", "SSR Coming Soon Movie"],
+  ["/show0000", "SSR Test Movie"],
+  ["/jeru0000", "Movie showtimes in Jerusalem"],
+  ["/theques0", "Cinematheque Showtimes"],
+  ["/movie000", "SSR Test Movie"],
+  ["/cinema00", cinemaIdentity.displayName],
+  ["/share000", "SSR Test Movie"],
 ];
-
-export const encodedUrl = buildMovieShowtimeShareUrl({
-  movieCode: "Ab1",
-  city: DEFAULT_LOCATION,
-  date: today,
-  filterMask: 0,
-});
-assert.ok(encodedUrl);
-export const encodedPath = new URL(encodedUrl).pathname;
 
 if (
   process.argv[1] &&
@@ -213,10 +284,10 @@ if (
       markup.includes(expectedContent),
       `${pathname} has ${expectedContent}`,
     );
-    if (pathname === "/") {
+    if (pathname === "/home0000") {
       assert.ok(
-        markup.includes('href="/Ab1"'),
-        "Home links directly to the movie before hydration",
+        markup.includes('href="/movie000"'),
+        "Home links to the opaque movie route before hydration",
       );
       assert.ok(
         markup.includes("home-poster-row"),
@@ -230,7 +301,7 @@ if (
   }
 
   const privateHomeMarkup = await renderPublicApplication(
-    makeBootstrap("/"),
+    makeBootstrap("/home0000"),
     12_000,
     {
       version: 1,
@@ -254,21 +325,21 @@ if (
       ],
     },
   );
-  assert.ok(!privateHomeMarkup.includes('href="/Ab1"'));
+  assert.ok(!privateHomeMarkup.includes('href="/movie000"'));
   assert.ok(!privateHomeMarkup.includes(">Re-Releases</h2>"));
-  assert.ok(privateHomeMarkup.includes('href="/Cd2"'));
+  assert.ok(privateHomeMarkup.includes('href="/soon0000"'));
 
   const movieListingMarkup = await renderPublicApplication(
-    makeBootstrap("/movies"),
+    makeBootstrap("/movies00"),
   );
-  assert.ok(movieListingMarkup.includes('href="/Ab1"'));
+  assert.ok(movieListingMarkup.includes('href="/movie000"'));
   const cinemaMarkup = await renderPublicApplication(
-    makeBootstrap(`/c/${cinemaIdentity.id}`),
+    makeBootstrap("/cinema00"),
   );
-  assert.ok(cinemaMarkup.includes('href="/Ab1"'));
+  assert.ok(cinemaMarkup.includes('href="/movie000"'));
 
   const encodedMarkup = await renderPublicApplication(
-    makeBootstrap(encodedPath),
+    makeBootstrap("/share000"),
   );
   assert.ok(encodedMarkup.includes("SSR Test Movie"));
 

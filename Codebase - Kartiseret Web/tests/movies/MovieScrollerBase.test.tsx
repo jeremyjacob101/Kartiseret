@@ -235,9 +235,10 @@ describe("MovieScrollerBase virtualization and interaction", () => {
   it("keeps cards interactive immediately when reduced motion is requested", () => {
     configureReducedMotion(true);
     const onSelectMovie = vi.fn();
+    const movie = { ...sampleMovie, publicRouteCode: "movie123" };
     const { container } = render(
       <MovieScrollerBase
-        movieItems={[sampleMovie]}
+        movieItems={[movie]}
         cardWidth={160}
         cardHeight={240}
         gap={12}
@@ -253,13 +254,13 @@ describe("MovieScrollerBase virtualization and interaction", () => {
       .find((element) => element.classList.contains("is-visible"));
     expect(card).toBeDefined();
     expect(card).toHaveClass("is-visible");
-    expect(card).toHaveAttribute("href", "/Ab1");
+    expect(card).toHaveAttribute("href", "/movie123");
     expect(container.querySelector("section")).not.toHaveStyle({
       pointerEvents: "none",
     });
     fireEvent.click(card!);
     expect(onSelectMovie).toHaveBeenCalledWith(
-      sampleMovie,
+      movie,
       { top: 0, left: 0, width: 0, height: 0 },
       expect.any(Number),
       expect.any(Number),

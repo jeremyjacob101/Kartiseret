@@ -9,6 +9,10 @@ describe("analytics URL privacy", () => {
     "/unsubscribe/letterboxd",
     "/RESET-PASSWORD/?token=example",
     "/%72eset-password?token=example",
+    "/eeyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJxYSJ9.signature",
+    "/rAbcdefghijklmnop",
+    "/dAbcdefghijklmnop",
+    "/uAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
   ])("drops pageviews and custom events for %s", (path) => {
     const url = `https://seret.site${path}`;
     expect(filterAnalyticsEvent({ type: "pageview", url })).toBeNull();

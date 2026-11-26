@@ -18,8 +18,12 @@ vi.mock("../../src/components/maps/TheaterMapDialog", () => ({
 
 function seedData() {
   const location = DEFAULT_LOCATION;
+  const movieWithPublicRoute = {
+    ...sampleMovie,
+    publicRouteCode: "movie123",
+  };
   const data: CinemathequeData = {
-    movies: [sampleMovie],
+    movies: [movieWithPublicRoute],
     movieCodesStatus: "ready",
     publicationRevision: "1",
     showtimes: [
@@ -123,9 +127,20 @@ describe("CinemathequesPage", () => {
   it("opens the existing details route for a catalog movie", () => {
     queryClient.setQueryData(movieCatalogQueryKeys.collection("nowPlaying"), {
       mode: "nowPlaying",
-      movies: [sampleMovie],
-      moviesByCode: { [sampleMovie.movieCode!]: sampleMovie },
+      movies: [{ ...sampleMovie, publicRouteCode: "movie123" }],
+      moviesByCode: {
+        [sampleMovie.movieCode!]: {
+          ...sampleMovie,
+          publicRouteCode: "movie123",
+        },
+      },
       movieCodesStatus: "ready",
+    });
+    queryClient.setQueryData(cinemathequeQueryKeys.data(DEFAULT_LOCATION), {
+      ...queryClient.getQueryData<CinemathequeData>(
+        cinemathequeQueryKeys.data(DEFAULT_LOCATION),
+      )!,
+      movies: [{ ...sampleMovie, publicRouteCode: "movie123" }],
     });
     render(
       <QueryClientProvider client={queryClient}>

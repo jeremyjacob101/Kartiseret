@@ -45,9 +45,9 @@ export function ShowtimesMovieRow({
 
         <div className="details-copy all-showtimes-copy">
           <h3 className="details-title all-showtimes-title">
-            {movie.movieCode ? (
+            {movie.publicRouteCode ? (
               <Link
-                to={`/${encodeURIComponent(movie.movieCode)}`}
+                to={`/${movie.publicRouteCode}`}
                 title={`Open ${movie.title} movie page`}
                 className="all-showtimes-title-link"
               >

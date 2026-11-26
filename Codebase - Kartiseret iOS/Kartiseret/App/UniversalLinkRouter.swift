@@ -4,13 +4,23 @@ enum UniversalLinkDestination: Equatable, Sendable {
     case discover
     case catalog(CatalogMode)
     case showtimes
+    case city(slug: String)
     case cinematheques
     case account
     case confirmAccountDeletion(token: String)
     case cinema(id: String)
     case movie(UniversalMovieLink)
+    case publicRouteCode(String)
 
     static func parse(_ url: URL) -> UniversalLinkDestination? {
+        parse(url, allowPublicRouteCode: true)
+    }
+
+    static func parseResolvedPath(_ url: URL) -> UniversalLinkDestination? {
+        parse(url, allowPublicRouteCode: false)
+    }
+
+    private static func parse(_ url: URL, allowPublicRouteCode: Bool) -> UniversalLinkDestination? {
         guard url.scheme?.lowercased() == "https",
               url.host?.lowercased() == "seret.site",
               url.user == nil,
@@ -29,8 +39,15 @@ enum UniversalLinkDestination: Equatable, Sendable {
         }
         let segments = url.path.split(separator: "/").map(String.init)
         if segments.isEmpty { return .discover }
-        if segments.count == 2, segments[0] == "c", CinemaIdentity.byID(segments[1]) != nil {
+        if segments.count == 2,
+           segments[0] == "__cinema",
+           CinemaIdentity.byID(segments[1]) != nil {
             return .cinema(id: segments[1])
+        }
+        if segments.count == 2, segments[0] == "showtimes" {
+            let slug = segments[1].lowercased()
+            guard slug.range(of: #"^[a-z0-9]+(?:-[a-z0-9]+)*$"#, options: .regularExpression) != nil else { return nil }
+            return .city(slug: slug)
         }
         guard segments.count == 1, let route = segments.first else { return nil }
         switch route {
@@ -40,8 +57,15 @@ enum UniversalLinkDestination: Equatable, Sendable {
         case "cinematheques": return .cinematheques
         case "user": return .account
         default:
+            if allowPublicRouteCode,
+               route.utf8.count == 8,
+               route.utf8.allSatisfy({ (48...57).contains($0) || (97...122).contains($0) }) {
+                return .publicRouteCode(route)
+            }
             guard UniversalMovieLink.isSupportedRouteCode(route) else { return nil }
             let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            guard query.allSatisfy({ ["date", "excludeCinemas"].contains($0.name) }),
+                  Set(query.map(\.name)).count == query.count else { return nil }
             let explicitDate = query.first { $0.name == "date" }?.value
             let excludedCinemaIDs = query.first { $0.name == "excludeCinemas" }?.value
             return .movie(UniversalMovieLink(
@@ -60,6 +84,23 @@ struct UniversalMovieLink: Equatable, Sendable {
 
     var movieCode: String { String(routeCode.prefix(3)) }
     var isSharedShowtimeLink: Bool { routeCode.count == 6 || routeCode.count == 9 }
+
+    static func citySlug(_ value: String) -> String {
+        var result = ""
+        var separatorPending = false
+        for scalar in value.decomposedStringWithCanonicalMapping.lowercased().unicodeScalars {
+            let isLetter = (97...122).contains(scalar.value)
+            let isDigit = (48...57).contains(scalar.value)
+            if isLetter || isDigit {
+                if separatorPending && !result.isEmpty { result.append("-") }
+                result.unicodeScalars.append(scalar)
+                separatorPending = false
+            } else if !result.isEmpty {
+                separatorPending = true
+            }
+        }
+        return result
+    }
 
     static func isSupportedRouteCode(_ value: String) -> Bool {
         guard value.unicodeScalars.allSatisfy({
@@ -104,37 +145,6 @@ struct UniversalMovieLink: Equatable, Sendable {
         )
     }
 
-    static func shareURL(
-        movieCode: String,
-        city: String,
-        day: CinemaDay,
-        today: CinemaDay,
-        filterState: AccountPreferences.Showtime.FilterState,
-        excludedCinemaIDs: [String]
-    ) -> URL? {
-        guard isSupportedRouteCode(movieCode),
-              let cityCode = cityCodes[city],
-              day >= today,
-              day <= today.addingDays(61),
-              let dateCode = encodeDateCode(day) else { return nil }
-
-        let filterMask = SharedShowtimeLinkContext.filterMask(from: filterState)
-        let filterCode = filterMask == 0 ? "j" : encodeFilterMask(filterMask)
-        guard let filterCode else { return nil }
-
-        var components = URLComponents()
-        components.scheme = "https"
-        components.host = "seret.site"
-        components.path = "/\(movieCode)\(cityCode)\(dateCode)\(filterCode)"
-        var queryItems = [URLQueryItem(name: "date", value: day.isoDate)]
-        let excludedIDs = Array(Set(excludedCinemaIDs.filter { CinemaIdentity.byID($0) != nil })).sorted()
-        if !excludedIDs.isEmpty {
-            queryItems.append(URLQueryItem(name: "excludeCinemas", value: excludedIDs.joined(separator: ",")))
-        }
-        components.queryItems = queryItems
-        return components.url
-    }
-
     private static let dateAlphabet = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
     private static let urlAlphabet = Array("1iljIt23457fkrsvxyzFJLT0689abcdeghnopquABCDEGHKNOPQRSUVXYZmwMW")
     private static let cityNames: [Character: String] = [
@@ -145,23 +155,6 @@ struct UniversalMovieLink: Equatable, Sendable {
         "J": "Netanya", "L": "Omer", "T": "Petach Tikvah", "0": "Raanana", "6": "Ramat Hasharon",
         "8": "Rehovot", "9": "Rishon Letzion", "a": "Zichron Yaakov", "b": "Holon"
     ]
-    private static let cityCodes = Dictionary(uniqueKeysWithValues: cityNames.map { ($0.value, $0.key) })
-
-    private static func encodeDateCode(_ day: CinemaDay) -> Character? {
-        let parts = day.isoDate.split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 3 else { return nil }
-        var utcCalendar = Calendar(identifier: .gregorian)
-        utcCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        var dateComponents = DateComponents()
-        dateComponents.year = parts[0]
-        dateComponents.month = parts[1]
-        dateComponents.day = parts[2]
-        guard let utcDate = utcCalendar.date(from: dateComponents) else { return nil }
-        let days = Int(utcDate.timeIntervalSince1970 / 86_400)
-        let index = ((days % dateAlphabet.count) + dateAlphabet.count) % dateAlphabet.count
-        return dateAlphabet[index]
-    }
-
     private static func decodeDateCode(_ code: Character, today: CinemaDay) -> CinemaDay? {
         var utcCalendar = Calendar(identifier: .gregorian)
         utcCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -193,17 +186,6 @@ struct UniversalMovieLink: Equatable, Sendable {
         return decoded < (1 << filterBitCount) ? decoded : nil
     }
 
-    private static func encodeFilterMask(_ value: Int) -> String? {
-        guard (0..<(1 << filterBitCount)).contains(value) else { return nil }
-        var remainder = value
-        var digits: [Character] = []
-        for _ in 0..<4 {
-            digits.append(urlAlphabet[remainder % urlAlphabet.count])
-            remainder /= urlAlphabet.count
-        }
-        guard remainder == 0 else { return nil }
-        return String(digits.reversed())
-    }
 }
 
 struct SharedShowtimeLinkContext: Hashable, Sendable {

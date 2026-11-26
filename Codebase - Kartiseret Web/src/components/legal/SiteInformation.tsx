@@ -1,11 +1,12 @@
 import { cinemathequeSources, mapDataSources, ratingSources, theaterChainSources } from "./creditSources";
 import { supportEmail, type SiteInformationPage } from "../../routing/siteInformation";
 import mitLicenseUrl from "../../../../LICENSE.md?url&no-inline";
-import { Link, useLocation } from "react-router";
 import { ArrowUpRight } from "lucide-react";
+import { useLocation } from "react-router";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 import "./SiteInformation.css";
+import { PublicRouteLink } from "../../routing/PublicRouteLink";
 
 type InformationSection = {
   id: string;
@@ -114,10 +115,10 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
         content: (
           <p>
             Manage alerts and account security in{" "}
-            <Link to="/user">User Preferences</Link>. For trouble signing in or
-            receiving an alert, describe what happened and when. Please leave
-            passwords, verification codes, and payment details out of your
-            email.{" "}
+            <PublicRouteLink to="/user">User Preferences</PublicRouteLink>. For
+            trouble signing in or receiving an alert, describe what happened and
+            when. Please leave passwords, verification codes, and payment
+            details out of your email.{" "}
             <EmailLink topic="Account or alert help">
               Get account help
             </EmailLink>
@@ -347,8 +348,8 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
             alert settings, watched titles, and any public Letterboxd list you
             connect to check for updates, send alerts and avoid duplicate
             deliveries. Change or remove alerts in{" "}
-            <Link to="/user">User Preferences</Link>, or use the unsubscribe
-            option when provided in an alert email.
+            <PublicRouteLink to="/user">User Preferences</PublicRouteLink>, or
+            use the unsubscribe option when provided in an alert email.
           </p>
         ),
       },
@@ -410,8 +411,8 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
             deletion, or raise a privacy concern, email{" "}
             <EmailLink topic="Privacy request">{supportEmail}</EmailLink>. To
             delete your account yourself, open{" "}
-            <Link to="/user">User Preferences</Link>, choose{" "}
-            <strong>Sign-in &amp; security</strong> and follow the{" "}
+            <PublicRouteLink to="/user">User Preferences</PublicRouteLink>,
+            choose <strong>Sign-in &amp; security</strong> and follow the{" "}
             <strong>Delete account</strong> steps, including the confirmation
             email.
           </p>
@@ -434,7 +435,10 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
             incomplete, delayed, inaccurate, or changed by the venue. Check the
             cinema’s listing for the time, venue, language, format,
             accessibility, and availability before making plans.{" "}
-            <Link to="/support#showtime-corrections">Report a correction</Link>.
+            <PublicRouteLink to="/support#showtime-corrections">
+              Report a correction
+            </PublicRouteLink>
+            .
           </p>
         ),
       },
@@ -459,7 +463,7 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
             Alerts are informational. They can be delayed, and screenings or
             release dates can change before an alert arrives. An alert does not
             hold a seat or guarantee availability. Manage your alert choices in{" "}
-            <Link to="/user">User Preferences</Link>.
+            <PublicRouteLink to="/user">User Preferences</PublicRouteLink>.
           </p>
         ),
       },
@@ -482,9 +486,9 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
         content: (
           <p>
             See{" "}
-            <Link to="/attribution#licenses-and-rights">
+            <PublicRouteLink to="/attribution#licenses-and-rights">
               Licenses &amp; rights
-            </Link>{" "}
+            </PublicRouteLink>{" "}
             before reusing material. Kartiseret may change or discontinue
             features and will post updates to these terms on this page. Your
             rights under applicable law continue to apply. For questions,
@@ -578,9 +582,9 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
             <p>
               Kartiseret’s code is licensed under the{" "}
               <a href={mitLicenseUrl}>MIT License</a>. See the{" "}
-              <a href="/third-party-licenses.txt">
+              <PublicRouteLink to="/third-party-licenses.txt" reloadDocument>
                 third-party software notices
-              </a>{" "}
+              </PublicRouteLink>{" "}
               for the web build. The website uses system fonts.
             </p>
             <p>

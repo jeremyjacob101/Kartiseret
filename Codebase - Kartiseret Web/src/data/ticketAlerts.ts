@@ -1,6 +1,6 @@
 import { matchesTicketAlertCriteria, subscriptionsResponseSchema, subscriptionChangeResponseSchema, ticketAlertPreferencesResponseSchema, type TicketAlertCriteria, type TicketAlertCriteriaOverride } from "@kartiseret/contracts/private-data";
 import { ticketAlertChangeSchema, ticketAlertShowtimePageSchema, ticketAlertShowtimeRowSchema, type TicketAlertChange, type TicketAlertShowtime, type UserTicketAlertSubscription } from "./ticketAlertSchemas";
-import { buildMovieShowtimeSharePath, filterMaskFromUnchecked, getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
+import { filterMaskFromUnchecked, getJerusalemCinemaDate, type MovieShowtimeShareState } from "@kartiseret/contracts/showtime-links";
 import { isoDateStringSchema, movieCodeSchema, parseBoundary } from "@kartiseret/contracts/runtime";
 import { mutationOptions, queryOptions, skipToken, type QueryClient } from "@tanstack/react-query";
 import { getShowtimeSortValue, shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
@@ -33,7 +33,9 @@ export type TicketAlertShowtimeRow = {
   screening_tech?: string | null;
   dub_language?: string | null;
 };
-export type TicketAlertAvailability = TicketAlertShowtime & { path: string };
+export type TicketAlertAvailability = TicketAlertShowtime & {
+  shareState: MovieShowtimeShareState | null;
+};
 
 type TicketAlertChangeResult =
 
@@ -92,7 +94,7 @@ export function getValidTicketHref(
   return result.success ? result.data.ticketHref : null;
 }
 
-type SelectedTicketShowtime = Omit<TicketAlertAvailability, "path">;
+type SelectedTicketShowtime = TicketAlertShowtime;
 
 function compareSelectedShowtimes(
   left: SelectedTicketShowtime,
@@ -162,35 +164,6 @@ export function selectTicketAlertShowtime(
   return earliestAnywhere;
 }
 
-export function buildTicketAlertShowtimePath(
-  movieCode: string | undefined,
-  showtime: Pick<SelectedTicketShowtime, "city" | "date">,
-  criteria: Pick<TicketAlertCriteria, "filters"> = {
-    filters: {
-      showType: [],
-      screeningTech: [],
-      screenFormat: [],
-      dubLanguage: [],
-    },
-  },
-): string {
-  const movieCodeResult = movieCodeSchema.safeParse(movieCode);
-  if (!movieCodeResult.success) {
-    return "/showtimes";
-  }
-
-  const plainMoviePath = `/${movieCodeResult.data}`;
-
-  return (
-    buildMovieShowtimeSharePath({
-      movieCode: movieCodeResult.data,
-      city: showtime.city,
-      date: showtime.date,
-      filterMask: filterMaskFromUnchecked(criteria.filters),
-    }) ?? plainMoviePath
-  );
-}
-
 export function selectTicketAlertAvailability(
   rows: readonly (TicketAlertShowtime | TicketAlertShowtimeRow)[],
   criteria: TicketAlertCriteria,
@@ -198,10 +171,19 @@ export function selectTicketAlertAvailability(
   instant: Date = new Date(),
 ): TicketAlertAvailability | null {
   const showtime = selectTicketAlertShowtime(rows, criteria, instant);
+  const movieCodeResult = movieCodeSchema.safeParse(movieCode);
   return showtime
     ? {
         ...showtime,
-        path: buildTicketAlertShowtimePath(movieCode, showtime, criteria),
+        shareState: movieCodeResult.success
+          ? {
+              movieCode: movieCodeResult.data,
+              city: showtime.city,
+              date: showtime.date,
+              filterMask: filterMaskFromUnchecked(criteria.filters),
+              excludedCinemaIds: [],
+            }
+          : null,
       }
     : null;
 }

@@ -169,7 +169,7 @@ const encodedMovieRouteStateSchema = z.object({
   filterMask: supportedFilterMaskSchema,
   mode: movieRouteModeSchema,
 });
-const movieShowtimeShareStateSchema = z.object({
+export const movieShowtimeShareStateSchema = z.object({
   movieCode: movieCodeSchema,
   city: nonEmptyTrimmedStringSchema,
   date: isoDateStringSchema,

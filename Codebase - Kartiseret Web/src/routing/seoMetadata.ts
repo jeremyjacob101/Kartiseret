@@ -1,4 +1,5 @@
 const SITE_ORIGIN = "https://seret.site";
+const OPAQUE_PAGE_PATH = /^\/[a-z0-9]{8}$/;
 
 type SeoMetadata = {
   title: string;
@@ -46,10 +47,47 @@ function setMeta(
   element.content = value;
 }
 
+function rewriteJsonLdPageUrls(value: unknown, canonicalUrl: string): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => rewriteJsonLdPageUrls(item, canonicalUrl));
+  }
+  if (value === null || typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => {
+      if (key !== "url" || typeof item !== "string") {
+        return [key, rewriteJsonLdPageUrls(item, canonicalUrl)];
+      }
+      try {
+        const url = new URL(item, SITE_ORIGIN);
+        return [key, url.origin === SITE_ORIGIN ? canonicalUrl : item];
+      } catch {
+        return [key, item];
+      }
+    }),
+  );
+}
+
 export function setSeoMetadata(metadata: SeoMetadata): void {
-  const canonical = new URL(metadata.canonicalPath, SITE_ORIGIN).toString();
+  const currentPath =
+    typeof window !== "undefined" &&
+    OPAQUE_PAGE_PATH.test(window.location.pathname)
+      ? window.location.pathname
+      : null;
+  const canonical = new URL(
+    currentPath ?? metadata.canonicalPath,
+    SITE_ORIGIN,
+  ).toString();
+  const openGraphUrl = new URL(
+    currentPath ?? metadata.openGraphPath ?? metadata.canonicalPath,
+    SITE_ORIGIN,
+  ).toString();
   const image =
     safeSeoUrl(metadata.imageUrl) ?? `${SITE_ORIGIN}/logos/kartiseret1.svg`;
+  const jsonLd =
+    currentPath && metadata.jsonLd !== undefined
+      ? rewriteJsonLdPageUrls(metadata.jsonLd, canonical)
+      : metadata.jsonLd;
   document.title = metadata.title;
   setMeta(
     'meta[name="description"]',
@@ -83,15 +121,7 @@ export function setSeoMetadata(metadata: SeoMetadata): void {
     "og:image:alt",
     metadata.title,
   );
-  setMeta(
-    'meta[property="og:url"]',
-    "property",
-    "og:url",
-    new URL(
-      metadata.openGraphPath ?? metadata.canonicalPath,
-      SITE_ORIGIN,
-    ).toString(),
-  );
+  setMeta('meta[property="og:url"]', "property", "og:url", openGraphUrl);
   setMeta(
     'meta[name="twitter:card"]',
     "name",
@@ -128,7 +158,7 @@ export function setSeoMetadata(metadata: SeoMetadata): void {
   ];
   let jsonLdElement = jsonLdElements.shift();
   jsonLdElements.forEach((element) => element.remove());
-  if (metadata.jsonLd === undefined) {
+  if (jsonLd === undefined) {
     jsonLdElement?.remove();
   } else {
     if (!jsonLdElement) {
@@ -136,7 +166,7 @@ export function setSeoMetadata(metadata: SeoMetadata): void {
       jsonLdElement.type = "application/ld+json";
       document.head.append(jsonLdElement);
     }
-    jsonLdElement.textContent = serializeJsonLd(metadata.jsonLd);
+    jsonLdElement.textContent = serializeJsonLd(jsonLd);
   }
 }
 

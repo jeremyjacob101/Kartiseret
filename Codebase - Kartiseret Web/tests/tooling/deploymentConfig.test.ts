@@ -11,6 +11,32 @@ const appleAssociation = JSON.parse(
 };
 
 describe("deployment performance boundaries", () => {
+  it("does not register obsolete /c cinema URLs in rewrites or app links", () => {
+    const rewrites = config.rewrites as {
+      source: string;
+      destination: string;
+    }[];
+    const components = appleAssociation.applinks.details[0]?.components ?? [];
+
+    expect(
+      rewrites.some(
+        ({ source, destination }) =>
+          source === "/c/:cinemaId" ||
+          source.startsWith("/c/") ||
+          destination.includes("/c/"),
+      ),
+    ).toBe(false);
+    expect(
+      components.some((component) => {
+        const path = component["/"];
+        return (
+          typeof path === "string" &&
+          (path === "/c/*" || path.startsWith("/c/"))
+        );
+      }),
+    ).toBe(false);
+  });
+
   it("serves a scoped Apple Universal Links association for the native app", () => {
     const association = appleAssociation.applinks.details[0];
     expect(association?.appIDs).toEqual(["UZ7YLA6V9D.com.jj.kartiseret"]);
@@ -18,21 +44,12 @@ describe("deployment performance boundaries", () => {
     expect(components).toContainEqual(
       expect.objectContaining({ "#": "no_universal_links", exclude: true }),
     );
-    for (const path of [
-      "/",
-      "/movies",
-      "/soons",
-      "/showtimes",
-      "/cinematheques",
-      "/user",
-      "/confirm-account-deletion",
-      "/c/*",
-      "/???",
-      "/??????",
-      "/?????????",
-    ]) {
+    for (const path of ["/????????"]) {
       expect(components).toContainEqual(expect.objectContaining({ "/": path }));
     }
+    expect(components).not.toContainEqual(
+      expect.objectContaining({ "/": "/c/*" }),
+    );
     for (const path of [
       "/reset-password",
       "/unsubscribe/letterboxd",
@@ -102,17 +119,19 @@ describe("deployment performance boundaries", () => {
       expect(cacheHeader(path)).toBeUndefined();
   });
 
-  it("routes SEO endpoints ahead of short movie codes and the not-found fallback", () => {
+  it("routes SEO endpoints and opaque codes before the not-found fallback", () => {
     const rewrites = config.rewrites as {
       source: string;
       destination: string;
+      has?: unknown;
     }[];
     const indexOf = (source: string) =>
       rewrites.findIndex((rewrite) => rewrite.source === source);
     for (const source of [
+      "/index.html",
+      "/third-party-licenses.txt",
       "/robots.txt",
       "/sitemap.xml",
-      "/c/:cinemaId",
       "/movies",
       "/showtimes",
       "/soons",
@@ -123,14 +142,17 @@ describe("deployment performance boundaries", () => {
     ]) {
       expect(indexOf(source), `${source} rewrite`).toBeGreaterThanOrEqual(0);
     }
-    expect(indexOf("/c/:cinemaId")).toBeLessThan(
-      indexOf("/:routeCode([0-9A-Za-z]{3,10})"),
-    );
     expect(indexOf("/reset-password")).toBeLessThan(
-      indexOf("/:routeCode([0-9A-Za-z]{3,10})"),
+      indexOf("/:routeCode([a-z0-9]{8})"),
+    );
+    expect(indexOf("/index.html")).toBeLessThan(
+      indexOf("/:routeCode([a-z0-9]{8})"),
+    );
+    expect(indexOf("/third-party-licenses.txt")).toBeLessThan(
+      indexOf("/:routeCode([a-z0-9]{8})"),
     );
     expect(indexOf("/unsubscribe/letterboxd")).toBeLessThan(
-      indexOf("/:routeCode([0-9A-Za-z]{3,10})"),
+      indexOf("/:routeCode([a-z0-9]{8})"),
     );
     for (const source of [
       "/support",
@@ -140,21 +162,35 @@ describe("deployment performance boundaries", () => {
       "/attribution",
     ]) {
       expect(indexOf(source)).toBeGreaterThanOrEqual(0);
-      expect(indexOf(source)).toBeLessThan(
-        indexOf("/:routeCode([0-9A-Za-z]{3,10})"),
-      );
+      expect(indexOf(source)).toBeLessThan(indexOf("/:routeCode([a-z0-9]{8})"));
       expect(
         rewrites.find((rewrite) => rewrite.source === source)?.destination,
-      ).toBe("/index.html");
+      ).toBe(`/api/dispatch?__vercel_route=page&path=${source}`);
     }
     expect(indexOf("/(.*)")).toBe(rewrites.length - 1);
+    expect(indexOf("/c/:cinemaId")).toBe(-1);
+    expect(rewrites.some((rewrite) => rewrite.source.includes("/c/"))).toBe(
+      false,
+    );
+    expect(
+      rewrites.some((rewrite) => rewrite.destination.includes("/c/")),
+    ).toBe(false);
     expect(
       rewrites.find((rewrite) => rewrite.source === "/api")?.destination,
     ).toBe("/api/dispatch");
     expect(
       rewrites.find((rewrite) => rewrite.source === "/reset-password")
         ?.destination,
-    ).toBe("/index.html");
+    ).toBe("/api/dispatch?__vercel_route=page&path=/reset-password");
+    expect(
+      rewrites.find(
+        (rewrite) => rewrite.source === "/index.html" && !rewrite.has,
+      )?.destination,
+    ).toBe("/api/dispatch?__vercel_route=page&path=/");
+    expect(
+      rewrites.find((rewrite) => rewrite.source === "/third-party-licenses.txt")
+        ?.destination,
+    ).toBe("/api/dispatch?__vercel_route=page&path=/third-party-licenses.txt");
     expect(
       rewrites.find((rewrite) => rewrite.source === "/unsubscribe/letterboxd")
         ?.destination,
@@ -169,16 +205,33 @@ describe("deployment performance boundaries", () => {
   });
 
   it("routes the root through SSR before Vercel can serve the static index file", () => {
-    const [privateRoute, rootRoute] = (
-      config.routes as {
-        src: string;
-        dest: string;
-        has?: { type: string; key: string; value: string }[];
-      }[]
-    ).filter((route) => route.src === "^/$");
+    const routes = config.routes as {
+      src: string;
+      dest: string;
+      has?: { type: string; key: string; value: string }[];
+    }[];
+    const [privateRoute, rootRoute] = routes.filter(
+      (route) => route.src === "^/$",
+    );
+    const privateIndexRoute = routes.find(
+      (route) => route.src === "^/index\\.html$" && route.has,
+    );
+    const indexRoute = routes.find(
+      (route) => route.src === "^/index\\.html$" && !route.has,
+    );
+    const licenseRoute = routes.find(
+      (route) => route.src === "^/third-party-licenses\\.txt$",
+    );
 
     expect(rootRoute?.dest).toBe("/api/dispatch?__vercel_route=page&path=/");
     expect(rootRoute?.has).toBeUndefined();
+    expect(privateIndexRoute?.dest).toBe(
+      "/api/dispatch?__vercel_route=private-page&path=/",
+    );
+    expect(indexRoute?.dest).toBe("/api/dispatch?__vercel_route=page&path=/");
+    expect(licenseRoute?.dest).toBe(
+      "/api/dispatch?__vercel_route=page&path=/third-party-licenses.txt",
+    );
     expect(privateRoute?.dest).toBe(
       "/api/dispatch?__vercel_route=private-page&path=/",
     );

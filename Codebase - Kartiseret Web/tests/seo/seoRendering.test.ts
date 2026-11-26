@@ -49,6 +49,19 @@ describe("SEO HTML rendering", () => {
     expect(html).not.toContain("images.example.test");
   });
 
+  it("marks opaque homepage responses before the early motion bootstrap runs", () => {
+    const html = injectRenderedApplication(
+      '<html><head></head><body><div id="root"></div></body></html>',
+      "<main>Home</main>",
+      {
+        pathname: "/home0000",
+        resolvedRoute: { renderPath: "/" },
+      },
+    );
+
+    expect(html).toContain('<html data-home-intro-route="true">');
+  });
+
   it("preserves replacement tokens in database-derived metadata, markup, and bootstrap values", () => {
     const replacementTokens = "$&|$`|$'";
     const withMetadata = injectSeoPage(
@@ -72,11 +85,12 @@ describe("SEO HTML rendering", () => {
   });
 
   it("builds a deduplicated XML sitemap and rejects noncanonical URL variants", () => {
-    const xml = buildSitemapXml(["/", "/Ab3", "/Ab3"]);
+    const xml = buildSitemapXml(["/home0000", "/ab3xy678", "/ab3xy678"]);
     expect(xml).toContain('<?xml version="1.0" encoding="UTF-8"?>');
     expect(xml.match(/<loc>/g)).toHaveLength(2);
-    expect(xml).toContain("https://seret.site/Ab3");
-    expect(() => buildSitemapXml(["/Ab3?date=today"])).toThrow(/canonical/);
+    expect(xml).toContain("https://seret.site/ab3xy678");
+    expect(() => buildSitemapXml(["/Ab3?date=today"])).toThrow(/opaque/);
+    expect(() => buildSitemapXml(["/showtimes/jerusalem"])).toThrow(/opaque/);
     expect(() => xmlEscape("A & B")).not.toContain("A & B");
     expect(xmlEscape("A & B")).toBe("A &amp; B");
   });

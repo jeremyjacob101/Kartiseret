@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type WheelEvent } from "react";
 import { MovieScrollerBase, type MovieScrollerBaseProps, type MovieScrollerCardState, type MovieScrollerScrollRequest, type PosterSourceRect } from "./MovieScrollerBase";
-import { buildMovieShowtimeShareUrl, filterMaskFromUnchecked, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "@kartiseret/contracts/showtime-links";
+import { filterMaskFromUnchecked, getJerusalemCinemaDate, isDateInShowtimeLinkWindow } from "@kartiseret/contracts/showtime-links";
 import { MovieDetailsContent, type MovieDetailsShareSelection, type MovieDetailsVariant } from "./MovieDetailsContent";
+import { createPublicShowtimeSharePath, resolvePublicPathForLegacyPath } from "../../data/publicRoutes.js";
 import { movieCollectionQueryOptions, selectMovies, type Movie } from "../../data/movieCatalog";
 import { useMovieDisplayPreferences } from "../../contexts/MovieDisplayPreferencesContext";
 import { applyMovieDisplayPreferences } from "../../data/movieDisplayPreferences";
@@ -813,24 +814,26 @@ function MovieScrollerContent({
         return;
       }
 
-      const url = movieCode
-        ? buildMovieShowtimeShareUrl({
-            movieCode,
-            city: selection.location,
-            date: selection.date,
-            filterMask: filterMaskFromUnchecked(
-              selection.filterState?.unchecked ?? {
-                showType: [],
-                screenFormat: [],
-                screeningTech: [],
-                dubLanguage: [],
-              },
-            ),
-            excludedCinemaIds: [...selection.excludedCinemaIds],
-          })
-        : new URL("/showtimes", window.location.origin).toString();
-
-      if (!url) {
+      let url: string;
+      try {
+        const path = movieCode
+          ? await createPublicShowtimeSharePath({
+              movieCode,
+              city: selection.location,
+              date: selection.date,
+              filterMask: filterMaskFromUnchecked(
+                selection.filterState?.unchecked ?? {
+                  showType: [],
+                  screenFormat: [],
+                  screeningTech: [],
+                  dubLanguage: [],
+                },
+              ),
+              excludedCinemaIds: [...selection.excludedCinemaIds],
+            })
+          : await resolvePublicPathForLegacyPath("/showtimes");
+        url = new URL(path, window.location.origin).toString();
+      } catch {
         showShareFeedback("Unable to share this selection");
         return;
       }

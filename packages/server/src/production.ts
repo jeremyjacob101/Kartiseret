@@ -15,6 +15,7 @@ import {
   type ProtectedRateLimitOptions,
 } from "./protected/router.js";
 import { PostgresProtectedRateLimitStore } from "./protected/rate-limit-store.js";
+import { PostgresPublicRouteRegistry } from "./page-routes.js";
 import { createR2ImageStore } from "./artwork/s3.js";
 import {
   createMovieNotificationUnsubscribeRouter,
@@ -63,12 +64,14 @@ function createProductionRuntime(
     ),
     onDiagnostic: reportRateLimitDiagnostic,
   };
+  const publicRoutes = new PostgresPublicRouteRegistry(database.pool);
 
   return {
     config,
     artworkStore: createR2ImageStore(selectedEnvironment as NodeJS.ProcessEnv),
     repository,
     homepageFeatures: new HomepageFeaturedService(database.db),
+    publicRoutes,
     tmdbSearch: createTmdbSearchProvider(config.TMDB_API_KEY),
     workflows: new ProtectedWorkflows(database.db, repository),
     identityVerifier: new BetterAuthIdentityVerifier(auth),
@@ -80,6 +83,7 @@ function createProductionRuntime(
       database.pool,
       authConfig.internalSecret,
       {
+        publicRoutes,
         store: new PostgresProtectedRateLimitStore(
           database.pool,
           authConfig.secret,
@@ -146,6 +150,7 @@ export function createProductionApp(
     notificationUnsubscribeRouter: runtime.notificationUnsubscribeRouter,
     artworkStore: runtime.artworkStore,
     homepageFeatures: runtime.homepageFeatures,
+    publicRoutes: runtime.publicRoutes,
     logger: {
       error: (message, error) => {
         try {

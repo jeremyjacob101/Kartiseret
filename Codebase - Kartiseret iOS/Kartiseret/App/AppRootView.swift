@@ -160,6 +160,13 @@ struct AppRootView: View {
         movieLinkTask?.cancel()
         linkError = nil
         failedLinkURL = nil
+        handleResolvedDestination(destination, sourceURL: url)
+    }
+
+    private func handleResolvedDestination(
+        _ destination: UniversalLinkDestination,
+        sourceURL: URL
+    ) {
         switch destination {
         case .confirmAccountDeletion(let token):
             selectedTab = .you
@@ -175,6 +182,14 @@ struct AppRootView: View {
         case .showtimes:
             selectedTab = .showtimes
             showtimesPath = NavigationPath()
+        case .city(let slug):
+            if let city = store.cities.first(where: {
+                UniversalMovieLink.citySlug($0.name) == slug
+            }) {
+                store.selectCity(city.name)
+            }
+            selectedTab = .showtimes
+            showtimesPath = NavigationPath()
         case .cinematheques:
             selectedTab = .cinematheques
             cinemathequesPath = NavigationPath()
@@ -185,6 +200,26 @@ struct AppRootView: View {
             selectedTab = .cinematheques
             cinemathequesPath = NavigationPath()
             cinemathequesPath.append(CinemaRoute(cinemaID: id))
+        case .publicRouteCode(let code):
+            movieLinkTask = Task { @MainActor in
+                do {
+                    let path = try await store.api.resolvePublicRouteRenderPath(code: code)
+                    guard !Task.isCancelled,
+                          let site = URL(string: "https://seret.site"),
+                          let resolvedURL = URL(string: path, relativeTo: site)?.absoluteURL else { return }
+                    guard let resolved = UniversalLinkDestination.parseResolvedPath(resolvedURL) else {
+                        openWebsiteFallback(sourceURL)
+                        return
+                    }
+                    handleResolvedDestination(resolved, sourceURL: sourceURL)
+                } catch is CancellationError {
+                    return
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    failedLinkURL = sourceURL
+                    linkError = "Kartiseret couldn’t open this page. Check your connection and try again, or open the website."
+                }
+            }
         case .movie(let link):
             selectedTab = .discover
             discoverPath = NavigationPath()
@@ -198,10 +233,10 @@ struct AppRootView: View {
                 case .route(let route):
                     discoverPath.append(route)
                 case .unavailable:
-                    failedLinkURL = url
+                    failedLinkURL = sourceURL
                     linkError = "This film isn’t in the current catalog. You can try again or open the website."
                 case .networkFailure:
-                    failedLinkURL = url
+                    failedLinkURL = sourceURL
                     linkError = "Kartiseret couldn’t load the film catalog. Check your connection and try again, or open the website."
                     }
             }
