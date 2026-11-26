@@ -25,8 +25,16 @@ struct YouView: View {
                 }
                 Section {
                     Button("Sign Out", role: .destructive) {
-                        GIDSignIn.sharedInstance.signOut()
-                        Task { await account.signOut() }
+                        Task {
+                            await account.signOut()
+                            if account.state == .guest {
+                                GIDSignIn.sharedInstance.signOut()
+                            }
+                        }
+                    }
+                    .disabled(account.isSigningOut)
+                    if let error = account.signOutError {
+                        Text(error).font(.footnote).foregroundStyle(.secondary)
                     }
                 }
             } else {

@@ -120,19 +120,35 @@ final class AccountStore {
         }
     }
 
+    private(set) var isSigningOut = false
+    private(set) var signOutError: String?
+    private var isUpdatingPushRegistration = false
+
     func signOut() async {
-        let oldToken = token
-        if let oldToken,
-           let identity,
-           let deviceToken = PushNotificationRegistration.storedDeviceToken {
-            _ = try? await api.unregisterPushDevice(
-                token: oldToken,
-                accountID: identity.id,
-                deviceToken: deviceToken
-            )
+        guard !isSigningOut, let oldToken = token, let identity else { return }
+        signOutError = nil
+        guard !isUpdatingPushRegistration else {
+            signOutError = "Notifications are still being updated. Try signing out again in a moment."
+            return
         }
+        isSigningOut = true
+        defer { isSigningOut = false }
+
+        if let deviceToken = PushNotificationRegistration.storedDeviceToken {
+            do {
+                _ = try await api.unregisterPushDevice(
+                    token: oldToken,
+                    accountID: identity.id,
+                    deviceToken: deviceToken
+                )
+            } catch {
+                signOutError = "Couldn’t remove this device from movie alerts. Check your connection and try signing out again."
+                return
+            }
+        }
+        guard token == oldToken else { return }
         clearAccountSession()
-        if let oldToken { await api.signOut(token: oldToken) }
+        await api.signOut(token: oldToken)
     }
 
     func saveNotificationDelivery(_ value: AccountPreferences.NotificationDelivery) async {
@@ -170,7 +186,10 @@ final class AccountStore {
         guard state == .signedIn, let token, let identity,
               preferences.notificationDelivery.includesIPhone,
               await PushNotificationRegistration.notificationsAuthorized(),
-              self.token == token, preferences.notificationDelivery.includesIPhone else { return }
+              self.token == token, preferences.notificationDelivery.includesIPhone,
+              !isSigningOut, !isUpdatingPushRegistration else { return }
+        isUpdatingPushRegistration = true
+        defer { isUpdatingPushRegistration = false }
         do {
             let status = try await api.registerPushDevice(
                 token: token,
@@ -196,10 +215,12 @@ final class AccountStore {
             return
         }
         let authorized = await PushNotificationRegistration.notificationsAuthorized()
-        guard self.token == token else { return }
+        guard self.token == token, !isSigningOut, !isUpdatingPushRegistration else { return }
         if preferences.notificationDelivery.includesIPhone && authorized {
             await PushNotificationRegistration.registerForRemoteNotifications()
         } else if let deviceToken = PushNotificationRegistration.storedDeviceToken {
+            isUpdatingPushRegistration = true
+            defer { isUpdatingPushRegistration = false }
             _ = try? await api.registerPushDevice(
                 token: token,
                 accountID: identity.id,

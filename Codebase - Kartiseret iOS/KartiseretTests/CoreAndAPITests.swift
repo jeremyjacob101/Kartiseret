@@ -508,6 +508,45 @@ final class CoreAndAPITests: XCTestCase {
     }
 
     @MainActor
+    func testSignOutKeepsSessionUntilPushDeviceIsRemoved() async throws {
+        let key = PushNotificationRegistration.deviceTokenKey
+        let previous = UserDefaults.standard.string(forKey: key)
+        UserDefaults.standard.removeObject(forKey: key)
+        defer { UserDefaults.standard.set(previous, forKey: key) }
+
+        let preferences = String(decoding: try JSONEncoder().encode(AccountPreferences()), as: UTF8.self)
+        let transport = StubTransport(responses: [
+            httpResponse(#"{"token":null,"user":{"id":"user-1","email":"person@example.com"}}"#, headers: ["set-auth-token": "session-token"]),
+            httpResponse(#"{"data":{"user":{"id":"user-1","email":"person@example.com"},"isAdmin":false},"error":null}"#),
+            httpResponse("{\"data\":\(preferences),\"error\":null}"),
+            httpResponse(#"{"data":{"preferences":[],"nextCursor":null},"error":null}"#),
+            httpResponse("", statusCode: 503),
+            httpResponse(#"{"data":{"registered":false},"error":null}"#),
+            httpResponse("{}"),
+        ])
+        let credentials = MemorySessionCredentialStore()
+        let store = AccountStore(
+            api: NativeAccountAPI(baseURL: URL(string: "https://seret.site")!, transport: transport),
+            credentials: credentials
+        )
+        try await store.signIn(email: "person@example.com", password: "passphrase", fallbackLocation: "Jerusalem")
+        UserDefaults.standard.set(String(repeating: "ab", count: 32), forKey: key)
+
+        await store.signOut()
+        XCTAssertEqual(store.state, .signedIn)
+        XCTAssertEqual(credentials.read(), "session-token")
+        XCTAssertNotNil(store.signOutError)
+        let failedRequests = await transport.capturedRequests()
+        XCTAssertEqual(failedRequests.last?.url.path, "/api/v1/push/devices/current")
+
+        await store.signOut()
+        XCTAssertEqual(store.state, .guest)
+        XCTAssertNil(credentials.read())
+        let completedRequests = await transport.capturedRequests()
+        XCTAssertEqual(completedRequests.last?.url.path, "/api/auth/sign-out")
+    }
+
+    @MainActor
     func testPreferenceSaveShowsServerErrorAndRollsBackOptimisticValue() async throws {
         let previousColor = UserDefaults.standard.string(forKey: "kartiseret.account.siteColor")
         defer {
