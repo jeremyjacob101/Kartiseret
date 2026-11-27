@@ -6,6 +6,7 @@ import type { ProtectedWorkflowService } from "./service.js";
 import type { ProtectedRateLimitOptions } from "./router.js";
 import {
   DEFAULT_TICKET_ALERT_CRITERIA,
+  walletTicketCreateSchema,
   type TicketAlertCriteria,
 } from "@kartiseret/contracts/private-data";
 import { DEFAULT_SHOWTIME_PREFERENCES } from "@kartiseret/contracts/showtime-preferences";
@@ -95,6 +96,28 @@ function setup(
     walletTicket: vi.fn(async () => {
       throw new HttpError(404, "ticket_not_found", "Ticket not found.");
     }),
+    appendWalletTicketQrCodes: vi.fn(
+      async (_user, _ticketId, input: { qrMessages: string[] }) => ({
+        id,
+        tmdbId: null,
+        title: "Movie",
+        city: "Jerusalem",
+        cinema: "Cinema",
+        screeningDate: "2026-10-21",
+        screeningTime: "19:00",
+        reminderEnabled: false,
+        createdAt: "2026-10-21T10:00:00.000Z",
+        updatedAt: "2026-10-21T10:00:00.000Z",
+        qrMessage: "primary",
+        qrCodes: [
+          { id, qrMessage: "primary" },
+          ...input.qrMessages.map((qrMessage, index) => ({
+            id: `00000000-0000-4000-8000-00000000000${index + 2}`,
+            qrMessage,
+          })),
+        ],
+      }),
+    ),
     createWalletTicket: vi.fn(async (_user, input) => ({
       id,
       tmdbId: input.tmdbId,
@@ -227,6 +250,7 @@ describe("protected HTTP contracts", () => {
       createdAt: "2026-11-26T10:00:00.000Z",
       updatedAt: "2026-11-26T10:00:00.000Z",
       qrMessage: "private-ticket-payload",
+      qrCodes: [{ id, qrMessage: "private-ticket-payload" }],
     });
 
     const result = await request(app)
@@ -241,6 +265,76 @@ describe("protected HTTP contracts", () => {
       { id, email: "qa@example.test" },
       id,
     );
+  });
+
+  it("appends distinct QR codes to one private booking and returns family details", async () => {
+    const { app, workflows } = setup();
+    const result = await request(app)
+      .post(`/api/v1/ticket-passes/${id}/qr-codes`)
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({ qrMessages: ["second-ticket-qr"] });
+
+    expect(result.status).toBe(200);
+    expect(result.body.data.ticket.qrCodes).toEqual([
+      { id, qrMessage: "primary" },
+      {
+        id: "00000000-0000-4000-8000-000000000002",
+        qrMessage: "second-ticket-qr",
+      },
+    ]);
+    expect(workflows.appendWalletTicketQrCodes).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      id,
+      { qrMessages: ["second-ticket-qr"] },
+    );
+  });
+
+  it("keeps the existing strict single-ticket endpoint compatible and exposes all QRs on family endpoint", async () => {
+    const { app, workflows } = setup();
+    vi.mocked(workflows.walletTicket).mockResolvedValue({
+      id,
+      tmdbId: null,
+      title: "Test Movie",
+      city: "Jerusalem",
+      cinema: "Test Cinema",
+      screeningDate: "2026-12-01",
+      screeningTime: "19:30",
+      reminderEnabled: false,
+      createdAt: "2026-11-26T10:00:00.000Z",
+      updatedAt: "2026-11-26T10:00:00.000Z",
+      qrMessage: "primary",
+      qrCodes: [
+        { id, qrMessage: "primary" },
+        { id: sourceId, qrMessage: "family-seat" },
+      ],
+    });
+
+    const legacy = await request(app)
+      .get(`/api/v1/ticket-passes/${id}`)
+      .set("Cookie", "valid");
+    expect(legacy.status).toBe(200);
+    expect(legacy.body.data.ticket.qrMessage).toBe("primary");
+    expect(legacy.body.data.ticket.qrCodes).toBeUndefined();
+
+    const family = await request(app)
+      .get(`/api/v1/ticket-passes/${id}/family`)
+      .set("Cookie", "valid");
+    expect(family.status).toBe(200);
+    expect(family.body.data.ticket.qrCodes).toHaveLength(2);
+  });
+
+  it("rejects ticket imports containing more than ten QR codes", () => {
+    const result = walletTicketCreateSchema.safeParse({
+      tmdbId: null,
+      title: "Movie",
+      city: "Jerusalem",
+      cinema: "Cinema",
+      screeningDate: "2026-12-01",
+      screeningTime: "19:30",
+      qrMessages: Array.from({ length: 11 }, (_, index) => `qr-${index}`),
+    });
+    expect(result.success).toBe(false);
   });
 
   it("returns the signed-in account’s ticket details for protected offline caching", async () => {
@@ -258,6 +352,7 @@ describe("protected HTTP contracts", () => {
         createdAt: "2026-11-26T10:00:00.000Z",
         updatedAt: "2026-11-26T10:00:00.000Z",
         qrMessage: "private-ticket-payload",
+        qrCodes: [{ id, qrMessage: "private-ticket-payload" }],
       },
     ]);
 

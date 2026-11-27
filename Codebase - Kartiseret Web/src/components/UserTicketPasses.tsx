@@ -1,8 +1,8 @@
 import { createWalletTicketMutationOptions, deleteWalletTicketMutationOptions, updateWalletTicketMutationOptions, walletRecentScreeningQueryOptions, walletTicketDetailQueryOptions, walletTicketsQueryOptions } from "../data/walletTickets";
-import { walletListedScreeningsResponseSchema } from "@kartiseret/contracts/private-data";
+import { MAX_WALLET_TICKET_QR_CODES, walletListedScreeningsResponseSchema, walletTicketDetailResponseSchema } from "@kartiseret/contracts/private-data";
 import { privateApiBlob, privateApiResponse } from "../data/privateApi";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { decodeSingleQrCode } from "../lib/walletQrScanner";
+import { decodeQrCodes } from "../lib/walletQrScanner";
 import { ApiRequestError } from "../data/apiClient";
 import { useRef, useState } from "react";
 import { Link } from "react-router";
@@ -26,7 +26,7 @@ const emptyScreening: ScreeningForm = {
   screeningTime: "",
 };
 
-async function readQrFromImage(file: File): Promise<string> {
+async function readQrFromImage(file: File): Promise<string[]> {
   if (file.size > 12 * 1024 * 1024)
     throw new Error("Choose a screenshot smaller than 12 MB.");
   const imageUrl = URL.createObjectURL(file);
@@ -57,7 +57,7 @@ async function readQrFromImage(file: File): Promise<string> {
     context.drawImage(image, 0, 0, width, height);
     const pixels = context.getImageData(0, 0, width, height);
     const { default: jsQR } = await import("jsqr");
-    return decodeSingleQrCode(pixels.data, width, height, jsQR);
+    return decodeQrCodes(pixels.data, width, height, jsQR);
   } finally {
     URL.revokeObjectURL(imageUrl);
   }
@@ -84,9 +84,10 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
   const updateMutation = useMutation(updateWalletTicketMutationOptions(userId));
   const deleteMutation = useMutation(deleteWalletTicketMutationOptions(userId));
   const [screening, setScreening] = useState<ScreeningForm>(emptyScreening);
-  const [qrMessage, setQrMessage] = useState<string | null>(null);
+  const [qrMessages, setQrMessages] = useState<string[]>([]);
   const [qrError, setQrError] = useState<string | null>(null);
   const [isReadingQr, setIsReadingQr] = useState(false);
+  const [isAppendingQr, setIsAppendingQr] = useState(false);
   const [editingTicketId, setEditingTicketId] = useState<string | null>(null);
   const [hasInteracted, setHasInteracted] = useState(false);
   const [suggestionApplied, setSuggestionApplied] = useState(false);
@@ -98,6 +99,7 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
   );
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const addMoreFileInput = useRef<HTMLInputElement>(null);
 
   const selectedTicket = activeTicketQuery.data;
   const isSaving = createMutation.isPending || updateMutation.isPending;
@@ -156,35 +158,130 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
     setScreening({ ...base, [field]: value });
   }
 
-  async function handleScreenshot(file: File | undefined) {
-    if (!file) return;
+  async function decodeScreenshots(files: File[]): Promise<{
+    messages: string[];
+    failures: string[];
+  }> {
+    const messages = new Set<string>();
+    const failures: string[] = [];
+    for (const file of files) {
+      try {
+        for (const message of await readQrFromImage(file))
+          messages.add(message);
+      } catch (error) {
+        failures.push(
+          `${file.name || "Screenshot"}: ${error instanceof Error ? error.message : "QR code could not be read."}`,
+        );
+      }
+    }
+    return { messages: [...messages], failures };
+  }
+
+  async function handleScreenshots(fileList: FileList | null) {
+    const files = Array.from(fileList ?? []);
+    if (!files.length) return;
     setQrError(null);
     setPageError(null);
     setFeedback(null);
     setIsReadingQr(true);
     try {
-      const message = await readQrFromImage(file);
-      setQrMessage(message);
-      setQrError(null);
-      setFeedback(
-        "QR code read on this device. The screenshot was not uploaded or saved.",
+      const result = await decodeScreenshots(files);
+      const available = MAX_WALLET_TICKET_QR_CODES - qrMessages.length;
+      const newMessages = result.messages.filter(
+        (message) => !qrMessages.includes(message),
       );
-    } catch (error) {
-      setQrError(
-        error instanceof Error
-          ? error.message
-          : "The QR code could not be read. Retry or use the original ticket.",
-      );
+      const accepted = newMessages.slice(0, Math.max(0, available));
+      setQrMessages((current) => [...current, ...accepted]);
+      const notices = [...result.failures];
+      if (newMessages.length > accepted.length) {
+        notices.push(
+          `A booking can contain up to ${MAX_WALLET_TICKET_QR_CODES} ticket QR codes. Extra codes were left out.`,
+        );
+      }
+      if (accepted.length > 0) {
+        setFeedback(
+          `${accepted.length} new ticket QR code${accepted.length === 1 ? "" : "s"} read on this device. Screenshots were not uploaded or saved.`,
+        );
+      } else if (result.messages.length === 0 && notices.length === 0) {
+        notices.push(
+          "No new ticket QR code was found. Retry with a clearer screenshot or use the original ticket.",
+        );
+      } else if (result.messages.length > 0 && newMessages.length === 0) {
+        setFeedback("Those QR codes are already in this booking.");
+      }
+      if (notices.length > 0) setQrError(notices.join(" "));
     } finally {
       setIsReadingQr(false);
       if (fileInput.current) fileInput.current.value = "";
     }
   }
 
+  async function addMoreScreenshots(fileList: FileList | null) {
+    const files = Array.from(fileList ?? []);
+    if (!files.length || !userId || !selectedTicket) return;
+    setQrError(null);
+    setPageError(null);
+    setFeedback(null);
+    setIsAppendingQr(true);
+    setIsReadingQr(true);
+    try {
+      const result = await decodeScreenshots(files);
+      const existing = new Set(
+        selectedTicket.qrCodes.map((code) => code.qrMessage),
+      );
+      const newMessages = result.messages.filter(
+        (message) => !existing.has(message),
+      );
+      const available =
+        MAX_WALLET_TICKET_QR_CODES - selectedTicket.qrCodes.length;
+      const accepted = newMessages.slice(0, Math.max(0, available));
+      if (accepted.length > 0) {
+        const response = await privateApiResponse(
+          `/api/v1/ticket-passes/${selectedTicket.id}/qr-codes`,
+          walletTicketDetailResponseSchema,
+          { method: "POST", userId, body: { qrMessages: accepted } },
+        );
+        await Promise.all([
+          activeTicketQuery.refetch(),
+          ticketsQuery.refetch(),
+        ]);
+        setFeedback(
+          `${response.data.ticket.qrCodes.length} ticket QR codes are now saved in this booking.`,
+        );
+      } else if (newMessages.length === 0 && result.messages.length > 0) {
+        setFeedback("Those QR codes are already in this booking.");
+      }
+      const notices = [...result.failures];
+      if (newMessages.length > accepted.length) {
+        notices.push(
+          `A booking can contain up to ${MAX_WALLET_TICKET_QR_CODES} ticket QR codes. Extra codes were left out.`,
+        );
+      }
+      if (notices.length > 0) setQrError(notices.join(" "));
+      if (!result.messages.length && !notices.length) {
+        setQrError(
+          "No new ticket QR code was found. Retry with a clearer screenshot or use the original ticket.",
+        );
+      }
+    } catch (error) {
+      setPageError(
+        error instanceof ApiRequestError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Ticket QR codes could not be added. Retry or use the original ticket.",
+      );
+    } finally {
+      setIsReadingQr(false);
+      setIsAppendingQr(false);
+      if (addMoreFileInput.current) addMoreFileInput.current.value = "";
+    }
+  }
+
   async function saveTicket() {
     setPageError(null);
     setFeedback(null);
-    if (!qrMessage) {
+    if (!editingTicketId && qrMessages.length === 0) {
       setQrError("Choose a ticket screenshot and read its QR code first.");
       return;
     }
@@ -207,8 +304,6 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
       cinema: visibleScreening.cinema,
       screeningDate: visibleScreening.screeningDate,
       screeningTime: visibleScreening.screeningTime,
-      qrMessage,
-      reminderEnabled: false,
     };
     try {
       if (editingTicketId) {
@@ -216,7 +311,6 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
           ticketId: editingTicketId,
           patch: {
             ...input,
-            reminderEnabled: undefined,
           },
         });
         setActiveTicketId(ticket.id);
@@ -225,12 +319,16 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
           "Ticket updated. Select Update in Apple Wallet to replace the pass.",
         );
       } else {
-        const ticket = await createMutation.mutateAsync(input);
+        const ticket = await createMutation.mutateAsync({
+          ...input,
+          qrMessages,
+          reminderEnabled: false,
+        });
         setActiveTicketId(ticket.id);
         setFeedback("Ticket saved to your Kartiseret account.");
       }
       setScreening(emptyScreening);
-      setQrMessage(null);
+      setQrMessages([]);
       setHasInteracted(false);
       setSuggestionApplied(true);
       setSuggestionWasApplied(false);
@@ -252,7 +350,7 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
       screeningDate: selectedTicket.screeningDate,
       screeningTime: selectedTicket.screeningTime,
     });
-    setQrMessage(selectedTicket.qrMessage);
+    setQrMessages([]);
     setQrError(null);
     setEditingTicketId(selectedTicket.id);
     setHasInteracted(true);
@@ -262,7 +360,7 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
 
   function cancelEditing() {
     setEditingTicketId(null);
-    setQrMessage(null);
+    setQrMessages([]);
     setQrError(null);
     setScreening(emptyScreening);
     setHasInteracted(false);
@@ -275,20 +373,24 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
     setDownloadingTicketId(ticketId);
     setPageError(null);
     try {
+      const isBundle = (selectedTicket?.qrCodes.length ?? 0) > 1;
+      const extension = isBundle ? "pkpasses" : "pkpass";
       const pass = await privateApiBlob(
-        `/api/v1/ticket-passes/${ticketId}/pass.pkpass`,
+        `/api/v1/ticket-passes/${ticketId}/${isBundle ? "passes.pkpasses" : "pass.pkpass"}`,
         { userId },
       );
       const url = URL.createObjectURL(pass);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `Kartiseret-Ticket-${ticketId}.pkpass`;
+      anchor.download = `Kartiseret-Tickets-${ticketId}.${extension}`;
       document.body.append(anchor);
       anchor.click();
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
       setFeedback(
-        "Pass downloaded. Open it on your iPhone to add or update it in Apple Wallet.",
+        isBundle
+          ? "Ticket bundle downloaded. Open it on your iPhone to review and add the whole family booking to Apple Wallet."
+          : "Pass downloaded. Open it on your iPhone to add or update it in Apple Wallet.",
       );
     } catch (error) {
       setPageError(
@@ -356,34 +458,61 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
             </button>
           ) : null}
         </div>
-        <p className="wallet-ticket-help">
-          Choose a screenshot that contains a QR code. Kartiseret reads the code
-          on this device and does not upload or keep the image. Check the
-          screening details before saving.
-        </p>
-
-        <label className="wallet-ticket-upload">
-          <span>
-            {isReadingQr
-              ? "Reading QR code…"
-              : qrMessage
-                ? "Choose a different screenshot"
-                : "Choose ticket screenshot"}
-          </span>
-          <input
-            ref={fileInput}
-            type="file"
-            accept="image/*"
-            disabled={isReadingQr || isSaving}
-            onChange={(event) =>
-              void handleScreenshot(event.currentTarget.files?.[0])
-            }
-          />
-        </label>
-        {qrMessage ? (
-          <p className="wallet-ticket-qr-ready" role="status">
-            QR code ready. The QR contents stay in your private ticket record.
-          </p>
+        {!editingTicketId ? (
+          <>
+            <p className="wallet-ticket-help">
+              Choose one or more screenshots. Kartiseret reads every QR code on
+              this device and does not upload or keep the images. Check the
+              screening details before saving.
+            </p>
+            <label className="wallet-ticket-upload">
+              <span>
+                {isReadingQr
+                  ? "Reading ticket QR codes…"
+                  : qrMessages.length
+                    ? "Add or choose more screenshots"
+                    : "Choose ticket screenshots"}
+              </span>
+              <input
+                ref={fileInput}
+                type="file"
+                accept="image/*"
+                multiple
+                disabled={isReadingQr || isSaving}
+                onChange={(event) =>
+                  void handleScreenshots(event.currentTarget.files)
+                }
+              />
+            </label>
+            {qrMessages.length > 0 ? (
+              <div className="wallet-ticket-qr-ready" role="status">
+                <p>
+                  {qrMessages.length} of {MAX_WALLET_TICKET_QR_CODES} ticket QR
+                  codes ready. QR contents stay private with this booking.
+                </p>
+                <ol aria-label="Ticket QR codes to save">
+                  {qrMessages.map((_, index) => (
+                    <li key={index}>
+                      Ticket {index + 1}
+                      <button
+                        type="button"
+                        aria-label={`Remove ticket QR ${index + 1}`}
+                        disabled={isSaving || isReadingQr}
+                        onClick={() =>
+                          setQrMessages((current) =>
+                            current.filter(
+                              (__, currentIndex) => currentIndex !== index,
+                            ))
+                        }
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ) : null}
+          </>
         ) : null}
         {qrError ? (
           <p className="wallet-ticket-error" role="alert">
@@ -553,7 +682,7 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
                 ? "Save ticket changes"
                 : "Save to My Tickets"}
           </button>
-          {qrMessage ? (
+          {qrMessages.length > 0 ? (
             <span className="wallet-ticket-privacy-note">
               Screenshot not uploaded
             </span>
@@ -630,19 +759,53 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
         ) : null}
         {selectedTicket ? (
           <article className="wallet-ticket-detail">
-            <div className="wallet-ticket-detail-qr">
-              <img
-                key={selectedTicket.updatedAt}
-                src={`/api/v1/ticket-passes/${selectedTicket.id}/qr.svg`}
-                alt={`QR code for ${selectedTicket.title}`}
-                width={240}
-                height={240}
-              />
+            <div className="wallet-ticket-admissions">
+              {selectedTicket.qrCodes.map((code, index) => (
+                <div className="wallet-ticket-detail-qr" key={code.id}>
+                  {selectedTicket.qrCodes.length > 1 ? (
+                    <h4>
+                      Ticket {index + 1} of {selectedTicket.qrCodes.length}
+                    </h4>
+                  ) : null}
+                  <img
+                    key={`${code.id}-${selectedTicket.updatedAt}`}
+                    src={`/api/v1/ticket-passes/${selectedTicket.id}/codes/${code.id}/qr.svg`}
+                    alt={`Ticket QR code ${index + 1} for ${selectedTicket.title}`}
+                    width={240}
+                    height={240}
+                  />
+                </div>
+              ))}
             </div>
             <p className="wallet-ticket-help">
-              Use this QR from the Kartiseret app or website if Apple Wallet is
-              unavailable. For the original ticket, use the cinema’s ticket page
-              or email.
+              {selectedTicket.qrCodes.length === 1
+                ? "This booking has one ticket QR code."
+                : `This booking has ${selectedTicket.qrCodes.length} ticket QR codes. Show the matching code for each person at the cinema.`}
+            </p>
+            <label className="wallet-ticket-upload">
+              <span>
+                {isAppendingQr
+                  ? "Adding ticket QR codes…"
+                  : "Add more ticket screenshots"}
+              </span>
+              <input
+                ref={addMoreFileInput}
+                type="file"
+                accept="image/*"
+                multiple
+                disabled={
+                  isAppendingQr ||
+                  selectedTicket.qrCodes.length >= MAX_WALLET_TICKET_QR_CODES
+                }
+                onChange={(event) =>
+                  void addMoreScreenshots(event.currentTarget.files)
+                }
+              />
+            </label>
+            <p className="wallet-ticket-help">
+              Use these QR codes from the Kartiseret app or website if Apple
+              Wallet is unavailable. For the original ticket, use the cinema’s
+              ticket page or email.
             </p>
             <div className="wallet-ticket-detail-actions">
               <button
@@ -653,7 +816,9 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
               >
                 {downloadingTicketId === selectedTicket.id
                   ? "Preparing pass…"
-                  : "Add or Update in Apple Wallet"}
+                  : selectedTicket.qrCodes.length > 1
+                    ? "Add all tickets to Apple Wallet"
+                    : "Add or Update in Apple Wallet"}
               </button>
               <button
                 className="wallet-ticket-button wallet-ticket-button--quiet"

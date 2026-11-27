@@ -470,6 +470,33 @@ export const userWalletTickets = pgTable(
   ],
 );
 
+export const userWalletTicketQrCodes = pgTable(
+  "user_wallet_ticket_qr_codes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ticketId: uuid("ticket_id")
+      .notNull()
+      .references(() => userWalletTickets.id, { onDelete: "cascade" }),
+    position: smallint("position").notNull(),
+    qrMessage: text("qr_message").notNull(),
+    createdAt: instant("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("user_wallet_ticket_qr_codes_ticket_idx").on(
+      table.ticketId,
+      table.position,
+    ),
+    unique("user_wallet_ticket_qr_codes_ticket_position_key").on(
+      table.ticketId,
+      table.position,
+    ),
+    unique("user_wallet_ticket_qr_codes_ticket_message_key").on(
+      table.ticketId,
+      table.qrMessage,
+    ),
+  ],
+);
+
 export const userWalletRecentShowtimeClicks = pgTable(
   "user_wallet_recent_showtime_clicks",
   {
@@ -754,6 +781,7 @@ export const applicationTables = {
   ticketAlertSubscriptions,
   userMovieDisplayPreferences,
   userWalletTickets,
+  userWalletTicketQrCodes,
   userWalletRecentShowtimeClicks,
   userPreferences,
   utilAvgTime,

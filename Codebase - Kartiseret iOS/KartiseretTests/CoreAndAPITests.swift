@@ -552,7 +552,14 @@ final class CoreAndAPITests: XCTestCase {
             reminderEnabled: ticket.reminderEnabled,
             createdAt: ticket.createdAt,
             updatedAt: ticket.updatedAt,
-            qrMessage: "private-offline-qr"
+            qrMessage: "private-offline-qr",
+            qrCodes: [
+                WalletTicketQRCode(id: ticket.id, qrMessage: "private-offline-qr"),
+                WalletTicketQRCode(
+                    id: "00000000-0000-4000-8000-000000000002",
+                    qrMessage: "private-offline-qr-2"
+                )
+            ]
         )
 
         await cache.storeTickets([ticket], accountID: accountID)
@@ -580,6 +587,48 @@ final class CoreAndAPITests: XCTestCase {
         await cache.clear(accountID: accountID)
         let clearedTickets = await cache.loadTickets(accountID: accountID)
         XCTAssertNil(clearedTickets)
+    }
+
+    func testLegacyTicketDetailsDecodeWithOneQrAndFamilyTicketsDecodeAllQrs() throws {
+        let legacyJSON = """
+        {
+          "id":"00000000-0000-4000-8000-000000000001",
+          "tmdbId":null,
+          "title":"Movie",
+          "city":"Jerusalem",
+          "cinema":"Cinema",
+          "screeningDate":"2026-12-01",
+          "screeningTime":"19:30",
+          "reminderEnabled":false,
+          "createdAt":"2026-11-26T10:00:00.000Z",
+          "updatedAt":"2026-11-26T10:00:00.000Z",
+          "qrMessage":"first-qr"
+        }
+        """.data(using: .utf8)!
+        let legacy = try JSONDecoder().decode(WalletTicketDetail.self, from: legacyJSON)
+        XCTAssertEqual(legacy.qrCodes, [WalletTicketQRCode(id: legacy.id, qrMessage: "first-qr")])
+
+        let familyJSON = """
+        {
+          "id":"00000000-0000-4000-8000-000000000001",
+          "tmdbId":null,
+          "title":"Movie",
+          "city":"Jerusalem",
+          "cinema":"Cinema",
+          "screeningDate":"2026-12-01",
+          "screeningTime":"19:30",
+          "reminderEnabled":false,
+          "createdAt":"2026-11-26T10:00:00.000Z",
+          "updatedAt":"2026-11-26T10:00:00.000Z",
+          "qrMessage":"first-qr",
+          "qrCodes":[
+            {"id":"00000000-0000-4000-8000-000000000001","qrMessage":"first-qr"},
+            {"id":"00000000-0000-4000-8000-000000000002","qrMessage":"second-qr"}
+          ]
+        }
+        """.data(using: .utf8)!
+        let family = try JSONDecoder().decode(WalletTicketDetail.self, from: familyJSON)
+        XCTAssertEqual(family.qrCodes.map(\.qrMessage), ["first-qr", "second-qr"])
     }
 
     @MainActor

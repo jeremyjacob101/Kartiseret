@@ -40,6 +40,7 @@ import type {
   WalletTicket,
   WalletTicketCreate,
   WalletTicketDetail,
+  WalletTicketQrCodesAppend,
   WalletTicketPatch,
   WalletTicketRecentClick,
 } from "@kartiseret/contracts/private-data";
@@ -52,6 +53,7 @@ import {
 } from "@kartiseret/contracts/homepage-featured";
 import {
   DEFAULT_TICKET_ALERT_CRITERIA,
+  MAX_WALLET_TICKET_QR_CODES,
   MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE,
   matchesTicketAlertCriteria,
   resolveTicketAlertCriteria,
@@ -80,6 +82,7 @@ import {
   finalSoons,
   finalShowtimes,
   userWalletTickets,
+  userWalletTicketQrCodes,
   userWalletRecentShowtimeClicks,
   tableFixes,
 } from "../db/schema.js";
@@ -168,8 +171,20 @@ function mapWalletTicket(
 
 function mapWalletTicketDetail(
   row: typeof userWalletTickets.$inferSelect,
+  additionalQrCodes: (typeof userWalletTicketQrCodes.$inferSelect)[] = [],
 ): WalletTicketDetail {
-  return { ...mapWalletTicket(row), qrMessage: row.qrMessage };
+  return {
+    ...mapWalletTicket(row),
+    // Keep the original field as a compatibility alias for older iOS clients.
+    qrMessage: row.qrMessage,
+    qrCodes: [
+      { id: row.id, qrMessage: row.qrMessage },
+      ...additionalQrCodes.map((code) => ({
+        id: code.id,
+        qrMessage: code.qrMessage,
+      })),
+    ],
+  };
 }
 
 function jerusalemLocalMinute(date: Date): string {
@@ -1303,7 +1318,32 @@ export class ProtectedWorkflows {
           asc(userWalletTickets.createdAt),
         )
         .limit(100);
-      return rows.map(mapWalletTicketDetail);
+      if (rows.length === 0) return [];
+      const codeRows = await tx
+        .select()
+        .from(userWalletTicketQrCodes)
+        .where(
+          inArray(
+            userWalletTicketQrCodes.ticketId,
+            rows.map((row) => row.id),
+          ),
+        )
+        .orderBy(
+          asc(userWalletTicketQrCodes.ticketId),
+          asc(userWalletTicketQrCodes.position),
+        );
+      const codesByTicket = new Map<
+        string,
+        (typeof userWalletTicketQrCodes.$inferSelect)[]
+      >();
+      for (const code of codeRows) {
+        const codes = codesByTicket.get(code.ticketId) ?? [];
+        codes.push(code);
+        codesByTicket.set(code.ticketId, codes);
+      }
+      return rows.map((row) =>
+        mapWalletTicketDetail(row, codesByTicket.get(row.id)),
+      );
     });
   }
 
@@ -1324,7 +1364,12 @@ export class ProtectedWorkflows {
         .limit(1);
       if (!row)
         throw new HttpError(404, "ticket_not_found", "Ticket not found.");
-      return mapWalletTicketDetail(row);
+      const additionalQrCodes = await tx
+        .select()
+        .from(userWalletTicketQrCodes)
+        .where(eq(userWalletTicketQrCodes.ticketId, row.id))
+        .orderBy(asc(userWalletTicketQrCodes.position));
+      return mapWalletTicketDetail(row, additionalQrCodes);
     });
   }
 
@@ -1344,6 +1389,25 @@ export class ProtectedWorkflows {
           "ticket_limit",
           "You can save up to 100 tickets.",
         );
+      const messages = [
+        ...new Set(
+          input.qrMessages ?? (input.qrMessage ? [input.qrMessage] : []),
+        ),
+      ];
+      if (messages.length === 0) {
+        throw new HttpError(
+          400,
+          "ticket_qr_required",
+          "Add at least one readable ticket QR code.",
+        );
+      }
+      if (messages.length > MAX_WALLET_TICKET_QR_CODES) {
+        throw new HttpError(
+          409,
+          "ticket_qr_code_limit",
+          `A booking can contain up to ${MAX_WALLET_TICKET_QR_CODES} ticket QR codes.`,
+        );
+      }
       const [row] = await tx
         .insert(userWalletTickets)
         .values({
@@ -1354,7 +1418,7 @@ export class ProtectedWorkflows {
           cinema: input.cinema,
           screeningDate: input.screeningDate,
           screeningTime: input.screeningTime,
-          qrMessage: input.qrMessage,
+          qrMessage: messages[0]!,
           reminderEnabled: input.reminderEnabled,
         })
         .returning();
@@ -1364,10 +1428,95 @@ export class ProtectedWorkflows {
           "ticket_unavailable",
           "Ticket could not be saved. Please try again.",
         );
+      if (messages.length > 1) {
+        await tx.insert(userWalletTicketQrCodes).values(
+          messages.slice(1).map((qrMessage, index) => ({
+            ticketId: row.id,
+            position: index + 2,
+            qrMessage,
+          })),
+        );
+      }
       await tx
         .delete(userWalletRecentShowtimeClicks)
         .where(eq(userWalletRecentShowtimeClicks.userId, user.id));
       return mapWalletTicket(row);
+    });
+  }
+
+  appendWalletTicketQrCodes(
+    user: VerifiedIdentity,
+    ticketId: string,
+    input: WalletTicketQrCodesAppend,
+  ): Promise<WalletTicketDetail> {
+    return this.asUser(user, async (tx) => {
+      // Serialize additions per booking so position assignment, deduplication,
+      // and the 10-pass limit remain correct for concurrent requests.
+      const [row] = await tx
+        .select()
+        .from(userWalletTickets)
+        .where(
+          and(
+            eq(userWalletTickets.userId, user.id),
+            eq(userWalletTickets.id, ticketId),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      if (!row)
+        throw new HttpError(404, "ticket_not_found", "Ticket not found.");
+
+      const existing = await tx
+        .select()
+        .from(userWalletTicketQrCodes)
+        .where(eq(userWalletTicketQrCodes.ticketId, ticketId))
+        .orderBy(asc(userWalletTicketQrCodes.position));
+      const knownMessages = new Set([
+        row.qrMessage,
+        ...existing.map((code) => code.qrMessage),
+      ]);
+      const additions = [
+        ...new Set(
+          input.qrMessages.filter((message) => !knownMessages.has(message)),
+        ),
+      ];
+      if (existing.length + 1 + additions.length > MAX_WALLET_TICKET_QR_CODES) {
+        throw new HttpError(
+          409,
+          "ticket_qr_code_limit",
+          `A booking can contain up to ${MAX_WALLET_TICKET_QR_CODES} ticket QR codes. Remove extra screenshots and try again.`,
+        );
+      }
+
+      let updatedRow = row;
+      if (additions.length > 0) {
+        const [updated] = await tx
+          .update(userWalletTickets)
+          .set({ updatedAt: this.clock() })
+          .where(eq(userWalletTickets.id, ticketId))
+          .returning();
+        if (!updated)
+          throw new HttpError(
+            503,
+            "ticket_unavailable",
+            "Ticket QR codes could not be saved. Please retry.",
+          );
+        updatedRow = updated;
+        await tx.insert(userWalletTicketQrCodes).values(
+          additions.map((qrMessage, index) => ({
+            ticketId,
+            position: existing.length + index + 2,
+            qrMessage,
+          })),
+        );
+      }
+
+      const allAdditionalQrCodes = await tx
+        .select()
+        .from(userWalletTicketQrCodes)
+        .where(eq(userWalletTicketQrCodes.ticketId, ticketId))
+        .orderBy(asc(userWalletTicketQrCodes.position));
+      return mapWalletTicketDetail(updatedRow, allAdditionalQrCodes);
     });
   }
 
@@ -1646,6 +1795,7 @@ export type ProtectedWorkflowService = Pick<
   | "walletListedScreenings"
   | "walletTicket"
   | "createWalletTicket"
+  | "appendWalletTicketQrCodes"
   | "updateWalletTicket"
   | "deleteWalletTicket"
   | "recordWalletShowtimeClick"

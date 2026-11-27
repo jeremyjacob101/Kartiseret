@@ -380,14 +380,18 @@ struct TicketPassesView: View {
         screeningDate: "",
         screeningTime: ""
     )
-    @State private var qrMessage = ""
-    @State private var photoItem: PhotosPickerItem?
+    @State private var qrMessages: [String] = []
+    @State private var pendingAdditionalTicketID: String?
+    @State private var pendingAdditionalQrMessages: [String] = []
+    @State private var photoItems: [PhotosPickerItem] = []
+    @State private var additionalPhotoItems: [PhotosPickerItem] = []
     @State private var isLoading = true
     @State private var isReadingScreenshot = false
     @State private var isSaving = false
     @State private var isPreparingPass = false
+    @State private var isAppendingQrCodes = false
     @State private var isShowingPassSheet = false
-    @State private var passForSheet: PKPass?
+    @State private var passesForSheet: [PKPass]?
     @State private var isShowingDeleteConfirmation = false
     @State private var isShowingReminderSettings = false
     @State private var errorMessage: String?
@@ -396,6 +400,7 @@ struct TicketPassesView: View {
     @State private var hasInteractedWithScreening = false
     @State private var hasConfirmedShowDate = false
     @State private var hasConfirmedShowTime = false
+    @State private var screenshotImportTicketID: String?
 
     init(initialTicketID: String? = nil) {
         self.initialTicketID = initialTicketID
@@ -442,7 +447,7 @@ struct TicketPassesView: View {
                 }
             } else {
                 if account.state == .signedIn {
-                    importSection
+                    if editingTicketID == nil { importSection }
                     screeningSection
                 } else {
                     Section {
@@ -466,16 +471,22 @@ struct TicketPassesView: View {
                 Text(errorMessage).font(.footnote).padding()
             }
         }
-        .onChange(of: photoItem) { _, item in
-            guard let item else { return }
-            Task { await readPhotoPickerItem(item) }
+        .onChange(of: photoItems) { _, items in
+            guard !items.isEmpty else { return }
+            Task { await readPhotoPickerItems(items, ticketID: nil) }
+        }
+        .onChange(of: additionalPhotoItems) { _, items in
+            guard !items.isEmpty, let ticketID = selectedTicket?.id else { return }
+            Task { await readPhotoPickerItems(items, ticketID: ticketID) }
         }
         .fileImporter(
             isPresented: Binding(get: { isImportingScreenshot }, set: { isImportingScreenshot = $0 }),
             allowedContentTypes: [.image],
-            allowsMultipleSelection: false
+            allowsMultipleSelection: true
         ) { result in
-            Task { await readImportedFile(result) }
+            let ticketID = screenshotImportTicketID
+            screenshotImportTicketID = nil
+            Task { await readImportedFiles(result, ticketID: ticketID) }
         }
         .sheet(isPresented: $isShowingListedScreenings) {
             NavigationStack {
@@ -506,8 +517,8 @@ struct TicketPassesView: View {
                 }
             }
         }
-        .sheet(isPresented: $isShowingPassSheet, onDismiss: { passForSheet = nil }) {
-            if let passForSheet { AddWalletPassSheet(pass: passForSheet) }
+        .sheet(isPresented: $isShowingPassSheet, onDismiss: { passesForSheet = nil }) {
+            if let passesForSheet { AddWalletPassSheet(passes: passesForSheet) }
         }
         .confirmationDialog(
             "Delete this ticket?",
@@ -534,32 +545,42 @@ struct TicketPassesView: View {
 
     private var importSection: some View {
         Section {
-            if isReadingScreenshot { ProgressView("Reading QR code on this iPhone…") }
-            PhotosPicker(selection: $photoItem, matching: .images) {
-                Label("Choose screenshot from Photos", systemImage: "qrcode.viewfinder")
+            if isReadingScreenshot { ProgressView("Reading ticket QR codes on this iPhone…") }
+            PhotosPicker(selection: $photoItems, maxSelectionCount: 10, matching: .images) {
+                Label("Choose ticket screenshots from Photos", systemImage: "qrcode.viewfinder")
             }
             .disabled(isReadingScreenshot || isSaving)
             Button {
+                screenshotImportTicketID = nil
                 isImportingScreenshot = true
             } label: {
                 Label("Choose screenshot from Files", systemImage: "folder")
             }
             .disabled(isReadingScreenshot || isSaving)
-            Text("QR reading happens on this iPhone. The screenshot is not uploaded or saved. Printed showtime details are not read automatically; review them below.")
+            Text("Choose multiple screenshots or include several QR codes in one image. QR reading happens on this iPhone; screenshots are not uploaded or saved. Printed showtime details are not read automatically, so review them below.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-            if !qrMessage.isEmpty {
-                Label("QR code ready", systemImage: "checkmark.circle.fill")
+            if !qrMessages.isEmpty {
+                Label("\(qrMessages.count) ticket QR code\(qrMessages.count == 1 ? "" : "s") ready", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
-                Text("The QR contents are stored privately with this ticket so the pass can be recreated.")
+                Text("The QR contents will be saved privately with this booking so its Wallet passes can be recreated.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                ForEach(qrMessages.indices, id: \.self) { index in
+                    HStack {
+                        Text("Ticket \(index + 1)")
+                        Spacer()
+                        Button("Remove", role: .destructive) {
+                            qrMessages.remove(at: index)
+                        }
+                    }
+                }
             }
             if let scanMessage {
                 Text(scanMessage).font(.footnote).foregroundStyle(.orange)
             }
         } header: {
-            Text(editingTicketID == nil ? "Import ticket" : "Replace QR code")
+            Text("Import ticket QR codes")
         }
     }
 
@@ -672,27 +693,73 @@ struct TicketPassesView: View {
     @ViewBuilder
     private func selectedTicketSection(_ ticket: WalletTicketDetail) -> some View {
         Section {
-            if let image = qrImage(for: ticket.qrMessage) {
-                Image(uiImage: image)
-                    .interpolation(.none)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: 270)
-                    .padding(14)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 14))
-                    .frame(maxWidth: .infinity)
-                    .accessibilityLabel("Ticket QR code")
-            } else {
-                Text("This QR could not be rendered. Re-import the screenshot or use the original cinema ticket.")
-                    .foregroundStyle(.orange)
+            ForEach(ticket.qrCodes.indices, id: \.self) { index in
+                let code = ticket.qrCodes[index]
+                VStack(spacing: 9) {
+                    if ticket.qrCodes.count > 1 {
+                        Text("Ticket \(index + 1) of \(ticket.qrCodes.count)")
+                            .font(.headline)
+                    }
+                    if let image = qrImage(for: code.qrMessage) {
+                        Image(uiImage: image)
+                            .interpolation(.none)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: 270)
+                            .padding(14)
+                            .background(.white, in: RoundedRectangle(cornerRadius: 14))
+                            .frame(maxWidth: .infinity)
+                            .accessibilityLabel("Ticket QR code \(index + 1) of \(ticket.qrCodes.count)")
+                    } else {
+                        Text("This QR could not be rendered. Use the original cinema ticket.")
+                            .foregroundStyle(.orange)
+                    }
+                }
+                .padding(.vertical, 5)
             }
-            Text("If Apple Wallet is unavailable, show this QR in Kartiseret or use the original ticket from the cinema.")
+            Text("Show the matching QR from Kartiseret for each person if Apple Wallet is unavailable. You can add screenshots to this booking at any time.")
                 .font(.footnote).foregroundStyle(.secondary)
+            if account.state == .signedIn {
+                if isReadingScreenshot { ProgressView("Reading ticket QR codes…") }
+                PhotosPicker(selection: $additionalPhotoItems, maxSelectionCount: 10, matching: .images) {
+                    Label("Add more ticket screenshots from Photos", systemImage: "plus")
+                }
+                .disabled(isReadingScreenshot || isAppendingQrCodes || ticket.qrCodes.count >= 10)
+                Button {
+                    screenshotImportTicketID = ticket.id
+                    isImportingScreenshot = true
+                } label: {
+                    Label("Add more screenshots from Files", systemImage: "folder.badge.plus")
+                }
+                .disabled(isReadingScreenshot || isAppendingQrCodes || ticket.qrCodes.count >= 10)
+                if pendingAdditionalTicketID == ticket.id,
+                   !pendingAdditionalQrMessages.isEmpty {
+                    Text("\(pendingAdditionalQrMessages.count) scanned QR code\(pendingAdditionalQrMessages.count == 1 ? "" : "s") are waiting to be saved.")
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
+                    Button("Retry saving QR codes") {
+                        Task { await savePendingAdditionalQrCodes(for: ticket.id) }
+                    }
+                    .disabled(isAppendingQrCodes)
+                }
+                if ticket.qrCodes.count >= 10 {
+                    Text("This booking has the maximum of 10 ticket QR codes.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                if let scanMessage {
+                    Text(scanMessage).font(.footnote).foregroundStyle(.orange)
+                }
+            }
             Button {
                 Task { await addOrUpdateWalletPass(ticket) }
             } label: {
                 if isPreparingPass { ProgressView() }
-                else { Label("Add or Update in Apple Wallet", systemImage: "wallet.pass") }
+                else {
+                    Label(
+                        ticket.qrCodes.count > 1 ? "Add all tickets to Apple Wallet" : "Add or Update in Apple Wallet",
+                        systemImage: "wallet.pass"
+                    )
+                }
             }
             .buttonStyle(.borderedProminent)
             .tint(BrandStyle.accent)
@@ -706,7 +773,7 @@ struct TicketPassesView: View {
             }
             .accessibilityIdentifier("walletTicket.reminder")
             if ticket.reminderEnabled {
-                Text("A notification opens this ticket in Kartiseret. Apple Wallet may also show its pass when relevant.")
+                Text("One notification opens this booking and all its ticket QR codes. Apple Wallet may also show its passes when relevant.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             HStack {
@@ -722,7 +789,7 @@ struct TicketPassesView: View {
     }
 
     private var isValidForm: Bool {
-        !qrMessage.isEmpty &&
+        (editingTicketID != nil || !qrMessages.isEmpty) &&
         hasConfirmedShowDate &&
         hasConfirmedShowTime &&
         !form.screeningDate.isEmpty &&
@@ -861,7 +928,7 @@ struct TicketPassesView: View {
 
         do {
             let page: WalletTicketDetailPage = try await account.requestPrivate(
-                path: "/api/v1/ticket-passes/\(id)",
+                path: "/api/v1/ticket-passes/\(id)/family",
                 method: "GET",
                 as: WalletTicketDetailPage.self
             )
@@ -905,7 +972,6 @@ struct TicketPassesView: View {
                 "cinema": form.cinema.trimmingCharacters(in: .whitespacesAndNewlines),
                 "screeningDate": formatDate(showDate.wrappedValue),
                 "screeningTime": formatTime(showTime.wrappedValue),
-                "qrMessage": qrMessage,
             ]
             let path: String
             let method: String
@@ -916,6 +982,7 @@ struct TicketPassesView: View {
                 path = "/api/v1/ticket-passes"
                 method = "POST"
                 payload["reminderEnabled"] = false
+                payload["qrMessages"] = qrMessages
             }
             let body = try JSONSerialization.data(withJSONObject: payload)
             let saved: WalletTicketChangePage = try await account.requestPrivate(
@@ -942,7 +1009,7 @@ struct TicketPassesView: View {
             }
             editingTicketID = nil
             form = emptyForm
-            qrMessage = ""
+            qrMessages = []
             hasInteractedWithScreening = false
             hasConfirmedShowDate = false
             hasConfirmedShowTime = false
@@ -1000,7 +1067,7 @@ struct TicketPassesView: View {
             screeningDate: ticket.screeningDate,
             screeningTime: ticket.screeningTime
         )
-        qrMessage = ticket.qrMessage
+        qrMessages = []
         hasInteractedWithScreening = true
         hasConfirmedShowDate = true
         hasConfirmedShowTime = true
@@ -1010,7 +1077,7 @@ struct TicketPassesView: View {
 
     private func cancelEditing() {
         editingTicketID = nil
-        qrMessage = ""
+        qrMessages = []
         form = emptyForm
         statusMessage = nil
         errorMessage = nil
@@ -1054,62 +1121,167 @@ struct TicketPassesView: View {
         statusMessage = nil
         defer { isPreparingPass = false }
         do {
-            let data = try await account.requestPrivateFile(
-                path: "/api/v1/ticket-passes/\(ticket.id)/pass.pkpass",
-                contentType: "application/vnd.apple.pkpass"
-            )
-            let pass = try PKPass(data: data)
             guard PKAddPassesViewController.canAddPasses() else {
                 throw TicketPassError.walletUnavailable
             }
-            passForSheet = pass
+            var passes: [PKPass] = []
+            for code in ticket.qrCodes {
+                let data = try await account.requestPrivateFile(
+                    path: "/api/v1/ticket-passes/\(ticket.id)/codes/\(code.id)/pass.pkpass",
+                    contentType: "application/vnd.apple.pkpass"
+                )
+                passes.append(try PKPass(data: data))
+            }
+            guard !passes.isEmpty else { throw TicketPassError.imageUnavailable }
+            passesForSheet = passes
             isShowingPassSheet = true
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    private func readPhotoPickerItem(_ item: PhotosPickerItem) async {
+    private func readPhotoPickerItems(_ items: [PhotosPickerItem], ticketID: String?) async {
         isReadingScreenshot = true
         scanMessage = nil
         errorMessage = nil
-        defer { isReadingScreenshot = false; photoItem = nil }
-        do {
-            guard let data = try await item.loadTransferable(type: Data.self) else {
-                throw TicketPassError.imageUnavailable
-            }
-            guard data.count <= 12 * 1024 * 1024 else { throw TicketPassError.imageTooLarge }
-            qrMessage = try await decodeQrMessage(from: data)
-            scanMessage = "QR code read on this iPhone. The screenshot was not uploaded or saved."
-        } catch {
-            scanMessage = "\(error.localizedDescription) Retry with a clearer screenshot or use the original ticket."
+        defer {
+            isReadingScreenshot = false
+            if ticketID == nil { photoItems = [] }
+            else { additionalPhotoItems = [] }
         }
+        var messages: [String] = []
+        var failures: [String] = []
+        for (index, item) in items.enumerated() {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self) else {
+                    throw TicketPassError.imageUnavailable
+                }
+                guard data.count <= 12 * 1024 * 1024 else { throw TicketPassError.imageTooLarge }
+                messages.append(contentsOf: try await decodeQrMessages(from: data))
+            } catch {
+                failures.append("Screenshot \(index + 1): \(error.localizedDescription)")
+            }
+        }
+        await acceptScannedQrMessages(messages, failures: failures, ticketID: ticketID)
     }
 
-    private func readImportedFile(_ result: Result<[URL], Error>) async {
+    private func readImportedFiles(_ result: Result<[URL], Error>, ticketID: String?) async {
         isReadingScreenshot = true
         scanMessage = nil
         errorMessage = nil
         defer { isReadingScreenshot = false }
         do {
-            guard let url = try result.get().first else { throw TicketPassError.imageUnavailable }
-            let canRead = url.startAccessingSecurityScopedResource()
-            defer { if canRead { url.stopAccessingSecurityScopedResource() } }
-            let fileSize = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize
-            guard let fileSize, fileSize <= 12 * 1024 * 1024 else {
-                throw TicketPassError.imageTooLarge
+            let files = try result.get()
+            guard !files.isEmpty else { return }
+            var messages: [String] = []
+            var failures: [String] = []
+            for (index, url) in files.enumerated() {
+                do {
+                    let canRead = url.startAccessingSecurityScopedResource()
+                    defer { if canRead { url.stopAccessingSecurityScopedResource() } }
+                    let fileSize = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize
+                    guard let fileSize, fileSize <= 12 * 1024 * 1024 else {
+                        throw TicketPassError.imageTooLarge
+                    }
+                    let data = try Data(contentsOf: url, options: [.mappedIfSafe])
+                    guard data.count <= 12 * 1024 * 1024 else { throw TicketPassError.imageTooLarge }
+                    messages.append(contentsOf: try await decodeQrMessages(from: data))
+                } catch {
+                    failures.append("Screenshot \(index + 1): \(error.localizedDescription)")
+                }
             }
-            let data = try Data(contentsOf: url, options: [.mappedIfSafe])
-            guard data.count <= 12 * 1024 * 1024 else { throw TicketPassError.imageTooLarge }
-            qrMessage = try await decodeQrMessage(from: data)
-            scanMessage = "QR code read on this iPhone. The screenshot was not uploaded or saved."
+            await acceptScannedQrMessages(messages, failures: failures, ticketID: ticketID)
         } catch {
             scanMessage = "\(error.localizedDescription) Retry with a clearer screenshot or use the original ticket."
         }
     }
 
-    private func decodeQrMessage(from data: Data) async throws -> String {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
+    private func acceptScannedQrMessages(
+        _ messages: [String],
+        failures: [String],
+        ticketID: String?
+    ) async {
+        var seen = Set<String>()
+        let uniqueMessages = messages.filter { seen.insert($0).inserted }
+        var accepted: [String] = []
+        var notices = failures
+
+        if let ticketID {
+            guard let ticket = selectedTicket, ticket.id == ticketID else {
+                scanMessage = "The selected booking changed. Open it again and retry adding the screenshots."
+                return
+            }
+            let existingMessages = Set(ticket.qrCodes.map(\.qrMessage))
+            let pendingMessages = pendingAdditionalTicketID == ticketID ? pendingAdditionalQrMessages : []
+            let knownMessages = existingMessages.union(pendingMessages)
+            let newMessages = uniqueMessages.filter { !knownMessages.contains($0) }
+            let available = max(0, 10 - ticket.qrCodes.count - pendingMessages.count)
+            accepted = Array(newMessages.prefix(available))
+            if newMessages.count > accepted.count {
+                notices.append("A booking can contain up to 10 ticket QR codes. Extra codes were left out.")
+            }
+            if !accepted.isEmpty {
+                pendingAdditionalTicketID = ticketID
+                pendingAdditionalQrMessages = pendingMessages + accepted
+                await savePendingAdditionalQrCodes(for: ticketID)
+            } else if newMessages.isEmpty && uniqueMessages.isEmpty && notices.isEmpty {
+                notices.append("No readable QR code was found. Retry with a clearer screenshot or use the original ticket.")
+            } else if newMessages.isEmpty && !uniqueMessages.isEmpty {
+                statusMessage = "Those QR codes are already in this booking."
+            }
+        } else {
+            let knownMessages = Set(qrMessages)
+            let newMessages = uniqueMessages.filter { !knownMessages.contains($0) }
+            let available = max(0, 10 - qrMessages.count)
+            accepted = Array(newMessages.prefix(available))
+            qrMessages.append(contentsOf: accepted)
+            if newMessages.count > accepted.count {
+                notices.append("A booking can contain up to 10 ticket QR codes. Extra codes were left out.")
+            }
+            if accepted.isEmpty && uniqueMessages.isEmpty && notices.isEmpty {
+                notices.append("No readable QR code was found. Retry with a clearer screenshot or use the original ticket.")
+            } else if accepted.isEmpty && !uniqueMessages.isEmpty {
+                statusMessage = "Those QR codes are already selected."
+            }
+        }
+
+        if !accepted.isEmpty {
+            scanMessage = "\(accepted.count) ticket QR code\(accepted.count == 1 ? "" : "s") read on this iPhone. Screenshots were not uploaded or saved."
+        }
+        if !notices.isEmpty {
+            scanMessage = ([scanMessage].compactMap { $0 } + notices).joined(separator: " ")
+        }
+    }
+
+    private func savePendingAdditionalQrCodes(for ticketID: String) async {
+        guard pendingAdditionalTicketID == ticketID,
+              !pendingAdditionalQrMessages.isEmpty,
+              let accountID = account.identity?.id else { return }
+        isAppendingQrCodes = true
+        defer { isAppendingQrCodes = false }
+        do {
+            let body = try JSONSerialization.data(withJSONObject: ["qrMessages": pendingAdditionalQrMessages])
+            let page: WalletTicketDetailPage = try await account.requestPrivate(
+                path: "/api/v1/ticket-passes/\(ticketID)/qr-codes",
+                method: "POST",
+                body: body,
+                as: WalletTicketDetailPage.self
+            )
+            guard selectedTicket?.id == ticketID else { return }
+            selectedTicket = page.ticket
+            pendingAdditionalTicketID = nil
+            pendingAdditionalQrMessages = []
+            statusMessage = "Ticket QR codes added to this booking."
+            scanMessage = nil
+            await WalletTicketOfflineCache.shared.storeDetail(page.ticket, accountID: accountID)
+            await loadTicketListOnly()
+        } catch {
+            errorMessage = "QR codes were read but could not be saved. Tap Retry saving QR codes, or keep the original ticket available. \(error.localizedDescription)"
+        }
+    }
+
+    private func decodeQrMessages(from data: Data) async throws -> [String] {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[String], Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
                     continuation.resume(throwing: TicketPassError.imageUnavailable)
@@ -1133,22 +1305,30 @@ struct TicketPassesView: View {
                 do {
                     try VNImageRequestHandler(cgImage: image).perform([request])
                     let observations = request.results ?? []
-                    guard observations.count == 1, let observation = observations.first else {
-                        continuation.resume(throwing: observations.isEmpty ? TicketPassError.qrNotFound : TicketPassError.multipleQRCodes)
+                    guard !observations.isEmpty else {
+                        continuation.resume(throwing: TicketPassError.qrNotFound)
                         return
                     }
-                    guard let code = observation.payloadStringValue,
-                          let payloadData = observation.payloadData,
-                          Data(code.utf8) == payloadData,
-                          !code.isEmpty else {
-                        continuation.resume(throwing: TicketPassError.qrPayloadUnsupported)
-                        return
+                    var messages: [String] = []
+                    for observation in observations {
+                        guard let code = observation.payloadStringValue,
+                              let payloadData = observation.payloadData,
+                              Data(code.utf8) == payloadData,
+                              !code.isEmpty else {
+                            continuation.resume(throwing: TicketPassError.qrPayloadUnsupported)
+                            return
+                        }
+                        guard code.utf8.count <= 2048 else {
+                            continuation.resume(throwing: TicketPassError.qrPayloadTooLarge)
+                            return
+                        }
+                        if !messages.contains(code) { messages.append(code) }
+                        if messages.count > 10 {
+                            continuation.resume(throwing: TicketPassError.tooManyQRCodes)
+                            return
+                        }
                     }
-                    guard code.utf8.count <= 2048 else {
-                        continuation.resume(throwing: TicketPassError.qrPayloadTooLarge)
-                        return
-                    }
-                    continuation.resume(returning: code)
+                    continuation.resume(returning: messages)
                 } catch {
                     continuation.resume(throwing: TicketPassError.qrReadFailed)
                 }
@@ -1237,7 +1417,7 @@ struct TicketPassesView: View {
         case qrPayloadUnsupported
         case qrPayloadTooLarge
         case qrNotFound
-        case multipleQRCodes
+        case tooManyQRCodes
         case qrReadFailed
         case walletUnavailable
 
@@ -1248,7 +1428,7 @@ struct TicketPassesView: View {
             case .qrPayloadUnsupported: "This QR code uses a text encoding Kartiseret cannot preserve on a Wallet pass. Use the original ticket instead."
             case .qrPayloadTooLarge: "This QR code contains more data than Kartiseret can safely put on a Wallet pass. Use the original ticket instead."
             case .qrNotFound: "No readable QR code was found."
-            case .multipleQRCodes: "More than one QR code was found. Choose a screenshot with one ticket QR."
+            case .tooManyQRCodes: "More than 10 ticket QR codes were found. Choose fewer screenshots or split this booking."
             case .qrReadFailed: "The QR code could not be read."
             case .walletUnavailable: "Apple Wallet is unavailable on this device. Your QR remains in Kartiseret."
             }
@@ -1257,12 +1437,12 @@ struct TicketPassesView: View {
 }
 
 private struct AddWalletPassSheet: UIViewControllerRepresentable {
-    let pass: PKPass
+    let passes: [PKPass]
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIViewController(context: Context) -> UIViewController {
-        guard let controller = PKAddPassesViewController(pass: pass) else {
+        guard let controller = PKAddPassesViewController(passes: passes) else {
             return UIViewController()
         }
         controller.delegate = context.coordinator

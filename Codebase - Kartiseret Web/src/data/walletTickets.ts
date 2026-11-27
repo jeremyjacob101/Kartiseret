@@ -60,7 +60,7 @@ export function walletTicketDetailQueryOptions(
       normalizedUserId && normalizedTicketId
         ? async ({ signal }) => {
             const response = await privateApiResponse(
-              `/api/v1/ticket-passes/${normalizedTicketId}`,
+              `/api/v1/ticket-passes/${normalizedTicketId}/family`,
               walletTicketDetailResponseSchema,
               { userId: normalizedUserId, signal },
             );

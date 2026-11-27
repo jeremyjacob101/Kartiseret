@@ -76,6 +76,7 @@ const expectedTableNames = [
   "user_movie_display_preferences",
   "user_wallet_recent_showtime_clicks",
   "user_wallet_tickets",
+  "user_wallet_ticket_qr_codes",
   "userPreferences",
   "utilAvgTime",
   "utilRunLogs",

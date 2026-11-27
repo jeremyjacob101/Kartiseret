@@ -406,12 +406,31 @@ const walletQrMessageSchema = z
   .min(1)
   .max(2048)
   .refine((value) => new TextEncoder().encode(value).byteLength <= 2048);
+export const MAX_WALLET_TICKET_QR_CODES = 10;
+export const walletQrMessagesSchema = z
+  .array(walletQrMessageSchema)
+  .min(1, "Add at least one ticket QR code.")
+  .max(
+    MAX_WALLET_TICKET_QR_CODES,
+    `A booking can contain up to ${MAX_WALLET_TICKET_QR_CODES} ticket QR codes.`,
+  );
 export const walletTicketCreateSchema = walletTicketScreeningSchema
   .extend({
-    qrMessage: walletQrMessageSchema,
+    // qrMessage is retained for older signed-in clients. New clients submit
+    // qrMessages so one booking can contain several family admissions.
+    qrMessage: walletQrMessageSchema.optional(),
+    qrMessages: walletQrMessagesSchema.optional(),
     reminderEnabled: z.boolean().default(false),
   })
-  .strict();
+  .strict()
+  .refine(
+    (value) =>
+      (value.qrMessage !== undefined) !== (value.qrMessages !== undefined),
+    {
+      path: ["qrMessages"],
+      message: "Provide qrMessage or qrMessages, but not both.",
+    },
+  );
 export const walletTicketPatchSchema = z
   .object({
     ...walletTicketScreeningSchema.shape,
@@ -435,8 +454,22 @@ export const walletTicketSchema = z
 export type WalletTicket = z.infer<typeof walletTicketSchema>;
 export const walletTicketDetailSchema = walletTicketSchema.extend({
   qrMessage: walletQrMessageSchema,
+  qrCodes: z
+    .array(
+      z
+        .object({ id: walletTicketIdSchema, qrMessage: walletQrMessageSchema })
+        .strict(),
+    )
+    .min(1)
+    .max(MAX_WALLET_TICKET_QR_CODES),
 });
 export type WalletTicketDetail = z.infer<typeof walletTicketDetailSchema>;
+export const walletTicketQrCodesAppendSchema = z
+  .object({ qrMessages: walletQrMessagesSchema })
+  .strict();
+export type WalletTicketQrCodesAppend = z.infer<
+  typeof walletTicketQrCodesAppendSchema
+>;
 export const walletTicketListResponseSchema = envelope(
   z.object({ tickets: z.array(walletTicketSchema).max(100) }),
 );

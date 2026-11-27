@@ -26,8 +26,16 @@ const ticketFixtures = vi.hoisted(() => {
   return {
     tickets: [first, second],
     details: {
-      [first.id]: { ...first, qrMessage: "first-secret-qr" },
-      [second.id]: { ...second, qrMessage: "second-secret-qr" },
+      [first.id]: {
+        ...first,
+        qrMessage: "first-secret-qr",
+        qrCodes: [{ id: first.id, qrMessage: "first-secret-qr" }],
+      },
+      [second.id]: {
+        ...second,
+        qrMessage: "second-secret-qr",
+        qrCodes: [{ id: second.id, qrMessage: "second-secret-qr" }],
+      },
     },
     create: vi.fn(),
   };
@@ -156,10 +164,12 @@ describe("UserTicketPasses", () => {
     expect(screen.getByLabelText("Movie or show")).toHaveValue("");
     expect(screen.queryByText(/QR code ready/)).not.toBeInTheDocument();
     expect(
-      await screen.findByRole("img", { name: "QR code for Second Movie" }),
+      await screen.findByRole("img", {
+        name: "Ticket QR code 1 for Second Movie",
+      }),
     ).toHaveAttribute(
       "src",
-      `/api/v1/ticket-passes/${ticketFixtures.tickets[1]!.id}/qr.svg`,
+      `/api/v1/ticket-passes/${ticketFixtures.tickets[1]!.id}/codes/${ticketFixtures.tickets[1]!.id}/qr.svg`,
     );
 
     await user.click(

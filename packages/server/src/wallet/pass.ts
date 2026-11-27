@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { PKPass } from "passkit-generator";
 import type { WalletTicketDetail } from "@kartiseret/contracts/private-data";
 import { HttpError } from "../http-errors.js";
+import { createPassBundle } from "./zip.js";
 
 const assetsDirectory = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -106,6 +107,8 @@ function jerusalemDateTime(date: string, time: string): Date {
 export async function generateWalletPass(
   ticket: WalletTicketDetail,
   env: WalletPassEnvironment = process.env,
+  qrCode: WalletTicketDetail["qrCodes"][number] = ticket.qrCodes[0]!,
+  qrIndex = 0,
 ): Promise<Buffer> {
   const { passTypeIdentifier, teamIdentifier, certificates } =
     certificatesFromEnvironment(env);
@@ -127,7 +130,8 @@ export async function generateWalletPass(
     certificates,
     {
       formatVersion: 1,
-      serialNumber: ticket.id,
+      serialNumber: qrCode.id,
+      groupingIdentifier: ticket.id,
       passTypeIdentifier,
       teamIdentifier,
       organizationName: "Kartiseret",
@@ -160,6 +164,13 @@ export async function generateWalletPass(
       { key: "time", label: "SHOWTIME", value: ticket.screeningTime },
       { key: "city", label: "CITY", value: ticket.city },
     );
+    if (ticket.qrCodes.length > 1) {
+      pass.auxiliaryFields.push({
+        key: "admission",
+        label: "ADMISSION",
+        value: `Ticket ${qrIndex + 1} of ${ticket.qrCodes.length}`,
+      });
+    }
     pass.backFields.push(
       {
         key: "screening",
@@ -175,9 +186,12 @@ export async function generateWalletPass(
     );
     pass.setBarcodes({
       format: "PKBarcodeFormatQR",
-      message: ticket.qrMessage,
+      message: qrCode.qrMessage,
       messageEncoding: "utf-8",
-      altText: "Ticket QR code",
+      altText:
+        ticket.qrCodes.length > 1
+          ? `Ticket ${qrIndex + 1} of ${ticket.qrCodes.length}`
+          : "Ticket QR code",
     });
     pass.preferredStyleSchemes = ["eventTicket"];
     // Wallet picks the precise presentation time around this relevance date.
@@ -191,6 +205,38 @@ export async function generateWalletPass(
       503,
       "wallet_pass_unavailable",
       "Apple Wallet could not create this pass. Please try again or use the original ticket.",
+    );
+  }
+}
+
+export async function generateWalletPassBundle(
+  ticket: WalletTicketDetail,
+  env: WalletPassEnvironment = process.env,
+): Promise<Buffer> {
+  if (ticket.qrCodes.length < 2 || ticket.qrCodes.length > 10) {
+    throw new HttpError(
+      409,
+      "wallet_bundle_unavailable",
+      "A Wallet bundle requires between 2 and 10 ticket QR codes.",
+    );
+  }
+  try {
+    const passes: Buffer[] = [];
+    for (const [index, qrCode] of ticket.qrCodes.entries()) {
+      passes.push(await generateWalletPass(ticket, env, qrCode, index));
+    }
+    return createPassBundle(
+      passes.map((data, index) => ({
+        name: `Kartiseret-Ticket-${ticket.qrCodes[index]!.id}.pkpass`,
+        data,
+      })),
+    );
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    throw new HttpError(
+      503,
+      "wallet_pass_unavailable",
+      "Apple Wallet passes could not be created. Please try again or use the original ticket.",
     );
   }
 }

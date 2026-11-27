@@ -1,4 +1,4 @@
-import { decodeSingleQrCode } from "../../src/lib/walletQrScanner";
+import { decodeQrCodes } from "../../src/lib/walletQrScanner";
 import { describe, expect, it } from "vitest";
 import type { QRCode } from "jsqr";
 
@@ -37,34 +37,41 @@ function decoderFor(
 }
 
 describe("ticket screenshot QR decoding", () => {
-  it("preserves a single valid UTF-8 QR payload and leaves the source pixels untouched", () => {
+  it("preserves all UTF-8 QR payloads and leaves the source pixels untouched", () => {
     const pixels = new Uint8ClampedArray(40 * 40 * 4).fill(7);
     let redactedPixels: Uint8ClampedArray | undefined;
-    const decode = decoderFor([qrCode("ticket-🎟️"), null], (secondScan) => {
-      redactedPixels = secondScan;
-    });
+    const decode = decoderFor(
+      [qrCode("ticket-🎟️"), qrCode("family-seat-2"), null],
+      (secondScan) => {
+        redactedPixels = secondScan;
+      },
+    );
 
-    expect(decodeSingleQrCode(pixels, 40, 40, decode)).toBe("ticket-🎟️");
+    expect(decodeQrCodes(pixels, 40, 40, decode)).toEqual([
+      "ticket-🎟️",
+      "family-seat-2",
+    ]);
     expect(pixels[0]).toBe(7);
     expect(redactedPixels?.[10 * 40 * 4 + 10 * 4]).toBe(255);
   });
 
-  it("rejects screenshots containing multiple QR codes", () => {
+  it("exactly deduplicates repeated payloads in a screenshot", () => {
     const first = qrCode("first-ticket");
-    const second = qrCode("second-ticket");
+    const duplicate = qrCode("first-ticket");
 
-    expect(() =>
-      decodeSingleQrCode(
+    expect(
+      decodeQrCodes(
         new Uint8ClampedArray(40 * 40 * 4),
         40,
         40,
-        decoderFor([first, second]),
-      )).toThrow(/more than one QR code/i);
+        decoderFor([first, duplicate, null]),
+      ),
+    ).toEqual(["first-ticket"]);
   });
 
   it("rejects binary or oversized payloads instead of changing the ticket code", () => {
     expect(() =>
-      decodeSingleQrCode(
+      decodeQrCodes(
         new Uint8ClampedArray(40 * 40 * 4),
         40,
         40,
@@ -72,7 +79,7 @@ describe("ticket screenshot QR decoding", () => {
       )).toThrow(/text encoding Kartiseret cannot preserve/i);
 
     expect(() =>
-      decodeSingleQrCode(
+      decodeQrCodes(
         new Uint8ClampedArray(40 * 40 * 4),
         40,
         40,

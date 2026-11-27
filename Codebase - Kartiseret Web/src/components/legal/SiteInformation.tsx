@@ -273,21 +273,21 @@ const documents: Record<SiteInformationPage["path"], InformationDocument> = {
         title: "Imported tickets and showtime suggestions",
         content: (
           <p>
-            If you import a ticket, the website or iOS app reads its QR code on
-            your device; the screenshot is not uploaded or stored by Kartiseret.
-            When you save the ticket, Kartiseret stores the QR contents, movie,
-            cinema, city, date, time, and reminder setting in your private
-            account so the ticket can appear on your devices and be used to
-            create an Apple Wallet pass. QR contents can include a unique ticket
-            code, so keep your account secure. You can review or delete a saved
-            ticket in My Tickets. To help prefill a ticket, Kartiseret may store
-            the latest showtime you opened while signed in: the movie, city,
-            cinema, date, time, and click time, without storing the booking-link
-            URL. This suggestion is eligible for 24 hours and is deleted when My
-            Tickets checks it after expiring, replaced by a later showtime
-            click, cleared when you import a ticket, or removed with your
-            account. Optional ticket reminders are scheduled as local iOS
-            notifications and open the saved ticket in the app.
+            If you import a ticket, the website or iOS app reads one or more QR
+            codes on your device; screenshots are not uploaded or stored by
+            Kartiseret. When you save the booking, Kartiseret stores its QR
+            contents, movie, cinema, city, date, time, and one reminder setting
+            in your private account so it can appear on your devices and create
+            grouped Apple Wallet passes. QR contents can include unique ticket
+            codes, so keep your account secure. You can review or delete a saved
+            booking in My Tickets. To help prefill a ticket, Kartiseret may
+            store the latest showtime you opened while signed in: the movie,
+            city, cinema, date, time, and click time, without storing the
+            booking-link URL. This suggestion is eligible for 24 hours and is
+            deleted when My Tickets checks it after expiring, replaced by a
+            later showtime click, cleared when you import a ticket, or removed
+            with your account. Optional ticket reminders are scheduled as local
+            iOS notifications and open the saved ticket in the app.
           </p>
         ),
       },
