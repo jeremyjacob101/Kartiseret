@@ -10,6 +10,7 @@
 		0552A6F7BA887A217BF6B328 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2F7978CA6D77B00CBA8294C /* Models.swift */; };
 		067C599694DF45BCE2F0FB03 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A3ED3793B6B30AA59A2E8EC9 /* PrivacyInfo.xcprivacy */; };
 		08B01D5477BA3BE2E94C5BEF /* AccountStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE76D1645AF08371C4B7B5C8 /* AccountStore.swift */; };
+		A10000000000000000000001 /* TicketPassesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000002 /* TicketPassesView.swift */; };
 		0E9B1D6CF76A2217F5FFA173 /* AppStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8375776D0C0EBEE746624E01 /* AppStoreTests.swift */; };
 		11FA0AF5F74C844B3B3800BF /* FixtureAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0DDC4B4730724FE50911D7 /* FixtureAPIClient.swift */; };
 		20DF04B56F7DB7705B6F89BE /* YouView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91FF86DFE3A784100383DC5C /* YouView.swift */; };
@@ -89,6 +90,7 @@
 		9A12C4B938EE67D0C05B748A /* KartiseretTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KartiseretTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A207DA322905989C91BDA194 /* UniversalLinkRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversalLinkRouter.swift; sourceTree = "<group>"; };
 		A3ED3793B6B30AA59A2E8EC9 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A10000000000000000000002 /* TicketPassesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TicketPassesView.swift; sourceTree = "<group>"; };
 		B4AED7EC1F621FFC1C59D70C /* MovieRatingLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovieRatingLogicTests.swift; sourceTree = "<group>"; };
 		B8ED9E8A77E0637DE96AAEF8 /* MovieRatingLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovieRatingLogic.swift; sourceTree = "<group>"; };
 		BEC664883FECE9EC750651D1 /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedViews.swift; sourceTree = "<group>"; };
@@ -145,6 +147,7 @@
 				BEC664883FECE9EC750651D1 /* SharedViews.swift */,
 				EEA1F8EDD894C4196CCEC84B /* ShowtimeViews.swift */,
 				6DAA88784D71D71C9B2F58B2 /* TicketAlertPreferencesView.swift */,
+				A10000000000000000000002 /* TicketPassesView.swift */,
 				91FF86DFE3A784100383DC5C /* YouView.swift */,
 			);
 			path = Features;
@@ -347,6 +350,7 @@
 				DF9505945DD5D79182D13306 /* APIClient.swift in Sources */,
 				A9E5AC034365D858E042359F /* AccountFeatureModels.swift in Sources */,
 				FC8E5C7B51CCFFA2FD0D02E2 /* AccountFeatureViews.swift in Sources */,
+				A10000000000000000000001 /* TicketPassesView.swift in Sources */,
 				08B01D5477BA3BE2E94C5BEF /* AccountStore.swift in Sources */,
 				96F6504DC71DC01C94166550 /* AppConfiguration.swift in Sources */,
 				D9D64A1A9F92FB6946B629A5 /* AppRootView.swift in Sources */,

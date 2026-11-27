@@ -61,6 +61,9 @@
   "overrides": {
     "source-map-js": "1.2.2",
     "minimatch": "11.0.1",
+    "passkit-generator": {
+      "joi": "17.13.9"
+    },
     "@vercel/cli-config": {
       "zod": "4.6.7"
     }

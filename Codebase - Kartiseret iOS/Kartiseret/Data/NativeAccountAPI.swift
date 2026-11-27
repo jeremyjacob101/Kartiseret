@@ -189,6 +189,23 @@ actor NativeAccountAPI {
         return encoded
     }
 
+    func requestPrivateFile(token: String, accountID: String, path: String, contentType: String) async throws -> Data {
+        let response = try await send(
+            path: path,
+            method: "GET",
+            body: nil,
+            token: token,
+            accountID: accountID,
+            accept: contentType
+        )
+        try check(response)
+        guard response.header("content-type")?.lowercased().hasPrefix(contentType.lowercased()) == true,
+              !response.body.isEmpty else {
+            throw APIClientError.invalidResponse
+        }
+        return response.body
+    }
+
     func searchTitles(_ query: String) async throws -> [TitleSearchResult] {
         guard var components = URLComponents(url: baseURL.appending(path: "/api/v1/tmdb/search"), resolvingAgainstBaseURL: false) else { throw APIClientError.invalidURL }
         components.queryItems = [URLQueryItem(name: "query", value: query)]
@@ -261,9 +278,9 @@ actor NativeAccountAPI {
         return data
     }
 
-    private func send(path: String, method: String, body: Data?, token: String? = nil, accountID: String? = nil) async throws -> APIHTTPResponse {
+    private func send(path: String, method: String, body: Data?, token: String? = nil, accountID: String? = nil, accept: String = "application/json") async throws -> APIHTTPResponse {
         guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL else { throw APIClientError.invalidURL }
-        var headers = ["Origin": baseURL.originString]
+        var headers = ["Origin": baseURL.originString, "Accept": accept]
         if let token { headers["Authorization"] = "Bearer \(token)" }
         if let accountID { headers["X-Kartiseret-Account-Id"] = accountID }
         if body != nil {

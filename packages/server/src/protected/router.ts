@@ -3,6 +3,7 @@ import { ipKeyGenerator, rateLimit, type Store } from "express-rate-limit";
 import { isIP } from "node:net";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import QRCode from "qrcode";
 import {
   EXPECTED_ACCOUNT_HEADER,
   correctionSchema,
@@ -23,6 +24,12 @@ import {
   pushDeviceRegistrationSchema,
   pushDeviceStatusQuerySchema,
   pushDeviceUnregisterSchema,
+  walletTicketCreateSchema,
+  walletTicketIdSchema,
+  walletTicketPatchSchema,
+  walletTicketQrCodesAppendSchema,
+  walletTicketRecentClickRequestSchema,
+  walletListedScreeningsQuerySchema,
 } from "@kartiseret/contracts/private-data";
 import {
   homepageMovieHighlightUpsertSchema,
@@ -32,6 +39,10 @@ import {
 import { HttpError } from "../http-errors.js";
 import type { IdentityVerifier, VerifiedIdentity } from "./identity.js";
 import type { ProtectedWorkflowService } from "./service.js";
+import {
+  generateWalletPass,
+  generateWalletPassBundle,
+} from "../wallet/pass.js";
 
 export const PROTECTED_RATE_LIMIT = 600;
 export const PROTECTED_RATE_LIMIT_WINDOW_MS = 60_000;
@@ -116,6 +127,7 @@ export function createProtectedRouter(
       "/coming-soon-watches",
       "/letterboxd-sources",
       "/push/devices",
+      "/ticket-passes",
       "/admin",
     ],
     limiter,
@@ -445,6 +457,280 @@ export function createProtectedRouter(
       data: await workflows.removeLetterboxdSource(
         identity(response.locals.identity),
         sourceId,
+      ),
+      error: null,
+    });
+  });
+  router.get("/ticket-passes", async (request, response) => {
+    parse(empty, request.query);
+    response.json({
+      data: {
+        tickets: await workflows.walletTickets(
+          identity(response.locals.identity),
+        ),
+      },
+      error: null,
+    });
+  });
+  router.get("/ticket-passes/offline-cache", async (request, response) => {
+    parse(empty, request.query);
+    response.json({
+      data: {
+        tickets: await workflows.walletTicketDetails(
+          identity(response.locals.identity),
+        ),
+      },
+      error: null,
+    });
+  });
+  router.get("/ticket-passes/listed-screenings", async (request, response) => {
+    const { city, date } = parse(
+      walletListedScreeningsQuerySchema,
+      request.query,
+    );
+    const screenings = await workflows.walletListedScreenings(
+      identity(response.locals.identity),
+      city,
+      date,
+    );
+    response.json({ data: { screenings }, error: null });
+  });
+  router.get("/ticket-passes/recent-screening", async (request, response) => {
+    parse(empty, request.query);
+    response.json({
+      data: {
+        screening: await workflows.recentWalletShowtimeClick(
+          identity(response.locals.identity),
+        ),
+      },
+      error: null,
+    });
+  });
+  router.post("/ticket-passes/recent-click", async (request, response) => {
+    parse(empty, request.query);
+    const body = parse(walletTicketRecentClickRequestSchema, request.body);
+    const { expectedAccountId, clickedAt, ...click } = body;
+    const verified = identity(response.locals.identity);
+    if (expectedAccountId && expectedAccountId !== verified.id) {
+      throw new HttpError(
+        409,
+        "account_changed",
+        "Your account changed. Reload and try again.",
+      );
+    }
+    response.json({
+      data: {
+        screening: await workflows.recordWalletShowtimeClick(
+          verified,
+          click,
+          clickedAt,
+        ),
+      },
+      error: null,
+    });
+  });
+  router.post("/ticket-passes", async (request, response) => {
+    parse(empty, request.query);
+    const body = parse(walletTicketCreateSchema, request.body);
+    response.status(201).json({
+      data: {
+        ticket: await workflows.createWalletTicket(
+          identity(response.locals.identity),
+          body,
+        ),
+      },
+      error: null,
+    });
+  });
+  router.post(
+    "/ticket-passes/:ticketId/qr-codes",
+    async (request, response) => {
+      parse(empty, request.query);
+      const ticketId = parse(walletTicketIdSchema, request.params.ticketId);
+      const body = parse(walletTicketQrCodesAppendSchema, request.body);
+      response.json({
+        data: {
+          ticket: await workflows.appendWalletTicketQrCodes(
+            identity(response.locals.identity),
+            ticketId,
+            body,
+          ),
+        },
+        error: null,
+      });
+    },
+  );
+  router.get("/ticket-passes/:ticketId/qr.svg", async (request, response) => {
+    parse(empty, request.query);
+    const ticketId = parse(walletTicketIdSchema, request.params.ticketId);
+    const ticket = await workflows.walletTicket(
+      identity(response.locals.identity),
+      ticketId,
+    );
+    const svg = await QRCode.toString(ticket.qrMessage, {
+      type: "svg",
+      errorCorrectionLevel: "M",
+      margin: 1,
+      width: 512,
+    });
+    response.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+    response.setHeader("X-Content-Type-Options", "nosniff");
+    response.setHeader(
+      "Content-Security-Policy",
+      "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    );
+    response.send(svg);
+  });
+  router.get(
+    "/ticket-passes/:ticketId/passes.pkpasses",
+    async (request, response) => {
+      parse(empty, request.query);
+      const ticketId = parse(walletTicketIdSchema, request.params.ticketId);
+      const ticket = await workflows.walletTicket(
+        identity(response.locals.identity),
+        ticketId,
+      );
+      const bundle = await generateWalletPassBundle(ticket);
+      response.setHeader("Content-Type", "application/vnd.apple.pkpasses");
+      response.setHeader(
+        "Content-Disposition",
+        `attachment; filename="Kartiseret-Tickets-${ticket.id}.pkpasses"`,
+      );
+      response.setHeader("Content-Length", String(bundle.byteLength));
+      response.send(bundle);
+    },
+  );
+  router.get(
+    "/ticket-passes/:ticketId/codes/:qrCodeId/pass.pkpass",
+    async (request, response) => {
+      parse(empty, request.query);
+      const ticketId = parse(walletTicketIdSchema, request.params.ticketId);
+      const qrCodeId = parse(walletTicketIdSchema, request.params.qrCodeId);
+      const ticket = await workflows.walletTicket(
+        identity(response.locals.identity),
+        ticketId,
+      );
+      const index = ticket.qrCodes.findIndex((code) => code.id === qrCodeId);
+      const qrCode = ticket.qrCodes[index];
+      if (!qrCode)
+        throw new HttpError(
+          404,
+          "ticket_qr_code_not_found",
+          "Ticket QR code not found.",
+        );
+      const pass = await generateWalletPass(ticket, process.env, qrCode, index);
+      response.setHeader("Content-Type", "application/vnd.apple.pkpass");
+      response.setHeader(
+        "Content-Disposition",
+        `attachment; filename="Kartiseret-Ticket-${qrCode.id}.pkpass"`,
+      );
+      response.setHeader("Content-Length", String(pass.byteLength));
+      response.send(pass);
+    },
+  );
+  router.get(
+    "/ticket-passes/:ticketId/codes/:qrCodeId/qr.svg",
+    async (request, response) => {
+      parse(empty, request.query);
+      const ticketId = parse(walletTicketIdSchema, request.params.ticketId);
+      const qrCodeId = parse(walletTicketIdSchema, request.params.qrCodeId);
+      const ticket = await workflows.walletTicket(
+        identity(response.locals.identity),
+        ticketId,
+      );
+      const qrCode = ticket.qrCodes.find((code) => code.id === qrCodeId);
+      if (!qrCode)
+        throw new HttpError(
+          404,
+          "ticket_qr_code_not_found",
+          "Ticket QR code not found.",
+        );
+      const svg = await QRCode.toString(qrCode.qrMessage, {
+        type: "svg",
+        errorCorrectionLevel: "M",
+        margin: 1,
+        width: 512,
+      });
+      response.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+      response.setHeader("X-Content-Type-Options", "nosniff");
+      response.setHeader(
+        "Content-Security-Policy",
+        "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+      );
+      response.send(svg);
+    },
+  );
+  router.get(
+    "/ticket-passes/:ticketId/pass.pkpass",
+    async (request, response) => {
+      parse(empty, request.query);
+      const ticketId = parse(walletTicketIdSchema, request.params.ticketId);
+      const ticket = await workflows.walletTicket(
+        identity(response.locals.identity),
+        ticketId,
+      );
+      const pass = await generateWalletPass(ticket);
+      response.setHeader("Content-Type", "application/vnd.apple.pkpass");
+      response.setHeader(
+        "Content-Disposition",
+        `attachment; filename="Kartiseret-Ticket-${ticket.id}.pkpass"`,
+      );
+      response.setHeader("Content-Length", String(pass.byteLength));
+      response.send(pass);
+    },
+  );
+  router.get("/ticket-passes/:ticketId/family", async (request, response) => {
+    parse(empty, request.query);
+    const ticketId = parse(walletTicketIdSchema, request.params.ticketId);
+    response.json({
+      data: {
+        ticket: await workflows.walletTicket(
+          identity(response.locals.identity),
+          ticketId,
+        ),
+      },
+      error: null,
+    });
+  });
+  router.get("/ticket-passes/:ticketId", async (request, response) => {
+    parse(empty, request.query);
+    const ticketId = parse(walletTicketIdSchema, request.params.ticketId);
+    const { qrCodes, ...legacyTicket } = await workflows.walletTicket(
+      identity(response.locals.identity),
+      ticketId,
+    );
+    void qrCodes;
+    response.json({
+      data: {
+        // Preserve the old strict Zod response shape for already-loaded web
+        // clients. New clients use /family to retrieve all admissions.
+        ticket: legacyTicket,
+      },
+      error: null,
+    });
+  });
+  router.patch("/ticket-passes/:ticketId", async (request, response) => {
+    parse(empty, request.query);
+    const ticketId = parse(walletTicketIdSchema, request.params.ticketId);
+    const body = parse(walletTicketPatchSchema, request.body);
+    response.json({
+      data: {
+        ticket: await workflows.updateWalletTicket(
+          identity(response.locals.identity),
+          ticketId,
+          body,
+        ),
+      },
+      error: null,
+    });
+  });
+  router.delete("/ticket-passes/:ticketId", async (request, response) => {
+    parse(empty, request.query);
+    const ticketId = parse(walletTicketIdSchema, request.params.ticketId);
+    response.json({
+      data: await workflows.deleteWalletTicket(
+        identity(response.locals.identity),
+        ticketId,
       ),
       error: null,
     });

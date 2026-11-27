@@ -11,6 +11,7 @@ import { theaterDataQueryOptions, type City } from "../../data/theaters";
 import { usePublicRenderClock } from "../../contexts/PublicRenderClock";
 import { getShowtimeTechLabel } from "../showtimes/showtimeTechLabels";
 import { addCalendarDays } from "@kartiseret/contracts/showtime-links";
+import { recordWalletShowtimeClick } from "../../data/walletTickets";
 import { type AppLocation } from "../../prefs/definitions/locations";
 import { ShowtimeFilterMenu } from "../showtimes/ShowtimeFilterMenu";
 import { ShowtimeDayPicker } from "../showtimes/ShowtimeDayPicker";
@@ -576,8 +577,11 @@ export function MovieDetailsContent({
     setExcludedCinemaIds: setViewExcludedCinemaIds,
     restoreDefaults: restoreViewShowtimeDefaults,
   } = useShowtimeViewPreferences(`movie:${movie.tmdbId}`);
-  const { sources } = useUserPreferencesStore(
-    useShallow((state) => ({ sources: state.preferences.ratingSources })),
+  const { sources, userId } = useUserPreferencesStore(
+    useShallow((state) => ({
+      sources: state.preferences.ratingSources,
+      userId: state.user?.id ?? null,
+    })),
   );
   const location = locationOverride ?? viewLocation;
   const updateLocation = useCallback(
@@ -1784,6 +1788,21 @@ export function MovieDetailsContent({
                                         href={showtime.href}
                                         target="_blank"
                                         rel="noreferrer"
+                                        onClick={() => {
+                                          const time = showtime.time.match(
+                                            /^([01]\d|2[0-3]):[0-5]\d/,
+                                          )?.[0];
+                                          if (!time) return;
+                                          recordWalletShowtimeClick(userId, {
+                                            tmdbId: movie.tmdbId,
+                                            title: movie.title,
+                                            city: location,
+                                            cinema: theater.theater,
+                                            screeningDate:
+                                              effectiveSelectedShowtimeDay.date,
+                                            screeningTime: time,
+                                          });
+                                        }}
                                         className={showtimeCardClassName}
                                         aria-label={showtimeLabel}
                                       >

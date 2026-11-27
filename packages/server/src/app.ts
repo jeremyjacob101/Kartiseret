@@ -181,6 +181,7 @@ export function createApp({
       "/api/v1/preferences",
       "/api/v1/ticket-alerts",
       "/api/v1/coming-soon-watches",
+      "/api/v1/ticket-passes",
       "/api/v1/tmdb/search",
       "/api/v1/admin",
     ],

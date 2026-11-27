@@ -77,7 +77,7 @@
   "outputDirectory": "Codebase - Kartiseret Web/dist",
   "functions": {
     "api/dispatch.ts": {
-      "includeFiles": "{Codebase - Kartiseret Web/dist/**,Codebase - Kartiseret Web/dist-ssr/**,Codebase - Kartiseret Web/server/og/assets/**,packages/**/dist/**}",
+      "includeFiles": "{Codebase - Kartiseret Web/dist/**,Codebase - Kartiseret Web/dist-ssr/**,Codebase - Kartiseret Web/server/og/assets/**,packages/**/dist/**,packages/server/assets/**}",
       "maxDuration": 30
     }
   },

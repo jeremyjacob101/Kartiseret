@@ -1,4 +1,4 @@
-import { Bell, CalendarDays, ChevronDown, MapPin, Monitor, Search, UserRound } from "lucide-react";
+import { Bell, CalendarDays, ChevronDown, MapPin, Monitor, Search, Ticket, UserRound } from "lucide-react";
 import { usePublicRouteSearchParams } from "../routing/PublicRouteLocation";
 import { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -14,6 +14,7 @@ import { UserShowtimePreferences } from "./UserShowtimePreferences";
 import { type AppLocation } from "../prefs/definitions/locations";
 import { DeleteAccountSection } from "./DeleteAccountSection";
 import { UserTicketAlerts } from "./UserTicketAlerts";
+import { UserTicketPasses } from "./UserTicketPasses";
 
 const CityLocationPicker = lazy(async () => {
   const module = await loadCityLocationPicker();
@@ -33,6 +34,7 @@ const preferenceCategories = [
   { id: "showtimes", label: "Showtimes", icon: CalendarDays },
   { id: "discovery", label: "Discovery", icon: Search },
   { id: "appearance", label: "Appearance", icon: Monitor },
+  { id: "tickets", label: "My Tickets", icon: Ticket },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "account", label: "Account", icon: UserRound },
 ] as const;
@@ -43,6 +45,7 @@ const categoryDescriptions: Record<PreferenceCategory, string> = {
   showtimes: "Set the cities, cinemas and formats you'll see first.",
   discovery: "Choose how ratings and titles appear while you browse.",
   appearance: "Make the site feel more like yours.",
+  tickets: "Keep movie tickets in Kartiseret and add them to Apple Wallet.",
   notifications: "Manage the films and lists you want to keep an eye on.",
   account: "Manage how you sign in and your account details.",
 };
@@ -429,6 +432,13 @@ export function UserPreferencesPage() {
 
             {activeCategory === "notifications" ? (
               <UserTicketAlerts
+                key={user?.id ?? "guest"}
+                userId={user?.id ?? null}
+              />
+            ) : null}
+
+            {activeCategory === "tickets" ? (
+              <UserTicketPasses
                 key={user?.id ?? "guest"}
                 userId={user?.id ?? null}
               />

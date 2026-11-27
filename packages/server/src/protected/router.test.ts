@@ -6,6 +6,7 @@ import type { ProtectedWorkflowService } from "./service.js";
 import type { ProtectedRateLimitOptions } from "./router.js";
 import {
   DEFAULT_TICKET_ALERT_CRITERIA,
+  walletTicketCreateSchema,
   type TicketAlertCriteria,
 } from "@kartiseret/contracts/private-data";
 import { DEFAULT_SHOWTIME_PREFERENCES } from "@kartiseret/contracts/showtime-preferences";
@@ -89,6 +90,61 @@ function setup(
       matchedFilmCount: 0,
     })),
     removeLetterboxdSource: vi.fn(async () => ({ removed: true as const })),
+    walletTickets: vi.fn(async () => []),
+    walletListedScreenings: vi.fn(async () => []),
+    walletTicketDetails: vi.fn(async () => []),
+    walletTicket: vi.fn(async () => {
+      throw new HttpError(404, "ticket_not_found", "Ticket not found.");
+    }),
+    appendWalletTicketQrCodes: vi.fn(
+      async (_user, _ticketId, input: { qrMessages: string[] }) => ({
+        id,
+        tmdbId: null,
+        title: "Movie",
+        city: "Jerusalem",
+        cinema: "Cinema",
+        screeningDate: "2026-10-21",
+        screeningTime: "19:00",
+        reminderEnabled: false,
+        createdAt: "2026-10-21T10:00:00.000Z",
+        updatedAt: "2026-10-21T10:00:00.000Z",
+        qrMessage: "primary",
+        qrCodes: [
+          { id, qrMessage: "primary" },
+          ...input.qrMessages.map((qrMessage, index) => ({
+            id: `00000000-0000-4000-8000-00000000000${index + 2}`,
+            qrMessage,
+          })),
+        ],
+      }),
+    ),
+    createWalletTicket: vi.fn(async (_user, input) => ({
+      id,
+      tmdbId: input.tmdbId,
+      title: input.title,
+      city: input.city,
+      cinema: input.cinema,
+      screeningDate: input.screeningDate,
+      screeningTime: input.screeningTime,
+      reminderEnabled: input.reminderEnabled,
+      createdAt: "2026-10-21T10:00:00.000Z",
+      updatedAt: "2026-10-21T10:00:00.000Z",
+    })),
+    updateWalletTicket: vi.fn(async (_user, _ticketId, input) => ({
+      id,
+      tmdbId: input.tmdbId ?? null,
+      title: input.title ?? "Movie",
+      city: input.city ?? "Jerusalem",
+      cinema: input.cinema ?? "Cinema",
+      screeningDate: input.screeningDate ?? "2026-10-21",
+      screeningTime: input.screeningTime ?? "19:00",
+      reminderEnabled: input.reminderEnabled ?? false,
+      createdAt: "2026-10-21T10:00:00.000Z",
+      updatedAt: "2026-10-21T10:00:00.000Z",
+    })),
+    deleteWalletTicket: vi.fn(async () => ({ removed: true as const })),
+    recordWalletShowtimeClick: vi.fn(async (_user, input) => input),
+    recentWalletShowtimeClick: vi.fn(async () => null),
     cancel: vi.fn(async () => ({
       kind: "account" as const,
       subscription: null,
@@ -154,6 +210,167 @@ function setup(
   };
 }
 describe("protected HTTP contracts", () => {
+  it("requires an account and validates the listed screening lookup", async () => {
+    const { app, workflows } = setup();
+    const path = "/api/v1/ticket-passes/listed-screenings";
+    const query = { city: "Jerusalem", date: "2026-11-27" };
+    expect((await request(app).get(path).query(query)).status).toBe(401);
+    expect(
+      (
+        await request(app)
+          .get(path)
+          .set("Cookie", "valid")
+          .query({ ...query, date: "bad" })
+      ).status,
+    ).toBe(400);
+    const result = await request(app)
+      .get(path)
+      .set("Cookie", "valid")
+      .query(query);
+    expect(result.status).toBe(200);
+    expect(result.body.data.screenings).toEqual([]);
+    expect(workflows.walletListedScreenings).toHaveBeenCalledExactlyOnceWith(
+      { id, email: "qa@example.test" },
+      "Jerusalem",
+      "2026-11-27",
+    );
+  });
+
+  it("serves a private QR image at the query-free ticket URL", async () => {
+    const { app, workflows } = setup();
+    vi.mocked(workflows.walletTicket).mockResolvedValue({
+      id,
+      tmdbId: null,
+      title: "Test Movie",
+      city: "Jerusalem",
+      cinema: "Test Cinema",
+      screeningDate: "2026-12-01",
+      screeningTime: "19:30",
+      reminderEnabled: false,
+      createdAt: "2026-11-26T10:00:00.000Z",
+      updatedAt: "2026-11-26T10:00:00.000Z",
+      qrMessage: "private-ticket-payload",
+      qrCodes: [{ id, qrMessage: "private-ticket-payload" }],
+    });
+
+    const result = await request(app)
+      .get(`/api/v1/ticket-passes/${id}/qr.svg`)
+      .set("Cookie", "valid");
+
+    expect(result.status).toBe(200);
+    expect(result.headers["content-type"]).toContain("image/svg+xml");
+    expect(result.headers["cache-control"]).toBe("no-store");
+    expect(result.body.toString()).toContain("<svg");
+    expect(workflows.walletTicket).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      id,
+    );
+  });
+
+  it("appends distinct QR codes to one private booking and returns family details", async () => {
+    const { app, workflows } = setup();
+    const result = await request(app)
+      .post(`/api/v1/ticket-passes/${id}/qr-codes`)
+      .set("Cookie", "valid")
+      .set("Origin", "http://localhost")
+      .send({ qrMessages: ["second-ticket-qr"] });
+
+    expect(result.status).toBe(200);
+    expect(result.body.data.ticket.qrCodes).toEqual([
+      { id, qrMessage: "primary" },
+      {
+        id: "00000000-0000-4000-8000-000000000002",
+        qrMessage: "second-ticket-qr",
+      },
+    ]);
+    expect(workflows.appendWalletTicketQrCodes).toHaveBeenCalledWith(
+      { id, email: "qa@example.test" },
+      id,
+      { qrMessages: ["second-ticket-qr"] },
+    );
+  });
+
+  it("keeps the existing strict single-ticket endpoint compatible and exposes all QRs on family endpoint", async () => {
+    const { app, workflows } = setup();
+    vi.mocked(workflows.walletTicket).mockResolvedValue({
+      id,
+      tmdbId: null,
+      title: "Test Movie",
+      city: "Jerusalem",
+      cinema: "Test Cinema",
+      screeningDate: "2026-12-01",
+      screeningTime: "19:30",
+      reminderEnabled: false,
+      createdAt: "2026-11-26T10:00:00.000Z",
+      updatedAt: "2026-11-26T10:00:00.000Z",
+      qrMessage: "primary",
+      qrCodes: [
+        { id, qrMessage: "primary" },
+        { id: sourceId, qrMessage: "family-seat" },
+      ],
+    });
+
+    const legacy = await request(app)
+      .get(`/api/v1/ticket-passes/${id}`)
+      .set("Cookie", "valid");
+    expect(legacy.status).toBe(200);
+    expect(legacy.body.data.ticket.qrMessage).toBe("primary");
+    expect(legacy.body.data.ticket.qrCodes).toBeUndefined();
+
+    const family = await request(app)
+      .get(`/api/v1/ticket-passes/${id}/family`)
+      .set("Cookie", "valid");
+    expect(family.status).toBe(200);
+    expect(family.body.data.ticket.qrCodes).toHaveLength(2);
+  });
+
+  it("rejects ticket imports containing more than ten QR codes", () => {
+    const result = walletTicketCreateSchema.safeParse({
+      tmdbId: null,
+      title: "Movie",
+      city: "Jerusalem",
+      cinema: "Cinema",
+      screeningDate: "2026-12-01",
+      screeningTime: "19:30",
+      qrMessages: Array.from({ length: 11 }, (_, index) => `qr-${index}`),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("returns the signed-in account’s ticket details for protected offline caching", async () => {
+    const { app, workflows } = setup();
+    vi.mocked(workflows.walletTicketDetails).mockResolvedValue([
+      {
+        id,
+        tmdbId: null,
+        title: "Test Movie",
+        city: "Jerusalem",
+        cinema: "Test Cinema",
+        screeningDate: "2026-12-01",
+        screeningTime: "19:30",
+        reminderEnabled: false,
+        createdAt: "2026-11-26T10:00:00.000Z",
+        updatedAt: "2026-11-26T10:00:00.000Z",
+        qrMessage: "private-ticket-payload",
+        qrCodes: [{ id, qrMessage: "private-ticket-payload" }],
+      },
+    ]);
+
+    const result = await request(app)
+      .get("/api/v1/ticket-passes/offline-cache")
+      .set("Cookie", "valid");
+
+    expect(result.status).toBe(200);
+    expect(result.headers["cache-control"]).toBe("no-store");
+    expect(result.body.data.tickets[0].qrMessage).toBe(
+      "private-ticket-payload",
+    );
+    expect(workflows.walletTicketDetails).toHaveBeenCalledWith({
+      id,
+      email: "qa@example.test",
+    });
+  });
+
   it("stores notification delivery preferences and scopes device registration to the signed-in account", async () => {
     const { app, workflows } = setup();
     const unauthorized = await request(app).get("/api/v1/push/devices/status");

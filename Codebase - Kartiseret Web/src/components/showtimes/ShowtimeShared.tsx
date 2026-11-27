@@ -1,4 +1,6 @@
 import { type Movie, type ShowtimeEntry, type TheaterShowtimes } from "../../data/movieCatalog";
+import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
+import { recordWalletShowtimeClick } from "../../data/walletTickets";
 import { getTheaterTheme, type TheaterTheme } from "./theaterTheme";
 import { getShowtimeTechLabel } from "./showtimeTechLabels";
 import { type CSSProperties, useEffect } from "react";
@@ -38,6 +40,10 @@ function getScreeningTypeBadgeLabel(screeningType: string): string | null {
 
 function renderShowtimeCard(
   movieTitle: string,
+  movieTmdbId: string,
+  userId: string | null,
+  city: string,
+  screeningDate: string,
   theater: string,
   showtime: ShowtimeEntry,
   colors: TheaterTheme,
@@ -121,6 +127,18 @@ function renderShowtimeCard(
       href={showtime.href}
       target="_blank"
       rel="noreferrer"
+      onClick={() => {
+        const time = showtime.time.match(/^([01]\d|2[0-3]):[0-5]\d/)?.[0];
+        if (!time) return;
+        recordWalletShowtimeClick(userId, {
+          tmdbId: movieTmdbId,
+          title: movieTitle,
+          city,
+          cinema: theater,
+          screeningDate,
+          screeningTime: time,
+        });
+      }}
       className={showtimeCardClassName}
       aria-label={showtimeLabel}
     >
@@ -306,13 +324,20 @@ type ShowtimeTheatersProps = {
   movie: Movie;
   theaters: readonly TheaterShowtimes[];
   city?: string;
+  screeningDate: string;
 };
 
 export function ShowtimeTheaters({
   movie,
   theaters,
   city,
+  screeningDate,
 }: ShowtimeTheatersProps) {
+  const userId = useUserPreferencesStore((state) => state.user?.id ?? null);
+  const defaultCity = useUserPreferencesStore(
+    (state) => state.preferences.location,
+  );
+  const screeningCity = city ?? defaultCity;
   return (
     <div className="details-theaters showtime-theaters">
       {theaters.map((theater, theaterIndex) => {
@@ -356,6 +381,10 @@ export function ShowtimeTheaters({
                   <div key={key} className={showtimeSlotClassName}>
                     {renderShowtimeCard(
                       movie.title,
+                      movie.tmdbId,
+                      userId,
+                      screeningCity,
+                      screeningDate,
                       theater.theater,
                       showtime,
                       colors,

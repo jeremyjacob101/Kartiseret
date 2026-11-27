@@ -331,7 +331,7 @@ struct MovieDetailView: View {
                 LoadingState(message: "Loading showtimes…")
             } else if let rows {
                 let groups = ShowtimeLogic.group(rows, movies: [movie], city: request.city, day: request.day, at: store.currentInstant, preferences: showtimePreferences)
-                if let group = groups.first { ShowtimeSections(cinemas: group.cinemas, city: request.city) }
+                if let group = groups.first { ShowtimeSections(cinemas: group.cinemas, city: request.city, movie: movie) }
                 else { EmptyState(title: "No showtimes found", message: "Try another day or adjust your saved screening filters.") }
             } else {
                 LoadingState(message: "Loading showtimes…")

@@ -1,4 +1,14 @@
-import { and, asc, desc, eq, gt, inArray, isNotNull, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  or,
+  sql,
+} from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import {
   DEFAULT_LOCATION,
@@ -27,6 +37,12 @@ import type {
   ComingSoonDateWatch,
   ComingSoonDateWatchChange,
   LetterboxdSource,
+  WalletTicket,
+  WalletTicketCreate,
+  WalletTicketDetail,
+  WalletTicketQrCodesAppend,
+  WalletTicketPatch,
+  WalletTicketRecentClick,
 } from "@kartiseret/contracts/private-data";
 import {
   homepageAdminDataResponseSchema,
@@ -37,11 +53,15 @@ import {
 } from "@kartiseret/contracts/homepage-featured";
 import {
   DEFAULT_TICKET_ALERT_CRITERIA,
+  MAX_WALLET_TICKET_QR_CODES,
   MOVIE_DISPLAY_PREFERENCE_PAGE_SIZE,
   matchesTicketAlertCriteria,
   resolveTicketAlertCriteria,
 } from "@kartiseret/contracts/private-data";
-import { getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
+import {
+  addCalendarDays,
+  getJerusalemCinemaDate,
+} from "@kartiseret/contracts/showtime-links";
 import { shouldIncludeShowtime } from "@kartiseret/contracts/showtime-day";
 import type {
   ApplicationDatabase,
@@ -61,6 +81,9 @@ import {
   finalMovies,
   finalSoons,
   finalShowtimes,
+  userWalletTickets,
+  userWalletTicketQrCodes,
+  userWalletRecentShowtimeClicks,
   tableFixes,
 } from "../db/schema.js";
 import type { PublicDataRepository } from "../public-data/repository.js";
@@ -127,6 +150,57 @@ function mapLetterboxdSource(row: {
     filmCount: row.filmCount,
     matchedFilmCount: row.matchedFilmCount,
   };
+}
+
+function mapWalletTicket(
+  row: typeof userWalletTickets.$inferSelect,
+): WalletTicket {
+  return {
+    id: row.id,
+    tmdbId: row.tmdbId === null ? null : String(row.tmdbId),
+    title: row.title,
+    city: row.city,
+    cinema: row.cinema,
+    screeningDate: row.screeningDate,
+    screeningTime: row.screeningTime.slice(0, 5),
+    reminderEnabled: row.reminderEnabled,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function mapWalletTicketDetail(
+  row: typeof userWalletTickets.$inferSelect,
+  additionalQrCodes: (typeof userWalletTicketQrCodes.$inferSelect)[] = [],
+): WalletTicketDetail {
+  return {
+    ...mapWalletTicket(row),
+    // Keep the original field as a compatibility alias for older iOS clients.
+    qrMessage: row.qrMessage,
+    qrCodes: [
+      { id: row.id, qrMessage: row.qrMessage },
+      ...additionalQrCodes.map((code) => ({
+        id: code.id,
+        qrMessage: code.qrMessage,
+      })),
+    ],
+  };
+}
+
+function jerusalemLocalMinute(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jerusalem",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const values = Object.fromEntries(
+    parts.map((part) => [part.type, part.value]),
+  );
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
 }
 function mapSubscription(
   row:
@@ -1215,6 +1289,485 @@ export class ProtectedWorkflows {
       return { changed: true };
     });
   }
+
+  walletTickets(user: VerifiedIdentity): Promise<WalletTicket[]> {
+    return this.asUser(user, async (tx) => {
+      const rows = await tx
+        .select()
+        .from(userWalletTickets)
+        .where(eq(userWalletTickets.userId, user.id))
+        .orderBy(
+          asc(userWalletTickets.screeningDate),
+          asc(userWalletTickets.screeningTime),
+          asc(userWalletTickets.createdAt),
+        )
+        .limit(100);
+      return rows.map(mapWalletTicket);
+    });
+  }
+
+  walletTicketDetails(user: VerifiedIdentity): Promise<WalletTicketDetail[]> {
+    return this.asUser(user, async (tx) => {
+      const rows = await tx
+        .select()
+        .from(userWalletTickets)
+        .where(eq(userWalletTickets.userId, user.id))
+        .orderBy(
+          asc(userWalletTickets.screeningDate),
+          asc(userWalletTickets.screeningTime),
+          asc(userWalletTickets.createdAt),
+        )
+        .limit(100);
+      if (rows.length === 0) return [];
+      const codeRows = await tx
+        .select()
+        .from(userWalletTicketQrCodes)
+        .where(
+          inArray(
+            userWalletTicketQrCodes.ticketId,
+            rows.map((row) => row.id),
+          ),
+        )
+        .orderBy(
+          asc(userWalletTicketQrCodes.ticketId),
+          asc(userWalletTicketQrCodes.position),
+        );
+      const codesByTicket = new Map<
+        string,
+        (typeof userWalletTicketQrCodes.$inferSelect)[]
+      >();
+      for (const code of codeRows) {
+        const codes = codesByTicket.get(code.ticketId) ?? [];
+        codes.push(code);
+        codesByTicket.set(code.ticketId, codes);
+      }
+      return rows.map((row) =>
+        mapWalletTicketDetail(row, codesByTicket.get(row.id)),
+      );
+    });
+  }
+
+  walletTicket(
+    user: VerifiedIdentity,
+    ticketId: string,
+  ): Promise<WalletTicketDetail> {
+    return this.asUser(user, async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(userWalletTickets)
+        .where(
+          and(
+            eq(userWalletTickets.userId, user.id),
+            eq(userWalletTickets.id, ticketId),
+          ),
+        )
+        .limit(1);
+      if (!row)
+        throw new HttpError(404, "ticket_not_found", "Ticket not found.");
+      const additionalQrCodes = await tx
+        .select()
+        .from(userWalletTicketQrCodes)
+        .where(eq(userWalletTicketQrCodes.ticketId, row.id))
+        .orderBy(asc(userWalletTicketQrCodes.position));
+      return mapWalletTicketDetail(row, additionalQrCodes);
+    });
+  }
+
+  createWalletTicket(
+    user: VerifiedIdentity,
+    input: WalletTicketCreate,
+  ): Promise<WalletTicket> {
+    return this.asUser(user, async (tx) => {
+      const existing = await tx
+        .select({ id: userWalletTickets.id })
+        .from(userWalletTickets)
+        .where(eq(userWalletTickets.userId, user.id))
+        .limit(100);
+      if (existing.length >= 100)
+        throw new HttpError(
+          409,
+          "ticket_limit",
+          "You can save up to 100 tickets.",
+        );
+      const messages = [
+        ...new Set(
+          input.qrMessages ?? (input.qrMessage ? [input.qrMessage] : []),
+        ),
+      ];
+      if (messages.length === 0) {
+        throw new HttpError(
+          400,
+          "ticket_qr_required",
+          "Add at least one readable ticket QR code.",
+        );
+      }
+      if (messages.length > MAX_WALLET_TICKET_QR_CODES) {
+        throw new HttpError(
+          409,
+          "ticket_qr_code_limit",
+          `A booking can contain up to ${MAX_WALLET_TICKET_QR_CODES} ticket QR codes.`,
+        );
+      }
+      const [row] = await tx
+        .insert(userWalletTickets)
+        .values({
+          userId: user.id,
+          tmdbId: input.tmdbId === null ? null : BigInt(input.tmdbId),
+          title: input.title,
+          city: input.city,
+          cinema: input.cinema,
+          screeningDate: input.screeningDate,
+          screeningTime: input.screeningTime,
+          qrMessage: messages[0]!,
+          reminderEnabled: input.reminderEnabled,
+        })
+        .returning();
+      if (!row)
+        throw new HttpError(
+          503,
+          "ticket_unavailable",
+          "Ticket could not be saved. Please try again.",
+        );
+      if (messages.length > 1) {
+        await tx.insert(userWalletTicketQrCodes).values(
+          messages.slice(1).map((qrMessage, index) => ({
+            ticketId: row.id,
+            position: index + 2,
+            qrMessage,
+          })),
+        );
+      }
+      await tx
+        .delete(userWalletRecentShowtimeClicks)
+        .where(eq(userWalletRecentShowtimeClicks.userId, user.id));
+      return mapWalletTicket(row);
+    });
+  }
+
+  appendWalletTicketQrCodes(
+    user: VerifiedIdentity,
+    ticketId: string,
+    input: WalletTicketQrCodesAppend,
+  ): Promise<WalletTicketDetail> {
+    return this.asUser(user, async (tx) => {
+      // Serialize additions per booking so position assignment, deduplication,
+      // and the 10-pass limit remain correct for concurrent requests.
+      const [row] = await tx
+        .select()
+        .from(userWalletTickets)
+        .where(
+          and(
+            eq(userWalletTickets.userId, user.id),
+            eq(userWalletTickets.id, ticketId),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      if (!row)
+        throw new HttpError(404, "ticket_not_found", "Ticket not found.");
+
+      const existing = await tx
+        .select()
+        .from(userWalletTicketQrCodes)
+        .where(eq(userWalletTicketQrCodes.ticketId, ticketId))
+        .orderBy(asc(userWalletTicketQrCodes.position));
+      const knownMessages = new Set([
+        row.qrMessage,
+        ...existing.map((code) => code.qrMessage),
+      ]);
+      const additions = [
+        ...new Set(
+          input.qrMessages.filter((message) => !knownMessages.has(message)),
+        ),
+      ];
+      if (existing.length + 1 + additions.length > MAX_WALLET_TICKET_QR_CODES) {
+        throw new HttpError(
+          409,
+          "ticket_qr_code_limit",
+          `A booking can contain up to ${MAX_WALLET_TICKET_QR_CODES} ticket QR codes. Remove extra screenshots and try again.`,
+        );
+      }
+
+      let updatedRow = row;
+      if (additions.length > 0) {
+        const [updated] = await tx
+          .update(userWalletTickets)
+          .set({ updatedAt: this.clock() })
+          .where(eq(userWalletTickets.id, ticketId))
+          .returning();
+        if (!updated)
+          throw new HttpError(
+            503,
+            "ticket_unavailable",
+            "Ticket QR codes could not be saved. Please retry.",
+          );
+        updatedRow = updated;
+        await tx.insert(userWalletTicketQrCodes).values(
+          additions.map((qrMessage, index) => ({
+            ticketId,
+            position: existing.length + index + 2,
+            qrMessage,
+          })),
+        );
+      }
+
+      const allAdditionalQrCodes = await tx
+        .select()
+        .from(userWalletTicketQrCodes)
+        .where(eq(userWalletTicketQrCodes.ticketId, ticketId))
+        .orderBy(asc(userWalletTicketQrCodes.position));
+      return mapWalletTicketDetail(updatedRow, allAdditionalQrCodes);
+    });
+  }
+
+  updateWalletTicket(
+    user: VerifiedIdentity,
+    ticketId: string,
+    input: WalletTicketPatch,
+  ): Promise<WalletTicket> {
+    return this.asUser(user, async (tx) => {
+      const values = {
+        ...(input.tmdbId === undefined
+          ? {}
+          : { tmdbId: input.tmdbId === null ? null : BigInt(input.tmdbId) }),
+        ...(input.title === undefined ? {} : { title: input.title }),
+        ...(input.city === undefined ? {} : { city: input.city }),
+        ...(input.cinema === undefined ? {} : { cinema: input.cinema }),
+        ...(input.screeningDate === undefined
+          ? {}
+          : { screeningDate: input.screeningDate }),
+        ...(input.screeningTime === undefined
+          ? {}
+          : { screeningTime: input.screeningTime }),
+        ...(input.qrMessage === undefined
+          ? {}
+          : { qrMessage: input.qrMessage }),
+        ...(input.reminderEnabled === undefined
+          ? {}
+          : { reminderEnabled: input.reminderEnabled }),
+        updatedAt: this.clock(),
+      };
+      const [row] = await tx
+        .update(userWalletTickets)
+        .set(values)
+        .where(
+          and(
+            eq(userWalletTickets.userId, user.id),
+            eq(userWalletTickets.id, ticketId),
+          ),
+        )
+        .returning();
+      if (!row)
+        throw new HttpError(404, "ticket_not_found", "Ticket not found.");
+      return mapWalletTicket(row);
+    });
+  }
+
+  deleteWalletTicket(user: VerifiedIdentity, ticketId: string) {
+    return this.asUser(user, async (tx) => {
+      const removed = await tx
+        .delete(userWalletTickets)
+        .where(
+          and(
+            eq(userWalletTickets.userId, user.id),
+            eq(userWalletTickets.id, ticketId),
+          ),
+        )
+        .returning({ id: userWalletTickets.id });
+      if (!removed.length)
+        throw new HttpError(404, "ticket_not_found", "Ticket not found.");
+      return { removed: true as const };
+    });
+  }
+
+  walletListedScreenings(user: VerifiedIdentity, city: string, date: string) {
+    const previousDate = addCalendarDays(date, -1) ?? date;
+    return this.asUser(user, async (tx) => {
+      const minute = sql`left(${finalShowtimes.showtime}::text, 5)`;
+      const rows = await tx
+        .selectDistinct({
+          tmdbId: finalShowtimes.tmdbId,
+          title: finalShowtimes.englishTitle,
+          cinema: finalShowtimes.cinema,
+          screeningCity: finalShowtimes.screeningCity,
+          time: sql<string>`${minute}`.as("screening_minute"),
+        })
+        .from(finalShowtimes)
+        .where(
+          and(
+            eq(finalShowtimes.screeningCity, city),
+            or(
+              and(
+                eq(finalShowtimes.dateOfShowing, date),
+                sql`${minute} >= '01:05'`,
+              ),
+              and(
+                eq(finalShowtimes.dateOfShowing, previousDate),
+                sql`${minute} < '01:05'`,
+              ),
+            ),
+          ),
+        )
+        .orderBy(
+          sql`screening_minute`,
+          finalShowtimes.cinema,
+          finalShowtimes.englishTitle,
+        )
+        .limit(250);
+      return rows.flatMap((row) => {
+        const title = row.title?.trim();
+        if (
+          !row.tmdbId ||
+          !title ||
+          title.length > 200 ||
+          !row.cinema ||
+          row.cinema.length > 200
+        )
+          return [];
+        return [
+          {
+            tmdbId: String(row.tmdbId),
+            title,
+            cinema: row.cinema,
+            city: row.screeningCity ?? city,
+            screeningDate: date,
+            screeningTime: row.time,
+          },
+        ];
+      });
+    });
+  }
+
+  recordWalletShowtimeClick(
+    user: VerifiedIdentity,
+    input: WalletTicketRecentClick,
+    clientClickedAt?: string,
+  ) {
+    const receivedAt = this.clock();
+    const submittedAt = clientClickedAt ? Date.parse(clientClickedAt) : NaN;
+    const age = receivedAt.getTime() - submittedAt;
+    const clickedAt =
+      age >= -60_000 && age <= 24 * 60 * 60 * 1000
+        ? new Date(Math.min(submittedAt, receivedAt.getTime()))
+        : receivedAt;
+    return this.asUser(user, async (tx) => {
+      const candidates = await tx
+        .select()
+        .from(finalShowtimes)
+        .where(
+          and(
+            eq(finalShowtimes.tmdbId, Number(input.tmdbId)),
+            eq(finalShowtimes.dateOfShowing, input.screeningDate),
+            sql`left(${finalShowtimes.showtime}::text, 5) = ${input.screeningTime}`,
+            eq(finalShowtimes.screeningCity, input.city),
+            eq(finalShowtimes.cinema, input.cinema),
+          ),
+        )
+        .orderBy(desc(finalShowtimes.createdAt))
+        .limit(1);
+      const showtime = candidates[0];
+      if (
+        !showtime ||
+        showtime.tmdbId === null ||
+        !showtime.dateOfShowing ||
+        !showtime.showtime ||
+        !showtime.screeningCity ||
+        !showtime.cinema
+      )
+        return null;
+      const screeningTime = showtime.showtime.slice(0, 5);
+      const screeningDate =
+        screeningTime < "01:05"
+          ? addCalendarDays(showtime.dateOfShowing, 1)
+          : showtime.dateOfShowing;
+      if (
+        !screeningDate ||
+        `${screeningDate}T${screeningTime}` < jerusalemLocalMinute(this.clock())
+      )
+        return null;
+      const [row] = await tx
+        .insert(userWalletRecentShowtimeClicks)
+        .values({
+          userId: user.id,
+          tmdbId: BigInt(showtime.tmdbId),
+          title: showtime.englishTitle?.trim() || input.title,
+          city: showtime.screeningCity,
+          cinema: showtime.cinema,
+          screeningDate,
+          screeningTime,
+          clickedAt,
+        })
+        .onConflictDoUpdate({
+          target: userWalletRecentShowtimeClicks.userId,
+          setWhere: sql`${userWalletRecentShowtimeClicks.clickedAt} <= excluded.clicked_at`,
+          set: {
+            tmdbId: BigInt(showtime.tmdbId),
+            title: showtime.englishTitle?.trim() || input.title,
+            city: showtime.screeningCity,
+            cinema: showtime.cinema,
+            screeningDate,
+            screeningTime,
+            clickedAt,
+          },
+        })
+        .returning();
+      if (!row) return null;
+      return {
+        tmdbId: String(row.tmdbId),
+        title: row.title,
+        city: row.city,
+        cinema: row.cinema,
+        screeningDate: row.screeningDate,
+        screeningTime: row.screeningTime.slice(0, 5),
+      };
+    });
+  }
+
+  recentWalletShowtimeClick(user: VerifiedIdentity) {
+    return this.asUser(user, async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(userWalletRecentShowtimeClicks)
+        .where(eq(userWalletRecentShowtimeClicks.userId, user.id))
+        .limit(1);
+      if (!row) return null;
+      const now = this.clock();
+      const clickExpired =
+        now.getTime() - row.clickedAt.getTime() > 24 * 60 * 60 * 1000 ||
+        row.clickedAt.getTime() > now.getTime() + 5 * 60 * 1000;
+      if (clickExpired) {
+        await tx
+          .delete(userWalletRecentShowtimeClicks)
+          .where(
+            and(
+              eq(userWalletRecentShowtimeClicks.userId, user.id),
+              eq(userWalletRecentShowtimeClicks.clickedAt, row.clickedAt),
+            ),
+          );
+        return null;
+      }
+      const screening = `${row.screeningDate}T${row.screeningTime.slice(0, 5)}`;
+      if (screening < jerusalemLocalMinute(now)) {
+        await tx
+          .delete(userWalletRecentShowtimeClicks)
+          .where(
+            and(
+              eq(userWalletRecentShowtimeClicks.userId, user.id),
+              eq(userWalletRecentShowtimeClicks.clickedAt, row.clickedAt),
+            ),
+          );
+        return null;
+      }
+      return {
+        tmdbId: String(row.tmdbId),
+        title: row.title,
+        city: row.city,
+        cinema: row.cinema,
+        screeningDate: row.screeningDate,
+        screeningTime: row.screeningTime.slice(0, 5),
+      };
+    });
+  }
 }
 export type ProtectedWorkflowService = Pick<
   ProtectedWorkflows,
@@ -1237,6 +1790,16 @@ export type ProtectedWorkflowService = Pick<
   | "listLetterboxdSources"
   | "addLetterboxdSource"
   | "removeLetterboxdSource"
+  | "walletTickets"
+  | "walletTicketDetails"
+  | "walletListedScreenings"
+  | "walletTicket"
+  | "createWalletTicket"
+  | "appendWalletTicketQrCodes"
+  | "updateWalletTicket"
+  | "deleteWalletTicket"
+  | "recordWalletShowtimeClick"
+  | "recentWalletShowtimeClick"
   | "subscribe"
   | "cancel"
   | "updateTicketAlertCriteria"

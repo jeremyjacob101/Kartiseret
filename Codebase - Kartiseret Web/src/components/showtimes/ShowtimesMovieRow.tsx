@@ -9,12 +9,14 @@ export function ShowtimesMovieRow({
   movie,
   theaters,
   city,
+  screeningDate,
   sources,
   onOpenTrailer,
 }: {
   movie: Movie;
   theaters: readonly TheaterShowtimes[];
   city?: string;
+  screeningDate: string;
   sources: readonly RatingSource[];
   onOpenTrailer: (movieId: string) => void;
 }) {
@@ -88,7 +90,12 @@ export function ShowtimesMovieRow({
       </div>
 
       <div className="all-showtimes-theaters">
-        <ShowtimeTheaters movie={movie} theaters={theaters} city={city} />
+        <ShowtimeTheaters
+          movie={movie}
+          theaters={theaters}
+          city={city}
+          screeningDate={screeningDate}
+        />
       </div>
     </article>
   );

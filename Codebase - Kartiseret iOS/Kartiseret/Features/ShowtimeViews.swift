@@ -3,6 +3,7 @@ import SwiftUI
 struct ShowtimeSections: View {
     let cinemas: [CinemaShowtimes]
     let city: String
+    let movie: Movie
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -28,7 +29,7 @@ struct ShowtimeSections: View {
                                 .foregroundStyle(.white)
                         }
                     }
-                    ShowtimeRow(showtimes: cinema.showtimes, cinemaName: cinema.name, theme: theme)
+                    ShowtimeRow(showtimes: cinema.showtimes, cinemaName: cinema.name, city: city, movie: movie, theme: theme)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -39,8 +40,11 @@ struct ShowtimeSections: View {
 private struct ShowtimeRow: View {
     let showtimes: [Showtime]
     let cinemaName: String
+    let city: String
+    let movie: Movie
     let theme: ShowtimeTheme
     @Environment(AppStore.self) private var store
+    @Environment(AccountStore.self) private var account
     @Environment(\.openURL) private var openURL
 
     private let columns = [GridItem(.adaptive(minimum: 74, maximum: 74), spacing: 7, alignment: .bottom)]
@@ -50,6 +54,8 @@ private struct ShowtimeRow: View {
             ForEach(showtimes) { showtime in
                 if let url = showtime.bookingURL {
                     Button {
+                        let clickedAt = Date.now
+                        Task { await rememberShowtimeClick(showtime, clickedAt: clickedAt) }
                         openURL(url)
                         store.captureFixtureBookingURL(url)
                     } label: {
@@ -74,6 +80,27 @@ private struct ShowtimeRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, 8)
+    }
+
+    private func rememberShowtimeClick(_ showtime: Showtime, clickedAt: Date) async {
+        guard account.state == .signedIn else { return }
+        let timestamp = ISO8601DateFormatter()
+        timestamp.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let payload: [String: Any] = [
+            "clickedAt": timestamp.string(from: clickedAt),
+            "tmdbId": showtime.tmdbId,
+            "title": movie.title,
+            "city": city,
+            "cinema": cinemaName,
+            "screeningDate": showtime.dateOfShowing,
+            "screeningTime": showtime.displayTime,
+        ]
+        guard let body = try? JSONSerialization.data(withJSONObject: payload) else { return }
+        _ = try? await account.requestPrivate(
+            path: "/api/v1/ticket-passes/recent-click",
+            method: "POST",
+            body: body
+        )
     }
 }
 
@@ -103,7 +130,7 @@ struct MovieShowtimeCard: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("showtimes.movie.link.\(group.movie.tmdbId)")
-            ShowtimeSections(cinemas: group.cinemas, city: city)
+            ShowtimeSections(cinemas: group.cinemas, city: city, movie: group.movie)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)

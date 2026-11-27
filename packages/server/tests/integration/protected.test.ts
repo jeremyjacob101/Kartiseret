@@ -112,6 +112,92 @@ describe.sequential(
         [owner.id],
       );
     });
+    it("looks up calendar-day screenings, preserves click order, and isolates ticket QR data", async () => {
+      await admin.pool.query(
+        `INSERT INTO public."finalShowtimes"
+           (tmdb_id, english_title, screening_city, date_of_showing, showtime, cinema)
+         VALUES (9200996, 'Late Feature', 'Haifa', '2026-10-19', '00:30:00.25', 'Wallet Cinema'),
+                (9200997, 'Evening Feature', 'Haifa', '2026-10-20', '20:00', 'Wallet Cinema')`,
+      );
+      const listed = await workflows.walletListedScreenings(
+        alice,
+        "Haifa",
+        "2026-10-20",
+      );
+      const late = listed.find((screening) => screening.tmdbId === "9200996")!;
+      const evening = listed.find(
+        (screening) => screening.tmdbId === "9200997",
+      )!;
+      expect(late).toMatchObject({
+        screeningDate: "2026-10-20",
+        screeningTime: "00:30",
+      });
+      await workflows.recordWalletShowtimeClick(
+        alice,
+        { ...late, screeningDate: "2026-10-19" },
+        "2026-10-19T11:59:59Z",
+      );
+      await workflows.recordWalletShowtimeClick(
+        alice,
+        evening,
+        "2026-10-19T11:59:58Z",
+      );
+      expect(await workflows.recentWalletShowtimeClick(alice)).toEqual(late);
+      expect(await workflows.recentWalletShowtimeClick(bob)).toBeNull();
+
+      const ticket = await workflows.createWalletTicket(alice, {
+        ...late,
+        qrMessage: "test-qr",
+        reminderEnabled: false,
+      });
+      expect(await workflows.walletTicket(alice, ticket.id)).toMatchObject({
+        qrMessage: "test-qr",
+        qrCodes: [{ id: ticket.id, qrMessage: "test-qr" }],
+      });
+      await expect(
+        workflows.walletTicket(bob, ticket.id),
+      ).rejects.toMatchObject({ status: 404 });
+      const familyTicket = await workflows.appendWalletTicketQrCodes(
+        alice,
+        ticket.id,
+        { qrMessages: ["test-qr", "family-seat-2", "family-seat-2"] },
+      );
+      expect(familyTicket.qrCodes).toEqual([
+        { id: ticket.id, qrMessage: "test-qr" },
+        { id: expect.any(String), qrMessage: "family-seat-2" },
+      ]);
+      const unchanged = await workflows.appendWalletTicketQrCodes(
+        alice,
+        ticket.id,
+        { qrMessages: ["family-seat-2"] },
+      );
+      expect(unchanged.qrCodes).toEqual(familyTicket.qrCodes);
+      await expect(
+        workflows.appendWalletTicketQrCodes(
+          alice,
+          "00000000-0000-4000-8000-000000000099",
+          {
+            qrMessages: ["not-owned"],
+          },
+        ),
+      ).rejects.toMatchObject({ status: 404 });
+
+      const fullBooking = await workflows.createWalletTicket(alice, {
+        ...late,
+        qrMessages: Array.from(
+          { length: 10 },
+          (_, index) => `seat-${index + 1}`,
+        ),
+        reminderEnabled: false,
+      });
+      await expect(
+        workflows.appendWalletTicketQrCodes(alice, fullBooking.id, {
+          qrMessages: ["seat-11"],
+        }),
+      ).rejects.toMatchObject({ status: 409, code: "ticket_qr_code_limit" });
+      await workflows.deleteWalletTicket(alice, fullBooking.id);
+      await workflows.deleteWalletTicket(alice, ticket.id);
+    });
     it("accepts native bearer authentication without a browser origin", async () => {
       const response = await request(app)
         .get("/api/v1/account")

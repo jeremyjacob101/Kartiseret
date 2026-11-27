@@ -856,6 +856,7 @@ export function AllShowtimesPage({
                         movie={movie}
                         theaters={theaters}
                         city={location}
+                        screeningDate={effectiveSelectedDayPanel.date}
                         sources={sources}
                         onOpenTrailer={setOpenTrailerMovieId}
                       />
