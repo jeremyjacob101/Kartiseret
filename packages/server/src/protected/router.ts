@@ -695,10 +695,11 @@ export function createProtectedRouter(
   router.get("/ticket-passes/:ticketId", async (request, response) => {
     parse(empty, request.query);
     const ticketId = parse(walletTicketIdSchema, request.params.ticketId);
-    const { qrCodes: _qrCodes, ...legacyTicket } = await workflows.walletTicket(
+    const { qrCodes, ...legacyTicket } = await workflows.walletTicket(
       identity(response.locals.identity),
       ticketId,
     );
+    void qrCodes;
     response.json({
       data: {
         // Preserve the old strict Zod response shape for already-loaded web
