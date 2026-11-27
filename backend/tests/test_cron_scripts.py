@@ -15,7 +15,7 @@ class CronScriptTests(TestCase):
             ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
         ).stdout.strip()
 
-    def run_cron(self, directory, kind, status, *, failure=None):
+    def run_cron(self, directory, kind, status, *, failure=None, args=("argument with spaces",)):
         """Run the actual wrapper against a disposable checkout and bare remote."""
         root = directory / "checkout"
         remote = directory / "origin.git"
@@ -78,7 +78,7 @@ class CronScriptTests(TestCase):
         recovery = directory / "recovery"
         upload_copy = directory / "uploaded.log"
         result = subprocess.run(
-            ["/bin/bash", str(script), "argument with spaces"],
+            ["/bin/bash", str(script), *args],
             cwd=directory,
             env={
                 **os.environ,
@@ -124,6 +124,16 @@ class CronScriptTests(TestCase):
                     self.assertIn("runner-stderr", transcript)
                     self.assertIn(f"runner exit {status}", transcript)
                     self.assertFalse(recovery.exists() and list(recovery.rglob("*.log")))
+
+    def test_runs_without_arguments(self):
+        for kind in ("daily", "weekly"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temp:
+                directory = Path(temp)
+                _, _, _, result, _, uploaded = self.run_cron(directory, kind, 0, args=())
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                uv_calls = (directory / "uv-calls.log").read_text().splitlines()
+                self.assertEqual(uv_calls[:2], ["run --locked -m backend.config.runner", "runner"])
+                self.assertIn("runner exit 0", uploaded.read_text())
 
     def test_code_sync_and_storage_failures_keep_local_output_and_do_not_publish_git(self):
         for kind in ("daily", "weekly"):

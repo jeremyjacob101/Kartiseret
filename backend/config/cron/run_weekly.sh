@@ -59,7 +59,7 @@ sync_phase() {
 sync_phase 2>&1 | tee "$LOG_FILE"
 
 set +e
-"$UV" run --locked -m backend.config.runner "${ARGS[@]}" 2>&1 | tee -a "$LOG_FILE"
+"$UV" run --locked -m backend.config.runner "$@" 2>&1 | tee -a "$LOG_FILE"
 RUN_STATUSES=("${PIPESTATUS[@]}")
 set -e
 RUN_STATUS=${RUN_STATUSES[0]}
