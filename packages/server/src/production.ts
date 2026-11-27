@@ -28,7 +28,7 @@ type ProductionRuntime = ReturnType<typeof createProductionRuntime>;
 function createProductionRuntime(
   environment: Record<string, string | undefined>,
 ) {
-  const { selectedEnvironment, config, database, repository } =
+  const { selectedEnvironment, config, database, repository, publicRoutePool } =
     getProductionDataRuntime(environment);
   const authConfig = parseAuthEnvironment(selectedEnvironment);
   const auth = createApplicationAuth(database.pool, {
@@ -64,7 +64,7 @@ function createProductionRuntime(
     ),
     onDiagnostic: reportRateLimitDiagnostic,
   };
-  const publicRoutes = new PostgresPublicRouteRegistry(database.pool);
+  const publicRoutes = new PostgresPublicRouteRegistry(publicRoutePool);
 
   return {
     config,

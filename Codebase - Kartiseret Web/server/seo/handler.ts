@@ -376,7 +376,7 @@ async function getMoviePage(
     if (movie.movieCode) {
       try {
         const route = await new PostgresPublicRouteRegistry(
-          getProductionDataRuntime().database.pool,
+          getProductionDataRuntime().publicRoutePool,
         ).getOrCreate(moviePublicRouteInput(movie.movieCode));
         movie = { ...movie, publicRouteCode: route.code };
       } catch (error) {
@@ -507,7 +507,7 @@ async function getCinemaPage(cinemaId: string, instant = new Date()) {
     let cinemaWithMovieRoutes = cinema;
     try {
       const registry = new PostgresPublicRouteRegistry(
-        getProductionDataRuntime().database.pool,
+        getProductionDataRuntime().publicRoutePool,
       );
       const routedMovies = await attachMoviePublicRouteCodes(
         {
@@ -873,7 +873,7 @@ async function getListingPage(
     let publicRouteRegistry: PostgresPublicRouteRegistry | null = null;
     try {
       publicRouteRegistry = new PostgresPublicRouteRegistry(
-        getProductionDataRuntime().database.pool,
+        getProductionDataRuntime().publicRoutePool,
       );
       [nowPlaying, comingSoon] = await Promise.all([
         nowPlaying
@@ -900,7 +900,7 @@ async function getListingPage(
     if (page.cinemathequeData) {
       try {
         publicRouteRegistry ??= new PostgresPublicRouteRegistry(
-          getProductionDataRuntime().database.pool,
+          getProductionDataRuntime().publicRoutePool,
         );
         page.cinemathequeData = await attachMoviePublicRouteCodes(
           page.cinemathequeData,
@@ -962,7 +962,7 @@ async function renderSitemap(response: VercelResponse): Promise<void> {
         throw new Error("Movie code data is unavailable.");
       }
       const registry = new PostgresPublicRouteRegistry(
-        getProductionDataRuntime().database.pool,
+        getProductionDataRuntime().publicRoutePool,
       );
       const movieRoutes = [...nowPlaying.movies, ...comingSoon.movies]
         .filter((movie) => movie.movieCode)
@@ -1152,7 +1152,7 @@ export default async function handler(
           }
         }
         const routeRecord = await new PostgresPublicRouteRegistry(
-          runtime.database.pool,
+          runtime.publicRoutePool,
         ).getOrCreate(input);
         response
           .status(308)
@@ -1199,7 +1199,7 @@ export default async function handler(
       }
       const runtime = getProductionDataRuntime();
       const routeRecord = await new PostgresPublicRouteRegistry(
-        runtime.database.pool,
+        runtime.publicRoutePool,
       ).getOrCreate(input);
       response
         .status(308)
@@ -1215,7 +1215,7 @@ export default async function handler(
         : (request.query.code ?? "");
       const runtime = getProductionDataRuntime();
       const storedRoute = await new PostgresPublicRouteRegistry(
-        runtime.database.pool,
+        runtime.publicRoutePool,
       ).getByCode(code);
       const renderPath = storedRoute
         ? getPublicRouteRenderPath(storedRoute)
@@ -1413,7 +1413,7 @@ export default async function handler(
           () =>
             createPublicRoutePathMap(
               new PostgresPublicRouteRegistry(
-                getProductionDataRuntime().database.pool,
+                getProductionDataRuntime().publicRoutePool,
               ),
             ),
           routeAllocationBudget,
