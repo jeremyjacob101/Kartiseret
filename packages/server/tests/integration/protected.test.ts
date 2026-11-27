@@ -112,6 +112,52 @@ describe.sequential(
         [owner.id],
       );
     });
+    it("looks up calendar-day screenings, preserves click order, and isolates ticket QR data", async () => {
+      await admin.pool.query(
+        `INSERT INTO public."finalShowtimes"
+           (tmdb_id, english_title, screening_city, date_of_showing, showtime, cinema)
+         VALUES (9200996, 'Late Feature', 'Haifa', '2026-10-19', '00:30:00.25', 'Wallet Cinema'),
+                (9200997, 'Evening Feature', 'Haifa', '2026-10-20', '20:00', 'Wallet Cinema')`,
+      );
+      const listed = await workflows.walletListedScreenings(
+        alice,
+        "Haifa",
+        "2026-10-20",
+      );
+      const late = listed.find((screening) => screening.tmdbId === "9200996")!;
+      const evening = listed.find(
+        (screening) => screening.tmdbId === "9200997",
+      )!;
+      expect(late).toMatchObject({
+        screeningDate: "2026-10-20",
+        screeningTime: "00:30",
+      });
+      await workflows.recordWalletShowtimeClick(
+        alice,
+        { ...late, screeningDate: "2026-10-19" },
+        "2026-10-19T11:59:59Z",
+      );
+      await workflows.recordWalletShowtimeClick(
+        alice,
+        evening,
+        "2026-10-19T11:59:58Z",
+      );
+      expect(await workflows.recentWalletShowtimeClick(alice)).toEqual(late);
+      expect(await workflows.recentWalletShowtimeClick(bob)).toBeNull();
+
+      const ticket = await workflows.createWalletTicket(alice, {
+        ...late,
+        qrMessage: "test-qr",
+        reminderEnabled: false,
+      });
+      expect(await workflows.walletTicket(alice, ticket.id)).toMatchObject({
+        qrMessage: "test-qr",
+      });
+      await expect(
+        workflows.walletTicket(bob, ticket.id),
+      ).rejects.toMatchObject({ status: 404 });
+      await workflows.deleteWalletTicket(alice, ticket.id);
+    });
     it("accepts native bearer authentication without a browser origin", async () => {
       const response = await request(app)
         .get("/api/v1/account")

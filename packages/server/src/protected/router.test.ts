@@ -90,6 +90,7 @@ function setup(
     })),
     removeLetterboxdSource: vi.fn(async () => ({ removed: true as const })),
     walletTickets: vi.fn(async () => []),
+    walletListedScreenings: vi.fn(async () => []),
     walletTicketDetails: vi.fn(async () => []),
     walletTicket: vi.fn(async () => {
       throw new HttpError(404, "ticket_not_found", "Ticket not found.");
@@ -186,6 +187,32 @@ function setup(
   };
 }
 describe("protected HTTP contracts", () => {
+  it("requires an account and validates the listed screening lookup", async () => {
+    const { app, workflows } = setup();
+    const path = "/api/v1/ticket-passes/listed-screenings";
+    const query = { city: "Jerusalem", date: "2026-11-27" };
+    expect((await request(app).get(path).query(query)).status).toBe(401);
+    expect(
+      (
+        await request(app)
+          .get(path)
+          .set("Cookie", "valid")
+          .query({ ...query, date: "bad" })
+      ).status,
+    ).toBe(400);
+    const result = await request(app)
+      .get(path)
+      .set("Cookie", "valid")
+      .query(query);
+    expect(result.status).toBe(200);
+    expect(result.body.data.screenings).toEqual([]);
+    expect(workflows.walletListedScreenings).toHaveBeenCalledExactlyOnceWith(
+      { id, email: "qa@example.test" },
+      "Jerusalem",
+      "2026-11-27",
+    );
+  });
+
   it("serves a private QR image at the query-free ticket URL", async () => {
     const { app, workflows } = setup();
     vi.mocked(workflows.walletTicket).mockResolvedValue({

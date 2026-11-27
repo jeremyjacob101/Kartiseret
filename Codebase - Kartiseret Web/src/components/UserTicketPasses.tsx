@@ -1,7 +1,8 @@
 import { createWalletTicketMutationOptions, deleteWalletTicketMutationOptions, updateWalletTicketMutationOptions, walletRecentScreeningQueryOptions, walletTicketDetailQueryOptions, walletTicketsQueryOptions } from "../data/walletTickets";
+import { walletListedScreeningsResponseSchema } from "@kartiseret/contracts/private-data";
+import { privateApiBlob, privateApiResponse } from "../data/privateApi";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { decodeSingleQrCode } from "../lib/walletQrScanner";
-import { privateApiBlob } from "../data/privateApi";
 import { ApiRequestError } from "../data/apiClient";
 import { useRef, useState } from "react";
 import { Link } from "react-router";
@@ -117,6 +118,30 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
     !editingTicketId
       ? suggestedScreening
       : screening;
+
+  const [listedCriteria, setListedCriteria] = useState<{
+    city: string;
+    date: string;
+  }>();
+  const listedScreenings = useQuery({
+    queryKey: ["walletTickets", "listedScreenings", userId, listedCriteria],
+    enabled: Boolean(userId && listedCriteria),
+    queryFn: async ({ signal }) => {
+      if (!userId || !listedCriteria)
+        throw new Error("Choose a city and date.");
+      const params = new URLSearchParams(listedCriteria);
+      const response = await privateApiResponse(
+        `/api/v1/ticket-passes/listed-screenings?${params}`,
+        walletListedScreeningsResponseSchema,
+        { userId, signal },
+      );
+      return response.data.screenings;
+    },
+    retry: false,
+  });
+  const matchingList =
+    listedCriteria?.city === visibleScreening.city.trim() &&
+    listedCriteria?.date === visibleScreening.screeningDate;
 
   function setField<K extends keyof ScreeningForm>(
     field: K,
@@ -423,6 +448,69 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
           </label>
         </div>
 
+        <div className="wallet-ticket-form-actions">
+          <button
+            type="button"
+            className="wallet-ticket-button wallet-ticket-button--quiet"
+            disabled={
+              !visibleScreening.city.trim() ||
+              !visibleScreening.screeningDate ||
+              isSaving
+            }
+            onClick={() => {
+              if (matchingList) void listedScreenings.refetch();
+              else
+                setListedCriteria({
+                  city: visibleScreening.city.trim(),
+                  date: visibleScreening.screeningDate,
+                });
+            }}
+          >
+            Find listed screenings
+          </button>
+          <span className="wallet-ticket-privacy-note">
+            Enter a city and date to look up a screening.
+          </span>
+        </div>
+        {matchingList && listedScreenings.isFetching && (
+          <p role="status">Loading screenings…</p>
+        )}
+        {matchingList && listedScreenings.isError && (
+          <p role="status">
+            Listings are unavailable. Enter the details manually or retry.
+          </p>
+        )}
+        {matchingList && listedScreenings.data?.length === 0 && (
+          <p role="status">No screenings found. Enter the details manually.</p>
+        )}
+        {matchingList && Boolean(listedScreenings.data?.length) && (
+          <label>
+            <span>Listed screening</span>
+            <select
+              value=""
+              onChange={(event) => {
+                if (!event.currentTarget.value) return;
+                const chosen =
+                  listedScreenings.data?.[Number(event.currentTarget.value)];
+                if (!chosen) return;
+                setScreening(chosen);
+                setHasInteracted(true);
+                setSuggestionApplied(true);
+                setSuggestionWasApplied(false);
+                setListedCriteria(undefined);
+                setFeedback("Review the selected screening before saving.");
+              }}
+            >
+              <option value="">Choose a screening</option>
+              {listedScreenings.data?.map((item, index) => (
+                <option key={index} value={index}>
+                  {item.screeningTime} · {item.title} · {item.cinema}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
         {recentQuery.data &&
         (suggestionWasApplied || (!suggestionApplied && !hasInteracted)) &&
         !editingTicketId ? (
@@ -607,7 +695,8 @@ export function UserTicketPasses({ userId }: { userId: string | null }) {
             </div>
             {selectedTicket.reminderEnabled ? (
               <p className="wallet-ticket-suggestion">
-                A 15 minute reminder is enabled in the Kartiseret iPhone app.
+                A 15 minute reminder is enabled. Open Kartiseret on your iPhone
+                after changing or deleting a ticket to sync its reminder.
               </p>
             ) : null}
           </article>

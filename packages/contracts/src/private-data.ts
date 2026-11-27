@@ -459,10 +459,22 @@ export const walletTicketRecentClickCreateSchema =
 export type WalletTicketRecentClick = z.infer<
   typeof walletTicketRecentClickCreateSchema
 >;
+export const walletListedScreeningsQuerySchema = z
+  .object({
+    city: ticketLabelSchema,
+    date: isoDateStringSchema,
+  })
+  .strict();
+export const walletListedScreeningsResponseSchema = envelope(
+  z.object({
+    screenings: z.array(walletTicketRecentClickCreateSchema).max(250),
+  }),
+);
 export const walletTicketRecentClickRequestSchema =
   walletTicketRecentClickCreateSchema
     .extend({
       expectedAccountId: applicationIdentitySchema.shape.id.optional(),
+      clickedAt: z.iso.datetime({ offset: true }).optional(),
     })
     .strict();
 export const walletTicketRecentClickResponseSchema = envelope(

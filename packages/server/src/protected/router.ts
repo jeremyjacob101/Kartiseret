@@ -28,6 +28,7 @@ import {
   walletTicketIdSchema,
   walletTicketPatchSchema,
   walletTicketRecentClickRequestSchema,
+  walletListedScreeningsQuerySchema,
 } from "@kartiseret/contracts/private-data";
 import {
   homepageMovieHighlightUpsertSchema,
@@ -478,6 +479,18 @@ export function createProtectedRouter(
       error: null,
     });
   });
+  router.get("/ticket-passes/listed-screenings", async (request, response) => {
+    const { city, date } = parse(
+      walletListedScreeningsQuerySchema,
+      request.query,
+    );
+    const screenings = await workflows.walletListedScreenings(
+      identity(response.locals.identity),
+      city,
+      date,
+    );
+    response.json({ data: { screenings }, error: null });
+  });
   router.get("/ticket-passes/recent-screening", async (request, response) => {
     parse(empty, request.query);
     response.json({
@@ -492,7 +505,7 @@ export function createProtectedRouter(
   router.post("/ticket-passes/recent-click", async (request, response) => {
     parse(empty, request.query);
     const body = parse(walletTicketRecentClickRequestSchema, request.body);
-    const { expectedAccountId, ...click } = body;
+    const { expectedAccountId, clickedAt, ...click } = body;
     const verified = identity(response.locals.identity);
     if (expectedAccountId && expectedAccountId !== verified.id) {
       throw new HttpError(
@@ -503,7 +516,11 @@ export function createProtectedRouter(
     }
     response.json({
       data: {
-        screening: await workflows.recordWalletShowtimeClick(verified, click),
+        screening: await workflows.recordWalletShowtimeClick(
+          verified,
+          click,
+          clickedAt,
+        ),
       },
       error: null,
     });

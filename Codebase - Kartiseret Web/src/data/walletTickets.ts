@@ -104,6 +104,7 @@ export function recordWalletShowtimeClick(
     value,
     "Recent showtime click",
   );
+  const click = { ...input, clickedAt: new Date().toISOString() };
   if (
     typeof navigator !== "undefined" &&
     typeof navigator.sendBeacon === "function"
@@ -111,7 +112,7 @@ export function recordWalletShowtimeClick(
     const queued = navigator.sendBeacon(
       "/api/v1/ticket-passes/recent-click",
       new Blob(
-        [JSON.stringify({ ...input, expectedAccountId: normalizedUserId })],
+        [JSON.stringify({ ...click, expectedAccountId: normalizedUserId })],
         { type: "application/json" },
       ),
     );
@@ -123,7 +124,7 @@ export function recordWalletShowtimeClick(
     {
       method: "POST",
       userId: normalizedUserId,
-      body: input,
+      body: click,
       keepalive: true,
     },
   ).catch(() => undefined);

@@ -1,4 +1,14 @@
-import { and, asc, desc, eq, gt, inArray, isNotNull, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  or,
+  sql,
+} from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import {
   DEFAULT_LOCATION,
@@ -1421,11 +1431,76 @@ export class ProtectedWorkflows {
     });
   }
 
+  walletListedScreenings(user: VerifiedIdentity, city: string, date: string) {
+    const previousDate = addCalendarDays(date, -1) ?? date;
+    return this.asUser(user, async (tx) => {
+      const minute = sql`left(${finalShowtimes.showtime}::text, 5)`;
+      const rows = await tx
+        .selectDistinct({
+          tmdbId: finalShowtimes.tmdbId,
+          title: finalShowtimes.englishTitle,
+          cinema: finalShowtimes.cinema,
+          screeningCity: finalShowtimes.screeningCity,
+          time: sql<string>`${minute}`.as("screening_minute"),
+        })
+        .from(finalShowtimes)
+        .where(
+          and(
+            eq(finalShowtimes.screeningCity, city),
+            or(
+              and(
+                eq(finalShowtimes.dateOfShowing, date),
+                sql`${minute} >= '01:05'`,
+              ),
+              and(
+                eq(finalShowtimes.dateOfShowing, previousDate),
+                sql`${minute} < '01:05'`,
+              ),
+            ),
+          ),
+        )
+        .orderBy(
+          sql`screening_minute`,
+          finalShowtimes.cinema,
+          finalShowtimes.englishTitle,
+        )
+        .limit(250);
+      return rows.flatMap((row) => {
+        const title = row.title?.trim();
+        if (
+          !row.tmdbId ||
+          !title ||
+          title.length > 200 ||
+          !row.cinema ||
+          row.cinema.length > 200
+        )
+          return [];
+        return [
+          {
+            tmdbId: String(row.tmdbId),
+            title,
+            cinema: row.cinema,
+            city: row.screeningCity ?? city,
+            screeningDate: date,
+            screeningTime: row.time,
+          },
+        ];
+      });
+    });
+  }
+
   recordWalletShowtimeClick(
     user: VerifiedIdentity,
     input: WalletTicketRecentClick,
+    clientClickedAt?: string,
   ) {
-    const clickedAt = this.clock();
+    const receivedAt = this.clock();
+    const submittedAt = clientClickedAt ? Date.parse(clientClickedAt) : NaN;
+    const age = receivedAt.getTime() - submittedAt;
+    const clickedAt =
+      age >= -60_000 && age <= 24 * 60 * 60 * 1000
+        ? new Date(Math.min(submittedAt, receivedAt.getTime()))
+        : receivedAt;
     return this.asUser(user, async (tx) => {
       const candidates = await tx
         .select()
@@ -1568,6 +1643,7 @@ export type ProtectedWorkflowService = Pick<
   | "removeLetterboxdSource"
   | "walletTickets"
   | "walletTicketDetails"
+  | "walletListedScreenings"
   | "walletTicket"
   | "createWalletTicket"
   | "updateWalletTicket"

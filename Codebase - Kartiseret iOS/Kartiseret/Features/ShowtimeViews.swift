@@ -54,7 +54,8 @@ private struct ShowtimeRow: View {
             ForEach(showtimes) { showtime in
                 if let url = showtime.bookingURL {
                     Button {
-                        Task { await rememberShowtimeClick(showtime) }
+                        let clickedAt = Date.now
+                        Task { await rememberShowtimeClick(showtime, clickedAt: clickedAt) }
                         openURL(url)
                         store.captureFixtureBookingURL(url)
                     } label: {
@@ -81,9 +82,12 @@ private struct ShowtimeRow: View {
         .padding(.top, 8)
     }
 
-    private func rememberShowtimeClick(_ showtime: Showtime) async {
+    private func rememberShowtimeClick(_ showtime: Showtime, clickedAt: Date) async {
         guard account.state == .signedIn else { return }
+        let timestamp = ISO8601DateFormatter()
+        timestamp.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let payload: [String: Any] = [
+            "clickedAt": timestamp.string(from: clickedAt),
             "tmdbId": showtime.tmdbId,
             "title": movie.title,
             "city": city,

@@ -1,5 +1,5 @@
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
 import { UserTicketPasses } from "../../src/components/UserTicketPasses";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -32,6 +32,25 @@ const ticketFixtures = vi.hoisted(() => {
     create: vi.fn(),
   };
 });
+
+vi.mock("../../src/data/privateApi", () => ({
+  privateApiBlob: vi.fn(),
+  privateApiResponse: vi.fn(async () => ({
+    data: {
+      screenings: [
+        {
+          tmdbId: "123",
+          title: "Listed Movie",
+          city: "Jerusalem",
+          cinema: "Listed Cinema",
+          screeningDate: "2026-12-01",
+          screeningTime: "20:30",
+        },
+      ],
+    },
+    error: null,
+  })),
+}));
 
 vi.mock("../../src/data/walletTickets", async () => {
   const { mutationOptions, queryOptions } =
@@ -76,6 +95,36 @@ vi.mock("../../src/data/walletTickets", async () => {
 });
 
 describe("UserTicketPasses", () => {
+  it("fills an editable draft when the user chooses a listed screening", async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <UserTicketPasses userId="00000000-0000-4000-8000-000000000099" />
+      </QueryClientProvider>,
+    );
+    await user.type(screen.getByLabelText("City"), "Jerusalem");
+    fireEvent.change(screen.getByLabelText("Show date (Israel time)"), {
+      target: { value: "2026-12-01" },
+    });
+    await user.click(
+      screen.getByRole("button", { name: "Find listed screenings" }),
+    );
+    await user.selectOptions(
+      await screen.findByLabelText("Listed screening"),
+      "0",
+    );
+    expect(screen.getByLabelText("Movie or show")).toHaveValue("Listed Movie");
+    expect(screen.getByLabelText("Showtime (Israel time)")).toHaveValue(
+      "20:30",
+    );
+    await user.clear(screen.getByLabelText("Cinema"));
+    await user.type(screen.getByLabelText("Cinema"), "Corrected Cinema");
+    expect(screen.getByLabelText("Cinema")).toHaveValue("Corrected Cinema");
+  });
+
   it("clears an edit draft when a different ticket is selected", async () => {
     const user = userEvent.setup();
     ticketFixtures.create.mockClear();

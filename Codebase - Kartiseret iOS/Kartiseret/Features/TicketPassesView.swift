@@ -366,6 +366,9 @@ struct TicketPassesView: View {
     let initialTicketID: String?
 
     @State private var tickets: [WalletTicket] = []
+    @State private var listedScreenings: [WalletTicketScreening] = []
+    @State private var isShowingListedScreenings = false
+    @State private var isLoadingListedScreenings = false
     @State private var detailRequestID = UUID()
     @State private var selectedTicket: WalletTicketDetail?
     @State private var editingTicketID: String?
@@ -474,6 +477,35 @@ struct TicketPassesView: View {
         ) { result in
             Task { await readImportedFile(result) }
         }
+        .sheet(isPresented: $isShowingListedScreenings) {
+            NavigationStack {
+                List {
+                    ForEach(listedScreenings.indices, id: \.self) { index in
+                        let screening = listedScreenings[index]
+                        Button {
+                            form = screening
+                            hasInteractedWithScreening = true
+                            hasConfirmedShowDate = true
+                            hasConfirmedShowTime = true
+                            statusMessage = "Review the selected screening before saving."
+                            isShowingListedScreenings = false
+                        } label: {
+                            VStack(alignment: .leading) {
+                                Text(screening.title)
+                                Text("\(screening.screeningTime) · \(screening.cinema)")
+                                    .font(.footnote).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                .navigationTitle("Listed screenings")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") { isShowingListedScreenings = false }
+                    }
+                }
+            }
+        }
         .sheet(isPresented: $isShowingPassSheet, onDismiss: { passForSheet = nil }) {
             if let passForSheet { AddWalletPassSheet(pass: passForSheet) }
         }
@@ -545,6 +577,18 @@ struct TicketPassesView: View {
             DatePicker("Showtime", selection: showTime, displayedComponents: .hourAndMinute)
                 .environment(\.calendar, jerusalemCalendar)
                 .environment(\.timeZone, jerusalemTimeZone)
+            if !hasConfirmedShowDate {
+                Button("Use displayed date") { showDate.wrappedValue = showDate.wrappedValue }
+            }
+            if !hasConfirmedShowTime {
+                Button("Use displayed time") { showTime.wrappedValue = showTime.wrappedValue }
+            }
+            Button("Find listed screenings") {
+                Task { await loadListedScreenings() }
+            }
+            .disabled(!hasConfirmedShowDate || form.city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoadingListedScreenings || isSaving)
+            Text("Enter a city and date to look up a screening.")
+                .font(.footnote).foregroundStyle(.secondary)
             if !hasConfirmedShowDate || !hasConfirmedShowTime {
                 Text("Confirm both the show date and time, or use a recent showtime suggestion, before saving.")
                     .font(.footnote)
@@ -767,6 +811,35 @@ struct TicketPassesView: View {
         }
     }
 
+    private func loadListedScreenings() async {
+        let city = form.city.trimmingCharacters(in: .whitespacesAndNewlines)
+        let date = form.screeningDate
+        let editID = editingTicketID
+        var components = URLComponents()
+        components.path = "/api/v1/ticket-passes/listed-screenings"
+        components.queryItems = [
+            URLQueryItem(name: "city", value: city),
+            URLQueryItem(name: "date", value: date)
+        ]
+        guard let path = components.string else { return }
+        isLoadingListedScreenings = true
+        errorMessage = nil
+        defer { isLoadingListedScreenings = false }
+        struct ScreeningsPage: Decodable, Sendable { let screenings: [WalletTicketScreening] }
+        do {
+            let page = try await account.requestPrivate(path: path, method: "GET", as: ScreeningsPage.self)
+            guard form.city.trimmingCharacters(in: .whitespacesAndNewlines) == city,
+                  form.screeningDate == date, editingTicketID == editID else { return }
+            listedScreenings = page.screenings
+            isShowingListedScreenings = !listedScreenings.isEmpty
+            if listedScreenings.isEmpty {
+                statusMessage = "No screenings found. Enter the details manually."
+            }
+        } catch {
+            errorMessage = "Listings are unavailable. Enter the details manually or retry."
+        }
+    }
+
     private func loadTicket(_ id: String) async {
         guard let accountID = account.identity?.id else { return }
         let requestID = UUID()
@@ -986,19 +1059,11 @@ struct TicketPassesView: View {
                 contentType: "application/vnd.apple.pkpass"
             )
             let pass = try PKPass(data: data)
-            let library = PKPassLibrary()
-            if library.containsPass(pass) {
-                guard library.replacePass(with: pass) else {
-                    throw TicketPassError.walletUpdateFailed
-                }
-                statusMessage = "Pass updated in Apple Wallet."
-            } else {
-                guard PKAddPassesViewController.canAddPasses() else {
-                    throw TicketPassError.walletUnavailable
-                }
-                passForSheet = pass
-                isShowingPassSheet = true
+            guard PKAddPassesViewController.canAddPasses() else {
+                throw TicketPassError.walletUnavailable
             }
+            passForSheet = pass
+            isShowingPassSheet = true
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -1175,7 +1240,6 @@ struct TicketPassesView: View {
         case multipleQRCodes
         case qrReadFailed
         case walletUnavailable
-        case walletUpdateFailed
 
         var errorDescription: String? {
             switch self {
@@ -1187,7 +1251,6 @@ struct TicketPassesView: View {
             case .multipleQRCodes: "More than one QR code was found. Choose a screenshot with one ticket QR."
             case .qrReadFailed: "The QR code could not be read."
             case .walletUnavailable: "Apple Wallet is unavailable on this device. Your QR remains in Kartiseret."
-            case .walletUpdateFailed: "The Wallet pass could not be replaced. Check the original ticket in Kartiseret."
             }
         }
     }

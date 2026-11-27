@@ -167,7 +167,7 @@ export async function generateWalletPass(
         value: `${dateLabel} · ${ticket.screeningTime}`,
       },
       {
-        key: "cinema",
+        key: "cinema-details",
         label: "CINEMA",
         value: `${ticket.cinema}, ${ticket.city}`,
       },
