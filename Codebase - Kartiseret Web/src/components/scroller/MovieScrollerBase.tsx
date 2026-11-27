@@ -873,11 +873,11 @@ export function MovieScrollerBase({
             style,
           };
 
-          return movie.movieCode ? (
+          return movie.publicRouteCode ? (
             <a
               key={`${i}:${movie.tmdbId}`}
               {...cardData}
-              href={`/${movie.movieCode}`}
+              href={`/${movie.publicRouteCode}`}
               onClick={handleSelectMovie}
               tabIndex={isKeyboardInteractive && isVisible ? 0 : -1}
               aria-label={`Open ${movie.title} details`}

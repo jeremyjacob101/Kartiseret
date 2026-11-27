@@ -1,8 +1,15 @@
+import { PublicRoutePathsProvider } from "../../src/routing/PublicRoutePathsProvider";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useDeviceStore } from "../../src/device/useDeviceType";
 import { Navbar } from "../../src/components/bars/Navbar";
 import { MemoryRouter } from "react-router";
+
+const routePaths = {
+  "/movies": "/movie123",
+  "/soons": "/soon1234",
+  "/showtimes": "/times123",
+};
 
 vi.mock("../../src/components/MovieSearchMenu", () => ({
   MovieSearchMenu: ({ onOpen }: { onOpen: () => void }) => (
@@ -23,15 +30,17 @@ vi.mock("../../src/components/UserMenu", () => ({
 function renderNavbar(path = "/movies") {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <Navbar
-        catalogReady
-        searchCollections={[]}
-        onHomeClick={vi.fn()}
-        onMoviesNavClick={vi.fn()}
-        onSearchOpen={vi.fn()}
-        onSelectResult={vi.fn()}
-        onSoonsNavClick={vi.fn()}
-      />
+      <PublicRoutePathsProvider paths={routePaths}>
+        <Navbar
+          catalogReady
+          searchCollections={[]}
+          onHomeClick={vi.fn()}
+          onMoviesNavClick={vi.fn()}
+          onSearchOpen={vi.fn()}
+          onSelectResult={vi.fn()}
+          onSoonsNavClick={vi.fn()}
+        />
+      </PublicRoutePathsProvider>
     </MemoryRouter>,
   );
 }
@@ -58,12 +67,14 @@ describe("Navbar", () => {
     };
     render(
       <MemoryRouter initialEntries={["/movies"]}>
-        <Navbar
-          catalogReady
-          searchCollections={[]}
-          onSelectResult={vi.fn()}
-          {...callbacks}
-        />
+        <PublicRoutePathsProvider paths={routePaths}>
+          <Navbar
+            catalogReady
+            searchCollections={[]}
+            onSelectResult={vi.fn()}
+            {...callbacks}
+          />
+        </PublicRoutePathsProvider>
       </MemoryRouter>,
     );
 

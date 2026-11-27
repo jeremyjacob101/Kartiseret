@@ -13,12 +13,20 @@ import express, {
 } from "express";
 import type { Logger } from "pino";
 import { z } from "zod";
+import { createHash } from "node:crypto";
+import { attachMoviePublicRouteCodes } from "./page-routes.js";
+import { getPublicRouteRenderPath } from "@kartiseret/contracts/public-routes";
+import { ipKeyGenerator, rateLimit } from "express-rate-limit";
+import { isIP } from "node:net";
+import { movieShowtimeShareStateSchema } from "@kartiseret/contracts/showtime-links";
+import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
 import {
   CatalogDataIntegrityError,
   CatalogDatabaseError,
 } from "./catalog/errors.js";
 import {
   getMovieCatalog,
+  getMovieByPermanentCode,
   getCinemathequeData,
   getPublicTheaterData,
   getCinemaPageData,
@@ -47,6 +55,8 @@ import {
 } from "./public-data/tmdb-search.js";
 import type { SocialProviderId } from "./auth/env.js";
 import type { HomepageFeaturedService } from "./homepage/featured.js";
+import type { PublicRouteRegistry } from "./page-routes.js";
+import { resolveLegacyPublicRoute } from "./page-routes.js";
 import {
   createRequestLogContext,
   getRequestLogContext,
@@ -78,6 +88,7 @@ export interface AppDependencies {
   protectedRateLimit?: ProtectedRateLimitOptions;
   artworkStore?: R2ImageStore | null;
   homepageFeatures?: HomepageFeaturedService;
+  publicRoutes?: PublicRouteRegistry;
 }
 
 const defaultAppLogger: AppLogger = {
@@ -155,6 +166,7 @@ export function createApp({
   protectedRateLimit,
   artworkStore,
   homepageFeatures,
+  publicRoutes,
 }: AppDependencies) {
   const app = express();
   app.disable("x-powered-by");
@@ -185,6 +197,232 @@ export function createApp({
   app.get("/api/v1/auth/providers", (_request, response) => {
     response.json({ data: { providers: [...socialProviderIds] }, error: null });
   });
+  if (publicRoutes) {
+    const publicRouteShareLimiter = rateLimit({
+      windowMs: 60_000,
+      limit: 30,
+      ...(protectedRateLimit?.store ? { store: protectedRateLimit.store } : {}),
+      standardHeaders: "draft-6",
+      legacyHeaders: false,
+      passOnStoreError: true,
+      validate: { xForwardedForHeader: false },
+      skip: (request) => {
+        const candidate = process.env.VERCEL
+          ? request.get("x-real-ip")
+          : request.socket.remoteAddress;
+        return !candidate || !isIP(candidate);
+      },
+      keyGenerator: (request) => {
+        const candidate = process.env.VERCEL
+          ? request.get("x-real-ip")
+          : request.socket.remoteAddress;
+        return candidate && isIP(candidate)
+          ? `public-route-share:${ipKeyGenerator(candidate, 64)}`
+          : `public-route-share:unavailable`;
+      },
+    });
+
+    const resolveCinema = async (cinemaId: string) => {
+      if (!CINEMA_IDENTITIES.some((cinema) => cinema.id === cinemaId))
+        return null;
+      return publicRoutes.getOrCreate({
+        destinationKey: `cinema:${cinemaId}`,
+        kind: "cinema",
+        destinationId: cinemaId,
+      });
+    };
+    app.get(
+      "/api/v1/public-routes/cinema/:cinemaId",
+      async (request, response, next) => {
+        try {
+          const route = await resolveCinema(request.params.cinemaId ?? "");
+          if (!route) {
+            response.status(404).json({
+              data: null,
+              error: { code: "not_found", message: "Cinema not found." },
+            });
+            return;
+          }
+          response
+            .setHeader("Cache-Control", "public, max-age=60, s-maxage=300")
+            .json({ data: { path: `/${route.code}` }, error: null });
+        } catch (error) {
+          next(error);
+        }
+      },
+    );
+    app.get(
+      "/api/v1/public-routes/cinema/:cinemaId/open",
+      async (request, response, next) => {
+        try {
+          const route = await resolveCinema(request.params.cinemaId ?? "");
+          if (!route) {
+            response
+              .status(404)
+              .setHeader("Cache-Control", "no-store")
+              .send("Cinema not found.");
+            return;
+          }
+          response.redirect(302, `/${route.code}`);
+        } catch (error) {
+          next(error);
+        }
+      },
+    );
+
+    const resolveLegacyPath = async (rawPath: unknown) => {
+      if (typeof rawPath !== "string") return null;
+      const input = resolveLegacyPublicRoute(rawPath);
+      if (!input) return null;
+      if (input.kind === "movie" || input.kind === "share") {
+        if (!publicDataRepository) return null;
+        const movie = await getMovieByPermanentCode(
+          publicDataRepository,
+          input.destinationId,
+        );
+        if (!movie) return null;
+      }
+      return publicRoutes.getOrCreate(input);
+    };
+
+    app.get("/api/v1/public-routes/legacy", async (request, response, next) => {
+      const rawPath = request.query.path;
+      if (typeof rawPath !== "string" || rawPath.length > 4_096) {
+        response.status(400).json({
+          data: null,
+          error: {
+            code: "invalid_request",
+            message: "This page address cannot be converted.",
+          },
+        });
+        return;
+      }
+      try {
+        const route = await resolveLegacyPath(rawPath);
+        if (!route) {
+          response.status(404).json({
+            data: null,
+            error: { code: "not_found", message: "Page not found." },
+          });
+          return;
+        }
+        response
+          .setHeader("Cache-Control", "no-store")
+          .json({ data: { path: `/${route.code}` }, error: null });
+      } catch (error) {
+        next(error);
+      }
+    });
+
+    app.get(
+      "/api/v1/public-routes/legacy/open",
+      async (request, response, next) => {
+        try {
+          const route = await resolveLegacyPath(request.query.path);
+          if (!route) {
+            response
+              .status(404)
+              .setHeader("Cache-Control", "no-store")
+              .setHeader("X-Robots-Tag", "noindex, nofollow")
+              .send("Page not found.");
+            return;
+          }
+          response
+            .setHeader("Cache-Control", "no-store")
+            .redirect(302, `/${route.code}`);
+        } catch (error) {
+          next(error);
+        }
+      },
+    );
+
+    app.get("/api/v1/public-routes/:code", async (request, response, next) => {
+      try {
+        const route = await publicRoutes.getByCode(request.params.code ?? "");
+        const renderPath = route ? getPublicRouteRenderPath(route) : null;
+        if (!route || !renderPath) {
+          response
+            .status(404)
+            .setHeader("Cache-Control", "no-store")
+            .json({
+              data: null,
+              error: { code: "not_found", message: "Page not found." },
+            });
+          return;
+        }
+        response
+          .setHeader(
+            "Cache-Control",
+            route.kind === "share"
+              ? "no-store"
+              : "public, max-age=60, s-maxage=300",
+          )
+          .json({ data: { route, renderPath }, error: null });
+      } catch (error) {
+        next(error);
+      }
+    });
+
+    app.post(
+      "/api/v1/public-routes/shares",
+      publicRouteShareLimiter,
+      async (request, response, next) => {
+        const parsed = movieShowtimeShareStateSchema.safeParse(request.body);
+        if (!parsed.success) {
+          response.status(400).json({
+            data: null,
+            error: {
+              code: "invalid_request",
+              message: "This showtime selection cannot be shared.",
+            },
+          });
+          return;
+        }
+        try {
+          if (!publicDataRepository) {
+            response.status(503).json({
+              data: null,
+              error: {
+                code: "route_unavailable",
+                message: "Showtime sharing is temporarily unavailable.",
+              },
+            });
+            return;
+          }
+          const movie = await getMovieByPermanentCode(
+            publicDataRepository,
+            parsed.data.movieCode,
+          );
+          if (!movie) {
+            response.status(404).json({
+              data: null,
+              error: { code: "not_found", message: "Movie not found." },
+            });
+            return;
+          }
+          const state = {
+            ...parsed.data,
+            excludedCinemaIds: [
+              ...new Set(parsed.data.excludedCinemaIds ?? []),
+            ].sort(),
+          };
+          const fingerprint = JSON.stringify(state);
+          const route = await publicRoutes.getOrCreate({
+            destinationKey: `movie-share:${createHash("sha256").update(fingerprint).digest("hex")}`,
+            kind: "share",
+            destinationId: state.movieCode,
+            payload: state,
+          });
+          response
+            .setHeader("Cache-Control", "no-store")
+            .status(201)
+            .json({ data: { path: `/${route.code}` }, error: null });
+        } catch (error) {
+          next(error);
+        }
+      },
+    );
+  }
   if (homepageFeatures) {
     app.get("/api/v1/homepage/featured", async (_request, response, next) => {
       try {
@@ -294,7 +532,7 @@ export function createApp({
       }
 
       try {
-        const data = publicDataRepository
+        let data = publicDataRepository
           ? await getMovieCatalog(publicDataRepository, "nowPlaying", (error) =>
               logger.error(
                 "Movie-code lookup failed; catalog remains available without code hydration.",
@@ -306,6 +544,16 @@ export function createApp({
               movies: await getNowPlayingMovies(catalogRepository),
               movieCodesStatus: "ready" as const,
             };
+        if (publicRoutes) {
+          try {
+            data = await attachMoviePublicRouteCodes(data, publicRoutes);
+          } catch (error) {
+            logger.error(
+              "Could not assign opaque movie links; legacy links will redirect when opened.",
+              safeErrorSummary(error),
+            );
+          }
+        }
         response.setHeader("Cache-Control", "private, no-store");
         timeCatalogStageSync("response_json", () =>
           response.json({ data, error: null }),
@@ -337,7 +585,7 @@ export function createApp({
         return;
       }
       try {
-        const data = await getMovieCatalog(
+        let data = await getMovieCatalog(
           publicDataRepository,
           "comingSoon",
           (error) =>
@@ -346,6 +594,16 @@ export function createApp({
               safeErrorSummary(error),
             ),
         );
+        if (publicRoutes) {
+          try {
+            data = await attachMoviePublicRouteCodes(data, publicRoutes);
+          } catch (error) {
+            logger.error(
+              "Could not assign opaque movie links; legacy links will redirect when opened.",
+              safeErrorSummary(error),
+            );
+          }
+        }
         response.setHeader("Cache-Control", "private, no-store");
         timeCatalogStageSync("response_json", () =>
           response.json({ data, error: null }),
@@ -415,7 +673,7 @@ export function createApp({
         return;
       }
       try {
-        const data = await getCinemathequeData(
+        let data = await getCinemathequeData(
           publicDataRepository,
           query.data,
           (error) =>
@@ -424,6 +682,16 @@ export function createApp({
               safeErrorSummary(error),
             ),
         );
+        if (publicRoutes) {
+          try {
+            data = await attachMoviePublicRouteCodes(data, publicRoutes);
+          } catch (error) {
+            logger.error(
+              "Could not assign opaque movie links; legacy links will redirect when opened.",
+              safeErrorSummary(error),
+            );
+          }
+        }
         response.setHeader(
           "Cache-Control",
           request.get(PUBLICATION_REVISION_HEADER)
@@ -456,14 +724,35 @@ export function createApp({
         return;
       }
       try {
-        const data = await getCinemaPageData(
-          publicDataRepository,
-          cinemaId.data,
-        );
+        let data = await getCinemaPageData(publicDataRepository, cinemaId.data);
         if (!data) {
           response.setHeader("Cache-Control", "no-store");
           next(new HttpError(404, "cinema_not_found", "Cinema not found."));
           return;
+        }
+        if (publicRoutes) {
+          try {
+            const routedMovies = await attachMoviePublicRouteCodes(
+              { movies: data.screenings.map(({ movie }) => movie) },
+              publicRoutes,
+            );
+            const moviesById = new Map(
+              routedMovies.movies.map((movie) => [movie.tmdbId, movie]),
+            );
+            data = {
+              ...data,
+              screenings: data.screenings.map((screening) => ({
+                ...screening,
+                movie:
+                  moviesById.get(screening.movie.tmdbId) ?? screening.movie,
+              })),
+            };
+          } catch (error) {
+            logger.error(
+              "Could not assign opaque movie links to cinema screenings; cinema data remains available.",
+              safeErrorSummary(error),
+            );
+          }
         }
         response.setHeader(
           "Cache-Control",

@@ -67,23 +67,27 @@ beforeEach(() => {
     init?: RequestInit,
   ) => {
     const pathname = new URL(String(input), "https://kartiseret.test").pathname;
-    const data = pathname.endsWith("/ticket-alerts/preferences")
-      ? { preferences: DEFAULT_TICKET_ALERT_CRITERIA }
-      : pathname.includes("/ticket-alerts")
-        ? init?.method === "POST"
-          ? {
-              kind: "account",
-              subscription: {
-                tmdbId: "101",
-                createdAt: "2026-09-16T12:00:00Z",
-                notifiedAt: null,
-                deliveryTitle: null,
-                deliveryDate: null,
-                criteriaOverrides: {},
-              },
-            }
-          : { subscriptions: [], nextOffset: null }
-        : { showtimes: [] };
+    const data = pathname.endsWith("/public-routes/shares")
+      ? { path: "/wxyz9876" }
+      : pathname.endsWith("/public-routes/legacy")
+        ? { path: "/share1234" }
+        : pathname.endsWith("/ticket-alerts/preferences")
+          ? { preferences: DEFAULT_TICKET_ALERT_CRITERIA }
+          : pathname.includes("/ticket-alerts")
+            ? init?.method === "POST"
+              ? {
+                  kind: "account",
+                  subscription: {
+                    tmdbId: "101",
+                    createdAt: "2026-09-16T12:00:00Z",
+                    notifiedAt: null,
+                    deliveryTitle: null,
+                    deliveryDate: null,
+                    criteriaOverrides: {},
+                  },
+                }
+              : { subscriptions: [], nextOffset: null }
+            : { showtimes: [] };
     return new Response(JSON.stringify({ data, error: null }), {
       status: 200,
       headers: {
@@ -113,7 +117,7 @@ describe("TicketAlertControl", () => {
     ).toBeInTheDocument();
   });
 
-  it("prioritizes live ticket availability over alert controls", () => {
+  it("prioritizes live ticket availability over alert controls", async () => {
     const date = getJerusalemCinemaDate();
     queryClient.setQueryData(ticketAlertQueryKeys.availability("101", date), [
       {
@@ -126,8 +130,8 @@ describe("TicketAlertControl", () => {
     ]);
     renderControl();
 
-    const link = screen.getByRole("link", { name: "View showtimes" });
-    expect(link).toHaveAttribute("href", expect.stringMatching(/^\/Ab1/));
+    const link = await screen.findByRole("link", { name: "View showtimes" });
+    expect(link).toHaveAttribute("href", "/wxyz9876");
     expect(
       screen.getByText("Tickets are available in Jerusalem."),
     ).toBeInTheDocument();

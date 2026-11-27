@@ -87,8 +87,7 @@ try {
             const selector =
               location.pathname === "/"
                 ? ".home-poster-row a, .movie-scroller-card"
-                : location.pathname.startsWith("/showtimes") ||
-                    location.pathname.startsWith("/c/")
+                : location.pathname.startsWith("/showtimes")
                   ? ".all-showtimes-movie-row"
                   : "main h1";
             for (const node of document.querySelectorAll(selector)) {

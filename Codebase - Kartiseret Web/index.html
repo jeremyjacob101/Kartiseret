@@ -18,7 +18,7 @@
             // A browser with storage disabled uses the default color.
           }
         }
-        if (location.pathname === "/" &&
+        if ((location.pathname === "/" || root.dataset.homeIntroRoute === "true") &&
             !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
           root.dataset.homeIntro = "pending";
           window.setTimeout(function () {

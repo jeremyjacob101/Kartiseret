@@ -4,6 +4,7 @@ import { MovieDisplayPreferencesProvider } from "./contexts/MovieDisplayPreferen
 import { PublicRouteComponentsProvider } from "./routing/PublicRouteComponentsProvider.js";
 import type { PublicRouteComponents } from "./routing/PublicRouteComponentsContext.js";
 import { preloadPublicRouteModules } from "./routing/preloadPublicRouteModules.js";
+import { PublicRoutePathsProvider } from "./routing/PublicRoutePathsProvider.js";
 import { PublicRenderClockProvider } from "./contexts/PublicRenderClock.js";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { seedPublicPageQueries } from "./publicRenderBootstrap.js";
@@ -45,6 +46,7 @@ function createApplication(
   queryClient: QueryClient,
   preferenceSnapshot: ReturnType<typeof preparePublicPagePreferenceState>,
   routeComponents: PublicRouteComponents,
+  publicRoutePaths: Record<string, string>,
 ) {
   return (
     <PublicRenderClockProvider initialInstant={renderedAt}>
@@ -52,9 +54,11 @@ function createApplication(
         <QueryClientProvider client={queryClient}>
           <StaticRouter location={pathname}>
             <MovieDisplayPreferencesProvider>
-              <PublicRouteComponentsProvider components={routeComponents}>
-                <App />
-              </PublicRouteComponentsProvider>
+              <PublicRoutePathsProvider paths={publicRoutePaths}>
+                <PublicRouteComponentsProvider components={routeComponents}>
+                  <App />
+                </PublicRouteComponentsProvider>
+              </PublicRoutePathsProvider>
             </MovieDisplayPreferencesProvider>
           </StaticRouter>
         </QueryClientProvider>
@@ -70,7 +74,9 @@ export async function renderPublicApplication(
 ): Promise<string> {
   const startedAt = Date.now();
   const routeComponents = await withTimeout(
-    preloadPublicRouteModules(bootstrap.pathname),
+    preloadPublicRouteModules(
+      bootstrap.resolvedRoute?.renderPath ?? bootstrap.pathname,
+    ),
     timeoutMs,
   );
   const remainingTimeoutMs = timeoutMs - (Date.now() - startedAt);
@@ -87,6 +93,7 @@ export async function renderPublicApplication(
     queryClient,
     preferenceSnapshot,
     routeComponents,
+    bootstrap.publicRoutePaths ?? {},
   );
 
   return new Promise((resolve, reject) => {

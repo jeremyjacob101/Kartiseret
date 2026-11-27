@@ -5,7 +5,7 @@ let testClientIndex = 0;
 
 async function login(page: Page, email = "browser@example.test") {
   await page.goto("/user");
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL(/\/[a-z0-9]{8}$/);
   await page
     .getByRole("button", { name: "Sign up or log in", exact: true })
     .click();
@@ -235,8 +235,12 @@ test("real signup verification, current-password change and signed-out one-time 
     expect(rows).toEqual([{ name: accountName }]);
     await page.goto(await captured("verification"));
     await expect(
-      page.getByText("Email confirmed. You can now log in."),
+      page.getByText("Your Kartiseret email address is confirmed."),
     ).toBeVisible();
+    await page.getByRole("link", { name: "Continue to Kartiseret" }).click();
+    await page
+      .getByRole("button", { name: "Sign up or log in", exact: true })
+      .click();
     await page.getByLabel("Email address", { exact: true }).fill(email);
     await page
       .getByLabel("Password", { exact: true })
@@ -312,7 +316,7 @@ test("real signup verification, current-password change and signed-out one-time 
       .getByRole("button", { name: "Update password", exact: true })
       .click();
     await expect(page.getByRole("alert")).toBeVisible();
-    await page.goto(`${origin}/reset-password?error=INVALID_TOKEN`);
+    await page.goto(`${origin}/reset-password`);
     await expect(
       page.getByRole("heading", {
         name: "This reset link is invalid or expired",

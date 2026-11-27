@@ -86,7 +86,7 @@ async function startClientApplication() {
   if (canHydrate && bootstrap) {
     try {
       const publicRouteComponents = await preloadPublicRouteModules(
-        window.location.pathname,
+        bootstrap.resolvedRoute?.renderPath ?? window.location.pathname,
       );
       const publicPreferenceSnapshot =
         preparePublicPagePreferenceState(display);
@@ -97,6 +97,7 @@ async function startClientApplication() {
           publicPreferenceSnapshot={publicPreferenceSnapshot}
           renderedAt={bootstrap.renderedAt}
           publicRouteComponents={publicRouteComponents}
+          publicRoutePaths={bootstrap.publicRoutePaths}
         />,
       );
     } catch {

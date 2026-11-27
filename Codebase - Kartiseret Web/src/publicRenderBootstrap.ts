@@ -34,6 +34,14 @@ export function seedPublicPageQueries(
   const updatedAt = new Date(bootstrap.renderedAt).getTime();
   const renderInstant = new Date(bootstrap.renderedAt);
   const renderedDate = getCinemaDayDate(renderInstant, SHOWTIME_TIME_ZONE);
+
+  if (bootstrap.resolvedRoute) {
+    queryClient.setQueryData(
+      ["public-route", bootstrap.resolvedRoute.route.code],
+      bootstrap.resolvedRoute,
+      { updatedAt },
+    );
+  }
   const nowPlaying =
     bootstrap.catalogs.nowPlaying &&
     asMovieCollectionData(bootstrap.catalogs.nowPlaying);

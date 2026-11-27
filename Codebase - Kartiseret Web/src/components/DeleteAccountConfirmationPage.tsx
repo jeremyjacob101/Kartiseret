@@ -1,20 +1,31 @@
 import { useUserPreferencesStore } from "../stores/userPreferencesStore";
-import { Link, useLocation, useNavigate } from "react-router";
+import { usePublicRoutePaths } from "../routing/PublicRoutePathsContext";
+import { PublicRouteLink } from "../routing/PublicRouteLink";
+import { getOpaquePublicPath } from "../data/publicRoutes";
+import { useLocation, useNavigate } from "react-router";
 import { OPEN_AUTH_MENU_EVENT } from "../lib/authMenu";
 import { getAuthClient } from "../lib/authClient";
 import { useState } from "react";
 import "./DeleteAccountConfirmationPage.css";
 
-export function DeleteAccountConfirmationPage() {
+export function DeleteAccountConfirmationPage({
+  confirmationToken,
+}: {
+  confirmationToken?: string;
+}) {
   const location = useLocation();
   const navigate = useNavigate();
+  const publicRoutePaths = usePublicRoutePaths();
   const user = useUserPreferencesStore((state) => state.user);
   const loading = useUserPreferencesStore((state) => state.loading);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deletionSucceeded, setDeletionSucceeded] = useState(false);
   const [needsManualAppleRevocation, setNeedsManualAppleRevocation] =
     useState(false);
-  const token = new URLSearchParams(location.hash.slice(1)).get("token");
+  const token =
+    confirmationToken ??
+    new URLSearchParams(location.hash.slice(1)).get("token");
   const validToken = Boolean(token && token.length <= 4096);
 
   async function confirmDeletion() {
@@ -47,7 +58,10 @@ export function DeleteAccountConfirmationPage() {
         setNeedsManualAppleRevocation(true);
         return;
       }
-      navigate("/?accountDeleted=1", { replace: true });
+      setDeletionSucceeded(true);
+      void getOpaquePublicPath("/?accountDeleted=1", publicRoutePaths)
+        .then((path) => navigate(path, { replace: true }))
+        .catch(() => undefined);
     } catch {
       setError("The account could not be deleted. Please try again.");
     } finally {
@@ -70,9 +84,18 @@ export function DeleteAccountConfirmationPage() {
               Apple access, open Settings → [your name] → Sign in with Apple,
               select Kartiseret, then tap Delete.
             </p>
-            <Link to="/?accountDeleted=1" replace>
+            <PublicRouteLink to="/?accountDeleted=1" replace>
               Done
-            </Link>
+            </PublicRouteLink>
+          </>
+        ) : deletionSucceeded ? (
+          <>
+            <p className="delete-confirmation-copy" role="status">
+              Your Kartiseret account has been deleted.
+            </p>
+            <PublicRouteLink to="/?accountDeleted=1" replace>
+              Done
+            </PublicRouteLink>
           </>
         ) : !validToken ? (
           <p className="delete-confirmation-copy" role="alert">
@@ -127,9 +150,9 @@ export function DeleteAccountConfirmationPage() {
             ) : null}
           </>
         )}
-        <Link className="delete-confirmation-link" to="/">
+        <PublicRouteLink className="delete-confirmation-link" to="/">
           Return to Kartiseret
-        </Link>
+        </PublicRouteLink>
       </div>
     </section>
   );

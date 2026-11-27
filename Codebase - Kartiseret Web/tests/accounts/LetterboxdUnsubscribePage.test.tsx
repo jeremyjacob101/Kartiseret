@@ -1,4 +1,5 @@
 import { LetterboxdUnsubscribePage } from "../../src/components/LetterboxdUnsubscribePage";
+import { resolveLegacyEmailActionPath } from "../../src/routing/legacyEmailActionRoute";
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
@@ -20,12 +21,8 @@ function response(data: unknown) {
 }
 
 function openPage() {
-  window.history.replaceState(
-    null,
-    "",
-    `/unsubscribe/letterboxd#token=${token}`,
-  );
-  return render(<LetterboxdUnsubscribePage />);
+  window.history.replaceState(null, "", `/u${token}`);
+  return render(<LetterboxdUnsubscribePage token={token} />);
 }
 
 beforeEach(() => {
@@ -33,6 +30,36 @@ beforeEach(() => {
 });
 
 describe("public Letterboxd unsubscribe page", () => {
+  it("converts old fragment email actions into opaque one-segment links", () => {
+    expect(
+      resolveLegacyEmailActionPath(
+        "/unsubscribe/letterboxd",
+        `#token=${"M".repeat(43)}`,
+      ),
+    ).toBe(`/u${"M".repeat(43)}`);
+    expect(
+      resolveLegacyEmailActionPath(
+        "/confirm-account-deletion",
+        `#token=${"D".repeat(32)}`,
+      ),
+    ).toBe(`/d${"D".repeat(32)}`);
+  });
+
+  it("rejects missing, malformed, and wrong-purpose legacy email tokens", () => {
+    expect(
+      resolveLegacyEmailActionPath("/unsubscribe/letterboxd", "#token=short"),
+    ).toBeNull();
+    expect(
+      resolveLegacyEmailActionPath(
+        "/confirm-account-deletion",
+        `#token=${"D".repeat(15)}`,
+      ),
+    ).toBeNull();
+    expect(
+      resolveLegacyEmailActionPath("/unknown", `#token=${"D".repeat(32)}`),
+    ).toBeNull();
+  });
+
   it("shows current lists and requires confirmation before removing selected lists", async () => {
     const user = userEvent.setup();
     let current = [firstSource, secondSource];
@@ -63,6 +90,7 @@ describe("public Letterboxd unsubscribe page", () => {
       screen.getByRole("checkbox", { name: /fixture\/list\/favorites/ }),
     ).toBeInTheDocument();
     expect(window.location.hash).toBe("");
+    expect(window.location.pathname).toBe(`/u${token}`);
     expect(document.querySelector('meta[name="robots"]')).toHaveAttribute(
       "content",
       "noindex, nofollow, noarchive",

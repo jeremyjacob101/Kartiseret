@@ -95,10 +95,10 @@ function UserTicketAlertItem({
         />
       </div>
       <div className="prefs-alert-copy">
-        {movie?.movieCode ? (
+        {movie?.publicRouteCode ? (
           <Link
             className="prefs-alert-title"
-            to={`/${movie.movieCode}`}
+            to={`/${movie.publicRouteCode}`}
             aria-label={`Edit alert for ${title}`}
           >
             {title}

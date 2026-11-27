@@ -1,8 +1,10 @@
 import { getMovieCatalog, getCinemathequeData, getCinemaPageData, getMovieByPermanentCode, getMovieShowtimes, getPublicTheaterData, getShowtimeRange, withPublicationSnapshot, type PublicCinemaPageContext } from "@kartiseret/server/public-data";
 import { privatePageDisplaySchema, publicPageBootstrapSchema, type PrivatePageDisplay, type PublicPageBootstrap } from "@kartiseret/contracts/public-render";
+import { PostgresPublicRouteRegistry, attachMoviePublicRouteCodes, moviePublicRouteInput, resolveLegacyPublicRoute } from "@kartiseret/server/page-routes";
 import { createShowtimeInclusionPredicate, getCinemaDayDate, shouldIncludeShowtime, SHOWTIME_TIME_ZONE } from "@kartiseret/contracts/showtime-day";
 import { injectRenderedApplication, injectSeoPage, SITE_ORIGIN, buildSitemapXml, safeHttpUrl, getRequestOrigin } from "./renderHtml.js";
 import { cinemaIdForLocation, findCinemaIdentityForScreening, getCinemaIdentityById } from "./identities.js";
+import { getPublicRouteRenderPath, isSecureEmailActionPath } from "@kartiseret/contracts/public-routes";
 import { getShowtimesCityFromPath, getShowtimesCityPath } from "@kartiseret/contracts/showtime-routes";
 import { timeCatalogStage, timeCatalogStageSync } from "@kartiseret/server/catalog-timing";
 import { getProductionPublicDataRepository } from "@kartiseret/server/public-production";
@@ -15,6 +17,7 @@ import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
 import { parseMovieRouteCode } from "@kartiseret/contracts/showtime-links";
 import type { VercelRequest, VercelResponse } from "../og/vercelTypes.js";
 import type { PublicShowtime } from "@kartiseret/contracts/public-data";
+import type { PublicRoute } from "@kartiseret/contracts/public-routes";
 import { ALL_LOCATIONS } from "@kartiseret/contracts/preferences";
 import { renderBuiltPublicApplication } from "./renderer.js";
 import { logErrorSafely } from "@kartiseret/server/logging";
@@ -58,6 +61,102 @@ function getPageMovieIds(bootstrap: PublicPageBootstrap): string[] {
 }
 const PUBLIC_PAGE_DEADLINE_MS = 25_000;
 const SSR_RENDER_BUDGET_MS = 12_000;
+const CLIENT_ONLY_PUBLIC_PATHS = new Set([
+  "/user",
+  ...["showtimes", "discovery", "appearance", "notifications", "account"].map(
+    (tab) => `/user?tab=${tab}`,
+  ),
+  "/user?linked=1",
+  "/user?linkError=1",
+  "/support",
+  "/accessibility",
+  "/privacy",
+  "/terms",
+  "/attribution",
+  "/third-party-licenses.txt",
+  "/reset-password",
+]);
+const PUBLIC_PAGE_LINK_PATHS = [
+  "/",
+  "/movies",
+  "/soons",
+  "/showtimes",
+  "/cinematheques",
+  "/user",
+  ...["showtimes", "discovery", "appearance", "notifications", "account"].map(
+    (tab) => `/user?tab=${tab}`,
+  ),
+  "/user?linked=1",
+  "/user?linkError=1",
+  "/support",
+  "/accessibility",
+  "/privacy",
+  "/terms",
+  "/attribution",
+  "/third-party-licenses.txt",
+  "/reset-password",
+  "/?verified=1",
+  "/?accountDeleted=1",
+  "/?authError=1",
+];
+
+const PUBLIC_PAGE_CALLBACK_QUERY_KEYS: Record<string, readonly string[]> = {
+  "/": ["verified", "accountDeleted", "authError", "error"],
+  "/user": ["tab", "linked", "linkError", "error"],
+};
+
+function getPublicPageRequestPath(
+  path: string,
+  query: VercelRequest["query"],
+): string {
+  const allowedKeys = PUBLIC_PAGE_CALLBACK_QUERY_KEYS[path];
+  if (!allowedKeys || path.includes("?")) return path;
+
+  const search = new URLSearchParams();
+  for (const key of allowedKeys) {
+    const value = query[key];
+    for (const item of Array.isArray(value) ? value : [value]) {
+      if (typeof item === "string") search.append(key, item);
+    }
+  }
+  const suffix = search.toString();
+  return suffix ? `${path}?${suffix}` : path;
+}
+
+async function createPublicRoutePathMap(
+  registry: PostgresPublicRouteRegistry,
+): Promise<Record<string, string>> {
+  const destinations = [
+    ...PUBLIC_PAGE_LINK_PATHS.map((path) => ({
+      path,
+      input: resolveLegacyPublicRoute(path),
+    })),
+    ...ALL_LOCATIONS.map((city) => {
+      const path = getShowtimesCityPath(city);
+      return { path, input: resolveLegacyPublicRoute(path) };
+    }),
+    ...CINEMA_IDENTITIES.map(({ id }) => ({
+      path: `/__cinema/${id}`,
+      input: {
+        destinationKey: `cinema:${id}`,
+        kind: "cinema" as const,
+        destinationId: id,
+      },
+    })),
+  ].filter(
+    (
+      destination,
+    ): destination is {
+      path: string;
+      input: NonNullable<ReturnType<typeof resolveLegacyPublicRoute>>;
+    } => destination.input !== null,
+  );
+  const inputs = destinations.map(({ input }) => input);
+  const routes = await registry.getOrCreateMany(inputs);
+  return Object.fromEntries(
+    destinations.map(({ path }, index) => [path, `/${routes[index]!.code}`]),
+  );
+}
 
 const JERUSALEM_CLOCK = new Intl.DateTimeFormat("en-CA", {
   timeZone: SHOWTIME_TIME_ZONE,
@@ -272,7 +371,22 @@ async function getMoviePage(
       selection.movieCode,
     );
     if (!result) return null;
-    const { movie, isComingSoon } = result;
+    let movie = result.movie;
+    const isComingSoon = result.isComingSoon;
+    if (movie.movieCode) {
+      try {
+        const route = await new PostgresPublicRouteRegistry(
+          getProductionDataRuntime().database.pool,
+        ).getOrCreate(moviePublicRouteInput(movie.movieCode));
+        movie = { ...movie, publicRouteCode: route.code };
+      } catch (error) {
+        logErrorSafely(
+          "movie_public_route_unavailable",
+          error,
+          "Could not assign an opaque movie link during page rendering.",
+        );
+      }
+    }
     const parsedRoute = parseMovieRouteCode(routeCode);
     let rows: PublicShowtime[] = [];
     let allMovieShowtimes: PublicShowtime[] = [];
@@ -389,7 +503,47 @@ async function getCinemaPage(cinemaId: string, instant = new Date()) {
       contextPromise,
     ]);
     if (!cinema) return null;
-    const { nowPlaying, comingSoon } = context;
+    let { nowPlaying, comingSoon } = context;
+    let cinemaWithMovieRoutes = cinema;
+    try {
+      const registry = new PostgresPublicRouteRegistry(
+        getProductionDataRuntime().database.pool,
+      );
+      const routedMovies = await attachMoviePublicRouteCodes(
+        {
+          movies: [
+            ...nowPlaying.movies,
+            ...comingSoon.movies,
+            ...cinema.screenings.map(({ movie }) => movie),
+          ],
+        },
+        registry,
+      );
+      const moviesById = new Map(
+        routedMovies.movies.map((movie) => [movie.tmdbId, movie]),
+      );
+      const withRoutes = (catalog: typeof nowPlaying) => ({
+        ...catalog,
+        movies: catalog.movies.map(
+          (movie) => moviesById.get(movie.tmdbId) ?? movie,
+        ),
+      });
+      nowPlaying = withRoutes(nowPlaying);
+      comingSoon = withRoutes(comingSoon);
+      cinemaWithMovieRoutes = {
+        ...cinema,
+        screenings: cinema.screenings.map((screening) => ({
+          ...screening,
+          movie: moviesById.get(screening.movie.tmdbId) ?? screening.movie,
+        })),
+      };
+    } catch (error) {
+      logErrorSafely(
+        "cinema_movie_routes_unavailable",
+        error,
+        "Could not attach opaque movie links to the cinema page.",
+      );
+    }
     const address = cinema.address.trim();
     const jsonLd = {
       "@context": "https://schema.org",
@@ -401,7 +555,7 @@ async function getCinemaPage(cinemaId: string, instant = new Date()) {
               /^Yes Planet\s/i.test(name)),
           }
         : {}),
-      url: SITE_ORIGIN + "/c/" + cinemaId,
+      url: `${SITE_ORIGIN}/__cinema/${cinemaId}`,
       address: {
         "@type": "PostalAddress",
         ...(address ? { streetAddress: address } : {}),
@@ -415,20 +569,20 @@ async function getCinemaPage(cinemaId: string, instant = new Date()) {
       },
     };
     const bootstrap = createPageBootstrap(
-      "/c/" + cinemaId,
+      `/__cinema/${cinemaId}`,
       publicationRevision,
       instant,
       { nowPlaying, comingSoon },
-      { cinema },
+      { cinema: cinemaWithMovieRoutes },
     );
     return {
       bootstrap,
       page: {
         title: `${cinema.displayName}${identity.cinemaNameKeys.find((name) => /^Yes Planet\s/i.test(name)) ? ` (${identity.cinemaNameKeys.find((name) => /^Yes Planet\s/i.test(name))})` : ""} showtimes in ${cinema.city} | Kartiseret`,
         description: `Browse upcoming movie showtimes at ${cinema.displayName}${identity.cinemaNameKeys.find((name) => /^Yes Planet\s/i.test(name)) ? `, also known as ${identity.cinemaNameKeys.find((name) => /^Yes Planet\s/i.test(name))}` : ""}, in ${cinema.city}.`,
-        canonicalPath: "/c/" + cinemaId,
+        canonicalPath: `/__cinema/${cinemaId}`,
         jsonLd,
-        noindex: cinema.screenings.length === 0,
+        noindex: cinemaWithMovieRoutes.screenings.length === 0,
       },
     };
   });
@@ -705,7 +859,7 @@ async function getListingPage(
       : undefined;
   return withPublicationSnapshot(repository, async (publicationRevision) => {
     const city = getShowtimesCityFromPath(path) ?? preferredCity;
-    const [nowPlaying, comingSoon, theaters] = await Promise.all([
+    const [initialNowPlaying, initialComingSoon, theaters] = await Promise.all([
       path === "/soons" ? undefined : getMovieCatalog(repository, "nowPlaying"),
       path === "/movies"
         ? undefined
@@ -714,6 +868,28 @@ async function getListingPage(
         ? undefined
         : getPublicTheaterData(repository),
     ]);
+    let nowPlaying = initialNowPlaying;
+    let comingSoon = initialComingSoon;
+    let publicRouteRegistry: PostgresPublicRouteRegistry | null = null;
+    try {
+      publicRouteRegistry = new PostgresPublicRouteRegistry(
+        getProductionDataRuntime().database.pool,
+      );
+      [nowPlaying, comingSoon] = await Promise.all([
+        nowPlaying
+          ? attachMoviePublicRouteCodes(nowPlaying, publicRouteRegistry)
+          : undefined,
+        comingSoon
+          ? attachMoviePublicRouteCodes(comingSoon, publicRouteRegistry)
+          : undefined,
+      ]);
+    } catch (error) {
+      logErrorSafely(
+        "catalog_public_routes_unavailable",
+        error,
+        "Could not assign opaque movie links during listing rendering.",
+      );
+    }
     const page = await buildListingPage(
       repository,
       path,
@@ -721,6 +897,23 @@ async function getListingPage(
       instant,
       preferredCity,
     );
+    if (page.cinemathequeData) {
+      try {
+        publicRouteRegistry ??= new PostgresPublicRouteRegistry(
+          getProductionDataRuntime().database.pool,
+        );
+        page.cinemathequeData = await attachMoviePublicRouteCodes(
+          page.cinemathequeData,
+          publicRouteRegistry,
+        );
+      } catch (error) {
+        logErrorSafely(
+          "cinematheque_movie_routes_unavailable",
+          error,
+          "Could not attach opaque movie links to the cinematheque page.",
+        );
+      }
+    }
     const currentDate = getCinemaDayDate(instant);
     const extra: Partial<PublicPageBootstrap> = { theaters };
     if (featuredData) extra.homepageFeatured = featuredData;
@@ -768,9 +961,16 @@ async function renderSitemap(response: VercelResponse): Promise<void> {
       ) {
         throw new Error("Movie code data is unavailable.");
       }
-      const moviePaths = [...nowPlaying.movies, ...comingSoon.movies]
+      const registry = new PostgresPublicRouteRegistry(
+        getProductionDataRuntime().database.pool,
+      );
+      const movieRoutes = [...nowPlaying.movies, ...comingSoon.movies]
         .filter((movie) => movie.movieCode)
-        .map((movie) => `/${movie.movieCode}`);
+        .map((movie) => ({
+          destinationKey: `movie-code:${movie.movieCode}`,
+          kind: "movie" as const,
+          destinationId: movie.movieCode!,
+        }));
       const [eligibility, cinemathequesListing] = await Promise.all([
         getShowtimeEligibility(
           repository,
@@ -793,10 +993,14 @@ async function renderSitemap(response: VercelResponse): Promise<void> {
           return cinemaId ? [cinemaId] : [];
         }),
       );
-      const cinemaPaths = CINEMA_IDENTITIES.filter(
+      const cinemaRoutes = CINEMA_IDENTITIES.filter(
         ({ id }) =>
           theaterCinemaIds.has(id) && eligibility.activeCinemaIds.has(id),
-      ).map(({ id }) => `/c/${id}`);
+      ).map(({ id }) => ({
+        destinationKey: `cinema:${id}`,
+        kind: "cinema" as const,
+        destinationId: id,
+      }));
       const listingPaths = [
         ...(nowPlaying.movies.some((movie) => movie.movieCode)
           ? ["/movies"]
@@ -807,13 +1011,30 @@ async function renderSitemap(response: VercelResponse): Promise<void> {
         ...(eligibility.hasNationalShowtimes ? ["/showtimes"] : []),
         ...(cinemathequesListing.indexable ? ["/cinematheques"] : []),
       ];
-      return [
-        "/",
-        ...listingPaths,
-        ...eligibleCityPaths,
-        ...moviePaths,
-        ...cinemaPaths,
+      const routeInputs = [
+        { destinationKey: "page:/", kind: "page" as const, destinationId: "/" },
+        ...listingPaths.map((path) => ({
+          destinationKey: `page:${path}`,
+          kind: "page" as const,
+          destinationId: path,
+        })),
+        ...eligibleCityPaths.flatMap((path) => {
+          const city = getShowtimesCityFromPath(path);
+          return city
+            ? [
+                {
+                  destinationKey: `city:${city}`,
+                  kind: "city" as const,
+                  destinationId: city,
+                },
+              ]
+            : [];
+        }),
+        ...movieRoutes,
+        ...cinemaRoutes,
       ];
+      const routes = await registry.getOrCreateMany(routeInputs);
+      return routes.map((route) => `/${route.code}`);
     });
     const xml = buildSitemapXml(paths);
     const cachePolicy = publicCatalogCachePolicy(renderInstant, new Date());
@@ -848,10 +1069,13 @@ export default async function handler(
     "private-page",
     "private-cinema",
     "private-movie",
+    "private-legacy-movie",
+    "private-route-code",
   ].includes(dispatchRoute);
-  const route = privateRoute
+  let route = privateRoute
     ? dispatchRoute.slice("private-".length)
     : dispatchRoute;
+  let resolvedRoute: { route: PublicRoute; renderPath: string } | undefined;
   if (privateRoute) {
     response
       .setHeader("Cache-Control", PRIVATE_PAGE_CACHE)
@@ -877,12 +1101,210 @@ export default async function handler(
   response.setHeader("Content-Security-Policy", "frame-ancestors 'none'");
   const html = getBaseHtml();
   try {
+    if (route === "email-action") {
+      const code = Array.isArray(request.query.code)
+        ? (request.query.code.at(-1) ?? "")
+        : (request.query.code ?? "");
+      const isValidAction = isSecureEmailActionPath(`/${code}`);
+      if (!isValidAction) {
+        response
+          .status(404)
+          .setHeader("Content-Type", "text/plain; charset=utf-8")
+          .setHeader("X-Robots-Tag", "noindex, nofollow")
+          .setHeader("Cache-Control", "no-store")
+          .send("This email link is invalid or expired.");
+        return;
+      }
+      response
+        .status(200)
+        .setHeader("Content-Type", "text/html; charset=utf-8")
+        .setHeader("Cache-Control", "private, no-store")
+        .setHeader("Referrer-Policy", "no-referrer")
+        .setHeader("X-Robots-Tag", "noindex, nofollow, noarchive")
+        .send(html);
+      return;
+    }
+
+    if (route === "page" && !resolvedRoute) {
+      const legacyPath = Array.isArray(request.query.path)
+        ? (request.query.path.at(-1) ?? "")
+        : (request.query.path ?? "");
+      const publicPagePath = getPublicPageRequestPath(
+        legacyPath,
+        request.query,
+      );
+      const input = resolveLegacyPublicRoute(publicPagePath);
+      if (input) {
+        const runtime = getProductionDataRuntime();
+        if (input.kind === "movie" || input.kind === "share") {
+          const movie = await getMovieByPermanentCode(
+            getProductionPublicDataRepository(),
+            input.destinationId,
+          );
+          if (!movie) {
+            response
+              .status(404)
+              .setHeader("Content-Type", "text/plain; charset=utf-8")
+              .setHeader("X-Robots-Tag", "noindex, nofollow")
+              .setHeader("Cache-Control", "no-store")
+              .send("Page not found.");
+            return;
+          }
+        }
+        const routeRecord = await new PostgresPublicRouteRegistry(
+          runtime.database.pool,
+        ).getOrCreate(input);
+        response
+          .status(308)
+          .setHeader("Cache-Control", "public, max-age=300")
+          .setHeader("Location", `/${routeRecord.code}`)
+          .send("");
+        return;
+      }
+    }
+
+    if (route === "movie" || route === "legacy-movie") {
+      const legacyCode = Array.isArray(request.query.routeCode)
+        ? (request.query.routeCode.at(-1) ?? "")
+        : (request.query.routeCode ?? "");
+      const search = new URLSearchParams();
+      for (const name of ["date", "excludeCinemas"] as const) {
+        const value = request.query[name];
+        const selected = Array.isArray(value) ? value.at(-1) : value;
+        if (selected) search.set(name, selected);
+      }
+      const legacyPath = `/${legacyCode}${search.size ? `?${search}` : ""}`;
+      const input = resolveLegacyPublicRoute(legacyPath);
+      if (!input || (input.kind !== "movie" && input.kind !== "share")) {
+        response
+          .status(404)
+          .setHeader("Content-Type", "text/plain; charset=utf-8")
+          .setHeader("X-Robots-Tag", "noindex, nofollow")
+          .setHeader("Cache-Control", "no-store")
+          .send("Page not found.");
+        return;
+      }
+      const movie = await getMovieByPermanentCode(
+        getProductionPublicDataRepository(),
+        input.destinationId,
+      );
+      if (!movie) {
+        response
+          .status(404)
+          .setHeader("Content-Type", "text/plain; charset=utf-8")
+          .setHeader("X-Robots-Tag", "noindex, nofollow")
+          .setHeader("Cache-Control", "no-store")
+          .send("Page not found.");
+        return;
+      }
+      const runtime = getProductionDataRuntime();
+      const routeRecord = await new PostgresPublicRouteRegistry(
+        runtime.database.pool,
+      ).getOrCreate(input);
+      response
+        .status(308)
+        .setHeader("Cache-Control", "public, max-age=300")
+        .setHeader("Location", `/${routeRecord.code}`)
+        .send("");
+      return;
+    }
+
+    if (route === "route-code") {
+      const code = Array.isArray(request.query.code)
+        ? (request.query.code.at(-1) ?? "")
+        : (request.query.code ?? "");
+      const runtime = getProductionDataRuntime();
+      const storedRoute = await new PostgresPublicRouteRegistry(
+        runtime.database.pool,
+      ).getByCode(code);
+      const renderPath = storedRoute
+        ? getPublicRouteRenderPath(storedRoute)
+        : null;
+      if (!storedRoute || !renderPath) {
+        response
+          .status(404)
+          .setHeader("Content-Type", "text/plain; charset=utf-8")
+          .setHeader("X-Robots-Tag", "noindex, nofollow")
+          .setHeader("Cache-Control", "no-store")
+          .send("Page not found.");
+        return;
+      }
+      resolvedRoute = { route: storedRoute, renderPath };
+      if (storedRoute.kind === "page" || storedRoute.kind === "city") {
+        route = "page";
+        request.query.path = renderPath;
+      } else if (storedRoute.kind === "cinema") {
+        route = "cinema";
+        request.query.cinemaId = storedRoute.destinationId;
+      } else {
+        route = "movie";
+        const shareUrl = new URL(renderPath, SITE_ORIGIN);
+        request.query.routeCode = decodeURIComponent(
+          shareUrl.pathname.slice(1),
+        );
+        request.query.date = shareUrl.searchParams.get("date") ?? "";
+        request.query.excludeCinemas =
+          shareUrl.searchParams.get("excludeCinemas") ?? "";
+      }
+    }
     const cinemaId = Array.isArray(request.query.cinemaId)
       ? (request.query.cinemaId.at(-1) ?? "")
       : (request.query.cinemaId ?? "");
     const path = Array.isArray(request.query.path)
       ? (request.query.path.at(-1) ?? "")
       : (request.query.path ?? "");
+    const normalizedPagePath = path.split("?", 1)[0] ?? "";
+    if (
+      route === "page" &&
+      resolvedRoute &&
+      normalizedPagePath === "/third-party-licenses.txt"
+    ) {
+      try {
+        const licenses = readFileSync(
+          resolve(
+            process.cwd(),
+            "Codebase - Kartiseret Web/dist/third-party-licenses.txt",
+          ),
+          "utf8",
+        );
+        response
+          .status(200)
+          .setHeader("Content-Type", "text/plain; charset=utf-8")
+          .setHeader("Cache-Control", "public, max-age=300")
+          .setHeader("X-Robots-Tag", "noindex, nofollow")
+          .send(licenses);
+      } catch (error) {
+        logErrorSafely(
+          "third_party_licenses_unavailable",
+          error,
+          "Could not read the generated third-party license notices.",
+        );
+        response
+          .status(503)
+          .setHeader("Content-Type", "text/plain; charset=utf-8")
+          .setHeader("Cache-Control", "no-store")
+          .send("License notices are temporarily unavailable.");
+      }
+      return;
+    }
+    if (
+      route === "page" &&
+      resolvedRoute &&
+      CLIENT_ONLY_PUBLIC_PATHS.has(normalizedPagePath)
+    ) {
+      response
+        .status(200)
+        .setHeader("Content-Type", "text/html; charset=utf-8")
+        .setHeader(
+          "Cache-Control",
+          privateRoute && normalizedPagePath === "/user"
+            ? PRIVATE_PAGE_CACHE
+            : "public, max-age=60, s-maxage=300",
+        )
+        .setHeader("X-Robots-Tag", "noindex, nofollow")
+        .send(html);
+      return;
+    }
     if (route === "cinema" && !/^[A-Za-z0-9_-]{12}$/.test(cinemaId)) {
       response
         .status(404)
@@ -895,9 +1317,9 @@ export default async function handler(
     if (
       route === "page" &&
       !["/", "/movies", "/soons", "/showtimes", "/cinematheques"].includes(
-        path,
+        normalizedPagePath,
       ) &&
-      !getShowtimesCityFromPath(path)
+      !getShowtimesCityFromPath(normalizedPagePath)
     ) {
       response
         .status(404)
@@ -948,9 +1370,10 @@ export default async function handler(
           pageResult = await getCinemaPage(cinemaId, renderInstant);
         } else if (route === "page") {
           pageResult = await getListingPage(
-            path,
+            normalizedPagePath,
             renderInstant,
-            path === "/showtimes" || path === "/cinematheques"
+            normalizedPagePath === "/showtimes" ||
+              normalizedPagePath === "/cinematheques"
               ? (await identity)?.preferences.location
               : undefined,
           );
@@ -980,14 +1403,54 @@ export default async function handler(
           movieTreatments,
         });
       }
-      const metadataHtml = injectSeoPage(html, result.page);
+      let publicRoutePaths: Record<string, string> = {};
+      const routeAllocationBudget = deadlineAt - Date.now();
+      if (routeAllocationBudget <= 0) {
+        throw new Error("Public page request exceeded its deadline.");
+      }
+      try {
+        publicRoutePaths = await withDeadline(
+          () =>
+            createPublicRoutePathMap(
+              new PostgresPublicRouteRegistry(
+                getProductionDataRuntime().database.pool,
+              ),
+            ),
+          routeAllocationBudget,
+        );
+      } catch (error) {
+        logErrorSafely(
+          "public_route_link_map_unavailable",
+          error,
+          "Could not prepare opaque links for the rendered page.",
+        );
+      }
       const remainingMs = deadlineAt - Date.now();
       if (remainingMs <= 0) {
         throw new Error("Public page request exceeded its deadline.");
       }
+      const bootstrappedRoute = resolvedRoute
+        ? {
+            ...result.bootstrap,
+            publicRoutePaths,
+            pathname: `/${resolvedRoute.route.code}`,
+            resolvedRoute,
+          }
+        : { ...result.bootstrap, publicRoutePaths };
+      if (resolvedRoute) {
+        result.page.canonicalPath = `/${resolvedRoute.route.code}`;
+        result.page.openGraphPath = `/${resolvedRoute.route.code}`;
+        if (result.page.jsonLd) {
+          result.page.jsonLd = {
+            ...result.page.jsonLd,
+            url: `${SITE_ORIGIN}/${resolvedRoute.route.code}`,
+          };
+        }
+      }
+      const metadataHtml = injectSeoPage(html, result.page);
       const markup = await timeCatalogStage("html_render", () =>
         renderBuiltPublicApplication(
-          result.bootstrap,
+          bootstrappedRoute,
           Math.min(SSR_RENDER_BUDGET_MS, remainingMs),
           display,
         ));
@@ -995,7 +1458,7 @@ export default async function handler(
         injectRenderedApplication(
           metadataHtml,
           markup,
-          result.bootstrap,
+          bootstrappedRoute,
           [],
           display,
         ));
@@ -1009,14 +1472,16 @@ export default async function handler(
         .setHeader("X-Robots-Tag", "noindex, nofollow")
         .setHeader("Cache-Control", "no-store")
         .send(
-          '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex, nofollow"><title>Page not found | Kartiseret</title></head><body><main><h1>Page not found</h1><p>This movie or cinema page is not available.</p><a href="/">Return to Kartiseret</a></main></body></html>',
+          '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex, nofollow"><title>Page not found | Kartiseret</title></head><body><main><h1>Page not found</h1><p>This movie or cinema page is not available.</p></main></body></html>',
         );
       return;
     }
     const { result, output } = rendered;
     const cachePolicy = privateRoute
       ? { cacheControl: PRIVATE_PAGE_CACHE }
-      : publicCatalogCachePolicy(renderInstant, new Date());
+      : resolvedRoute?.route.kind === "share"
+        ? { cacheControl: "no-store" }
+        : publicCatalogCachePolicy(renderInstant, new Date());
     response
       .status(200)
       .setHeader("Content-Type", "text/html; charset=utf-8")

@@ -17,6 +17,7 @@ const nodeOnlyTestFiles = [
   "tests/preferences/preferencesSchemas.test.ts",
   "tests/shared/previewData.test.ts",
   "tests/shared/publicationRevision.test.ts",
+  "tests/shared/publicRoutes.test.ts",
   "tests/shared/runtimeValidation.test.ts",
   "tests/seo/ogHandler.test.ts",
   "tests/seo/previewHtml.test.ts",

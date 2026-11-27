@@ -8,6 +8,7 @@ import { createDatabase } from "../dist/db/client.js";
 import { createApp } from "../dist/app.js";
 import { ProtectedWorkflows } from "../dist/protected/service.js";
 import { DrizzleCatalogRepository } from "../dist/catalog/drizzle-repository.js";
+import { PostgresPublicRouteRegistry } from "../dist/page-routes.js";
 
 const target = new URL(process.env.DATABASE_URL ?? "http://invalid");
 if (
@@ -40,7 +41,14 @@ for (const email of ["browser@example.test", "admin@example.test"]) {
   const message = mail.findLast(
     (item) => item.to === email && item.kind === "reset",
   );
-  const token = new URL(message.url).pathname.split("/").at(-1);
+  const tokenPath = new URL(message.url).pathname;
+  const resetTokenMatch = /^\/r([A-Za-z0-9_-]{16,256})$/.exec(tokenPath);
+  if (!resetTokenMatch?.[1]) {
+    throw new Error(
+      "The E2E reset email did not contain an opaque reset token.",
+    );
+  }
+  const token = resetTokenMatch[1];
   await auth.api.resetPassword({
     body: { token, newPassword: "local-fixture-only" },
   });
@@ -64,6 +72,7 @@ app.use(
       "ci-only-internal-secret-at-least-32-characters",
     ),
     trustedOrigins: [baseURL],
+    publicRoutes: new PostgresPublicRouteRegistry(database.pool),
   }),
 );
 const server = app.listen(Number(process.env.PORT), "127.0.0.1");

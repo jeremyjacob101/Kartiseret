@@ -1,3 +1,5 @@
+import { PublicRouteLocationProvider } from "../../src/routing/PublicRouteLocationProvider";
+import { PublicRoutePathsProvider } from "../../src/routing/PublicRoutePathsProvider";
 import { useUserPreferencesStore } from "../../src/stores/userPreferencesStore";
 import { filterMoviesByReleaseCategory } from "../../src/domain/movieRelease";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -11,6 +13,12 @@ import { MemoryRouter, useLocation } from "react-router";
 import { CatalogRoute, HomeRoute } from "../../src/App";
 import userEvent from "@testing-library/user-event";
 import * as theaters from "../../src/data/theaters";
+import type { ReactNode } from "react";
+
+const publicRoutePaths = {
+  "/showtimes": "/showtim1",
+  "/showtimes/tel-aviv": "/telaviv1",
+};
 
 vi.mock("../../src/components/scroller/MovieScroller", () => ({
   MovieScroller: ({
@@ -127,7 +135,22 @@ function CurrentRoutePath() {
   return <output aria-label="Current route">{useLocation().pathname}</output>;
 }
 
-function renderAllShowtimes(initialEntry = "/showtimes") {
+function OpaqueShowtimesRoute({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  const renderPath =
+    Object.entries(publicRoutePaths).find(
+      ([, opaquePath]) => opaquePath === pathname,
+    )?.[0] ?? null;
+  return (
+    <PublicRoutePathsProvider paths={publicRoutePaths}>
+      <PublicRouteLocationProvider renderPath={renderPath}>
+        {children}
+      </PublicRouteLocationProvider>
+    </PublicRoutePathsProvider>
+  );
+}
+
+function renderAllShowtimes(initialEntry = "/showtim1") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -136,8 +159,10 @@ function renderAllShowtimes(initialEntry = "/showtimes") {
     ...render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={[initialEntry]}>
-          <AllShowtimesPage />
-          <CurrentRoutePath />
+          <OpaqueShowtimesRoute>
+            <AllShowtimesPage />
+            <CurrentRoutePath />
+          </OpaqueShowtimesRoute>
         </MemoryRouter>
       </QueryClientProvider>,
     ),
@@ -359,9 +384,10 @@ describe("release category surfaces", () => {
 
     await user.click(await screen.findByRole("button", { name: "Jerusalem" }));
 
-    expect(screen.getByLabelText("Current route")).toHaveTextContent(
-      "/showtimes/tel-aviv",
-    );
+    await waitFor(() =>
+      expect(screen.getByLabelText("Current route")).toHaveTextContent(
+        "/telaviv1",
+      ));
     expect(useUserPreferencesStore.getState().preferences.location).toBe(
       "Jerusalem",
     );
@@ -371,15 +397,15 @@ describe("release category surfaces", () => {
     installShowtimesQueryFixtures([
       makeMovie("current", "Current release", new Date().getFullYear()),
     ]);
-    const { queryClient } = renderAllShowtimes("/showtimes/tel-aviv");
+    const { queryClient } = renderAllShowtimes("/telaviv1");
     await userEvent.click(
       await screen.findByRole("button", { name: "Restore defaults" }),
     );
     expect(screen.getByLabelText("Current route")).toHaveTextContent(
-      /^\/showtimes$/,
+      /^\/showtim1$/,
     );
     expect(
-      screen.getByRole("button", { name: "Jerusalem" }),
+      await screen.findByRole("button", { name: "Jerusalem" }),
     ).toBeInTheDocument();
     expect(useUserPreferencesStore.getState().preferences.location).toBe(
       "Jerusalem",

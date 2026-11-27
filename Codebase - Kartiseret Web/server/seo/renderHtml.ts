@@ -141,7 +141,19 @@ export function injectRenderedApplication(
           `<html data-initial-site-color="${siteColor}" style="--main-app-color:${siteColor}"`,
         )
       : html;
-  return themedHtml
+  const bootstrapRecord =
+    typeof bootstrap === "object" && bootstrap !== null
+      ? (bootstrap as {
+          pathname?: unknown;
+          resolvedRoute?: { renderPath?: unknown };
+        })
+      : null;
+  const homeIntroHtml =
+    bootstrapRecord?.pathname === "/" ||
+    bootstrapRecord?.resolvedRoute?.renderPath === "/"
+      ? themedHtml.replace(/<html\b/, '<html data-home-intro-route="true"')
+      : themedHtml;
+  return homeIntroHtml
     .replace(rootPattern, () => root)
     .replace("</head>", () => `${preloadTags}</head>`)
     .replace(/<!-- SEO_CONTENT_START -->[\s\S]*?<!-- SEO_CONTENT_END -->/, "")
@@ -160,8 +172,15 @@ export function xmlEscape(value: string): string {
 export function buildSitemapXml(paths: readonly string[]): string {
   const entries = [...new Set(paths)].map((path) => {
     const url = new URL(path, SITE_ORIGIN);
-    if (url.origin !== SITE_ORIGIN || url.search || url.hash) {
-      throw new Error("Sitemap paths must be canonical same-site paths.");
+    if (
+      url.origin !== SITE_ORIGIN ||
+      url.search ||
+      url.hash ||
+      !/^\/[a-z0-9]{8}$/.test(path)
+    ) {
+      throw new Error(
+        "Sitemap paths must be opaque canonical same-site paths.",
+      );
     }
     return `  <url><loc>${xmlEscape(url.toString())}</loc></url>`;
   });

@@ -57,7 +57,7 @@ describe("account mail transport", () => {
     });
     await mailer({
       to: "recipient@example.test",
-      url: "https://seret.site/confirm-account-deletion#token=abc",
+      url: "https://seret.site/dAbcdefghijklmnopqrstuvwx",
       kind: "deletion",
     });
     const request = JSON.parse(String(transport.mock.calls[0][1]?.body));

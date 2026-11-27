@@ -15,13 +15,14 @@ import { type AppLocation } from "../../prefs/definitions/locations";
 import { ShowtimeFilterMenu } from "../showtimes/ShowtimeFilterMenu";
 import { ShowtimeDayPicker } from "../showtimes/ShowtimeDayPicker";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { PublicRouteLink } from "../../routing/PublicRouteLink";
+import { CinemaRouteLink } from "../../routing/CinemaRouteLink";
 import { TheaterMapDialog } from "../maps/TheaterMapDialog";
 import { getTheaterTheme } from "../showtimes/theaterTheme";
 import { MoviePosterArtwork } from "../MoviePosterArtwork";
 import { TicketAlertControl } from "./TicketAlertControl";
 import { useShallow } from "zustand/react/shallow";
 import { createPortal } from "react-dom";
-import { Link } from "react-router";
 
 const showtimeDateFormatter = new Intl.DateTimeFormat(undefined, {
   timeZone: APP_TIME_ZONE,
@@ -1120,12 +1121,12 @@ export function MovieDetailsContent({
               >
                 Show everything
               </button>
-              <Link to="/user" className="details-empty-city-button">
+              <PublicRouteLink to="/user" className="details-empty-city-button">
                 Change saved preferences
-              </Link>
+              </PublicRouteLink>
             </>
           ) : null}
-          <Link to="/showtimes" className="details-empty-link">
+          <PublicRouteLink to="/showtimes" className="details-empty-link">
             <span className="details-empty-link-copy">
               <Clock8
                 size={16}
@@ -1141,7 +1142,7 @@ export function MovieDetailsContent({
               className="details-empty-link-arrow"
               aria-hidden="true"
             />
-          </Link>
+          </PublicRouteLink>
 
           <div
             className="details-empty-nearby"
@@ -1703,12 +1704,12 @@ export function MovieDetailsContent({
                                     }}
                                   />
                                   {cinemaLinkIsCurrent ? (
-                                    <a
+                                    <CinemaRouteLink
                                       className="details-cinema-link"
-                                      href={`/c/${cinemaIdentity.id}`}
+                                      cinemaId={cinemaIdentity.id}
                                     >
                                       {cinemaIdentity.displayName}
-                                    </a>
+                                    </CinemaRouteLink>
                                   ) : (
                                     <span>{theater.theater}</span>
                                   )}

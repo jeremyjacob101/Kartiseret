@@ -1,3 +1,4 @@
+import { PublicRoutePathsProvider } from "../../src/routing/PublicRoutePathsProvider";
 import SiteInformation from "../../src/components/legal/SiteInformation";
 import { siteInformationPages } from "../../src/routing/siteInformation";
 import { BottomBar } from "../../src/components/bars/BottomBar";
@@ -12,7 +13,11 @@ describe("site information", () => {
     )!;
     render(
       <MemoryRouter>
-        <SiteInformation page={credits} />
+        <PublicRoutePathsProvider
+          paths={{ "/third-party-licenses.txt": "/license1" }}
+        >
+          <SiteInformation page={credits} />
+        </PublicRoutePathsProvider>
       </MemoryRouter>,
     );
 
@@ -39,7 +44,7 @@ describe("site information", () => {
     );
     expect(
       screen.getByRole("link", { name: "third-party software notices" }),
-    ).toHaveAttribute("href", "/third-party-licenses.txt");
+    ).toHaveAttribute("href", "/license1");
     expect(
       screen.getByRole("link", { name: "jeremyjacob101@gmail.com" }),
     ).toHaveAttribute(
@@ -124,7 +129,17 @@ describe("site information", () => {
   it("lists the five footer destinations and marks only the current page", () => {
     render(
       <MemoryRouter initialEntries={["/privacy"]}>
-        <BottomBar />
+        <PublicRoutePathsProvider
+          paths={{
+            "/support": "/suppor1a",
+            "/accessibility": "/accessi1",
+            "/privacy": "/privac01",
+            "/terms": "/terms001",
+            "/attribution": "/credits1",
+          }}
+        >
+          <BottomBar />
+        </PublicRoutePathsProvider>
       </MemoryRouter>,
     );
 
@@ -136,11 +151,11 @@ describe("site information", () => {
         .getAllByRole("link")
         .map((link) => [link.textContent, link.getAttribute("href")]),
     ).toEqual([
-      ["Support", "/support"],
-      ["Accessibility", "/accessibility"],
-      ["Privacy", "/privacy"],
-      ["Terms of Use", "/terms"],
-      ["Credits", "/attribution"],
+      ["Support", "/suppor1a"],
+      ["Accessibility", "/accessi1"],
+      ["Privacy", "/privac01"],
+      ["Terms of Use", "/terms001"],
+      ["Credits", "/credits1"],
     ]);
     expect(
       footerNavigation.getByRole("link", { name: "Privacy", current: "page" }),

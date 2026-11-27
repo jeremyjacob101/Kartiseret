@@ -29,6 +29,7 @@ struct Movie: Decodable, Hashable, Identifiable, Sendable {
     let genres: [String]
     let runtime: Int
     var movieCode: String? = nil
+    var publicRouteCode: String? = nil
     var imageSrc: String? = nil
     var imageSrcSet: String? = nil
     var backdropSrc: String? = nil

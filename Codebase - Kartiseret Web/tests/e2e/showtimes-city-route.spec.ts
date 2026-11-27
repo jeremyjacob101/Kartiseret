@@ -4,6 +4,9 @@ test("city showtimes routes are shareable and work with browser history", async 
   page,
 }) => {
   await page.goto("/showtimes/tel-aviv");
+  const telAvivUrl = page.url();
+  const telAvivPath = new URL(telAvivUrl).pathname;
+  expect(telAvivPath).toMatch(/^\/[a-z0-9]{8}$/);
 
   await expect(
     page.getByRole("heading", { name: "New Releases in Tel Aviv" }),
@@ -13,7 +16,7 @@ test("city showtimes routes are shareable and work with browser history", async 
   );
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
-    "https://seret.site/showtimes/tel-aviv",
+    `https://seret.site${telAvivPath}`,
   );
 
   await page.reload();
@@ -28,13 +31,15 @@ test("city showtimes routes are shareable and work with browser history", async 
   await page
     .getByRole("link", { name: "Movie showtimes in Jerusalem" })
     .click();
-  await expect(page).toHaveURL(/\/showtimes\/jerusalem$/);
+  const jerusalemPath = new URL(page.url()).pathname;
+  expect(jerusalemPath).toMatch(/^\/[a-z0-9]{8}$/);
+  expect(jerusalemPath).not.toBe(telAvivPath);
   await expect(
     page.getByRole("heading", { name: "New Releases in Jerusalem" }),
   ).toBeVisible();
 
   await page.goBack();
-  await expect(page).toHaveURL(/\/showtimes\/tel-aviv$/);
+  await expect(page).toHaveURL(telAvivUrl);
   await expect(page).toHaveTitle(
     "Movie showtimes in Tel Aviv — Now Playing | Kartiseret",
   );
@@ -49,7 +54,7 @@ test("general showtimes does not inherit account-page noindex metadata", async (
     "noindex, nofollow",
   );
   await page.getByRole("link", { name: "All Showtimes", exact: true }).click();
-  await expect(page).toHaveURL(/\/showtimes$/);
+  await expect(page).toHaveURL(/\/[a-z0-9]{8}$/);
   await expect(page).toHaveTitle(
     "Movie showtimes in Israel — Now Playing | Kartiseret",
   );

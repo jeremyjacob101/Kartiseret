@@ -40,6 +40,11 @@ export const movieAltOptionSchema = z.object({
 export const movieSchema = z.object({
   tmdbId: tmdbIdSchema,
   movieCode: movieCodeSchema.optional(),
+  /** Opaque, human-facing URL code. The permanent movieCode remains an internal ID. */
+  publicRouteCode: z
+    .string()
+    .regex(/^[a-z0-9]{8}$/)
+    .optional(),
   imdbId: z.string().min(1).optional(),
   rtId: z.string().min(1).optional(),
   title: nonEmptyTrimmedStringSchema,

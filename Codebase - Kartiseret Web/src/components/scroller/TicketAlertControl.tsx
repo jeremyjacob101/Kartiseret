@@ -1,5 +1,6 @@
 import { selectTicketAlertAvailability, selectUserTicketAlert, ticketAlertAvailabilityQueryOptions, ticketAlertMutationOptions, ticketAlertPreferencesQueryOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions } from "../../data/ticketAlerts";
 import { DEFAULT_TICKET_ALERT_CRITERIA, resolveTicketAlertCriteria } from "@kartiseret/contracts/private-data";
+import { createPublicShowtimeSharePath, resolvePublicPathForLegacyPath } from "../../data/publicRoutes.js";
 import { useIsMutating, useMutation, useQuery } from "@tanstack/react-query";
 import { usePublicationRevision } from "../../hooks/usePublicationRevision";
 import { useUserPreferencesStore } from "../../stores/userPreferencesStore";
@@ -125,6 +126,21 @@ function TicketAlertControlContent({
         ? (subscriptionsQuery.error?.message ?? preferencesQuery.error?.message)
         : null),
   };
+  const showtimeRouteQuery = useQuery({
+    queryKey: [
+      "public-route",
+      "ticket-alert-share",
+      state.availability?.shareState ?? "showtimes",
+    ],
+    queryFn: () =>
+      state.availability?.shareState
+        ? createPublicShowtimeSharePath(state.availability.shareState)
+        : resolvePublicPathForLegacyPath("/showtimes"),
+    enabled: Boolean(state.availability),
+    staleTime: 5 * 60_000,
+    gcTime: 60 * 60_000,
+    retry: false,
+  });
 
   const handleAccountToggle = () => {
     if (!userId || state.loading || pending || state.notified) {
@@ -163,14 +179,21 @@ function TicketAlertControlContent({
     );
     hint = "Ticket alerts are temporarily unavailable.";
   } else if (state.availability && !hasCitiesLeft) {
-    control = (
+    control = showtimeRouteQuery.data ? (
       <Link
         className="ticket-alert-button ticket-alert-button--available"
-        to={state.availability.path}
+        to={showtimeRouteQuery.data}
       >
         <Ticket className="ticket-alert-icon" aria-hidden />
         View showtimes
       </Link>
+    ) : (
+      <button className="ticket-alert-button" type="button" disabled>
+        <Ticket className="ticket-alert-icon" aria-hidden />
+        {showtimeRouteQuery.isError
+          ? "Showtimes link unavailable"
+          : "Preparing showtimes link…"}
+      </button>
     );
     hint = `Tickets are available in ${state.availability.city}.`;
   } else if (state.notified) {

@@ -7,6 +7,9 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { user } from "./schema.js";
+import type { PublicRouteInput, PublicRouteRegistry } from "../page-routes.js";
+import { movieShowtimeShareStateSchema } from "@kartiseret/contracts/showtime-links";
+import { movieCodeSchema } from "@kartiseret/contracts/runtime";
 
 const requestSchema = z
   .object({ userIds: z.array(z.string().uuid()).min(1).max(100) })
@@ -14,10 +17,82 @@ const requestSchema = z
 const unsubscribeTokenRequestSchema = z
   .object({ userId: z.string().uuid(), deliveryId: z.string().uuid() })
   .strict();
+const publicRouteLinksRequestSchema = z
+  .object({
+    movieCodes: z.array(movieCodeSchema).max(100).optional().default([]),
+    pagePaths: z
+      .array(z.enum(["/movies", "/soons", "/showtimes"]))
+      .max(10)
+      .optional()
+      .default([]),
+    shares: z
+      .array(movieShowtimeShareStateSchema)
+      .max(100)
+      .optional()
+      .default([]),
+  })
+  .strict()
+  .refine(
+    (input) =>
+      input.movieCodes.length + input.pagePaths.length + input.shares.length >
+        0 &&
+      input.movieCodes.length + input.pagePaths.length + input.shares.length <=
+        100,
+  );
+
+function stableShareState(
+  input: z.infer<typeof movieShowtimeShareStateSchema>,
+) {
+  return {
+    ...input,
+    excludedCinemaIds: [...new Set(input.excludedCinemaIds ?? [])].sort(),
+  };
+}
+
+function publicRouteInputs(
+  input: z.infer<typeof publicRouteLinksRequestSchema>,
+): {
+  inputs: PublicRouteInput[];
+  movieKeys: string[];
+  pageKeys: string[];
+  shareKeys: string[];
+} {
+  const movieInputs = input.movieCodes.map((movieCode) => ({
+    destinationKey: `movie-code:${movieCode}`,
+    kind: "movie" as const,
+    destinationId: movieCode,
+  }));
+  const pageInputs = input.pagePaths.map((path) => ({
+    destinationKey: `page:${path}`,
+    kind: "page" as const,
+    destinationId: path,
+  }));
+  const shareInputs = input.shares.map((share) => {
+    const payload = stableShareState(share);
+    return {
+      destinationKey: `movie-share:${createHash("sha256").update(JSON.stringify(payload)).digest("hex")}`,
+      kind: "share" as const,
+      destinationId: payload.movieCode,
+      payload,
+    };
+  });
+  return {
+    inputs: [...movieInputs, ...pageInputs, ...shareInputs],
+    movieKeys: movieInputs.map((route) => route.destinationKey),
+    pageKeys: pageInputs.map((route) => route.destinationKey),
+    shareKeys: shareInputs.map((route) => route.destinationKey),
+  };
+}
+
 export function createRecipientRouter(
   pool: Pool,
   secret: string,
-  options: { store?: Store; limit?: number; windowMs?: number } = {},
+  options: {
+    store?: Store;
+    limit?: number;
+    windowMs?: number;
+    publicRoutes?: PublicRouteRegistry;
+  } = {},
 ) {
   const router = Router();
   const database = drizzle(pool);
@@ -61,6 +136,67 @@ export function createRecipientRouter(
       .digest();
     return timingSafeEqual(expected, supplied);
   };
+  router.post("/public-route-links", limiter, async (request, response) => {
+    if (!isAuthorized(request.headers.authorization)) {
+      response.status(401).json({
+        data: null,
+        error: {
+          code: "unauthorized",
+          message: "An internal credential is required.",
+        },
+      });
+      return;
+    }
+    const parsed = publicRouteLinksRequestSchema.safeParse(request.body);
+    if (!parsed.success || !options.publicRoutes) {
+      response.status(parsed.success ? 503 : 400).json({
+        data: null,
+        error: {
+          code: parsed.success ? "route_unavailable" : "invalid_request",
+          message: parsed.success
+            ? "Public links are temporarily unavailable."
+            : "The public link request is invalid.",
+        },
+      });
+      return;
+    }
+    try {
+      const { inputs, movieKeys, pageKeys, shareKeys } = publicRouteInputs(
+        parsed.data,
+      );
+      const routes = options.publicRoutes.getOrCreateMany
+        ? await options.publicRoutes.getOrCreateMany(inputs)
+        : await Promise.all(
+            inputs.map((input) => options.publicRoutes!.getOrCreate(input)),
+          );
+      const routesByKey = new Map(
+        routes.map((route) => [route.destinationKey, route]),
+      );
+      const pathsFor = (keys: string[]) =>
+        keys.map((key) => {
+          const route = routesByKey.get(key);
+          if (!route)
+            throw new Error("A requested public link was not returned.");
+          return `/${route.code}`;
+        });
+      response.json({
+        data: {
+          moviePaths: pathsFor(movieKeys),
+          pagePaths: pathsFor(pageKeys),
+          sharePaths: pathsFor(shareKeys),
+        },
+        error: null,
+      });
+    } catch {
+      response.status(503).json({
+        data: null,
+        error: {
+          code: "route_unavailable",
+          message: "Public links are temporarily unavailable.",
+        },
+      });
+    }
+  });
   router.post(
     "/ticket-alert-recipients",
     limiter,

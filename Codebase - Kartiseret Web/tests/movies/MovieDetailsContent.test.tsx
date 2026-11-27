@@ -1,3 +1,4 @@
+import { PublicRoutePathsProvider } from "../../src/routing/PublicRoutePathsProvider";
 import { useUserPreferencesStore } from "../../src/stores/userPreferencesStore";
 import { sampleMovie, sampleShowtimeDays, sampleShowtimes } from "../fixtures";
 import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
@@ -58,16 +59,19 @@ function seedData() {
 
 function renderDetails(
   props: Partial<ComponentProps<typeof MovieDetailsContent>> = {},
+  routePaths: Record<string, string> = {},
 ) {
   return render(
     <MemoryRouter>
-      <QueryClientProvider client={queryClient}>
-        <MovieDetailsContent
-          movie={sampleMovie}
-          titleId="sample-title"
-          {...props}
-        />
-      </QueryClientProvider>
+      <PublicRoutePathsProvider paths={routePaths}>
+        <QueryClientProvider client={queryClient}>
+          <MovieDetailsContent
+            movie={sampleMovie}
+            titleId="sample-title"
+            {...props}
+          />
+        </QueryClientProvider>
+      </PublicRoutePathsProvider>
     </MemoryRouter>,
   );
 }
@@ -195,7 +199,7 @@ describe("MovieDetailsContent", () => {
     expect(pill?.style.background).toBe("");
   });
 
-  it("links a verified screening venue to its stable cinema short URL", () => {
+  it("links a verified screening venue using its opaque public route code", async () => {
     const cinema = CINEMA_IDENTITIES.find(
       (identity) => identity.displayName === "Cinema City Jerusalem",
     )!;
@@ -220,11 +224,14 @@ describe("MovieDetailsContent", () => {
       cities: [theater.city],
     });
 
-    renderDetails({ preferredShowtimeDate: "2026-09-17" });
+    renderDetails(
+      { preferredShowtimeDate: "2026-09-17" },
+      { [`/__cinema/${cinema.id}`]: "/cinema88" },
+    );
 
     expect(
-      screen.getByRole("link", { name: "Cinema City Jerusalem" }),
-    ).toHaveAttribute("href", `/c/${cinema.id}`);
+      await screen.findByRole("link", { name: "Cinema City Jerusalem" }),
+    ).toHaveAttribute("href", "/cinema88");
   });
 
   it("renders a precise no-results state when every loaded filter option is unchecked", () => {

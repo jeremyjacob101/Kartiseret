@@ -1,10 +1,11 @@
 import { PasswordSecurityForm } from "./PasswordSecurityForm";
-import { Link, useSearchParams } from "react-router";
+import { PublicRouteLink } from "../routing/PublicRouteLink";
+import { useSearchParams } from "react-router";
 import "./PasswordResetPage.css";
 
-export function PasswordResetPage() {
+export function PasswordResetPage({ resetToken }: { resetToken?: string }) {
   const [query] = useSearchParams();
-  const token = query.get("token");
+  const token = resetToken ?? query.get("token");
   const hasToken = Boolean(
     token && token.length <= 4096 && !query.has("error"),
   );
@@ -36,9 +37,9 @@ export function PasswordResetPage() {
                 Request a new reset link from the login menu.
               </p>
             </div>
-            <Link className="password-reset-page-link" to="/">
+            <PublicRouteLink className="password-reset-page-link" to="/">
               Return to Home
-            </Link>
+            </PublicRouteLink>
           </>
         )}
       </div>

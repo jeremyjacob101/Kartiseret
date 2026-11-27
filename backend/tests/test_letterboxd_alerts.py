@@ -9,7 +9,7 @@ from backend.notifications.letterboxd_alerts import (
     resolve_local_movie_ids,
 )
 from backend.notifications.letterboxd_public import LetterboxdFilm
-from backend.notifications.ticket_alerts import TicketAlertConfig
+from backend.notifications.ticket_alerts import TicketAlertConfig, movie_showtime_share_key
 
 FIXTURES = Path(__file__).parent / "fixtures" / "letterboxd"
 NOW = datetime.fromisoformat("2026-10-21T14:00:00+03:00")
@@ -54,10 +54,37 @@ class FakeLetterboxdAndResend:
                 {"endpoint": endpoint, "headers": headers, "json": json, "timeout": timeout, **kwargs}
             )
             return FakeUnsubscribeTokenResponse()
+        if endpoint.endswith("/api/internal/public-route-links"):
+            self.public_route_calls = getattr(self, "public_route_calls", [])
+            self.public_route_calls.append(
+                {"endpoint": endpoint, "headers": headers, "json": json, "timeout": timeout}
+            )
+            return FakePublicRouteResponse(json)
         self.post_calls.append(
             {"endpoint": endpoint, "headers": headers, "json": json, "timeout": timeout}
         )
         return self.responses.pop(0) if self.responses else FakeResponse()
+
+
+class FakePublicRouteResponse:
+    status_code = 200
+
+    def __init__(self, request):
+        self.request = request
+
+    @staticmethod
+    def _paths(prefix, values):
+        return [f"/{prefix}{index:07d}" for index, _ in enumerate(values)]
+
+    def json(self):
+        return {
+            "data": {
+                "moviePaths": self._paths("a", self.request.get("movieCodes", [])),
+                "pagePaths": self._paths("b", self.request.get("pagePaths", [])),
+                "sharePaths": self._paths("c", self.request.get("shares", [])),
+            },
+            "error": None,
+        }
 
 
 class FakeUnsubscribeTokenResponse:
@@ -302,6 +329,8 @@ class LetterboxdSourceAlertTests(TestCase):
                 resend_api_key="fake-key",
                 from_email="Kartiseret <alerts@example.test>",
                 site_url="https://seret.site",
+                recipient_api_url="https://api.example.test",
+                internal_api_secret="internal-test-secret",
             ),
             now_factory=lambda: NOW,
             delivery_id_factory=lambda: next(delivery_ids) if delivery_ids else "delivery-1",
@@ -460,20 +489,26 @@ class LetterboxdSourceAlertTests(TestCase):
             },
         }
 
-        email = render_letterboxd_event_email((event,), "https://seret.site")
+        email = render_letterboxd_event_email(
+            (event,),
+            "https://seret.site",
+            public_route_paths={
+                movie_showtime_share_key("A7z", "Tel Aviv", "2027-01-15", 45120): "/abcd1234"
+            },
+        )
 
         self.assertIn(
-            'href="https://seret.site/A7zlb1fHK?date=2027-01-15"',
+            'href="https://seret.site/abcd1234"',
             email.html,
         )
         self.assertIn(
-            "View showtimes: https://seret.site/A7zlb1fHK?date=2027-01-15",
+            "View showtimes: https://seret.site/abcd1234",
             email.text,
         )
         self.assertNotIn("tickets.example.test", email.html)
         self.assertNotIn("tickets.example.test", email.text)
 
-    def test_legacy_or_invalid_movie_code_uses_a_safe_movie_page_fallback(self):
+    def test_invalid_movie_code_uses_an_opaque_showtimes_page_fallback(self):
         event = {
             "tmdb_id": 101,
             "event_type": "showtime",
@@ -488,10 +523,13 @@ class LetterboxdSourceAlertTests(TestCase):
             },
         }
 
-        email = render_letterboxd_event_email((event,))
+        email = render_letterboxd_event_email(
+            (event,),
+            public_route_paths={("page", "/showtimes"): "/pqrs9876"},
+        )
 
-        self.assertIn("https://seret.site/showtimes", email.html)
-        self.assertIn("View showtimes: https://seret.site/showtimes", email.text)
+        self.assertIn('href="https://seret.site/pqrs9876"', email.html)
+        self.assertIn("View showtimes: https://seret.site/pqrs9876", email.text)
         self.assertNotIn("tickets.example.test", email.html)
         self.assertNotIn("tickets.example.test", email.text)
 

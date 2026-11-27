@@ -74,6 +74,8 @@ protocol KartiseretAPI: Sendable {
         publicationRevision: String?
     ) async throws -> CinemathequeSnapshot
     func loadCinemaPage(id: String, publicationRevision: String?) async throws -> CinemaPageSnapshot
+    func resolvePublicRouteRenderPath(code: String) async throws -> String
+    func createPublicRouteShare(_ request: PublicRouteShareRequest) async throws -> String
 }
 
 extension KartiseretAPI {
@@ -93,6 +95,22 @@ extension KartiseretAPI {
     func loadCinemaPage(id: String, publicationRevision: String?) async throws -> CinemaPageSnapshot {
         throw APIClientError.unsupported
     }
+
+    func resolvePublicRouteRenderPath(code: String) async throws -> String {
+        throw APIClientError.unsupported
+    }
+
+    func createPublicRouteShare(_ request: PublicRouteShareRequest) async throws -> String {
+        throw APIClientError.unsupported
+    }
+}
+
+struct PublicRouteShareRequest: Codable, Hashable, Sendable {
+    let movieCode: String
+    let city: String
+    let date: String
+    let filterMask: Int
+    let excludedCinemaIds: [String]
 }
 
 struct URLSessionKartiseretAPI: KartiseretAPI {
@@ -190,6 +208,72 @@ struct URLSessionKartiseretAPI: KartiseretAPI {
         return CinemaPageSnapshot(data: data, publicationRevision: response.header("X-Kartiseret-Publication"))
     }
 
+    func resolvePublicRouteRenderPath(code: String) async throws -> String {
+        guard code.utf8.count == 8,
+              code.utf8.allSatisfy({ (48...57).contains($0) || (97...122).contains($0) }) else {
+            throw APIClientError.invalidURL
+        }
+        let (data, _) = try await get(PublicRouteResolutionData.self, path: "/api/v1/public-routes/\(code)")
+        guard Self.isSafePublicRouteRenderPath(data.renderPath) else { throw APIClientError.invalidResponse }
+        return data.renderPath
+    }
+
+    func createPublicRouteShare(_ request: PublicRouteShareRequest) async throws -> String {
+        let body: Data
+        do {
+            body = try JSONEncoder().encode(request)
+        } catch {
+            throw APIClientError.invalidResponse
+        }
+        guard let url = URL(string: "/api/v1/public-routes/shares", relativeTo: baseURL)?.absoluteURL else {
+            throw APIClientError.invalidURL
+        }
+        let response = try await transport.send(APIHTTPRequest(
+            url: url,
+            headers: ["Content-Type": "application/json"],
+            method: "POST",
+            body: body
+        ))
+        let decoder = JSONDecoder()
+        guard (200..<300).contains(response.statusCode) else {
+            if let envelope = try? decoder.decode(APIEnvelope<PublicRoutePathData>.self, from: response.body),
+               let error = envelope.error {
+                throw APIClientError.remote(code: error.code, message: error.message, statusCode: response.statusCode)
+            }
+            throw APIClientError.http(statusCode: response.statusCode)
+        }
+        let envelope: APIEnvelope<PublicRoutePathData>
+        do {
+            envelope = try decoder.decode(APIEnvelope<PublicRoutePathData>.self, from: response.body)
+        } catch {
+            throw APIClientError.invalidResponse
+        }
+        if let error = envelope.error {
+            throw APIClientError.remote(code: error.code, message: error.message, statusCode: response.statusCode)
+        }
+        guard let data = envelope.data, Self.isOpaquePublicPath(data.path) else {
+            throw APIClientError.invalidResponse
+        }
+        return data.path
+    }
+
+    private static func isOpaquePublicPath(_ path: String) -> Bool {
+        path.utf8.count == 9 && path.hasPrefix("/") &&
+            path.utf8.dropFirst().allSatisfy { (48...57).contains($0) || (97...122).contains($0) }
+    }
+
+    private static func isSafePublicRouteRenderPath(_ path: String) -> Bool {
+        guard path.utf8.count <= 2_048,
+              path.hasPrefix("/"),
+              !path.hasPrefix("//"),
+              !path.contains("#"),
+              !path.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
+              let components = URLComponents(string: path),
+              components.scheme == nil,
+              components.host == nil else { return false }
+        return true
+    }
+
     static func showtimesURL(baseURL: URL, city: String, day: CinemaDay, movieID: String?) throws -> URL {
         guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
             throw APIClientError.invalidURL
@@ -243,6 +327,14 @@ struct URLSessionKartiseretAPI: KartiseretAPI {
         guard let data = envelope.data else { throw APIClientError.invalidResponse }
         return (data, response)
     }
+}
+
+private struct PublicRouteResolutionData: Decodable {
+    let renderPath: String
+}
+
+private struct PublicRoutePathData: Decodable {
+    let path: String
 }
 
 struct APIEnvelope<Response: Decodable>: Decodable {
