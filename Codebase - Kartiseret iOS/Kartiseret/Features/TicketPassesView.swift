@@ -370,6 +370,9 @@ struct TicketPassesView: View {
     @State private var isShowingListedScreenings = false
     @State private var isLoadingListedScreenings = false
     @State private var detailRequestID = UUID()
+    @State private var isShowingTicketDetail = false
+    @State private var detailTicketID: String?
+    @State private var hasOpenedInitialTicket = false
     @State private var selectedTicket: WalletTicketDetail?
     @State private var editingTicketID: String?
     @State private var form = WalletTicketScreening(
@@ -400,7 +403,7 @@ struct TicketPassesView: View {
     @State private var hasInteractedWithScreening = false
     @State private var hasConfirmedShowDate = false
     @State private var hasConfirmedShowTime = false
-    @State private var screenshotImportTicketID: String?
+    @State private var isImportingAdditionalScreenshots = false
 
     init(initialTicketID: String? = nil) {
         self.initialTicketID = initialTicketID
@@ -446,6 +449,7 @@ struct TicketPassesView: View {
                         .foregroundStyle(.secondary)
                 }
             } else {
+                if editingTicketID == nil { savedTicketsSection }
                 if account.state == .signedIn {
                     if editingTicketID == nil { importSection }
                     screeningSection
@@ -455,8 +459,6 @@ struct TicketPassesView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                savedTicketsSection
-                if let selectedTicket { selectedTicketSection(selectedTicket) }
             }
         }
         .scrollContentBackground(.hidden)
@@ -464,8 +466,22 @@ struct TicketPassesView: View {
         .navigationTitle("My Tickets")
         .navigationBarTitleDisplayMode(.inline)
         .tint(Color(hexString: account.preferences.siteColor) ?? BrandStyle.accent)
-        .task { await loadTickets() }
+        .task {
+            if !hasOpenedInitialTicket, let initialTicketID, !initialTicketID.isEmpty,
+               account.identity != nil {
+                hasOpenedInitialTicket = true
+                openTicket(initialTicketID)
+            }
+            await loadTickets()
+        }
         .refreshable { await loadTickets() }
+        .navigationDestination(isPresented: $isShowingTicketDetail) { ticketDetail }
+        .onChange(of: isShowingTicketDetail) { _, showing in
+            guard !showing else { return }
+            detailRequestID = UUID()
+            detailTicketID = nil
+            selectedTicket = nil
+        }
         .safeAreaInset(edge: .bottom) {
             if account.state != .signedIn, let errorMessage {
                 Text(errorMessage).font(.footnote).padding()
@@ -475,18 +491,12 @@ struct TicketPassesView: View {
             guard !items.isEmpty else { return }
             Task { await readPhotoPickerItems(items, ticketID: nil) }
         }
-        .onChange(of: additionalPhotoItems) { _, items in
-            guard !items.isEmpty, let ticketID = selectedTicket?.id else { return }
-            Task { await readPhotoPickerItems(items, ticketID: ticketID) }
-        }
         .fileImporter(
             isPresented: Binding(get: { isImportingScreenshot }, set: { isImportingScreenshot = $0 }),
             allowedContentTypes: [.image],
             allowsMultipleSelection: true
         ) { result in
-            let ticketID = screenshotImportTicketID
-            screenshotImportTicketID = nil
-            Task { await readImportedFiles(result, ticketID: ticketID) }
+            Task { await readImportedFiles(result, ticketID: nil) }
         }
         .sheet(isPresented: $isShowingListedScreenings) {
             NavigationStack {
@@ -516,6 +526,43 @@ struct TicketPassesView: View {
                     }
                 }
             }
+        }
+    }
+
+    private var ticketDetail: some View {
+        Form {
+            if let selectedTicket {
+                selectedTicketSection(selectedTicket)
+            } else if errorMessage == nil {
+                ProgressView("Loading ticket QR codes…")
+            }
+            if let errorMessage, !isShowingReminderSettings {
+                Section {
+                    Text(errorMessage).foregroundStyle(.red)
+                    if selectedTicket == nil, let detailTicketID {
+                        Button("Retry") { Task { await loadTicket(detailTicketID) } }
+                    }
+                }
+            }
+            if let statusMessage {
+                Text(statusMessage).font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(BrandStyle.background)
+        .navigationTitle(selectedTicket?.title ?? "Ticket details")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
+        .task(id: detailTicketID) {
+            if let detailTicketID { await loadTicket(detailTicketID) }
+        }
+        .onChange(of: additionalPhotoItems) { _, items in
+            guard !items.isEmpty, let ticketID = selectedTicket?.id else { return }
+            Task { await readPhotoPickerItems(items, ticketID: ticketID) }
+        }
+        .fileImporter(isPresented: $isImportingAdditionalScreenshots, allowedContentTypes: [.image], allowsMultipleSelection: true) { result in
+            guard let ticketID = selectedTicket?.id else { return }
+            Task { await readImportedFiles(result, ticketID: ticketID) }
         }
         .sheet(isPresented: $isShowingPassSheet, onDismiss: { passesForSheet = nil }) {
             if let passesForSheet { AddWalletPassSheet(passes: passesForSheet) }
@@ -551,7 +598,6 @@ struct TicketPassesView: View {
             }
             .disabled(isReadingScreenshot || isSaving)
             Button {
-                screenshotImportTicketID = nil
                 isImportingScreenshot = true
             } label: {
                 Label("Choose screenshot from Files", systemImage: "folder")
@@ -658,11 +704,7 @@ struct TicketPassesView: View {
             } else {
                 ForEach(tickets) { ticket in
                     Button {
-                        selectedTicket = nil
-                        if editingTicketID != nil {
-                            cancelEditing()
-                        }
-                        Task { await loadTicket(ticket.id) }
+                        openTicket(ticket.id)
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
@@ -700,20 +742,7 @@ struct TicketPassesView: View {
                         Text("Ticket \(index + 1) of \(ticket.qrCodes.count)")
                             .font(.headline)
                     }
-                    if let image = qrImage(for: code.qrMessage) {
-                        Image(uiImage: image)
-                            .interpolation(.none)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: 270)
-                            .padding(14)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 14))
-                            .frame(maxWidth: .infinity)
-                            .accessibilityLabel("Ticket QR code \(index + 1) of \(ticket.qrCodes.count)")
-                    } else {
-                        Text("This QR could not be rendered. Use the original cinema ticket.")
-                            .foregroundStyle(.orange)
-                    }
+                    SavedTicketQRCode(message: code.qrMessage, label: "Ticket QR code \(index + 1) of \(ticket.qrCodes.count)")
                 }
                 .padding(.vertical, 5)
             }
@@ -726,8 +755,7 @@ struct TicketPassesView: View {
                 }
                 .disabled(isReadingScreenshot || isAppendingQrCodes || ticket.qrCodes.count >= 10)
                 Button {
-                    screenshotImportTicketID = ticket.id
-                    isImportingScreenshot = true
+                    isImportingAdditionalScreenshots = true
                 } label: {
                     Label("Add more screenshots from Files", systemImage: "folder.badge.plus")
                 }
@@ -777,13 +805,16 @@ struct TicketPassesView: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
             HStack {
-                Button("Edit details") { beginEditing(ticket) }
+                Button("Edit details") {
+                    beginEditing(ticket)
+                    isShowingTicketDetail = false
+                }
                 Spacer()
                 Button("Delete ticket", role: .destructive) { isShowingDeleteConfirmation = true }
             }
+            .buttonStyle(.borderless)
+            .disabled(account.state != .signedIn)
         } header: {
-            Text(ticket.title)
-        } footer: {
             Text("\(ticket.cinema), \(ticket.city) · \(displayDate(ticket.screeningDate)) at \(ticket.screeningTime)")
         }
     }
@@ -821,9 +852,6 @@ struct TicketPassesView: View {
                 ? "No tickets have been saved on this iPhone yet. Connect to your account to sync them."
                 : "Offline copies are shown. Connect to refresh ticket details and reminders."
             isLoading = false
-            if let initialTicketID, !initialTicketID.isEmpty {
-                await loadTicket(initialTicketID)
-            }
             return
         }
         if let cachedTickets = await WalletTicketOfflineCache.shared.loadTickets(accountID: accountID) {
@@ -864,9 +892,8 @@ struct TicketPassesView: View {
                 errorMessage = error.localizedDescription
             }
         }
-        if let initialTicketID, !initialTicketID.isEmpty {
-            await loadTicket(initialTicketID)
-        } else if loadedFromServer,
+        if loadedFromServer,
+                  !isShowingTicketDetail,
                   !hasInteractedWithScreening,
                   let recent = try? await account.requestPrivate(
                 path: "/api/v1/ticket-passes/recent-screening",
@@ -907,17 +934,27 @@ struct TicketPassesView: View {
         }
     }
 
+    private func openTicket(_ id: String) {
+        detailTicketID = id
+        selectedTicket = nil
+        scanMessage = nil
+        errorMessage = nil
+        statusMessage = nil
+        isShowingTicketDetail = true
+    }
+
     private func loadTicket(_ id: String) async {
-        guard let accountID = account.identity?.id else { return }
+        guard let accountID = account.identity?.id, isShowingTicketDetail, detailTicketID == id else { return }
         let requestID = UUID()
         detailRequestID = requestID
         func isCurrent() -> Bool {
-            detailRequestID == requestID && account.identity?.id == accountID
+            !Task.isCancelled && isShowingTicketDetail && detailTicketID == id
+                && detailRequestID == requestID && account.identity?.id == accountID
         }
 
         let cachedTicket = await WalletTicketOfflineCache.shared.loadDetail(ticketID: id, accountID: accountID)
         guard isCurrent() else { return }
-        selectedTicket = cachedTicket
+        if selectedTicket?.id != id { selectedTicket = cachedTicket }
         errorMessage = nil
         guard account.state == .signedIn else {
             if cachedTicket == nil {
@@ -999,14 +1036,6 @@ struct TicketPassesView: View {
                     reminderFailure = "Ticket saved. The reminder could not be updated: \(error.localizedDescription)"
                 }
             }
-            let savedID = editingTicketID ?? ""
-            if isEditing, !savedID.isEmpty {
-                await loadTicket(savedID)
-                statusMessage = "Ticket updated. Select Update in Apple Wallet to replace the pass."
-            } else {
-                await loadTicket(saved.ticket.id)
-                statusMessage = "Ticket saved to your Kartiseret account."
-            }
             editingTicketID = nil
             form = emptyForm
             qrMessages = []
@@ -1014,6 +1043,7 @@ struct TicketPassesView: View {
             hasConfirmedShowDate = false
             hasConfirmedShowTime = false
             await loadTicketListOnly()
+            openTicket(saved.ticket.id)
             if let reminderFailure { errorMessage = reminderFailure }
         } catch {
             errorMessage = error.localizedDescription
@@ -1048,7 +1078,7 @@ struct TicketPassesView: View {
             if let accountID = account.identity?.id {
                 await WalletTicketOfflineCache.shared.remove(ticketID: ticket.id, accountID: accountID)
             }
-            if selectedTicket?.id == ticket.id { selectedTicket = nil }
+            if detailTicketID == ticket.id { isShowingTicketDetail = false }
             if editingTicketID == ticket.id { cancelEditing() }
             statusMessage = "Ticket deleted."
             await loadTicketListOnly()
@@ -1133,6 +1163,7 @@ struct TicketPassesView: View {
                 passes.append(try PKPass(data: data))
             }
             guard !passes.isEmpty else { throw TicketPassError.imageUnavailable }
+            guard isShowingTicketDetail, detailTicketID == ticket.id else { return }
             passesForSheet = passes
             isShowingPassSheet = true
         } catch {
@@ -1395,14 +1426,6 @@ struct TicketPassesView: View {
         return formatter.string(from: date)
     }
 
-    private func qrImage(for message: String) -> UIImage? {
-        let filter = CIFilter.qrCodeGenerator()
-        filter.message = Data(message.utf8)
-        filter.correctionLevel = "M"
-        guard let output = filter.outputImage?.transformed(by: CGAffineTransform(scaleX: 9, y: 9)) else { return nil }
-        return UIImage(ciImage: output)
-    }
-
     private var emptyForm: WalletTicketScreening {
         WalletTicketScreening(
             tmdbId: nil,
@@ -1436,6 +1459,55 @@ struct TicketPassesView: View {
             case .walletUnavailable: "Apple Wallet is unavailable on this device. Your QR remains in Kartiseret."
             }
         }
+    }
+}
+
+private struct SavedTicketQRCode: View {
+    let message: String
+    let label: String
+    @State private var image: UIImage?
+    @State private var failed = false
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .renderingMode(.original)
+                    .resizable()
+                    .interpolation(.none)
+                    .scaledToFit()
+                    .frame(maxWidth: 300)
+                    .accessibilityLabel(label)
+            } else if failed {
+                Text("This QR could not be rendered. Use the original cinema ticket.")
+                    .foregroundStyle(.orange)
+            } else {
+                ProgressView("Preparing QR code…")
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .task(id: Data(message.utf8)) {
+            image = TicketQRCodeRenderer.makeBitmap(message).map { UIImage(cgImage: $0) }
+            failed = image == nil
+        }
+    }
+}
+
+enum TicketQRCodeRenderer {
+    private static let context = CIContext()
+
+    static func makeBitmap(_ message: String) -> CGImage? {
+        guard !message.isEmpty else { return nil }
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(message.utf8)
+        filter.correctionLevel = "M"
+        guard let modules = filter.outputImage, !modules.extent.isEmpty else { return nil }
+        // Include four white modules around the code for scanner detection.
+        let extent = modules.extent.insetBy(dx: -4, dy: -4)
+        let white = CIImage(color: .white).cropped(to: extent)
+        let scale = CGAffineTransform(scaleX: 8, y: 8)
+        let output = modules.composited(over: white).transformed(by: scale)
+        return context.createCGImage(output, from: extent.applying(scale))
     }
 }
 

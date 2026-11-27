@@ -17,6 +17,7 @@ struct YouView: View {
                     Label(identity.email ?? "Kartiseret account", systemImage: "person.crop.circle.fill")
                     settingsLink("My Tickets", systemImage: "ticket") {
                         TicketPassesView()
+                            .id(identity.id)
                     }
                     if account.state == .signedIn {
                         settingsLink("Preferences", systemImage: "slider.horizontal.3") {

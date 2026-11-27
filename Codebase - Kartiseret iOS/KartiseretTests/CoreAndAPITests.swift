@@ -1,8 +1,31 @@
+import CoreGraphics
 import Foundation
 import XCTest
 @testable import Kartiseret
 
 final class CoreAndAPITests: XCTestCase {
+    func testSavedTicketQRIsAnOpaqueBitmapWithVisibleModules() throws {
+        let image = try XCTUnwrap(TicketQRCodeRenderer.makeBitmap("TEST-TICKET-00704"))
+        let width = image.width
+        XCTAssertEqual(width, image.height)
+        let context = try XCTUnwrap(CGContext(
+            data: nil, width: width, height: width, bitsPerComponent: 8,
+            bytesPerRow: width, space: CGColorSpaceCreateDeviceGray(),
+            bitmapInfo: CGImageAlphaInfo.none.rawValue
+        ))
+        context.setFillColor(gray: 1, alpha: 1)
+        let bounds = CGRect(x: 0, y: 0, width: width, height: width)
+        context.fill(bounds)
+        context.draw(image, in: bounds)
+        let pixels = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
+        XCTAssertTrue((0..<(width * width)).contains { pixels[$0] == 0 })
+        XCTAssertTrue((0..<(width * 32)).allSatisfy { pixels[$0] == 255 })
+        XCTAssertTrue((0..<width).allSatisfy { row in
+            (0..<32).allSatisfy { pixels[row * width + $0] == 255 }
+        })
+        XCTAssertNil(TicketQRCodeRenderer.makeBitmap(""))
+    }
+
     func testTicketQRValidatesCompactAndMixedSegments() {
         // Synthetic QR segments with the same modes as the cinema screenshots.
         let alpha = qrCodewords([(2, 4), (3, 9), (10 * 45 + 11, 11), (12, 6), (0, 4)])
