@@ -31,7 +31,8 @@ comment on table public.user_wallet_tickets is
 alter table public.user_wallet_tickets enable row level security;
 revoke all on public.user_wallet_tickets from public, anon, authenticated, service_role;
 grant select on public.user_wallet_tickets to kartiseret_runtime;
-grant insert (user_id, tmdb_id, title, city, cinema, screening_date, screening_time, qr_message, reminder_enabled)
+-- Drizzle explicitly includes these server-owned columns with DEFAULT.
+grant insert (id, user_id, tmdb_id, title, city, cinema, screening_date, screening_time, qr_message, reminder_enabled, created_at, updated_at)
   on public.user_wallet_tickets to kartiseret_runtime;
 grant update (tmdb_id, title, city, cinema, screening_date, screening_time, qr_message, reminder_enabled, updated_at)
   on public.user_wallet_tickets to kartiseret_runtime;

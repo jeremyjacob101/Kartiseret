@@ -74,6 +74,8 @@ const expectedTableNames = [
   "ticket_alert_preferences",
   "ticket_alert_subscriptions",
   "user_movie_display_preferences",
+  "user_wallet_recent_showtime_clicks",
+  "user_wallet_tickets",
   "userPreferences",
   "utilAvgTime",
   "utilRunLogs",
@@ -190,8 +192,7 @@ function normalizeSqlType(type: string): string {
     .replace(/\s+/g, " ")
     .replace(/(time|timestamp)\(6\)/g, "$1")
     .replace(/(time|timestamp) \(6\)/g, "$1")
-    .replaceAll("time without time zone", "time")
-    .replaceAll("timestamp without time zone", "timestamp")
+    .replace(/(time|timestamp)(\(\d+\))? without time zone/g, "$1$2")
     .replaceAll(", ", ",");
 }
 
@@ -514,6 +515,8 @@ describe("PostgreSQL 17 integration", () => {
         "ticket_alert_preferences",
         "ticket_alert_subscriptions",
         "user_movie_display_preferences",
+        "user_wallet_recent_showtime_clicks",
+        "user_wallet_tickets",
         "userPreferences",
       ].sort(),
     );
