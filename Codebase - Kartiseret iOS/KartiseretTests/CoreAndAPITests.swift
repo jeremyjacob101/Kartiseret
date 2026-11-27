@@ -3,6 +3,41 @@ import XCTest
 @testable import Kartiseret
 
 final class CoreAndAPITests: XCTestCase {
+    func testTicketQRValidatesCompactAndMixedSegments() {
+        // Synthetic QR segments with the same modes as the cinema screenshots.
+        let alpha = qrCodewords([(2, 4), (3, 9), (10 * 45 + 11, 11), (12, 6), (0, 4)])
+        XCTAssertEqual(TicketQRPayload.validatedText("ABC", codewords: alpha, version: 2), "ABC")
+
+        let mixed = qrCodewords([
+            (1, 4), (5, 10), (7, 10), (4, 7), // "00704"
+            (4, 4), (2, 8), (45, 8), (97, 8), // "-a"
+            (0, 4)
+        ])
+        XCTAssertEqual(TicketQRPayload.validatedText("00704-a", codewords: mixed, version: 2), "00704-a")
+        XCTAssertNil(TicketQRPayload.validatedText("00704-b", codewords: mixed, version: 2))
+        XCTAssertNil(TicketQRPayload.validatedText("00704-a", codewords: Data(mixed.prefix(4)), version: 2))
+    }
+
+    func testTicketQRRequiresExactUTF8AndRejectsUnsupportedModes() {
+        let utf8 = qrCodewords([(7, 4), (26, 8), (4, 4), (2, 8), (195, 8), (169, 8), (0, 4)])
+        XCTAssertEqual(TicketQRPayload.validatedText("é", codewords: utf8, version: 1), "é")
+        XCTAssertNil(TicketQRPayload.validatedText("e\u{0301}", codewords: utf8, version: 1))
+        let latin1 = qrCodewords([(4, 4), (1, 8), (233, 8), (0, 4)])
+        XCTAssertNil(TicketQRPayload.validatedText("é", codewords: latin1, version: 1))
+        XCTAssertNil(TicketQRPayload.validatedText("A", codewords: Data([0x50]), version: 1))
+    }
+
+    private func qrCodewords(_ fields: [(Int, Int)]) -> Data {
+        var bits: [Int] = []
+        for (value, width) in fields {
+            for shift in (0..<width).reversed() { bits.append((value >> shift) & 1) }
+        }
+        while bits.count % 8 != 0 { bits.append(0) }
+        return Data(stride(from: 0, to: bits.count, by: 8).map { offset in
+            bits[offset..<(offset + 8)].reduce(UInt8(0)) { ($0 << 1) | UInt8($1) }
+        })
+    }
+
     func testUserPreferenceCategoriesMirrorTheWebsiteSections() {
         XCTAssertEqual(
             UserPreferenceCategory.allCases.map(\.title),

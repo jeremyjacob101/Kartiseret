@@ -1201,8 +1201,8 @@ struct TicketPassesView: View {
         failures: [String],
         ticketID: String?
     ) async {
-        var seen = Set<String>()
-        let uniqueMessages = messages.filter { seen.insert($0).inserted }
+        var seen = Set<Data>()
+        let uniqueMessages = messages.filter { seen.insert(Data($0.utf8)).inserted }
         var accepted: [String] = []
         var notices = failures
 
@@ -1211,10 +1211,10 @@ struct TicketPassesView: View {
                 scanMessage = "The selected booking changed. Open it again and retry adding the screenshots."
                 return
             }
-            let existingMessages = Set(ticket.qrCodes.map(\.qrMessage))
+            let existingMessages = Set(ticket.qrCodes.map { Data($0.qrMessage.utf8) })
             let pendingMessages = pendingAdditionalTicketID == ticketID ? pendingAdditionalQrMessages : []
-            let knownMessages = existingMessages.union(pendingMessages)
-            let newMessages = uniqueMessages.filter { !knownMessages.contains($0) }
+            let knownMessages = existingMessages.union(pendingMessages.map { Data($0.utf8) })
+            let newMessages = uniqueMessages.filter { !knownMessages.contains(Data($0.utf8)) }
             let available = max(0, 10 - ticket.qrCodes.count - pendingMessages.count)
             accepted = Array(newMessages.prefix(available))
             if newMessages.count > accepted.count {
@@ -1230,8 +1230,8 @@ struct TicketPassesView: View {
                 statusMessage = "Those QR codes are already in this booking."
             }
         } else {
-            let knownMessages = Set(qrMessages)
-            let newMessages = uniqueMessages.filter { !knownMessages.contains($0) }
+            let knownMessages = Set(qrMessages.map { Data($0.utf8) })
+            let newMessages = uniqueMessages.filter { !knownMessages.contains(Data($0.utf8)) }
             let available = max(0, 10 - qrMessages.count)
             accepted = Array(newMessages.prefix(available))
             qrMessages.append(contentsOf: accepted)
@@ -1310,11 +1310,14 @@ struct TicketPassesView: View {
                         return
                     }
                     var messages: [String] = []
+                    var seen = Set<Data>()
                     for observation in observations {
-                        guard let code = observation.payloadStringValue,
-                              let payloadData = observation.payloadData,
-                              Data(code.utf8) == payloadData,
-                              !code.isEmpty else {
+                        guard let descriptor = observation.barcodeDescriptor as? CIQRCodeDescriptor,
+                              let code = TicketQRPayload.validatedText(
+                                  observation.payloadStringValue,
+                                  codewords: descriptor.errorCorrectedPayload,
+                                  version: descriptor.symbolVersion
+                              ) else {
                             continuation.resume(throwing: TicketPassError.qrPayloadUnsupported)
                             return
                         }
@@ -1322,7 +1325,7 @@ struct TicketPassesView: View {
                             continuation.resume(throwing: TicketPassError.qrPayloadTooLarge)
                             return
                         }
-                        if !messages.contains(code) { messages.append(code) }
+                        if seen.insert(Data(code.utf8)).inserted { messages.append(code) }
                         if messages.count > 10 {
                             continuation.resume(throwing: TicketPassError.tooManyQRCodes)
                             return
