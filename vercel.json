@@ -291,7 +291,7 @@
       "destination": "/api/dispatch?__vercel_route=route-code&code=:routeCode"
     },
     {
-      "source": "/:emailAction([A-Za-z0-9._-]{17,4096})",
+      "source": "/:emailAction([erdu][A-Za-z0-9._-]{16,})",
       "destination": "/api/dispatch?__vercel_route=email-action&code=:emailAction"
     },
     {

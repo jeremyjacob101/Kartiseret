@@ -1,4 +1,4 @@
-import { createEmptyShowtimeCityData, fixedAppDateString, findMovieByCode, getMovieShowtimeDays, mergeShowtimeCityData, movieCatalogQueryKeys, movieCollectionQueryOptions, selectCityHasAnyShowtimesOnDate, showtimeCityQueryOptions, showtimeRangeQueryOptions } from "../../src/data/movieCatalog";
+import { createEmptyShowtimeCityData, fixedAppDateString, findMovieByCode, getMovieShowtimeDays, mergeShowtimeCityData, movieCatalogQueryKeys, movieCollectionQueryOptions, selectCityHasAnyShowtimesOnDate, setAppRenderInstant, showtimeCityQueryOptions, showtimeRangeQueryOptions } from "../../src/data/movieCatalog";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { queryClient } from "../../src/lib/queryClient";
 import { QueryClient } from "@tanstack/react-query";
@@ -61,11 +61,13 @@ function installFetch(
 }
 
 beforeEach(() => {
+  setAppRenderInstant(new Date("2026-11-26T12:00:00Z"));
   queryClient.clear();
   vi.clearAllMocks();
 });
 
 afterEach(() => {
+  setAppRenderInstant(new Date());
   vi.unstubAllGlobals();
 });
 

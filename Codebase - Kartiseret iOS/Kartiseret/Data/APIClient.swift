@@ -257,6 +257,11 @@ struct URLSessionKartiseretAPI: KartiseretAPI {
         return data.path
     }
 
+    private static func isOpaquePublicPath(_ path: String) -> Bool {
+        path.utf8.count == 9 && path.hasPrefix("/") &&
+            path.utf8.dropFirst().allSatisfy { (48...57).contains($0) || (97...122).contains($0) }
+    }
+
     private static func isSafePublicRouteRenderPath(_ path: String) -> Bool {
         guard path.utf8.count <= 2_048,
               path.hasPrefix("/"),

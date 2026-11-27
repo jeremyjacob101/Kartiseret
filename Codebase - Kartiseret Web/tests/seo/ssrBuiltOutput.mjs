@@ -19,7 +19,12 @@ assert.ok(
   "The SSR fixture requires a verified Jerusalem cinema.",
 );
 
-const renderedAt = new Date().toISOString();
+const isStandalone =
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+const renderedAt = isStandalone
+  ? "2026-11-26T12:00:00.000Z"
+  : new Date().toISOString();
 const today = getCinemaDayDate(new Date(renderedAt));
 const weekEnd = addCalendarDays(today, 6);
 assert.ok(weekEnd);
@@ -270,10 +275,7 @@ export const cases = [
   ["/share000", "SSR Test Movie"],
 ];
 
-if (
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
-) {
+if (isStandalone) {
   for (const [pathname, expectedContent] of cases) {
     const markup = await renderPublicApplication(makeBootstrap(pathname));
     assert.ok(
