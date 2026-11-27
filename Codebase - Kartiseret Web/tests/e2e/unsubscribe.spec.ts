@@ -51,6 +51,7 @@ test("the public Letterboxd page can remove one list while signed out", async ({
   });
 
   await page.goto(`/unsubscribe/letterboxd#token=${token}`);
+  await expect(page).toHaveURL(`/u${token}`);
   await expect(
     page.getByRole("heading", { name: "Manage Letterboxd list alerts" }),
   ).toBeVisible();
@@ -68,7 +69,6 @@ test("the public Letterboxd page can remove one list while signed out", async ({
   await expect(
     page.getByRole("checkbox", { name: /fixture\/list\/favorites/ }),
   ).toBeVisible();
-  await expect(page).toHaveURL("/unsubscribe/letterboxd");
 
   await page.keyboard.press("Tab");
   await expect(

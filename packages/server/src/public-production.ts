@@ -11,7 +11,13 @@ function createProductionDataRuntime(environment: NodeJS.ProcessEnv) {
     poolMax: config.DATABASE_POOL_MAX,
     sslCaCertificate: config.DATABASE_SSL_CA_CERT,
   });
+  // Catalog snapshots can hold the only reader connection while allocating links.
+  const publicRoutePool = createDatabase(config.DATABASE_URL, {
+    poolMax: 1,
+    sslCaCertificate: config.DATABASE_SSL_CA_CERT,
+  }).pool;
   return {
+    publicRoutePool,
     selectedEnvironment,
     config,
     database,

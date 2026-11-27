@@ -31,6 +31,7 @@ DATE_CODE_ALPHABET = (
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 )
 URL_ALPHABET = "1iljIt23457fkrsvxyzFJLT0689abcdeghnopquABCDEGHKNOPQRSUVXYZmwMW"
+PUBLIC_ROUTE_PATH_PATTERN = re.compile(r"^/[a-z0-9]{8}$")
 ALL_FILTERS_SHORTCUT = "j"
 FILTER_BIT_ASSIGNMENTS = (
     (0, "showType", "Not Just Cinema"),
@@ -438,6 +439,106 @@ def build_ticket_alert_url(
     return f"{safe_site_url(site_url)}{path}"
 
 
+def movie_showtime_share_key(
+    movie_code: str,
+    city: str,
+    showing_date: str,
+    filter_mask: int,
+) -> tuple[str, str, str, int]:
+    return (_text(movie_code), _text(city), _text(showing_date), filter_mask)
+
+
+def create_public_route_link_paths(
+    http_client: Any,
+    *,
+    base_url: str,
+    internal_secret: str,
+    movie_codes: tuple[str, ...] | list[str] = (),
+    page_paths: tuple[str, ...] | list[str] = (),
+    shares: tuple[dict[str, Any], ...] | list[dict[str, Any]] = (),
+) -> dict[str, list[str]]:
+    """Resolve trusted notification destinations to opaque one-segment site paths."""
+    if not base_url or not internal_secret:
+        raise RuntimeError("Public notification links require the internal route API.")
+    api = urlsplit(base_url)
+    try:
+        api_port = api.port
+    except ValueError as exc:
+        raise ValueError("The internal route API origin is invalid.") from exc
+    if (
+        not api.hostname
+        or api.username
+        or api.password
+        or api.query
+        or api.fragment
+        or api.path not in ("", "/")
+        or (api.scheme != "https" and not (
+            api.scheme == "http" and api.hostname in ("localhost", "127.0.0.1", "::1")
+        ))
+        or (api_port is not None and not 1 <= api_port <= 65535)
+    ):
+        raise ValueError("The internal route API must be a secure origin.")
+    if not (movie_codes or page_paths or shares):
+        return {"moviePaths": [], "pagePaths": [], "sharePaths": []}
+
+    inputs = {
+        "movieCodes": list(movie_codes),
+        "pagePaths": list(page_paths),
+        "shares": list(shares),
+    }
+    output = {"moviePaths": [], "pagePaths": [], "sharePaths": []}
+    offsets = {name: 0 for name in inputs}
+    response_names = {
+        "movieCodes": "moviePaths",
+        "pagePaths": "pagePaths",
+        "shares": "sharePaths",
+    }
+    endpoint = base_url.rstrip("/") + "/api/internal/public-route-links"
+    while any(offsets[name] < len(values) for name, values in inputs.items()):
+        chunk: dict[str, list[Any]] = {name: [] for name in inputs}
+        remaining = 100
+        for name, values in inputs.items():
+            count = min(remaining, len(values) - offsets[name])
+            if count > 0:
+                chunk[name] = values[offsets[name] : offsets[name] + count]
+                offsets[name] += count
+                remaining -= count
+            if remaining == 0:
+                break
+
+        response = http_client.post(
+            endpoint,
+            headers={"Authorization": f"Bearer {internal_secret}"},
+            json=chunk,
+            timeout=(5, 20),
+            allow_redirects=False,
+        )
+        if int(getattr(response, "status_code", 0) or 0) != 200:
+            raise RuntimeError("Opaque public notification links could not be created.")
+        try:
+            body = response.json()
+            data = body.get("data") if isinstance(body, dict) else None
+            if not isinstance(data, dict):
+                raise ValueError("missing data")
+            for input_name, output_name in response_names.items():
+                expected_count = len(chunk[input_name])
+                paths = data.get(output_name)
+                if (
+                    not isinstance(paths, list)
+                    or len(paths) != expected_count
+                    or any(
+                        not isinstance(path, str)
+                        or not PUBLIC_ROUTE_PATH_PATTERN.fullmatch(path)
+                        for path in paths
+                    )
+                ):
+                    raise ValueError(f"invalid {output_name}")
+                output[output_name].extend(paths)
+        except Exception as exc:
+            raise RuntimeError("Opaque public notification links were invalid.") from exc
+    return output
+
+
 @dataclass(frozen=True)
 class DeliveryItem:
     tmdb_id: int
@@ -541,7 +642,7 @@ def _friendly_date(value: str) -> str:
 def render_ticket_alert_email(
     items: tuple[DeliveryItem, ...],
     site_url: str,
-    cinema_today: date,
+    public_route_paths: dict[tuple[Any, ...], str] | None = None,
 ) -> RenderedEmail:
     if not items:
         raise ValueError("A ticket alert email must contain at least one movie.")
@@ -555,7 +656,20 @@ def render_ticket_alert_email(
     html_items: list[str] = []
     text_items: list[str] = []
     for item in sorted_items:
-        movie_url = build_ticket_alert_url(item, site_url, cinema_today)
+        if public_route_paths is None:
+            raise RuntimeError("Opaque ticket alert destinations are required.")
+        if MOVIE_CODE_PATTERN.fullmatch(_text(item.movie_code)):
+            route_path = public_route_paths.get(movie_showtime_share_key(
+                item.movie_code or "", item.city, item.date, item.filter_mask,
+            ))
+        else:
+            route_path = public_route_paths.get(("page", "/showtimes"))
+        if (
+            not isinstance(route_path, str)
+            or not PUBLIC_ROUTE_PATH_PATTERN.fullmatch(route_path)
+        ):
+            raise RuntimeError("An opaque ticket alert destination is missing.")
+        movie_url = f"{safe_site_url(site_url)}{route_path}"
         title = escape(item.title)
         city = escape(item.city)
         friendly_date = escape(_friendly_date(item.date))
@@ -602,6 +716,44 @@ def render_ticket_alert_email(
         ]
     )
     return RenderedEmail(subject=subject, html=html_body, text=text_body)
+
+
+def create_ticket_alert_route_paths(
+    http_client: Any,
+    config: TicketAlertConfig,
+    items: tuple[DeliveryItem, ...],
+) -> dict[tuple[Any, ...], str]:
+    shares: list[dict[str, Any]] = []
+    share_keys: list[tuple[str, str, str, int]] = []
+    page_paths: list[str] = []
+    for item in sorted(items, key=lambda value: (value.title.casefold(), value.tmdb_id)):
+        if MOVIE_CODE_PATTERN.fullmatch(_text(item.movie_code)):
+            shares.append({
+                "movieCode": item.movie_code,
+                "city": item.city,
+                "date": item.date,
+                "filterMask": item.filter_mask,
+                "excludedCinemaIds": [],
+            })
+            share_keys.append(movie_showtime_share_key(
+                item.movie_code or "", item.city, item.date, item.filter_mask,
+            ))
+        elif "/showtimes" not in page_paths:
+            page_paths.append("/showtimes")
+    links = create_public_route_link_paths(
+        http_client,
+        base_url=config.recipient_api_url,
+        internal_secret=config.internal_api_secret,
+        page_paths=page_paths,
+        shares=shares,
+    )
+    output: dict[tuple[Any, ...], str] = {
+        key: path
+        for key, path in zip(share_keys, links["sharePaths"], strict=True)
+    }
+    if page_paths:
+        output[("page", "/showtimes")] = links["pagePaths"][0]
+    return output
 
 
 class NoCanonicalEmail(ValueError):
@@ -1200,10 +1352,13 @@ class TicketAlertDispatcher:
                         "The ticket alert delivery snapshot is incomplete."
                     )
                 to_email = self.repository.canonical_email(batch.user_id)
+                public_route_paths = create_ticket_alert_route_paths(
+                    self.http_client, self.config, batch.items
+                )
                 rendered_email = render_ticket_alert_email(
                     batch.items,
                     self.config.site_url,
-                    get_cinema_date(now),
+                    public_route_paths,
                 )
                 resend_email_id = send_resend_email(
                     self.http_client,

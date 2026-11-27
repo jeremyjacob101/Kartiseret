@@ -25,7 +25,8 @@ final class CoreAndAPITests: XCTestCase {
         XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/movies")!), .catalog(.nowPlaying))
         XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/soons/")!), .catalog(.comingSoon))
         XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/showtimes")!), .showtimes)
-        XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/c/smBcm2HtRvQA")!), .cinema(id: "smBcm2HtRvQA"))
+        XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/a1b2c3d4")!), .publicRouteCode("a1b2c3d4"))
+        XCTAssertNil(UniversalLinkDestination.parse(URL(string: "https://seret.site/c/smBcm2HtRvQA")!))
         XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/Ab1")!), .movie(UniversalMovieLink(routeCode: "Ab1", explicitDate: nil, excludedCinemaIDs: nil)))
         XCTAssertEqual(UniversalLinkDestination.parse(URL(string: "https://seret.site/reset-password?token=secret")!), nil)
     }
@@ -65,33 +66,22 @@ final class CoreAndAPITests: XCTestCase {
         guard case .movie(let routeOnlyMovieLink) = routeOnlyLink else { return XCTFail("Expected a movie link") }
         XCTAssertEqual(routeOnlyMovieLink.sharedContext(fallbackCity: "Jerusalem", today: today)?.day.isoDate, "2027-01-15")
 
-        let shareURL = try XCTUnwrap(UniversalMovieLink.shareURL(
-            movieCode: movieLink.movieCode,
-            city: context.city,
-            day: context.day,
-            today: today,
-            filterState: context.filterState,
-            excludedCinemaIDs: ["smBcm2HtRvQA"]
-        ))
-        let components = try XCTUnwrap(URLComponents(url: shareURL, resolvingAgainstBaseURL: false))
-        XCTAssertEqual(components.path, "/A7zlb1fHK")
-        XCTAssertEqual(components.queryItems?.first(where: { $0.name == "date" })?.value, "2027-01-15")
-        XCTAssertEqual(components.queryItems?.first(where: { $0.name == "excludeCinemas" })?.value, "smBcm2HtRvQA")
-        guard case .movie(let generatedMovieLink) = try XCTUnwrap(UniversalLinkDestination.parse(shareURL)) else {
-            return XCTFail("Expected the shared URL to parse as a movie link")
-        }
-        XCTAssertEqual(generatedMovieLink.sharedContext(fallbackCity: "Jerusalem", today: today)?.excludedCinemaIDs, ["smBcm2HtRvQA"])
-        XCTAssertNil(UniversalMovieLink.shareURL(
-            movieCode: movieLink.movieCode,
-            city: context.city,
-            day: today.addingDays(62),
-            today: today,
-            filterState: context.filterState,
-            excludedCinemaIDs: []
-        ))
     }
 
-    func testInfinityVisionShowtimeLinkRoundTrips() throws {
+    func testExpiredSharedShowtimeLinkMovesToTodayWithoutAnAdjustmentNotice() throws {
+        let expiredURL = try XCTUnwrap(URL(string: "https://seret.site/A7zlb1fHK?date=2027-01-14"))
+        guard case .movie(let link) = try XCTUnwrap(UniversalLinkDestination.parse(expiredURL)) else {
+            return XCTFail("Expected a movie link")
+        }
+        let today = try XCTUnwrap(CinemaDay(isoDate: "2027-01-15"))
+
+        let context = try XCTUnwrap(link.sharedContext(fallbackCity: "Jerusalem", today: today))
+
+        XCTAssertEqual(context.day.isoDate, today.isoDate)
+        XCTAssertTrue(context.wasDateAdjusted)
+    }
+
+    func testInfinityVisionShowtimeLinkDecodesItsFilters() throws {
         let url = try XCTUnwrap(URL(string: "https://seret.site/A7zlbI6Og?date=2027-01-15"))
         guard case .movie(let movieLink) = try XCTUnwrap(UniversalLinkDestination.parse(url)) else {
             return XCTFail("Expected a movie link")
@@ -99,14 +89,6 @@ final class CoreAndAPITests: XCTestCase {
         let today = try XCTUnwrap(CinemaDay(isoDate: "2027-01-15"))
         let context = try XCTUnwrap(movieLink.sharedContext(fallbackCity: "Jerusalem", today: today))
         XCTAssertEqual(context.filterState.unchecked.screeningTech, ["Infinity Vision"])
-        XCTAssertEqual(UniversalMovieLink.shareURL(
-            movieCode: movieLink.movieCode,
-            city: context.city,
-            day: context.day,
-            today: today,
-            filterState: context.filterState,
-            excludedCinemaIDs: []
-        ), url)
     }
 
     func testInfinityVisionParticipatesInNativeShowtimeFiltering() {
@@ -262,6 +244,62 @@ final class CoreAndAPITests: XCTestCase {
 
         XCTAssertEqual(snapshot.publicationRevision, "17")
         XCTAssertEqual(snapshot.data.movies.first?.title, "Sample")
+    }
+
+    func testNativeShowtimeSharingRequestsAnOpaqueOneSegmentCode() async throws {
+        let transport = StubTransport(responses: [
+            httpResponse(#"{"data":{"path":"/abcde123"},"error":null}"#, statusCode: 201)
+        ])
+        let api = URLSessionKartiseretAPI(baseURL: URL(string: "https://seret.site")!, transport: transport)
+        let path = try await api.createPublicRouteShare(PublicRouteShareRequest(
+            movieCode: "Ab1",
+            city: "Jerusalem",
+            date: "2027-01-15",
+            filterMask: 0,
+            excludedCinemaIds: []
+        ))
+
+        XCTAssertEqual(path, "/abcde123")
+        let requests = await transport.capturedRequests()
+        let request = try XCTUnwrap(requests.first)
+        XCTAssertEqual(request.url.path, "/api/v1/public-routes/shares")
+        XCTAssertEqual(request.method, "POST")
+        XCTAssertEqual(request.headers["Content-Type"], "application/json")
+        let body = try XCTUnwrap(request.body)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(json["movieCode"] as? String, "Ab1")
+        XCTAssertEqual(json["city"] as? String, "Jerusalem")
+        XCTAssertEqual(json["date"] as? String, "2027-01-15")
+    }
+
+    func testOpaqueRouteResolutionReturnsTheValidatedInternalRenderPath() async throws {
+        let renderPath = "/__cinema/smBcm2HtRvQA"
+        let transport = StubTransport(responses: [
+            httpResponse(#"{"data":{"route":{},"renderPath":"/__cinema/smBcm2HtRvQA"},"error":null}"#)
+        ])
+        let api = URLSessionKartiseretAPI(baseURL: URL(string: "https://seret.site")!, transport: transport)
+
+        let resolved = try await api.resolvePublicRouteRenderPath(code: "abcde123")
+
+        XCTAssertEqual(resolved, renderPath)
+        let requests = await transport.capturedRequests()
+        XCTAssertEqual(requests.first?.url.path, "/api/v1/public-routes/abcde123")
+    }
+
+    func testOpaqueRouteResolutionRejectsExternalRenderPaths() async throws {
+        let transport = StubTransport(responses: [
+            httpResponse(#"{"data":{"route":{},"renderPath":"//evil.example/path"},"error":null}"#)
+        ])
+        let api = URLSessionKartiseretAPI(baseURL: URL(string: "https://seret.site")!, transport: transport)
+
+        do {
+            _ = try await api.resolvePublicRouteRenderPath(code: "abcde123")
+            XCTFail("Expected an unsafe render path to be rejected")
+        } catch APIClientError.invalidResponse {
+            // The API response must contain a same-origin internal path.
+        } catch {
+            XCTFail("Expected an invalid response, got \(error)")
+        }
     }
 
     func testTheatersEnvelopeDecodesCitiesAndBuildsEndpoint() async throws {

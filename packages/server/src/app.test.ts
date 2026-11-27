@@ -5,6 +5,7 @@ import { CatalogDatabaseError } from "./catalog/errors.js";
 import { CINEMA_IDENTITIES } from "@kartiseret/contracts/cinema-identities";
 import type { CatalogRepository } from "./catalog/service.js";
 import type { PublicDataRepository } from "./public-data/repository.js";
+import { getCinemaDayDate } from "@kartiseret/contracts/showtime-day";
 
 const validMovie = {
   tmdbId: 9100001,
@@ -44,6 +45,37 @@ function createRepository(
     findMovieCodes: vi.fn(async () => movieCodes),
   };
 }
+
+describe("opaque public routes", () => {
+  it("does not cache share-route resolutions whose date moves forward", async () => {
+    const route = {
+      code: "share123",
+      destinationKey: "share:expired",
+      kind: "share" as const,
+      destinationId: "D01",
+      payload: {
+        movieCode: "D01",
+        city: "Jerusalem",
+        date: "2020-01-01",
+        filterMask: 0,
+      },
+    };
+    const app = createApp({
+      catalogRepository: createRepository(),
+      publicRoutes: {
+        getByCode: vi.fn(async () => route),
+      } as never,
+    });
+
+    const response = await request(app).get("/api/v1/public-routes/share123");
+
+    expect(response.status).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.body.data.renderPath).toContain(
+      `date=${getCinemaDayDate(new Date())}`,
+    );
+  });
+});
 
 describe("catalog artwork delivery", () => {
   const hash = "a".repeat(64);

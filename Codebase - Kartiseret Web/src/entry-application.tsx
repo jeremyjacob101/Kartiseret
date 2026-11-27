@@ -3,6 +3,7 @@ import { applyBootstrappedDeviceTypeToDocument, initializeDeviceStore } from "./
 import { MovieDisplayPreferencesProvider } from "./contexts/MovieDisplayPreferencesProvider";
 import { PublicRouteComponentsProvider } from "./routing/PublicRouteComponentsProvider";
 import type { PublicRouteComponents } from "./routing/PublicRouteComponentsContext";
+import { PublicRoutePathsProvider } from "./routing/PublicRoutePathsProvider";
 import { PublicRenderClockProvider } from "./contexts/PublicRenderClock";
 import { StrictMode, useEffect, useLayoutEffect } from "react";
 import { filterAnalyticsEvent } from "./lib/analyticsPrivacy";
@@ -47,24 +48,28 @@ export function EntryApplication({
   publicPreferenceSnapshot,
   renderedAt,
   publicRouteComponents = {},
+  publicRoutePaths = {},
 }: {
   publicPreferenceSnapshot: ReturnType<
     typeof preparePublicPagePreferenceState
   > | null;
   renderedAt?: string;
   publicRouteComponents?: PublicRouteComponents;
+  publicRoutePaths?: Record<string, string>;
 }) {
   const app = (
     <PublicRenderClockProvider initialInstant={renderedAt}>
       <StrictMode>
-        <PublicRouteComponentsProvider components={publicRouteComponents}>
-          <QueryClientProvider client={queryClient}>
-            <BrowserRouter>
-              <ApplicationRoutes />
-              <Analytics beforeSend={filterAnalyticsEvent} />
-            </BrowserRouter>
-          </QueryClientProvider>
-        </PublicRouteComponentsProvider>
+        <PublicRoutePathsProvider paths={publicRoutePaths}>
+          <PublicRouteComponentsProvider components={publicRouteComponents}>
+            <QueryClientProvider client={queryClient}>
+              <BrowserRouter>
+                <ApplicationRoutes />
+                <Analytics beforeSend={filterAnalyticsEvent} />
+              </BrowserRouter>
+            </QueryClientProvider>
+          </PublicRouteComponentsProvider>
+        </PublicRoutePathsProvider>
       </StrictMode>
     </PublicRenderClockProvider>
   );

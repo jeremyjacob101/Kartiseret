@@ -38,6 +38,11 @@
       "import": "./dist/showtime-routes.js",
       "default": "./dist/showtime-routes.js"
     },
+    "./public-routes": {
+      "types": "./dist/public-routes.d.ts",
+      "import": "./dist/public-routes.js",
+      "default": "./dist/public-routes.js"
+    },
     "./preferences": {
       "types": "./dist/preferences.d.ts",
       "import": "./dist/preferences.js",

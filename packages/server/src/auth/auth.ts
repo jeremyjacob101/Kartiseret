@@ -20,6 +20,7 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import { account, authSchema, user } from "./schema.js";
 import type { AuthMailer } from "./mail.js";
+import { getOpaqueEmailActionUrl } from "./email-links.js";
 import {
   createAppleClientSecret,
   exchangeNativeAppleCode,
@@ -290,11 +291,9 @@ function createApplicationAuthOptions(
             manualAppleRevocation.add(request);
         },
         sendDeleteAccountVerification: async ({ user, token }) => {
-          const url = new URL("/confirm-account-deletion", options.baseURL);
-          url.hash = new URLSearchParams({ token }).toString();
           await options.mailer({
             to: user.email,
-            url: url.href,
+            url: getOpaqueEmailActionUrl("deletion", token, options.baseURL),
             kind: "deletion",
           });
         },
@@ -314,15 +313,23 @@ function createApplicationAuthOptions(
       minPasswordLength: PASSWORD_MIN_LENGTH,
       maxPasswordLength: PASSWORD_MAX_LENGTH,
       revokeSessionsOnPasswordReset: true,
-      sendResetPassword: async ({ user, url }) =>
-        options.mailer({ to: user.email, url, kind: "reset" }),
+      sendResetPassword: async ({ user, token }) =>
+        options.mailer({
+          to: user.email,
+          url: getOpaqueEmailActionUrl("reset", token, options.baseURL),
+          kind: "reset",
+        }),
     },
     emailVerification: {
       sendOnSignUp: true,
       sendOnSignIn: true,
       autoSignInAfterVerification: false,
-      sendVerificationEmail: async ({ user, url }) =>
-        options.mailer({ to: user.email, url, kind: "verification" }),
+      sendVerificationEmail: async ({ user, token }) =>
+        options.mailer({
+          to: user.email,
+          url: getOpaqueEmailActionUrl("verification", token, options.baseURL),
+          kind: "verification",
+        }),
     },
     session: {
       expiresIn: 60 * 60 * 24 * 30,

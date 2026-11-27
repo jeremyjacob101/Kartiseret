@@ -1,5 +1,10 @@
 import SwiftUI
 
+private struct PublicShareTaskIdentity: Hashable {
+    let request: PublicRouteShareRequest?
+    let retryCount: Int
+}
+
 struct MovieDetailView: View {
     let route: MovieRoute
 
@@ -10,6 +15,9 @@ struct MovieDetailView: View {
     @State private var usingSharedShowtimeContext = true
     @State private var actionMessage: String?
     @State private var actionError: String?
+    @State private var publicShareURL: URL?
+    @State private var shareLinkFailed = false
+    @State private var shareRetryCount = 0
     @State private var ticketAlertSaved = false
     @State private var hasTicketAvailability: Bool?
     @State private var releaseWatchSaved = false
@@ -47,6 +55,21 @@ struct MovieDetailView: View {
         hasTicketAvailability == false && (rows?.isEmpty ?? true)
     }
 
+    private var publicShareRequest: PublicRouteShareRequest? {
+        guard let code = movie?.movieCode,
+              UniversalMovieLink.isSupportedRouteCode(code) else { return nil }
+        let cinemaIDs = Array(Set(showtimePreferences.excludedCinemaIds.filter {
+            CinemaIdentity.byID($0) != nil
+        })).sorted()
+        return PublicRouteShareRequest(
+            movieCode: code,
+            city: request.city,
+            date: request.day.isoDate,
+            filterMask: SharedShowtimeLinkContext.filterMask(from: showtimePreferences.screeningFilters),
+            excludedCinemaIds: cinemaIDs
+        )
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -54,6 +77,14 @@ struct MovieDetailView: View {
                     header(movie)
                     if let context = activeSharedShowtimeContext {
                         sharedScreeningContext(context)
+                    } else if shareLinkFailed {
+                        Button {
+                            shareLinkFailed = false
+                            shareRetryCount += 1
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        .accessibilityLabel("Retry preparing showtime share link")
                     } else {
                         if route.sharedShowtimeContext != nil {
                             Button("Use shared showtime selection") {
@@ -84,11 +115,17 @@ struct MovieDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                if let movie, let shareURL = shareURL(for: movie) {
-                    ShareLink(item: shareURL, subject: Text(movie.title)) {
-                        Image(systemName: "square.and.arrow.up")
+                if let movie, movie.movieCode != nil {
+                    if let publicShareURL {
+                        ShareLink(item: publicShareURL, subject: Text(movie.title)) {
+                            Image(systemName: "square.and.arrow.up")
+                        }
+                        .accessibilityLabel("Share \(movie.title)")
+                    } else {
+                        ProgressView()
+                            .controlSize(.small)
+                            .accessibilityLabel("Preparing share link")
                     }
-                    .accessibilityLabel("Share \(movie.title)")
                 }
                 if activeSharedShowtimeContext == nil {
                     Button { showingFilters = true } label: { Image(systemName: "line.3.horizontal.decrease.circle") }
@@ -105,6 +142,29 @@ struct MovieDetailView: View {
             await store.loadCities()
             guard !Task.isCancelled else { return }
             await store.loadShowtimes(request)
+        }
+        .task(id: PublicShareTaskIdentity(request: publicShareRequest, retryCount: shareRetryCount)) {
+            let fallback = movie?.publicRouteCode.flatMap {
+                URL(string: "https://seret.site/\($0)")
+            }
+            guard let publicShareRequest else {
+                publicShareURL = fallback
+                shareLinkFailed = false
+                return
+            }
+            publicShareURL = nil
+            shareLinkFailed = false
+            do {
+                let path = try await store.api.createPublicRouteShare(publicShareRequest)
+                guard !Task.isCancelled,
+                      let site = URL(string: "https://seret.site"),
+                      let url = URL(string: path, relativeTo: site)?.absoluteURL else { return }
+                publicShareURL = url
+            } catch {
+                guard !Task.isCancelled else { return }
+                publicShareURL = nil
+                shareLinkFailed = true
+            }
         }
         .task(id: store.today) {
             await loadTicketAvailability()
@@ -138,12 +198,6 @@ struct MovieDetailView: View {
             Text("\(context.city) · \(request.day.displayName)")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.white)
-            if context.wasDateAdjusted {
-                Text("The shared date is outside the available range. Showing \(request.day.displayName) instead.")
-                    .font(.footnote)
-                    .foregroundStyle(BrandStyle.secondary)
-                    .accessibilityIdentifier("movie.sharedDateAdjusted")
-            }
             Button("Use my saved city, date and filters") {
                 usingSharedShowtimeContext = false
             }
@@ -289,20 +343,6 @@ struct MovieDetailView: View {
         var items = [String(movie.year)]
         if movie.runtime > 0 { items.append("\(movie.runtime) min") }
         return items
-    }
-
-    private func shareURL(for movie: Movie) -> URL? {
-        guard let code = movie.movieCode, UniversalMovieLink.isSupportedRouteCode(code) else {
-            return URL(string: "https://www.themoviedb.org/movie/\(movie.tmdbId)")
-        }
-        return UniversalMovieLink.shareURL(
-            movieCode: code,
-            city: request.city,
-            day: request.day,
-            today: store.today,
-            filterState: showtimePreferences.screeningFilters,
-            excludedCinemaIDs: showtimePreferences.excludedCinemaIds
-        ) ?? URL(string: "https://seret.site/\(code)")
     }
 
     private func loadTicketAvailability() async {

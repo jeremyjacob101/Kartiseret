@@ -560,13 +560,24 @@ export function HomepageFeaturedCarousel({
                           : "Coming soon"}
                       </p>
                       <h2>{item.movie.title}</h2>
-                      <a
-                        className="homepage-featured-cta"
-                        href={`/${item.movie.movieCode}`}
-                      >
-                        {item.ticketsOnSale ? "Get tickets" : "View movie"}
-                        <ArrowRight size={18} aria-hidden="true" />
-                      </a>
+                      {item.movie.publicRouteCode ? (
+                        <a
+                          className="homepage-featured-cta"
+                          href={`/${item.movie.publicRouteCode}`}
+                        >
+                          {item.ticketsOnSale ? "Get tickets" : "View movie"}
+                          <ArrowRight size={18} aria-hidden="true" />
+                        </a>
+                      ) : (
+                        <span
+                          className="homepage-featured-cta"
+                          aria-disabled="true"
+                          title="Movie link temporarily unavailable"
+                        >
+                          {item.ticketsOnSale ? "Get tickets" : "View movie"}
+                          <ArrowRight size={18} aria-hidden="true" />
+                        </span>
+                      )}
                     </div>
                     {isAdmin ? (
                       <button

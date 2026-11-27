@@ -1,12 +1,19 @@
 import { expect, test } from "@playwright/test";
 
 const pages = [
-  ["Support", "Support", "/support"],
-  ["Accessibility", "Accessibility", "/accessibility"],
-  ["Privacy", "Privacy Policy", "/privacy"],
-  ["Terms of Use", "Terms of Use", "/terms"],
-  ["Credits", "Credits", "/attribution"],
+  ["Support", "Support"],
+  ["Accessibility", "Accessibility"],
+  ["Privacy", "Privacy Policy"],
+  ["Terms of Use", "Terms of Use"],
+  ["Credits", "Credits"],
 ] as const;
+
+test("direct static-index URLs resolve to the opaque home route", async ({
+  page,
+}) => {
+  await page.goto("/index.html");
+  await expect(page).toHaveURL(/\/[a-z0-9]{8}$/);
+});
 
 for (const viewport of [
   { width: 390, height: 844 },
@@ -56,9 +63,9 @@ for (const viewport of [
     await page.goto("/support");
     const footer = page.getByRole("navigation", { name: "Footer" });
 
-    for (const [label, title, path] of pages) {
+    for (const [label, title] of pages) {
       await footer.getByRole("link", { name: label, exact: true }).click();
-      await expect(page).toHaveURL(path);
+      await expect(page).toHaveURL(/\/[a-z0-9]{8}$/);
       await expect(page).toHaveTitle(`${title} | Kartiseret`);
       await expect(
         page.getByRole("heading", { level: 1, name: title }),
@@ -80,14 +87,18 @@ for (const viewport of [
       .getByRole("navigation", { name: "On this page" })
       .getByRole("link", { name: "Licenses & rights" })
       .click();
-    await expect(page).toHaveURL("/attribution#licenses-and-rights");
+    const creditsPath = new URL(page.url()).pathname;
+    expect(creditsPath).toMatch(/^\/[a-z0-9]{8}$/);
+    await expect(page).toHaveURL(`${creditsPath}#licenses-and-rights`);
     await expect(
       page.getByRole("heading", { name: "Licenses & rights" }),
     ).toBeInViewport();
 
     await footer.getByRole("link", { name: "Terms of Use" }).click();
     await page.getByRole("link", { name: "Report a correction" }).click();
-    await expect(page).toHaveURL("/support#showtime-corrections");
+    const supportPath = new URL(page.url()).pathname;
+    expect(supportPath).toMatch(/^\/[a-z0-9]{8}$/);
+    await expect(page).toHaveURL(`${supportPath}#showtime-corrections`);
     await expect(
       page.getByRole("heading", { name: "Showtimes and corrections" }),
     ).toBeInViewport();

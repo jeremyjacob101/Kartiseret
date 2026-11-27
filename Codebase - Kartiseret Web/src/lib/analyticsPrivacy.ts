@@ -1,3 +1,4 @@
+import { isSecureEmailActionPath } from "@kartiseret/contracts/public-routes";
 import type { BeforeSendEvent } from "@vercel/analytics";
 import { PASSWORD_RESET_PATH } from "./authRoutes";
 
@@ -15,7 +16,9 @@ export function filterAnalyticsEvent(
     const pathname = decodeURIComponent(url.pathname)
       .replace(/\/+$/, "")
       .toLowerCase();
-    if (sensitivePaths.has(pathname)) return null;
+    if (sensitivePaths.has(pathname) || isSecureEmailActionPath(pathname)) {
+      return null;
+    }
 
     url.search = "";
     url.hash = "";

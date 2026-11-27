@@ -1,6 +1,6 @@
 import { invalidateUserTicketAlertQueries, mergeUserTicketAlert, selectTicketAlertAvailability, selectUserTicketAlert, ticketAlertAvailabilityQueryOptions, ticketAlertMutationOptions, ticketAlertQueryKeys, userTicketAlertSubscriptionsQueryOptions, type TicketAlertShowtimeRow, type UserTicketAlertSubscription } from "../../src/data/ticketAlerts";
-import { addCalendarDays, filterMaskFromUnchecked, getJerusalemCinemaDate, parseMovieRouteCode } from "@kartiseret/contracts/showtime-links";
 import { DEFAULT_TICKET_ALERT_CRITERIA, resolveTicketAlertCriteria, type TicketAlertCriteria } from "@kartiseret/contracts/private-data";
+import { addCalendarDays, filterMaskFromUnchecked, getJerusalemCinemaDate } from "@kartiseret/contracts/showtime-links";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getAuthClient } from "../../src/lib/authClient";
 import { QueryClient } from "@tanstack/react-query";
@@ -206,10 +206,10 @@ describe("ticket alert queries", () => {
     );
 
     expect(availability).not.toBeNull();
-    const url = new URL(availability!.path, "https://seret.site");
-    expect(url.searchParams.get("date")).toBe("2027-01-15");
-    expect(parseMovieRouteCode(url.pathname.slice(1))).toMatchObject({
-      cityCode: "l",
+    expect(availability?.shareState).toMatchObject({
+      movieCode: "A7z",
+      city: "Tel Aviv",
+      date: "2027-01-15",
       filterMask: filterMaskFromUnchecked(criteria.filters),
     });
   });
@@ -330,14 +330,16 @@ describe("ticket alert queries", () => {
         instant,
       ),
     ).toBeNull();
-    expect(
-      selectTicketAlertAvailability(
-        linkedRows,
-        { ...DEFAULT_TICKET_ALERT_CRITERIA, cities: ["Haifa"] },
-        undefined,
-        instant,
-      )?.path,
-    ).toBe("/showtimes");
+    const noMovieCodeAvailability = selectTicketAlertAvailability(
+      linkedRows,
+      { ...DEFAULT_TICKET_ALERT_CRITERIA, cities: ["Haifa"] },
+      undefined,
+      instant,
+    );
+    expect(noMovieCodeAvailability).toMatchObject({
+      city: "Haifa",
+      shareState: null,
+    });
   });
 
   it("defaults to Jerusalem and filters, including future early screenings", () => {

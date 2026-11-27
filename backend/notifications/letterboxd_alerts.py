@@ -24,6 +24,7 @@ from backend.notifications.ticket_alerts import (
     JERUSALEM_TIME_ZONE,
     ALERT_FILTER_OPTIONS,
     MOVIE_CODE_PATTERN,
+    PUBLIC_ROUTE_PATH_PATTERN,
     RenderedEmail,
     TicketAlertConfig,
     _format_showtime,
@@ -33,8 +34,9 @@ from backend.notifications.ticket_alerts import (
     _safe_header,
     _text,
     DEFAULT_SITE_URL,
-    build_movie_showtime_path,
+    create_public_route_link_paths,
     filter_mask_from_exclusions,
+    movie_showtime_share_key,
     safe_site_url,
     get_canonical_app_email,
     is_future_showtime,
@@ -285,6 +287,7 @@ def render_letterboxd_event_email(
     events: tuple[dict[str, Any], ...],
     site_url: str = DEFAULT_SITE_URL,
     movie_codes: dict[int, str] | None = None,
+    public_route_paths: dict[tuple[Any, ...], str] | None = None,
 ) -> RenderedEmail:
     if not events:
         raise ValueError("A Letterboxd update email must contain at least one event.")
@@ -336,12 +339,20 @@ def render_letterboxd_event_email(
             raise ValueError("A Letterboxd showtime event has no ticket link.")
         movie_code = _text(payload.get("movie_code")) or (movie_codes or {}).get(tmdb_id)
         filter_mask = payload.get("filter_mask", 0)
-        movie_path = build_movie_showtime_path(
-            movie_code,
-            city,
-            showing_date,
-            filter_mask if isinstance(filter_mask, int) and not isinstance(filter_mask, bool) else 0,
-        )
+        mask = filter_mask if isinstance(filter_mask, int) and not isinstance(filter_mask, bool) and 0 <= filter_mask < 2**21 else 0
+        if public_route_paths is None:
+            raise RuntimeError("Opaque Letterboxd destinations are required.")
+        if movie_code and MOVIE_CODE_PATTERN.fullmatch(movie_code):
+            movie_path = public_route_paths.get(
+                movie_showtime_share_key(movie_code, city, showing_date, mask)
+            )
+        else:
+            movie_path = public_route_paths.get(("page", "/showtimes"))
+        if (
+            not isinstance(movie_path, str)
+            or not PUBLIC_ROUTE_PATH_PATTERN.fullmatch(movie_path)
+        ):
+            raise RuntimeError("An opaque Letterboxd notification destination is missing.")
         destination = f"{destination_origin}{movie_path}"
         detail = f"{city} · {_friendly_date(showing_date)} at {showtime}"
         html_items.append(
@@ -373,6 +384,62 @@ def render_letterboxd_event_email(
         ]
     )
     return RenderedEmail(subject, html_body, text_body)
+
+
+def create_letterboxd_public_route_paths(
+    http_client: Any,
+    config: TicketAlertConfig,
+    events: tuple[dict[str, Any], ...],
+    movie_codes: dict[int, str],
+) -> dict[tuple[Any, ...], str]:
+    shares: list[dict[str, Any]] = []
+    keys: list[tuple[str, str, str, int]] = []
+    page_paths: list[str] = []
+    normalized: list[tuple[dict[str, Any], int]] = []
+    for row in events:
+        payload = row.get("event_payload")
+        if not isinstance(payload, dict) or _text(row.get("event_type")) != "showtime":
+            continue
+        try:
+            movie_id = int(row.get("tmdb_id"))
+        except (TypeError, ValueError):
+            movie_id = 0
+        normalized.append((payload, movie_id))
+    normalized.sort(key=lambda pair: (
+        _text(pair[0].get("date_of_showing")),
+        _text(pair[0].get("title")).casefold(),
+    ))
+    for payload, movie_id in normalized:
+        code = _text(payload.get("movie_code")) or movie_codes.get(movie_id, "")
+        if not code or not MOVIE_CODE_PATTERN.fullmatch(code):
+            if "/showtimes" not in page_paths:
+                page_paths.append("/showtimes")
+            continue
+        city = _text(payload.get("screening_city"))
+        showing_date = _text(payload.get("date_of_showing"))
+        raw_mask = payload.get("filter_mask", 0)
+        mask = raw_mask if isinstance(raw_mask, int) and not isinstance(raw_mask, bool) and 0 <= raw_mask < 2**21 else 0
+        shares.append({
+            "movieCode": code,
+            "city": city,
+            "date": showing_date,
+            "filterMask": mask,
+            "excludedCinemaIds": [],
+        })
+        keys.append(movie_showtime_share_key(code, city, showing_date, mask))
+    links = create_public_route_link_paths(
+        http_client,
+        base_url=config.recipient_api_url,
+        internal_secret=config.internal_api_secret,
+        page_paths=page_paths,
+        shares=shares,
+    )
+    output: dict[tuple[Any, ...], str] = {
+        key: path for key, path in zip(keys, links["sharePaths"], strict=True)
+    }
+    if page_paths:
+        output[("page", "/showtimes")] = links["pagePaths"][0]
+    return output
 
 
 class SupabaseLetterboxdRepository:
@@ -956,10 +1023,17 @@ class LetterboxdSourceDispatcher:
                     }
                 )
                 movie_codes = self.repository.load_movie_codes(movie_ids)
+                public_route_paths = create_letterboxd_public_route_paths(
+                    self.http_client,
+                    self.config,
+                    batch.events,
+                    movie_codes,
+                )
                 email = render_letterboxd_event_email(
                     batch.events,
                     self.config.site_url,
                     movie_codes,
+                    public_route_paths,
                 )
                 recipient = self.repository.canonical_email(batch.user_id)
                 resend_id = send_resend_email(

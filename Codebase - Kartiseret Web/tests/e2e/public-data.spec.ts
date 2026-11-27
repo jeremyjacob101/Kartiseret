@@ -151,11 +151,12 @@ test("catalog API supports search and permanent short-code movie details", async
   await expect(
     page.getByRole("heading", { name: "Dev Catalog Film" }),
   ).toBeVisible();
-  await expect(page).toHaveURL(/\/D01/);
+  await expect(page).toHaveURL(/\/[a-z0-9]{8}$/);
+  const moviePageUrl = page.url();
   await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
-    "https://seret.site/D01",
+    `https://seret.site${new URL(moviePageUrl).pathname}`,
   );
 
   expect(
@@ -167,14 +168,14 @@ test("catalog API supports search and permanent short-code movie details", async
   expect(requests.some((request) => request.includes("/rest/v1/"))).toBe(false);
 
   await page.goBack();
-  await expect(page).toHaveURL(/\/movies$/);
+  await expect(page).toHaveURL(/\/[a-z0-9]{8}$/);
   await expect(
     page.getByRole("link", {
       name: "Open Dev Catalog Film movie page",
     }),
   ).toBeVisible();
   await page.goForward();
-  await expect(page).toHaveURL(/\/D01/);
+  await expect(page).toHaveURL(moviePageUrl);
   await expect(
     page.getByRole("heading", { name: "Dev Catalog Film" }),
   ).toBeVisible();
@@ -182,6 +183,7 @@ test("catalog API supports search and permanent short-code movie details", async
   const shortLinkPage = await page.context().newPage();
   await blockExternalServices(shortLinkPage);
   await shortLinkPage.goto("/D01");
+  await expect(shortLinkPage).toHaveURL(/\/[a-z0-9]{8}$/);
   await expect(
     shortLinkPage.getByRole("heading", { name: "Dev Catalog Film" }),
   ).toBeVisible();
@@ -214,7 +216,7 @@ test("nationwide cinematheque search leaves the existing cinema page unchanged",
   expect(nationwideParams.get("endDate")).toBeTruthy();
 
   await result.click();
-  await expect(page).toHaveURL(/\/cinematheques$/);
+  await expect(page).toHaveURL(/\/[a-z0-9]{8}$/);
   await expect(
     page.getByRole("heading", { name: "Cinematheque Showtimes" }),
   ).toBeVisible();
@@ -247,10 +249,7 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
   let insertedPlanetTheater = false;
   await database.connect();
   try {
-    const dateResult = await database.query<{ date: string }>(
-      "SELECT to_char(CURRENT_DATE + 14, 'YYYY-MM-DD') AS date",
-    );
-    const fixtureDate = dateResult.rows[0]?.date;
+    const fixtureDate = addCalendarDays(getJerusalemCinemaDate(new Date()), 10);
     if (!fixtureDate) throw new Error("Could not calculate fixture date.");
 
     await database.query(
@@ -351,7 +350,7 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
       path: testInfo.outputPath("separate-search-mobile.png"),
     });
     await cinemathequeResult.click();
-    await expect(page).toHaveURL(/\/cinematheques$/);
+    await expect(page).toHaveURL(/\/[a-z0-9]{8}$/);
     await expect(
       page.getByRole("heading", { name: "Cinematheque Showtimes" }),
     ).toBeVisible();
@@ -360,7 +359,8 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
     await page
       .getByRole("button", { name: `${title} Now Playing • 2026` })
       .click();
-    await expect(page).toHaveURL(new RegExp(`/${movieCode}`));
+    await expect(page).toHaveURL(/\/[a-z0-9]{8}$/);
+    const moviePageUrl = page.url();
     await expect(
       page.getByRole("heading", { name: title, exact: true }),
     ).toBeVisible();
@@ -377,6 +377,16 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
         escapeRegularExpression(dateCalendarLabel(showtimeDate)),
       ),
     });
+    await expect(
+      page.getByRole("radiogroup", { name: "Choose showtime day" }),
+    ).toBeVisible();
+    if (!(await dateButton.count())) {
+      await page
+        .getByRole("radiogroup", { name: "Choose showtime day" })
+        .getByRole("radio")
+        .last()
+        .click();
+    }
     await expect(dateButton).toBeVisible();
     await dateButton.scrollIntoViewIfNeeded();
     await dateButton.click();
@@ -451,17 +461,16 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
     ]);
 
     await page.goto(`/${movieCode}`);
+    await expect(page).toHaveURL(moviePageUrl);
     await expect(
       page.getByRole("heading", { name: title, exact: true }),
     ).toBeVisible();
-    const movieDateButton = page.getByRole("radio", {
-      name: new RegExp(
-        escapeRegularExpression(dateCalendarLabel(showtimeDate)),
-      ),
+    const share = await page.request.post("/api/v1/public-routes/shares", {
+      data: { movieCode, city: "Jerusalem", date: showtimeDate, filterMask: 0 },
     });
-    await expect(movieDateButton).toBeVisible();
-    await movieDateButton.scrollIntoViewIfNeeded();
-    await movieDateButton.click();
+    expect(share.ok()).toBe(true);
+    const { data } = (await share.json()) as { data: { path: string } };
+    await page.goto(data.path);
     const detailsDayPanel = page.locator(".details-day-panel");
     await expect(detailsDayPanel).toHaveAttribute(
       "data-showtime-date",
@@ -509,7 +518,7 @@ test("cinematheque showings appear after commercial cinemas in movie showtimes",
     });
     await expect(planetCinemaLink).toBeVisible();
     await planetCinemaLink.click();
-    await expect(page).toHaveURL(`/c/${planetCinema.id}`);
+    await expect(page).toHaveURL(/\/[a-z0-9]{8}$/);
     await expect(
       page.getByRole("heading", {
         name: "Planet Cinema Jerusalem showtimes",
@@ -579,6 +588,16 @@ test("showtimes browse a real city/date and the active filter changes results", 
   const dateButton = page.getByRole("radio", {
     name: new RegExp(escapeRegularExpression(dateCalendarLabel(fixtureDate))),
   });
+  await expect(
+    page.getByRole("radiogroup", { name: "Choose showtime day" }),
+  ).toBeVisible();
+  if (!(await dateButton.count())) {
+    await page
+      .getByRole("radiogroup", { name: "Choose showtime day" })
+      .getByRole("radio")
+      .last()
+      .click();
+  }
   await expect(dateButton).toBeVisible();
   await dateButton.scrollIntoViewIfNeeded();
   await dateButton.click();
@@ -658,17 +677,19 @@ test("an encoded Tel Aviv share link opens on mobile with targeted showtimes", a
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/${routeCode}`);
+  const sharePath = new URL(page.url()).pathname;
+  expect(sharePath).toMatch(/^\/[a-z0-9]{8}$/);
 
   await expect(
     page.getByRole("heading", { name: "Dev Catalog Film" }),
   ).toBeVisible();
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
-    "https://seret.site/D01",
+    `https://seret.site${sharePath}`,
   );
   await expect(page.locator('meta[property="og:url"]')).toHaveAttribute(
     "content",
-    `https://seret.site/${routeCode}`,
+    `https://seret.site${sharePath}`,
   );
   await expect(
     page.getByLabel("Dev Catalog Film showtimes in Tel Aviv"),
@@ -704,6 +725,9 @@ test("a far-ahead movie link keeps repeated yesterday/tomorrow navigation workin
   })!;
 
   await page.goto(`/${routeCode}?date=${linkedDate}`);
+  const sharePath = new URL(page.url()).pathname;
+  expect(sharePath).toMatch(/^\/[a-z0-9]{8}$/);
+  expect(new URL(page.url()).search).toBe("");
   await expect(
     page.getByRole("heading", { name: "Dev Catalog Film" }),
   ).toBeVisible();
@@ -752,9 +776,8 @@ test("a far-ahead movie link keeps repeated yesterday/tomorrow navigation workin
     });
     await expect(dateButton).toBeVisible();
     await dateButton.click();
-    await expect
-      .poll(() => new URL(page.url()).searchParams.get("date"))
-      .toBe(date);
+    await expect(page).toHaveURL(new RegExp(`${sharePath}$`));
+    expect(new URL(page.url()).search).toBe("");
     await expect(page.locator(".details-day-panel")).toHaveAttribute(
       "data-showtime-date",
       date,
@@ -798,6 +821,8 @@ test("a coming-soon movie with future screenings accepts the selected date route
   })!;
 
   await page.goto(`/${routeCode}?date=${linkedDate}`);
+  expect(new URL(page.url()).pathname).toMatch(/^\/[a-z0-9]{8}$/);
+  expect(new URL(page.url()).search).toBe("");
   await expect(
     page.getByRole("heading", { name: "Dev Coming Soon" }),
   ).toBeVisible();

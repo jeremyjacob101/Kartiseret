@@ -8,6 +8,7 @@ function createMovie(): Movie {
   return {
     tmdbId: "101",
     movieCode: "Ab1",
+    publicRouteCode: "movie123",
     title: "Original Movie",
     year: 2026,
     genres: ["Drama"],
@@ -81,7 +82,7 @@ describe("PosterGridPage", () => {
     const tile = screen.getByRole("link", {
       name: "Open Original Movie movie page",
     });
-    expect(tile).toHaveAttribute("href", "/Ab1");
+    expect(tile).toHaveAttribute("href", "/movie123");
     expect(tile).toHaveAttribute("title", "Original Movie");
     await user.click(tile);
     expect(onPosterSelect).toHaveBeenCalledWith(movie);

@@ -18,6 +18,17 @@ const mocks = vi.hoisted(() => ({
   readHomepageFeatured: vi.fn(),
   renderBuiltPublicApplication: vi.fn(),
   readProductionPagePreferences: vi.fn(),
+  publicRouteRecords: new Map<
+    string,
+    {
+      code: string;
+      destinationKey: string;
+      kind: "page" | "movie" | "cinema" | "city" | "share";
+      destinationId: string;
+      payload: Record<string, unknown>;
+    }
+  >(),
+  publicRouteCounter: { value: 0 },
 }));
 
 vi.mock("@kartiseret/server/public-data", () => mocks);
@@ -28,6 +39,46 @@ vi.mock("@kartiseret/server/public-production", () => ({
   getProductionPublicDataRepository: mocks.getProductionPublicDataRepository,
   getProductionDataRuntime: () => ({ database: { db: {} } }),
 }));
+vi.mock("@kartiseret/server/page-routes", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@kartiseret/server/page-routes")>();
+  const storeRoute = (
+    input: import("@kartiseret/server/page-routes").PublicRouteInput,
+  ) => {
+    const existing = mocks.publicRouteRecords.get(input.destinationKey);
+    if (existing) return existing;
+    mocks.publicRouteCounter.value += 1;
+    const route = {
+      ...input,
+      code: `r${mocks.publicRouteCounter.value.toString(36).padStart(7, "0")}`,
+      payload: input.payload ?? {},
+    };
+    mocks.publicRouteRecords.set(route.destinationKey, route);
+    return route;
+  };
+  return {
+    ...actual,
+    PostgresPublicRouteRegistry: class {
+      async getByCode(code: string) {
+        return (
+          [...mocks.publicRouteRecords.values()].find(
+            (route) => route.code === code,
+          ) ?? null
+        );
+      }
+      async getOrCreate(
+        input: import("@kartiseret/server/page-routes").PublicRouteInput,
+      ) {
+        return storeRoute(input);
+      }
+      async getOrCreateMany(
+        inputs: readonly import("@kartiseret/server/page-routes").PublicRouteInput[],
+      ) {
+        return inputs.map(storeRoute);
+      }
+    },
+  };
+});
 vi.mock("@kartiseret/server/homepage-featured", () => ({
   HomepageFeaturedService: class {
     readPublic = mocks.readHomepageFeatured;
@@ -42,8 +93,35 @@ vi.mock("../../server/seo/renderer.js", () => ({
   renderBuiltPublicApplication: mocks.renderBuiltPublicApplication,
 }));
 
-const { default: seoHandler, publicCatalogCachePolicy } =
+const { default: dispatchSeoHandler, publicCatalogCachePolicy } =
   await import("../../server/seo/handler.js");
+
+async function seoHandler(
+  request: ReturnType<typeof createRequest>,
+  response: ReturnType<typeof createResponse>,
+): Promise<void> {
+  await dispatchSeoHandler(request as never, response as never);
+  const location = response.headers.get("location");
+  if (
+    response.statusCode !== 308 ||
+    !location ||
+    !/^\/[a-z0-9]{8}$/.test(location)
+  ) {
+    return;
+  }
+
+  const isPrivateRoute = request.url?.includes("/api/private-") ?? false;
+  const followedResponse = createResponse();
+  const followedRequest = createRequest(
+    isPrivateRoute ? "/api/private-route-code" : "/api/route-code",
+    { code: location.slice(1) },
+  );
+  followedRequest.headers = request.headers;
+  await dispatchSeoHandler(followedRequest as never, followedResponse as never);
+  response.statusCode = followedResponse.statusCode;
+  response.headers = followedResponse.headers;
+  response.body = followedResponse.body;
+}
 
 const cinema = CINEMA_IDENTITIES.find(
   (identity) => identity.displayName === "Cinema City Jerusalem",
@@ -110,6 +188,8 @@ function theaterData() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.publicRouteRecords.clear();
+  mocks.publicRouteCounter.value = 0;
   mocks.readHomepageFeatured.mockReset().mockResolvedValue(undefined);
   mocks.getProductionPublicDataRepository.mockReset().mockReturnValue({
     findShowtimeEligibilityCandidates: mocks.findShowtimeEligibilityCandidates,
@@ -149,6 +229,87 @@ beforeEach(() => {
 });
 
 describe("SEO request handler", () => {
+  it("redirects legacy page URLs directly to an opaque route code", async () => {
+    const response = createResponse();
+
+    await dispatchSeoHandler(
+      createRequest("/api/page", { path: "/movies" }) as never,
+      response as never,
+    );
+
+    expect(response.statusCode).toBe(308);
+    expect(response.headers.get("location")).toMatch(/^\/[a-z0-9]{8}$/);
+  });
+
+  it("redirects the license text URL to a code and serves it from that code", async () => {
+    const legacyResponse = createResponse();
+    await dispatchSeoHandler(
+      createRequest("/api/page", {
+        path: "/third-party-licenses.txt",
+      }) as never,
+      legacyResponse as never,
+    );
+    expect(legacyResponse.statusCode).toBe(308);
+    const opaquePath = legacyResponse.headers.get("location");
+    expect(opaquePath).toMatch(/^\/[a-z0-9]{8}$/);
+
+    const response = createResponse();
+    await seoHandler(
+      createRequest("/api/route-code", { code: opaquePath!.slice(1) }),
+      response as never,
+    );
+    expect(response.statusCode).toBe(200);
+    expect(response.headers.get("content-type")).toBe(
+      "text/plain; charset=utf-8",
+    );
+    expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+  });
+
+  it("preserves whitelisted account callback query parameters across Vercel rewrites", async () => {
+    const response = createResponse();
+    await dispatchSeoHandler(
+      createRequest("/api/page?path=%2Fuser&linked=1", {
+        path: "/user",
+        linked: "1",
+      }) as never,
+      response as never,
+    );
+
+    expect(response.statusCode).toBe(308);
+    expect(response.headers.get("location")).toMatch(/^\/[a-z0-9]{8}$/);
+    expect(
+      [...mocks.publicRouteRecords.values()].some(
+        (route) => route.destinationId === "/user?linked=1",
+      ),
+    ).toBe(true);
+  });
+
+  it("renders opaque home callback routes against the home page while preserving callback state", async () => {
+    const route = {
+      code: "autherr0",
+      destinationKey: "page:/:query:authError=1",
+      kind: "page" as const,
+      destinationId: "/?authError=1",
+      payload: {},
+    };
+    mocks.publicRouteRecords.set(route.destinationKey, route);
+    const response = createResponse();
+
+    await seoHandler(
+      createRequest("/api/route-code", { code: route.code }),
+      response as never,
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(mocks.renderBuiltPublicApplication.mock.calls[0]?.[0]).toMatchObject(
+      {
+        pathname: `/${route.code}`,
+        resolvedRoute: { renderPath: "/?authError=1" },
+      },
+    );
+    expect(mocks.getMovieCatalog).toHaveBeenCalled();
+  });
+
   it("reads homepage featured content before the catalog snapshot pins the pool", async () => {
     const featured = {
       data: {
@@ -367,12 +528,15 @@ describe("SEO request handler", () => {
     expect(response.body).toContain(
       "<title>Movie showtimes in Israel — Now Playing | Kartiseret</title>",
     );
-    expect(response.body).toContain(
-      '<link rel="canonical" href="https://seret.site/showtimes" />',
-    );
     const bootstrap = mocks.renderBuiltPublicApplication.mock.calls[0]?.[0];
+    const publicPath = `/${bootstrap.resolvedRoute.route.code}`;
+    expect(publicPath).toMatch(/^\/[a-z0-9]{8}$/);
+    expect(response.body).toContain(
+      `<link rel="canonical" href="https://seret.site${publicPath}" />`,
+    );
     expect(bootstrap).toMatchObject({
-      pathname: "/showtimes",
+      pathname: publicPath,
+      resolvedRoute: { renderPath: "/showtimes" },
       showtimeCity: { city: "Jerusalem" },
     });
   });
@@ -458,19 +622,21 @@ describe("SEO request handler", () => {
     expect(response.body).toContain(
       "<title>Movie showtimes in Tel Aviv — Now Playing | Kartiseret</title>",
     );
-    expect(response.body).toContain(
-      '<link rel="canonical" href="https://seret.site/showtimes/tel-aviv" />',
-    );
     expect(response.headers.get("x-robots-tag")).toBe("index, follow");
-    expect(mocks.renderBuiltPublicApplication.mock.calls[0]?.[0]).toMatchObject(
-      {
-        pathname: "/showtimes/tel-aviv",
-        showtimeCity: {
-          city: "Tel Aviv",
-          showtimes: [{ screeningCity: "Tel Aviv" }],
-        },
-      },
+    const bootstrap = mocks.renderBuiltPublicApplication.mock.calls[0]?.[0];
+    const publicPath = `/${bootstrap.resolvedRoute.route.code}`;
+    expect(publicPath).toMatch(/^\/[a-z0-9]{8}$/);
+    expect(response.body).toContain(
+      `<link rel="canonical" href="https://seret.site${publicPath}" />`,
     );
+    expect(bootstrap).toMatchObject({
+      pathname: publicPath,
+      resolvedRoute: { renderPath: "/showtimes/tel-aviv" },
+      showtimeCity: {
+        city: "Tel Aviv",
+        showtimes: [{ screeningCity: "Tel Aviv" }],
+      },
+    });
   });
 
   it("returns valid but empty city views as noindex and rejects unknown city slugs", async () => {
@@ -520,7 +686,8 @@ describe("SEO request handler", () => {
 
     expect(response.statusCode).toBe(200);
     const bootstrap = mocks.renderBuiltPublicApplication.mock.calls[0]?.[0];
-    expect(bootstrap).toMatchObject({ pathname: "/Ab1" });
+    expect(bootstrap?.pathname).toMatch(/^\/[a-z0-9]{8}$/);
+    expect(bootstrap?.resolvedRoute?.renderPath).toBe("/Ab1");
     expect(bootstrap?.showtimeCity).toBeUndefined();
     expect(bootstrap?.targetedMovieShowtimes?.showtimes[0]).toMatchObject({
       cinema: "Unmapped Cinema",
@@ -567,7 +734,15 @@ describe("SEO request handler", () => {
 
     expect(response.statusCode).toBe(200);
     const bootstrap = mocks.renderBuiltPublicApplication.mock.calls[0]?.[0];
-    expect(bootstrap?.pathname).toBe(`/${routeCode}?date=${date}`);
+    expect(bootstrap?.pathname).toMatch(/^\/[a-z0-9]{8}$/);
+    expect(bootstrap?.resolvedRoute).toMatchObject({
+      route: {
+        kind: "share",
+        destinationId: "Ab1",
+        payload: { city: "Tel Aviv", date, filterMask: 45120 },
+      },
+    });
+    expect(bootstrap?.resolvedRoute?.renderPath).toContain(`date=${date}`);
     expect(bootstrap?.targetedMovieShowtimes).toMatchObject({
       city: "Tel Aviv",
       date,
@@ -636,10 +811,36 @@ describe("SEO request handler", () => {
     expect(mocks.getMovieCatalog).toHaveBeenCalledTimes(2);
     expect(mocks.renderBuiltPublicApplication.mock.calls[0]?.[0]).toMatchObject(
       {
-        pathname: `/c/${cinemaTheater.id}`,
+        pathname: `/__cinema/${cinemaTheater.id}`,
         cinema: { displayName: cinemaTheater.displayName },
       },
     );
+  });
+
+  it("uses the opaque cinema URL for canonical, Open Graph, and structured metadata", async () => {
+    const route = {
+      code: "cinema00",
+      destinationKey: `cinema:${cinema.id}`,
+      kind: "cinema" as const,
+      destinationId: cinema.id,
+      payload: {},
+    };
+    mocks.publicRouteRecords.set(route.destinationKey, route);
+    const response = createResponse();
+
+    await seoHandler(
+      createRequest("/api/route-code", { code: route.code }),
+      response as never,
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain(
+      '<link rel="canonical" href="https://seret.site/cinema00" />',
+    );
+    expect(response.body).toContain(
+      '<meta property="og:url" content="https://seret.site/cinema00" />',
+    );
+    expect(response.body).toContain('"url":"https://seret.site/cinema00"');
   });
 
   it("does not publish cinematheque-only movie codes as public movie links", async () => {
@@ -682,6 +883,23 @@ describe("SEO request handler", () => {
     expect(invalidMovie.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     expect(invalidMovie.headers.get("cache-control")).toBe("no-store");
     expect(unknownCinema.statusCode).toBe(404);
+  });
+
+  it("lets obsolete /c cinema URLs fall through to the normal not-found response", async () => {
+    const response = createResponse();
+    const oldCinemaPath = `/c/${cinema.id}`;
+
+    await seoHandler(
+      createRequest("/api/not-found?path=%2Fc%2Fold-cinema", {
+        path: oldCinemaPath,
+      }),
+      response as never,
+    );
+
+    expect(response.statusCode).toBe(404);
+    expect(response.headers.get("location")).toBeUndefined();
+    expect(response.body).toContain("Page not found");
+    expect(mocks.getCinemaPageData).not.toHaveBeenCalled();
   });
 
   it("returns temporary failures without caching when public data is unavailable", async () => {
@@ -727,12 +945,15 @@ describe("SEO request handler", () => {
     expect(response.headers.get("vercel-cache-tag")).toBe(
       sitemapCacheControl === "no-store" ? null : "public-catalog",
     );
-    expect(response.body).toContain("https://seret.site/Ab1");
-    expect(response.body).toContain("https://seret.site/showtimes/jerusalem");
-    expect(response.body).not.toContain(
-      "https://seret.site/showtimes/tel-aviv",
+    const urls = [...response.body.matchAll(/<loc>([^<]+)<\/loc>/g)].map(
+      (match) => match[1],
     );
-    expect(response.body).toContain(`https://seret.site/c/${cinema.id}`);
+    expect(urls.length).toBeGreaterThan(0);
+    expect(
+      urls.every((url) =>
+        /^https:\/\/seret\.site\/[a-z0-9]{8}$/.test(url ?? "")),
+    ).toBe(true);
+    expect(response.body).not.toContain("/c/");
     expect(response.body).not.toContain("attacker.example");
     expect(response.body).not.toContain("?filter=");
   });

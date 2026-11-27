@@ -36,11 +36,14 @@ from backend.notifications.ticket_alerts import (
     NoCanonicalEmail,
     RenderedEmail,
     TicketAlertConfig,
+    MOVIE_CODE_PATTERN,
+    PUBLIC_ROUTE_PATH_PATTERN,
     _friendly_date,
     _jerusalem_now,
     _text,
     resolve_ticket_alert_criteria,
-    build_movie_showtime_path,
+    create_public_route_link_paths,
+    movie_showtime_share_key,
     DEFAULT_SITE_URL,
     safe_site_url,
     send_resend_email,
@@ -217,6 +220,7 @@ def render_movie_notification_email(
     *,
     letterboxd_manage_url: str | None = None,
     one_click_unsubscribe_url: str | None = None,
+    public_route_paths: dict[tuple[str, str, str, int], str] | None = None,
 ) -> RenderedEmail:
     if not events:
         raise ValueError("A notification email must contain at least one film.")
@@ -280,12 +284,22 @@ def render_movie_notification_email(
                         f"at {payload['showtime']} · {canonical_cinema_name(payload['cinema'])}"
                     )
                     filter_mask = payload.get("filter_mask", 0)
-                    movie_path = build_movie_showtime_path(
-                        _text(payload.get("movie_code")) or fallback_movie_code,
-                        _text(payload.get("screening_city")),
-                        _text(payload.get("date_of_showing")),
-                        filter_mask if isinstance(filter_mask, int) and not isinstance(filter_mask, bool) else 0,
+                    movie_code = _text(payload.get("movie_code")) or fallback_movie_code
+                    city = _text(payload.get("screening_city"))
+                    showing_date = _text(payload.get("date_of_showing"))
+                    mask = filter_mask if isinstance(filter_mask, int) and not isinstance(filter_mask, bool) and 0 <= filter_mask < 2**21 else 0
+                    if public_route_paths is None:
+                        raise RuntimeError("Opaque movie notification destinations are required.")
+                    if not movie_code or not MOVIE_CODE_PATTERN.fullmatch(movie_code):
+                        raise RuntimeError("An opaque movie notification destination is unavailable.")
+                    movie_path = public_route_paths.get(
+                        movie_showtime_share_key(movie_code, city, showing_date, mask)
                     )
+                    if (
+                        not isinstance(movie_path, str)
+                        or not PUBLIC_ROUTE_PATH_PATTERN.fullmatch(movie_path)
+                    ):
+                        raise RuntimeError("An opaque movie notification destination is missing.")
                     movie_url = f"{destination_origin}{movie_path}"
                     details_html.append(
                         f'{escape(detail)} · <a href="{escape(movie_url, quote=True)}">View showtimes</a>'
@@ -313,12 +327,22 @@ def render_movie_notification_email(
             if kind == "showtime":
                 first_payload = payloads[0]
                 first_mask = first_payload.get("filter_mask", 0)
-                first_path = build_movie_showtime_path(
-                    _text(first_payload.get("movie_code")) or fallback_movie_code,
-                    _text(first_payload.get("screening_city")),
-                    _text(first_payload.get("date_of_showing")),
-                    first_mask if isinstance(first_mask, int) and not isinstance(first_mask, bool) else 0,
+                first_movie_code = _text(first_payload.get("movie_code")) or fallback_movie_code
+                first_city = _text(first_payload.get("screening_city"))
+                first_date = _text(first_payload.get("date_of_showing"))
+                first_mask_value = first_mask if isinstance(first_mask, int) and not isinstance(first_mask, bool) and 0 <= first_mask < 2**21 else 0
+                if public_route_paths is None:
+                    raise RuntimeError("Opaque movie notification destinations are required.")
+                if not first_movie_code or not MOVIE_CODE_PATTERN.fullmatch(first_movie_code):
+                    raise RuntimeError("An opaque movie notification destination is unavailable.")
+                first_path = public_route_paths.get(
+                    movie_showtime_share_key(first_movie_code, first_city, first_date, first_mask_value)
                 )
+                if (
+                    not isinstance(first_path, str)
+                    or not PUBLIC_ROUTE_PATH_PATTERN.fullmatch(first_path)
+                ):
+                    raise RuntimeError("An opaque movie notification destination is missing.")
                 first_movie_url = f"{destination_origin}{first_path}"
                 ticket_button = (
                     '<a href="'
@@ -442,6 +466,7 @@ def render_movie_notification_push(
     events: list[dict[str, Any]],
     site_url: str,
     movie_codes: dict[int, str],
+    public_route_paths: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     movies: dict[int, dict[str, Any]] = {}
     for event in events:
@@ -460,16 +485,44 @@ def render_movie_notification_push(
             body = f"Tickets are now available for {title}."
         else:
             body = f"A release date is available for {title}."
-        movie_code = movie_codes.get(tmdb_id)
-        url = (
-            f"{site_origin}/{movie_code}"
-            if movie_code and re.fullmatch(r"[0-9A-Za-z]{3}", movie_code)
-            else f"{site_origin}/showtimes"
-        )
+        payload = event.get("event_payload") or {}
+        movie_code = _text(payload.get("movie_code")) or movie_codes.get(tmdb_id)
+        if public_route_paths is None:
+            raise RuntimeError("Opaque movie notification destinations are required.")
+        if event.get("event_type") == "showtime":
+            raw_mask = payload.get("filter_mask", 0)
+            mask = raw_mask if isinstance(raw_mask, int) and not isinstance(raw_mask, bool) and 0 <= raw_mask < 2**21 else 0
+            route_path = public_route_paths.get("sharePaths", {}).get(
+                movie_showtime_share_key(
+                    movie_code or "",
+                    _text(payload.get("screening_city")),
+                    _text(payload.get("date_of_showing")),
+                    mask,
+                )
+            )
+            if route_path is None:
+                raise RuntimeError("An opaque showtime notification destination is missing.")
+            if not isinstance(route_path, str) or not PUBLIC_ROUTE_PATH_PATTERN.fullmatch(route_path):
+                raise RuntimeError("An opaque showtime notification destination is invalid.")
+        else:
+            route_path = public_route_paths.get("moviePaths", {}).get(movie_code)
+            route_path = route_path or public_route_paths.get("pagePaths", {}).get("/showtimes")
+            if route_path is None:
+                raise RuntimeError("An opaque movie notification destination is missing.")
+            if not isinstance(route_path, str) or not PUBLIC_ROUTE_PATH_PATTERN.fullmatch(route_path):
+                raise RuntimeError("An opaque movie notification destination is invalid.")
+        url = f"{site_origin}{route_path}"
         alert_title = "New movie alert"
     else:
         body = f"New alerts are ready for {len(movies)} movies."
-        url = f"{site_origin}/showtimes"
+        if public_route_paths is None:
+            raise RuntimeError("Opaque movie notification destinations are required.")
+        route_path = public_route_paths.get("pagePaths", {}).get("/showtimes")
+        if route_path is None:
+            raise RuntimeError("An opaque movie notification destination is missing.")
+        if not isinstance(route_path, str) or not PUBLIC_ROUTE_PATH_PATTERN.fullmatch(route_path):
+            raise RuntimeError("An opaque movie notification destination is invalid.")
+        url = f"{site_origin}{route_path}"
         alert_title = "New movie alerts"
 
     return {
@@ -478,6 +531,56 @@ def render_movie_notification_push(
             "sound": "default",
         },
         "url": url,
+    }
+
+
+def create_movie_notification_public_route_paths(
+    http_client: Any,
+    config: TicketAlertConfig,
+    events: list[dict[str, Any]],
+    movie_codes: dict[int, str],
+) -> dict[str, Any]:
+    codes: list[str] = []
+    shares: list[dict[str, Any]] = []
+    share_keys: list[tuple[str, str, str, int]] = []
+    for event in events:
+        try:
+            tmdb_id = int(event.get("tmdb_id", ""))
+        except (TypeError, ValueError):
+            continue
+        payload = event.get("event_payload") or {}
+        code = _text(payload.get("movie_code")) or movie_codes.get(tmdb_id, "")
+        if code and MOVIE_CODE_PATTERN.fullmatch(code):
+            codes.append(code)
+            if event.get("event_type") == "showtime":
+                city = _text(payload.get("screening_city"))
+                showing_date = _text(payload.get("date_of_showing"))
+                mask = payload.get("filter_mask", 0)
+                if not isinstance(mask, int) or isinstance(mask, bool) or not 0 <= mask < 2**21:
+                    mask = 0
+                shares.append({
+                    "movieCode": code,
+                    "city": city,
+                    "date": showing_date,
+                    "filterMask": mask,
+                    "excludedCinemaIds": [],
+                })
+                share_keys.append(movie_showtime_share_key(code, city, showing_date, mask))
+
+    unique_codes = list(dict.fromkeys(codes))
+    page_paths = ["/showtimes"]
+    links = create_public_route_link_paths(
+        http_client,
+        base_url=config.recipient_api_url,
+        internal_secret=config.internal_api_secret,
+        movie_codes=unique_codes,
+        page_paths=page_paths,
+        shares=shares,
+    )
+    return {
+        "moviePaths": dict(zip(unique_codes, links["moviePaths"], strict=True)),
+        "pagePaths": dict(zip(page_paths, links["pagePaths"], strict=True)),
+        "sharePaths": dict(zip(share_keys, links["sharePaths"], strict=True)),
     }
 
 
@@ -559,7 +662,7 @@ def create_movie_notification_unsubscribe_urls(
         raise RuntimeError("Movie notification unsubscribe links were invalid.")
     origin = f"{site.scheme}://{site.netloc}"
     return (
-        f"{origin}/unsubscribe/letterboxd#token={manage_token}",
+        f"{origin}/u{manage_token}",
         f"{origin}/api/v1/unsubscribe/one-click/{one_click_token}",
     )
 
@@ -885,11 +988,18 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
                     }
                 )
                 batch_movie_codes = self.repository.load_movie_codes(batch_movie_ids)
+                batch_public_route_paths: dict[str, Any] | None = None
 
                 if email_status == "pending" and delivery_mode in ("email", "both"):
                     try:
                         snapshot = batch.get("email_snapshot")
                         if snapshot is None:
+                            batch_public_route_paths = create_movie_notification_public_route_paths(
+                                self.http_client,
+                                self.config,
+                                batch["events"],
+                                batch_movie_codes,
+                            )
                             recipient = self.repository.canonical_email(user)
                             support_reader = getattr(
                                 self.repository,
@@ -915,6 +1025,7 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
                                 batch["events"],
                                 self.config.site_url,
                                 batch_movie_codes,
+                                public_route_paths=batch_public_route_paths["sharePaths"],
                                 **(
                                     {
                                         "letterboxd_manage_url": unsubscribe_urls[0],
@@ -979,8 +1090,18 @@ class MovieNotificationDispatcher(LetterboxdSourceDispatcher):
                                 f"{batch['id']} push setup: {type(error).__name__}: {_text(error)}"
                             )
                             continue
+                        if batch_public_route_paths is None:
+                            batch_public_route_paths = create_movie_notification_public_route_paths(
+                                self.http_client,
+                                self.config,
+                                batch["events"],
+                                batch_movie_codes,
+                            )
                         push_payload = render_movie_notification_push(
-                            batch["events"], self.config.site_url, batch_movie_codes
+                            batch["events"],
+                            self.config.site_url,
+                            batch_movie_codes,
+                            batch_public_route_paths,
                         )
                         for push_delivery in push_deliveries:
                             push_id = push_delivery["id"]

@@ -1,4 +1,4 @@
-import { cases, encodedPath, makeBootstrap, renderPublicApplication } from "./ssrBuiltOutput.mjs";
+import { cases, legacyPathToCode, makeBootstrap, publicRouteFixtures, renderPublicApplication } from "./ssrBuiltOutput.mjs";
 import { DEFAULT_SHOWTIME_PREFERENCES } from "@kartiseret/contracts/showtime-preferences";
 import { getShowtimesCityFromPath } from "@kartiseret/contracts/showtime-routes";
 import { PUBLICATION_REVISION_HEADER } from "@kartiseret/contracts/public-data";
@@ -31,19 +31,21 @@ function escapeAttribute(value) {
     .replaceAll(">", "&gt;");
 }
 
-function pageTitle(pathname) {
-  const city = getShowtimesCityFromPath(pathname);
+function pageTitle(pathname, bootstrap) {
+  const renderPath = bootstrap.resolvedRoute?.renderPath ?? pathname;
+  const city = getShowtimesCityFromPath(renderPath);
   if (city) return `Movie showtimes in ${city} — Now Playing | Kartiseret`;
-  if (pathname.startsWith("/c/")) {
+  if (renderPath.startsWith("/__cinema/")) {
     return `${cinemaIdentity.displayName} showtimes | Kartiseret`;
   }
-  if (pathname === "/movies") return "Movies showing in Israel | Kartiseret";
-  if (pathname === "/soons") return "Coming soon movies in Israel | Kartiseret";
-  if (pathname === "/showtimes")
+  if (renderPath === "/movies") return "Movies showing in Israel | Kartiseret";
+  if (renderPath === "/soons")
+    return "Coming soon movies in Israel | Kartiseret";
+  if (renderPath === "/showtimes")
     return "Movie showtimes in Israel — Now Playing | Kartiseret";
-  if (pathname === "/cinematheques")
+  if (renderPath === "/cinematheques")
     return "Cinematheque movie showtimes | Kartiseret";
-  if (pathname.startsWith("/Ab1"))
+  if (renderPath.startsWith("/Ab1"))
     return "SSR Test Movie showtimes | Kartiseret";
   return "Kartiseret — Movie showtimes across Israel";
 }
@@ -55,12 +57,13 @@ async function htmlFor(
   display,
 ) {
   const markup = await renderPublicApplication(bootstrap, 12_000, display);
-  const canonicalPath = pathname.startsWith("/Ab1") ? "/Ab1" : pathname;
+  const canonicalPath = pathname;
   const canonical = `https://seret.site${canonicalPath === "/" ? "/" : canonicalPath}`;
-  const title = pageTitle(pathname);
+  const title = pageTitle(pathname, bootstrap);
   const metadata = `<!-- SEO_META_START --><title>${title}</title><meta name="description" content="${title}" /><link rel="canonical" href="${escapeAttribute(canonical)}" /><meta name="robots" content="index, follow" /><!-- SEO_META_END -->`;
+  const renderPath = bootstrap.resolvedRoute?.renderPath ?? pathname;
   const initialPosters =
-    pathname === "/"
+    renderPath === "/"
       ? [
           bootstrap.catalogs.nowPlaying.movies.at(-1),
           ...bootstrap.catalogs.nowPlaying.movies.slice(0, 4),
@@ -88,7 +91,11 @@ async function htmlFor(
         `<html data-initial-site-color="${display.preferences.siteColor}" style="--main-app-color:${display.preferences.siteColor}" `,
       )
     : baseHtml;
-  const html = template
+  const homeIntroTemplate =
+    renderPath === "/"
+      ? template.replace(/<html\b/, '<html data-home-intro-route="true"')
+      : template;
+  const html = homeIntroTemplate
     .replace(/<!-- SEO_META_START -->[\s\S]*?<!-- SEO_META_END -->/, metadata)
     .replace("</head>", () => `${preloadTags}</head>`)
     .replace(
@@ -111,6 +118,34 @@ const server = createServer(async (request, response) => {
       return;
     }
     if (url.pathname.startsWith("/api/")) {
+      if (url.pathname === "/api/v1/public-routes/legacy") {
+        const path = url.searchParams.get("path") ?? "";
+        const code = legacyPathToCode.get(path);
+        if (code) {
+          response.writeHead(200, { "Content-Type": "application/json" });
+          response.end(
+            JSON.stringify({ data: { path: `/${code}` }, error: null }),
+          );
+          return;
+        }
+      }
+      const routeCode = /^\/api\/v1\/public-routes\/([a-z0-9]{8})$/.exec(
+        url.pathname,
+      )?.[1];
+      if (routeCode) {
+        const route = publicRouteFixtures.get(routeCode);
+        if (route) {
+          const { renderPath, ...publicRoute } = route;
+          response.writeHead(200, { "Content-Type": "application/json" });
+          response.end(
+            JSON.stringify({
+              data: { route: publicRoute, renderPath },
+              error: null,
+            }),
+          );
+          return;
+        }
+      }
       response.writeHead(404, { "Content-Type": "application/json" });
       response.end(
         JSON.stringify({
@@ -149,8 +184,24 @@ const server = createServer(async (request, response) => {
     }
 
     const pathname = decodeURIComponent(url.pathname);
+    const legacyCode = legacyPathToCode.get(pathname);
+    if (legacyCode) {
+      response.writeHead(308, { Location: `/${legacyCode}${url.search}` });
+      response.end();
+      return;
+    }
+    if (!publicRouteFixtures.has(pathname.slice(1))) {
+      response.writeHead(404, { "Content-Type": "text/html; charset=utf-8" });
+      response.end(
+        "<!doctype html><title>Not found</title><h1>Page not found</h1>",
+      );
+      return;
+    }
     const bootstrap = makeBootstrap(pathname);
-    if (pathname === "/" && url.searchParams.get("five-posters") === "1") {
+    if (
+      pathname === "/home0000" &&
+      url.searchParams.get("five-posters") === "1"
+    ) {
       const original = bootstrap.catalogs.nowPlaying.movies[0];
       bootstrap.catalogs.nowPlaying.movies = Array.from({ length: 5 }, (
         _,
@@ -172,7 +223,7 @@ const server = createServer(async (request, response) => {
       };
     }
     const display =
-      pathname === "/" && url.searchParams.get("private-home") === "1"
+      pathname === "/home0000" && url.searchParams.get("private-home") === "1"
         ? {
             version: 1,
             accountKey: "0".repeat(64),
@@ -235,10 +286,13 @@ try {
   );
   assert.doesNotMatch(await privateHomeResponse.text(), /href="\/Ab1"/);
   await privateHome
-    .locator('.movie-scroller-card[href="/Cd2"]')
+    .locator('.movie-scroller-card[href="/soon0000"]')
     .first()
     .waitFor();
-  assert.equal(await privateHome.locator('main a[href="/Ab1"]').count(), 0);
+  assert.equal(
+    await privateHome.locator('main a[href="/movie000"]').count(),
+    0,
+  );
   assert.equal(
     await privateHome.evaluate(() =>
       getComputedStyle(document.documentElement)
@@ -293,7 +347,7 @@ try {
     await noScriptPage.getByRole("heading", { name: "Now Playing" }).count(),
     1,
   );
-  assert.equal(await noScriptPage.locator('a[href="/Ab1"]').count(), 1);
+  assert.equal(await noScriptPage.locator('a[href="/movie000"]').count(), 1);
   if (screenshotDir) {
     await noScriptPage.screenshot({
       path: join(screenshotDir, "movies-desktop-without-javascript.png"),
@@ -340,6 +394,7 @@ try {
 
   const delayedHomePage = await browser.newPage({
     viewport: { width: 1280, height: 900 },
+    reducedMotion: "no-preference",
   });
   const delayedHomeErrors = [];
   let releaseHomeEntryScript;
@@ -605,7 +660,7 @@ try {
     await mobilePage.getByRole("heading", { name: "Now Playing" }).count(),
     1,
   );
-  assert.equal(await mobilePage.locator('a[href="/Ab1"]').count(), 1);
+  assert.equal(await mobilePage.locator('a[href="/movie000"]').count(), 1);
   if (screenshotDir) {
     await mobilePage.screenshot({
       path: join(screenshotDir, "movies-mobile-without-javascript.png"),
@@ -812,7 +867,7 @@ try {
   await desktopPoster.waitFor({ state: "visible" });
   const desktopPosterBeforeHydration = await desktopPoster.boundingBox();
   assert.ok(desktopPosterBeforeHydration);
-  assert.equal(await page.locator('a[href="/Ab1"]').count(), 1);
+  assert.equal(await page.locator('a[href="/movie000"]').count(), 1);
   if (screenshotDir) {
     await page.evaluate(
       () =>
@@ -864,7 +919,7 @@ try {
   assert.equal(await page.locator('link[rel="canonical"]').count(), 1);
   assert.equal(
     await page.locator('link[rel="canonical"]').getAttribute("href"),
-    "https://seret.site/movies",
+    "https://seret.site/movies00",
   );
   assert.deepEqual(hydrationErrors, []);
   if (screenshotDir) {
@@ -922,7 +977,7 @@ try {
     await delayedApiPage.getByRole("heading", { name: "Now Playing" }).count(),
     1,
   );
-  assert.equal(await delayedApiPage.locator('a[href="/Ab1"]').count(), 1);
+  assert.equal(await delayedApiPage.locator('a[href="/movie000"]').count(), 1);
   assert.ok(
     delayedApiRequests.includes("/api/v1/catalog/now-playing"),
     "stale catalog data refetches",
@@ -936,7 +991,7 @@ try {
     await delayedApiPage.getByRole("heading", { name: "Now Playing" }).count(),
     1,
   );
-  assert.equal(await delayedApiPage.locator('a[href="/Ab1"]').count(), 1);
+  assert.equal(await delayedApiPage.locator('a[href="/movie000"]').count(), 1);
   assert.deepEqual(delayedApiHydrationErrors, []);
   await delayedApiPage.close();
 
@@ -951,15 +1006,18 @@ try {
       .count(),
     1,
   );
-  assert.equal(await failedScriptPage.locator('a[href="/Ab1"]').count(), 1);
+  assert.equal(
+    await failedScriptPage.locator('a[href="/movie000"]').count(),
+    1,
+  );
   await failedScriptPage.close();
 
-  await page.goto(`${baseUrl}${encodedPath}`, { waitUntil: "load" });
-  assert.equal(new URL(page.url()).pathname, encodedPath);
+  await page.goto(`${baseUrl}/share000`, { waitUntil: "load" });
+  assert.equal(new URL(page.url()).pathname, "/share000");
   assert.equal(await page.locator('link[rel="canonical"]').count(), 1);
   assert.equal(
     await page.locator('link[rel="canonical"]').getAttribute("href"),
-    "https://seret.site/Ab1",
+    "https://seret.site/share000",
   );
   await page.close();
 
@@ -975,26 +1033,43 @@ try {
     await cityShowtimesPage
       .locator('link[rel="canonical"]')
       .getAttribute("href"),
-    "https://seret.site/showtimes/jerusalem",
+    "https://seret.site/jeru0000",
   );
-  assert.equal(await cityShowtimesPage.locator('a[href="/Ab1"]').count(), 1);
+  assert.equal(
+    await cityShowtimesPage.locator('a[href="/movie000"]').count(),
+    1,
+  );
   await cityShowtimesPage.close();
 
+  const obsoleteCinemaPage = await browser.newPage({
+    javaScriptEnabled: false,
+  });
+  const obsoleteCinemaResponse = await obsoleteCinemaPage.goto(
+    `${baseUrl}/c/${cinemaIdentity.id}`,
+  );
+  assert.equal(obsoleteCinemaResponse?.status(), 404);
+  assert.equal(obsoleteCinemaPage.url(), `${baseUrl}/c/${cinemaIdentity.id}`);
+  await obsoleteCinemaPage.close();
+
   const cinemaPage = await browser.newPage({ javaScriptEnabled: false });
-  await cinemaPage.goto(`${baseUrl}/c/${cinemaIdentity.id}`);
+  await cinemaPage.goto(`${baseUrl}/cinema00`);
   assert.equal(
     await cinemaPage
       .getByRole("heading", { name: cinemaIdentity.displayName })
       .count(),
     1,
   );
-  assert.equal(await cinemaPage.locator('a[href="/Ab1"]').count(), 1);
+  assert.equal(await cinemaPage.locator('a[href="/movie000"]').count(), 1);
+  assert.equal(
+    await cinemaPage.locator('link[rel="canonical"]').getAttribute("href"),
+    "https://seret.site/cinema00",
+  );
   await cinemaPage.close();
 
   const hydratedPublicRouteCases = [
     ["/showtimes", "SSR Test Movie"],
     ["/showtimes/jerusalem", "SSR Test Movie"],
-    [`/c/${cinemaIdentity.id}`, cinemaIdentity.displayName],
+    ["/cinema00", cinemaIdentity.displayName],
   ];
   for (const [pathname, expectedContent] of hydratedPublicRouteCases) {
     const hydratedPage = await browser.newPage({ reducedMotion: "reduce" });
@@ -1051,7 +1126,7 @@ try {
       .waitFor({ state: "visible" });
     await hydratedPage.waitForTimeout(100);
     assert.equal(
-      await hydratedPage.locator('a[href="/Ab1"]').count(),
+      await hydratedPage.locator('a[href="/movie000"]').count(),
       1,
       `${pathname} retains its server-rendered movie link after hydration`,
     );

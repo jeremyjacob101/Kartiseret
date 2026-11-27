@@ -61,9 +61,14 @@ function sourceLabel(source: Source): string {
   }
 }
 
-export function LetterboxdUnsubscribePage() {
-  const [token] = useState<string | null>(() =>
-    typeof window === "undefined" ? null : readTokenFromFragment());
+export function LetterboxdUnsubscribePage({
+  token: opaqueToken,
+}: { token?: string } = {}) {
+  const [token] = useState<string | null>(
+    () =>
+      opaqueToken ??
+      (typeof window === "undefined" ? null : readTokenFromFragment()),
+  );
   const [sources, setSources] = useState<Source[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(Boolean(token));

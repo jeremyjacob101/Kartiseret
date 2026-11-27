@@ -1,11 +1,12 @@
 import { publicCinemaPageResponseSchema } from "@kartiseret/contracts/public-data";
 import { getCinemaIdentityById } from "@kartiseret/contracts/cinema-identities";
 import { getShowtimesCityPath } from "@kartiseret/contracts/showtime-routes";
+import { PublicRouteLink } from "../routing/PublicRouteLink";
 import { setSeoMetadata } from "../routing/seoMetadata";
 import { AllShowtimesPage } from "./AllShowtimesPage";
 import { getApiResponse } from "../data/apiClient";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 import { useEffect } from "react";
 import "./CinemaPage.css";
 
@@ -46,7 +47,7 @@ export function CinemaPage() {
     setSeoMetadata({
       title: `${identity.displayName}${alias ? ` (${alias})` : ""} showtimes in ${identity.city} | Kartiseret`,
       description: `Browse upcoming movie showtimes at ${identity.displayName}${alias ? `, also known as ${alias}` : ""}, in ${identity.city}.`,
-      canonicalPath: `/c/${identity.id}`,
+      canonicalPath: window.location.pathname,
       robots: cinema?.screenings.length ? "index, follow" : "noindex, nofollow",
       jsonLd: cinema
         ? {
@@ -54,7 +55,7 @@ export function CinemaPage() {
             "@type": "MovieTheater",
             name: cinema.displayName,
             ...(alias ? { alternateName: alias } : {}),
-            url: `https://seret.site/c/${cinema.id}`,
+            url: `https://seret.site${window.location.pathname}`,
             address: {
               "@type": "PostalAddress",
               ...(cinema.address ? { streetAddress: cinema.address } : {}),
@@ -77,7 +78,9 @@ export function CinemaPage() {
         <div className="cinema-page-state">
           <h1>Cinema not found</h1>
           <p>This cinema page is not available.</p>
-          <Link to="/showtimes">Browse movie showtimes</Link>
+          <PublicRouteLink to="/showtimes">
+            Browse movie showtimes
+          </PublicRouteLink>
         </div>
       </section>
     );
@@ -89,9 +92,9 @@ export function CinemaPage() {
         <div className="cinema-page-state" role="alert">
           <h1>{identity.displayName}</h1>
           <p>Cinema information is temporarily unavailable.</p>
-          <Link to={getShowtimesCityPath(identity.city)}>
+          <PublicRouteLink to={getShowtimesCityPath(identity.city)}>
             Browse more showtimes in {identity.city}
-          </Link>
+          </PublicRouteLink>
         </div>
       </section>
     );

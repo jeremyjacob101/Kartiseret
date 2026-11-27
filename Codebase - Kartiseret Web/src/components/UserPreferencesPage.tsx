@@ -1,8 +1,8 @@
 import { Bell, CalendarDays, ChevronDown, MapPin, Monitor, Search, Ticket, UserRound } from "lucide-react";
+import { usePublicRouteSearchParams } from "../routing/PublicRouteLocation";
 import { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { getAuthClient } from "../lib/authClient";
-import { useSearchParams } from "react-router";
 import "./UserPreferencesPage.css";
 import { getSiteColorLabel, type SiteColor, type SiteColorOption } from "../prefs/definitions/siteColor";
 import { UserMovieDisplayPreferences } from "./UserMovieDisplayPreferences";
@@ -138,7 +138,7 @@ export function UserPreferencesPage() {
       resetSiteColor: state.resetSiteColor,
     })),
   );
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = usePublicRouteSearchParams();
   const activeCategory =
     preferenceCategories.find(({ id }) => id === searchParams.get("tab"))?.id ??
     "showtimes";

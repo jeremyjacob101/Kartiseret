@@ -14,8 +14,7 @@ from backend.notifications.movie_alerts import (
 from backend.notifications.ticket_alerts import (
     TicketAlertConfig,
     ALERT_FILTER_OPTIONS,
-    build_movie_showtime_path,
-    filter_mask_from_exclusions,
+    movie_showtime_share_key,
 )
 from backend.tests.test_letterboxd_alerts import (
     FakeRepository,
@@ -87,6 +86,7 @@ class Repository(FakeRepository):
         self.events, self.deliveries = {}, {}
         self.locations = {}
         self.posters = {}
+        self.movie_codes = {101: "Ab1", 102: "Cd2"}
 
     def letterboxd_supported_movies(self, user_id, tmdb_ids):
         return {
@@ -218,15 +218,45 @@ class MovieNotificationTests(TestCase):
                 {
                     "tmdb_id": 101,
                     "event_type": "showtime",
-                    "event_payload": {"title": "Interstellar"},
+                    "event_payload": {
+                        "title": "Interstellar",
+                        "movie_code": "Ab1",
+                        "screening_city": "Jerusalem",
+                        "date_of_showing": "2026-11-05",
+                        "filter_mask": 0,
+                    },
                 }
             ],
             "https://seret.site",
-            {101: "abc"},
+            {},
+            {
+                "sharePaths": {
+                    movie_showtime_share_key("Ab1", "Jerusalem", "2026-11-05", 0): "/abcd1234"
+                }
+            },
         )
         self.assertEqual(single["aps"]["alert"]["title"], "New movie alert")
         self.assertIn("Interstellar", single["aps"]["alert"]["body"])
-        self.assertEqual(single["url"], "https://seret.site/abc")
+        self.assertEqual(single["url"], "https://seret.site/abcd1234")
+
+        with self.assertRaisesRegex(RuntimeError, "opaque showtime"):
+            render_movie_notification_push(
+                [
+                    {
+                        "tmdb_id": 101,
+                        "event_type": "showtime",
+                        "event_payload": {
+                            "title": "Interstellar",
+                            "movie_code": "Ab1",
+                            "screening_city": "Jerusalem",
+                            "date_of_showing": "2026-11-05",
+                        },
+                    }
+                ],
+                "https://seret.site",
+                {101: "Ab1"},
+                {"moviePaths": {"Ab1": "/wxyz9876"}},
+            )
 
         multiple = render_movie_notification_push(
             [
@@ -235,10 +265,11 @@ class MovieNotificationTests(TestCase):
             ],
             "https://seret.site",
             {},
+            {"pagePaths": {"/showtimes": "/efgh5678"}},
         )
         self.assertEqual(multiple["aps"]["alert"]["title"], "New movie alerts")
         self.assertEqual(multiple["aps"]["alert"]["body"], "New alerts are ready for 2 movies.")
-        self.assertEqual(multiple["url"], "https://seret.site/showtimes")
+        self.assertEqual(multiple["url"], "https://seret.site/efgh5678")
 
     def test_default_city_and_first_day_only_even_as_sessions_links_and_days_change(
         self,
@@ -315,7 +346,7 @@ class MovieNotificationTests(TestCase):
 
         body = http.post_calls[0]["json"]
         self.assertIn("Tel Aviv", body["text"])
-        self.assertIn("/A7zlb1fHK?date=2027-01-15", body["text"])
+        self.assertIn("https://seret.site/c0000000", body["text"])
         self.assertNotIn("tickets.example.test", body["html"])
 
     def test_any_city_picks_earliest_and_per_city_groups_one_film_with_two_cities(self):
@@ -469,6 +500,7 @@ class MovieNotificationTests(TestCase):
             http.post_calls[0]["headers"]["Idempotency-Key"],
             http.post_calls[1]["headers"]["Idempotency-Key"],
         )
+        self.assertEqual(len(http.public_route_calls), 1)
 
     def test_letterboxd_digest_includes_distinct_manage_and_one_click_controls(self):
         repo = Repository(
@@ -544,7 +576,7 @@ class MovieNotificationTests(TestCase):
         self.assertEqual(
             urls,
             (
-                "https://watch.example.test/unsubscribe/letterboxd#token=" + "M" * 43,
+                "https://watch.example.test/u" + "M" * 43,
                 "https://watch.example.test/api/v1/unsubscribe/one-click/" + "O" * 43,
             ),
         )
@@ -593,7 +625,7 @@ class MovieNotificationTests(TestCase):
                 ticket(),
                 ticket("Haifa", screening_tech="IMAX"),
                 ticket("Haifa", day="2026-10-23"),
-            ]
+            ],
         )
         self.watch(repo)
         repo.movie_codes[101] = "A7z"
@@ -619,13 +651,7 @@ class MovieNotificationTests(TestCase):
             "dubLanguage": [],
         }
         self.assertIn(
-            "https://seret.site"
-            + build_movie_showtime_path(
-                "A7z",
-                "Haifa",
-                "2026-10-22",
-                filter_mask_from_exclusions(override_filters),
-            ),
+            "https://seret.site/c0000000",
             http.post_calls[0]["json"]["text"],
         )
 
@@ -657,16 +683,21 @@ class MovieNotificationTests(TestCase):
                         "ticket_href": "https://tickets.example.test/showtime/101",
                     },
                 }
-            ]
+            ],
+            public_route_paths={
+                movie_showtime_share_key(
+                    "Ab1", "Jerusalem", "2026-11-05", 0
+                ): "/ijkl3456"
+            },
         )
         self.assertIn(
             'src="https://image.tmdb.org/t/p/w342/wild-horse.jpg"', email.html
         )
         self.assertIn('alt="Wild Horse Nine poster"', email.html)
         self.assertIn("View showtimes", email.html)
-        self.assertIn("?date=2026-11-05", email.html)
+        self.assertIn('href="https://seret.site/ijkl3456"', email.html)
         self.assertNotIn("tickets.example.test", email.html)
-        self.assertIn("View showtimes:", email.text)
+        self.assertIn("View showtimes: https://seret.site/ijkl3456", email.text)
         self.assertNotIn("tickets.example.test", email.text)
         self.assertIn("Jerusalem · November 5, 2026 at 17:00 · Planet Cinema", email.text)
 

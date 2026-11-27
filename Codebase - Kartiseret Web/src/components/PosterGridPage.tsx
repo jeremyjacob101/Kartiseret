@@ -274,10 +274,10 @@ export function PosterGridPage({
                 </button>
               </>
             ) : null}
-            {movie.movieCode ? (
+            {movie.publicRouteCode ? (
               <a
                 className="poster-grid-page-tile-link"
-                href={`/${movie.movieCode}`}
+                href={`/${movie.publicRouteCode}`}
                 aria-label={`Open ${movie.title} movie page`}
                 title={movie.title}
                 onClick={(event) => {

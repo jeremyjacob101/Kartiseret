@@ -294,8 +294,8 @@ await dispatch(
   dispatchedResponse,
 );
 assert.equal(dispatchedResponse.statusCode, 404);
-assert.match(dispatchedResponse.headers.get("content-type"), /^text\/html/);
-assert.match(dispatchedResponse.body, /<h1>Page not found<\/h1>/);
+assert.match(dispatchedResponse.headers.get("content-type"), /^text\/plain/);
+assert.equal(dispatchedResponse.body, "Page not found.");
 
 const imageResponse = createResponse();
 await imageHandler(

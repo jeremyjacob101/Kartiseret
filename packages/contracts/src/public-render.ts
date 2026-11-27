@@ -14,6 +14,7 @@ import {
   preferencesSchema,
 } from "./private-data.js";
 import { homepageFeaturedResponseSchema } from "./homepage-featured.js";
+import { publicRouteSchema } from "./public-routes.js";
 
 /** Kept separate from the cacheable public bootstrap. */
 export const privatePageDisplaySchema = z.object({
@@ -33,6 +34,15 @@ const movieCollectionBootstrapSchema = movieCatalogDataSchema.extend({
 
 export const publicPageBootstrapSchema = z.object({
   version: z.literal(1),
+  publicRoutePaths: z
+    .record(z.string().min(1).max(2048), z.string().regex(/^\/[a-z0-9]{8}$/))
+    .optional(),
+  resolvedRoute: z
+    .object({
+      route: publicRouteSchema,
+      renderPath: z.string().min(1).max(2048),
+    })
+    .optional(),
   pathname: z.string().min(1).max(2048),
   renderedAt: z.string().datetime({ offset: true }),
   publicationRevision: publicationRevisionSchema,

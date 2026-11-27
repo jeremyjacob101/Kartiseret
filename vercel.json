@@ -83,6 +83,25 @@
   },
   "routes": [
     {
+      "src": "^/index\\.html$",
+      "has": [
+        {
+          "type": "header",
+          "key": "cookie",
+          "value": "(?:.*;\\s*)?(?:__Secure-)?kartiseret-(?:production|preview|development)\\.session_token=[^;]+(?:;.*)?"
+        }
+      ],
+      "dest": "/api/dispatch?__vercel_route=private-page&path=/"
+    },
+    {
+      "src": "^/index\\.html$",
+      "dest": "/api/dispatch?__vercel_route=page&path=/"
+    },
+    {
+      "src": "^/third-party-licenses\\.txt$",
+      "dest": "/api/dispatch?__vercel_route=page&path=/third-party-licenses.txt"
+    },
+    {
       "src": "^/$",
       "has": [
         {
@@ -119,15 +138,7 @@
       "destination": "/api/dispatch?__vercel_route=page&path=/"
     },
     {
-      "source": "/robots.txt",
-      "destination": "/api/dispatch?__vercel_route=robots"
-    },
-    {
-      "source": "/sitemap.xml",
-      "destination": "/api/dispatch?__vercel_route=sitemap"
-    },
-    {
-      "source": "/c/:cinemaId",
+      "source": "/index.html",
       "has": [
         {
           "type": "header",
@@ -135,11 +146,23 @@
           "value": "(?:.*;\\s*)?(?:__Secure-)?kartiseret-(?:production|preview|development)\\.session_token=[^;]+(?:;.*)?"
         }
       ],
-      "destination": "/api/dispatch?__vercel_route=private-cinema&cinemaId=:cinemaId"
+      "destination": "/api/dispatch?__vercel_route=private-page&path=/"
     },
     {
-      "source": "/c/:cinemaId",
-      "destination": "/api/dispatch?__vercel_route=cinema&cinemaId=:cinemaId"
+      "source": "/index.html",
+      "destination": "/api/dispatch?__vercel_route=page&path=/"
+    },
+    {
+      "source": "/third-party-licenses.txt",
+      "destination": "/api/dispatch?__vercel_route=page&path=/third-party-licenses.txt"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/api/dispatch?__vercel_route=robots"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/dispatch?__vercel_route=sitemap"
     },
     {
       "source": "/movies",
@@ -218,7 +241,7 @@
     },
     {
       "source": "/user",
-      "destination": "/index.html"
+      "destination": "/api/dispatch?__vercel_route=page&path=/user"
     },
     {
       "source": "/confirm-account-deletion",
@@ -226,31 +249,50 @@
     },
     {
       "source": "/reset-password",
-      "destination": "/index.html"
+      "destination": "/api/dispatch?__vercel_route=page&path=/reset-password"
     },
     {
       "source": "/attribution",
-      "destination": "/index.html"
+      "destination": "/api/dispatch?__vercel_route=page&path=/attribution"
     },
     {
       "source": "/support",
-      "destination": "/index.html"
+      "destination": "/api/dispatch?__vercel_route=page&path=/support"
     },
     {
       "source": "/accessibility",
-      "destination": "/index.html"
+      "destination": "/api/dispatch?__vercel_route=page&path=/accessibility"
     },
     {
       "source": "/privacy",
-      "destination": "/index.html"
+      "destination": "/api/dispatch?__vercel_route=page&path=/privacy"
     },
     {
       "source": "/terms",
-      "destination": "/index.html"
+      "destination": "/api/dispatch?__vercel_route=page&path=/terms"
     },
     {
       "source": "/unsubscribe/letterboxd",
       "destination": "/index.html"
+    },
+    {
+      "source": "/:routeCode([a-z0-9]{8})",
+      "has": [
+        {
+          "type": "header",
+          "key": "cookie",
+          "value": "(?:.*;\\s*)?(?:__Secure-)?kartiseret-(?:production|preview|development)\\.session_token=[^;]+(?:;.*)?"
+        }
+      ],
+      "destination": "/api/dispatch?__vercel_route=private-route-code&code=:routeCode"
+    },
+    {
+      "source": "/:routeCode([a-z0-9]{8})",
+      "destination": "/api/dispatch?__vercel_route=route-code&code=:routeCode"
+    },
+    {
+      "source": "/:emailAction([erdu][A-Za-z0-9._-]{16,})",
+      "destination": "/api/dispatch?__vercel_route=email-action&code=:emailAction"
     },
     {
       "source": "/:routeCode([0-9A-Za-z]{3,10})",
@@ -261,11 +303,11 @@
           "value": "(?:.*;\\s*)?(?:__Secure-)?kartiseret-(?:production|preview|development)\\.session_token=[^;]+(?:;.*)?"
         }
       ],
-      "destination": "/api/dispatch?__vercel_route=private-movie&routeCode=:routeCode"
+      "destination": "/api/dispatch?__vercel_route=private-legacy-movie&routeCode=:routeCode"
     },
     {
       "source": "/:routeCode([0-9A-Za-z]{3,10})",
-      "destination": "/api/dispatch?__vercel_route=movie&routeCode=:routeCode"
+      "destination": "/api/dispatch?__vercel_route=legacy-movie&routeCode=:routeCode"
     },
     {
       "source": "/api",

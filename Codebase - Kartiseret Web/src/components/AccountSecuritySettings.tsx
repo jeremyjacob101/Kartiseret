@@ -1,9 +1,9 @@
 import { loadSocialProviders, type SocialProvider } from "../lib/socialProviders";
+import { usePublicRouteLocation } from "../routing/PublicRouteLocation";
 import { PasswordSecurityForm } from "./PasswordSecurityForm";
 import { getAuthClient } from "../lib/authClient";
 import { Link2, Unlink } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router";
 import "./AccountSecuritySettings.css";
 
 type AccountSecuritySettingsProps = { email: string | null };
@@ -20,7 +20,7 @@ const freshSignInMessage =
 export function AccountSecuritySettings({
   email,
 }: AccountSecuritySettingsProps) {
-  const location = useLocation();
+  const location = usePublicRouteLocation();
   const [providers, setProviders] = useState<SocialProvider[]>([]);
   const [accounts, setAccounts] = useState<LinkedAccount[] | null>(null);
   const [pendingProvider, setPendingProvider] = useState<string | null>(null);
